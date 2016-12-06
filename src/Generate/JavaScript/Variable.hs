@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Generate.JavaScript.Variable
     ( fresh
     , canonical
@@ -12,14 +13,16 @@ module Generate.JavaScript.Variable
     where
 
 import qualified Control.Monad.State as State
-import qualified Data.List as List
+import Data.Monoid
 import qualified Data.Set as Set
-import qualified Language.ECMAScript3.Syntax as JS
+import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified AST.Helpers as Help
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
 import qualified Elm.Package as Pkg
+import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Helpers as JS
 
 
@@ -27,25 +30,25 @@ import qualified Generate.JavaScript.Helpers as JS
 -- FRESH NAMES
 
 
-fresh :: State.State Int String
+fresh :: State.State Int Text
 fresh =
   do  n <- State.get
       State.modify (+1)
-      return ("_v" ++ show n)
+      return (Text.pack ("_v" ++ show n))
 
 
 
 -- DEF NAMES
 
 
-define :: Maybe ModuleName.Canonical -> String -> JS.Expression () -> [JS.Statement ()]
+define :: Maybe ModuleName.Canonical -> Text -> JS.Expr -> [JS.Stmt]
 define maybeHome name body =
-  if not (Help.isOp name) then
+  if not (Help.isOp (Text.unpack name)) then
     let
       jsName =
         maybe unqualified qualified maybeHome name
     in
-      [ JS.VarDeclStmt () [ JS.varDecl jsName body ] ]
+      [ JS.VarDeclStmt [ JS.varDecl jsName body ] ]
 
   else
     case maybeHome of
@@ -58,10 +61,10 @@ define maybeHome name body =
             getOpsDictName (Var.TopLevel home)
 
           lvalue =
-            JS.LBracket () (JS.ref opsDictName) (JS.StringLit () name)
+            JS.LBracket (JS.ref opsDictName) (JS.String name)
         in
-          [ JS.VarDeclStmt () [ JS.varDecl opsDictName (JS.refOrObject opsDictName) ]
-          , JS.ExprStmt () (JS.AssignExpr () JS.OpAssign lvalue body)
+          [ JS.VarDeclStmt [ JS.varDecl opsDictName (JS.refOrObject opsDictName) ]
+          , JS.ExprStmt (JS.Assign JS.OpAssign lvalue body)
           ]
 
 
@@ -69,10 +72,10 @@ define maybeHome name body =
 -- INSTANTIATE VARIABLES
 
 
-canonical :: Var.Canonical -> JS.Expression ()
+canonical :: Var.Canonical -> JS.Expr
 canonical (Var.Canonical home name) =
-  if Help.isOp name then
-    JS.BracketRef () (JS.ref (getOpsDictName home)) (JS.StringLit () name)
+  if Help.isOp (Text.unpack name) then
+    JS.BracketRef (JS.ref (getOpsDictName home)) (JS.String name)
 
   else
     case home of
@@ -93,32 +96,32 @@ canonical (Var.Canonical home name) =
         JS.ref (qualified moduleName name)
 
 
-unqualified :: String -> String
+unqualified :: Text -> Text
 unqualified =
   safe
 
 
-qualified :: ModuleName.Canonical -> String -> String
+qualified :: ModuleName.Canonical -> Text -> Text
 qualified moduleName name =
-  moduleToString moduleName ++ "$" ++ name
+  moduleToText moduleName <> "$" <> name
 
 
-native :: ModuleName.Canonical -> String -> JS.Expression ()
+native :: ModuleName.Canonical -> Text -> JS.Expr
 native moduleName name =
-  JS.obj [ moduleToString moduleName, name ]
+  JS.obj [ moduleToText moduleName, name ]
 
 
-coreNative :: String -> String -> JS.Expression ()
+coreNative :: Text -> Text -> JS.Expr
 coreNative moduleName name =
-  native (ModuleName.inCore ["Native",moduleName]) name
+  native (ModuleName.inCore ("Native." <> moduleName)) name
 
 
-staticProgram :: JS.Expression ()
+staticProgram :: JS.Expr
 staticProgram =
-  native (ModuleName.inVirtualDom ["Native","VirtualDom"]) "staticProgram"
+  native (ModuleName.inVirtualDom "Native.VirtualDom") "staticProgram"
 
 
-getOpsDictName :: Var.Home -> String
+getOpsDictName :: Var.Home -> Text
 getOpsDictName home =
   let
     moduleName =
@@ -128,39 +131,34 @@ getOpsDictName home =
         Var.Module name -> name
         Var.TopLevel name -> name
   in
-    moduleToString moduleName ++ "_ops"
+    moduleToText moduleName <> "_ops"
 
 
-moduleToString :: ModuleName.Canonical -> String
-moduleToString (ModuleName.Canonical (Pkg.Name user project) moduleName) =
+moduleToText :: ModuleName.Canonical -> Text
+moduleToText (ModuleName.Canonical (Pkg.Name user project) moduleName) =
   let
     safeUser =
-      map (swap '-' '_') user
+      Text.replace "-" "_" user
 
     safeProject =
-      map (swap '-' '_') project
+      Text.replace "-" "_" project
 
     safeModuleName =
-      List.intercalate "_" moduleName
+      Text.replace "." "_" moduleName
   in
-    '_' : safeUser ++ "$" ++ safeProject ++ "$" ++ safeModuleName
-
-
-swap :: Char -> Char -> Char -> Char
-swap from to c =
-  if c == from then to else c
+    "_" <> safeUser <> "$" <> safeProject <> "$" <> safeModuleName
 
 
 
 -- SAFE NAMES
 
 
-safe :: String -> String
+safe :: Text -> Text
 safe name =
-  if Set.member name jsReserveds then '$' : name else name
+  if Set.member name jsReserveds then "$" <> name else name
 
 
-jsReserveds :: Set.Set String
+jsReserveds :: Set.Set Text
 jsReserveds =
   Set.fromList
     -- JS reserved words
@@ -177,5 +175,4 @@ jsReserveds =
     -- reserved by the Elm runtime system
     , "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9"
     , "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9"
-    , JS.localRuntime
     ]

@@ -1,26 +1,32 @@
+{-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Generate.JavaScript.Foreign (encode, decode) where
 
+import Prelude hiding (maybe)
 import qualified Data.List as List
-import Language.ECMAScript3.Syntax
+import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified AST.Expression.Optimized as Opt
 import qualified AST.Literal as Literal
 import qualified AST.Type as T
 import qualified AST.Variable as Var
-import Generate.JavaScript.Helpers ((<|), (==>), function, ref, var)
+import qualified Generate.JavaScript.Builder as JS
+import qualified Generate.JavaScript.Helpers as JS (function, ref)
 import qualified Generate.JavaScript.Variable as Var
+import Generate.JavaScript.Helpers ((<|), (==>))
 
 
 
 -- ENCODE
 
 
-encode :: T.Canonical -> Expression ()
+encode :: T.Canonical -> JS.Expr
 encode tipe =
-  function ["v"] [ ReturnStmt () (Just (encodeHelp tipe (ref "v"))) ]
+  JS.function ["v"] [ JS.Return (Just (encodeHelp tipe (JS.ref "v"))) ]
 
 
-encodeHelp :: T.Canonical -> Expression () -> Expression ()
+encodeHelp :: T.Canonical -> JS.Expr -> JS.Expr
 encodeHelp tipe expr =
   case tipe of
     T.Aliased _ args t ->
@@ -38,7 +44,7 @@ encodeHelp tipe expr =
       | Var.isPrim "Bool"   name -> expr
       | Var.isPrim "String" name -> expr
       | Var.isJson name          -> expr
-      | Var.isTuple name         -> NullLit ()
+      | Var.isTuple name         -> JS.Null
       | otherwise                -> error "encodeHelp: bad type"
 
     T.App (T.Type name) [arg]
@@ -58,45 +64,45 @@ encodeHelp tipe expr =
 
     T.Record fields Nothing ->
       let
-        convert (name, tipe) =
-          name ==> encodeHelp tipe (DotRef () expr (var name))
+        convert (k, t) =
+          k ==> encodeHelp t (JS.DotRef expr (JS.Id k))
       in
-        ObjectLit () (map convert fields)
+        JS.Object (map convert fields)
 
 
-fromMaybe :: T.Canonical -> Expression () -> Expression ()
+fromMaybe :: T.Canonical -> JS.Expr -> JS.Expr
 fromMaybe tipe expr =
-  CondExpr ()
-    (InfixExpr () OpStrictEq (DotRef () expr (var "ctor")) (StringLit () "Nothing"))
-    (NullLit ())
-    (encodeHelp tipe (DotRef () expr (var "_0")))
+  JS.If
+    (JS.Infix JS.OpStrictEq (JS.DotRef expr (JS.Id "ctor")) (JS.String "Nothing"))
+    (JS.Null)
+    (encodeHelp tipe (JS.DotRef expr (JS.Id "_0")))
 
 
-fromList :: T.Canonical -> Expression () -> Expression ()
+fromList :: T.Canonical -> JS.Expr -> JS.Expr
 fromList tipe expr =
   let
     array =
       Var.coreNative "List" "toArray" <| expr
   in
-    DotRef () array (var "map") <| encode tipe
+    JS.DotRef array (JS.Id "map") <| encode tipe
 
 
-fromArray :: T.Canonical -> Expression () -> Expression ()
+fromArray :: T.Canonical -> JS.Expr -> JS.Expr
 fromArray tipe expr =
   let
     array =
       Var.coreNative "Array" "toJSArray" <| expr
   in
-    DotRef () array (var "map") <| encode tipe
+    JS.DotRef array (JS.Id "map") <| encode tipe
 
 
-fromTuple :: [T.Canonical] -> Expression () -> Expression ()
+fromTuple :: [T.Canonical] -> JS.Expr -> JS.Expr
 fromTuple types expr =
   let
     convert subType n =
-      encodeHelp subType $ DotRef () expr (var ('_':show n))
+      encodeHelp subType $ JS.DotRef expr (JS.Id (Text.pack ('_':show n)))
   in
-    ArrayLit () (zipWith convert types [0..])
+    JS.Array (zipWith convert types [ 0 .. length types ])
 
 
 
@@ -146,24 +152,24 @@ decode tipe =
 -- DECODE HELPERS
 
 
-inJsonDecode :: String -> Var.Canonical
+inJsonDecode :: Text -> Var.Canonical
 inJsonDecode name =
-  Var.inCore ["Json","Decode"] name
+  Var.inCore "Json.Decode" name
 
 
-to :: String -> Opt.Expr
+to :: Text -> Opt.Expr
 to name =
   Opt.Var (inJsonDecode name)
 
 
-field :: String -> Opt.Expr -> Opt.Expr
+field :: Text -> Opt.Expr -> Opt.Expr
 field name decoder =
   to "field" <== [ Opt.Literal (Literal.Str name), decoder ]
 
 
 index :: Int -> Opt.Expr -> Opt.Expr
-index index decoder =
-  to "index" <== [ Opt.Literal (Literal.IntNum index), decoder ]
+index i decoder =
+  to "index" <== [ Opt.Literal (Literal.IntNum i), decoder ]
 
 
 (<==) :: Opt.Expr -> [Opt.Expr] -> Opt.Expr
@@ -179,7 +185,7 @@ toMaybe :: T.Canonical -> Opt.Expr
 toMaybe tipe =
   let
     maybe tag =
-      Opt.Var (Var.inCore ["Maybe"] tag)
+      Opt.Var (Var.inCore "Maybe" tag)
   in
     to "oneOf" <==
       [ Opt.List
@@ -204,12 +210,12 @@ toTuple types =
       zipWith (,) [ 0 .. size - 1] types
 
     toVar i =
-      'x' : show i
+      Text.pack ('x' : show i)
 
     makeTuple =
       to "succeed" <==
         [ Opt.Ctor
-            ("_Tuple" ++ show size)
+            (Text.pack ("_Tuple" ++ show size))
             (map (Opt.Var . Var.local . toVar . fst) pairs)
         ]
 
@@ -219,7 +225,7 @@ toTuple types =
     List.foldr andThen makeTuple pairs
 
 
-toRecord :: [(String, T.Canonical)] -> Opt.Expr
+toRecord :: [(Text, T.Canonical)] -> Opt.Expr
 toRecord fields =
   let
     toFieldExpr (key, _) =

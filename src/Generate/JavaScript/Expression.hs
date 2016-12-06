@@ -1,10 +1,13 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Generate.JavaScript.Expression (generateDef) where
 
 import Control.Arrow (second)
 import Control.Monad.State (State, foldM)
 import qualified Data.List as List
 import qualified Data.Map as Map
-import Language.ECMAScript3.Syntax
+import Data.Monoid ((<>))
+import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified AST.Expression.Canonical as Can
 import AST.Expression.Optimized as Opt
@@ -12,6 +15,7 @@ import qualified AST.Literal as L
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
 import Generate.JavaScript.Helpers as Help
+import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.BuiltIn as BuiltIn
 import qualified Generate.JavaScript.Foreign as Foreign
 import qualified Generate.JavaScript.Literal as Literal
@@ -24,16 +28,16 @@ import qualified Optimize.DecisionTree as DT
 
 
 data Code
-    = JsExpr (Expression ())
-    | JsBlock [Statement ()]
+    = JsExpr JS.Expr
+    | JsBlock [JS.Stmt]
 
 
-jsExpr :: Expression () -> State Int Code
+jsExpr :: JS.Expr -> State Int Code
 jsExpr exp =
   return (JsExpr exp)
 
 
-jsBlock :: [Statement ()] -> State Int Code
+jsBlock :: [JS.Stmt] -> State Int Code
 jsBlock exp =
   return (JsBlock exp)
 
@@ -45,44 +49,44 @@ isBlock code =
     JsExpr _ -> False
 
 
-toStatementList :: Code -> [Statement ()]
+toStatementList :: Code -> [JS.Stmt]
 toStatementList code =
   case code of
     JsExpr expr ->
-        [ ReturnStmt () (Just expr) ]
+        [ JS.Return (Just expr) ]
 
     JsBlock stmts ->
         stmts
 
 
-toStatement :: Code -> Statement ()
+toStatement :: Code -> JS.Stmt
 toStatement code =
   case code of
     JsExpr expr ->
-        ReturnStmt () (Just expr)
+        JS.Return (Just expr)
 
     JsBlock [stmt] ->
         stmt
 
     JsBlock stmts ->
-        BlockStmt () stmts
+        JS.Block stmts
 
 
-toExpr :: Code -> Expression ()
+toExpr :: Code -> JS.Expr
 toExpr code =
   case code of
     JsExpr expr ->
-        expr
+      expr
 
     JsBlock stmts ->
-        function [] stmts `call` []
+      JS.Call (function [] stmts) []
 
 
 
 -- DEFINITIONS
 
 
-generateDef :: Opt.Def -> State Int [Statement ()]
+generateDef :: Opt.Def -> State Int [JS.Stmt]
 generateDef def =
   do  (home, name, jsBody) <-
           case def of
@@ -99,7 +103,7 @@ generateDef def =
 -- EXPRESSIONS
 
 
-generateJsExpr :: Opt.Expr -> State Int (Expression ())
+generateJsExpr :: Opt.Expr -> State Int JS.Expr
 generateJsExpr optExpr =
   toExpr <$> generateCode optExpr
 
@@ -114,8 +118,8 @@ generateCode expr =
           jsExpr (Literal.literal lit)
 
       Access record field ->
-          do  record' <- generateJsExpr record
-              jsExpr $ DotRef () record' (var (Var.safe field))
+          do  jsRecord <- generateJsExpr record
+              jsExpr $ JS.DotRef jsRecord (JS.Id (Var.safe field))
 
       Update record fields ->
           let
@@ -134,7 +138,7 @@ generateCode expr =
                   return (Var.safe field ==> jsValue)
           in
             do  jsFields <- mapM toField fields
-                jsExpr $ ObjectLit () jsFields
+                jsExpr $ JS.Object jsFields
 
       Binop op leftExpr rightExpr ->
           binop op leftExpr rightExpr
@@ -148,14 +152,15 @@ generateCode expr =
       TailCall name argNames args ->
           let
             reassign name tempName =
-              ExprStmt () (AssignExpr () OpAssign (LVar () (Var.safe name)) (ref tempName))
+              JS.ExprStmt $
+                JS.Assign JS.OpAssign (JS.LVar (Var.safe name)) (ref tempName)
           in
             do  args' <- mapM generateJsExpr args
                 tempNames <- mapM (\_ -> Var.fresh) args
                 jsBlock $
-                  VarDeclStmt () (zipWith varDecl tempNames args')
+                  JS.VarDeclStmt (zipWith varDecl tempNames args')
                   : zipWith reassign argNames tempNames
-                  ++ [ContinueStmt () (Just (Id () (Var.safe name)))]
+                  ++ [JS.Continue (Just (JS.Id (Var.safe name)))]
 
       Let defs body ->
           do  stmts <- mapM generateDef defs
@@ -175,17 +180,17 @@ generateCode expr =
       Ctor tag members ->
         let
           ctor =
-            "ctor" ==> StringLit () tag
+            "ctor" ==> JS.String tag
 
           toEntry entry n =
-            ("_" ++ show n) ==> entry
+            ("_" <> Text.pack (show n)) ==> entry
         in
           do  jsMembers <- mapM generateJsExpr members
-              jsExpr $ ObjectLit () (ctor : zipWith toEntry jsMembers [ 0 :: Int .. ])
+              jsExpr $ JS.Object (ctor : zipWith toEntry jsMembers [ 0 :: Int .. ])
 
       CtorAccess dataExpr index ->
           do  jsDataExpr <- generateJsExpr dataExpr
-              jsExpr $ DotRef () jsDataExpr (var ("_" ++ show index))
+              jsExpr $ JS.DotRef jsDataExpr (JS.Id ("_" <> Text.pack (show index)))
 
       Cmd moduleName ->
           jsExpr $ BuiltIn.effect moduleName
@@ -204,7 +209,7 @@ generateCode expr =
           generateProgram kind body
 
       GLShader _uid src _tipe ->
-          jsExpr $ ObjectLit () [(PropString () "src", Literal.literal (L.Str src))]
+          jsExpr $ JS.Object [(JS.StringProp "src", Literal.literal (L.Str src))]
 
       Crash home region maybeBranchProblem ->
           do  maybeOptBranchProblem <- traverse generateJsExpr maybeBranchProblem
@@ -224,7 +229,7 @@ generateProgram kind body =
 
     Can.NoFlags ->
       do  almostProgram <- generateJsExpr body
-          jsExpr (almostProgram `call` [])
+          jsExpr (JS.Call almostProgram [])
 
     Can.Flags tipe ->
       do  almostProgram <- generateJsExpr body
@@ -236,22 +241,22 @@ generateProgram kind body =
 -- FUNCTIONS
 
 
-generateFunction :: [String] -> Opt.Expr -> State Int Code
+generateFunction :: [Text] -> Opt.Expr -> State Int Code
 generateFunction args body =
   do  code <- generateCode body
       jsExpr (generateFunctionWithArity args code)
 
 
-generateTailFunction :: String -> [String] -> Opt.Expr -> State Int (Expression ())
+generateTailFunction :: Text -> [Text] -> Opt.Expr -> State Int JS.Expr
 generateTailFunction name args body =
   do  code <- generateCode body
       return $ generateFunctionWithArity args $ JsBlock $ (:[]) $
-          LabelledStmt ()
-              (Id () (Var.safe name))
-              (WhileStmt () (BoolLit () True) (toStatement code))
+          JS.Labelled
+              (JS.Id (Var.safe name))
+              (JS.While (JS.Bool True) (toStatement code))
 
 
-generateFunctionWithArity :: [String] -> Code -> Expression ()
+generateFunctionWithArity :: [Text] -> Code -> JS.Expr
 generateFunctionWithArity rawArgs code =
     let
         args = map Var.safe rawArgs
@@ -259,7 +264,7 @@ generateFunctionWithArity rawArgs code =
     in
       if 2 <= arity && arity <= 9 then
           let
-              fN = "F" ++ show arity
+              fN = "F" <> Text.pack (show arity)
           in
               ref fN <| function args (toStatementList code)
       else
@@ -267,7 +272,7 @@ generateFunctionWithArity rawArgs code =
               (lastArg:otherArgs) = reverse args
               innerBody = function [lastArg] (toStatementList code)
           in
-              foldl (\body arg -> function [arg] [ReturnStmt () (Just body)]) innerBody otherArgs
+              foldl (\body arg -> function [arg] [JS.Return (Just body)]) innerBody otherArgs
 
 
 
@@ -281,7 +286,7 @@ generateCall func args =
       case getUnaryOp var of
         Just op ->
           do  jsArg <- generateJsExpr arg
-              jsExpr $ PrefixExpr () op jsArg
+              jsExpr $ JS.Prefix op jsArg
 
         Nothing ->
           generateCallHelp func args
@@ -291,7 +296,7 @@ generateCall func args =
         Just (op, left, right) ->
           do  jsLeft <- generateJsExpr left
               jsRight <- generateJsExpr right
-              jsExpr $ InfixExpr () op jsLeft jsRight
+              jsExpr $ JS.Infix op jsLeft jsRight
 
         Nothing ->
           generateCallHelp func args
@@ -304,58 +309,58 @@ generateCallHelp :: Opt.Expr -> [Opt.Expr] -> State Int Code
 generateCallHelp func args =
   let
     arity = length args
-    aN = "A" ++ show arity
+    aN = "A" <> Text.pack (show arity)
   in
     do  jsFunc <- generateJsExpr func
         jsArgs <- mapM generateJsExpr args
         jsExpr $
           if 2 <= arity && arity <= 9 then
-            ref aN `call` (jsFunc:jsArgs)
+            JS.Call (ref aN) (jsFunc:jsArgs)
           else
             foldl1 (<|) (jsFunc:jsArgs)
 
 
-getUnaryOp :: Var.Canonical -> Maybe PrefixOp
+getUnaryOp :: Var.Canonical -> Maybe JS.PrefixOp
 getUnaryOp var =
   if var == bitwiseComplement then
-    Just PrefixBNot
+    Just JS.PrefixBNot
 
   else if var == basicsNot then
-    Just PrefixLNot
+    Just JS.PrefixLNot
 
   else
     Nothing
 
 
-getBinaryOp :: Var.Canonical -> Opt.Expr -> Opt.Expr -> Maybe (InfixOp, Opt.Expr, Opt.Expr)
+getBinaryOp :: Var.Canonical -> Opt.Expr -> Opt.Expr -> Maybe (JS.InfixOp, Opt.Expr, Opt.Expr)
 getBinaryOp (Var.Canonical home name) left right =
   if home /= bitwise then
     Nothing
 
   else
     case name of
-      "and" -> Just ( OpBAnd, left, right )
-      "or" -> Just ( OpBOr, left, right )
-      "xor" -> Just ( OpBXor, left, right )
-      "shiftLeftBy" -> Just ( OpLShift, right, left )
-      "shiftRightBy" -> Just ( OpSpRShift, right, left )
-      "shiftRightZfBy" -> Just ( OpZfRShift, right, left )
+      "and" -> Just ( JS.OpBAnd, left, right )
+      "or" -> Just ( JS.OpBOr, left, right )
+      "xor" -> Just ( JS.OpBXor, left, right )
+      "shiftLeftBy" -> Just ( JS.OpLShift, right, left )
+      "shiftRightBy" -> Just ( JS.OpSpRShift, right, left )
+      "shiftRightZfBy" -> Just ( JS.OpZfRShift, right, left )
       _ -> Nothing
 
 
 bitwiseComplement :: Var.Canonical
 bitwiseComplement =
-  Var.inCore ["Bitwise"] "complement"
+  Var.inCore "Bitwise" "complement"
 
 
 basicsNot :: Var.Canonical
 basicsNot =
-  Var.inCore ["Basics"] "not"
+  Var.inCore "Basics" "not"
 
 
 bitwise :: Var.Home
 bitwise =
-  Var.Module (ModuleName.inCore ["Bitwise"])
+  Var.Module (ModuleName.inCore "Bitwise")
 
 
 
@@ -372,10 +377,10 @@ generateIf givenBranches givenFinally =
         (,) <$> generateJsExpr condition <*> generateCode expr
 
     ifExpression (condition, branch) otherwise =
-        CondExpr () condition branch otherwise
+        JS.If condition branch otherwise
 
     ifStatement (condition, branch) otherwise =
-        IfStmt () condition branch otherwise
+        JS.IfStmt condition branch otherwise
   in
     do  jsBranches <- mapM convertBranch branches
         jsFinally <- generateCode finally
@@ -421,11 +426,7 @@ crushIfsHelp visitedBranches unvisitedBranches finally =
 -- CASE EXPRESSIONS
 
 
-generateCase
-    :: String
-    -> Opt.Decider Opt.Choice
-    -> [(Int, Opt.Expr)]
-    -> State Int [Statement ()]
+generateCase :: Text -> Opt.Decider Opt.Choice -> [(Int, Opt.Expr)] -> State Int [JS.Stmt]
 generateCase exprName decider jumps =
   do  labelRoot <- Var.fresh
       decider <- generateDecider exprName labelRoot decider
@@ -436,76 +437,68 @@ generateCase exprName decider jumps =
 -- handle any jumps
 
 
-goto :: String -> [Statement ()] -> (Int, Opt.Expr) -> State Int [Statement ()]
+goto :: Text -> [JS.Stmt] -> (Int, Opt.Expr) -> State Int [JS.Stmt]
 goto labelRoot deciderStmts (target, branch) =
   let
     labeledDeciderStmt =
-      LabelledStmt ()
+      JS.Labelled
         (toLabel labelRoot target)
-        (DoWhileStmt () (BlockStmt () deciderStmts) (BoolLit () False))
+        (JS.DoWhile (JS.Block deciderStmts) (JS.Bool False))
   in
     do  code <- generateCode branch
         return (labeledDeciderStmt : toStatementList code)
 
 
-toLabel :: String -> Int -> Id ()
+toLabel :: Text -> Int -> JS.Id
 toLabel root target =
-  Id () (root ++ "_" ++ show target)
+  JS.Id (root <> "_" <> Text.pack (show target))
 
 
 
 -- turn deciders into ifs and switches
 
 
-generateDecider
-    :: String
-    -> String
-    -> Opt.Decider Opt.Choice
-    -> State Int [Statement ()]
+generateDecider :: Text -> Text -> Opt.Decider Opt.Choice -> State Int [JS.Stmt]
 generateDecider exprName labelRoot decisionTree =
   case decisionTree of
     Opt.Leaf (Opt.Inline branch) ->
         toStatementList <$> generateCode branch
 
     Opt.Leaf (Opt.Jump target) ->
-        return [ BreakStmt () (Just (toLabel labelRoot target)) ]
+        return [ JS.Break (Just (toLabel labelRoot target)) ]
 
     Opt.Chain testChain success failure ->
         let
           makeTest (path, test) =
             do  testExpr <- pathToTestableExpr exprName path test
-                return (InfixExpr () OpStrictEq testExpr (testToExpr test))
+                return (JS.Infix JS.OpStrictEq testExpr (testToExpr test))
         in
           do  testExprs <- mapM makeTest testChain
-              let cond = List.foldl1' (InfixExpr () OpLAnd) testExprs
+              let cond = List.foldl1' (JS.Infix JS.OpLAnd) testExprs
               thenBranch <- generateDecider exprName labelRoot success
               elseBranch <- generateDecider exprName labelRoot failure
-              return [ IfStmt () cond (BlockStmt () thenBranch) (BlockStmt () elseBranch) ]
+              return [ JS.IfStmt cond (JS.Block thenBranch) (JS.Block elseBranch) ]
 
     Opt.FanOut path edges fallback ->
         do  testExpr <- pathToTestableExpr exprName path (fst (head edges))
-            caseClauses <- mapM (edgeToCaseClause exprName labelRoot) edges
-            caseDefault <- CaseDefault () <$> generateDecider exprName labelRoot fallback
-            return [ SwitchStmt () testExpr (caseClauses ++ [caseDefault]) ]
+            caseClauses <- mapM (edgeToCase exprName labelRoot) edges
+            caseDefault <- JS.Default <$> generateDecider exprName labelRoot fallback
+            return [ JS.Switch testExpr (caseClauses ++ [caseDefault]) ]
 
 
-edgeToCaseClause
-    :: String
-    -> String
-    -> (DT.Test, Opt.Decider Opt.Choice)
-    -> State Int (CaseClause ())
-edgeToCaseClause exprName labelRoot (test, subTree) =
-  CaseClause () (testToExpr test) <$> generateDecider exprName labelRoot subTree
+edgeToCase :: Text -> Text -> (DT.Test, Opt.Decider Opt.Choice) -> State Int JS.Case
+edgeToCase exprName labelRoot (test, subTree) =
+  JS.Case (testToExpr test) <$> generateDecider exprName labelRoot subTree
 
 
-testToExpr :: DT.Test -> Expression ()
+testToExpr :: DT.Test -> JS.Expr
 testToExpr test =
   case test of
     DT.Constructor (Var.Canonical _ tag) ->
-        StringLit () tag
+        JS.String tag
 
     DT.Literal (L.Chr char) ->
-        StringLit () [char]
+        JS.String (Text.singleton char)
 
     DT.Literal lit ->
         Literal.literal lit
@@ -515,21 +508,21 @@ testToExpr test =
 -- work with paths
 
 
-pathToTestableExpr :: String -> DT.Path -> DT.Test -> State Int (Expression ())
+pathToTestableExpr :: Text -> DT.Path -> DT.Test -> State Int JS.Expr
 pathToTestableExpr root path exampleTest =
   do  accessExpr <- generateJsExpr (pathToExpr root path)
       case exampleTest of
         DT.Constructor _ ->
-            return (DotRef () accessExpr (Id () "ctor"))
+            return $ JS.DotRef accessExpr (JS.Id "ctor")
 
         DT.Literal (L.Chr _) ->
-            return (DotRef () accessExpr (Id () "valueOf") `call` [])
+            return $ JS.Call (JS.DotRef accessExpr (JS.Id "valueOf")) []
 
         DT.Literal _ ->
             return accessExpr
 
 
-pathToExpr :: String -> DT.Path -> Opt.Expr
+pathToExpr :: Text -> DT.Path -> Opt.Expr
 pathToExpr root fullPath =
     go (Opt.Var (Var.local root)) fullPath
   where
@@ -567,11 +560,11 @@ binop func left right =
 -- BINARY OPERATOR HELPERS
 
 
-binopHelp :: Var.Canonical -> Expression () -> Expression () -> Expression ()
+binopHelp :: Var.Canonical -> JS.Expr -> JS.Expr -> JS.Expr
 binopHelp qualifiedOp@(Var.Canonical home op) leftExpr rightExpr =
     let
         simpleMake left right =
-            ref "A2" `call` [ Var.canonical qualifiedOp, left, right ]
+            JS.Call (ref "A2") [ Var.canonical qualifiedOp, left, right ]
     in
         if home == basicsModule then
             (Map.findWithDefault simpleMake op basicOps) leftExpr rightExpr
@@ -585,52 +578,52 @@ binopHelp qualifiedOp@(Var.Canonical home op) leftExpr rightExpr =
 
 listModule :: Var.Home
 listModule =
-  Var.Module (ModuleName.inCore ["List"])
+  Var.Module (ModuleName.inCore "List")
 
 
 listModuleInternals :: Var.Home
 listModuleInternals =
-  Var.TopLevel (ModuleName.inCore ["List"])
+  Var.TopLevel (ModuleName.inCore "List")
 
 
 basicsModule :: Var.Home
 basicsModule =
-  Var.Module (ModuleName.inCore ["Basics"])
+  Var.Module (ModuleName.inCore "Basics")
 
 
-basicOps :: Map.Map String (Expression () -> Expression () -> Expression ())
+basicOps :: Map.Map Text (JS.Expr -> JS.Expr -> JS.Expr)
 basicOps =
     Map.fromList (infixOps ++ specialOps)
 
 
-infixOps :: [(String, Expression () -> Expression () -> Expression ())]
+infixOps :: [(Text, JS.Expr -> JS.Expr -> JS.Expr)]
 infixOps =
     let
         infixOp str op =
-            (str, InfixExpr () op)
+            (str, JS.Infix op)
     in
-        [ infixOp "+"  OpAdd
-        , infixOp "-"  OpSub
-        , infixOp "*"  OpMul
-        , infixOp "/"  OpDiv
-        , infixOp "&&" OpLAnd
-        , infixOp "||" OpLOr
+        [ infixOp "+"  JS.OpAdd
+        , infixOp "-"  JS.OpSub
+        , infixOp "*"  JS.OpMul
+        , infixOp "/"  JS.OpDiv
+        , infixOp "&&" JS.OpLAnd
+        , infixOp "||" JS.OpLOr
         ]
 
 
-specialOps :: [(String, Expression () -> Expression () -> Expression ())]
+specialOps :: [(Text, JS.Expr -> JS.Expr -> JS.Expr)]
 specialOps =
-    [ (,) "^"  $ \a b -> obj ["Math","pow"] `call` [a,b]
+    [ (,) "^"  $ \a b -> JS.Call (obj ["Math","pow"]) [a,b]
     , (,) "==" $ \a b -> BuiltIn.eq a b
-    , (,) "/=" $ \a b -> PrefixExpr () PrefixLNot (BuiltIn.eq a b)
-    , (,) "<"  $ cmp OpLT 0
-    , (,) ">"  $ cmp OpGT 0
-    , (,) "<=" $ cmp OpLT 1
-    , (,) ">=" $ cmp OpGT (-1)
-    , (,) "//" $ \a b -> InfixExpr () OpBOr (InfixExpr () OpDiv a b) (IntLit () 0)
+    , (,) "/=" $ \a b -> JS.Prefix JS.PrefixLNot (BuiltIn.eq a b)
+    , (,) "<"  $ cmp JS.OpLT 0
+    , (,) ">"  $ cmp JS.OpGT 0
+    , (,) "<=" $ cmp JS.OpLT 1
+    , (,) ">=" $ cmp JS.OpGT (-1)
+    , (,) "//" $ \a b -> JS.Infix JS.OpBOr (JS.Infix JS.OpDiv a b) (JS.Int 0)
     ]
 
 
-cmp :: InfixOp -> Int -> Expression () -> Expression () -> Expression ()
+cmp :: JS.InfixOp -> Int -> JS.Expr -> JS.Expr -> JS.Expr
 cmp op n a b =
-    InfixExpr () op (BuiltIn.cmp a b) (IntLit () n)
+    JS.Infix op (BuiltIn.cmp a b) (JS.Int n)

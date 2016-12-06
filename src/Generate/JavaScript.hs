@@ -1,14 +1,16 @@
+{-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Generate.JavaScript (generate) where
 
 import qualified Control.Monad.State as State
+import Data.Text (Text)
 import qualified Data.Text.Lazy as LazyText
-import qualified Language.ECMAScript3.Syntax as JS
 
 import qualified AST.Effects as Effects
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified Elm.Package as Pkg
-import qualified Generate.JavaScript.Builder as Builder
+import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Expression as JS
 import qualified Generate.JavaScript.Helpers as JS
 import qualified Generate.JavaScript.Variable as Var
@@ -29,14 +31,14 @@ generate (Module.Module moduleName _ info) =
     body =
       State.evalState genBody 0
   in
-    Builder.stmtsToText body
+    JS.stmtsToText body
 
 
 
 -- GENERATE EFFECT MANAGER
 
 
-generateEffectManager :: ModuleName.Canonical -> Effects.Canonical -> [JS.Statement ()]
+generateEffectManager :: ModuleName.Canonical -> Effects.Canonical -> [JS.Stmt]
 generateEffectManager moduleName effects =
   case effects of
     Effects.None ->
@@ -51,15 +53,15 @@ generateEffectManager moduleName effects =
           Var.coreNative "Platform" "effectManagers"
 
         managerName =
-          JS.StringLit () (ModuleName.canonicalToString moduleName)
+          JS.String (ModuleName.canonicalToText moduleName)
 
         entry name =
-          ( JS.PropId () (JS.Id () name)
+          ( JS.IdProp (JS.Id name)
           , JS.ref (Var.qualified moduleName name)
           )
 
         managerEntries =
-          [ "pkg" ==> Pkg.toString pkgName
+          [ "pkg" ==> Pkg.toText pkgName
           , entry "init"
           , entry "onEffects"
           , entry "onSelfMsg"
@@ -77,15 +79,15 @@ generateEffectManager moduleName effects =
               [ "tag" ==> "fx", entry "cmdMap", entry "subMap" ]
 
         addManager =
-          JS.AssignExpr () JS.OpAssign
-            (JS.LBracket () managers managerName)
-            (JS.ObjectLit () (managerEntries ++ otherEntries))
+          JS.Assign JS.OpAssign
+            (JS.LBracket managers managerName)
+            (JS.Object (managerEntries ++ otherEntries))
       in
-        [ JS.ExprStmt () addManager ]
+        [ JS.ExprStmt addManager ]
 
 
-(==>) :: String -> String -> ( JS.Prop (), JS.Expression () )
+(==>) :: Text -> Text -> ( JS.Prop, JS.Expr )
 (==>) key value =
-  ( JS.PropId () (JS.Id () key)
-  , JS.StringLit () value
+  ( JS.IdProp (JS.Id key)
+  , JS.String value
   )

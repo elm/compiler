@@ -1,68 +1,56 @@
 module Generate.JavaScript.Helpers where
 
-import Language.ECMAScript3.Syntax
+import Data.Text (Text)
+import Generate.JavaScript.Builder
 
 
 
-localRuntime :: String
-localRuntime =
-    "_elm"
+-- DECLARATIONS
 
 
-varDecl :: String -> Expression () -> VarDecl ()
+varDecl :: Text -> Expr -> VarDecl
 varDecl x expr =
-    VarDecl () (var x) (Just expr)
+  VarDecl (Id x) (Just expr)
 
 
-refOrObject :: String -> Expression ()
+refOrObject :: Text -> Expr
 refOrObject name =
-  InfixExpr () OpLOr (ref name) (ObjectLit () [])
+  Infix OpLOr (ref name) (Object [])
 
 
 
--- Creating Variables
+-- VARIABLES
 
 
-var :: String -> Id ()
-var name =
-    Id () name
-
-
-ref :: String -> Expression ()
+ref :: Text -> Expr
 ref name =
-    VarRef () (var name)
+    VarRef (Id name)
 
 
-(==>) :: String -> Expression () -> (Prop (), Expression ())
+(==>) :: Text -> Expr -> (Prop, Expr)
 (==>) name expr =
-  ( PropId () (var name), expr )
+  ( IdProp (Id name), expr )
 
 
-obj :: [String] -> Expression ()
+obj :: [Text] -> Expr
 obj vars =
-    case vars of
-      x:xs ->
-          foldl (DotRef ()) (ref x) (map var xs)
+  case vars of
+    x:xs ->
+      foldl DotRef (ref x) (map Id xs)
 
-      [] ->
-          error "dotSep must be called on a non-empty list of variables"
-
-
-
--- Function Calls
+    [] ->
+      error "dotSep must be called on a non-empty list of variables"
 
 
-(<|) :: Expression () -> Expression () -> Expression ()
+
+-- FUNCTION CALLS
+
+
+(<|) :: Expr -> Expr -> Expr
 (<|) f x =
-    CallExpr () f [x]
+  Call f [x]
 
 
-function :: [String] -> [Statement ()] -> Expression ()
+function :: [Text] -> [Stmt] -> Expr
 function args stmts =
-    FuncExpr () Nothing (map var args) stmts
-
-
-call :: Expression () -> [Expression ()] -> Expression ()
-call =
-    CallExpr ()
-
+  Function Nothing (map Id args) stmts

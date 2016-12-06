@@ -1,5 +1,7 @@
+{-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Generate.JavaScript.BuiltIn
-  ( character, string
+  ( character
   , list, cons
   , recordUpdate
   , eq, cmp
@@ -8,52 +10,49 @@ module Generate.JavaScript.BuiltIn
   )
   where
 
-import qualified Language.ECMAScript3.Syntax as JS
+import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified AST.Module.Name as ModuleName
-import Generate.JavaScript.Helpers ((<|), (==>), call)
+import qualified Generate.JavaScript.Builder as JS
+import Generate.JavaScript.Helpers ((<|), (==>))
 import qualified Generate.JavaScript.Variable as Var
 import qualified Reporting.Region as R
 
 
 
-utils :: String -> [JS.Expression ()] -> JS.Expression ()
+utils :: Text -> [JS.Expr] -> JS.Expr
 utils func args =
-  Var.coreNative "Utils" func `call` args
+  JS.Call (Var.coreNative "Utils" func) args
 
 
 
 -- LITERALS
 
 
-character :: Char -> JS.Expression ()
+character :: Char -> JS.Expr
 character char =
-  utils "chr" [ JS.StringLit () [char] ]
-
-
-string :: String -> JS.Expression ()
-string str =
-  JS.StringLit () str
+  utils "chr" [ JS.String (Text.singleton char) ]
 
 
 
 -- LISTS
 
 
-list :: [JS.Expression ()] -> JS.Expression ()
+list :: [JS.Expr] -> JS.Expr
 list elements =
   case elements of
     [] ->
-      JS.ObjectLit () [ "ctor" ==> JS.StringLit () "[]" ]
+      JS.Object [ "ctor" ==> JS.String "[]" ]
 
     front : back ->
       cons front (list back)
 
 
-cons :: JS.Expression () -> JS.Expression () -> JS.Expression ()
+cons :: JS.Expr -> JS.Expr -> JS.Expr
 cons front back =
-  JS.ObjectLit ()
-    [ "ctor" ==> JS.StringLit () "::"
+  JS.Object
+    [ "ctor" ==> JS.String "::"
     , "_0" ==> front
     , "_1" ==> back
     ]
@@ -63,11 +62,11 @@ cons front back =
 -- RECORDS
 
 
-recordUpdate :: JS.Expression () -> [(String, JS.Expression ())] -> JS.Expression ()
+recordUpdate :: JS.Expr -> [(Text, JS.Expr)] -> JS.Expr
 recordUpdate record fields =
   utils "update"
     [ record
-    , JS.ObjectLit () (map (uncurry (==>)) fields)
+    , JS.Object (map (uncurry (==>)) fields)
     ]
 
 
@@ -75,12 +74,12 @@ recordUpdate record fields =
 -- COMPARISIONS
 
 
-eq :: JS.Expression () -> JS.Expression () -> JS.Expression ()
+eq :: JS.Expr -> JS.Expr -> JS.Expr
 eq left right =
   utils "eq" [ left, right ]
 
 
-cmp :: JS.Expression () -> JS.Expression () -> JS.Expression ()
+cmp :: JS.Expr -> JS.Expr -> JS.Expr
 cmp left right =
   utils "cmp" [ left, right ]
 
@@ -89,31 +88,35 @@ cmp left right =
 -- EFFECTS
 
 
-effect :: ModuleName.Canonical -> JS.Expression ()
+effect :: ModuleName.Canonical -> JS.Expr
 effect effectName =
   Var.coreNative "Platform" "leaf" <|
-    JS.StringLit () (ModuleName.canonicalToString effectName)
+    JS.String (ModuleName.canonicalToText effectName)
 
 
-outgoingPort :: String -> JS.Expression () -> JS.Expression ()
+outgoingPort :: Text -> JS.Expr -> JS.Expr
 outgoingPort name converter =
-  Var.coreNative "Platform" "outgoingPort" `call` [ JS.StringLit () name, converter ]
+  JS.Call
+    (Var.coreNative "Platform" "outgoingPort")
+    [ JS.String name, converter ]
 
 
-incomingPort :: String -> JS.Expression () -> JS.Expression ()
+incomingPort :: Text -> JS.Expr -> JS.Expr
 incomingPort name converter =
-  Var.coreNative "Platform" "incomingPort" `call` [ JS.StringLit () name, converter ]
+  JS.Call
+    (Var.coreNative "Platform" "incomingPort")
+    [ JS.String name, converter ]
 
 
 
 -- CRASH
 
 
-crash :: ModuleName.Canonical -> R.Region -> Maybe (JS.Expression ()) -> JS.Expression ()
+crash :: ModuleName.Canonical -> R.Region -> Maybe (JS.Expr) -> JS.Expr
 crash home region maybeCaseCrashValue =
   let
     homeString =
-      JS.StringLit () (ModuleName.canonicalToString home)
+      JS.String (ModuleName.canonicalToText home)
   in
   case maybeCaseCrashValue of
     Nothing ->
@@ -123,17 +126,17 @@ crash home region maybeCaseCrashValue =
         utils "crashCase" [ homeString, regionToJs region, crashValue ]
 
 
-regionToJs :: R.Region -> JS.Expression ()
+regionToJs :: R.Region -> JS.Expr
 regionToJs (R.Region start end) =
-    JS.ObjectLit ()
+    JS.Object
       [ "start" ==> positionToJs start
       , "end"   ==> positionToJs end
       ]
 
 
-positionToJs :: R.Position -> JS.Expression ()
+positionToJs :: R.Position -> JS.Expr
 positionToJs (R.Position line column) =
-    JS.ObjectLit ()
-      [ "line"   ==> JS.IntLit () line
-      , "column" ==> JS.IntLit () column
+    JS.Object
+      [ "line"   ==> JS.Int line
+      , "column" ==> JS.Int column
       ]
