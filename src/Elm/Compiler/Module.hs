@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Elm.Compiler.Module
     ( Interface, Interfaces
     , ModuleName.Raw
@@ -16,6 +17,7 @@ import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import Data.Text (Text)
 import System.FilePath ((</>))
 
 import qualified AST.Module as Module
@@ -35,7 +37,7 @@ type Interface = Module.Interface
 type Interfaces = Module.Interfaces
 
 
-interfaceAliasedTypes :: Interface -> Map.Map String PublicType.Type
+interfaceAliasedTypes :: Interface -> Map.Map Text PublicType.Type
 interfaceAliasedTypes interface =
     Map.map Extract.extract (Module.iTypes interface)
 
@@ -57,7 +59,7 @@ fromJson (RawForJson raw) =
   raw
 
 
-qualifiedVar :: ModuleName.Canonical -> String -> String
+qualifiedVar :: ModuleName.Canonical -> Text -> Text
 qualifiedVar =
   Gen.qualified
 
@@ -67,13 +69,13 @@ qualifiedVar =
 
 
 nameToPath :: ModuleName.Raw -> FilePath
-nameToPath names =
-  List.foldl1 (</>) names
+nameToPath name =
+  List.foldl1 (</>) (map Text.unpack (Text.splitOn "." name))
 
 
 nameToString :: ModuleName.Raw -> String
-nameToString names =
-  List.intercalate "." names
+nameToString name =
+  Text.unpack name
 
 
 nameFromString :: String -> Maybe ModuleName.Raw
@@ -83,7 +85,7 @@ nameFromString =
 
 hyphenate :: ModuleName.Raw -> String
 hyphenate names =
-  List.intercalate "-" names
+  Text.unpack (Text.replace "." "-" names)
 
 
 dehyphenate :: String -> Maybe ModuleName.Raw
@@ -93,21 +95,22 @@ dehyphenate =
 
 fromString :: Char -> String -> Maybe ModuleName.Raw
 fromString sep raw =
-    mapM isLegit names
+  do  chunks <- mapM isLegit names
+      return (Text.pack (List.intercalate "." chunks))
   where
     names =
         filter (/= [sep]) (List.groupBy (\a b -> a /= sep && b /= sep) raw)
 
     isLegit name =
         case name of
-            [] -> Nothing
-            char:rest ->
-                if Char.isUpper char && all legitChar rest
-                    then Just name
-                    else Nothing
+          [] ->
+            Nothing
+
+          char:rest ->
+            if Char.isUpper char && all legitChar rest then Just name else Nothing
 
     legitChar char =
-        Char.isAlphaNum char || char `elem` "_'"
+        Char.isAlphaNum char || char == '_'
 
 
 

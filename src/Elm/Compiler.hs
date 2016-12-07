@@ -12,8 +12,8 @@ module Elm.Compiler
 import qualified Data.Aeson as Json
 import qualified Data.Map as Map
 import qualified Data.Text.Lazy as LazyText
+import Data.Text (Text)
 import System.IO (Handle)
-import qualified Text.Parsec.Error as Parsec
 
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
@@ -25,13 +25,11 @@ import qualified Elm.Compiler.Version
 import qualified Elm.Docs as Docs
 import qualified Elm.Package as Package
 import qualified Generate.JavaScript as JS
-import qualified Parse.Helpers as Parse (parse)
+import qualified Parse.Helpers as Parse (run)
 import qualified Parse.Module as Parse (header)
 import qualified Reporting.Annotation as A
 import qualified Reporting.Bag as Bag
 import qualified Reporting.Error as Error
-import qualified Reporting.Error.Syntax as SyntaxError
-import qualified Reporting.Region as Region
 import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Report as Report
 import qualified Reporting.Result as Result
@@ -57,28 +55,17 @@ data Tag
   | Port
 
 
-parseDependencies
-  :: Package.Name
-  -> String
-  -> Either Error (Tag, PublicModule.Raw, [PublicModule.Raw])
+parseDependencies :: Package.Name -> Text -> Either Error (Tag, PublicModule.Raw, [PublicModule.Raw])
 parseDependencies pkgName sourceCode =
-  case Parse.parse Parse.header sourceCode of
+  case Parse.run Parse.header sourceCode of
     Right header ->
       Right $ getDeps pkgName header
 
-    Left parseError ->
-      let
-        pos = Region.fromSourcePos (Parsec.errorPos parseError)
-        msgs = Parsec.errorMessages parseError
-        err = Error.Syntax (SyntaxError.Parse msgs)
-      in
-        Left (Error (A.at pos pos err))
+    Left err ->
+      Left (error "TODO parse deps" err)
 
 
-getDeps
-  :: Package.Name
-  -> Module.Header [Module.UserImport]
-  -> (Tag, PublicModule.Raw, [PublicModule.Raw])
+getDeps :: Package.Name -> Module.Header [Module.UserImport] -> (Tag, PublicModule.Raw, [PublicModule.Raw])
 getDeps pkgName (Module.Header sourceTag name _ _ _ imports) =
   let
     tag =
@@ -101,12 +88,7 @@ getDeps pkgName (Module.Header sourceTag name _ _ _ imports) =
 
 
 {-| Compiles Elm source code to JavaScript. -}
-compile
-    :: Context
-    -> String
-    -> PublicModule.Interfaces
-    -> (Localizer, [Warning], Either [Error] Result)
-
+compile :: Context -> Text -> PublicModule.Interfaces -> (Localizer, [Warning], Either [Error] Result)
 compile context source interfaces =
   let
     (Context packageName isExposed dependencies) =
@@ -117,7 +99,7 @@ compile context source interfaces =
           docs <- Result.format Error.Docs (docsGen isExposed modul)
 
           let interface = Module.toInterface packageName modul
-          let javascript = JS.generate modul
+          let javascript = {-# SCC elm_compiler_generate #-} JS.generate modul
 
           return (Result docs interface javascript)
   in
@@ -127,7 +109,8 @@ compile context source interfaces =
     )
 
 
-data Context = Context
+data Context =
+  Context
     { _packageName :: Package.Name
     , _isExposed :: Bool
     , _dependencies :: [PublicModule.Canonical]

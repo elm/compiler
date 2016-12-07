@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Elm.Utils
     ( (|>), (<|)
     , run, unwrappedRun
@@ -8,7 +9,7 @@ module Elm.Utils
     ) where
 
 import Control.Monad.Except (MonadError, MonadIO, liftIO, throwError)
-import qualified Data.List as List
+import Data.Text (Text)
 import System.Exit (ExitCode(ExitSuccess, ExitFailure))
 import System.Process (readProcessWithExitCode)
 
@@ -98,11 +99,12 @@ missingExe command =
 
 -- DECL CHECKER
 
-isDeclaration :: String -> Maybe String
-isDeclaration str =
-  case Parse.parse Parse.def str of
-    Right (A.A _ (Source.Definition pattern _)) ->
-        Just (List.intercalate "$" (Pattern.boundVarList pattern))
+
+isDeclaration :: Text -> Maybe [Text]
+isDeclaration source =
+  case Parse.run Parse.definition source of
+    Right (A.A _ (Source.Definition pattern _), _, _) ->
+        Just (Pattern.boundVarList pattern)
 
     _ ->
         Nothing

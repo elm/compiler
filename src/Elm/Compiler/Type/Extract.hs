@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Elm.Compiler.Type.Extract
   ( extract
   , extractProgram
@@ -9,6 +10,8 @@ import qualified Control.Monad.Writer as Writer
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
+import Data.Text (Text)
+
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as T
@@ -45,11 +48,11 @@ extractHelp astType =
       Lambda <$> extractHelp arg <*> extractHelp result
 
     T.Var x ->
-      return $ Var x
+      return (Var x)
 
     T.Type var ->
       do  Writer.tell ( Set.empty, Set.singleton var )
-          return $ Type $ Var.toString var
+          return (Type (Var.toText var))
 
     T.App constructor args ->
       App <$> extractHelp constructor <*> traverse extractHelp args
@@ -62,7 +65,7 @@ extractHelp astType =
     T.Aliased name args aliasedType ->
       do  Writer.tell ( Set.singleton name, Set.empty )
           _ <- extractHelp (T.dealias args aliasedType)
-          App (Type (Var.toString name)) <$> traverse (extractHelp . snd) args
+          App (Type (Var.toText name)) <$> traverse (extractHelp . snd) args
 
 
 
@@ -82,15 +85,15 @@ extractProgram interfaces name =
 
       let (msgType, msgDeps) = Writer.runWriter (extractHelp message)
       let (aliases, unions) = extractTransitive interfaces mempty msgDeps
-      Just $ Program msgType aliases unions
+      Just (Program msgType aliases unions)
 
 
 type Alias =
-  ( String, [String], Type )
+  ( Text, [Text], Type )
 
 
 type Union =
-  ( String, [String], [(String, [Type])] )
+  ( Text, [Text], [(Text, [Type])] )
 
 
 extractTransitive :: Module.Interfaces -> Deps -> Deps -> ( [Alias], [Union] )
@@ -120,7 +123,7 @@ extractAlias :: Module.Interfaces -> Var.Canonical -> Writer.Writer Deps (Maybe 
 extractAlias interfaces var =
   let
     toAlias (args, tipe) =
-      (,,) (Var.toString var) args <$> extractHelp tipe
+      (,,) (Var.toText var) args <$> extractHelp tipe
   in
     traverse toAlias (get Module.iAliases interfaces var)
 
@@ -129,20 +132,20 @@ extractUnion :: Module.Interfaces -> Var.Canonical -> Writer.Writer Deps (Maybe 
 extractUnion interfaces var =
   let
     toUnion (args, constructors) =
-      (,,) (Var.toString var) args
+      (,,) (Var.toText var) args
         <$> traverse (traverse (traverse extractHelp)) constructors
   in
     traverse toUnion (get Module.iUnions interfaces var)
 
 
-get :: (Module.Interface -> Map.Map String a) -> Module.Interfaces -> Var.Canonical -> Maybe a
+get :: (Module.Interface -> Map.Map Text a) -> Module.Interfaces -> Var.Canonical -> Maybe a
 get getInfo interfaces var =
   do  (home, name) <- getHome var
       iface <- Map.lookup home interfaces
       Map.lookup name (getInfo iface)
 
 
-getHome :: Var.Canonical -> Maybe (ModuleName.Canonical, String)
+getHome :: Var.Canonical -> Maybe (ModuleName.Canonical, Text)
 getHome (Var.Canonical home name) =
   case home of
     Var.BuiltIn ->

@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Elm.Compiler.Type
   ( Type(..), toString
@@ -11,6 +12,7 @@ import qualified Data.Aeson as Json
 import qualified Data.Aeson.Types as Json
 import qualified Data.ByteString.Lazy.Char8 as BS
 import qualified Data.Text as Text
+import Data.Text (Text)
 import Text.PrettyPrint as P
 
 import qualified AST.Helpers as Help
@@ -24,17 +26,17 @@ import qualified Reporting.Annotation as A
 
 data Type
     = Lambda Type Type
-    | Var String
-    | Type String
+    | Var Text
+    | Type Text
     | App Type [Type]
-    | Record [(String, Type)] (Maybe Type)
+    | Record [(Text, Type)] (Maybe Type)
 
 
 data Program =
   Program
     { _message :: Type
-    , _aliases :: [( String, [String], Type )]
-    , _unions :: [( String, [String], [(String, [Type])] )]
+    , _aliases :: [( Text, [Text], Type )]
+    , _unions :: [( Text, [Text], [(Text, [Type])] )]
     }
 
 
@@ -65,27 +67,32 @@ toDoc context tipe =
               _ -> P.parens lambda
 
     Var name ->
-        P.text name
+        P.text (Text.unpack name)
 
     Type name ->
-        P.text (if name == "_Tuple0" then "()" else name)
+        P.text (Text.unpack (if name == "_Tuple0" then "()" else name))
 
-    App (Type name) args
-        | name == "_Tuple0" ->
-            P.text "()"
+    App (Type name) args ->
+        if name == "_Tuple0" then
+          P.text "()"
 
-        | Help.isTuple name ->
-            P.sep
-              [ P.cat (zipWith (<+>) (P.lparen : repeat P.comma) (map (toDoc None) args))
-              , P.rparen
-              ]
+        else if Help.isTuple name then
+          P.sep
+            [ P.cat (zipWith (<+>) (P.lparen : repeat P.comma) (map (toDoc None) args))
+            , P.rparen
+            ]
 
-        | otherwise ->
-            let adt = P.hang (P.text name) 2 (P.sep $ map (toDoc ADT) args)
-            in
-                case (context, args) of
-                  (ADT, _ : _) -> P.parens adt
-                  _ -> adt
+        else
+          let
+              application =
+                  P.hang
+                      (P.text (Text.unpack name))
+                      2
+                      (P.sep $ map (toDoc ADT) args)
+          in
+              case (context, args) of
+                (ADT, _ : _) -> P.parens application
+                _ -> application
 
     App _ _ ->
         error $
@@ -105,7 +112,7 @@ toDoc context tipe =
 
             (fields, Just x) ->
                 P.hang
-                    (P.lbrace <+> P.text x <+> P.text "|")
+                    (P.lbrace <+> P.text (Text.unpack x) <+> P.text "|")
                     4
                     (P.sep
                       [ P.sep (P.punctuate P.comma (map prettyField fields))
@@ -113,8 +120,8 @@ toDoc context tipe =
                       ]
                     )
           where
-            prettyField (field, tipe) =
-                P.text field <+> P.text ":" <+> toDoc None tipe
+            prettyField (field, fieldType) =
+                P.text (Text.unpack field) <+> P.text ":" <+> toDoc None fieldType
 
 
 collectLambdas :: Type -> [Type]
@@ -124,19 +131,22 @@ collectLambdas tipe =
     _ -> [tipe]
 
 
-flattenRecord :: Type -> ( [(String, Type)], Maybe String )
+flattenRecord :: Type -> ( [(Text, Type)], Maybe Text )
 flattenRecord tipe =
-    case tipe of
-      Var x -> ([], Just x)
+  case tipe of
+    Var x ->
+      ([], Just x)
 
-      Record fields Nothing -> (fields, Nothing)
+    Record fields Nothing ->
+      (fields, Nothing)
 
-      Record fields (Just ext) ->
-          let (fields',ext') = flattenRecord ext
-          in
-              (fields' ++ fields, ext')
+    Record fields (Just ext) ->
+      let (fields',ext') = flattenRecord ext
+      in
+          (fields' ++ fields, ext')
 
-      _ -> error "Trying to flatten ill-formed record."
+    _ ->
+      error "Trying to flatten ill-formed record."
 
 
 
@@ -157,20 +167,19 @@ instance Json.FromJSON Type where
           ++ BS.unpack (Json.encode value)
     in
       case value of
-        Json.String text ->
-          either failure (return . fromRawType) $
-            Parse.parse Type.expr (replacePrimes (Text.unpack text))
+        Json.String txt ->
+          case Parse.run Type.expression (Text.replace "'" "_" txt) of
+            Left err ->
+              failure err
+
+            Right (tipe, _, _) ->
+              return (fromRawType tipe)
 
         Json.Object obj ->
           fromObject obj
 
         _ ->
           failure ()
-
-
-replacePrimes :: String -> String
-replacePrimes string =
-  map (\c -> if c == '\'' then '_' else c) string
 
 
 fromObject :: Json.Object -> Json.Parser Type
@@ -206,7 +215,7 @@ fromRawType (A.A _ astType) =
           Var x
 
       Type.RType var ->
-          Type (Var.toString var)
+          Type (Var.toText var)
 
       Type.RApp t ts ->
           App (fromRawType t) (map fromRawType ts)
@@ -228,22 +237,22 @@ instance Json.ToJSON Program where
       ]
 
 
-toAliasField :: ( String, [String], Type ) -> Json.Pair
+toAliasField :: ( Text, [Text], Type ) -> Json.Pair
 toAliasField ( name, args, tipe ) =
-  Text.pack name .= Json.object
+  name .= Json.object
     [ "args" .= args
     , "type" .= tipe
     ]
 
 
-toUnionField :: ( String, [String], [(String, [Type])] ) -> Json.Pair
+toUnionField :: ( Text, [Text], [(Text, [Type])] ) -> Json.Pair
 toUnionField ( name, args, constructors ) =
-  Text.pack name .= Json.object
+  name .= Json.object
     [ "args" .= args
     , "tags" .= Json.object (map toCtorObject constructors)
     ]
 
 
-toCtorObject :: (String, [Type]) -> Json.Pair
+toCtorObject :: (Text, [Type]) -> Json.Pair
 toCtorObject (name, args) =
-  Text.pack name .= args
+  name .= args
