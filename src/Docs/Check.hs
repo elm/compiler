@@ -1,25 +1,19 @@
 module Docs.Check (Result, check) where
 
-import qualified Data.List as List
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Traversable as T
-import Text.Parsec ((<|>), choice, many, setPosition, string)
-import Text.Parsec.Pos (newPos)
+--import qualified Data.List as List
+--import qualified Data.Map as Map
+--import qualified Data.Set as Set
+--import qualified Data.Traversable as T
 
 import qualified AST.Variable as Var
 import qualified Docs.AST as Docs
-import qualified Elm.Compiler.Type as Type
-import Elm.Utils ((|>))
-import Parse.Binop (infixOp)
-import Parse.Helpers
-    ( addLocation, anyUntil, commaSep1, parens, parse, simpleNewline
-    , var, whitespace
-    )
+--import qualified Elm.Compiler.Type as Type
+--import Elm.Utils ((|>))
+--import Parse.Helpers
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Docs as Error
-import qualified Reporting.Error.Helpers as Error (nearbyNames)
-import qualified Reporting.Region as R
+--import qualified Reporting.Error.Helpers as Error (nearbyNames)
+--import qualified Reporting.Region as R
 import qualified Reporting.Result as R
 
 
@@ -30,8 +24,10 @@ type Result w a =
 
 -- CHECK DOCUMENTATION
 
-check :: [Var.Value] -> A.Located (Maybe Docs.Centralized) -> Result w Docs.Checked
-check exports (A.A region maybeDocs) =
+check :: [Var.Value] -> Maybe (A.Located Docs.Centralized) -> Result w Docs.Checked
+check exports maybeDocs =
+  R.ok (error "TODO check docs" exports maybeDocs)
+{-
   case maybeDocs of
     Nothing ->
         R.throw region Error.NoDocs
@@ -180,3 +176,4 @@ valueName value =
     Var.Value name -> name
     Var.Alias name -> name
     Var.Union name _ -> name
+-}

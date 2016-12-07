@@ -3,6 +3,7 @@ module Docs.Centralize (centralize) where
 import Control.Arrow (second)
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
+import Data.Text (Text)
 
 import qualified AST.Declaration as D
 import qualified AST.Expression.Canonical as Canonical
@@ -18,7 +19,7 @@ import qualified Reporting.Annotation as A
 -- CENTRALIZE DOCUMENTATION
 
 
-centralize :: D.Canonical -> String -> Docs.Centralized
+centralize :: D.Canonical -> Text -> Docs.Centralized
 centralize (D.Decls defs unions aliases infixes) comment =
   let
     infixDict =
@@ -36,9 +37,9 @@ centralize (D.Decls defs unions aliases infixes) comment =
 
 
 defToEntry
-  :: Map.Map String (String, Int)
+  :: Map.Map Text (Text, Int)
   -> A.Commented Canonical.Def
-  -> Maybe (String, A.Located (Docs.Value (Maybe Type.Type)))
+  -> Maybe (Text, A.Located (Docs.Value (Maybe Type.Type)))
 defToEntry infixDict (A.A (_, maybeComment) (Canonical.Def _ pattern _ maybeType)) =
   case pattern of
     A.A subregion (Pattern.Var name) ->
@@ -55,7 +56,7 @@ defToEntry infixDict (A.A (_, maybeComment) (Canonical.Def _ pattern _ maybeType
       Nothing
 
 
-unionToEntry :: A.Commented (D.Union Type.Canonical) -> (String, A.Located Docs.Union)
+unionToEntry :: A.Commented (D.Union Type.Canonical) -> (Text, A.Located Docs.Union)
 unionToEntry (A.A (region, maybeComment) (D.Type name args ctors)) =
   let
     ctors' =
@@ -64,17 +65,17 @@ unionToEntry (A.A (region, maybeComment) (D.Type name args ctors)) =
     (name, A.A region (Docs.Union maybeComment args ctors'))
 
 
-aliasToEntry :: A.Commented (D.Alias Type.Canonical) -> (String, A.Located Docs.Alias)
+aliasToEntry :: A.Commented (D.Alias Type.Canonical) -> (Text, A.Located Docs.Alias)
 aliasToEntry (A.A (region, maybeComment) (D.Type name args tipe)) =
   ( name
   , A.A region (Docs.Alias maybeComment args (Extract.extract tipe))
   )
 
 
-infixToEntry :: D.Infix -> (String, (String, Int))
+infixToEntry :: D.Infix -> (Text, (Text, Int))
 infixToEntry (D.Infix name assoc precedence) =
   let
     fixity =
-      (D.assocToString assoc, precedence)
+      (D.assocToText assoc, precedence)
   in
     ( name, fixity )
