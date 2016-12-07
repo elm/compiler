@@ -1,6 +1,8 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Compile (compile) where
 
+import Data.Text (Text)
+
 import qualified AST.Expression.Canonical as Can
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
@@ -18,6 +20,9 @@ import qualified Type.Inference as TI
 
 
 
+-- COMPILE
+
+
 type Result =
   Result.Result (Result.One RenderType.Localizer) Warning.Warning Error.Error
 
@@ -26,7 +31,7 @@ compile
     :: Package.Name
     -> [ModuleName.Canonical]
     -> Module.Interfaces
-    -> String
+    -> Text
     -> Result Module.Optimized
 compile packageName canonicalImports interfaces source =
   do
