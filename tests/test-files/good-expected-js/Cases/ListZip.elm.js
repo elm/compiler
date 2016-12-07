@@ -1,6 +1,6 @@
 var _elm_lang$core$Main$Cons = F2(
-	function (a, b) {
-		return {ctor: 'Cons', _0: a, _1: b};
+	function (v1, v2) {
+		return {ctor: 'Cons', _0: v1, _1: v2};
 	});
 var _elm_lang$core$Main$Nil = {ctor: 'Nil'};
 var _elm_lang$core$Main$zip = F2(

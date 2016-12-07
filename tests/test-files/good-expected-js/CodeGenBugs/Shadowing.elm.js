@@ -10,7 +10,7 @@ var _elm_lang$core$Main$toName = function (a) {
 	return name;
 };
 var _elm_lang$core$Main$Second = F2(
-	function (a, b) {
-		return {ctor: 'Second', _0: a, _1: b};
+	function (v1, v2) {
+		return {ctor: 'Second', _0: v1, _1: v2};
 	});
 var _elm_lang$core$Main$First = {ctor: 'First'};

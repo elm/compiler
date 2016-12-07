@@ -1,6 +1,6 @@
 var _elm_lang$core$Main$Nothing = {ctor: 'Nothing'};
-var _elm_lang$core$Main$Just = function (a) {
-	return {ctor: 'Just', _0: a};
+var _elm_lang$core$Main$Just = function (v1) {
+	return {ctor: 'Just', _0: v1};
 };
 var _elm_lang$core$Main$withDefault0 = function (maybe) {
 	var _p0 = maybe;
