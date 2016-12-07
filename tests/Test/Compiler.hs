@@ -1,13 +1,17 @@
 {-# OPTIONS_GHC -W #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Test.Compiler (compilerTests) where
 
 import Control.Exception (try, IOException)
 
-import qualified Data.Text.Lazy as Text
-import qualified Data.Text.Lazy.IO as Text
+import qualified Data.Text.Lazy as LText
+import qualified Data.Text.Lazy.IO as LText
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
+import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
+import Data.Text (Text)
 
 import System.Directory (createDirectoryIfMissing)
 import System.Environment (lookupEnv)
@@ -77,7 +81,7 @@ essentialInterfaces :: Module.Interfaces
 essentialInterfaces =
   Map.fromList
     [
-      (ModuleName.inCore ["Debug"],
+      (ModuleName.inCore "Debug",
         buildCoreInterface
           [
             ("crash", Type.Lambda (Type.Var "String") (Type.Var "a"))
@@ -86,7 +90,7 @@ essentialInterfaces =
     ]
 
 
-buildCoreInterface :: [(String, Type.Canonical)] -> Module.Interface
+buildCoreInterface :: [(Text, Type.Canonical)] -> Module.Interface
 buildCoreInterface members =
   let
     exports = map (Variable.Value . fst) members
@@ -99,8 +103,8 @@ buildCoreInterface members =
     Module.Interface Compiler.version Package.core exports imports types adts aliases fixities
 
 
-compileString :: FilePath -> String -> Either String Compiler.Result
-compileString filePath source =
+compile :: FilePath -> Text -> Either String Compiler.Result
+compile filePath source =
   let dependentModuleNames =
         Map.keys essentialInterfaces
       context =
@@ -108,7 +112,7 @@ compileString filePath source =
       (dealiaser, _warnings, result) =
         Compiler.compile context source essentialInterfaces
       formatErrors errors =
-        concatMap (Compiler.errorToString dealiaser filePath source) errors
+        concatMap (Compiler.errorToString dealiaser filePath (Text.unpack source)) errors
   in
       either (Left . formatErrors) Right result
 
@@ -134,8 +138,8 @@ testIf
     -> IO [Test]
 testIf handleResult filePaths =
   let doTest filePath =
-        do  source <- readFile filePath
-            let formattedResult = compileString filePath source
+        do  source <- Text.readFile filePath
+            let formattedResult = compile filePath source
             return $ testCase filePath (handleResult formattedResult)
   in
       traverse doTest filePaths
@@ -143,10 +147,10 @@ testIf handleResult filePaths =
 
 doMatchesExpectedTest :: String -> FilePath -> IO Test
 doMatchesExpectedTest expectedJsDir filePath =
-  do  source <- readFile filePath
+  do  source <- Text.readFile filePath
       expectedJs <- readFileOrErrorStr (convertToExpectedJsFilePath expectedJsDir filePath)
 
-      let formattedResult = compileString filePath source
+      let formattedResult = compile filePath source
       let assertion = matchesExpected expectedJs formattedResult
 
       return $ testCase filePath assertion
@@ -154,8 +158,8 @@ doMatchesExpectedTest expectedJsDir filePath =
 
 doWriteNewExpectedTest :: String -> FilePath -> IO Test
 doWriteNewExpectedTest expectedJsDir filePath =
-  do  source <- readFile filePath
-      let formattedResult = compileString filePath source
+  do  source <- Text.readFile filePath
+      let formattedResult = compile filePath source
       let expectedFilePath = convertToExpectedJsFilePath expectedJsDir filePath
       let assertion =
             case formattedResult of
@@ -164,8 +168,8 @@ doWriteNewExpectedTest expectedJsDir filePath =
                       -- Force the evaluation of `js` before `writeFile`
                       --  so that if an error is raised we do not unintentionally write an empty file.
                       --  NB: `js` can be an empty string in the case of NoExpressions.elm
-                      assertBool "" (Text.length js >= 0)
-                      Text.writeFile expectedFilePath js
+                      assertBool "" (LText.length js >= 0)
+                      LText.writeFile expectedFilePath js
                       assertFailure ("Wrote new expected js: " ++ expectedFilePath)
 
                 _ ->
@@ -212,7 +216,7 @@ matchesExpected :: String -> Either String Compiler.Result -> Assertion
 matchesExpected expectedJs result =
     case result of
       Right (Compiler.Result _ _ js) ->
-          assertEqual matchFailureMessage (Text.pack expectedJs) js
+          assertEqual matchFailureMessage (LText.pack expectedJs) js
 
       Left errorMessages ->
           assertFailure $ "Compile failed:\n" ++ errorMessages
