@@ -1,9 +1,11 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Reporting.Error.Canonicalize where
 
 import Control.Arrow ((***))
 import qualified Data.Char as Char
-import Text.PrettyPrint.ANSI.Leijen (Doc, dullyellow, fillSep, indent, text)
+import qualified Data.Text as Text
+import Data.Text (Text)
 
 import qualified AST.Declaration as Decl
 import qualified AST.Expression.Canonical as Canonical
@@ -12,10 +14,17 @@ import qualified AST.Pattern as P
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Helpers as Help
 import qualified Reporting.Region as Region
 import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Report as Report
+import qualified Reporting.Helpers as Help
+import Reporting.Helpers
+  ( Doc, (<>), dullyellow, fillSep, i2t, indent, maybeYouWant, reflowParagraph, text
+  )
+
+
+
+-- CANONICALIZATION ERRORS
 
 
 data Error
@@ -25,32 +34,33 @@ data Error
     | Pattern PatternError
     | Alias AliasError
     | Import ModuleName.Raw ImportError
-    | Export String [String]
-    | DuplicateExport String
+    | Export Text [Text]
+    | DuplicateExport Text
     | Port PortError
-    | BadPort String Type.Canonical
+    | BadPort Text Type.Canonical
 
 
 
 -- VARIABLES
 
 
-data VarError = VarError
-    { varKind :: String
-    , varName :: String
+data VarError =
+  VarError
+    { varKind :: Text
+    , varName :: Text
     , varProblem :: VarProblem
-    , varSuggestions :: [String]
+    , varSuggestions :: [Text]
     }
 
 
 data VarProblem
     = Ambiguous
-    | UnknownQualifier String String
-    | QualifiedUnknown String String
+    | UnknownQualifier Text Text
+    | QualifiedUnknown Text Text
     | ExposedUnknown
 
 
-variable :: String -> String -> VarProblem -> [String] -> Error
+variable :: Text -> Text -> VarProblem -> [Text] -> Error
 variable kind name problem suggestions =
   Var (VarError kind name problem suggestions)
 
@@ -74,7 +84,7 @@ argMismatch name expected actual =
 
 data ImportError
     = ModuleNotFound [ModuleName.Raw]
-    | ValueNotFound String [String]
+    | ValueNotFound Text [Text]
 
 
 moduleNotFound :: ModuleName.Raw -> [ModuleName.Raw] -> Error
@@ -82,7 +92,7 @@ moduleNotFound name possibilities =
   Import name (ModuleNotFound possibilities)
 
 
-valueNotFound :: ModuleName.Raw -> String -> [String] -> Error
+valueNotFound :: ModuleName.Raw -> Text -> [Text] -> Error
 valueNotFound name value possibilities =
   Import name (ValueNotFound value possibilities)
 
@@ -93,8 +103,8 @@ valueNotFound name value possibilities =
 
 data AliasError
     = ArgMismatch Var.Canonical Int Int
-    | SelfRecursive String [String] Type.Raw
-    | MutuallyRecursive [(Region.Region, String, [String], Type.Raw)]
+    | SelfRecursive Text [Text] Type.Raw
+    | MutuallyRecursive [(Region.Region, Text, [Text], Type.Raw)]
 
 
 alias :: Var.Canonical -> Int -> Int -> Error
@@ -108,13 +118,13 @@ alias name expected actual =
 
 data PortError =
   PortError
-    { portName :: String
+    { portName :: Text
     , portType :: Type.Canonical
-    , portMessage :: Maybe String
+    , portMessage :: Maybe Text
     }
 
 
-port :: String -> Type.Canonical -> Maybe String -> Error
+port :: Text -> Type.Canonical -> Maybe Text -> Error
 port name tipe maybeMessage =
   Port (PortError name tipe maybeMessage)
 
@@ -123,7 +133,7 @@ port name tipe maybeMessage =
 -- TO REPORT
 
 
-namingError :: String -> String -> Report.Report
+namingError :: Text -> Text -> Report.Report
 namingError pre post =
   Report.report "NAMING ERROR" Nothing pre (text post)
 
@@ -132,49 +142,49 @@ toReport :: RenderType.Localizer -> Error -> Report.Report
 toReport localizer err =
   case err of
     Var (VarError kind name problem suggestions) ->
-        let var = kind ++ " `" ++ name ++ "`"
+        let var = kind <> " `" <> name <> "`"
         in
         case problem of
           Ambiguous ->
               namingError
-                ("This usage of " ++ var ++ " is ambiguous.")
-                (Help.maybeYouWant suggestions)
+                ("This usage of " <> var <> " is ambiguous.")
+                (maybeYouWant suggestions)
 
           UnknownQualifier qualifier localName ->
               namingError
-                ("Cannot find " ++ var ++ ".")
-                ( "No module called `" ++ qualifier ++ "` has been imported. "
-                  ++ Help.maybeYouWant (map (\modul -> modul ++ "." ++ localName) suggestions)
+                ("Cannot find " <> var <> ".")
+                ( "No module called `" <> qualifier <> "` has been imported. "
+                  <> maybeYouWant (map (\modul -> modul <> "." <> localName) suggestions)
                 )
 
           QualifiedUnknown qualifier localName ->
               namingError
-                ("Cannot find " ++ var ++ ".")
-                ( "`" ++ qualifier ++ "` does not expose `" ++ localName ++ "`. "
-                  ++ Help.maybeYouWant (map (\v -> qualifier ++ "." ++ v) suggestions)
+                ("Cannot find " <> var <> ".")
+                ( "`" <> qualifier <> "` does not expose `" <> localName <> "`. "
+                  <> maybeYouWant (map (\v -> qualifier <> "." <> v) suggestions)
                 )
 
           ExposedUnknown ->
               namingError
-                ("Cannot find " ++ var)
-                (Help.maybeYouWant suggestions)
+                ("Cannot find " <> var)
+                (maybeYouWant suggestions)
 
     BadRecursion region def defs ->
       case defs of
         [] ->
-          badSelfRecursion region (defToString def)
+          badSelfRecursion region (defToText def)
 
         _ ->
-          badMutualRecursion region (defToString def) (map (defToString) defs)
+          badMutualRecursion region (defToText def) (map (defToText) defs)
 
     BadInfix region _prec (Var.Canonical _ name1) _assoc1 (Var.Canonical _ name2) _assoc2 ->
         Report.report
           "INFIX PROBLEM"
           (Just region)
-          ("You cannot mix (" ++ name1 ++ ") and (" ++ name2 ++ ") without parentheses.")
+          ("You cannot mix (" <> name1 <> ") and (" <> name2 <> ") without parentheses." )
           (
             Help.stack
-              [ Help.reflowParagraph $
+              [ reflowParagraph $
                   "I do not know how to group these expressions. Add parentheses for me!"
               ]
           )
@@ -196,15 +206,15 @@ toReport localizer err =
                 "This type alias is recursive, forming an infinite type!"
                 (
                   Help.stack
-                    [ Help.reflowParagraph $
+                    [ reflowParagraph $
                         "When I expand a recursive type alias, it just keeps getting bigger and bigger.\
                         \ So dealiasing results in an infinitely large type! Try this instead:"
                     , indent 4 $
                         RenderType.decl localizer name tvars [(name, [unsafePromote tipe])]
                     , text $
                         "This is kind of a subtle distinction. I suggested the naive fix, but you can\n"
-                        ++ "often do something a bit nicer. So I would recommend reading more at:\n"
-                        ++ Help.hintLink "recursive-alias"
+                        <> "often do something a bit nicer. So I would recommend reading more at:\n"
+                        <> Help.hintLink "recursive-alias"
                     ]
                 )
 
@@ -216,52 +226,52 @@ toReport localizer err =
                 ( Help.stack
                     [ text "The following type aliases are mutually recursive:"
                     , indent 4 (Help.drawCycle (map (\(_, name, _, _) -> name) aliases))
-                    , Help.reflowParagraph $
+                    , reflowParagraph $
                         "You need to convert at least one `type alias` into a `type`. This is a kind of\
                         \ subtle distinction, so definitely read up on this before you make a fix: "
-                        ++ Help.hintLink "recursive-alias"
+                        <> Help.hintLink "recursive-alias"
                     ]
                 )
 
     Import name importError ->
-        let moduleName = ModuleName.toString name
+        let moduleName = ModuleName.toText name
         in
         case importError of
           ModuleNotFound suggestions ->
               namingError
-                ("Could not find a module named `" ++ moduleName ++ "`")
-                (Help.maybeYouWant (map ModuleName.toString suggestions))
+                ("Could not find a module named `" <> moduleName <> "`")
+                (maybeYouWant suggestions)
 
           ValueNotFound value suggestions ->
               namingError
-                ("Module `" ++ moduleName ++ "` does not expose `" ++ value ++ "`")
-                (Help.maybeYouWant suggestions)
+                ("Module `" <> moduleName <> "` does not expose `" <> value <> "`")
+                (maybeYouWant suggestions)
 
     Export name suggestions ->
         namingError
-          ("Could not export `" ++ name ++ "` which is not defined in this module.")
-          (Help.maybeYouWant suggestions)
+          ("Could not export `" <> name <> "` which is not defined in this module.")
+          (maybeYouWant suggestions)
 
     DuplicateExport name ->
         namingError
-          ("You are trying to export `" ++ name ++ "` multiple times!")
+          ("You are trying to export `" <> name <> "` multiple times!")
           "Remove duplicates until there is only one listed."
 
     Port (PortError name tipe maybeMessage) ->
       let
         context =
-          maybe "" (" the following " ++ ) maybeMessage
+          maybe "" (" the following " <> ) maybeMessage
       in
         Report.report
           "PORT ERROR"
           Nothing
-          ("Port `" ++ name ++ "` is trying to communicate an unsupported type."
+          ("Port `" <> name <> "` is trying to communicate an unsupported type."
           )
           ( Help.stack
-              [ text ("The specific unsupported type is" ++ context ++ ":")
+              [ text ("The specific unsupported type is" <> context <> ":")
               , indent 4 (RenderType.toDoc localizer tipe)
               , text "The types of values that can flow through in and out of Elm include:"
-              , indent 4 $ Help.reflowParagraph $
+              , indent 4 $ reflowParagraph $
                   "Ints, Floats, Bools, Strings, Maybes, Lists, Arrays,\
                   \ Tuples, Json.Values, and concrete records."
               -- TODO add a note about custom decoders and encoders when they exist!
@@ -272,35 +282,38 @@ toReport localizer err =
       Report.report
         "PORT ERROR"
         Nothing
-        ("Port `" ++ name ++ "` has an invalid type."
+        ("Port `" <> name <> "` has an invalid type."
         )
         ( Help.stack
             [ text ("You are saying it should be:")
             , indent 4 (RenderType.toDoc localizer tipe)
-            , Help.reflowParagraph $
+            , reflowParagraph $
                 "But you need to use the particular format described here:\
                 \ <http://guide.elm-lang.org/interop/javascript.html#ports>"
             ]
         )
 
 
-argMismatchReport :: String -> Var.Canonical -> Int -> Int -> Report.Report
+argMismatchReport :: Text -> Var.Canonical -> Int -> Int -> Report.Report
 argMismatchReport kind var expected actual =
   let
     numArgs =
       "too "
-      ++ (if actual < expected then "few" else "many")
-      ++ " arguments"
+      <> (if actual < expected then "few" else "many")
+      <> " arguments"
   in
     Report.report
-      (map Char.toUpper numArgs)
+      (Text.map Char.toUpper numArgs)
       Nothing
-      ( kind ++ " " ++ Var.toString var ++ " has " ++ numArgs ++ "."
+      ( kind <> " " <> Var.toText var <> " has " <> numArgs <> "."
       )
-      (text ("Expecting " ++ show expected ++ ", but got " ++ show actual ++ "."))
+      ( text $
+          "Expecting " <> i2t expected <> ", but got " <> i2t actual <> "."
+      )
 
 
-extractSuggestions :: Error -> Maybe [String]
+
+extractSuggestions :: Error -> Maybe [Text]
 extractSuggestions err =
   case err of
     Var (VarError _ _ _ suggestions) ->
@@ -321,7 +334,7 @@ extractSuggestions err =
     Import _ importError ->
         case importError of
           ModuleNotFound suggestions ->
-              Just (map ModuleName.toString suggestions)
+              Just (map ModuleName.toText suggestions)
 
           ValueNotFound _ suggestions ->
               Just suggestions
@@ -362,50 +375,52 @@ unsafePromote (A.A _ rawType) =
 -- BAD RECURSION
 
 
-badSelfRecursion :: Region.Region -> String -> Report.Report
+badSelfRecursion :: Region.Region -> Text -> Report.Report
 badSelfRecursion region name =
   let
     header =
-      Help.functionName name ++ " is defined directly in terms of itself, causing an infinite loop."
+      Help.functionName name <> " is defined directly in terms of itself, causing an infinite loop."
   in
     Report.report "BAD RECURSION" (Just region) header $
       Help.stack
         [ badSelfRecursionHelp "Maybe you are trying to mutate a variable?" $
-            "Elm does not have mutation, so when I see " ++ Help.functionName name
-            ++ " defined in terms of " ++ Help.functionName name
-            ++ ", I treat it as a recursive definition. Try giving the new value a new name!"
+            "Elm does not have mutation, so when I see " <> Help.functionName name
+            <> " defined in terms of " <> Help.functionName name
+            <> ", I treat it as a recursive definition. Try giving the new value a new name!"
         , badSelfRecursionHelp "Maybe you DO want a recursive value?" $
-            "To define " ++ Help.functionName name ++ " we need to know what " ++ Help.functionName name
-            ++ " is, so let’s expand it. Wait, but now we need to know what " ++ Help.functionName name
-            ++ " is, so let’s expand it... This will keep going infinitely!"
+            "To define " <> Help.functionName name <> " we need to know what " <> Help.functionName name
+            <> " is, so let’s expand it. Wait, but now we need to know what " <> Help.functionName name
+            <> " is, so let’s expand it... This will keep going infinitely!"
         , badSelfRecursionHelp "To really learn what is going on and how to fix it, check out:" $
             Help.hintLink "bad-recursion"
         ]
 
 
-badSelfRecursionHelp :: String -> String -> Doc
+badSelfRecursionHelp :: Text -> Text -> Doc
 badSelfRecursionHelp intro body =
-  fillSep $ map (dullyellow . text) (words intro) ++ map text (words body)
+  fillSep $
+    map (dullyellow . text) (Text.words intro)
+    ++ map text (Text.words body)
 
 
-badMutualRecursion :: Region.Region -> String -> [String] -> Report.Report
+badMutualRecursion :: Region.Region -> Text -> [Text] -> Report.Report
 badMutualRecursion region name names =
   let
     header =
-      Help.functionName name ++ " is defined in terms of itself in a sneaky way, causing an infinite loop."
+      Help.functionName name <> " is defined in terms of itself in a sneaky way, causing an infinite loop."
   in
     Report.report "BAD RECURSION" (Just region) header $
       Help.stack
-        [ Help.reflowParagraph $
+        [ reflowParagraph $
             "The following definitions depend directly on each other:"
         , indent 4 $ Help.drawCycle (name : names)
-        , Help.reflowParagraph $
+        , reflowParagraph $
             "You seem to have a fairly tricky case, so I very highly recommend reading this: "
-            ++ Help.hintLink "bad-recursion"
-            ++ " It will help you really understand the problem and how to fix it. Read it!"
+            <> Help.hintLink "bad-recursion"
+            <> " It will help you really understand the problem and how to fix it. Read it!"
         ]
 
 
-defToString :: Canonical.Def -> String
-defToString (Canonical.Def _ pattern _ _) =
-  P.toString False pattern
+defToText :: Canonical.Def -> Text
+defToText (Canonical.Def _ pattern _ _) =
+  P.toText pattern

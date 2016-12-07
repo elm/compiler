@@ -6,7 +6,6 @@ import Control.Monad (zipWithM_)
 import Control.Monad.Except (ExceptT, lift, liftIO, throwError, runExceptT)
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
-import qualified Data.Text as Text
 import Data.Text (Text)
 import qualified Data.UnionFind.IO as UF
 
@@ -682,7 +681,7 @@ unifySharedFieldsHelp context sharedFields =
           mismatch context (Just (Error.BadFields (reverse badFields)))
 
 
-unifyField :: Context -> (Text, (Variable, Variable)) -> Unify (Maybe (String, Maybe Error.Reason))
+unifyField :: Context -> (Text, (Variable, Variable)) -> Unify (Maybe (Text, Maybe Error.Reason))
 unifyField context (field, (expected, actual)) =
   do  result <- lift $ runExceptT $ subUnify context expected actual
       case result of
@@ -690,7 +689,7 @@ unifyField context (field, (expected, actual)) =
           return $ Nothing
 
         Left (Mismatch maybeReason) ->
-          return $ Just (Text.unpack field, maybeReason)
+          return $ Just (field, maybeReason)
 
 
 

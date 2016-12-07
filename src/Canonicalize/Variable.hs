@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Canonicalize.Variable (Result, variable, tvar, pvar) where
 
+import Data.Monoid ((<>))
 import qualified Data.Either as Either
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -14,7 +15,7 @@ import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Canonicalize.Environment as Env
 import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Error.Helpers as Error
+import qualified Reporting.Helpers as Help (nearbyNames)
 import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
 import qualified Reporting.Warning as Warning
@@ -151,7 +152,7 @@ preferLocals' region env extract kind possibilities var =
       ambiguous possibleVars =
           Result.throw region (Error.variable kind var Error.Ambiguous vars)
         where
-          vars = map (Text.pack . Var.toString . extract) possibleVars
+          vars = map (Var.toText . extract) possibleVars
 
 
 isLocal :: ModuleName.Canonical -> Var.Canonical -> Bool
@@ -195,16 +196,16 @@ toVarName var =
     xs -> Right (Text.intercalate "." (init xs), last xs)
 
 
-noQualifier :: VarName -> String
+noQualifier :: VarName -> Text
 noQualifier name =
   case name of
-    Right (_, x) -> Text.unpack x
-    Left x       -> Text.unpack x
+    Right (_, x) -> x
+    Left x       -> x
 
 
-qualifiedToString :: (ModuleName.Raw, Text) -> Text
-qualifiedToString (modul, name) =
-  Text.pack (ModuleName.toString modul ++ "." ++ Text.unpack name)
+qualifiedToText :: (ModuleName.Raw, Text) -> Text
+qualifiedToText (modul, name) =
+  ModuleName.toText modul <> "." <> name
 
 
 isOp :: VarName -> Bool
@@ -240,11 +241,11 @@ exposedProblem name possibleNames =
   let (exposed, qualified) =
           possibleNames
             |> filter (\n -> isOp name == isOp n)
-            |> Error.nearbyNames noQualifier name
+            |> Help.nearbyNames noQualifier name
             |> Either.partitionEithers
   in
       ( Error.ExposedUnknown
-      , exposed ++ map qualifiedToString qualified
+      , exposed ++ map qualifiedToText qualified
       )
 
 
@@ -259,11 +260,11 @@ qualifiedProblem moduleName name allQualified =
             , allQualified
                 |> filter ((==) moduleName . fst)
                 |> map snd
-                |> Error.nearbyNames Text.unpack name
+                |> Help.nearbyNames id name
             )
 
         False ->
             ( Error.UnknownQualifier moduleName name
             , Set.toList availableModules
-                |> Error.nearbyNames Text.unpack moduleName
+                |> Help.nearbyNames id moduleName
             )

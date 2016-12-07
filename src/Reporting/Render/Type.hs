@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Reporting.Render.Type
   ( Localizer
   , decl
@@ -11,15 +13,16 @@ module Reporting.Render.Type
 import Control.Arrow ((***), first)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Text.PrettyPrint.ANSI.Leijen
-  ( Doc, (<+>), cat, colon, comma, dullyellow, equals, hang, hsep
-  , lbrace, lparen, parens, rbrace, rparen, sep, text, vcat
-  )
+import Data.Text (Text)
 
 import qualified AST.Helpers as Help
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
-import qualified Reporting.Error.Helpers as Help
+import qualified Reporting.Helpers as Help
+import Reporting.Helpers
+  ( Doc, (<+>), cat, colon, comma, dullyellow, equals, hang, hsep
+  , lbrace, lparen, parens, rbrace, rparen, sep, text, vcat
+  )
 
 
 
@@ -41,21 +44,21 @@ diffToDocs localizer leftType rightType =
         (leftDoc, rightDoc)
 
 
-decl :: Localizer -> String -> [String] -> [(String, [Type.Canonical])] -> Doc
+decl :: Localizer -> Text -> [Text] -> [(Text, [Type.Canonical])] -> Doc
 decl localizer name vars tags =
   let
     docTag (tag, args) =
       hang 2 (sep (text tag : map (docType localizer App) args))
   in
     hang 4 $ vcat $
-      (hsep (map text ("type" : name : vars)))
+      (hsep (text "type" : map text (name : vars)))
       :
       zipWith (<+>)
         (equals : repeat (text "|"))
         (map docTag tags)
 
 
-annotation :: Localizer -> String -> Type.Canonical -> Doc
+annotation :: Localizer -> Text -> Type.Canonical -> Doc
 annotation localizer name tipe =
   let
     docName =
@@ -81,20 +84,20 @@ annotation localizer name tipe =
 
 
 type Localizer =
-  Map.Map String String
+  Map.Map Var.Canonical Text
 
 
 varToDoc :: Localizer -> Var.Canonical -> Doc
 varToDoc localizer var =
   let
     name =
-      Var.toString var
+      Var.toText var
   in
     if name == "_Tuple0" then
       text "()"
 
     else
-      text (maybe name id (Map.lookup name localizer))
+      text (maybe name id (Map.lookup var localizer))
 
 
 
@@ -120,8 +123,8 @@ instance Applicative Diff where
   pure a =
     Same a
 
-  (<*>) func arg =
-    case (func, arg) of
+  (<*>) function argument =
+    case (function, argument) of
       (Diff leftFunc rightFunc, Diff leftArg rightArg) ->
           Diff (leftFunc leftArg) (rightFunc rightArg)
 
@@ -258,7 +261,7 @@ diffLambda localizer context leftType rightType =
 -- RECORD DIFFS
 
 
-diffRecord :: Localizer -> Fields -> Maybe String -> Fields -> Maybe String -> Diff Doc
+diffRecord :: Localizer -> Fields -> Maybe Text -> Fields -> Maybe Text -> Diff Doc
 diffRecord localizer leftFields leftExt rightFields rightExt =
   let
     (leftOnly, both, rightOnly) =
@@ -305,7 +308,7 @@ diffRecord localizer leftFields leftExt rightFields rightExt =
             (docRecord style rights (fmap text rightExt))
 
 
-unzipDiffs :: [(String, (Doc, Doc))] -> ( [(Doc, Doc)], [(Doc, Doc)] )
+unzipDiffs :: [(Text, (Doc, Doc))] -> ( [(Doc, Doc)], [(Doc, Doc)] )
 unzipDiffs diffPairs =
   let
     unzipHelp (name, (left, right)) =
@@ -318,7 +321,7 @@ unzipDiffs diffPairs =
 -- RECORD DIFFS HELPERS
 
 
-analyzeFields :: [String] -> [String] -> ( [(Doc, Doc)], [(Doc, Doc)] )
+analyzeFields :: [Text] -> [Text] -> ( [(Doc, Doc)], [(Doc, Doc)] )
 analyzeFields leftOnly rightOnly =
   let
     typoPairs =
@@ -343,11 +346,11 @@ analyzeFields leftOnly rightOnly =
 
 
 type Fields =
-  Map.Map String Type.Canonical
+  Map.Map Text Type.Canonical
 
 
 type DoubleFields =
-  Map.Map String (Type.Canonical,Type.Canonical)
+  Map.Map Text (Type.Canonical,Type.Canonical)
 
 
 vennDiagram :: Fields -> Fields -> (Fields, DoubleFields, Fields)
@@ -359,17 +362,17 @@ vennDiagram leftFields rightFields =
 
 
 flattenRecord
-    :: [(String, Type.Canonical)]
+    :: [(Text, Type.Canonical)]
     -> Maybe Type.Canonical
-    -> (Fields, Maybe String)
+    -> (Fields, Maybe Text)
 flattenRecord fields ext =
   first Map.fromList (flattenRecordHelp fields ext)
 
 
 flattenRecordHelp
-    :: [(String, Type.Canonical)]
+    :: [(Text, Type.Canonical)]
     -> Maybe Type.Canonical
-    -> ([(String, Type.Canonical)], Maybe String)
+    -> ([(Text, Type.Canonical)], Maybe Text)
 flattenRecordHelp fields ext =
   case ext of
     Nothing ->

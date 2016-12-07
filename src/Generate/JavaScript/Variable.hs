@@ -43,7 +43,7 @@ fresh =
 
 define :: Maybe ModuleName.Canonical -> Text -> JS.Expr -> [JS.Stmt]
 define maybeHome name body =
-  if not (Help.isOp (Text.unpack name)) then
+  if not (Help.isOp name) then
     let
       jsName =
         maybe unqualified qualified maybeHome name
@@ -74,7 +74,7 @@ define maybeHome name body =
 
 canonical :: Var.Canonical -> JS.Expr
 canonical (Var.Canonical home name) =
-  if Help.isOp (Text.unpack name) then
+  if Help.isOp name then
     JS.BracketRef (JS.ref (getOpsDictName home)) (JS.String name)
 
   else

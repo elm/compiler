@@ -11,12 +11,15 @@ module Reporting.Report
 
 import Data.Aeson ((.=))
 import qualified Data.Aeson.Types as Json
+import qualified Data.Text as Text
+import Data.Text (Text)
 import System.IO (Handle)
 import Text.PrettyPrint.ANSI.Leijen
-    ( Doc, (<>), displayS, displayIO, dullcyan, fillSep
+    ( Doc, (<>), displayS, displayIO, dullcyan
     , hardline, plain, renderPretty, text
     )
 
+import qualified Reporting.Helpers as Help
 import qualified Reporting.Region as R
 import qualified Reporting.Render.Code as Code
 
@@ -26,16 +29,16 @@ import qualified Reporting.Render.Code as Code
 
 
 data Report = Report
-    { _title :: String
+    { _title :: Text
     , _highlight :: Maybe R.Region
     , _preHint :: Doc
     , _postHint :: Doc
     }
 
 
-report :: String -> Maybe R.Region -> String -> Doc -> Report
+report :: Text -> Maybe R.Region -> Text -> Doc -> Report
 report title highlight pre post =
-  Report title highlight (fillSep (map text (words pre))) post
+  Report title highlight (Help.reflowParagraph pre) post
 
 
 
@@ -70,14 +73,16 @@ toDoc location region (Report title highlight preHint postHint) source =
     <> hardline <> hardline
 
 
-messageBar :: String -> String -> Doc
+messageBar :: Text -> String -> Doc
 messageBar tag location =
   let
     usedSpace =
-      4 + length tag + 1 + length location
+      4 + Text.length tag + 1 + length location
   in
     dullcyan $ text $
-      "-- " ++ tag ++ " " ++ replicate (max 1 (80 - usedSpace)) '-' ++ " " ++ location
+      "-- " ++ Text.unpack tag
+      ++ " " ++ replicate (max 1 (80 - usedSpace)) '-'
+      ++ " " ++ location
 
 
 

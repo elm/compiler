@@ -4,15 +4,15 @@ module Reporting.Warning where
 
 import Data.Aeson ((.=))
 import qualified Data.Aeson as Json
-import qualified Data.Text as Text
-import Text.PrettyPrint.ANSI.Leijen (text)
+import Data.Text (Text)
 
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
 import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Helpers as Help
 import qualified Reporting.Report as Report
 import qualified Reporting.Render.Type as RenderType
+import qualified Reporting.Helpers as Help
+import Reporting.Helpers ((<>), text)
 
 
 
@@ -21,7 +21,7 @@ import qualified Reporting.Render.Type as RenderType
 
 data Warning
     = UnusedImport ModuleName.Raw
-    | MissingTypeAnnotation String Type.Canonical
+    | MissingTypeAnnotation Text Type.Canonical
 
 
 
@@ -35,14 +35,14 @@ toReport localizer warning =
         Report.report
           "unused import"
           Nothing
-          ("Module `" ++ Text.unpack (ModuleName.toText moduleName) ++ "` is unused.")
+          ("Module `" <> ModuleName.toText moduleName <> "` is unused.")
           (text "Best to remove it. Don't save code quality for later!")
 
     MissingTypeAnnotation name inferredType ->
         Report.report
           "missing type annotation"
           Nothing
-          ("Top-level value " ++ Help.functionName name ++ " does not have a type annotation.")
+          ("Top-level value " <> Help.functionName name <> " does not have a type annotation.")
           ( Help.stack
               [ text "I inferred the type annotation so you can copy it into your code:"
               , RenderType.annotation localizer name inferredType
@@ -63,6 +63,6 @@ toJson localizer filePath (A.A region warning) =
       Json.object $
         [ "file" .= filePath
         , "region" .= maybe region id maybeRegion
-        , "type" .= ("warning" :: String)
+        , "type" .= ("warning" :: Text)
         ]
         ++ additionalFields

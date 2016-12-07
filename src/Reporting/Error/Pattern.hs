@@ -1,13 +1,16 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Reporting.Error.Pattern where
 
-import Text.PrettyPrint.ANSI.Leijen (text)
+import Data.Text (Text)
+import qualified Data.Text as Text
 
 import qualified Nitpick.Pattern as Pattern
-import qualified Reporting.Error.Helpers as Help
 import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Region as Region
 import qualified Reporting.Report as Report
+import qualified Reporting.Helpers as Help
+import Reporting.Helpers ((<>), text)
 
 
 
@@ -54,39 +57,39 @@ toReport _localizer err =
         Report.report
           "REDUNDANT PATTERN"
           (Just region)
-          ("The " ++ Help.ordinalize index ++ " pattern is redundant. Remove it.")
+          ("The " <> Help.ordinalize index <> " pattern is redundant. Remove it.")
           (text "Any value with this shape will be handled by a previous pattern.")
 
 
-unhandledError :: [Pattern.Pattern] -> String -> String
+unhandledError :: [Pattern.Pattern] -> Text -> Text
 unhandledError unhandledPatterns relevantMessage =
   let
     (visiblePatterns, rest) =
       splitAt 4 unhandledPatterns
 
     patternList =
-        map Pattern.toString visiblePatterns
+        map Pattern.toText visiblePatterns
         ++ if null rest then [] else ["..."]
 
     noun =
       if length unhandledPatterns == 1 then "pattern" else "patterns"
   in
-    "You need to account for the following " ++ noun ++ ":\n"
-    ++ concatMap ("\n    " ++) patternList ++ "\n"
-    ++ "\n"
-    ++ relevantMessage ++ "\n"
-    ++ "\n"
-    ++ "If you are seeing this error for the first time, check out these hints:\n"
-    ++ Help.hintLink "missing-patterns" ++ "\n"
-    ++ "The recommendations about wildcard patterns and `Debug.crash` are important!"
+    "You need to account for the following " <> noun <> ":\n"
+    <> Text.concat (map ("\n    " <>) patternList) <> "\n"
+    <> "\n"
+    <> relevantMessage <> "\n"
+    <> "\n"
+    <> "If you are seeing this error for the first time, check out these hints:\n"
+    <> Help.hintLink "missing-patterns" <> "\n"
+    <> "The recommendations about wildcard patterns and `Debug.crash` are important!"
 
 
-toCaseMessage :: String
+toCaseMessage :: Text
 toCaseMessage =
   "Switch to a `case` expression to handle all possible patterns."
 
 
-missingBranchesMessage :: Int -> String
+missingBranchesMessage :: Int -> Text
 missingBranchesMessage numUnhandled =
   if numUnhandled == 1 then
     "Add a branch to cover this pattern!"

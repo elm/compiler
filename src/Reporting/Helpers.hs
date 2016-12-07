@@ -1,6 +1,13 @@
 {-# OPTIONS_GHC -Wall #-}
-module Reporting.Error.Helpers
+{-# LANGUAGE OverloadedStrings #-}
+module Reporting.Helpers
   ( (|>)
+  -- re-exports
+  , Doc, (<+>), (<>), cat, colon, comma, dullyellow, equals, fillSep, hang
+  , hsep, indent, lbrace, lparen, parens, rbrace, rparen, sep, text, underline
+  , vcat
+  -- custom helpers
+  , i2t
   , functionName, args
   , hintLink, stack, reflowParagraph
   , commaSep, capitalize, ordinalize, drawCycle
@@ -13,10 +20,13 @@ import Data.Function (on)
 import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Map as Map
+import Data.Monoid ((<>))
 import qualified Data.Set as Set
+import qualified Data.Text as Text
+import Data.Text (Text)
 import qualified Text.EditDistance as Dist
-import Text.PrettyPrint.ANSI.Leijen
-  ( Doc, (<>), dullyellow, fillSep, hardline, text, vcat )
+import qualified Text.PrettyPrint.ANSI.Leijen as P
+import Text.PrettyPrint.ANSI.Leijen hiding ((<>), text)
 
 import qualified AST.Helpers as Help
 import qualified Elm.Compiler.Version as Compiler
@@ -39,30 +49,40 @@ infixl 0 |>
 -- DOC HELPERS
 
 
-functionName :: String -> String
+text :: Text -> Doc
+text msg =
+  P.text (Text.unpack msg)
+
+
+i2t :: Int -> Text
+i2t n =
+  Text.pack (show n)
+
+
+functionName :: Text -> Text
 functionName opName =
   if Help.isOp opName then
-      "(" ++ opName ++ ")"
+      "(" <> opName <> ")"
 
   else
-      "`" ++ opName ++ "`"
+      "`" <> opName <> "`"
 
 
-args :: Int -> String
+args :: Int -> Text
 args n =
-  show n ++ if n == 1 then " argument" else " arguments"
+  i2t n <> if n == 1 then " argument" else " arguments"
 
 
-hintLink :: String -> String
+hintLink :: Text -> Text
 hintLink fileName =
   "<https://github.com/elm-lang/elm-compiler/blob/"
-  ++ Pkg.versionToString Compiler.version
-  ++ "/hints/" ++ fileName ++ ".md>"
+  <> Text.pack (Pkg.versionToString Compiler.version)
+  <> "/hints/" <> fileName <> ".md>"
 
 
 stack :: [Doc] -> Doc
-stack list =
-  case list of
+stack chunks =
+  case chunks of
     [] ->
         error "function `stack` requires a non-empty list of docs"
 
@@ -70,33 +90,35 @@ stack list =
         List.foldl' (\a b -> a <> hardline <> hardline <> b) doc docs
 
 
-reflowParagraph :: String -> Doc
+reflowParagraph :: Text -> Doc
 reflowParagraph paragraph =
-  fillSep (map text (words paragraph))
+  fillSep (map text (Text.words paragraph))
 
 
-commaSep :: [String] -> String
+commaSep :: [Text] -> Text
 commaSep tokens =
   case tokens of
     [token] ->
-      " " ++ token
+      " " <> token
 
     [token1,token2] ->
-      " " ++ token1 ++ " and " ++ token2
+      " " <> token1 <> " and " <> token2
 
     _ ->
-      " " ++ List.intercalate ", " (init tokens) ++ ", and " ++ last tokens
+      " " <> Text.intercalate ", " (init tokens) <> ", and " <> last tokens
 
 
-capitalize :: String -> String
-capitalize string =
-  case string of
-    [] -> []
-    c : cs ->
-      Char.toUpper c : cs
+capitalize :: Text -> Text
+capitalize txt =
+  case Text.uncons txt of
+    Nothing ->
+      txt
+
+    Just (c, rest) ->
+      Text.cons (Char.toUpper c) rest
 
 
-ordinalize :: Int -> String
+ordinalize :: Int -> Text
 ordinalize number =
   let
     remainder10 =
@@ -112,18 +134,18 @@ ordinalize number =
       | remainder10 == 3             = "rd"
       | otherwise                    = "th"
   in
-    show number ++ ending
+    i2t number <> ending
 
 
 
-drawCycle :: [String] -> Doc
-drawCycle strings =
+drawCycle :: [Text] -> Doc
+drawCycle names =
   let
     topLine =
         text "┌─────┐"
 
-    line str =
-        text "│    " <> dullyellow (text str)
+    nameLine name =
+        text "│    " <> dullyellow (text name)
 
     midLine =
         text "│     ↓"
@@ -131,19 +153,19 @@ drawCycle strings =
     bottomLine =
         text "└─────┘"
   in
-    vcat (topLine : List.intersperse midLine (map line strings) ++ [ bottomLine ])
+    vcat (topLine : List.intersperse midLine (map nameLine names) ++ [ bottomLine ])
 
 
 
 -- FIND TYPOS
 
 
-findPotentialTypos :: [String] -> String -> [String]
+findPotentialTypos :: [Text] -> Text -> [Text]
 findPotentialTypos knownNames badName =
   filter ((==1) . distance badName) knownNames
 
 
-findTypoPairs :: [String] -> [String] -> [(String, String)]
+findTypoPairs :: [Text] -> [Text] -> [(Text, Text)]
 findTypoPairs leftOnly rightOnly =
   let
     veryNear leftName =
@@ -152,7 +174,7 @@ findTypoPairs leftOnly rightOnly =
     concatMap veryNear leftOnly
 
 
-vetTypos :: [(String, String)] -> Maybe (Set.Set String, Set.Set String)
+vetTypos :: [(Text, Text)] -> Maybe (Set.Set Text, Set.Set Text)
 vetTypos potentialTypos =
   let
     tallyNames (ln, rn) (lc, rc) =
@@ -163,7 +185,7 @@ vetTypos potentialTypos =
     (leftCounts, rightCounts) =
       foldr tallyNames (Map.empty, Map.empty) potentialTypos
 
-    acceptable :: Map.Map String Int -> Bool
+    acceptable :: Map.Map Text Int -> Bool
     acceptable counts =
       not (Map.null counts)
       &&
@@ -180,10 +202,10 @@ vetTypos potentialTypos =
 -- NEARBY NAMES
 
 
-nearbyNames :: (a -> String) -> a -> [a] -> [a]
+nearbyNames :: (a -> Text) -> a -> [a] -> [a]
 nearbyNames format name names =
   let editDistance =
-        if length (format name) < 3 then 1 else 2
+        if Text.length (format name) < 3 then 1 else 2
   in
       names
         |> map (\x -> (distance (format name) (format x), x))
@@ -192,12 +214,15 @@ nearbyNames format name names =
         |> map snd
 
 
-distance :: String -> String -> Int
+distance :: Text -> Text -> Int
 distance x y =
-  Dist.restrictedDamerauLevenshteinDistance Dist.defaultEditCosts x y
+  Dist.restrictedDamerauLevenshteinDistance
+    Dist.defaultEditCosts
+    (Text.unpack x)
+    (Text.unpack y)
 
 
-maybeYouWant :: [String] -> String
+maybeYouWant :: [Text] -> Text
 maybeYouWant suggestions =
   case suggestions of
     [] ->
@@ -205,5 +230,6 @@ maybeYouWant suggestions =
 
     _:_ ->
         "Maybe you want one of the following?\n"
-        ++ concatMap ("\n    "++) (take 4 suggestions)
+        <>
+        Text.concat (map ("\n    " <>) (take 4 suggestions))
 

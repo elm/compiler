@@ -3,12 +3,13 @@
 module Nitpick.Pattern
   ( Pattern(..)
   , fromCanonicalPattern
-  , toString
+  , toText
   )
   where
 
 import qualified Data.List as List
 import Data.Monoid ((<>))
+import Data.Text (Text)
 import qualified Data.Text.Lazy as LazyText
 import Data.Text.Lazy.Builder (Builder, fromText, toLazyText)
 
@@ -61,9 +62,9 @@ fromCanonicalPattern (A.A _ pattern) =
 -- TO STRING
 
 
-toString :: Pattern -> String
-toString pattern =
-  LazyText.unpack (toLazyText (toBuilder False pattern))
+toText :: Pattern -> Text
+toText pattern =
+  LazyText.toStrict (toLazyText (toBuilder False pattern))
 
 
 toBuilder :: Bool -> Pattern -> Builder

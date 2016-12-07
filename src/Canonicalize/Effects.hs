@@ -1,7 +1,8 @@
+{-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Canonicalize.Effects (canonicalize, toValues, checkPortType) where
 
 import qualified Data.Foldable as F
-import qualified Data.Text as Text
 import Data.Text (Text)
 
 import qualified AST.Effects as Effects
@@ -77,9 +78,9 @@ figureOutKind region name rootType =
       Result.throw region (Error.BadPort name rootType)
 
 
-makeError :: R.Region -> Text -> T.Canonical -> Maybe String -> A.Located Error.Error
+makeError :: R.Region -> Text -> T.Canonical -> Maybe Text -> A.Located Error.Error
 makeError region name tipe maybeMessage =
-  A.A region (Error.port (Text.unpack name) tipe maybeMessage)
+  A.A region (Error.port name tipe maybeMessage)
 
 
 
@@ -88,16 +89,16 @@ makeError region name tipe maybeMessage =
 
 checkPortType
   :: (Monoid i)
-  => (T.Canonical -> Maybe String -> A.Located e)
+  => (T.Canonical -> Maybe Text -> A.Located e)
   -> T.Canonical
   -> Result.Result i w e ()
-checkPortType makeError tipe =
+checkPortType mkError tipe =
   let
     check =
-      checkPortType makeError
+      checkPortType mkError
 
     throw maybeMsg =
-      Result.throwMany [makeError tipe maybeMsg]
+      Result.throwMany [mkError tipe maybeMsg]
   in
     case tipe of
       T.Aliased _ args aliasedType ->

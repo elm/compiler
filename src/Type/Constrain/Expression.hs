@@ -598,7 +598,7 @@ constrainAnnDefHelp expr tipe (ArgInfo name defRegion env args vars) =
           let sharedArity = length args
           let typeArity = sharedArity + length (ST.collectLambdas tipe) - 1
           let argsArity = sharedArity + length (fst (C.collectLambdas expr))
-          let hint = Error.ReturnType (Text.unpack name) typeArity argsArity region
+          let hint = Error.ReturnType name typeArity argsArity region
           let resultCon =
                 CEqual hint defRegion rigidType resultType
 

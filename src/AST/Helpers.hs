@@ -1,8 +1,9 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module AST.Helpers where
+module AST.Helpers (isTuple, isOp, isSymbol) where
 
 import qualified Data.Char as Char
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Text (Text)
 
@@ -22,11 +23,16 @@ isTuple name =
 -- INFIX OPERATORS
 
 
-isOp :: String -> Bool
+isOp :: Text -> Bool
 isOp name =
-  all isSymbol name
+  Text.all isSymbol name
 
 
 isSymbol :: Char -> Bool
 isSymbol c =
-  elem c ("+-/*=.<>:&|^?%#@~!" :: String)
+  Set.member c validSymbols
+
+
+validSymbols :: Set.Set Char
+validSymbols =
+  Set.fromList "+-/*=.<>:&|^?%#@~!"

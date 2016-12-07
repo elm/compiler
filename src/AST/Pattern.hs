@@ -120,6 +120,11 @@ toString var =
   LazyText.unpack (toLazyText (toBuilder False var))
 
 
+toText :: Canonical -> Text
+toText var =
+  LazyText.toStrict (toLazyText (toBuilder False var))
+
+
 toBuilder :: Bool -> Canonical -> Builder
 toBuilder needsParens (A.A _ pattern) =
   case pattern of

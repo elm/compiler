@@ -8,7 +8,6 @@ import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import Data.Monoid ((<>))
-import qualified Data.Text as Text
 import Data.Text (Text)
 
 import qualified AST.Declaration as D
@@ -22,7 +21,7 @@ import qualified AST.Variable as Var
 import Elm.Utils ((|>))
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Error.Helpers as Error
+import qualified Reporting.Helpers as Help (nearbyNames)
 import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
 import qualified Canonicalize.Environment as Env
@@ -87,7 +86,7 @@ importToPatches importDict allInterfaces (A.A region (rawImportName, method)) =
         allInterfaces
           |> Map.keys
           |> map ModuleName._module
-          |> Error.nearbyNames ModuleName.toString rawImportName
+          |> Help.nearbyNames ModuleName.toText rawImportName
           |> Error.moduleNotFound rawImportName
           |> Result.throw region
 
@@ -100,7 +99,7 @@ importToPatches importDict allInterfaces (A.A region (rawImportName, method)) =
           listing
 
         qualifier =
-          maybe (Text.pack (ModuleName.toString rawImportName)) id maybeAlias
+          maybe (ModuleName.toText rawImportName) id maybeAlias
 
         infixPatches =
           map (infixToPatch (Var.fromModule importName)) (Module.iFixities interface)
@@ -175,7 +174,7 @@ valueToPatches region moduleName interface value =
     notFound getNames x =
       Module.iExports interface
         |> getNames
-        |> Error.nearbyNames Text.unpack x
+        |> Help.nearbyNames id x
         |> Error.valueNotFound (ModuleName._module moduleName) x
         |> Result.throw region
   in

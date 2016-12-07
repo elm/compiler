@@ -1,19 +1,21 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Reporting.Error.Docs where
 
-import Text.PrettyPrint.ANSI.Leijen (text)
+import Data.Text (Text)
 
-import qualified Reporting.Error.Helpers as Help
 import qualified Reporting.Report as Report
+import qualified Reporting.Helpers as Help
+import Reporting.Helpers ((<>), text)
 
 
 
 data Error
     = NoDocs
-    | OnlyInDocs String [String]
-    | OnlyInExports [String]
-    | NoComment String
-    | NoType String
+    | OnlyInDocs Text [Text]
+    | OnlyInExports [Text]
+    | NoComment Text
+    | NoType Text
 
 
 
@@ -27,8 +29,8 @@ toReport err =
         Report.report
           "DOCUMENTATION ERROR"
           Nothing
-          ( "You must have a documentation comment between the module declaration and the\n"
-            ++ "imports."
+          ( "You must have a documentation comment between the module\
+            \ declaration and the imports."
           )
           ( text "Learn more at <http://package.elm-lang.org/help/documentation-format>"
           )
@@ -37,29 +39,30 @@ toReport err =
         Report.report
           "DOCUMENTATION ERROR"
           Nothing
-          ("Your module documentation includes `" ++ name ++ "` which is not exported.")
+          ("Your module documentation includes `" <> name <> "` which is not exported."
+          )
           ( text $
               "Is it misspelled? Should it be exported? "
-              ++ Help.maybeYouWant suggestions
+              <> Help.maybeYouWant suggestions
           )
 
     OnlyInExports names ->
         Report.report
           "DOCUMENTATION ERROR"
           Nothing
-          ( "The following exports do not appear in your module documentation:\n"
-            ++ concatMap ("\n    " ++) names
+          ( "The following exports do not appear in your module documentation: "
+            <> Help.commaSep names
           )
           ( text $
               "All exports must be listed in the module documentation after a @docs keyword.\n"
-              ++ "Learn more at <http://package.elm-lang.org/help/documentation-format>"
+              <> "Learn more at <http://package.elm-lang.org/help/documentation-format>"
           )
 
     NoComment name ->
         Report.report
           "DOCUMENTATION ERROR"
           Nothing
-          ("The value `" ++ name ++ "` does not have a documentation comment.")
+          ("The value `" <> name <> "` does not have a documentation comment.")
           ( text "Learn more at <http://package.elm-lang.org/help/documentation-format>"
           )
 
@@ -67,8 +70,8 @@ toReport err =
         Report.report
           "MISSING ANNOTATION"
           Nothing
-          ("The value `" ++ name ++ "` does not have a type annotation.")
+          ("The value `" <> name <> "` does not have a type annotation.")
           ( text $
               "Adding type annotations is best practice and it gives you a chance to name\n"
-              ++ "types and type variables so they are as easy as possible to understand!"
+              <> "types and type variables so they are as easy as possible to understand!"
           )

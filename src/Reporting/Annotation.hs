@@ -1,6 +1,7 @@
 module Reporting.Annotation where
 
 import Prelude hiding (map)
+import Data.Text (Text)
 import qualified Reporting.Region as R
 
 
@@ -17,7 +18,7 @@ type Located a =
 
 
 type Commented a =
-    Annotated (R.Region, Maybe String) a
+    Annotated (R.Region, Maybe Text) a
 
 
 

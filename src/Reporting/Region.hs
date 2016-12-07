@@ -3,7 +3,6 @@ module Reporting.Region where
 
 import Data.Aeson ((.=))
 import qualified Data.Aeson as Json
-import qualified Text.Parsec.Pos as Parsec
 
 
 data Region =
@@ -16,17 +15,10 @@ data Region =
 
 data Position =
   Position
-    { line :: {-# UNPACK #-} !Int
-    , column :: {-# UNPACK #-} !Int
+    { line :: !Int
+    , column :: !Int
     }
     deriving (Eq, Show)
-
-
-fromSourcePos :: Parsec.SourcePos -> Position
-fromSourcePos sourcePos =
-    Position
-      (Parsec.sourceLine sourcePos)
-      (Parsec.sourceColumn sourcePos)
 
 
 merge :: Region -> Region -> Region

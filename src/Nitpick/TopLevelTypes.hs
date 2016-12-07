@@ -5,7 +5,6 @@ module Nitpick.TopLevelTypes (topLevelTypes) where
 import qualified Data.Foldable as F
 import Data.Map ((!))
 import qualified Data.Map as Map
-import qualified Data.Text as Text
 import Data.Text (Text)
 
 import qualified AST.Expression.Canonical as Can
@@ -65,7 +64,7 @@ checkAnnotation typeEnv (Can.Def _ (A.A region pattern) _ maybeType) =
     (P.Var name, Nothing) ->
       let
         warning =
-          Warning.MissingTypeAnnotation (Text.unpack name) (typeEnv ! name)
+          Warning.MissingTypeAnnotation name (typeEnv ! name)
       in
         Result.warn region warning ()
 

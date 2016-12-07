@@ -167,5 +167,4 @@ toLocalizer (Env _ _ unions aliases _ _) =
     add (key,value) dict =
       Map.insertWith (\v v' -> if Text.length v < Text.length v' then v else v') key value dict
   in
-    Map.map Text.unpack $
-      foldr add Map.empty (unionPairs ++ aliasPairs)
+    foldr add Map.empty (unionPairs ++ aliasPairs)

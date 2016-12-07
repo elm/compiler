@@ -2,12 +2,11 @@
 module Canonicalize (module') where
 
 import Prelude hiding (last)
+import qualified Data.Foldable as T
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
-import qualified Data.Foldable as T
-import qualified Data.Text as Text
 import Data.Text (Text)
 
 import Elm.Utils ((|>))
@@ -31,7 +30,7 @@ import qualified Docs.Centralize as Docs
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error as Error
 import qualified Reporting.Error.Canonicalize as CError
-import qualified Reporting.Error.Helpers as ErrorHelp
+import qualified Reporting.Helpers as Help
 import qualified Reporting.Region as Region
 import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Result as Result
@@ -218,12 +217,8 @@ manyNotFound region nameList possibilities =
 
 notFound :: Region.Region -> [Text] -> Text -> A.Located CError.Error
 notFound region possibilities badName =
-  let
-    badNameString =
-      Text.unpack badName
-  in
-    A.A region $ CError.Export badNameString $
-        ErrorHelp.nearbyNames id badNameString (map Text.unpack possibilities)
+  A.A region $ CError.Export badName $
+      Help.nearbyNames id badName possibilities
 
 
 allUnique :: [A.Located Var.Value] -> CResult ()
