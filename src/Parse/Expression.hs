@@ -214,7 +214,7 @@ chompFields fields =
           f <- chompField
           chompFields (f : fields)
     , do  rightCurly
-          return fields
+          return (reverse fields)
     ]
 
 
