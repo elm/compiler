@@ -466,12 +466,9 @@ letHelp start oldIndent defs end pos =
           (def, newEnd, newPos) <- definition
           letHelp start oldIndent (def:defs) newEnd newPos
 
-    , do  checkFreshline pos
-          failure (error "TODO missing `in`")
-
     , do  setIndent oldIndent
-          keyword "in"
           checkSpace pos
+          keyword "in"
           spaces
           (body, newEnd, newPos) <- expression
           let letExpr = A.at start end (Src.Let defs body)

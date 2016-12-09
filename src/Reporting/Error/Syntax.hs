@@ -1,6 +1,12 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Reporting.Error.Syntax where
+module Reporting.Error.Syntax
+  ( Error(..)
+  , ParseError(..)
+  , Problem(..), Theory(..)
+  , toReport
+  )
+  where
 
 import Data.Text (Text)
 
@@ -11,8 +17,12 @@ import qualified Reporting.Helpers as Help
 import Reporting.Helpers ((<>), dullyellow, hsep, i2t, text)
 
 
+
+-- ALL SYNTAX ERRORS
+
+
 data Error
-    = Parse
+    = Parse Problem
     | BadFunctionName Int
     | BadPattern Text
 
@@ -37,7 +47,45 @@ data Error
     | UnboundTypeVarsInAlias Text [Text] [Text]
     | UnusedTypeVarsInAlias Text [Text] [Text]
     | MessyTypeVarsInAlias Text [Text] [Text] [Text]
-    deriving (Show)
+
+
+
+-- PARSE ERRORS
+
+
+data ParseError
+  = ParseError !Int !Int !Problem
+
+
+data Problem
+  = Tab
+  | EndOfFile Text
+  | NewLineInString
+  | BadEscape
+  | BadChar
+  | BadNumberDot
+  | BadNumberEnd
+  | BadNumberExp
+  | BadNumberHex
+  | BadNumberZero
+  | BadChunkInQualifiedCapVar
+  | HasType -- "A single colon is for type annotations. Maybe you want :: instead? Or maybe you are defining a type annotation, but there is whitespace before it?"
+  | Equals  -- "The = operator is reserved for defining variables. Maybe you want == instead? Or maybe you are defining a variable, but there is whitespace before it?"
+  | Arrow   -- "Arrows are reserved for cases and anonymous functions. Maybe you want > or >= instead?"
+  | Pipe    -- "Vertical bars are reserved for use in union type declarations. Maybe you want || instead?"
+  | Dot     -- "Dots are for record access. They cannot float around on their own!"
+  | Theories [Theory]
+
+
+data Theory
+  = Keyword Text
+  | Symbol Text
+  | Variable
+  | InfixOp
+  | Digit
+  | BadIndent
+  | FreshLine
+  | Expecting Text
 
 
 
@@ -47,7 +95,7 @@ data Error
 toReport :: RenderType.Localizer -> Error -> Report.Report
 toReport _localizer err =
   case err of
-    Parse ->
+    Parse _ ->
         Report.report "PARSE ERROR" Nothing "Something is wrong." (text "TODO")
 
     BadFunctionName arity ->

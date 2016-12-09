@@ -5,7 +5,7 @@ module Parse.Primitives
   , run
   , try, failure, deadend, expecting, endOfFile
   , oneOf
-  , text, keyword, keywords
+  , symbol, keyword, keywords
   , lowVar, capVar, infixOp
   , getPosition, getCol
   , getIndent, setIndent
@@ -34,6 +34,9 @@ import GHC.Word (Word16(..))
 
 import qualified AST.Helpers as Help (isSymbol)
 import qualified AST.Literal as L
+import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Syntax as E
+import Reporting.Error.Syntax ( ParseError(..), Problem(..), Theory(..) )
 import qualified Reporting.Region as Region
 
 
@@ -47,9 +50,9 @@ newtype Parser a =
         :: forall b.
            State
         -> (a -> State -> b)  -- consumed ok
-        -> (Error -> b)       -- consumed err
+        -> (ParseError -> b)  -- consumed err
         -> (a -> State -> b)  -- empty ok
-        -> (Error -> b)       -- empty err
+        -> (ParseError -> b)  -- empty err
         -> b
     }
 
@@ -67,26 +70,37 @@ data State =
 
 data Result a
   = Ok a State
-  | Err Error
+  | Err ParseError
 
 
-data Error
-  = Error !Int !Int
-  deriving (Show)
+{-# INLINE noTheory #-}
+noTheory :: Int -> Int -> ParseError
+noTheory row col =
+  ParseError row col (Theories [])
+
+
+{-# INLINE loneTheory #-}
+loneTheory :: Int -> Int -> Theory -> ParseError
+loneTheory row col theory =
+  ParseError row col (Theories [theory])
 
 
 
 -- RUN PARSER
 
 
-run :: Parser a -> Text -> Either Error a
+run :: Parser a -> Text -> Either (A.Located E.Error) a
 run parser (Text.Text array offset length) =
   case _run parser (State array offset length 0 1 1) Ok Err Ok Err of
     Ok value _ ->
       Right value
 
-    Err err ->
-      Left err
+    Err (ParseError row col problem) ->
+      let
+        region =
+          Region.Region (Region.Position row col) (Region.Position row (col + 1))
+      in
+        Left (A.A region (E.Parse problem))
 
 
 
@@ -99,24 +113,27 @@ try parser =
     _run parser state cok eerr eok eerr
 
 
-failure :: error -> Parser a
-failure _msg =
+failure :: Problem -> Parser a
+failure problem =
   Parser $ \(State _ _ _ _ row col) _ cerr _ _ ->
-    cerr (Error row col)
+    cerr (ParseError row col problem)
 
 
-deadend :: error -> Parser a
-deadend _msg =
+deadend :: Theory -> Parser a
+deadend theory =
   Parser $ \(State _ _ _ _ row col) _ _ _ eerr ->
-    eerr (Error row col)
+    eerr (loneTheory row col theory)
 
 
-expecting :: String -> Parser a -> Parser a
-expecting _msg parser =
+expecting :: Text -> Parser a -> Parser a
+expecting description parser =
   Parser $ \state@(State _ _ _ _ row col) cok cerr eok eerr ->
     let
-      eok' x s = eok x s
-      eerr' _err = eerr (Error row col)
+      eok' x s =
+        eok x s
+
+      eerr' _ =
+        eerr (loneTheory row col (Expecting description))
     in
       _run parser state cok cerr eok' eerr'
 
@@ -128,7 +145,7 @@ endOfFile =
       eok () state
 
     else
-      eerr (Error row col)
+      eerr (noTheory row col)
 
 
 
@@ -151,7 +168,7 @@ instance Functor Parser where
 
 instance Applicative.Applicative Parser where
     pure = return
-    (<*>) = ap -- TODO: Can this be optimized?
+    (<*>) = ap
 
 
 instance Applicative.Alternative Parser where
@@ -167,21 +184,34 @@ oneOf parsers =
 allTheOptionsFailed :: Parser a
 allTheOptionsFailed =
   Parser $ \(State _ _ _ _ row col) _ _ _ eerr ->
-    eerr (Error row col)
+    eerr (noTheory row col)
 
 
 oneOfHelp :: Parser a -> Parser a -> Parser a
 oneOfHelp parser1 parser2 =
   Parser $ \state cok cerr eok eerr ->
     let
-      meerr err =
+      eerr1 err1 =
         let
-          neok y state' = eok y state'
-          neerr _err' = eerr err -- TODO merge things properly
+          eok2 y state' = eok y state'
+          eerr2 err2 = eerr (mergeErrors err1 err2)
         in
-          _run parser2 state cok cerr neok neerr
+          _run parser2 state cok cerr eok2 eerr2
     in
-      _run parser1 state cok cerr eok meerr
+      _run parser1 state cok cerr eok eerr1
+
+
+mergeErrors :: ParseError -> ParseError -> ParseError
+mergeErrors error1@(ParseError row col problem1) error2@(ParseError _ _ problem2) =
+  case (problem1, problem2) of
+    (Theories theories1, Theories theories2) ->
+      ParseError row col (Theories (theories1 ++ theories2))
+
+    (Theories _, _) ->
+      error2
+
+    (_, _) ->
+      error1
 
 
 
@@ -189,36 +219,28 @@ oneOfHelp parser1 parser2 =
 
 
 instance Monad Parser where
-    return x =
-      Parser $ \state _ _ eok _ ->
-        eok x state
+  return value =
+    Parser $ \state _ _ eok _ ->
+      eok value state
 
-    parser >>= callback =
-      Parser $ \state cok cerr eok eerr ->
-        let
-          cok' x state1 =
-            let
-              peok y state2 = cok y state2
-              peerr err = cerr err -- TODO is this correct?
-            in
-              _run (callback x) state1 cok cerr peok peerr
+  parser >>= callback =
+    Parser $ \state cok cerr eok eerr ->
+      let
+        cok' value newState =
+          _run (callback value) newState cok cerr cok cerr
 
-          eok' x state1 =
-            let
-              peok y state2 = eok y state2
-              peerr err = eerr err -- TODO is this correct?
-            in
-              _run (callback x) state1 cok cerr peok peerr
-        in
-          _run parser state cok' cerr eok' eerr
+        eok' value newState =
+          _run (callback value) newState cok cerr eok eerr
+      in
+        _run parser state cok' cerr eok' eerr
 
 
 
 -- TEXT
 
 
-text :: Text -> Parser ()
-text (Text.Text tArray tOffset tLen) =
+symbol :: Text -> Parser ()
+symbol sym@(Text.Text tArray tOffset tLen) =
   Parser $ \(State array offset length indent row col) cok _ _ eerr ->
     if tLen <= length && Text.equal tArray tOffset array offset tLen then
       let
@@ -228,7 +250,7 @@ text (Text.Text tArray tOffset tLen) =
         cok () (State array (offset + tLen) (length - tLen) indent newRow newCol)
 
     else
-      eerr (Error row col)
+      eerr (loneTheory row col (Symbol sym))
 
 
 moveCursor :: Text.Array -> Int -> Int -> Int -> Int -> (# Int, Int #)
@@ -255,12 +277,13 @@ moveCursor array offset length row col =
 
 
 keyword :: Text -> Parser ()
-keyword (Text.Text tArray tOffset tLen) =
+keyword kwd@(Text.Text tArray tOffset tLen) =
   Parser $ \(State array offset length indent row col) cok _ _ eerr ->
     if tLen <= length && Text.equal tArray tOffset array offset tLen then
 
       if isInnerVarChar (peekChar array (offset + tLen)) then
-        eerr (error "TODO keyword 1")
+        eerr (loneTheory row col (Keyword kwd))
+
       else
         let
           (# newRow, newCol #) =
@@ -269,7 +292,7 @@ keyword (Text.Text tArray tOffset tLen) =
           cok () (State array (offset + tLen) (length - tLen) indent newRow newCol)
 
     else
-      eerr (Error row col)
+      eerr (loneTheory row col (Keyword kwd))
 
 
 keywords :: Set.Set Text
@@ -305,7 +328,7 @@ varPrim :: (Char -> Bool) -> Parser Text.Text
 varPrim isGoodFirstChar =
   Parser $ \(State array offset length indent row col) cok _ _ eerr ->
     if length == 0 then
-      eerr (error "TODO varPrim")
+      eerr (loneTheory row col Variable)
 
     else
       let
@@ -328,12 +351,12 @@ varPrim isGoodFirstChar =
               Text.Text (Text.run makeArray) 0 newSize
           in
             if Set.member copiedText keywords then
-              eerr (Error row newCol)
+              eerr (loneTheory row newCol Variable)
             else
               cok copiedText (State array newOffset newLength indent row newCol)
 
         else
-          eerr (error "TODO varPrim 2")
+          eerr (loneTheory row col Variable)
 
 
 {-# INLINE peek #-}
@@ -390,7 +413,7 @@ infixOp :: Parser Text
 infixOp =
   Parser $ \(State array offset length indent row col) cok cerr _ eerr ->
     if length == 0 then
-      eerr (Error row col)
+      eerr (loneTheory row col InfixOp)
 
     else
       case infixOpHelp array offset length row col of
@@ -408,22 +431,22 @@ infixOp =
                   return mutableArray
           in
             if size == 0 then
-              eerr (Error row col)
+              eerr (loneTheory row col InfixOp)
 
             else
               case Text.Text (Text.run makeArray) 0 size of
-                "=" -> cerr (Error row col) -- "The = operator is reserved for defining variables. Maybe you want == instead? Or maybe you are defining a variable, but there is whitespace before it?"
-                "->" -> cerr (Error row col) -- "Arrows are reserved for cases and anonymous functions. Maybe you want > or >= instead?"
-                "|" -> cerr (Error row col) -- "Vertical bars are reserved for use in union type declarations. Maybe you want || instead?"
-                ":" -> cerr (Error row col) -- "A single colon is for type annotations. Maybe you want :: instead? Or maybe you are defining a type annotation, but there is whitespace before it?"
-                "." -> cerr (Error row col) -- "Dots are for record access. They cannot float around on their own!"
-                op -> cok op (State array newOffset newLength indent row newCol)
+                "="  -> cerr (ParseError row col Dot)
+                "|"  -> cerr (ParseError row col Pipe)
+                ":"  -> cerr (ParseError row col Arrow)
+                "."  -> cerr (ParseError row col Equals)
+                "->" -> cerr (ParseError row col HasType)
+                op   -> cok op (State array newOffset newLength indent row newCol)
 
 
-infixOpHelp :: Text.Array -> Int -> Int -> Int -> Int -> Either Error (Int, Int, Int)
+infixOpHelp :: Text.Array -> Int -> Int -> Int -> Int -> Either ParseError (Int, Int, Int)
 infixOpHelp array offset length row col =
   if length == 0 then
-    Left (Error row col)
+    Left (ParseError row col (EndOfFile "infix operator"))
 
   else
     let
@@ -484,7 +507,7 @@ whitespace =
           (State array newOffset newLength indent newRow newCol)
 
 
-eatSpaces :: Text.Array -> Int -> Int -> Int -> Int -> Either Error ( Int, Int, Int, Int )
+eatSpaces :: Text.Array -> Int -> Int -> Int -> Int -> Either ParseError ( Int, Int, Int, Int )
 eatSpaces array offset length row col =
   if length == 0 then
     Right ( offset, length, row, col )
@@ -507,7 +530,7 @@ eatSpaces array offset length row col =
         eatSpaces array (offset + 1) (length - 1) row col
 
       0x0009 {- \t -} ->
-        Left (Error row col)
+        Left (ParseError row col Tab)
 
       _ ->
         Right ( offset, length, row, col )
@@ -517,7 +540,7 @@ eatSpaces array offset length row col =
 -- LINE COMMENTS
 
 
-eatLineComment :: Text.Array -> Int -> Int -> Int -> Int -> Either Error ( Int, Int, Int, Int )
+eatLineComment :: Text.Array -> Int -> Int -> Int -> Int -> Either ParseError ( Int, Int, Int, Int )
 eatLineComment array offset length row col =
   if length == 1 then
     Right ( offset, length, row, col )
@@ -531,7 +554,7 @@ eatLineComment array offset length row col =
         Right ( offset, length, row, col )
 
 
-eatLineCommentHelp :: Text.Array -> Int -> Int -> Int -> Int -> Either Error ( Int, Int, Int, Int )
+eatLineCommentHelp :: Text.Array -> Int -> Int -> Int -> Int -> Either ParseError ( Int, Int, Int, Int )
 eatLineCommentHelp array offset length row col =
   if length == 0 then
     Right ( offset, length, row, col )
@@ -554,7 +577,7 @@ eatLineCommentHelp array offset length row col =
 -- MULTI COMMENTS
 
 
-eatMultiComment :: Text.Array -> Int -> Int -> Int -> Int -> Either Error ( Int, Int, Int, Int )
+eatMultiComment :: Text.Array -> Int -> Int -> Int -> Int -> Either ParseError ( Int, Int, Int, Int )
 eatMultiComment array offset length row col =
   if length <= 2 then
     Right ( offset, length, row, col )
@@ -573,10 +596,10 @@ eatMultiComment array offset length row col =
         Right ( offset, length, row, col )
 
 
-eatMultiCommentHelp :: Text.Array -> Int -> Int -> Int -> Int -> Int -> Either Error ( Int, Int, Int, Int )
+eatMultiCommentHelp :: Text.Array -> Int -> Int -> Int -> Int -> Int -> Either ParseError ( Int, Int, Int, Int )
 eatMultiCommentHelp array offset length row col openComments =
   if length == 0 then
-    Left (Error row col) -- never closed the comment!
+    Left (ParseError row col (EndOfFile "multi-line comment"))
 
   else
     let
@@ -612,7 +635,7 @@ eatMultiCommentHelp array offset length row col openComments =
 
 docComment :: Parser Text
 docComment =
-  do  text "{-|"
+  do  symbol "{-|"
       Parser $ \(State array offset length indent row col) cok cerr _ _ ->
         case eatMultiCommentHelp array offset length row col 1 of
           Left err ->
@@ -642,14 +665,14 @@ string :: Parser Text.Text
 string =
   Parser $ \(State array offset length indent row col) cok cerr _ eerr ->
     if length == 0 then
-      eerr (Error row col)
+      eerr (noTheory row col)
 
     else
       let
         !word = Text.unsafeIndex array offset
       in
         if word /= 0x0022 {- " -} then
-          eerr (Error row col)
+          eerr (noTheory row col)
 
         else
           let
@@ -660,8 +683,8 @@ string =
                 singleString array (offset + 1) (length - 1) row (col + 1) (offset + 1) mempty
           in
             case stringResult of
-              Left msg ->
-                cerr msg
+              Left err ->
+                cerr err
 
               Right ( newOffset, newLength, newCol, str ) ->
                 cok str (State array newOffset newLength indent row newCol)
@@ -677,10 +700,10 @@ isQuote array offset =
 -- SINGLE STRINGS
 
 
-singleString :: Text.Array -> Int -> Int -> Int -> Int -> Int -> LB.Builder -> Either Error ( Int, Int, Int, Text.Text )
+singleString :: Text.Array -> Int -> Int -> Int -> Int -> Int -> LB.Builder -> Either ParseError ( Int, Int, Int, Text.Text )
 singleString array offset length row col initialOffset builder =
   if length == 0 then
-    Left (Error row col)
+    Left (ParseError row col (EndOfFile "string"))
 
   else
     let
@@ -698,7 +721,7 @@ singleString array offset length row col initialOffset builder =
           Right ( offset + 1, length - 1, col + 1, str )
 
       else if word == 0x000A {- \n -} then
-        Left (Error row col)
+        Left (ParseError row col NewLineInString)
 
       else if word == 0x005C {- \ -} then
         case eatEscape array (offset + 1) (length - 1) row (col + 1) of
@@ -720,10 +743,10 @@ singleString array offset length row col initialOffset builder =
         singleString array (offset + 2) (length - 2) row (col + 1) initialOffset builder
 
 
-eatEscape :: Text.Array -> Int -> Int -> Int -> Int -> Either Error ( Int, Char )
+eatEscape :: Text.Array -> Int -> Int -> Int -> Int -> Either ParseError ( Int, Char )
 eatEscape array offset length row col =
   if length == 0 then
-    Left (Error row col)
+    Left (ParseError row col (EndOfFile "escape sequence"))
 
   else
     case Text.unsafeIndex array offset of
@@ -740,16 +763,16 @@ eatEscape array offset length row col =
       0x0078 {- x -} ->
         case eatHex array (offset + 1) (length - 1) 0 of
           Nothing ->
-            Left (Error row col)
+            Left (ParseError row col BadEscape)
 
           Just (newOffset, code) ->
             if code <= 0x10FFFF then
               Right ( 1 + (newOffset - offset), toEnum (fromInteger code) )
             else
-              Left (Error row col)
+              Left (ParseError row col BadEscape)
 
       _ ->
-        Left (Error row col)
+        Left (ParseError row col BadEscape)
 
 
 eatHex :: Text.Array -> Int -> Int -> Integer -> Maybe ( Int, Integer )
@@ -778,10 +801,10 @@ eatHex array offset length n =
 -- MULTI STRINGS
 
 
-multiString :: Text.Array -> Int -> Int -> Int -> Int -> Int -> LB.Builder -> Either Error ( Int, Int, Int, Text.Text )
+multiString :: Text.Array -> Int -> Int -> Int -> Int -> Int -> LB.Builder -> Either ParseError ( Int, Int, Int, Text.Text )
 multiString array offset length row col initialOffset builder =
   if length == 0 then
-    Left (Error row col)
+    Left (ParseError row col (EndOfFile "multi-line string"))
 
   else
     let
@@ -826,14 +849,14 @@ character :: Parser Char
 character =
   Parser $ \(State array offset length indent row col) cok cerr _ eerr ->
     if length == 0 then
-      eerr (Error row col)
+      eerr (noTheory row col)
 
     else
       if Text.unsafeIndex array offset /= 0x0027 {- ' -} then
-        eerr (Error row col)
+        eerr (noTheory row col)
 
       else if length < 3 then
-        cerr (Error row col)
+        cerr (ParseError row col BadChar)
 
       else
         case characterHelp array (offset + 1) (length - 1) row (col + 1) of
@@ -846,28 +869,28 @@ character =
               !newLength = length - size - 1
             in
               if newLength == 0 then
-                cerr (Error row col)
+                cerr (ParseError row col BadChar)
 
               else if Text.unsafeIndex array newOffset == 0x0027 {- ' -} then
                 cok char (State array (newOffset + 1) (newLength - 1) indent row (col + size + 2))
 
               else
-                cerr (Error row col)
+                cerr (ParseError row col BadChar)
 
 
-characterHelp :: Text.Array -> Int -> Int -> Int -> Int -> Either Error ( Int, Char )
+characterHelp :: Text.Array -> Int -> Int -> Int -> Int -> Either ParseError ( Int, Char )
 characterHelp array offset length row col =
   let
     !word = Text.unsafeIndex array offset
   in
     if word == 0x0027 {- ' -} then
-      Left (Error row col)
+      Left (ParseError row col BadChar)
 
     else if word == 0x005C {- \ -} then
       eatEscape array (offset + 1) (length - 1) row (col + 1)
 
     else if word == 0x000A {- \n -} then
-      Left (Error row col)
+      Left (ParseError row col BadChar)
 
     else if word < 0xD800 || word > 0xDBFF then
       Right (1, unsafeChr word)
@@ -876,7 +899,7 @@ characterHelp array offset length row col =
       Right (2, chr2 word (Text.unsafeIndex array offset))
 
     else
-      Left (Error row col)
+      Left (ParseError row col BadChar)
 
 
 
@@ -887,7 +910,7 @@ digit :: Parser Int
 digit =
   Parser $ \(State array offset length indent row col) cok _ _ eerr ->
     if length == 0 then
-      eerr (Error row col)
+      eerr (loneTheory row col Digit)
 
     else
       let
@@ -898,7 +921,7 @@ digit =
             (fromIntegral (word - 0x0030))
             (State array (offset + 1) (length - 1) indent row (col + 1))
         else
-          eerr (Error row col)
+          eerr (loneTheory row col Digit)
 
 
 
@@ -909,14 +932,14 @@ number :: Parser L.Literal
 number =
   Parser $ \(State array offset length indent row col) cok cerr _ eerr ->
     if length == 0 then
-      eerr (Error row col)
+      eerr (noTheory row col)
 
     else
       let
         !word = Text.unsafeIndex array offset
       in
         if not (isDigit word) then
-          eerr (Error row col)
+          eerr (noTheory row col)
 
         else
           let
@@ -927,12 +950,12 @@ number =
                 chompInt array offset (offset + 1) (length - 1)
           in
             case chompResults of
-              Left err ->
-                cerr err
+              Left (newOffset, problem) ->
+                cerr (ParseError row (col + (newOffset - offset)) problem)
 
               Right (newOffset, newLength, literal) ->
                 if isDirtyEnd array newOffset newLength then
-                  cerr (Error row col)
+                  cerr (ParseError row (col + (newOffset - offset)) BadNumberEnd)
 
                 else
                   cok literal (State array newOffset newLength indent row (col + (newOffset - offset)))
@@ -950,7 +973,7 @@ isDirtyEnd array offset length =
       Char.isAlpha char || char == '_'
 
 
-chompInt :: Text.Array -> Int -> Int -> Int -> Either Error (Int, Int, L.Literal)
+chompInt :: Text.Array -> Int -> Int -> Int -> Either (Int, Problem) (Int, Int, L.Literal)
 chompInt array startOffset offset length =
   if length == 0 then
 
@@ -971,19 +994,19 @@ chompInt array startOffset offset length =
         Right ( offset, length, readInt array startOffset offset )
 
 
-chompFraction :: Text.Array -> Int -> Int -> Int -> Either Error (Int, Int, L.Literal)
+chompFraction :: Text.Array -> Int -> Int -> Int -> Either (Int, Problem) (Int, Int, L.Literal)
 chompFraction array startOffset offset length =
   if length == 0 then
-    Left (error "TODO chompFraction")
+    Left (offset, BadNumberDot)
 
   else if isDigit (Text.unsafeIndex array offset) then
     chompFractionHelp array startOffset (offset + 1) (length - 1)
 
   else
-    Left (error "TODO must be a number after a decimal point")
+    Left (offset, BadNumberDot)
 
 
-chompFractionHelp :: Text.Array -> Int -> Int -> Int -> Either Error (Int, Int, L.Literal)
+chompFractionHelp :: Text.Array -> Int -> Int -> Int -> Either (Int, Problem) (Int, Int, L.Literal)
 chompFractionHelp array startOffset offset length =
   if length == 0 then
     Right (offset, length, readFloat array startOffset offset)
@@ -1002,7 +1025,7 @@ chompFractionHelp array startOffset offset length =
         Right (offset, length, readFloat array startOffset offset)
 
 
-chompExponent :: Text.Array -> Int -> Int -> Int -> Either Error (Int, Int, L.Literal)
+chompExponent :: Text.Array -> Int -> Int -> Int -> Either (Int, Problem) (Int, Int, L.Literal)
 chompExponent array startOffset offset length =
   if length == 0 then
     Right (offset, length, readFloat array startOffset offset)
@@ -1019,13 +1042,13 @@ chompExponent array startOffset offset length =
         if length > 1 && isDigit (Text.unsafeIndex array (offset + 1)) then
           chompExponentHelp array startOffset (offset + 2) (length - 2)
         else
-          Left (error "TODO digits after +/-")
+          Left (offset, BadNumberExp)
 
       else
-        Left (error "TODO exponent is messed up")
+        Left (offset, BadNumberExp)
 
 
-chompExponentHelp :: Text.Array -> Int -> Int -> Int -> Either Error (Int, Int, L.Literal)
+chompExponentHelp :: Text.Array -> Int -> Int -> Int -> Either (Int, Problem) (Int, Int, L.Literal)
 chompExponentHelp array startOffset offset length =
   if length == 0 then
     Right (offset, length, readFloat array startOffset offset)
@@ -1037,7 +1060,7 @@ chompExponentHelp array startOffset offset length =
     Right (offset, length, readFloat array startOffset offset)
 
 
-chompZero :: Text.Array -> Int -> Int -> Int -> Either Error (Int, Int, L.Literal)
+chompZero :: Text.Array -> Int -> Int -> Int -> Either (Int, Problem) (Int, Int, L.Literal)
 chompZero array startOffset offset length =
   if length == 0 then
     Right ( offset, length, L.IntNum 0 )
@@ -1053,25 +1076,25 @@ chompZero array startOffset offset length =
         chompFraction array startOffset (offset + 1) (length - 1)
 
       else if isDigit word then
-        Left (error "TODO zero followed by more numbers")
+        Left (offset, BadNumberZero)
 
       else
         Right ( offset, length, L.IntNum 0 )
 
 
-chompHex :: Text.Array -> Int -> Int -> Int -> Either Error (Int, Int, L.Literal)
+chompHex :: Text.Array -> Int -> Int -> Int -> Either (Int, Problem) (Int, Int, L.Literal)
 chompHex array startOffset offset length =
   if length == 0 then
-    Left (error "TODO need hex digits after 0x")
+    Left (offset, BadNumberHex)
 
   else if isHex (Text.unsafeIndex array offset) then
     chompHexHelp array startOffset (offset + 1) (length - 1)
 
   else
-    Left (error "TODO need hex digits!")
+    Left (offset, BadNumberHex)
 
 
-chompHexHelp :: Text.Array -> Int -> Int -> Int -> Either Error (Int, Int, L.Literal)
+chompHexHelp :: Text.Array -> Int -> Int -> Int -> Either (Int, Problem) (Int, Int, L.Literal)
 chompHexHelp array startOffset offset length =
   if length == 0 then
     Right ( offset, length, readInt array startOffset offset )

@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Parse.Parse (program) where
 
-import qualified Data.Text as Text
 import Data.Text (Text)
 
 import qualified AST.Declaration as Decl
@@ -11,6 +10,8 @@ import qualified Elm.Package as Package
 import Parse.Helpers
 import qualified Parse.Module as Parse (header)
 import qualified Parse.Declaration as Parse (declaration)
+import qualified Reporting.Annotation as A
+import qualified Reporting.Result as Result
 import qualified Validate
 
 
@@ -22,10 +23,11 @@ program :: Package.Name -> Text -> Validate.Result wrn Module.Valid
 program pkgName src =
   case run (chompProgram pkgName) src of
     Right modul ->
-        Validate.validate modul
+      Validate.validate modul
 
-    Left err ->
-        error ("TODO program parse error\n" ++ show err ++ "\n" ++ Text.unpack (Text.take 100 src))
+    Left (A.A region syntaxError) ->
+      Result.throw region syntaxError
+
 
 
 chompProgram :: Package.Name -> Parser Module.Source

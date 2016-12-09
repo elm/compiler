@@ -14,9 +14,9 @@ module Parse.Helpers
 import qualified Data.Text as Text
 import Data.Text (Text)
 
-import Parse.Primitives hiding (text)
-import qualified Parse.Primitives as Prim
+import Parse.Primitives
 import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Syntax as E
 import qualified Reporting.Region as R
 
 
@@ -55,7 +55,7 @@ qualifiedVarHelp allCaps vars =
             [ do  var <- capVar
                   qualifiedVarHelp allCaps (var:vars)
             , if allCaps then
-                failure False -- TODO
+                failure E.BadChunkInQualifiedCapVar
               else
                 do  var <- lowVar
                     return (Text.intercalate "." (reverse (var:vars)))
@@ -71,69 +71,61 @@ qualifiedVarHelp allCaps vars =
 {-# INLINE equals #-}
 equals :: Parser ()
 equals =
-  expecting "an equals sign '='" $
-    Prim.text "="
+  symbol "="
 
 
 {-# INLINE rightArrow #-}
 rightArrow :: Parser ()
 rightArrow =
-  expecting "an arrow '->'" $
-    Prim.text "->"
+  symbol "->"
 
 
 {-# INLINE hasType #-}
 hasType :: Parser ()
 hasType =
-  expecting "the \"has type\" symbol ':'" $
-    Prim.text ":"
+  symbol ":"
 
 
 {-# INLINE comma #-}
 comma :: Parser ()
 comma =
-  expecting "a comma ','" $
-    Prim.text ","
+  symbol ","
 
 
 {-# INLINE pipe #-}
 pipe :: Parser ()
 pipe =
-  expecting "a vertical bar '|'" $
-    Prim.text "|"
+  symbol "|"
 
 
 {-# INLINE cons #-}
 cons :: Parser ()
 cons =
-  expecting "a cons operator '::'" $
-    Prim.text "::"
+  symbol "::"
 
 
 {-# INLINE dot #-}
 dot :: Parser ()
 dot =
-  expecting "a dot '.'" $
-    Prim.text "."
+  symbol "."
 
 
 {-# INLINE minus #-}
 minus :: Parser ()
 minus =
-  Prim.text "-"
+  symbol "-"
 
 
 {-# INLINE underscore #-}
 underscore :: Parser ()
 underscore =
-  expecting "a wildcard '_'" $
-    Prim.text "_"
+  symbol "_"
 
 
 {-# INLINE lambda #-}
 lambda :: Parser ()
 lambda =
-  oneOf [ Prim.text "\\", Prim.text "\x03BB" ]
+  oneOf [ symbol "\\", symbol "\x03BB" ]
 
 
 
@@ -143,37 +135,37 @@ lambda =
 {-# INLINE leftParen #-}
 leftParen :: Parser ()
 leftParen =
-  Prim.text "("
+  symbol "("
 
 
 {-# INLINE rightParen #-}
 rightParen :: Parser ()
 rightParen =
-  Prim.text ")"
+  symbol ")"
 
 
 {-# INLINE leftSquare #-}
 leftSquare :: Parser ()
 leftSquare =
-  Prim.text "["
+  symbol "["
 
 
 {-# INLINE rightSquare #-}
 rightSquare :: Parser ()
 rightSquare =
-  Prim.text "]"
+  symbol "]"
 
 
 {-# INLINE leftCurly #-}
 leftCurly :: Parser ()
 leftCurly =
-  Prim.text "{"
+  symbol "{"
 
 
 {-# INLINE rightCurly #-}
 rightCurly :: Parser ()
 rightCurly =
-  Prim.text "}"
+  symbol "}"
 
 
 
@@ -200,7 +192,7 @@ spaces =
       indent <- getIndent
       if col > indent && col > 1
         then return ()
-        else failure False -- TODO
+        else failure (E.Theories [E.BadIndent])
 
 
 checkSpace :: SPos -> Parser ()
@@ -208,7 +200,7 @@ checkSpace (SPos (R.Position _ col)) =
   do  indent <- getIndent
       if col > indent && col > 1
         then return ()
-        else deadend False -- TODO
+        else deadend E.BadIndent
 
 
 checkAligned :: SPos -> Parser ()
@@ -216,11 +208,11 @@ checkAligned (SPos (R.Position _ col)) =
   do  indent <- getIndent
       if col == indent
         then return ()
-        else deadend False -- TODO
+        else deadend E.BadIndent
 
 
 checkFreshline :: SPos -> Parser ()
 checkFreshline (SPos (R.Position _ col)) =
   if col == 1
     then return ()
-    else deadend False -- TODO
+    else deadend E.FreshLine
