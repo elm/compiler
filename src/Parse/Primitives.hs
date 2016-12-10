@@ -416,37 +416,39 @@ infixOp =
       eerr (loneTheory row col InfixOp)
 
     else
-      case infixOpHelp array offset length row col of
-        Left err ->
-          cerr err
+      let
+        (Text.Iter char size) = peek array offset
+      in
+        if not (Help.isSymbol char) then
+          eerr (loneTheory row col InfixOp)
+        else
+          case infixOpHelp array (offset + size) (length - size) row (col + 1) of
+            Left err ->
+              cerr err
 
-        Right ( newOffset, newLength, newCol ) ->
-          let
-            !size =
-              newOffset - offset
+            Right ( newOffset, newLength, newCol ) ->
+              let
+                !newSize =
+                  newOffset - offset
 
-            makeArray =
-              do  mutableArray <- Text.new size
-                  Text.copyI mutableArray 0 array offset size
-                  return mutableArray
-          in
-            if size == 0 then
-              eerr (loneTheory row col InfixOp)
-
-            else
-              case Text.Text (Text.run makeArray) 0 size of
-                "="  -> cerr (ParseError row col Dot)
-                "|"  -> cerr (ParseError row col Pipe)
-                ":"  -> cerr (ParseError row col Arrow)
-                "."  -> cerr (ParseError row col Equals)
-                "->" -> cerr (ParseError row col HasType)
-                op   -> cok op (State array newOffset newLength indent row newCol)
+                makeArray =
+                  do  mutableArray <- Text.new newSize
+                      Text.copyI mutableArray 0 array offset newSize
+                      return mutableArray
+              in
+                case Text.Text (Text.run makeArray) 0 newSize of
+                  "="  -> cerr (ParseError row col Dot)
+                  "|"  -> cerr (ParseError row col Pipe)
+                  ":"  -> cerr (ParseError row col Arrow)
+                  "."  -> cerr (ParseError row col Equals)
+                  "->" -> cerr (ParseError row col HasType)
+                  op   -> cok op (State array newOffset newLength indent row newCol)
 
 
 infixOpHelp :: Text.Array -> Int -> Int -> Int -> Int -> Either ParseError (Int, Int, Int)
 infixOpHelp array offset length row col =
   if length == 0 then
-    Left (ParseError row col (EndOfFile "infix operator"))
+    Right ( offset, length, col )
 
   else
     let
@@ -599,7 +601,7 @@ eatMultiComment array offset length row col =
 eatMultiCommentHelp :: Text.Array -> Int -> Int -> Int -> Int -> Int -> Either ParseError ( Int, Int, Int, Int )
 eatMultiCommentHelp array offset length row col openComments =
   if length == 0 then
-    Left (ParseError row col (EndOfFile "multi-line comment"))
+    Left (ParseError row col EndOfFile_Comment)
 
   else
     let
@@ -703,7 +705,7 @@ isQuote array offset =
 singleString :: Text.Array -> Int -> Int -> Int -> Int -> Int -> LB.Builder -> Either ParseError ( Int, Int, Int, Text.Text )
 singleString array offset length row col initialOffset builder =
   if length == 0 then
-    Left (ParseError row col (EndOfFile "string"))
+    Left (ParseError row col EndOfFile_String)
 
   else
     let
@@ -724,7 +726,7 @@ singleString array offset length row col initialOffset builder =
         Left (ParseError row col NewLineInString)
 
       else if word == 0x005C {- \ -} then
-        case eatEscape array (offset + 1) (length - 1) row (col + 1) of
+        case eatEscape array (offset + 1) (length - 1) row (col + 1) EndOfFile_String of
           Left err ->
             Left err
 
@@ -743,10 +745,10 @@ singleString array offset length row col initialOffset builder =
         singleString array (offset + 2) (length - 2) row (col + 1) initialOffset builder
 
 
-eatEscape :: Text.Array -> Int -> Int -> Int -> Int -> Either ParseError ( Int, Char )
-eatEscape array offset length row col =
+eatEscape :: Text.Array -> Int -> Int -> Int -> Int -> Problem -> Either ParseError ( Int, Char )
+eatEscape array offset length row col problem =
   if length == 0 then
-    Left (ParseError row col (EndOfFile "escape sequence"))
+    Left (ParseError row col problem)
 
   else
     case Text.unsafeIndex array offset of
@@ -804,7 +806,7 @@ eatHex array offset length n =
 multiString :: Text.Array -> Int -> Int -> Int -> Int -> Int -> LB.Builder -> Either ParseError ( Int, Int, Int, Text.Text )
 multiString array offset length row col initialOffset builder =
   if length == 0 then
-    Left (ParseError row col (EndOfFile "multi-line string"))
+    Left (ParseError row col EndOfFile_MultiString)
 
   else
     let
@@ -822,7 +824,7 @@ multiString array offset length row col initialOffset builder =
           Right ( offset + 3, length - 3, col + 3, str )
 
       else if word == 0x005C {- \ -} then
-        case eatEscape array (offset + 1) (length - 1) row (col + 1) of
+        case eatEscape array (offset + 1) (length - 1) row (col + 1) EndOfFile_MultiString of
           Left err ->
             Left err
 
@@ -887,7 +889,7 @@ characterHelp array offset length row col =
       Left (ParseError row col BadChar)
 
     else if word == 0x005C {- \ -} then
-      eatEscape array (offset + 1) (length - 1) row (col + 1)
+      eatEscape array (offset + 1) (length - 1) row (col + 1) BadChar
 
     else if word == 0x000A {- \n -} then
       Left (ParseError row col BadChar)
@@ -989,6 +991,9 @@ chompInt array startOffset offset length =
 
       else if word == 0x002E {- . -} then
         chompFraction array startOffset (offset + 1) (length - 1)
+
+      else if word == 0x0065 {- e -} || word == 0x0045 {- E -} then
+        chompExponent array startOffset (offset + 1) (length - 1)
 
       else
         Right ( offset, length, readInt array startOffset offset )

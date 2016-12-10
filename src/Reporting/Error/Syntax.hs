@@ -8,13 +8,14 @@ module Reporting.Error.Syntax
   )
   where
 
+import qualified Data.Set as Set
 import Data.Text (Text)
 
 import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Region as Region
 import qualified Reporting.Report as Report
 import qualified Reporting.Helpers as Help
-import Reporting.Helpers ((<>), dullyellow, hsep, i2t, text)
+import Reporting.Helpers ((<>), dullyellow, hsep, i2t, reflowParagraph, text)
 
 
 
@@ -59,7 +60,9 @@ data ParseError
 
 data Problem
   = Tab
-  | EndOfFile Text
+  | EndOfFile_Comment
+  | EndOfFile_String
+  | EndOfFile_MultiString
   | NewLineInString
   | BadEscape
   | BadChar
@@ -69,11 +72,11 @@ data Problem
   | BadNumberHex
   | BadNumberZero
   | BadChunkInQualifiedCapVar
-  | HasType -- "A single colon is for type annotations. Maybe you want :: instead? Or maybe you are defining a type annotation, but there is whitespace before it?"
-  | Equals  -- "The = operator is reserved for defining variables. Maybe you want == instead? Or maybe you are defining a variable, but there is whitespace before it?"
-  | Arrow   -- "Arrows are reserved for cases and anonymous functions. Maybe you want > or >= instead?"
-  | Pipe    -- "Vertical bars are reserved for use in union type declarations. Maybe you want || instead?"
-  | Dot     -- "Dots are for record access. They cannot float around on their own!"
+  | HasType
+  | Equals
+  | Arrow
+  | Pipe
+  | Dot
   | Theories [Theory]
 
 
@@ -86,6 +89,7 @@ data Theory
   | BadIndent
   | FreshLine
   | Expecting Text
+  deriving (Eq, Ord)
 
 
 
@@ -95,15 +99,15 @@ data Theory
 toReport :: RenderType.Localizer -> Error -> Report.Report
 toReport _localizer err =
   case err of
-    Parse _ ->
-        Report.report "PARSE ERROR" Nothing "Something is wrong." (text "TODO")
+    Parse problem ->
+        problemToReport problem
 
     BadFunctionName arity ->
         Report.report
           "BAD FUNCTION DEFINITION"
           Nothing
           "Complex patterns cannot be used as function names."
-          ( Help.reflowParagraph $
+          ( reflowParagraph $
               "This function definition has " <> i2t arity <> " arguments, but instead\
               \ of a normal name like `add` or `reverse` it has a pattern. There is no\
               \ way to \"deconstruct\" a function with pattern matching, so this needs to\
@@ -117,7 +121,7 @@ toReport _localizer err =
           ("The free variable `" <> name <> "` appears more than once in this pattern.")
           ( Help.stack
               [ text "Rename the variables so there are no duplicates."
-              , Help.reflowParagraph $
+              , reflowParagraph $
                   "In Elm, pattern matching works by binding these free variables to subsections\
                   \ of the matching value. It does not make sense to have the same name for two\
                   \ different subsections though! When you say `" <> name <> "` in some code, there\
@@ -130,7 +134,7 @@ toReport _localizer err =
           "STRAY COMMENT"
           Nothing
           ("This documentation comment is not followed by anything.")
-          ( Help.reflowParagraph $
+          ( reflowParagraph $
               "All documentation comments need to be right above the declaration they\
               \ describe. Maybe some code got deleted or commented out by accident? Or\
               \ maybe this comment is here by accident?"
@@ -141,7 +145,7 @@ toReport _localizer err =
           "BAD MODULE DECLARATION"
           Nothing
           "A normal module can expose values, but not settings like this."
-          ( Help.reflowParagraph $
+          ( reflowParagraph $
               "If you want a normal module, just remove this stuff. If you want to create\
               \ an `effect module` you just forgot to use the `effect` keyword. In that\
               \ case, just change `module` to `effect module` and you should be headed in\
@@ -153,7 +157,7 @@ toReport _localizer err =
           "BAD MODULE DECLARATION"
           Nothing
           "A port module can expose values, but not have settings like this."
-          ( Help.reflowParagraph $
+          ( reflowParagraph $
               "If you want a port module, just remove this stuff. If you want to create\
               \ a custom effect module instead (which is rare) just change `port module`\
               \ to `effect module` and you should be headed in the right direction!"
@@ -164,7 +168,7 @@ toReport _localizer err =
           "EFFECT MODULE PROBLEM"
           Nothing
           ("You have defined " <> Help.functionName name <> " multiple times.")
-          ( Help.reflowParagraph $
+          ( reflowParagraph $
               "There can only be one " <> Help.functionName name
               <> " though! Remove until there is one left."
           )
@@ -174,7 +178,7 @@ toReport _localizer err =
           "EFFECT MODULE PROBLEM"
           Nothing
           ("Setting " <> Help.functionName name <> " is not recognized.")
-          ( Help.reflowParagraph $
+          ( reflowParagraph $
               "Remove this entry and you should be all set!"
           )
 
@@ -183,7 +187,7 @@ toReport _localizer err =
           "EFFECT MODULE PROBLEM"
           Nothing
           ("You are defining an effect module, but it has no settings.")
-          ( Help.reflowParagraph $
+          ( reflowParagraph $
               "If you just wanted a normal module, change the keywords `effect module`\
               \ to `module` and you should be all set. If you want a proper effect module,\
               \ you need to specify your commands and/or subscriptions. Read more about this\
@@ -195,7 +199,7 @@ toReport _localizer err =
           "EFFECT MODULE PROBLEM"
           Nothing
           ("You are defining an effect module, but there is no " <> Help.functionName name <> " defined.")
-          ( Help.reflowParagraph $
+          ( reflowParagraph $
               "There is a small set of top-level functions and values that must be defined\
               \ in any complete effect module. The best thing is probably to just read more\
               \ about effect modules here:\
@@ -207,7 +211,7 @@ toReport _localizer err =
           "BAD PORT"
           Nothing
           ("You are declaring port " <> Help.functionName name <> " in a normal module.")
-          ( Help.reflowParagraph $
+          ( reflowParagraph $
               "All ports must be defined in a `port module`. You should probably have just\
               \ one of these for your project. This way all of your foreign interactions\
               \ stay relatively organized."
@@ -233,7 +237,7 @@ toReport _localizer err =
             <> "` is used more than once in the arguments of "
             <> Help.functionName funcName <> "."
           )
-          ( Help.reflowParagraph $
+          ( reflowParagraph $
               "Rename things until `" <> argName <> "` is used only once.\
               \ Otherwise how can we tell which one you want when you\
               \ say `" <> argName <> "` it in the body of your function?"
@@ -253,7 +257,7 @@ toReport _localizer err =
           ( "Naming multiple top-level values " <> Help.functionName name <> " makes things\n"
             <> "ambiguous. When you say " <> Help.functionName name <> " which one do you want?"
           )
-          ( Help.reflowParagraph $
+          ( reflowParagraph $
               "Find all the top-level values named " <> Help.functionName name
               <> " and do some renaming. Make sure the names are distinct!"
           )
@@ -264,7 +268,7 @@ toReport _localizer err =
           Nothing
           ( "There are multiple types named `" <> name <> "` in this module."
           )
-          ( Help.reflowParagraph $
+          ( reflowParagraph $
               "Search through this module, find all the types named `"
               <> name <> "`, and give each of them a unique name."
           )
@@ -275,7 +279,7 @@ toReport _localizer err =
           Nothing
           ("There are multiple values named `" <> name <> "` in this let-expression."
           )
-          ( Help.reflowParagraph $
+          ( reflowParagraph $
               "Search through this let-expression, find all the values named `"
               <> name <> "`, and give each of them a unique name."
           )
@@ -307,7 +311,7 @@ toReport _localizer err =
           ( "Type alias `" <> typeName <> "` has some problems with type variables."
           )
           ( Help.stack
-              [ Help.reflowParagraph $
+              [ reflowParagraph $
                   "The declaration says it uses certain type variables ("
                   <> Help.commaSep unused <> ") but they do not appear in the aliased type. "
                   <> "Furthermore, the aliased type says it uses type variables ("
@@ -334,9 +338,217 @@ unboundTypeVars declKind typeName givenVars unboundVars =
             map text (declKind : typeName : givenVars)
             ++ map (dullyellow . text) unboundVars
             ++ map text ["=", "..."]
-        , Help.reflowParagraph $
+        , reflowParagraph $
             "Here's why. Imagine one `" <> typeName <> "` where `" <> head unboundVars <>
             "` is an Int and another where it is a Bool. When we explicitly list the type\
             \ variables, the type checker can see that they are actually different types."
         ]
     )
+
+
+
+-- PARSE ERROR TO REPORT
+
+
+parseReport :: Text -> Help.Doc -> Report.Report
+parseReport pre post =
+  Report.report "PARSE ERROR" Nothing pre post
+
+
+problemToReport :: Problem -> Report.Report
+problemToReport problem =
+  case problem of
+    Tab ->
+      parseReport
+        "I ran into a tab, but tabs are not allowed in Elm files."
+        (reflowParagraph "Replace the tab with spages.")
+
+    EndOfFile_Comment ->
+      parseReport
+        "I got to the end of the file while parsing a multi-line comment."
+        ( Help.stack
+            [ reflowParagraph $
+                "Multi-line comments look like {- comment -}, and it looks like\
+                \ you are missing the closing marker."
+            , reflowParagraph $
+                "Nested multi-line comments like {- this {- and this -} -} are allowed.\
+                \ That means the opening and closing markers must be balanced, just\
+                \ like parentheses in normal code. Maybe that is the problem?"
+            ]
+        )
+
+    EndOfFile_String ->
+      parseReport
+        "I got to the end of the file while parsing a string."
+        (reflowParagraph $
+          "Strings look like \"this\" with double quotes on each end.\
+          \ So the closing double quote seems to be missing."
+        )
+
+    EndOfFile_MultiString ->
+      parseReport
+        "I got to the end of the file while parsing a multi-line string."
+        (reflowParagraph $
+          "Multi-line strings begin and end with three double quotes in a\
+          \ row, like \"\"\"this\"\"\". So the closing marker seems\
+          \ to be missing."
+        )
+
+    NewLineInString ->
+      parseReport
+        "This string is missing the closing quote."
+        ( Help.stack
+            [ reflowParagraph $
+                "Elm strings must start and end with a double quote, like \"this\"."
+            , reflowParagraph $
+                "If you want a string that can contain newlines, use three double quotes in a\
+                \ row, like \"\"\"this\"\"\"."
+            ]
+        )
+
+    BadEscape ->
+      parseReport
+        "Ran into a bad escape code."
+        ( reflowParagraph
+            "Elm allows typical escape characters like \\n and \\t, but you can\
+            \ also use \\x0040 to refer to unicode characters by their hex code.\
+            \ It seems like something has gone wrong with one of these codes."
+        )
+
+    BadChar ->
+      parseReport
+        "Ran into a bad use of single quotes."
+        ( Help.stack
+            [ reflowParagraph $
+                "If you want to create a string, just switch to double quotes:"
+            , Help.indent 4 $
+                dullyellow (text "'this'")
+                <> text " => "
+                <> dullyellow (text "\"this\"")
+            , reflowParagraph $
+                "Unlike JavaScript, Elm distinguishes between strings like \"hello\"\
+                \ and individual characters like 'A' and '3'. It is not all strings!\
+                \ If you really do want a character though, something went wrong\
+                \ and I did not find the closing single quote."
+            ]
+        )
+
+    BadNumberDot ->
+      parseReport
+        "Numbers cannot end with a decimal points."
+        ( reflowParagraph $
+            "Leave it off or add some digits after it, like or 3 or 3.0"
+        )
+
+    BadNumberEnd ->
+      parseReport
+        "Numbers cannot have letters or underscores in them."
+        ( reflowParagraph $
+            "Maybe a space is missing between a number and a variable?"
+        )
+
+    BadNumberExp ->
+      parseReport
+        "If you put the letter E in a number, it should followed by more digits."
+        ( reflowParagraph $
+            "If you want to say 1000, you can also say 1e3.\
+            \ You cannot just end it with an E though!"
+        )
+
+    BadNumberHex ->
+      parseReport
+        "I see the start of a hex number, but not the end."
+        ( reflowParagraph $
+            "A hex number looks like 0x123ABC, where the 0x is followed by hexidecimal digits (i.e. 0123456789abcdefABCDEF)"
+        )
+
+    BadNumberZero ->
+      parseReport
+        "Normal numbers cannot start with a zero. Take the zeros off the front."
+        ( reflowParagraph $
+            "Only numbers like 0x0040 or 0.25 can start with a zero."
+        )
+
+    BadChunkInQualifiedCapVar ->
+      error "TODO"
+
+    HasType ->
+      parseReport
+        "Single colons should only show up in types."
+        ( reflowParagraph $
+            "Maybe you want :: instead? Or maybe you are defining\
+            \ a type annotation but there are extra spaces before it?"
+        )
+
+    Equals ->
+      parseReport
+        "The = operator is reserved for defining variables."
+        ( reflowParagraph $
+            "Maybe you want == instead? Or maybe you are defining a\
+            \ variable but there are extra spaces before it?"
+        )
+
+    Arrow ->
+      parseReport
+        "Arrows are reserved for cases and anonymous functions."
+        ( reflowParagraph $
+            "Maybe you want > or >= instead?"
+        )
+
+    Pipe ->
+      parseReport
+        "Vertical bars are reserved for use in type declarations."
+        ( reflowParagraph $
+            "Maybe you want || instead?"
+        )
+
+    Dot ->
+      parseReport
+        "Dots are for record access and decimal points."
+        ( reflowParagraph $
+            "They cannot float around on their own though, so\
+            \ maybe there is some extra whitespace?"
+        )
+
+    Theories allTheories ->
+      case Set.toList (Set.fromList allTheories) of
+        [] ->
+          parseReport
+            "Something went wrong when parsing this code."
+            ( reflowParagraph $
+                "I do not have any suggestions though, and I suspect there is some\
+                \ sort of bug. Can you get it down to an <http://sscce.org> and\
+                \ share it at <https://github.com/elm-lang/error-message-catalog/issues>?\
+                \ That way we can figure out how to give better advice!"
+            )
+
+        theories ->
+          error "TODO" (map theoryToText theories)
+
+
+theoryToText :: Theory -> Text
+theoryToText theory =
+  case theory of
+    Keyword _ ->
+      ""
+
+    Symbol _ ->
+      ""
+
+    Variable ->
+      ""
+
+    InfixOp ->
+      ""
+
+    Digit ->
+      "a digit, like 0 or 6"
+
+    BadIndent ->
+      ""
+
+    FreshLine ->
+      ""
+
+    Expecting _ ->
+      ""
