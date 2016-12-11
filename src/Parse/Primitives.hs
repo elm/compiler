@@ -20,6 +20,7 @@ import Prelude hiding (length)
 import qualified Control.Applicative as Applicative ( Applicative(..), Alternative(..) )
 import Control.Monad
 import qualified Data.Char as Char
+import Data.Monoid ((<>))
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -688,8 +689,10 @@ string =
               Left err ->
                 cerr err
 
-              Right ( newOffset, newLength, newCol, str ) ->
-                cok str (State array newOffset newLength indent row newCol)
+              Right ( newOffset, newLength, newCol, builder ) ->
+                cok
+                  (LT.toStrict (LB.toLazyText builder))
+                  (State array newOffset newLength indent row newCol)
 
 
 {-# INLINE isQuote #-}
@@ -702,7 +705,7 @@ isQuote array offset =
 -- SINGLE STRINGS
 
 
-singleString :: Text.Array -> Int -> Int -> Int -> Int -> Int -> LB.Builder -> Either ParseError ( Int, Int, Int, Text.Text )
+singleString :: Text.Array -> Int -> Int -> Int -> Int -> Int -> LB.Builder -> Either ParseError ( Int, Int, Int, LB.Builder )
 singleString array offset length row col initialOffset builder =
   if length == 0 then
     Left (ParseError row col EndOfFile_String)
@@ -716,14 +719,20 @@ singleString array offset length row col initialOffset builder =
           finalBuilder =
             mappend builder $ LB.fromText $
               Text.Text array initialOffset (offset - initialOffset)
-
-          str =
-            LT.toStrict (LB.toLazyTextWith (offset - initialOffset) finalBuilder)
         in
-          Right ( offset + 1, length - 1, col + 1, str )
+          Right ( offset + 1, length - 1, col + 1, finalBuilder )
 
       else if word == 0x000A {- \n -} then
         Left (ParseError row col NewLineInString)
+
+      else if word == 0x0027 {- ' -} then
+
+        let
+          !newOffset = offset + 1
+          chunk = Text.Text array initialOffset (offset - initialOffset)
+          newBuilder = builder <> LB.fromText chunk <> LB.fromText "\\'"
+        in
+          singleString array newOffset (length - 1) row (col + 1) newOffset newBuilder
 
       else if word == 0x005C {- \ -} then
         case eatEscape array (offset + 1) (length - 1) row (col + 1) EndOfFile_String of
@@ -734,7 +743,7 @@ singleString array offset length row col initialOffset builder =
             let
               !newOffset = offset + size
               chunk = Text.Text array initialOffset (offset - initialOffset)
-              newBuilder = mappend builder (mappend (LB.fromText chunk) (LB.singleton char))
+              newBuilder = builder <> LB.fromText chunk <> LB.singleton char
             in
               singleString array newOffset (length - size) row (col + size) newOffset newBuilder
 
@@ -803,9 +812,9 @@ eatHex array offset length n =
 -- MULTI STRINGS
 
 
-multiString :: Text.Array -> Int -> Int -> Int -> Int -> Int -> LB.Builder -> Either ParseError ( Int, Int, Int, Text.Text )
+multiString :: Text.Array -> Int -> Int -> Int -> Int -> Int -> LB.Builder -> Either ParseError ( Int, Int, Int, LB.Builder )
 multiString array offset length row col initialOffset builder =
-  if length == 0 then
+  if length < 3 then
     Left (ParseError row col EndOfFile_MultiString)
 
   else
@@ -813,17 +822,34 @@ multiString array offset length row col initialOffset builder =
       !word = Text.unsafeIndex array offset
     in
       if word == 0x0022 {- " -} && isQuote array (offset + 1) && isQuote array (offset + 2) then
-        let
-          finalBuilder =
-            mappend builder $ LB.fromText $
-              Text.Text array initialOffset (offset - initialOffset)
 
-          str =
-            LT.toStrict (LB.toLazyTextWith (offset - initialOffset) finalBuilder)
+          let
+            finalBuilder =
+              mappend builder $ LB.fromText $
+                Text.Text array initialOffset (offset - initialOffset)
+          in
+            Right ( offset + 3, length - 3, col + 3, finalBuilder )
+
+      else if word == 0x0027 {- ' -} then
+
+        let
+          !newOffset = offset + 1
+          chunk = Text.Text array initialOffset (offset - initialOffset)
+          newBuilder = builder <> LB.fromText chunk <> LB.fromText "\\'"
         in
-          Right ( offset + 3, length - 3, col + 3, str )
+          multiString array newOffset (length - 1) row (col + 1) newOffset newBuilder
+
+      else if word == 0x000A {- \n -} then
+
+        let
+          !newOffset = offset + 1
+          chunk = Text.Text array initialOffset (offset - initialOffset)
+          newBuilder = builder <> LB.fromText chunk <> LB.fromText "\\n"
+        in
+          multiString array newOffset (length - 1) (row + 1) 1 newOffset newBuilder
 
       else if word == 0x005C {- \ -} then
+
         case eatEscape array (offset + 1) (length - 1) row (col + 1) EndOfFile_MultiString of
           Left err ->
             Left err
@@ -832,7 +858,7 @@ multiString array offset length row col initialOffset builder =
             let
               !newOffset = offset + size
               chunk = Text.Text array initialOffset (offset - initialOffset)
-              newBuilder = mappend builder (mappend (LB.fromText chunk) (LB.singleton char))
+              newBuilder = builder <> LB.fromText chunk <> LB.singleton char
             in
               multiString array newOffset (length - size) row (col + size) newOffset newBuilder
 
