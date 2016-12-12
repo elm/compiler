@@ -79,7 +79,7 @@ module' allCanonicalImports interfaces modul =
             canonicalDecls
 
           centralizedDocs =
-            fmap (A.map (Docs.centralize canonicalDecls)) docs
+            A.map (fmap (Docs.centralize canonicalDecls)) docs
 
           typeToPair (A.A _ (D.Type name args body)) =
             ( name, (args, body) )

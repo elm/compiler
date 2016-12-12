@@ -1,84 +1,91 @@
-module Docs.Check (Result, check) where
+module Docs.Check (check) where
 
---import qualified Data.List as List
---import qualified Data.Map as Map
---import qualified Data.Set as Set
---import qualified Data.Traversable as T
+import qualified Data.List as List
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import Data.Text (Text)
 
 import qualified AST.Variable as Var
 import qualified Docs.AST as Docs
---import qualified Elm.Compiler.Type as Type
---import Elm.Utils ((|>))
---import Parse.Helpers
+import qualified Elm.Compiler.Type as Type
+import Elm.Utils ((|>))
 import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Docs as Error
---import qualified Reporting.Error.Helpers as Error (nearbyNames)
---import qualified Reporting.Region as R
+import qualified Reporting.Error as Error
+import qualified Reporting.Error.Docs as E
+import qualified Reporting.Helpers as Help (nearbyNames)
+import qualified Reporting.Region as R
 import qualified Reporting.Result as R
+import Parse.Helpers
+  ( Parser, addLocation, getPosition
+  , spaces, checkSpace, whitespace, SPos(..)
+  , capVar, lowVar, leftParen, rightParen, infixOp, runAt
+  , chompUntilDocs, comma, oneOf
+  )
 
-
-
-type Result w a =
-  R.Result () w Error.Error a
 
 
 -- CHECK DOCUMENTATION
 
-check :: [Var.Value] -> Maybe (A.Located Docs.Centralized) -> Result w Docs.Checked
-check exports maybeDocs =
-  R.ok (error "TODO check docs" exports maybeDocs)
-{-
+
+check :: [Var.Value] -> A.Located (Maybe Docs.Centralized) -> R.Result () w Error.Error Docs.Checked
+check exports (A.A region maybeDocs) =
   case maybeDocs of
     Nothing ->
-        R.throw region Error.NoDocs
+      R.throw region (Error.Docs E.NoDocs)
 
     Just docs ->
-        checkHelp region exports docs
+      checkHelp region exports docs
 
 
-checkHelp :: R.Region -> [Var.Value] -> Docs.Centralized -> Result w Docs.Checked
+checkHelp :: R.Region -> [Var.Value] -> Docs.Centralized -> R.Result () w Error.Error Docs.Checked
 checkHelp region exports (Docs.Docs comment aliases types values) =
   let
-    docNames =
-      commentedNames region comment
-
-    docSet =
-      Set.fromList (map A.drop docNames)
-
-    checkCategory checkValue dict =
-      dict
-        |> Map.filterWithKey (\key _ -> Set.member key docSet)
-        |> Map.mapWithKey checkValue
-        |> T.traverse id
-
     exportedUnions =
       map (\(tipe, Var.Listing tags _) -> (tipe, tags)) (Var.getUnions exports)
   in
-    (\() -> Docs.Docs comment)
-      <$> checkModuleComment region exports docNames
-      <*> checkCategory (checkComment Docs.aliasComment) aliases
-      <*> checkCategory (checkUnion exportedUnions) types
-      <*> checkCategory checkValue values
+    do  docNames <- parseNames region comment
+        let docSet = Set.fromList (map A.drop docNames)
+        R.mapError Error.Docs $
+          (\() -> Docs.Docs comment)
+            <$> checkModuleComment region exports docNames
+            <*> checkCategory docSet (checkComment Docs.aliasComment) aliases
+            <*> checkCategory docSet (checkUnion exportedUnions) types
+            <*> checkCategory docSet checkValue values
 
 
-checkComment :: (a -> Maybe String) -> String -> A.Located a -> Result w (A.Located a)
+type Result w a = R.Result () w E.Error a
+
+
+checkCategory
+  :: Set.Set Text
+  -> (Text -> a -> Result w b)
+  -> Map.Map Text a
+  -> Result w (Map.Map Text b)
+checkCategory docSet check dict =
+  dict
+    |> Map.filterWithKey (\key _ -> Set.member key docSet)
+    |> Map.mapWithKey check
+    |> traverse id
+
+
+checkComment :: (a -> Maybe Text) -> Text -> A.Located a -> Result w (A.Located a)
 checkComment getComment name (A.A region value) =
   case getComment value of
     Nothing ->
-        R.throw region (Error.NoComment name)
+        R.throw region (E.NoComment name)
 
     Just _ ->
         R.ok (A.A region value)
 
 
-checkUnion :: [(String, [String])] -> String -> A.Located Docs.Union -> Result w (A.Located Docs.Union)
+checkUnion :: [(Text, [Text])] -> Text -> A.Located Docs.Union -> Result w (A.Located Docs.Union)
 checkUnion exportedUnions name value =
   const
     <$> filterUnionTags exportedUnions name value
     <*> checkComment Docs.unionComment name value
 
 
-filterUnionTags :: [(String, [String])] -> String -> A.Located Docs.Union -> Result w (A.Located Docs.Union)
+filterUnionTags :: [(Text, [Text])] -> Text -> A.Located Docs.Union -> Result w (A.Located Docs.Union)
 filterUnionTags exportedUnions name (A.A region union@(Docs.Union _ _ ctors)) =
   let
     exportedTags =
@@ -91,26 +98,28 @@ filterUnionTags exportedUnions name (A.A region union@(Docs.Union _ _ ctors)) =
 
 
 
-checkValue :: String -> A.Located (Docs.Value (Maybe Type.Type)) -> Result w (A.Located (Docs.Value Type.Type))
+checkValue :: Text -> A.Located (Docs.Value (Maybe Type.Type)) -> Result w (A.Located (Docs.Value Type.Type))
 checkValue name value =
   const
     <$> hasType name value
     <*> checkComment Docs.valueComment name value
 
 
-hasType :: String -> A.Located (Docs.Value (Maybe Type.Type)) -> Result w (A.Located (Docs.Value Type.Type))
+hasType :: Text -> A.Located (Docs.Value (Maybe Type.Type)) -> Result w (A.Located (Docs.Value Type.Type))
 hasType name (A.A region value) =
   case Docs.valueType value of
     Just tipe ->
         R.ok (A.A region (value { Docs.valueType = tipe }))
 
     Nothing ->
-        R.throw region (Error.NoType name)
+        R.throw region (E.NoType name)
+
 
 
 -- CHECK MODULE COMMENT
 
-checkModuleComment :: R.Region -> [Var.Value] -> [A.Located String] -> Result w ()
+
+checkModuleComment :: R.Region -> [Var.Value] -> [A.Located Text] -> Result w ()
 checkModuleComment docRegion exports locatedDocNames =
   let
     exportNames =
@@ -123,12 +132,12 @@ checkModuleComment docRegion exports locatedDocNames =
       Map.fromList (map (\(A.A region name) -> (name, region)) locatedDocNames)
 
     extraNameError (name, region) =
-      R.throw region (Error.OnlyInDocs name (Error.nearbyNames id name exportNames))
+      R.throw region (E.OnlyInDocs name (Help.nearbyNames id name exportNames))
 
     docErrors =
       Map.difference docDict exportDict
         |> Map.toList
-        |> T.traverse extraNameError
+        |> traverse extraNameError
 
     namesOnlyInExports =
       Map.difference exportDict docDict
@@ -139,41 +148,67 @@ checkModuleComment docRegion exports locatedDocNames =
       if null namesOnlyInExports then
           R.ok ()
       else
-          R.throw docRegion (Error.OnlyInExports namesOnlyInExports)
+          R.throw docRegion (E.OnlyInExports namesOnlyInExports)
   in
     (\_ _ -> ())
       <$> exportErrors
       <*> docErrors
 
 
-commentedNames :: R.Region -> String -> [A.Located String]
-commentedNames (R.Region (R.Position line column) _) comment =
-  let
-    nameParser =
-      choice
-        [ do  string "@docs"
-              whitespace
-              commaSep1 (addLocation (var <|> parens infixOp))
-        , do  anyUntil simpleNewline
-              return []
+
+-- PARSE DOC COMMENT
+
+
+parseNames :: R.Region -> Text -> R.Result () w Error.Error [A.Located Text]
+parseNames (R.Region (R.Position row col) _) comment =
+  case runAt row (col + 3) (namesParser []) comment of
+    Left (A.A region parseError) ->
+      R.throw region (Error.Syntax parseError)
+
+    Right names ->
+      R.ok names
+
+
+
+namesParser :: [A.Located Text] -> Parser [A.Located Text]
+namesParser names =
+  do  isDocs <- chompUntilDocs
+      if isDocs then namesParserHelp names else return names
+
+
+namesParserHelp :: [A.Located Text] -> Parser [A.Located Text]
+namesParserHelp names =
+  do  pos <- getPosition
+      (SPos spos) <- whitespace
+      if pos == spos
+        then namesParser names
+        else namesParser =<< chompNames names
+
+
+chompNames :: [A.Located Text] -> Parser [A.Located Text]
+chompNames names =
+  do  name <- addLocation (oneOf [ lowVar, capVar, operator ])
+      spos <- whitespace
+      oneOf
+        [ do  checkSpace spos
+              comma
+              spaces
+              chompNames (name:names)
+        , return names
         ]
 
-    docCommentParser =
-      do  setPosition (newPos "docs" line (column + 3))
-          concat <$> many nameParser
-  in
-    case parse docCommentParser comment of
-      Left _ ->
-          []
 
-      Right names ->
-          names
+operator :: Parser Text
+operator =
+  do  leftParen
+      op <- infixOp
+      rightParen
+      return op
 
 
-valueName :: Var.Value -> String
+valueName :: Var.Value -> Text
 valueName value =
   case value of
     Var.Value name -> name
     Var.Alias name -> name
     Var.Union name _ -> name
--}

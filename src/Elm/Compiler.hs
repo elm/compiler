@@ -96,7 +96,7 @@ compile context source interfaces =
 
     (Result.Result oneLocalizer warnings answer) =
       do  modul <- Compile.compile packageName dependencies interfaces source
-          docs <- Result.format Error.Docs (docsGen isExposed modul)
+          docs <- Result.format id (docsGen isExposed modul)
 
           let interface = Module.toInterface packageName modul
           let javascript = {-# SCC elm_compiler_generate #-} JS.generate modul
@@ -124,7 +124,7 @@ data Result = Result
     }
 
 
-docsGen :: Bool -> Module.Optimized -> Docs.Result w (Maybe Docs.Documentation)
+docsGen :: Bool -> Module.Optimized -> Result.Result () w Error.Error (Maybe Docs.Documentation)
 docsGen isExposed (Module.Module name _ info) =
   if not isExposed then
     Result.ok Nothing

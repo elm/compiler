@@ -2,7 +2,7 @@
 {-# LANGUAGE BangPatterns, Rank2Types, UnboxedTuples, OverloadedStrings #-}
 module Parse.Primitives
   ( Parser
-  , run
+  , run, runAt
   , try, failure, deadend, expecting, endOfFile
   , oneOf
   , symbol, keyword, keywords
@@ -10,7 +10,7 @@ module Parse.Primitives
   , getPosition, getCol
   , getIndent, setIndent
   , SPos(..), whitespace
-  , docComment
+  , docComment, chompUntilDocs
   , string, character
   , digit, number
   , shaderSource, shaderFailure
@@ -92,8 +92,13 @@ loneTheory row col theory =
 
 
 run :: Parser a -> Text -> Either (A.Located E.Error) a
-run parser (Text.Text array offset length) =
-  case _run parser (State array offset length 0 1 1) Ok Err Ok Err of
+run parser text =
+  runAt 1 1 parser text
+
+
+runAt :: Int -> Int -> Parser a -> Text -> Either (A.Located E.Error) a
+runAt sRow sCol parser (Text.Text array offset length) =
+  case _run parser (State array offset length 0 sRow sCol) Ok Err Ok Err of
     Ok value _ ->
       Right value
 
@@ -270,7 +275,7 @@ moveCursor array offset length row col =
     let
       !word = Text.unsafeIndex array offset
     in
-      if word == 0x000A then
+      if word == 0x000A {- \n -} then
         moveCursor array (offset + 1) (length - 1) (row + 1) 1
 
       else if word < 0xD800 || word > 0xDBFF then
@@ -650,6 +655,48 @@ docComment =
             cok
               (copyText array offset (newOffset - offset))
               (State array newOffset newLength indent newRow newCol)
+
+
+chompUntilDocs :: Parser Bool
+chompUntilDocs =
+  Parser $ \(State array offset length indent row col) cok _ _ _ ->
+    let
+      (# isStart, newOffset, newLength, newRow, newCol #) =
+        eatDocs array offset length row col
+    in
+      cok isStart (State array newOffset newLength indent newRow newCol)
+
+
+eatDocs :: Text.Array -> Int -> Int -> Int -> Int -> (# Bool, Int, Int, Int, Int #)
+eatDocs array offset length row col =
+  if length == 0 then
+    (# False, offset, length, row, col #)
+
+  else if isDocsStart array offset length then
+    (# True, offset + 5, length - 5, row, col + 5 #)
+
+  else
+    let
+      !word = Text.unsafeIndex array offset
+    in
+      if word == 0x000A {- \n -} then
+        eatDocs array (offset + 1) (length - 1) (row + 1) 1
+
+      else if word < 0xD800 || word > 0xDBFF then
+        eatDocs array (offset + 1) (length - 1) row (col + 1)
+
+      else
+        eatDocs array (offset + 2) (length - 2) row (col + 1)
+
+
+isDocsStart :: Text.Array -> Int -> Int -> Bool
+isDocsStart array offset length =
+  length >= 5
+  && Text.unsafeIndex array offset       == 0x0040 {- @ -}
+  && Text.unsafeIndex array (offset + 1) == 0x0064 {- d -}
+  && Text.unsafeIndex array (offset + 2) == 0x006F {- o -}
+  && Text.unsafeIndex array (offset + 3) == 0x0063 {- c -}
+  && Text.unsafeIndex array (offset + 4) == 0x0073 {- s -}
 
 
 

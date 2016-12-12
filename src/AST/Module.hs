@@ -46,7 +46,7 @@ data Header imports =
     , _name :: Name.Raw
     , _exports :: Var.Listing (A.Located Var.Value)
     , _settings :: SourceSettings
-    , _docs :: Maybe (A.Located Text)
+    , _docs :: A.Located (Maybe Text)
     , _imports :: imports
     }
 
@@ -56,9 +56,9 @@ instance Show (Header a) where
     show (_name header)
 
 
-defaultHeader :: imports -> Header imports
-defaultHeader imports_ =
-  Header Normal "Main" Var.openListing emptySettings Nothing imports_
+defaultHeader :: R.Position -> R.Position -> imports -> Header imports
+defaultHeader start end imports_ =
+  Header Normal "Main" Var.openListing emptySettings (A.at start end Nothing) imports_
 
 
 
@@ -81,7 +81,7 @@ data SourceInfo =
   Source
     { srcTag :: SourceTag
     , srcSettings :: SourceSettings
-    , srcDocs :: Maybe (A.Located Text)
+    , srcDocs :: A.Located (Maybe Text)
     , srcExports :: Var.Listing (A.Located Var.Value)
     , srcImports :: [UserImport]
     , srcDecls :: [Decl.Source]
@@ -109,7 +109,7 @@ type Valid =
 
 data ValidInfo =
   Valid
-    { validDocs :: Maybe (A.Located Text)
+    { validDocs :: A.Located (Maybe Text)
     , validExports :: Var.Listing (A.Located Var.Value)
     , validImports :: ([DefaultImport], [UserImport])
     , validDecls :: Decl.Valid
@@ -148,7 +148,7 @@ data ImportMethod =
 
 data Info program =
   Info
-    { docs :: Maybe (A.Located Docs.Centralized)
+    { docs :: A.Located (Maybe Docs.Centralized)
     , exports :: [Var.Value]
     , imports :: [Name.Raw]
     , program :: program

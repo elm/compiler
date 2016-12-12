@@ -17,10 +17,12 @@ import qualified Reporting.Region as R
 
 header :: Parser (Module.Header [Module.UserImport])
 header =
-  do  freshLine
+  do  start <- getPosition
+      freshLine
+      end <- getPosition
       oneOf
         [ fullHeader
-        , Module.defaultHeader <$> chompImports []
+        , Module.defaultHeader start end <$> chompImports []
         ]
 
 
@@ -38,8 +40,10 @@ fullHeader =
       keyword "exposing" -- TODO <?> "something like `exposing (..)` which replaced `where` in 0.17"
       spaces
       exports <- listing (addLocation listingValue)
+      start <- getPosition
       freshLine
-      docs <- maybeDocComment
+      end <- getPosition
+      docs <- maybeDocComment start end
       imports <- chompImports []
       return (Module.Header tag name exports settings docs imports)
 
@@ -119,13 +123,13 @@ setting =
 -- DOC COMMENTS
 
 
-maybeDocComment :: Parser (Maybe (A.Located Text))
-maybeDocComment =
+maybeDocComment :: R.Position -> R.Position -> Parser (A.Located (Maybe Text))
+maybeDocComment start end =
   oneOf
     [ do  doc <- addLocation docComment
           freshLine
-          return (Just doc)
-    , return Nothing
+          return (A.map Just doc)
+    , return (A.at start end Nothing)
     ]
 
 
