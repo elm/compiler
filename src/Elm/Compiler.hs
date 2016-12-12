@@ -62,7 +62,7 @@ parseDependencies pkgName sourceCode =
       Right $ getDeps pkgName header
 
     Left err ->
-      Left (error "TODO parse deps" err)
+      Left (Error (A.map Error.Syntax err))
 
 
 getDeps :: Package.Name -> Module.Header [Module.UserImport] -> (Tag, PublicModule.Raw, [PublicModule.Raw])
