@@ -13,6 +13,7 @@ module Parse.Primitives
   , docComment
   , string, character
   , digit, number
+  , shaderSource, shaderFailure
   )
   where
 
@@ -118,6 +119,12 @@ failure :: Problem -> Parser a
 failure problem =
   Parser $ \(State _ _ _ _ row col) _ cerr _ _ ->
     cerr (ParseError row col problem)
+
+
+shaderFailure :: Int -> Int -> Text -> Parser a
+shaderFailure row col msg =
+  Parser $ \_ _ cerr _ _ ->
+    cerr (ParseError row col (BadShader msg))
 
 
 deadend :: Theory -> Parser a
@@ -1119,3 +1126,46 @@ readFloat :: Text.Array -> Int -> Int -> L.Literal
 readFloat array startOffset endOffset =
   L.FloatNum $ read $ Text.unpack $
     Text.Text array startOffset (endOffset - startOffset)
+
+
+
+-- SHADER
+
+
+shaderSource :: Parser Text
+shaderSource =
+  do  symbol "[glsl|"
+      Parser $ \(State array offset length indent row col) cok cerr _ _ ->
+        case eatShader array offset length row col of
+          Nothing ->
+            cerr (ParseError row col EndOfFile_Shader)
+
+          Just ( shaderEndOffset, newRow, newCol ) ->
+            let
+              !size = shaderEndOffset - offset
+            in
+              cok
+                (copyText array offset size)
+                (State array (shaderEndOffset + 2) (length - size - 2) indent newRow newCol)
+
+
+eatShader :: Text.Array -> Int -> Int -> Int -> Int -> Maybe (Int, Int, Int)
+eatShader array offset length row col =
+  if length < 2 then
+    Nothing
+
+  else
+    let
+      !word = Text.unsafeIndex array offset
+    in
+      if word == 0x007C {- | -} && Text.unsafeIndex array (offset + 1) == 0x005D {- ] -} then
+        Just ( offset, row, col + 2 )
+
+      else if word == 0x000A {- \n -} then
+        eatShader array (offset + 1) (length - 1) (row + 1) 1
+
+      else if word < 0xD800 || word > 0xDBFF then
+        eatShader array (offset + 1) (length - 1) row (col + 1)
+
+      else
+        eatShader array (offset + 2) (length - 2) row (col + 1)

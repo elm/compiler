@@ -61,6 +61,7 @@ data ParseError
 data Problem
   = Tab
   | EndOfFile_Comment
+  | EndOfFile_Shader
   | EndOfFile_String
   | EndOfFile_MultiString
   | NewLineInString
@@ -71,6 +72,7 @@ data Problem
   | BadNumberExp
   | BadNumberHex
   | BadNumberZero
+  | BadShader Text
   | BadChunkInQualifiedCapVar
   | HasType
   | Equals
@@ -377,6 +379,13 @@ problemToReport problem =
             ]
         )
 
+    EndOfFile_Shader ->
+      parseReport
+        "I got to the end of the file while parsing a GLSL block."
+        (reflowParagraph $
+          "A shader should be defined in a block like this: [glsl| ... |]"
+        )
+
     EndOfFile_String ->
       parseReport
         "I got to the end of the file while parsing a string."
@@ -468,6 +477,11 @@ problemToReport problem =
         ( reflowParagraph $
             "Only numbers like 0x0040 or 0.25 can start with a zero."
         )
+
+    BadShader msg ->
+      parseReport
+        "I ran into a problem while parsing this GLSL block."
+        (reflowParagraph msg)
 
     BadChunkInQualifiedCapVar ->
       error "TODO"

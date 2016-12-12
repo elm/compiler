@@ -28,6 +28,7 @@ term =
       oneOf
         [ variable start >>= accessible start
         , literal start
+        , Literal.shader start
         , list start
         , record start >>= accessible start
         , tuple start
