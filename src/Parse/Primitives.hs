@@ -340,16 +340,8 @@ varPrim isGoodFirstChar =
             (# newOffset, newLength, newCol #) =
               varPrimHelp array (offset + size) (length - size) (col + 1)
 
-            !newSize =
-              newOffset - offset
-
-            makeArray =
-              do  mutableArray <- Text.new newSize
-                  Text.copyI mutableArray 0 array offset newSize
-                  return mutableArray
-
             copiedText =
-              Text.Text (Text.run makeArray) 0 newSize
+              copyText array offset (newOffset - offset)
           in
             if Set.member copiedText keywords then
               eerr (loneTheory row newCol Variable)
@@ -358,6 +350,18 @@ varPrim isGoodFirstChar =
 
         else
           eerr (loneTheory row col Variable)
+
+
+{-# INLINE copyText #-}
+copyText :: Text.Array -> Int -> Int -> Text.Text
+copyText array offset size =
+  let
+    makeArray =
+      do  mutableArray <- Text.new size
+          Text.copyI mutableArray 0 array offset size
+          return mutableArray
+  in
+    Text.Text (Text.run makeArray) 0 size
 
 
 {-# INLINE peek #-}
@@ -428,22 +432,13 @@ infixOp =
               cerr err
 
             Right ( newOffset, newLength, newCol ) ->
-              let
-                !newSize =
-                  newOffset - offset
-
-                makeArray =
-                  do  mutableArray <- Text.new newSize
-                      Text.copyI mutableArray 0 array offset newSize
-                      return mutableArray
-              in
-                case Text.Text (Text.run makeArray) 0 newSize of
-                  "="  -> cerr (ParseError row col Dot)
-                  "|"  -> cerr (ParseError row col Pipe)
-                  ":"  -> cerr (ParseError row col Arrow)
-                  "."  -> cerr (ParseError row col Equals)
-                  "->" -> cerr (ParseError row col HasType)
-                  op   -> cok op (State array newOffset newLength indent row newCol)
+              case copyText array offset (newOffset - offset) of
+                "="  -> cerr (ParseError row col Dot)
+                "|"  -> cerr (ParseError row col Pipe)
+                ":"  -> cerr (ParseError row col Arrow)
+                "."  -> cerr (ParseError row col Equals)
+                "->" -> cerr (ParseError row col HasType)
+                op   -> cok op (State array newOffset newLength indent row newCol)
 
 
 infixOpHelp :: Text.Array -> Int -> Int -> Int -> Int -> Either ParseError (Int, Int, Int)
@@ -645,19 +640,9 @@ docComment =
             cerr err
 
           Right (newOffset, newLength, newRow, newCol) ->
-            let
-              !newSize =
-                newOffset - offset
-
-              makeArray =
-                do  mutableArray <- Text.new newSize
-                    Text.copyI mutableArray 0 array offset newSize
-                    return mutableArray
-
-              comment =
-                Text.Text (Text.run makeArray) 0 newSize
-            in
-              cok comment (State array newOffset newLength indent newRow newCol)
+            cok
+              (copyText array offset (newOffset - offset))
+              (State array newOffset newLength indent newRow newCol)
 
 
 
@@ -739,13 +724,8 @@ singleString array offset length row col initialOffset builder =
           Left err ->
             Left err
 
-          Right ( size, char ) ->
-            let
-              !newOffset = offset + size
-              chunk = Text.Text array initialOffset (offset - initialOffset)
-              newBuilder = builder <> LB.fromText chunk <> LB.singleton char
-            in
-              singleString array newOffset (length - size) row (col + size) newOffset newBuilder
+          Right size ->
+            singleString array (offset + size) (length - size) row (col + size) initialOffset builder
 
       else if word < 0xD800 || word > 0xDBFF then
         singleString array (offset + 1) (length - 1) row (col + 1) initialOffset builder
@@ -754,58 +734,34 @@ singleString array offset length row col initialOffset builder =
         singleString array (offset + 2) (length - 2) row (col + 1) initialOffset builder
 
 
-eatEscape :: Text.Array -> Int -> Int -> Int -> Int -> Problem -> Either ParseError ( Int, Char )
+eatEscape :: Text.Array -> Int -> Int -> Int -> Int -> Problem -> Either ParseError Int
 eatEscape array offset length row col problem =
   if length == 0 then
     Left (ParseError row col problem)
 
   else
     case Text.unsafeIndex array offset of
-      0x0061 {- a -} -> Right ( 2, '\a' )
-      0x0062 {- b -} -> Right ( 2, '\b' )
-      0x0066 {- f -} -> Right ( 2, '\f' )
-      0x006E {- n -} -> Right ( 2, '\n' )
-      0x0072 {- r -} -> Right ( 2, '\r' )
-      0x0074 {- t -} -> Right ( 2, '\t' )
-      0x0076 {- v -} -> Right ( 2, '\v' )
-      0x0022 {- " -} -> Right ( 2, '\"' )
-      0x005C {- \ -} -> Right ( 2, '\\' )
-      0x0027 {- ' -} -> Right ( 2, '\'' )
-      0x0078 {- x -} ->
-        case eatHex array (offset + 1) (length - 1) 0 of
-          Nothing ->
-            Left (ParseError row col BadEscape)
-
-          Just (newOffset, code) ->
-            if code <= 0x10FFFF then
-              Right ( 1 + (newOffset - offset), toEnum (fromInteger code) )
-            else
-              Left (ParseError row col BadEscape)
-
+      0x0061 {- a -} -> Right 2
+      0x0062 {- b -} -> Right 2
+      0x0066 {- f -} -> Right 2
+      0x006E {- n -} -> Right 2
+      0x0072 {- r -} -> Right 2
+      0x0074 {- t -} -> Right 2
+      0x0076 {- v -} -> Right 2
+      0x0022 {- " -} -> Right 2
+      0x005C {- \ -} -> Right 2
+      0x0027 {- ' -} -> Right 2
+      0x0075 {- u -} | length >= 5 && fourHex array offset -> Right 6
       _ ->
         Left (ParseError row col BadEscape)
 
 
-eatHex :: Text.Array -> Int -> Int -> Integer -> Maybe ( Int, Integer )
-eatHex array offset length n =
-  if length < 3 then
-    Nothing
-
-  else
-    let
-      !word = Text.unsafeIndex array offset
-    in
-      if 0x0030 <= word && word <= 0x0039 then
-        eatHex array (offset + 1) (length - 1) (16 * n + fromIntegral (word - 0x0030))
-
-      else if 0x0061 <= word && word <= 0x0066 then
-        eatHex array (offset + 1) (length - 1) (16 * n + 10 + fromIntegral (word - 0x0061))
-
-      else if 0x0041 <= word && word <= 0x0046 then
-        eatHex array (offset + 1) (length - 1) (16 * n + 10 + fromIntegral (word - 0x0041))
-
-      else
-        Just (offset, n)
+fourHex :: Text.Array -> Int -> Bool
+fourHex array offset =
+  isHex (Text.unsafeIndex array (offset + 1))
+  && isHex (Text.unsafeIndex array (offset + 2))
+  && isHex (Text.unsafeIndex array (offset + 3))
+  && isHex (Text.unsafeIndex array (offset + 4))
 
 
 
@@ -854,13 +810,8 @@ multiString array offset length row col initialOffset builder =
           Left err ->
             Left err
 
-          Right ( size, char ) ->
-            let
-              !newOffset = offset + size
-              chunk = Text.Text array initialOffset (offset - initialOffset)
-              newBuilder = builder <> LB.fromText chunk <> LB.singleton char
-            in
-              multiString array newOffset (length - size) row (col + size) newOffset newBuilder
+          Right size ->
+            multiString array (offset + size) (length - size) row (col + size) initialOffset builder
 
       else if word < 0xD800 || word > 0xDBFF then
         multiString array (offset + 1) (length - 1) row (col + 1) initialOffset builder
@@ -873,7 +824,7 @@ multiString array offset length row col initialOffset builder =
 -- CHARACTER
 
 
-character :: Parser Char
+character :: Parser Text
 character =
   Parser $ \(State array offset length indent row col) cok cerr _ eerr ->
     if length == 0 then
@@ -891,40 +842,37 @@ character =
           Left err ->
             cerr err
 
-          Right ( size, char ) ->
+          Right (endCol, size) ->
             let
               !newOffset = offset + size + 1
               !newLength = length - size - 1
             in
-              if newLength == 0 then
+              if newLength == 0 || Text.unsafeIndex array newOffset /= 0x0027 {- ' -} then
                 cerr (ParseError row col BadChar)
-
-              else if Text.unsafeIndex array newOffset == 0x0027 {- ' -} then
-                cok char (State array (newOffset + 1) (newLength - 1) indent row (col + size + 2))
 
               else
-                cerr (ParseError row col BadChar)
+                cok
+                  (copyText array (offset + 1) size)
+                  (State array (newOffset + 1) (newLength - 1) indent row endCol)
 
 
-characterHelp :: Text.Array -> Int -> Int -> Int -> Int -> Either ParseError ( Int, Char )
+characterHelp :: Text.Array -> Int -> Int -> Int -> Int -> Either ParseError ( Int, Int )
 characterHelp array offset length row col =
   let
     !word = Text.unsafeIndex array offset
   in
-    if word == 0x0027 {- ' -} then
+    if word == 0x0027 {- ' -} ||  word == 0x000A {- \n -} then
       Left (ParseError row col BadChar)
 
     else if word == 0x005C {- \ -} then
-      eatEscape array (offset + 1) (length - 1) row (col + 1) BadChar
-
-    else if word == 0x000A {- \n -} then
-      Left (ParseError row col BadChar)
+      do  n <- eatEscape array (offset + 1) (length - 1) row (col + 1) BadChar
+          return (col + n + 2, n)
 
     else if word < 0xD800 || word > 0xDBFF then
-      Right (1, unsafeChr word)
+      Right (col + 3, 1)
 
     else if length > 2 then
-      Right (2, chr2 word (Text.unsafeIndex array offset))
+      Right (col + 3, 2)
 
     else
       Left (ParseError row col BadChar)

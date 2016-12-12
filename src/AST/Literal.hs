@@ -3,8 +3,9 @@
 module AST.Literal where
 
 import qualified Data.Map as Map
+import Data.Monoid ((<>))
 import Data.Text (Text)
-import Data.Text.Lazy.Builder (Builder, fromString)
+import Data.Text.Lazy.Builder (Builder, fromText)
 import Data.Text.Lazy.Builder.Int (decimal)
 import Data.Text.Lazy.Builder.RealFloat (realFloat)
 
@@ -14,7 +15,7 @@ import Data.Text.Lazy.Builder.RealFloat (realFloat)
 
 
 data Literal
-  = Chr Char
+  = Chr Text
   | Str Text
   | IntNum Int
   | FloatNum Double
@@ -25,8 +26,8 @@ data Literal
 toBuilder :: Literal -> Builder
 toBuilder literal =
   case literal of
-    Chr c -> fromString (show c)
-    Str s -> fromString (show s)
+    Chr c -> fromText ("'" <> c <> "'")
+    Str s -> fromText ("\"" <> s <> "\"")
     IntNum n -> decimal n
     FloatNum n -> realFloat n
     Boolean bool -> if bool then "True" else "False"

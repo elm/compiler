@@ -10,7 +10,6 @@ module Generate.JavaScript.BuiltIn
   )
   where
 
-import qualified Data.Text as Text
 import Data.Text (Text)
 
 import qualified AST.Module.Name as ModuleName
@@ -30,9 +29,9 @@ utils func args =
 -- LITERALS
 
 
-character :: Char -> JS.Expr
+character :: Text -> JS.Expr
 character char =
-  utils "chr" [ JS.String (Text.singleton char) ]
+  utils "chr" [ JS.String char ]
 
 
 

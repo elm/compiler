@@ -498,7 +498,7 @@ testToExpr test =
         JS.String tag
 
     DT.Literal (L.Chr char) ->
-        JS.String (Text.singleton char)
+        JS.String char
 
     DT.Literal lit ->
         Literal.literal lit
