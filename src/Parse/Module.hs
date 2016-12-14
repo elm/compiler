@@ -8,6 +8,7 @@ import qualified AST.Module as Module
 import qualified AST.Variable as Var
 import Parse.Helpers
 import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Syntax as E
 import qualified Reporting.Region as R
 
 
@@ -18,7 +19,7 @@ import qualified Reporting.Region as R
 header :: Parser (Module.Header [Module.UserImport])
 header =
   do  start <- getPosition
-      freshLine
+      freshLine E.ModuleDecl
       end <- getPosition
       oneOf
         [ fullHeader
@@ -34,14 +35,14 @@ fullHeader :: Parser (Module.Header [Module.UserImport])
 fullHeader =
   do  tag <- sourceTag
       spaces
-      name <- qualifiedCapVar -- TODO <?> "the name of this module"
+      name <- qualifiedCapVar
       spaces
       settings <- effectSettings
-      keyword "exposing" -- TODO <?> "something like `exposing (..)` which replaced `where` in 0.17"
+      hint E.Exposing $ keyword "exposing"
       spaces
       exports <- listing (addLocation listingValue)
       start <- getPosition
-      freshLine
+      freshLine E.DocCommentDecl
       end <- getPosition
       docs <- maybeDocComment start end
       imports <- chompImports []
@@ -127,7 +128,7 @@ maybeDocComment :: R.Position -> R.Position -> Parser (A.Located (Maybe Text))
 maybeDocComment start end =
   oneOf
     [ do  doc <- addLocation docComment
-          freshLine
+          freshLine E.ImportDecl
           return (A.map Just doc)
     , return (A.at start end Nothing)
     ]
@@ -147,7 +148,7 @@ chompImports imports =
           end <- getPosition
           pos <- whitespace
           oneOf
-            [ do  checkFreshline pos
+            [ do  checkFreshLine E.ImportDecl pos
                   let userImport = method start end name Nothing Var.closedListing
                   chompImports (userImport:imports)
             , do  checkSpace pos
@@ -168,7 +169,7 @@ chompAs start name imports =
       end <- getPosition
       pos <- whitespace
       oneOf
-        [ do  checkFreshline pos
+        [ do  checkFreshLine E.ImportDecl pos
               let userImport = method start end name (Just alias) Var.closedListing
               chompImports (userImport:imports)
         , do  checkSpace pos
@@ -182,7 +183,7 @@ chompExposing start name maybeAlias imports =
       spaces
       exposed <- listing listingValue
       end <- getPosition
-      freshLine
+      freshLine E.ImportDecl
       let userImport = method start end name maybeAlias exposed
       chompImports (userImport:imports)
 
@@ -198,7 +199,7 @@ method start end name maybeAlias exposed =
 
 listing :: Parser a -> Parser (Var.Listing a)
 listing parser =
-  expecting "a listing of values and types to expose, like (..)" $
+  hint E.Listing $
   do  leftParen
       spaces
       oneOf
@@ -231,9 +232,7 @@ listingValue =
   oneOf
     [ Var.Value <$> lowVar
     , do  leftParen
-          spaces
           op <- infixOp
-          spaces
           rightParen
           return (Var.Value op)
     , do  name <- capVar
@@ -249,8 +248,8 @@ listingValue =
 -- FRESH LINES
 
 
-freshLine :: Parser ()
-freshLine =
+freshLine :: E.NextDecl -> Parser ()
+freshLine nextDecl =
   do  pos <- whitespace
-      checkFreshline pos
+      checkFreshLine nextDecl pos
 

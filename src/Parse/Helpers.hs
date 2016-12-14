@@ -6,8 +6,8 @@ module Parse.Helpers
   , qualifiedVar, qualifiedCapVar
   , equals, rightArrow, hasType, comma, pipe, cons, dot, minus, underscore, lambda
   , leftParen, rightParen, leftSquare, rightSquare, leftCurly, rightCurly
-  , addLocation
-  , spaces, checkSpace, checkAligned, checkFreshline
+  , addLocation, inContext
+  , spaces, checkSpace, checkAligned, checkFreshLine
   )
   where
 
@@ -15,6 +15,7 @@ import qualified Data.Text as Text
 import Data.Text (Text)
 
 import Parse.Primitives
+import qualified Parse.Primitives as P
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as E
 import qualified Reporting.Region as R
@@ -35,7 +36,13 @@ type SParser a =
 qualifiedCapVar :: Parser Text
 qualifiedCapVar =
   do  var <- capVar
-      qualifiedVarHelp True [var]
+      qualifiedVarHelp qualifiedCapVarHelp [var]
+
+
+qualifiedCapVarHelp :: Parser a
+qualifiedCapVarHelp =
+  do  ctx <- getContext
+      failure (E.Theories ctx [E.CapVar])
 
 
 qualifiedVar :: Parser Text
@@ -43,22 +50,19 @@ qualifiedVar =
   oneOf
     [ lowVar
     , do  var <- capVar
-          qualifiedVarHelp False [var]
+          qualifiedVarHelp lowVar [var]
     ]
 
 
-qualifiedVarHelp :: Bool -> [Text] -> Parser Text
-qualifiedVarHelp allCaps vars =
+qualifiedVarHelp :: Parser Text -> [Text] -> Parser Text
+qualifiedVarHelp altEnding vars =
   oneOf
     [ do  dot
           oneOf
             [ do  var <- capVar
-                  qualifiedVarHelp allCaps (var:vars)
-            , if allCaps then
-                failure E.BadChunkInQualifiedCapVar
-              else
-                do  var <- lowVar
-                    return (Text.intercalate "." (reverse (var:vars)))
+                  qualifiedVarHelp altEnding (var:vars)
+            , do  var <- altEnding
+                  return (Text.intercalate "." (reverse (var:vars)))
             ]
     , return (Text.intercalate "." (reverse vars))
     ]
@@ -182,6 +186,12 @@ addLocation parser =
       return (A.at start end value)
 
 
+inContext :: E.Context -> Parser a -> Parser a
+inContext ctx parser =
+  do  P.pushContext ctx
+      a <- parser
+      P.popContext a
+
 
 -- WHITESPACE VARIATIONS
 
@@ -192,7 +202,9 @@ spaces =
       indent <- getIndent
       if col > indent && col > 1
         then return ()
-        else failure (E.Theories [E.BadIndent])
+        else
+          do  ctx <- getContext
+              failure (E.Theories ctx [E.BadSpace])
 
 
 checkSpace :: SPos -> Parser ()
@@ -200,7 +212,7 @@ checkSpace (SPos (R.Position _ col)) =
   do  indent <- getIndent
       if col > indent && col > 1
         then return ()
-        else deadend E.BadIndent
+        else deadend [E.BadSpace]
 
 
 checkAligned :: SPos -> Parser ()
@@ -208,11 +220,11 @@ checkAligned (SPos (R.Position _ col)) =
   do  indent <- getIndent
       if col == indent
         then return ()
-        else deadend E.BadIndent
+        else deadend [E.BadSpace]
 
 
-checkFreshline :: SPos -> Parser ()
-checkFreshline (SPos (R.Position _ col)) =
+checkFreshLine :: E.NextDecl -> SPos -> Parser ()
+checkFreshLine nextDecl (SPos (R.Position _ col)) =
   if col == 1
     then return ()
-    else deadend E.FreshLine
+    else deadend [E.FreshLine nextDecl]

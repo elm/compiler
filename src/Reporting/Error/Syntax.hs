@@ -3,7 +3,8 @@
 module Reporting.Error.Syntax
   ( Error(..)
   , ParseError(..)
-  , Problem(..), Theory(..)
+  , Problem(..), Theory(..), Context(..)
+  , BadOp(..), Next(..), NextDecl(..)
   , toReport
   )
   where
@@ -54,8 +55,7 @@ data Error
 -- PARSE ERRORS
 
 
-data ParseError
-  = ParseError !Int !Int !Problem
+data ParseError = ParseError !Int !Int !Problem
 
 
 data Problem
@@ -73,25 +73,62 @@ data Problem
   | BadNumberHex
   | BadNumberZero
   | BadShader Text
-  | BadChunkInQualifiedCapVar
-  | HasType
-  | Equals
-  | Arrow
-  | Pipe
-  | Dot
-  | Theories [Theory]
+  | BadOp BadOp [Context]
+  | Theories [Context] [Theory]
+
+
+data BadOp = HasType | Equals | Arrow | Pipe | Dot
 
 
 data Theory
-  = Keyword Text
+  = Expecting Next
+  | Keyword Text
   | Symbol Text
-  | Variable
+  | LowVar
+  | CapVar
   | InfixOp
   | Digit
-  | BadIndent
-  | FreshLine
-  | Expecting Text
-  deriving (Eq, Ord)
+  | EndOfFile
+  | FreshLine NextDecl
+  | BadSpace
+  deriving (Eq, Ord, Show)
+
+
+data Next = Expr | ElseBranch | Arg | Pattern | Type | Listing | Exposing
+  deriving (Eq, Ord, Show)
+
+
+data NextDecl = ModuleDecl | DocCommentDecl | ImportDecl | OtherDecl
+  deriving (Eq, Ord, Show)
+
+
+data Context
+  = ExprIf
+  | ExprLet
+  | ExprFunc
+  | ExprCase
+  | ExprList
+  | ExprTuple
+  | ExprRecord
+  ----------------
+  | Definition Text
+  | Annotation Text
+  ----------------
+  | TypeTuple
+  | TypeRecord
+  ----------------
+  | PatternList
+  | PatternTuple
+  | PatternRecord
+  ----------------
+  | Module
+  | Import
+  | DocComment
+  | TypeUnion
+  | TypeAlias
+  | Infix
+  | Port
+  deriving (Eq, Ord, Show)
 
 
 
@@ -149,8 +186,8 @@ toReport _localizer err =
           "A normal module can expose values, but not settings like this."
           ( reflowParagraph $
               "If you want a normal module, just remove this stuff. If you want to create\
-              \ an `effect module` you just forgot to use the `effect` keyword. In that\
-              \ case, just change `module` to `effect module` and you should be headed in\
+              \ an `effect module` you forgot to use the `effect` keyword. In that\
+              \ case, change `module` to `effect module` and you should be headed in\
               \ the right direction!"
           )
 
@@ -161,7 +198,7 @@ toReport _localizer err =
           "A port module can expose values, but not have settings like this."
           ( reflowParagraph $
               "If you want a port module, just remove this stuff. If you want to create\
-              \ a custom effect module instead (which is rare) just change `port module`\
+              \ a custom effect module instead (which is rare) change `port module`\
               \ to `effect module` and you should be headed in the right direction!"
           )
 
@@ -214,7 +251,7 @@ toReport _localizer err =
           Nothing
           ("You are declaring port " <> Help.functionName name <> " in a normal module.")
           ( reflowParagraph $
-              "All ports must be defined in a `port module`. You should probably have just\
+              "All ports must be defined in a `port module`. You should probably have only\
               \ one of these for your project. This way all of your foreign interactions\
               \ stay relatively organized."
           )
@@ -429,7 +466,7 @@ problemToReport problem =
         "Ran into a bad use of single quotes."
         ( Help.stack
             [ reflowParagraph $
-                "If you want to create a string, just switch to double quotes:"
+                "If you want to create a string, switch to double quotes:"
             , Help.indent 4 $
                 dullyellow (text "'this'")
                 <> text " => "
@@ -483,48 +520,47 @@ problemToReport problem =
         "I ran into a problem while parsing this GLSL block."
         (reflowParagraph msg)
 
-    BadChunkInQualifiedCapVar ->
-      error "TODO"
+    BadOp op context ->
+      case op of
+        HasType ->
+          badOp context "the \"has type\" operator (:)"
+            "type annotations and record types"
+            "Maybe you want :: instead? Or maybe your indentation is a bit off?"
 
-    HasType ->
-      parseReport
-        "Single colons should only show up in types."
-        ( reflowParagraph $
-            "Maybe you want :: instead? Or maybe you are defining\
-            \ a type annotation but there are extra spaces before it?"
-        )
+        Equals ->
+          badOp context "an equals sign (=)"
+            "definitions"
+            "Maybe you want == instead? Or maybe your indentation is a bit off?"
 
-    Equals ->
-      parseReport
-        "The = operator is reserved for defining variables."
-        ( reflowParagraph $
-            "Maybe you want == instead? Or maybe you are defining a\
-            \ variable but there are extra spaces before it?"
-        )
+        Arrow ->
+          if isCaseRelated context then
+            parseReport
+              "I am parsing a case expression, but this arrow (->) is out of place."
+              ( reflowParagraph $
+                  "Each branch in a case expression needs to start on the same\
+                  \ column, so maybe this branch is indented too much?"
+              )
 
-    Arrow ->
-      parseReport
-        "Arrows are reserved for cases and anonymous functions."
-        ( reflowParagraph $
-            "Maybe you want > or >= instead?"
-        )
+          else
+            badOp context "an arrow (->)"
+              "cases expressions and anonymous functions"
+              "Maybe you want > or >= instead?"
 
-    Pipe ->
-      parseReport
-        "Vertical bars are reserved for use in type declarations."
-        ( reflowParagraph $
+        Pipe ->
+          badOp context "a vertical bar (|)"
+            "type declarations"
             "Maybe you want || instead?"
-        )
 
-    Dot ->
-      parseReport
-        "Dots are for record access and decimal points."
-        ( reflowParagraph $
-            "They cannot float around on their own though, so\
-            \ maybe there is some extra whitespace?"
-        )
+        Dot ->
+          parseReport
+            "I was not expecting a dot (.) here."
+            ( reflowParagraph $
+                "Dots are for record access and decimal points, so\
+                \ they cannot float around on their own. Maybe\
+                \ there is some extra whitespace?"
+            )
 
-    Theories allTheories ->
+    Theories context allTheories ->
       case Set.toList (Set.fromList allTheories) of
         [] ->
           parseReport
@@ -536,33 +572,147 @@ problemToReport problem =
                 \ That way we can figure out how to give better advice!"
             )
 
+        [theory] ->
+          parseReport
+            "I got confused while trying to parse your code."
+            ( reflowParagraph $
+                contextToText context
+                <> " right now, so I was expecting "
+                <> theoryToText theory
+            )
+
         theories ->
-          error "TODO" (map theoryToText theories)
+          parseReport
+            "I got confused while trying to parse your code."
+            ( Help.vcat $
+                [ reflowParagraph $
+                    contextToText context <> ", so I was expecting:"
+                , text ""
+                ]
+                ++ map (bullet . theoryToText) theories
+            )
+
+
+bullet :: Text -> Help.Doc
+bullet point =
+  Help.indent 2 (reflowParagraph point)
+
+
+badOp :: [Context] -> Text -> Text -> Text -> Report.Report
+badOp context opName setting hint =
+  parseReport ("I was not expecting " <> opName <> " here.") $
+    reflowParagraph $
+      "It should only appear in " <> setting <> ", but "
+      <> contextToText context <> ". " <> hint
+
+
+contextToText :: [Context] -> Text
+contextToText contextStack =
+  case contextStack of
+    [] ->
+      "I am in between top-level declarations right now."
+
+    context : rest ->
+      let anchor = getAnchor rest in
+      "I think I am parsing " <>
+      case context of
+        ExprIf -> "an `if`" <> anchor
+        ExprLet -> "a `let`" <> anchor
+        ExprFunc -> "an anonymous function" <> anchor
+        ExprCase -> "a `case`" <> anchor
+        ExprList -> "a list" <> anchor
+        ExprTuple -> "a tuple" <> anchor
+        ExprRecord -> "a record" <> anchor
+        Definition name -> "the definition of `" <> name <> "`"
+        Annotation name -> "the type annotation for `" <> name <> "`"
+        TypeTuple -> "a tuple type" <> anchor
+        TypeRecord -> "a record type" <> anchor
+        PatternList -> "a pattern" <> anchor
+        PatternTuple -> "a pattern" <> anchor
+        PatternRecord -> "a pattern" <> anchor
+        Module -> "a module declaration"
+        Import -> "an import"
+        DocComment -> "a documentation comment"
+        TypeUnion -> "a union type"
+        TypeAlias -> "a type alias"
+        Infix -> "an infix declaration"
+        Port -> "a port declaration"
+
+
+getAnchor :: [Context] -> Text
+getAnchor context =
+  case context of
+    []                  -> ""
+    Definition name : _ -> " in the definition of `" <> name <> "`"
+    Annotation name : _ -> " in the type annotation for `" <> name <> "`"
+    _ : rest            -> getAnchor rest
+
+
+isCaseRelated :: [Context] -> Bool
+isCaseRelated context =
+  case context of
+    []           -> False
+    ExprCase : _ -> True
+    _ : rest     -> isCaseRelated rest
 
 
 theoryToText :: Theory -> Text
 theoryToText theory =
   case theory of
-    Keyword _ ->
-      ""
+    Keyword keyword ->
+      "the `" <> keyword <> "` keyword"
 
-    Symbol _ ->
-      ""
+    Symbol symbol ->
+      case symbol of
+        "=" -> "an equals sign (=)"
+        "->" -> "an arrow (->) followed by an expression"
+        ":" -> "the \"has type\" symbol (:) followed by a type"
+        "," -> "a comma"
+        "|" -> "a vertical bar (|)"
+        "::" -> "the cons operator (::)"
+        "." -> "a dot (.)"
+        "-" -> "a minus sign (-)"
+        "_" -> "an underscore"
+        "(" -> "a left paren, for grouping or starting tuples"
+        ")" -> "a closing paren"
+        "[" -> "a left square bracket, for starting lists"
+        "]" -> "a right square bracket, to end a list"
+        "{" -> "a left curly brace, for starting records"
+        "}" -> "a right curly brace, to end a record"
+        _ -> "the (" <> symbol <> ") symbol"
 
-    Variable ->
-      ""
+    LowVar ->
+      "a lower-case variable, like `x` or `user`"
+
+    CapVar ->
+      "an upper-case variable, like `Maybe` or `Just`"
 
     InfixOp ->
-      ""
+      "an infix operator, like + or =="
 
     Digit ->
-      "a digit, like 0 or 6"
+      "a digit from 0 to 9"
 
-    BadIndent ->
-      ""
+    EndOfFile ->
+      "the end of the file"
 
-    FreshLine ->
-      ""
+    BadSpace ->
+      "more indentation"
 
-    Expecting _ ->
-      ""
+    FreshLine nextDecl ->
+      "a fresh line with no indentation for " <>
+      case nextDecl of
+        ModuleDecl -> "an `import`"
+        DocCommentDecl -> "an `import`"
+        ImportDecl -> "an `import` or a declarations"
+        OtherDecl -> "a top-level declaration"
+
+    Expecting next ->
+      case next of
+        Expr -> "an expression, like x or 42"
+        ElseBranch -> "an `else` branch. An `if` must handle both possibilities!"
+        Arg -> "an argument, like `name` or `total`"
+        Pattern -> "a pattern, like `name` or (Just x)"
+        Type -> "a type, like Int or (List String)"
+        Listing -> "a list of exposed values and types, like (..) or (x,y,z)"
+        Exposing -> "something like `exposing (..)`"

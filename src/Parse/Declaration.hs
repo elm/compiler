@@ -10,6 +10,7 @@ import qualified Parse.Expression as Expr
 import Parse.Helpers as Help
 import qualified Parse.Type as Type
 import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Syntax as E
 import qualified Reporting.Region as R
 
 
@@ -61,16 +62,18 @@ typeDecl start =
       spaces
       oneOf
         [ do  keyword "alias"
-              spaces
-              (name, args) <- nameArgsEquals
-              (tipe, end, pos) <- Type.expression
-              let decl = A.at start end (Decl.Alias (Decl.Type name args tipe))
-              return ( Decl.Whatever decl, end, pos )
-        , do  (name, args) <- nameArgsEquals
-              (firstCtor, firstEnd, firstSpace) <- Type.unionConstructor
-              (ctors, end, pos) <- chompConstructors [firstCtor] firstEnd firstSpace
-              let decl = A.at start end (Decl.Union (Decl.Type name args ctors))
-              return ( Decl.Whatever decl, end, pos )
+              inContext E.TypeAlias $
+                do  spaces
+                    (name, args) <- nameArgsEquals
+                    (tipe, end, pos) <- Type.expression
+                    let decl = A.at start end (Decl.Alias (Decl.Type name args tipe))
+                    return ( Decl.Whatever decl, end, pos )
+        , inContext E.TypeUnion $
+            do  (name, args) <- nameArgsEquals
+                (firstCtor, firstEnd, firstSpace) <- Type.unionConstructor
+                (ctors, end, pos) <- chompConstructors [firstCtor] firstEnd firstSpace
+                let decl = A.at start end (Decl.Union (Decl.Type name args ctors))
+                return ( Decl.Whatever decl, end, pos )
         ]
 
 
@@ -113,11 +116,11 @@ infixDecl :: R.Position -> SParser Decl.Source
 infixDecl start =
   oneOf
     [ do  keyword "infixl"
-          infixDeclHelp start Decl.L
+          inContext E.Infix $ infixDeclHelp start Decl.L
     , do  keyword "infixr"
-          infixDeclHelp start Decl.R
+          inContext E.Infix $ infixDeclHelp start Decl.R
     , do  keyword "infix"
-          infixDeclHelp start Decl.N
+          inContext E.Infix $ infixDeclHelp start Decl.N
     ]
 
 
@@ -140,12 +143,13 @@ infixDeclHelp start assoc =
 portDecl :: R.Position -> SParser Decl.Source
 portDecl start =
   do  keyword "port"
-      spaces
-      name <- lowVar
-      spaces
-      hasType
-      spaces
-      (tipe, end, pos) <- Type.expression
-      let decl = A.at start end (Decl.Port name tipe)
-      return ( Decl.Whatever decl, end, pos )
+      inContext E.Port $
+        do  spaces
+            name <- lowVar
+            spaces
+            hasType
+            spaces
+            (tipe, end, pos) <- Type.expression
+            let decl = A.at start end (Decl.Port name tipe)
+            return ( Decl.Whatever decl, end, pos )
 

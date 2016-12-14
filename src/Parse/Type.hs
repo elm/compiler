@@ -8,6 +8,7 @@ import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import Parse.Helpers
 import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Syntax as E
 import qualified Reporting.Region as R
 
 
@@ -17,12 +18,13 @@ import qualified Reporting.Region as R
 
 term :: Parser Type.Raw
 term =
-  oneOf
-    [ constructor
-    , variable
-    , tuple
-    , record
-    ]
+  hint E.Type $
+    oneOf
+      [ constructor
+      , variable
+      , tuple
+      , record
+      ]
 
 
 
@@ -31,7 +33,7 @@ term =
 
 variable :: Parser Type.Raw
 variable =
-  expecting "a type variable" $ addLocation $
+  addLocation $
     Type.RVar <$> lowVar
 
 
@@ -41,6 +43,7 @@ variable =
 
 expression :: SParser Type.Raw
 expression =
+  hint E.Type $
   do  start <- getPosition
       (tipe1, end1, pos1) <-
         oneOf
@@ -64,7 +67,7 @@ expression =
 
 constructor :: Parser Type.Raw
 constructor =
-  expecting "a type constructor, like Maybe or List" $ addLocation $
+  addLocation $
     fmap (Type.RType . Var.Raw) qualifiedCapVar
 
 
@@ -115,15 +118,16 @@ tuple :: Parser Type.Raw
 tuple =
   do  start <- getPosition
       leftParen
-      oneOf
-        [ do  rightParen
-              end <- getPosition
-              return (Type.tuple (R.Region start end) [])
-        , do  spaces
-              (tipe, _, pos) <- expression
-              checkSpace pos
-              tupleEnding start [tipe]
-        ]
+      inContext E.TypeTuple $
+        oneOf
+          [ do  rightParen
+                end <- getPosition
+                return (Type.tuple (R.Region start end) [])
+          , do  spaces
+                (tipe, _, pos) <- expression
+                checkSpace pos
+                tupleEnding start [tipe]
+          ]
 
 
 tupleEnding :: R.Position -> [Type.Raw] -> Parser Type.Raw
@@ -153,26 +157,27 @@ record :: Parser Type.Raw
 record =
   addLocation $
   do  leftCurly
-      spaces
-      oneOf
-        [ do  rightCurly
-              return (Type.RRecord [] Nothing)
-        , do  var <- addLocation lowVar
-              spaces
-              oneOf
-                [ do  pipe
-                      spaces
-                      firstField <- field
-                      fields <- chompFields [firstField]
-                      return (Type.RRecord fields (Just (A.map Type.RVar var)))
-                , do  hasType
-                      spaces
-                      (tipe, _, nextPos) <- expression
-                      checkSpace nextPos
-                      fields <- chompFields [(var, tipe)]
-                      return (Type.RRecord fields Nothing)
-                ]
-        ]
+      inContext E.TypeRecord $
+        do  spaces
+            oneOf
+              [ do  rightCurly
+                    return (Type.RRecord [] Nothing)
+              , do  var <- addLocation lowVar
+                    spaces
+                    oneOf
+                      [ do  pipe
+                            spaces
+                            firstField <- field
+                            fields <- chompFields [firstField]
+                            return (Type.RRecord fields (Just (A.map Type.RVar var)))
+                      , do  hasType
+                            spaces
+                            (tipe, _, nextPos) <- expression
+                            checkSpace nextPos
+                            fields <- chompFields [(var, tipe)]
+                            return (Type.RRecord fields Nothing)
+                      ]
+              ]
 
 
 type Field = ( A.Located Text, Type.Raw )

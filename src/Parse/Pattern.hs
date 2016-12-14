@@ -10,6 +10,7 @@ import qualified AST.Variable as Var
 import Parse.Helpers
 import qualified Parse.Literal as Literal
 import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Syntax as E
 import qualified Reporting.Region as R
 
 
@@ -19,7 +20,8 @@ import qualified Reporting.Region as R
 
 term :: Parser P.Raw
 term =
-  oneOf [ record, tuple, list, termHelp ]
+  hint E.Pattern $
+    oneOf [ record, tuple, list, termHelp ]
 
 
 termHelp :: Parser P.Raw
@@ -55,14 +57,15 @@ record :: Parser P.Raw
 record =
   addLocation $
     do  leftCurly
-        spaces
-        oneOf
-          [ do  var <- lowVar
-                spaces
-                recordHelp [var]
-          , do  rightCurly
-                return (P.Record [])
-          ]
+        inContext E.ExprRecord $
+          do  spaces
+              oneOf
+                [ do  var <- lowVar
+                      spaces
+                      recordHelp [var]
+                , do  rightCurly
+                      return (P.Record [])
+                ]
 
 
 recordHelp :: [Text] -> Parser P.Raw'
@@ -86,15 +89,16 @@ tuple :: Parser P.Raw
 tuple =
   do  start <- getPosition
       leftParen
-      spaces
-      oneOf
-        [ do  (pattern, sPos) <- expression
-              checkSpace sPos
-              tupleHelp start [pattern]
-        , do  rightParen
-              end <- getPosition
-              return (A.at start end (P.tuple []))
-        ]
+      inContext E.ExprTuple $
+        do  spaces
+            oneOf
+              [ do  (pattern, sPos) <- expression
+                    checkSpace sPos
+                    tupleHelp start [pattern]
+              , do  rightParen
+                    end <- getPosition
+                    return (A.at start end (P.tuple []))
+              ]
 
 
 tupleHelp :: R.Position -> [P.Raw] -> Parser P.Raw
@@ -154,9 +158,10 @@ listHelp patterns =
 
 expression :: Parser (P.Raw, SPos)
 expression =
-  do  start <- getPosition
-      cTerm <- consTerm
-      exprHelp start [] cTerm
+  hint E.Pattern $
+    do  start <- getPosition
+        cTerm <- consTerm
+        exprHelp start [] cTerm
 
 
 consTerm :: SParser P.Raw
