@@ -10,6 +10,7 @@ module Reporting.Error.Syntax
   where
 
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import Data.Text (Text)
 
 import qualified Reporting.Render.Type as RenderType
@@ -91,15 +92,23 @@ data Theory
   | EndOfFile
   | FreshLine NextDecl
   | BadSpace
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord)
 
 
-data Next = Expr | ElseBranch | Arg | Pattern | Type | Listing | Exposing
-  deriving (Eq, Ord, Show)
+data Next
+  = Expr
+  | AfterOpExpr Text
+  | ElseBranch
+  | Arg
+  | Pattern
+  | Type
+  | Listing
+  | Exposing
+  deriving (Eq, Ord)
 
 
 data NextDecl = ModuleDecl | DocCommentDecl | ImportDecl | OtherDecl
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord)
 
 
 data Context
@@ -523,31 +532,32 @@ problemToReport problem =
     BadOp op context ->
       case op of
         HasType ->
-          badOp context "the \"has type\" operator (:)"
+          badOp context "the \"has type\" operator" "(:)"
             "type annotations and record types"
             "Maybe you want :: instead? Or maybe your indentation is a bit off?"
 
         Equals ->
-          badOp context "an equals sign (=)"
+          badOp context "an equals sign" "(=)"
             "definitions"
             "Maybe you want == instead? Or maybe your indentation is a bit off?"
 
         Arrow ->
           if isCaseRelated context then
             parseReport
-              "I am parsing a case expression, but this arrow (->) is out of place."
+              "I ran into a stray arrow (->) while parsing this `case` expression."
               ( reflowParagraph $
-                  "Each branch in a case expression needs to start on the same\
-                  \ column, so maybe this branch is indented too much?"
+                  "All branches in a `case` must be indented the exact\
+                  \ same amount, so the patterns are vertically\
+                  \ aligned. Maybe this branch is indented too much?"
               )
 
           else
-            badOp context "an arrow (->)"
+            badOp context "an arrow" "(->)"
               "cases expressions and anonymous functions"
               "Maybe you want > or >= instead?"
 
         Pipe ->
-          badOp context "a vertical bar (|)"
+          badOp context "a vertical bar" "(|)"
             "type declarations"
             "Maybe you want || instead?"
 
@@ -561,75 +571,85 @@ problemToReport problem =
             )
 
     Theories context allTheories ->
-      case Set.toList (Set.fromList allTheories) of
-        [] ->
-          parseReport
-            "Something went wrong when parsing this code."
-            ( reflowParagraph $
-                "I do not have any suggestions though, and I suspect there is some\
-                \ sort of bug. Can you get it down to an <http://sscce.org> and\
-                \ share it at <https://github.com/elm-lang/error-message-catalog/issues>?\
-                \ That way we can figure out how to give better advice!"
-            )
-
-        [theory] ->
-          parseReport
-            "I got confused while trying to parse your code."
-            ( reflowParagraph $
-                contextToText context
-                <> " right now, so I was expecting "
-                <> theoryToText theory
-            )
-
-        theories ->
-          parseReport
-            "I got confused while trying to parse your code."
-            ( Help.vcat $
+      let
+        starter =
+          "I got confused while trying to parse "
+          <> contextToText "your code" "" context
+          <> "."
+      in
+        parseReport starter $
+          case Set.toList (Set.fromList allTheories) of
+            [] ->
+              Help.stack
                 [ reflowParagraph $
-                    contextToText context <> ", so I was expecting:"
+                    "I do not have any suggestions though!"
+                , reflowParagraph $
+                    "Can you get it down to a <http://sscce.org> and share it at\
+                    \ <https://github.com/elm-lang/error-message-catalog/issues>?\
+                    \ That way we can figure out how to give better advice!"
+                ]
+
+            [theory] ->
+              reflowParagraph $
+                "I was expecting to see "
+                <> addPeriod (theoryToText context theory)
+
+            theories ->
+              Help.vcat $
+                [ text "I was expecting:"
                 , text ""
                 ]
-                ++ map (bullet . theoryToText) theories
-            )
+                ++ map (bullet . theoryToText context) theories
 
 
 bullet :: Text -> Help.Doc
 bullet point =
-  Help.indent 2 (reflowParagraph point)
+  Help.hang 4 ("  - " <> reflowParagraph point)
 
 
-badOp :: [Context] -> Text -> Text -> Text -> Report.Report
-badOp context opName setting hint =
+addPeriod :: Text -> Text
+addPeriod msg =
+  if Text.last msg `elem` ['`', ')', '.', '!', '?'] then
+    msg
+  else
+    msg <> "."
+
+
+badOp :: [Context] -> Text -> Text -> Text -> Text -> Report.Report
+badOp context opName op setting hint =
   parseReport ("I was not expecting " <> opName <> " here.") $
-    reflowParagraph $
-      "It should only appear in " <> setting <> ", but "
-      <> contextToText context <> ". " <> hint
+    Help.stack
+      [ reflowParagraph $
+          "A " <> op <> " should only appear in " <> setting
+          <> contextToText "" ", but I think I am parsing " context <> "."
+      , reflowParagraph hint
+      ]
 
 
-contextToText :: [Context] -> Text
-contextToText contextStack =
+contextToText :: Text -> Text -> [Context] -> Text
+contextToText defaultText prefixText contextStack =
   case contextStack of
     [] ->
-      "I am in between top-level declarations right now."
+      defaultText
 
     context : rest ->
       let anchor = getAnchor rest in
-      "I think I am parsing " <>
+      prefixText <>
       case context of
         ExprIf -> "an `if`" <> anchor
         ExprLet -> "a `let`" <> anchor
         ExprFunc -> "an anonymous function" <> anchor
         ExprCase -> "a `case`" <> anchor
         ExprList -> "a list" <> anchor
-        ExprTuple -> "a tuple" <> anchor
+        ExprTuple -> "a expression (in parentheses)" <> anchor
         ExprRecord -> "a record" <> anchor
-        Definition name -> "the definition of `" <> name <> "`"
-        Annotation name -> "the type annotation for `" <> name <> "`"
-        TypeTuple -> "a tuple type" <> anchor
+        Definition name -> name <> "'s definition"
+        Annotation name -> name <> "'s type annotation"
+        TypeTuple -> "a type (in parentheses)" <> anchor
         TypeRecord -> "a record type" <> anchor
-        PatternList -> "a pattern" <> anchor
-        PatternTuple -> "a pattern" <> anchor
-        PatternRecord -> "a pattern" <> anchor
+        PatternList -> "a list pattern" <> anchor
+        PatternTuple -> "a pattern (in parentheses)" <> anchor
+        PatternRecord -> "a record pattern" <> anchor
         Module -> "a module declaration"
         Import -> "an import"
         DocComment -> "a documentation comment"
@@ -643,8 +663,8 @@ getAnchor :: [Context] -> Text
 getAnchor context =
   case context of
     []                  -> ""
-    Definition name : _ -> " in the definition of `" <> name <> "`"
-    Annotation name : _ -> " in the type annotation for `" <> name <> "`"
+    Definition name : _ -> " in " <> name <> "'s definition"
+    Annotation name : _ -> " in " <> name <> "'s type annotation"
     _ : rest            -> getAnchor rest
 
 
@@ -656,20 +676,20 @@ isCaseRelated context =
     _ : rest     -> isCaseRelated rest
 
 
-theoryToText :: Theory -> Text
-theoryToText theory =
+theoryToText :: [Context] -> Theory -> Text
+theoryToText context theory =
   case theory of
     Keyword keyword ->
       "the `" <> keyword <> "` keyword"
 
     Symbol symbol ->
       case symbol of
-        "=" -> "an equals sign (=)"
+        "=" -> equalsTheory context
         "->" -> "an arrow (->) followed by an expression"
         ":" -> "the \"has type\" symbol (:) followed by a type"
         "," -> "a comma"
-        "|" -> "a vertical bar (|)"
-        "::" -> "the cons operator (::)"
+        "|" -> barTheory context
+        "::" -> "the cons operator (::) followed by more list elements"
         "." -> "a dot (.)"
         "-" -> "a minus sign (-)"
         "_" -> "an underscore"
@@ -688,7 +708,7 @@ theoryToText theory =
       "an upper-case variable, like `Maybe` or `Just`"
 
     InfixOp ->
-      "an infix operator, like + or =="
+      "an infix operator, like (+) or (==)"
 
     Digit ->
       "a digit from 0 to 9"
@@ -697,10 +717,10 @@ theoryToText theory =
       "the end of the file"
 
     BadSpace ->
-      "more indentation"
+      badSpace context
 
     FreshLine nextDecl ->
-      "a fresh line with no indentation for " <>
+      "a fresh line (without any leading spaces) for " <>
       case nextDecl of
         ModuleDecl -> "an `import`"
         DocCommentDecl -> "an `import`"
@@ -710,9 +730,75 @@ theoryToText theory =
     Expecting next ->
       case next of
         Expr -> "an expression, like x or 42"
-        ElseBranch -> "an `else` branch. An `if` must handle both possibilities!"
+        AfterOpExpr op -> "an expression after that (" <> op <> ") operator, like x or 42"
+        ElseBranch -> "an `else` branch. An `if` must handle both possibilities."
         Arg -> "an argument, like `name` or `total`"
         Pattern -> "a pattern, like `name` or (Just x)"
         Type -> "a type, like Int or (List String)"
         Listing -> "a list of exposed values and types, like (..) or (x,y,z)"
         Exposing -> "something like `exposing (..)`"
+
+
+equalsTheory :: [Context] -> Text
+equalsTheory context =
+  case context of
+    [] ->
+      "an equals sign (=)"
+
+    first : rest ->
+      case first of
+        ExprRecord -> "an equals sign (=) followed by an expression"
+        Definition name -> "an equals sign (=) followed by " <> name <> "'s definition"
+        TypeUnion -> "an equals sign (=) followed by the first union type constructor"
+        TypeAlias -> "an equals sign (=) followed by the aliased type"
+        _ -> equalsTheory rest
+
+
+barTheory :: [Context] -> Text
+barTheory context =
+  case context of
+    [] ->
+      "a vertical bar (|)"
+
+    first : rest ->
+      case first of
+        ExprRecord -> "a vertical bar (|) followed by the record fields you want to update"
+        TypeRecord -> "a vertical bar (|) followed by some record field types"
+        TypeUnion -> "a vertical bar (|) followed by more union type constructors"
+        _ -> barTheory rest
+
+
+badSpace :: [Context] -> Text
+badSpace context =
+  case context of
+    [] ->
+      "more indentation? I was not done with that last thing yet."
+
+    first : rest ->
+      case first of
+        ExprIf -> "the end of that `if`" <> badSpaceEnd
+        ExprLet -> "the end of that `let`" <> badSpaceEnd
+        ExprFunc -> badSpace rest
+        ExprCase -> "more of that `case`" <> badSpaceEnd
+        ExprList -> "the end of that list" <> badSpaceEnd
+        ExprTuple -> "a closing paren" <> badSpaceEnd
+        ExprRecord -> "the end of that record" <> badSpaceEnd
+        Definition name -> "the rest of " <> name <> "'s definition" <> badSpaceEnd
+        Annotation name -> "the rest of " <> name <> "'s type annotation" <> badSpaceEnd
+        TypeTuple -> "a closing paren" <> badSpaceEnd
+        TypeRecord -> "the end of that record" <> badSpaceEnd
+        PatternList -> "the end of that list" <> badSpaceEnd
+        PatternTuple -> "a closing paren" <> badSpaceEnd
+        PatternRecord -> "the end of that record" <> badSpaceEnd
+        Module -> "something like `module Main exposing (..)`"
+        Import -> "something like `import Html exposing (..)`"
+        DocComment -> badSpace rest
+        TypeUnion -> "more of that union type" <> badSpaceEnd
+        TypeAlias -> "more of that type alias" <> badSpaceEnd
+        Infix -> "more of that infix declaration" <> badSpaceEnd
+        Port -> "more of that port declaration" <> badSpaceEnd
+
+
+badSpaceEnd :: Text
+badSpaceEnd =
+  ". Maybe you forgot some code? Or you need more indentation?"

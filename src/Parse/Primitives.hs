@@ -3,7 +3,7 @@
 module Parse.Primitives
   ( Parser
   , run, runAt
-  , try, failure, deadend, hint, endOfFile
+  , try, deadend, hint, endOfFile
   , oneOf
   , symbol, keyword, keywords
   , lowVar, capVar, infixOp
@@ -123,12 +123,6 @@ try :: Parser a -> Parser a
 try parser =
   Parser $ \state cok _ eok eerr ->
     _run parser state cok eerr eok eerr
-
-
-failure :: Problem -> Parser a
-failure problem =
-  Parser $ \(State _ _ _ _ row col _) _ cerr _ _ ->
-    cerr (ParseError row col problem)
 
 
 shaderFailure :: Int -> Int -> Text -> Parser a

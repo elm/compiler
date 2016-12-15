@@ -276,9 +276,10 @@ exprHelp start (State ops lastExpr end pos) =
           opName <- infixOp
           opEnd <- getPosition
           let op = A.at opStart opEnd opName
-          spaces
+          spos <- whitespace
+          hint (E.AfterOpExpr opName) (checkSpace spos)
           newStart <- getPosition
-          oneOf
+          hint (E.AfterOpExpr opName) $ oneOf $
             [ -- negative terms
               do  guard ("-" == opName && end /= opStart && opEnd == newStart)
                   rawTerm <- term
@@ -312,6 +313,7 @@ exprHelp start (State ops lastExpr end pos) =
             ]
 
     , -- argument
+      hint E.Arg $
       do  checkSpace pos
           arg <- term
           newEnd <- getPosition

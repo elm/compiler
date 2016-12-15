@@ -41,8 +41,7 @@ qualifiedCapVar =
 
 qualifiedCapVarHelp :: Parser a
 qualifiedCapVarHelp =
-  do  ctx <- getContext
-      failure (E.Theories ctx [E.CapVar])
+  deadend [E.CapVar]
 
 
 qualifiedVar :: Parser Text
@@ -198,13 +197,7 @@ inContext ctx parser =
 
 spaces :: Parser ()
 spaces =
-  do  (SPos (R.Position _ col)) <- whitespace
-      indent <- getIndent
-      if col > indent && col > 1
-        then return ()
-        else
-          do  ctx <- getContext
-              failure (E.Theories ctx [E.BadSpace])
+  checkSpace =<< whitespace
 
 
 checkSpace :: SPos -> Parser ()

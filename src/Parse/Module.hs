@@ -33,7 +33,8 @@ header =
 
 fullHeader :: Parser (Module.Header [Module.UserImport])
 fullHeader =
-  do  tag <- sourceTag
+  do  pushContext E.Module
+      tag <- sourceTag
       spaces
       name <- qualifiedCapVar
       spaces
@@ -41,11 +42,12 @@ fullHeader =
       hint E.Exposing $ keyword "exposing"
       spaces
       exports <- listing (addLocation listingValue)
+      popContext ()
       start <- getPosition
       freshLine E.DocCommentDecl
       end <- getPosition
       docs <- maybeDocComment start end
-      imports <- chompImports []
+      imports <- inContext E.Import (chompImports [])
       return (Module.Header tag name exports settings docs imports)
 
 
@@ -126,6 +128,7 @@ setting =
 
 maybeDocComment :: R.Position -> R.Position -> Parser (A.Located (Maybe Text))
 maybeDocComment start end =
+  inContext E.DocComment $
   oneOf
     [ do  doc <- addLocation docComment
           freshLine E.ImportDecl
