@@ -194,7 +194,7 @@ chompNames names =
               comma
               spaces
               chompNames (name:names)
-        , return names
+        , return (name:names)
         ]
 
 
