@@ -542,9 +542,7 @@ problemToReport subRegion problem =
             "Maybe you want :: instead? Or maybe your indentation is a bit off?"
 
         Equals ->
-          badOp subRegion stack "an equals sign" "(=)"
-            "definitions"
-            "Maybe you want == instead? Or maybe your indentation is a bit off?"
+          badEquals subRegion stack
 
         Arrow ->
           if isCaseRelated stack then
@@ -629,6 +627,42 @@ badOp subRegion stack opName op setting hint =
           <> contextToText "" ", but I think I am parsing " stack <> "."
       , reflowParagraph hint
       ]
+
+
+badEquals :: Maybe R.Region -> ContextStack -> Report.Report
+badEquals subRegion stack =
+  let
+    pre =
+      "I was not expecting this equals sign"
+      <> contextToText "" " while parsing " stack <> "."
+  in
+    makeParseReport subRegion pre (badEqualsHelp stack)
+
+
+badEqualsHelp :: ContextStack -> Help.Doc
+badEqualsHelp stack =
+  case stack of
+    [] ->
+      reflowParagraph $
+        "Maybe you want == instead? Or maybe your indentation is a bit off?"
+
+    (ExprRecord, _) : _ ->
+      reflowParagraph $
+        "Records look like { x = 3, y = 4 } with the equals sign right\
+        \ after the field name. Maybe you forgot a comma?"
+
+    (Definition name, _) : rest ->
+      reflowParagraph $
+        "Maybe this is supposed to be a separate definition? If so, it\
+        \ is indented too far. "
+        <>
+        if any ((==) ExprLet . fst) rest then
+          "All definitions in a `let` expression must be vertically aligned."
+        else
+          "Spaces are not allowed before top-level definitions."
+
+    _ : rest ->
+      badEqualsHelp rest
 
 
 contextToText :: Text -> Text -> ContextStack -> Text
