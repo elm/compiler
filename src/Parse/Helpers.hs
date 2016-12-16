@@ -185,9 +185,9 @@ addLocation parser =
       return (A.at start end value)
 
 
-inContext :: E.Context -> Parser a -> Parser a
-inContext ctx parser =
-  do  P.pushContext ctx
+inContext :: R.Position -> E.Context -> Parser a -> Parser a
+inContext pos ctx parser =
+  do  P.pushContext pos ctx
       a <- parser
       P.popContext a
 

@@ -12,12 +12,11 @@ import Elm.Utils ((|>))
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error as Error
 import qualified Reporting.Error.Docs as E
-import qualified Reporting.Error.Syntax as SE
 import qualified Reporting.Helpers as Help (nearbyNames)
 import qualified Reporting.Region as R
 import qualified Reporting.Result as R
 import Parse.Helpers
-  ( Parser, addLocation, getPosition, inContext
+  ( Parser, addLocation, getPosition
   , spaces, checkSpace, whitespace, SPos(..)
   , capVar, lowVar, leftParen, rightParen, infixOp, runAt
   , chompUntilDocs, comma, oneOf
@@ -162,7 +161,7 @@ checkModuleComment docRegion exports locatedDocNames =
 
 parseNames :: R.Region -> Text -> R.Result () w Error.Error [A.Located Text]
 parseNames (R.Region (R.Position row col) _) comment =
-  case runAt row (col + 3) (inContext SE.DocComment (namesParser [])) comment of
+  case runAt row (col + 3) (namesParser []) comment of
     Left (A.A region parseError) ->
       R.throw region (Error.Syntax parseError)
 

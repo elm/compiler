@@ -3,7 +3,8 @@
 module Reporting.Error.Syntax
   ( Error(..)
   , ParseError(..)
-  , Problem(..), Theory(..), Context(..)
+  , Problem(..), Theory(..)
+  , ContextStack, Context(..)
   , BadOp(..), Next(..), NextDecl(..)
   , toReport
   )
@@ -14,7 +15,7 @@ import qualified Data.Text as Text
 import Data.Text (Text)
 
 import qualified Reporting.Render.Type as RenderType
-import qualified Reporting.Region as Region
+import qualified Reporting.Region as R
 import qualified Reporting.Report as Report
 import qualified Reporting.Helpers as Help
 import Reporting.Helpers ((<>), dullyellow, hsep, i2t, reflowParagraph, text)
@@ -25,7 +26,7 @@ import Reporting.Helpers ((<>), dullyellow, hsep, i2t, reflowParagraph, text)
 
 
 data Error
-    = Parse Problem
+    = Parse (Maybe R.Region) Problem
     | BadFunctionName Int
     | BadPattern Text
 
@@ -42,7 +43,7 @@ data Error
     | TypeWithoutDefinition Text
 
     | DuplicateArgument Text Text
-    | DuplicateFieldName Region.Region Text
+    | DuplicateFieldName R.Region Text
     | DuplicateValueDeclaration Text
     | DuplicateTypeDeclaration Text
     | DuplicateDefinition Text
@@ -74,17 +75,17 @@ data Problem
   | BadNumberHex
   | BadNumberZero
   | BadShader Text
-  | BadOp BadOp [Context]
-  | Theories [Context] [Theory]
+  | BadOp BadOp ContextStack
+  | Theories ContextStack [Theory]
 
 
 data BadOp = HasType | Equals | Arrow | Pipe | Dot
 
 
 data Theory
-  = Expecting Next
-  | Keyword Text
+  = Keyword Text
   | Symbol Text
+  | Expecting Next
   | LowVar
   | CapVar
   | InfixOp
@@ -96,7 +97,8 @@ data Theory
 
 
 data Next
-  = Expr
+  = Decl
+  | Expr
   | AfterOpExpr Text
   | ElseBranch
   | Arg
@@ -109,6 +111,9 @@ data Next
 
 data NextDecl = ModuleDecl | DocCommentDecl | ImportDecl | OtherDecl
   deriving (Eq, Ord)
+
+
+type ContextStack = [(Context, R.Position)]
 
 
 data Context
@@ -132,7 +137,6 @@ data Context
   ----------------
   | Module
   | Import
-  | DocComment
   | TypeUnion
   | TypeAlias
   | Infix
@@ -147,8 +151,8 @@ data Context
 toReport :: RenderType.Localizer -> Error -> Report.Report
 toReport _localizer err =
   case err of
-    Parse problem ->
-        problemToReport problem
+    Parse subRegion problem ->
+        problemToReport subRegion problem
 
     BadFunctionName arity ->
         Report.report
@@ -398,13 +402,14 @@ unboundTypeVars declKind typeName givenVars unboundVars =
 -- PARSE ERROR TO REPORT
 
 
-parseReport :: Text -> Help.Doc -> Report.Report
-parseReport pre post =
-  Report.report "PARSE ERROR" Nothing pre post
+makeParseReport :: Maybe R.Region -> Text -> Help.Doc -> Report.Report
+makeParseReport subRegion pre post =
+  Report.report "PARSE ERROR" subRegion pre post
 
 
-problemToReport :: Problem -> Report.Report
-problemToReport problem =
+problemToReport :: Maybe R.Region -> Problem -> Report.Report
+problemToReport subRegion problem =
+  let parseReport = makeParseReport subRegion in
   case problem of
     Tab ->
       parseReport
@@ -529,20 +534,20 @@ problemToReport problem =
         "I ran into a problem while parsing this GLSL block."
         (reflowParagraph msg)
 
-    BadOp op context ->
+    BadOp op stack ->
       case op of
         HasType ->
-          badOp context "the \"has type\" operator" "(:)"
+          badOp subRegion stack "the \"has type\" operator" "(:)"
             "type annotations and record types"
             "Maybe you want :: instead? Or maybe your indentation is a bit off?"
 
         Equals ->
-          badOp context "an equals sign" "(=)"
+          badOp subRegion stack "an equals sign" "(=)"
             "definitions"
             "Maybe you want == instead? Or maybe your indentation is a bit off?"
 
         Arrow ->
-          if isCaseRelated context then
+          if isCaseRelated stack then
             parseReport
               "I ran into a stray arrow (->) while parsing this `case` expression."
               ( reflowParagraph $
@@ -552,12 +557,12 @@ problemToReport problem =
               )
 
           else
-            badOp context "an arrow" "(->)"
+            badOp subRegion stack "an arrow" "(->)"
               "cases expressions and anonymous functions"
               "Maybe you want > or >= instead?"
 
         Pipe ->
-          badOp context "a vertical bar" "(|)"
+          badOp subRegion stack "a vertical bar" "(|)"
             "type declarations"
             "Maybe you want || instead?"
 
@@ -570,11 +575,11 @@ problemToReport problem =
                 \ there is some extra whitespace?"
             )
 
-    Theories context allTheories ->
+    Theories stack allTheories ->
       let
         starter =
-          "I got confused while trying to parse "
-          <> contextToText "your code" "" context
+          "Something went wrong while parsing "
+          <> contextToText "your code" "" stack
           <> "."
       in
         parseReport starter $
@@ -592,14 +597,14 @@ problemToReport problem =
             [theory] ->
               reflowParagraph $
                 "I was expecting to see "
-                <> addPeriod (theoryToText context theory)
+                <> addPeriod (theoryToText stack theory)
 
             theories ->
               Help.vcat $
                 [ text "I was expecting:"
                 , text ""
                 ]
-                ++ map (bullet . theoryToText context) theories
+                ++ map (bullet . theoryToText stack) theories
 
 
 bullet :: Text -> Help.Doc
@@ -615,24 +620,24 @@ addPeriod msg =
     msg <> "."
 
 
-badOp :: [Context] -> Text -> Text -> Text -> Text -> Report.Report
-badOp context opName op setting hint =
-  parseReport ("I was not expecting " <> opName <> " here.") $
+badOp :: Maybe R.Region -> ContextStack -> Text -> Text -> Text -> Text -> Report.Report
+badOp subRegion stack opName op setting hint =
+  makeParseReport subRegion ("I was not expecting " <> opName <> " here.") $
     Help.stack
       [ reflowParagraph $
           "A " <> op <> " should only appear in " <> setting
-          <> contextToText "" ", but I think I am parsing " context <> "."
+          <> contextToText "" ", but I think I am parsing " stack <> "."
       , reflowParagraph hint
       ]
 
 
-contextToText :: Text -> Text -> [Context] -> Text
-contextToText defaultText prefixText contextStack =
-  case contextStack of
+contextToText :: Text -> Text -> ContextStack -> Text
+contextToText defaultText prefixText stack =
+  case stack of
     [] ->
       defaultText
 
-    context : rest ->
+    (context, _) : rest ->
       let anchor = getAnchor rest in
       prefixText <>
       case context of
@@ -641,7 +646,7 @@ contextToText defaultText prefixText contextStack =
         ExprFunc -> "an anonymous function" <> anchor
         ExprCase -> "a `case`" <> anchor
         ExprList -> "a list" <> anchor
-        ExprTuple -> "a expression (in parentheses)" <> anchor
+        ExprTuple -> "an expression (in parentheses)" <> anchor
         ExprRecord -> "a record" <> anchor
         Definition name -> name <> "'s definition"
         Annotation name -> name <> "'s type annotation"
@@ -652,31 +657,41 @@ contextToText defaultText prefixText contextStack =
         PatternRecord -> "a record pattern" <> anchor
         Module -> "a module declaration"
         Import -> "an import"
-        DocComment -> "a documentation comment"
         TypeUnion -> "a union type"
         TypeAlias -> "a type alias"
         Infix -> "an infix declaration"
         Port -> "a port declaration"
 
 
-getAnchor :: [Context] -> Text
-getAnchor context =
-  case context of
-    []                  -> ""
-    Definition name : _ -> " in " <> name <> "'s definition"
-    Annotation name : _ -> " in " <> name <> "'s type annotation"
-    _ : rest            -> getAnchor rest
+getAnchor :: ContextStack -> Text
+getAnchor stack =
+  case stack of
+    [] ->
+      ""
+
+    (context, _) : rest ->
+      case context of
+        Definition name ->
+          " in " <> name <> "'s definition"
+
+        Annotation name ->
+          " in " <> name <> "'s type annotation"
+
+        _ ->
+          getAnchor rest
 
 
-isCaseRelated :: [Context] -> Bool
-isCaseRelated context =
-  case context of
-    []           -> False
-    ExprCase : _ -> True
-    _ : rest     -> isCaseRelated rest
+isCaseRelated :: ContextStack -> Bool
+isCaseRelated stack =
+  case stack of
+    [] ->
+      False
+
+    (context, _) : rest ->
+      context == ExprCase || isCaseRelated rest
 
 
-theoryToText :: [Context] -> Theory -> Text
+theoryToText :: ContextStack -> Theory -> Text
 theoryToText context theory =
   case theory of
     Keyword keyword ->
@@ -699,6 +714,7 @@ theoryToText context theory =
         "]" -> "a right square bracket, to end a list"
         "{" -> "a left curly brace, for starting records"
         "}" -> "a right curly brace, to end a record"
+        "{-|" -> "a doc comment, like {-| example -}"
         _ -> "the (" <> symbol <> ") symbol"
 
     LowVar ->
@@ -722,13 +738,14 @@ theoryToText context theory =
     FreshLine nextDecl ->
       "a fresh line (without any leading spaces) for " <>
       case nextDecl of
-        ModuleDecl -> "an `import`"
-        DocCommentDecl -> "an `import`"
+        ModuleDecl -> "something like `module Main exposing (..)`"
+        DocCommentDecl -> "something like `import Html exposing (text)`"
         ImportDecl -> "an `import` or a declarations"
-        OtherDecl -> "a top-level declaration"
+        OtherDecl -> "a top-level declaration, like `view model = div [] [...]`"
 
     Expecting next ->
       case next of
+        Decl -> "a declaration, like `x = 5` or `type alias Model = { ... }`"
         Expr -> "an expression, like x or 42"
         AfterOpExpr op -> "an expression after that (" <> op <> ") operator, like x or 42"
         ElseBranch -> "an `else` branch. An `if` must handle both possibilities."
@@ -739,14 +756,14 @@ theoryToText context theory =
         Exposing -> "something like `exposing (..)`"
 
 
-equalsTheory :: [Context] -> Text
-equalsTheory context =
-  case context of
+equalsTheory :: ContextStack -> Text
+equalsTheory stack =
+  case stack of
     [] ->
       "an equals sign (=)"
 
-    first : rest ->
-      case first of
+    (context, _) : rest ->
+      case context of
         ExprRecord -> "an equals sign (=) followed by an expression"
         Definition name -> "an equals sign (=) followed by " <> name <> "'s definition"
         TypeUnion -> "an equals sign (=) followed by the first union type constructor"
@@ -754,28 +771,28 @@ equalsTheory context =
         _ -> equalsTheory rest
 
 
-barTheory :: [Context] -> Text
-barTheory context =
-  case context of
+barTheory :: ContextStack -> Text
+barTheory stack =
+  case stack of
     [] ->
       "a vertical bar (|)"
 
-    first : rest ->
-      case first of
+    (context, _) : rest ->
+      case context of
         ExprRecord -> "a vertical bar (|) followed by the record fields you want to update"
         TypeRecord -> "a vertical bar (|) followed by some record field types"
         TypeUnion -> "a vertical bar (|) followed by more union type constructors"
         _ -> barTheory rest
 
 
-badSpace :: [Context] -> Text
-badSpace context =
-  case context of
+badSpace :: ContextStack -> Text
+badSpace stack =
+  case stack of
     [] ->
       "more indentation? I was not done with that last thing yet."
 
-    first : rest ->
-      case first of
+    (context, _) : rest ->
+      case context of
         ExprIf -> "the end of that `if`" <> badSpaceEnd
         ExprLet -> "the end of that `let`" <> badSpaceEnd
         ExprFunc -> badSpace rest
@@ -792,7 +809,6 @@ badSpace context =
         PatternRecord -> "the end of that record" <> badSpaceEnd
         Module -> "something like `module Main exposing (..)`"
         Import -> "something like `import Html exposing (..)`"
-        DocComment -> badSpace rest
         TypeUnion -> "more of that union type" <> badSpaceEnd
         TypeAlias -> "more of that type alias" <> badSpaceEnd
         Infix -> "more of that infix declaration" <> badSpaceEnd

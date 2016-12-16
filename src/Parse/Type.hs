@@ -19,22 +19,24 @@ import qualified Reporting.Region as R
 term :: Parser Type.Raw
 term =
   hint E.Type $
-    oneOf
-      [ constructor
-      , variable
-      , tuple
-      , record
-      ]
+    do  start <- getPosition
+        oneOf
+          [ constructor
+          , variable start
+          , tuple start
+          , record start
+          ]
 
 
 
 -- TYPE VARIABLES
 
 
-variable :: Parser Type.Raw
-variable =
-  addLocation $
-    Type.RVar <$> lowVar
+variable :: R.Position -> Parser Type.Raw
+variable start =
+  do  var <- lowVar
+      end <- getPosition
+      return (A.at start end (Type.RVar var))
 
 
 
@@ -114,11 +116,10 @@ eatArgs args end pos =
 -- TUPLES
 
 
-tuple :: Parser Type.Raw
-tuple =
-  do  start <- getPosition
-      leftParen
-      inContext E.TypeTuple $
+tuple :: R.Position -> Parser Type.Raw
+tuple start =
+  do  leftParen
+      inContext start E.TypeTuple $
         oneOf
           [ do  rightParen
                 end <- getPosition
@@ -153,15 +154,15 @@ tupleEnding start tipes =
 -- RECORD
 
 
-record :: Parser Type.Raw
-record =
-  addLocation $
+record :: R.Position -> Parser Type.Raw
+record start =
   do  leftCurly
-      inContext E.TypeRecord $
+      inContext start E.TypeRecord $
         do  spaces
             oneOf
               [ do  rightCurly
-                    return (Type.RRecord [] Nothing)
+                    end <- getPosition
+                    return (A.at start end (Type.RRecord [] Nothing))
               , do  var <- addLocation lowVar
                     spaces
                     oneOf
@@ -169,13 +170,15 @@ record =
                             spaces
                             firstField <- field
                             fields <- chompFields [firstField]
-                            return (Type.RRecord fields (Just (A.map Type.RVar var)))
+                            end <- getPosition
+                            return (A.at start end (Type.RRecord fields (Just (A.map Type.RVar var))))
                       , do  hasType
                             spaces
                             (tipe, _, nextPos) <- expression
                             checkSpace nextPos
                             fields <- chompFields [(var, tipe)]
-                            return (Type.RRecord fields Nothing)
+                            end <- getPosition
+                            return (A.at start end (Type.RRecord fields Nothing))
                       ]
               ]
 

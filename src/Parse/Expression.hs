@@ -81,7 +81,7 @@ accessible start expr =
 list :: R.Position -> Parser Src.RawExpr
 list start =
   do  leftSquare
-      inContext E.ExprList $
+      inContext start E.ExprList $
         do  spaces
             oneOf
               [ do  (entry, _, pos) <- expression
@@ -114,7 +114,7 @@ listHelp start entries =
 tuple :: R.Position -> Parser Src.RawExpr
 tuple start =
   do  leftParen
-      inContext E.ExprTuple $ oneOf $
+      inContext start E.ExprTuple $ oneOf $
         [ do  op <- infixOp
               rightParen
               end <- getPosition
@@ -182,7 +182,7 @@ tupleHelp start entries =
 record :: R.Position -> Parser Src.RawExpr
 record start =
   do  leftCurly
-      inContext E.ExprRecord $
+      inContext start E.ExprRecord $
         do  spaces
             oneOf
               [ do  rightCurly
@@ -354,7 +354,7 @@ possiblyNegativeTerm start =
 if_ :: R.Position -> ExprParser
 if_ start =
   do  keyword "if"
-      inContext E.ExprIf $ ifHelp start []
+      inContext start E.ExprIf $ ifHelp start []
 
 
 ifHelp :: R.Position -> [(Src.RawExpr, Src.RawExpr)] -> ExprParser
@@ -385,7 +385,7 @@ ifHelp start branches =
 function :: R.Position -> ExprParser
 function start =
   do  lambda
-      inContext E.ExprFunc $
+      inContext start E.ExprFunc $
         do  spaces
             arg <- Pattern.term
             spaces
@@ -414,12 +414,12 @@ gatherArgs args =
 case_ :: R.Position -> ExprParser
 case_ start =
   do  keyword "case"
-      spaces
-      (switcher, _, switcherPos) <- expression
-      checkSpace switcherPos
-      keyword "of"
-      inContext E.ExprCase $
+      inContext start E.ExprCase $
         do  spaces
+            (switcher, _, switcherPos) <- expression
+            checkSpace switcherPos
+            keyword "of"
+            spaces
             oldIndent <- getIndent
             newIndent <- getCol
             setIndent newIndent
@@ -462,7 +462,7 @@ let_ start =
   do  oldIndent <- getIndent
       letIndent <- getCol
       keyword "let"
-      pushContext E.ExprLet
+      pushContext start E.ExprLet
       setIndent letIndent
       spaces
       defIndent <- getCol
@@ -502,11 +502,11 @@ definition =
         P.Var name ->
           oneOf
             [ do  hasType
-                  inContext (E.Annotation name) $
+                  inContext start (E.Annotation name) $
                     do  spaces
                         (tipe, end, space) <- Type.expression
                         return ( A.at start end (Src.Annotation name tipe), end, space )
-            , inContext (E.Definition name) $
+            , inContext start (E.Definition name) $
                 definitionHelp start root []
             ]
 

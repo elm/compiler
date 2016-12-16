@@ -39,10 +39,9 @@ import qualified AST.Helpers as Help (isSymbol)
 import qualified AST.Literal as L
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as E
-import qualified Reporting.Region as Region
+import qualified Reporting.Region as R
 import Reporting.Error.Syntax
-  ( ParseError(..), Problem(..), Theory(..)
-  , Context(..), BadOp(..)
+  ( ParseError(..), Problem(..), Theory(..), BadOp(..)
   )
 
 
@@ -71,7 +70,7 @@ data State =
     , _indent :: !Int
     , _row :: !Int
     , _col :: !Int
-    , _context :: [Context]
+    , _context :: E.ContextStack
     }
 
 
@@ -82,7 +81,7 @@ noError =
 
 
 {-# INLINE expect #-}
-expect :: Int -> Int -> [Context] -> Theory -> ParseError
+expect :: Int -> Int -> E.ContextStack -> Theory -> ParseError
 expect row col ctx theory =
   ParseError row col (Theories ctx [theory])
 
@@ -104,10 +103,20 @@ runAt sRow sCol parser (Text.Text array offset length) =
 
     Err (ParseError row col problem) ->
       let
-        region =
-          Region.Region (Region.Position row col) (Region.Position row (col + 1))
+        pos = R.Position row col
+        region = R.Region pos pos
+        mkError overallRegion subRegion =
+          Left (A.A overallRegion (E.Parse subRegion problem))
       in
-        Left (A.A region (E.Parse problem))
+        case problem of
+          BadOp _ ((_, start) : _) ->
+            mkError (R.Region start pos) (Just region)
+
+          Theories ((_, start) : _) _ ->
+            mkError (R.Region start pos) (Just region)
+
+          _ ->
+            mkError region Nothing
 
 
 data Result a
@@ -499,10 +508,10 @@ infixOpHelp array offset length row col =
 -- STATE
 
 
-getPosition :: Parser Region.Position
+getPosition :: Parser R.Position
 getPosition =
   Parser $ \state@(State _ _ _ _ row col _) _ _ eok _ ->
-    eok (Region.Position row col) state noError
+    eok (R.Position row col) state noError
 
 
 getIndent :: Parser Int
@@ -517,16 +526,16 @@ getCol =
     eok col state noError
 
 
-getContext :: Parser [E.Context]
+getContext :: Parser E.ContextStack
 getContext =
   Parser $ \state@(State _ _ _ _ _ _ ctx) _ _ eok _ ->
     eok ctx state noError
 
 
-pushContext :: E.Context -> Parser ()
-pushContext ctx =
+pushContext :: R.Position -> E.Context -> Parser ()
+pushContext pos ctx =
   Parser $ \state@(State _ _ _ _ _ _ context) _ _ eok _ ->
-    eok () (state { _context = ctx : context }) noError
+    eok () (state { _context = (ctx, pos) : context }) noError
 
 
 popContext :: a -> Parser a
@@ -546,7 +555,7 @@ setIndent indent =
 
 
 newtype SPos =
-  SPos Region.Position
+  SPos R.Position
 
 
 whitespace :: Parser SPos
@@ -558,7 +567,7 @@ whitespace =
 
       Right (newOffset, newLength, newRow, newCol) ->
         cok
-          (SPos (Region.Position newRow newCol))
+          (SPos (R.Position newRow newCol))
           (State array newOffset newLength indent newRow newCol ctx)
           noError
 

@@ -20,6 +20,7 @@ import qualified Reporting.Region as R
 
 declaration :: SParser Decl.Source
 declaration =
+  hint E.Decl $
   do  start <- getPosition
       oneOf
         [ docDecl start
@@ -62,13 +63,13 @@ typeDecl start =
       spaces
       oneOf
         [ do  keyword "alias"
-              inContext E.TypeAlias $
+              inContext start E.TypeAlias $
                 do  spaces
                     (name, args) <- nameArgsEquals
                     (tipe, end, pos) <- Type.expression
                     let decl = A.at start end (Decl.Alias (Decl.Type name args tipe))
                     return ( Decl.Whatever decl, end, pos )
-        , inContext E.TypeUnion $
+        , inContext start E.TypeUnion $
             do  (name, args) <- nameArgsEquals
                 (firstCtor, firstEnd, firstSpace) <- Type.unionConstructor
                 (ctors, end, pos) <- chompConstructors [firstCtor] firstEnd firstSpace
@@ -116,11 +117,11 @@ infixDecl :: R.Position -> SParser Decl.Source
 infixDecl start =
   oneOf
     [ do  keyword "infixl"
-          inContext E.Infix $ infixDeclHelp start Decl.L
+          inContext start E.Infix $ infixDeclHelp start Decl.L
     , do  keyword "infixr"
-          inContext E.Infix $ infixDeclHelp start Decl.R
+          inContext start E.Infix $ infixDeclHelp start Decl.R
     , do  keyword "infix"
-          inContext E.Infix $ infixDeclHelp start Decl.N
+          inContext start E.Infix $ infixDeclHelp start Decl.N
     ]
 
 
@@ -143,7 +144,7 @@ infixDeclHelp start assoc =
 portDecl :: R.Position -> SParser Decl.Source
 portDecl start =
   do  keyword "port"
-      inContext E.Port $
+      inContext start E.Port $
         do  spaces
             name <- lowVar
             spaces

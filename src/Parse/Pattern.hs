@@ -21,19 +21,26 @@ import qualified Reporting.Region as R
 term :: Parser P.Raw
 term =
   hint E.Pattern $
-    oneOf [ record, tuple, list, termHelp ]
+    do  start <- getPosition
+        oneOf
+          [ record start
+          , tuple start
+          , list start
+          , termHelp start
+          ]
 
 
-termHelp :: Parser P.Raw
-termHelp =
-  addLocation $
-    oneOf
-      [ do  underscore
-            return P.Anything
-      , P.Var <$> lowVar
-      , mkCtor <$> qualifiedCapVar
-      , P.Literal <$> Literal.literal
-      ]
+termHelp :: R.Position -> Parser P.Raw
+termHelp start =
+  do  pattern <-
+        oneOf
+          [ underscore >> return P.Anything
+          , P.Var <$> lowVar
+          , mkCtor <$> qualifiedCapVar
+          , P.Literal <$> Literal.literal
+          ]
+      end <- getPosition
+      return (A.at start end pattern)
 
 
 mkCtor :: Text -> P.Raw'
@@ -53,31 +60,32 @@ mkCtor ctor =
 -- RECORDS
 
 
-record :: Parser P.Raw
-record =
-  addLocation $
-    do  leftCurly
-        inContext E.ExprRecord $
-          do  spaces
-              oneOf
-                [ do  var <- lowVar
-                      spaces
-                      recordHelp [var]
-                , do  rightCurly
-                      return (P.Record [])
-                ]
+record :: R.Position -> Parser P.Raw
+record start =
+  do  leftCurly
+      inContext start E.ExprRecord $
+        do  spaces
+            oneOf
+              [ do  var <- lowVar
+                    spaces
+                    recordHelp start [var]
+              , do  rightCurly
+                    end <- getPosition
+                    return (A.at start end (P.Record []))
+              ]
 
 
-recordHelp :: [Text] -> Parser P.Raw'
-recordHelp vars =
+recordHelp :: R.Position -> [Text] -> Parser P.Raw
+recordHelp start vars =
   oneOf
     [ do  comma
           spaces
           var <- lowVar
           spaces
-          recordHelp (var:vars)
+          recordHelp start (var:vars)
     , do  rightCurly
-          return (P.Record vars)
+          end <- getPosition
+          return (A.at start end (P.Record vars))
     ]
 
 
@@ -85,11 +93,10 @@ recordHelp vars =
 -- TUPLES
 
 
-tuple :: Parser P.Raw
-tuple =
-  do  start <- getPosition
-      leftParen
-      inContext E.ExprTuple $
+tuple :: R.Position -> Parser P.Raw
+tuple start =
+  do  leftParen
+      inContext start E.ExprTuple $
         do  spaces
             oneOf
               [ do  (pattern, sPos) <- expression
@@ -124,18 +131,19 @@ tupleHelp start patterns =
 -- LIST
 
 
-list :: Parser P.Raw
-list =
+list :: R.Position -> Parser P.Raw
+list start =
   do  leftSquare
-      spaces
-      oneOf
-        [ do  (pattern, sPos) <- expression
-              checkSpace sPos
-              listHelp [pattern]
-        , do  rightSquare
-              end <- getPosition
-              return (P.list end [])
-        ]
+      inContext start E.PatternList $
+        do  spaces
+            oneOf
+              [ do  (pattern, sPos) <- expression
+                    checkSpace sPos
+                    listHelp [pattern]
+              , do  rightSquare
+                    end <- getPosition
+                    return (P.list end [])
+              ]
 
 
 listHelp :: [P.Raw] -> Parser P.Raw

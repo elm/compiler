@@ -22,7 +22,7 @@ header =
       freshLine E.ModuleDecl
       end <- getPosition
       oneOf
-        [ fullHeader
+        [ fullHeader end
         , Module.defaultHeader start end <$> chompImports []
         ]
 
@@ -31,9 +31,9 @@ header =
 -- FULL HEADER
 
 
-fullHeader :: Parser (Module.Header [Module.UserImport])
-fullHeader =
-  do  pushContext E.Module
+fullHeader :: R.Position -> Parser (Module.Header [Module.UserImport])
+fullHeader start =
+  do  pushContext start E.Module
       tag <- sourceTag
       spaces
       name <- qualifiedCapVar
@@ -43,11 +43,8 @@ fullHeader =
       spaces
       exports <- listing (addLocation listingValue)
       popContext ()
-      start <- getPosition
-      freshLine E.DocCommentDecl
-      end <- getPosition
-      docs <- maybeDocComment start end
-      imports <- inContext E.Import (chompImports [])
+      docs <- maybeDocComment
+      imports <- chompImports []
       return (Module.Header tag name exports settings docs imports)
 
 
@@ -126,15 +123,18 @@ setting =
 -- DOC COMMENTS
 
 
-maybeDocComment :: R.Position -> R.Position -> Parser (A.Located (Maybe Text))
-maybeDocComment start end =
-  inContext E.DocComment $
-  oneOf
-    [ do  doc <- addLocation docComment
-          freshLine E.ImportDecl
-          return (A.map Just doc)
-    , return (A.at start end Nothing)
-    ]
+maybeDocComment :: Parser (A.Located (Maybe Text))
+maybeDocComment =
+  do  oldEnd <- getPosition
+      freshLine E.DocCommentDecl
+      newStart <- getPosition
+      oneOf
+        [ do  doc <- docComment
+              end <- getPosition
+              freshLine E.ImportDecl
+              return (A.at newStart end (Just doc))
+        , return (A.at oldEnd newStart Nothing)
+        ]
 
 
 
@@ -146,6 +146,7 @@ chompImports imports =
   oneOf
     [ do  start <- getPosition
           keyword "import"
+          pushContext start E.Import
           spaces
           name <- qualifiedCapVar
           end <- getPosition
@@ -153,6 +154,7 @@ chompImports imports =
           oneOf
             [ do  checkFreshLine E.ImportDecl pos
                   let userImport = method start end name Nothing Var.closedListing
+                  popContext ()
                   chompImports (userImport:imports)
             , do  checkSpace pos
                   oneOf
@@ -174,6 +176,7 @@ chompAs start name imports =
       oneOf
         [ do  checkFreshLine E.ImportDecl pos
               let userImport = method start end name (Just alias) Var.closedListing
+              popContext ()
               chompImports (userImport:imports)
         , do  checkSpace pos
               chompExposing start name (Just alias) imports
@@ -188,6 +191,7 @@ chompExposing start name maybeAlias imports =
       end <- getPosition
       freshLine E.ImportDecl
       let userImport = method start end name maybeAlias exposed
+      popContext ()
       chompImports (userImport:imports)
 
 
