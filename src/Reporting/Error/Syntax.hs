@@ -481,9 +481,9 @@ problemToReport subRegion problem =
                 <> dullyellow (text "\"this\"")
             , reflowParagraph $
                 "Unlike JavaScript, Elm distinguishes between strings like \"hello\"\
-                \ and individual characters like 'A' and '3'. It is not all strings!\
-                \ If you really do want a character though, something went wrong\
-                \ and I did not find the closing single quote."
+                \ and individual characters like 'A' and '3'. If you really do want\
+                \ a character though, something went wrong and I did not find the\
+                \ closing single quote."
             ]
         )
 
