@@ -11,7 +11,6 @@ import Parse.Helpers
 import qualified Parse.Module as Parse (header)
 import qualified Parse.Declaration as Parse (declaration)
 import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Syntax as E
 import qualified Reporting.Result as Result
 import qualified Validate
 
@@ -45,7 +44,7 @@ chompDeclarations :: [Decl.Source] -> Parser [Decl.Source]
 chompDeclarations decls =
   do  (decl, _, pos) <- Parse.declaration
       oneOf
-        [ do  checkFreshLine E.OtherDecl pos
+        [ do  checkFreshLine pos
               chompDeclarations (decl:decls)
         , return (reverse (decl:decls))
         ]

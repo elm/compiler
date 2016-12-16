@@ -5,7 +5,7 @@ module Reporting.Error.Syntax
   , ParseError(..)
   , Problem(..), Theory(..)
   , ContextStack, Context(..)
-  , BadOp(..), Next(..), NextDecl(..)
+  , BadOp(..), Next(..)
   , toReport
   )
   where
@@ -91,7 +91,6 @@ data Theory
   | InfixOp
   | Digit
   | EndOfFile
-  | FreshLine NextDecl
   | BadSpace
   deriving (Eq, Ord)
 
@@ -106,10 +105,6 @@ data Next
   | Type
   | Listing
   | Exposing
-  deriving (Eq, Ord)
-
-
-data NextDecl = ModuleDecl | DocCommentDecl | ImportDecl | OtherDecl
   deriving (Eq, Ord)
 
 
@@ -537,9 +532,9 @@ problemToReport subRegion problem =
     BadOp op stack ->
       case op of
         HasType ->
-          badOp subRegion stack "the \"has type\" operator" "(:)"
+          badOp subRegion stack "A" "\"has type\" operator"
             "type annotations and record types"
-            "Maybe you want :: instead? Or maybe your indentation is a bit off?"
+            "Maybe you want :: instead? Or maybe something is indented too much?"
 
         Equals ->
           badEquals subRegion stack
@@ -547,7 +542,7 @@ problemToReport subRegion problem =
         Arrow ->
           if isCaseRelated stack then
             parseReport
-              "I ran into a stray arrow (->) while parsing this `case` expression."
+              "I ran into a stray arrow while parsing this `case` expression."
               ( reflowParagraph $
                   "All branches in a `case` must be indented the exact\
                   \ same amount, so the patterns are vertically\
@@ -555,18 +550,18 @@ problemToReport subRegion problem =
               )
 
           else
-            badOp subRegion stack "an arrow" "(->)"
+            badOp subRegion stack "An" "arrow"
               "cases expressions and anonymous functions"
               "Maybe you want > or >= instead?"
 
         Pipe ->
-          badOp subRegion stack "a vertical bar" "(|)"
+          badOp subRegion stack "A" "vertical bar"
             "type declarations"
             "Maybe you want || instead?"
 
         Dot ->
           parseReport
-            "I was not expecting a dot (.) here."
+            "I was not expecting this dot."
             ( reflowParagraph $
                 "Dots are for record access and decimal points, so\
                 \ they cannot float around on their own. Maybe\
@@ -619,14 +614,16 @@ addPeriod msg =
 
 
 badOp :: Maybe R.Region -> ContextStack -> Text -> Text -> Text -> Text -> Report.Report
-badOp subRegion stack opName op setting hint =
-  makeParseReport subRegion ("I was not expecting " <> opName <> " here.") $
-    Help.stack
-      [ reflowParagraph $
-          "A " <> op <> " should only appear in " <> setting
-          <> contextToText "" ", but I think I am parsing " stack <> "."
-      , reflowParagraph hint
-      ]
+badOp subRegion stack article opName setting hint =
+  let
+    pre =
+      "I was not expecting this " <> opName
+      <> contextToText "" " while parsing " stack <> "."
+  in
+    makeParseReport subRegion pre $
+      reflowParagraph $
+        article <> " " <> opName <> " should only appear in "
+        <> setting <> ". " <> hint
 
 
 badEquals :: Maybe R.Region -> ContextStack -> Report.Report
@@ -644,14 +641,14 @@ badEqualsHelp stack =
   case stack of
     [] ->
       reflowParagraph $
-        "Maybe you want == instead? Or maybe your indentation is a bit off?"
+        "Maybe you want == instead? Or maybe something is indented too much?"
 
     (ExprRecord, _) : _ ->
       reflowParagraph $
         "Records look like { x = 3, y = 4 } with the equals sign right\
         \ after the field name. Maybe you forgot a comma?"
 
-    (Definition name, _) : rest ->
+    (Definition _, _) : rest ->
       reflowParagraph $
         "Maybe this is supposed to be a separate definition? If so, it\
         \ is indented too far. "
@@ -768,14 +765,6 @@ theoryToText context theory =
 
     BadSpace ->
       badSpace context
-
-    FreshLine nextDecl ->
-      "a fresh line (without any leading spaces) for " <>
-      case nextDecl of
-        ModuleDecl -> "something like `module Main exposing (..)`"
-        DocCommentDecl -> "something like `import Html exposing (text)`"
-        ImportDecl -> "an `import` or a declarations"
-        OtherDecl -> "a top-level declaration, like `view model = div [] [...]`"
 
     Expecting next ->
       case next of

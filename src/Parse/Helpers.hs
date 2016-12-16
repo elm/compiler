@@ -216,8 +216,8 @@ checkAligned (SPos (R.Position _ col)) =
         else deadend [E.BadSpace]
 
 
-checkFreshLine :: E.NextDecl -> SPos -> Parser ()
-checkFreshLine nextDecl (SPos (R.Position _ col)) =
+checkFreshLine :: SPos -> Parser ()
+checkFreshLine (SPos (R.Position _ col)) =
   if col == 1
     then return ()
-    else deadend [E.FreshLine nextDecl]
+    else deadend [E.BadSpace]

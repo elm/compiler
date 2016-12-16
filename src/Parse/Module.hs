@@ -19,7 +19,7 @@ import qualified Reporting.Region as R
 header :: Parser (Module.Header [Module.UserImport])
 header =
   do  start <- getPosition
-      freshLine E.ModuleDecl
+      freshLine
       end <- getPosition
       oneOf
         [ fullHeader end
@@ -126,12 +126,12 @@ setting =
 maybeDocComment :: Parser (A.Located (Maybe Text))
 maybeDocComment =
   do  oldEnd <- getPosition
-      freshLine E.DocCommentDecl
+      freshLine
       newStart <- getPosition
       oneOf
         [ do  doc <- docComment
               end <- getPosition
-              freshLine E.ImportDecl
+              freshLine
               return (A.at newStart end (Just doc))
         , return (A.at oldEnd newStart Nothing)
         ]
@@ -152,7 +152,7 @@ chompImports imports =
           end <- getPosition
           pos <- whitespace
           oneOf
-            [ do  checkFreshLine E.ImportDecl pos
+            [ do  checkFreshLine pos
                   let userImport = method start end name Nothing Var.closedListing
                   popContext ()
                   chompImports (userImport:imports)
@@ -174,7 +174,7 @@ chompAs start name imports =
       end <- getPosition
       pos <- whitespace
       oneOf
-        [ do  checkFreshLine E.ImportDecl pos
+        [ do  checkFreshLine pos
               let userImport = method start end name (Just alias) Var.closedListing
               popContext ()
               chompImports (userImport:imports)
@@ -189,7 +189,7 @@ chompExposing start name maybeAlias imports =
       spaces
       exposed <- listing listingValue
       end <- getPosition
-      freshLine E.ImportDecl
+      freshLine
       let userImport = method start end name maybeAlias exposed
       popContext ()
       chompImports (userImport:imports)
@@ -255,8 +255,7 @@ listingValue =
 -- FRESH LINES
 
 
-freshLine :: E.NextDecl -> Parser ()
-freshLine nextDecl =
-  do  pos <- whitespace
-      checkFreshLine nextDecl pos
+freshLine :: Parser ()
+freshLine =
+  checkFreshLine =<< whitespace
 
