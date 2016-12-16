@@ -86,7 +86,7 @@ flattenHelp makeBinop rootOp@(Op _ rootAssoc rootPrec _) middle last =
             Done (makeBinop newLast)
 
           More newMiddle newLast ->
-            flattenHelp makeBinop op newMiddle newLast
+            flattenHelp makeBinop rootOp newMiddle newLast
 
           Error a b ->
             Error a b
