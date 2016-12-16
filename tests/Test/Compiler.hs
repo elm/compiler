@@ -9,7 +9,6 @@ import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Lazy.IO as LText
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
-import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.Text (Text)
 
@@ -112,7 +111,7 @@ compile filePath source =
       (dealiaser, _warnings, result) =
         Compiler.compile context source essentialInterfaces
       formatErrors errors =
-        concatMap (Compiler.errorToString dealiaser filePath (Text.unpack source)) errors
+        concatMap (Compiler.errorToString dealiaser filePath source) errors
   in
       either (Left . formatErrors) Right result
 

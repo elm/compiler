@@ -158,12 +158,12 @@ newtype Error =
     Error (A.Located Error.Error)
 
 
-errorToString :: Localizer -> String -> String -> Error -> String
+errorToString :: Localizer -> String -> Text -> Error -> String
 errorToString (Localizer localizer) location source (Error (A.A region err)) =
     Report.toString location region (Error.toReport localizer err) source
 
 
-printError :: Handle -> Localizer -> String -> String -> Error -> IO ()
+printError :: Handle -> Localizer -> String -> Text -> Error -> IO ()
 printError handle (Localizer localizer) location source (Error (A.A region err)) =
     Report.toHandle handle location region (Error.toReport localizer err) source
 
@@ -181,12 +181,12 @@ newtype Warning =
     Warning (A.Located Warning.Warning)
 
 
-warningToString :: Localizer -> String -> String -> Warning -> String
+warningToString :: Localizer -> String -> Text -> Warning -> String
 warningToString (Localizer localizer) location source (Warning (A.A region wrn)) =
     Report.toString location region (Warning.toReport localizer wrn) source
 
 
-printWarning :: Handle -> Localizer -> String -> String -> Warning -> IO ()
+printWarning :: Handle -> Localizer -> String -> Text -> Warning -> IO ()
 printWarning handle (Localizer localizer) location source (Warning (A.A region wrn)) =
     Report.toHandle handle location region (Warning.toReport localizer wrn) source
 

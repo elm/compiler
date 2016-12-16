@@ -61,7 +61,7 @@ toJson extraFields (Report title subregion pre post) =
 -- REPORT TO DOC
 
 
-toDoc :: String -> R.Region -> Report -> String -> Doc
+toDoc :: String -> R.Region -> Report -> Text -> Doc
 toDoc location region (Report title highlight preHint postHint) source =
     messageBar title location
     <> hardline <> hardline <>
@@ -89,14 +89,14 @@ messageBar tag location =
 -- RENDER DOCS
 
 
-toHandle :: Handle -> String -> R.Region -> Report -> String -> IO ()
+toHandle :: Handle -> String -> R.Region -> Report -> Text -> IO ()
 toHandle handle location region rprt source =
   displayIO
     handle
     (renderPretty 1 80 (toDoc location region rprt source))
 
 
-toString :: String -> R.Region -> Report -> String -> String
+toString :: String -> R.Region -> Report -> Text -> String
 toString location region rprt source =
   nonAnsiRender (toDoc location region rprt source)
 
