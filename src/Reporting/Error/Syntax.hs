@@ -793,14 +793,14 @@ badSpace stack =
 
     (context, _) : rest ->
       case context of
-        ExprIf -> "the end of that `if`" <> badSpaceEnd
-        ExprLet -> "the end of that `let`" <> badSpaceEnd
+        ExprIf -> "the end of that `if`" <> badSpaceExprEnd rest
+        ExprLet -> "the end of that `let`" <> badSpaceExprEnd rest
         ExprFunc -> badSpace rest
-        ExprCase -> "more of that `case`" <> badSpaceEnd
-        ExprList -> "the end of that list" <> badSpaceEnd
-        ExprTuple -> "a closing paren" <> badSpaceEnd
-        ExprRecord -> "the end of that record" <> badSpaceEnd
-        Definition name -> "the rest of " <> name <> "'s definition" <> badSpaceEnd
+        ExprCase -> "more of that `case`" <> badSpaceExprEnd rest
+        ExprList -> "the end of that list" <> badSpaceExprEnd rest
+        ExprTuple -> "a closing paren" <> badSpaceExprEnd rest
+        ExprRecord -> "the end of that record" <> badSpaceExprEnd rest
+        Definition name -> "the rest of " <> name <> "'s definition" <> badSpaceExprEnd stack
         Annotation name -> "the rest of " <> name <> "'s type annotation" <> badSpaceEnd
         TypeTuple -> "a closing paren" <> badSpaceEnd
         TypeRecord -> "the end of that record" <> badSpaceEnd
@@ -818,3 +818,24 @@ badSpace stack =
 badSpaceEnd :: Text
 badSpaceEnd =
   ". Maybe you forgot some code? Or you need more indentation?"
+
+
+badSpaceExprEnd :: ContextStack -> Text
+badSpaceExprEnd stack =
+  case stack of
+    [] ->
+      badSpaceEnd
+
+    (Definition name, R.Position _ column) : _ ->
+      let
+        ending =
+          if column <= 1 then
+            "to be indented?"
+          else
+            "more indentation? (Try " <> i2t (column + 1) <> "+ spaces.)"
+      in
+        ". Maybe you forgot some code? Or maybe the body of `" <> name
+        <> "` needs " <> ending
+
+    _ : rest ->
+      badSpaceExprEnd rest
