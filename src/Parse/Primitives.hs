@@ -161,12 +161,12 @@ hint next parser =
 
 endOfFile :: Parser ()
 endOfFile =
-  Parser $ \state@(State _ _ length _ row col ctx) _ _ eok eerr ->
+  Parser $ \state@(State _ _ length _ _ _ _) _ _ eok eerr ->
     if length == 0 then
-      eok () state (expect row col ctx EndOfFile)
+      eok () state noError
 
     else
-      eerr (expect row col ctx EndOfFile)
+      eerr noError
 
 
 

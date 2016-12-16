@@ -90,7 +90,6 @@ data Theory
   | CapVar
   | InfixOp
   | Digit
-  | EndOfFile
   | BadSpace
   deriving (Eq, Ord)
 
@@ -759,9 +758,6 @@ theoryToText context theory =
 
     Digit ->
       "a digit from 0 to 9"
-
-    EndOfFile ->
-      "the end of the file"
 
     BadSpace ->
       badSpace context
