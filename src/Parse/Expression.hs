@@ -270,7 +270,16 @@ data State =
 exprHelp :: R.Position -> State -> ExprParser
 exprHelp start (State ops lastExpr end pos) =
   oneOf
-    [ -- infix operator
+    [ -- argument
+      hint E.Arg $
+      do  checkSpace pos
+          arg <- term
+          newEnd <- getPosition
+          newPos <- whitespace
+          let newLast = A.merge lastExpr arg (Src.App lastExpr arg)
+          exprHelp start (State ops newLast newEnd newPos)
+
+    , -- infix operator
       do  checkSpace pos
           opStart <- getPosition
           opName <- infixOp
@@ -311,15 +320,6 @@ exprHelp start (State ops lastExpr end pos) =
                   let finalExpr = A.at start newEnd (Src.Binop (reverse newOps) newLast)
                   return ( finalExpr, newEnd, newPos )
             ]
-
-    , -- argument
-      hint E.Arg $
-      do  checkSpace pos
-          arg <- term
-          newEnd <- getPosition
-          newPos <- whitespace
-          let newLast = A.merge lastExpr arg (Src.App lastExpr arg)
-          exprHelp start (State ops newLast newEnd newPos)
 
     , -- done
       case ops of
