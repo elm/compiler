@@ -531,7 +531,7 @@ problemToReport subRegion problem =
 
     BadUnderscore char ->
       parseReport
-        ("An underscore cannot be followed by `" <> Text.singleton char <> "`.")
+        ("An underscore cannot be immediately followed by `" <> Text.singleton char <> "`.")
         ( reflowParagraph $
             "Variable names cannot start with an underscore in Elm. You can\
             \ use an underscore as a \"wildcard\" that matches anything\
