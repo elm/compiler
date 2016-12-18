@@ -33,7 +33,7 @@ term =
         , Literal.shader start
         , list start
         , record start >>= accessible start
-        , tuple start
+        , tuple start >>= accessible start
         , accessor start
         ]
 
