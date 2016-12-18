@@ -75,6 +75,7 @@ data Problem
   | BadNumberHex
   | BadNumberZero
   | BadShader Text
+  | BadUnderscore Char
   | BadOp BadOp ContextStack
   | Theories ContextStack [Theory]
 
@@ -527,6 +528,15 @@ problemToReport subRegion problem =
       parseReport
         "I ran into a problem while parsing this GLSL block."
         (reflowParagraph msg)
+
+    BadUnderscore char ->
+      parseReport
+        ("An underscore cannot be followed by `" <> Text.singleton char <> "`.")
+        ( reflowParagraph $
+            "Variable names cannot start with an underscore in Elm. You can\
+            \ use an underscore as a \"wildcard\" that matches anything\
+            \ though. So maybe you forgot a space after the underscore?"
+        )
 
     BadOp op stack ->
       case op of

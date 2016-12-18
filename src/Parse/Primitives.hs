@@ -5,7 +5,7 @@ module Parse.Primitives
   , run, runAt
   , try, deadend, hint, endOfFile
   , oneOf
-  , symbol, keyword, keywords
+  , symbol, underscore, keyword, keywords
   , lowVar, capVar, infixOp
   , getPosition, getCol
   , getContext, pushContext, popContext
@@ -316,6 +316,23 @@ moveCursor array offset length row col =
 
       else
         moveCursor array (offset + 2) (length - 2) row (col + 1)
+
+
+underscore :: Parser ()
+underscore =
+  Parser $ \(State array offset length indent row col ctx) cok cerr _ eerr ->
+    if length == 0 || Text.unsafeIndex array offset /= 0x005F {- _ -} then
+      eerr noError
+
+    else if length >= 2 && isInnerVarChar (peekChar array (offset + 1)) then
+      cerr (ParseError row (col + 1) (BadUnderscore (peekChar array (offset + 1))))
+
+    else
+      let
+        !newState =
+          State array (offset + 1) (length - 1) indent row (col + 1) ctx
+      in
+        cok () newState noError
 
 
 

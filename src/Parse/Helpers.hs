@@ -4,7 +4,7 @@ module Parse.Helpers
   ( module Parse.Primitives
   , SParser
   , qualifiedVar, qualifiedCapVar
-  , equals, rightArrow, hasType, comma, pipe, cons, dot, minus, underscore, lambda
+  , equals, rightArrow, hasType, comma, pipe, cons, dot, minus, lambda
   , leftParen, rightParen, leftSquare, rightSquare, leftCurly, rightCurly
   , addLocation, inContext
   , spaces, checkSpace, checkAligned, checkFreshLine
@@ -117,12 +117,6 @@ dot =
 minus :: Parser ()
 minus =
   symbol "-"
-
-
-{-# INLINE underscore #-}
-underscore :: Parser ()
-underscore =
-  symbol "_"
 
 
 {-# INLINE lambda #-}
