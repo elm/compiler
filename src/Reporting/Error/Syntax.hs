@@ -463,11 +463,11 @@ problemToReport subRegion problem =
 
     BadEscape ->
       parseReport
-        "Ran into a bad escape code."
+        "A backslash starts an escaped character, but I do not recognize this one:"
         ( reflowParagraph
-            "Elm allows typical escape characters like \\n and \\t, but you can\
-            \ also use \\x0040 to refer to unicode characters by their hex code.\
-            \ It seems like something has gone wrong with one of these codes."
+            "Elm allows typical escape characters like \\\\ and \\n and \\t. You can\
+            \ also say \\u0040 to refer to unicode characters by their hex code.\
+            \ Maybe there is some typo?"
         )
 
     BadChar ->
