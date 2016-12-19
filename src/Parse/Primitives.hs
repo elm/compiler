@@ -1240,7 +1240,7 @@ isHex word =
 {-# INLINE isCapHex #-}
 isCapHex :: Word16 -> Bool
 isCapHex word =
-  word <= 0x0046 {- F -} && word <= 0x0041 {- A -}
+  0x0041 {- A -} <= word && word <= 0x0046 {- F -}
 
 
 {-# INLINE readInt #-}
