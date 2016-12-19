@@ -114,20 +114,32 @@ listHelp start entries =
 tuple :: R.Position -> Parser Src.RawExpr
 tuple start =
   do  leftParen
+      pos <- getPosition
+      spos <- whitespace
       inContext start E.ExprTuple $ oneOf $
-        [ do  op <- infixOp
+        [ do  noSpace pos spos
+              try (minus >> rightParen)
+              end <- getPosition
+              return $ mkBinop start end "-"
+
+        , do  checkSpace spos
+              (entry, _, spos2) <- expression
+              checkSpace spos2
+              tupleHelp start [entry]
+
+        , do  noSpace pos spos
+              op <- infixOp
               rightParen
               end <- getPosition
-              let x = A.at start end (Src.var "x")
-              let y = A.at start end (Src.var "y")
-              return $ mkLambda start end "x" $ mkLambda start end "y" $
-                A.at start end (Src.Binop [(x, A.at start end op)] y)
+              return $ mkBinop start end op
 
-        , do  rightParen
+        , do  noSpace pos spos
+              rightParen
               end <- getPosition
               return (A.at start end (Src.tuple []))
 
-        , do  comma
+        , do  noSpace pos spos
+              comma
               arity <- chompCommas 2
               rightParen
               end <- getPosition
@@ -135,17 +147,22 @@ tuple start =
               let ann x = A.at start end x
               let result = ann (Src.tuple (map (ann . Src.var) args))
               return (foldr (mkLambda start end) result args)
-
-        , do  spaces
-              (entry, _, pos) <- expression
-              checkSpace pos
-              tupleHelp start [entry]
         ]
 
 
 mkLambda :: R.Position -> R.Position -> Text -> Src.RawExpr -> Src.RawExpr
 mkLambda start end arg body =
   A.at start end (Src.Lambda (A.at start end (P.Var arg)) body)
+
+
+mkBinop :: R.Position -> R.Position -> Text -> Src.RawExpr
+mkBinop start end op =
+  let
+    x = A.at start end (Src.var "x")
+    y = A.at start end (Src.var "y")
+  in
+    mkLambda start end "x" $ mkLambda start end "y" $
+      A.at start end (Src.Binop [(x, A.at start end op)] y)
 
 
 chompCommas :: Int -> Parser Int

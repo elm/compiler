@@ -7,7 +7,7 @@ module Parse.Helpers
   , equals, rightArrow, hasType, comma, pipe, cons, dot, minus, lambda
   , leftParen, rightParen, leftSquare, rightSquare, leftCurly, rightCurly
   , addLocation, inContext
-  , spaces, checkSpace, checkAligned, checkFreshLine
+  , spaces, noSpace, checkSpace, checkAligned, checkFreshLine
   )
   where
 
@@ -192,6 +192,13 @@ inContext pos ctx parser =
 spaces :: Parser ()
 spaces =
   checkSpace =<< whitespace
+
+
+noSpace :: R.Position -> SPos -> Parser ()
+noSpace pos (SPos spos) =
+  if pos == spos
+    then return ()
+    else deadend []
 
 
 checkSpace :: SPos -> Parser ()
