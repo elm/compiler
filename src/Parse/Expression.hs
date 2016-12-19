@@ -489,11 +489,11 @@ let_ start =
 
 
 letHelp :: R.Position -> Int -> [Src.RawDef] -> R.Position -> SPos -> ExprParser
-letHelp start oldIndent defs end pos =
+letHelp start oldIndent revDefs end pos =
   oneOf
     [ do  checkAligned pos
           (def, newEnd, newPos) <- definition
-          letHelp start oldIndent (def:defs) newEnd newPos
+          letHelp start oldIndent (def:revDefs) newEnd newPos
 
     , do  setIndent oldIndent
           checkSpace pos
@@ -501,7 +501,7 @@ letHelp start oldIndent defs end pos =
           popContext ()
           spaces
           (body, newEnd, newPos) <- expression
-          let letExpr = A.at start end (Src.Let defs body)
+          let letExpr = A.at start end (Src.Let (reverse revDefs) body)
           return ( letExpr, newEnd, newPos )
     ]
 
