@@ -35,4 +35,4 @@ isSymbol c =
 
 validSymbols :: Set.Set Char
 validSymbols =
-  Set.fromList "+-/*=.<>:&|^?%#~!"
+  Set.fromList "+-/*=.<>:&|^?%~!"
