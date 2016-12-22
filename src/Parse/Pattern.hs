@@ -177,9 +177,24 @@ consTerm =
   oneOf
     [ do  start <- getPosition
           ctor <- qualifiedCapVar
-          constructorHelp start ctor []
+          case ctor of
+            "True" -> boolEnd start True
+            "False" -> boolEnd start False
+            _ -> constructorHelp start ctor []
+
     , (,,) <$> term <*> getPosition <*> whitespace
     ]
+
+
+boolEnd :: R.Position -> Bool -> SParser P.Raw
+boolEnd start bool =
+  do  end <- getPosition
+      sPos <- whitespace
+      return
+        ( A.at start end $ P.Literal (L.Boolean bool)
+        , end
+        , sPos
+        )
 
 
 exprHelp :: R.Position -> [P.Raw] -> (P.Raw, R.Position, SPos) -> Parser (P.Raw, SPos)
