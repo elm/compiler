@@ -774,7 +774,7 @@ reasonToStringHelp reason =
 
     MissingArgs num ->
         go $
-          "It looks like a function needs " <> i2t num <> " more" <> Help.args num <> "."
+          "It looks like a function needs " <> Help.moreArgs num <> "."
 
     BadVar (Just Comparable) _ ->
         go "Only ints, floats, chars, strings, lists, and tuples are comparable."
