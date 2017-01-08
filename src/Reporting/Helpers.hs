@@ -7,7 +7,7 @@ module Reporting.Helpers
   , hsep, indent, parens, sep, text, underline, vcat
   -- custom helpers
   , i2t
-  , functionName, args
+  , functionName, args, moreArgs
   , toHint, hintLink, stack, reflowParagraph
   , commaSep, capitalize, ordinalize, drawCycle
   , findPotentialTypos, findTypoPairs, vetTypos
@@ -70,6 +70,11 @@ functionName opName =
 args :: Int -> Text
 args n =
   i2t n <> if n == 1 then " argument" else " arguments"
+
+
+moreArgs :: Int -> Text
+moreArgs n =
+  i2t n <> " more" <> if n == 1 then " argument" else " arguments"
 
 
 
