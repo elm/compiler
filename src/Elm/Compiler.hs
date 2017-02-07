@@ -55,18 +55,18 @@ data Tag
   | Port
 
 
-parseDependencies :: Package.Name -> Text -> Either Error (Tag, PublicModule.Raw, [PublicModule.Raw])
-parseDependencies pkgName sourceCode =
+parseDependencies :: Maybe Package.Name -> Text -> Either Error (Tag, PublicModule.Raw, [PublicModule.Raw])
+parseDependencies maybePkgName sourceCode =
   case Parse.run Parse.header sourceCode of
     Right header ->
-      Right $ getDeps pkgName header
+      Right $ getDeps maybePkgName header
 
     Left err ->
       Left (Error (A.map Error.Syntax err))
 
 
-getDeps :: Package.Name -> Module.Header [Module.UserImport] -> (Tag, PublicModule.Raw, [PublicModule.Raw])
-getDeps pkgName (Module.Header sourceTag name _ _ _ imports) =
+getDeps :: Maybe Package.Name -> Module.Header [Module.UserImport] -> (Tag, PublicModule.Raw, [PublicModule.Raw])
+getDeps maybePkgName (Module.Header sourceTag name _ _ _ imports) =
   let
     tag =
       case sourceTag of
@@ -75,7 +75,7 @@ getDeps pkgName (Module.Header sourceTag name _ _ _ imports) =
         Module.Effect _ -> Effect
 
     deps =
-      if pkgName == Package.core then
+      if maybePkgName == Just Package.core then
         map (fst . A.drop) imports
       else
         map (fst . A.drop) imports ++ map fst Imports.defaults
