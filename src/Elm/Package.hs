@@ -1,6 +1,18 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Elm.Package where
+module Elm.Package
+  ( Name(..)
+  , Package
+  , dummyName, core, virtualDom, html
+  , toString, toText, toUrl, toFilePath
+  , fromText
+  , Version(..)
+  , initialVersion, dummyVersion
+  , bumpPatch, bumpMinor, bumpMajor
+  , filterLatest, majorAndMinor
+  , versionToString, versionFromText
+  )
+  where
 
 import Data.Aeson
 import Data.Binary
@@ -9,6 +21,7 @@ import Data.Function (on)
 import qualified Data.List as List
 import Data.Monoid ((<>))
 import qualified Data.Text as Text
+import qualified Data.Text.Read as Text
 import Data.Text (Text)
 import System.FilePath ((</>))
 
@@ -17,7 +30,8 @@ import System.FilePath ((</>))
 -- PACKGE NAMES
 
 
-data Name = Name
+data Name =
+  Name
     { _user :: Text
     , _project :: Text
     }
@@ -67,68 +81,32 @@ toFilePath (Name user project) =
     Text.unpack user </> Text.unpack project
 
 
-fromString :: String -> Either String Name
-fromString string =
-    case break (=='/') string of
-      ( user, '/' : project ) ->
-          if null user then
-              Left "You did not provide a user name (user/project)"
+fromText :: Text -> Either String Name
+fromText text =
+  case Text.splitOn "/" text of
+    [ user, project ] | not (Text.null user || Text.null project) ->
+      Name user <$> validateProjectName project
 
-          else if null project then
-              Left "You did not provide a project name (user/project)"
-
-          else if all (/='/') project then
-              Name (Text.pack user) <$> validateProjectName project
-
-          else
-              Left "Expecting only one slash, separating the user and project name (user/project)"
-
-      _ ->
-          Left "There should be a slash separating the user and project name (user/project)"
+    _ ->
+      Left "A valid project name looks like `user/project`"
 
 
-whitelistedUppercaseName :: String -> Bool
-whitelistedUppercaseName name =
-  -- These packages were uploaded to package.elm-lang.org before version 0.16,
-  -- when uppercase letters were disallowed in package names.
-  -- They should be considered deprecated and removed from this list once users
-  -- migrate to using the lowercase versions of the names.
-  List.elem name
-    [ "Easing"
-    , "LoadAssets"
-    , "elm-MultiDimArray"
-    , "elm-SafeLists"
-    , "GraphicsEngine"
-    , "Elm-Css"
-    , "Elm-Test"
-    , "DateOp"
-    , "IO"
-    , "Elm-Align-Distribute"
-    , "Elm-Format-String"
-    , "Elm-Multiset"
-    , "Elm-Random-Sampling"
-    , "ElmCache"
-    , "ExternalStorage"
-    , "IntRange"
-    ]
+validateProjectName :: Text -> Either String Text
+validateProjectName text =
+  if Text.isInfixOf "--" text then
+    Left "There is a double dash -- in your package name. It must be a single dash."
 
+  else if Text.isInfixOf "_" text then
+    Left "Underscores are not allowed in package names."
 
-validateProjectName :: String -> Either String Text
-validateProjectName str =
-  if elem ('-','-') (zip str (tail str)) then
-      Left "There is a double dash -- in your package name. It must be a single dash."
+  else if Text.any Char.isUpper text then
+    Left "Upper case characters are not allowed in package names."
 
-  else if elem '_' str then
-      Left "Underscores are not allowed in package names."
-
-  else if any Char.isUpper str && not (whitelistedUppercaseName str) then
-      Left "Upper case characters are not allowed in package names."
-
-  else if not (Char.isLetter (head str)) then
-      Left "Package names must start with a letter."
+  else if not (Char.isLetter (Text.head text)) then
+    Left "Package names must start with a letter."
 
   else
-      Right (Text.pack str)
+    Right text
 
 
 instance Binary Name where
@@ -140,15 +118,14 @@ instance Binary Name where
 
 instance FromJSON Name where
     parseJSON (String text) =
-        let
-          string = Text.unpack text
-        in
-          case fromString string of
-            Left msg ->
-                fail ("Ran into an invalid package name: " ++ string ++ "\n\n" ++ msg)
+      case fromText text of
+        Left msg ->
+          fail $
+            "Ran into an invalid package name: "
+            ++ Text.unpack text ++ "\n\n" ++ msg
 
-            Right name ->
-                return name
+        Right name ->
+          return name
 
     parseJSON _ =
         fail "Project name must be a string."
@@ -161,7 +138,8 @@ instance ToJSON Name where
 
 -- PACKAGE VERSIONS
 
-data Version = Version
+data Version =
+  Version
     { _major :: Int
     , _minor :: Int
     , _patch :: Int
@@ -210,53 +188,52 @@ versionToString (Version major minor patch) =
     show major ++ "." ++ show minor ++ "." ++ show patch
 
 
-versionFromString :: String -> Either String Version
-versionFromString string =
-    case splitNumbers string of
+versionFromText :: Text -> Either String Version
+versionFromText text =
+  let
+    chunks =
+      Text.splitOn "." text
+
+    toNumber txt =
+      case Text.decimal txt of
+        Right (n, "") ->
+          Just n
+
+        _ ->
+          Nothing
+  in
+    case traverse toNumber chunks of
       Just [major, minor, patch] ->
-          Right (Version major minor patch)
+        Right (Version major minor patch)
+
       _ ->
-          Left "Must have format MAJOR.MINOR.PATCH (e.g. 1.0.2)"
-  where
-    splitNumbers :: String -> Maybe [Int]
-    splitNumbers ns =
-        case span Char.isDigit ns of
-          ("", _) ->
-              Nothing
-
-          (numbers, []) ->
-              Just [ read numbers ]
-
-          (numbers, '.':rest) ->
-              (read numbers :) <$> splitNumbers rest
-
-          _ ->
-              Nothing
+        Left "Must have format MAJOR.MINOR.PATCH (e.g. 1.0.2)"
 
 
 instance Binary Version where
-    get = Version <$> get <*> get <*> get
-    put (Version major minor patch) =
-        do put major
-           put minor
-           put patch
+  get =
+    Version <$> get <*> get <*> get
+
+  put (Version major minor patch) =
+      do put major
+         put minor
+         put patch
 
 
 instance FromJSON Version where
-    parseJSON (String text) =
-        let string = Text.unpack text in
-        case versionFromString string of
-          Right v ->
-              return v
+  parseJSON (String text) =
+    case versionFromText text of
+      Right version ->
+        return version
 
-          Left problem ->
-              fail $ unlines
-                 [ "Ran into an invalid version number: " ++ string
-                 , problem
-                 ]
+      Left problem ->
+        fail $ unlines $
+          [ "Ran into an invalid version number: " ++ Text.unpack text
+          , problem
+          ]
 
-    parseJSON _ =
-        fail "Version number must be stored as a string."
+  parseJSON _ =
+    fail "Version number must be stored as a string."
 
 
 instance ToJSON Version where
