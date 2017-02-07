@@ -10,11 +10,11 @@ module Elm.Package
   , initialVersion, dummyVersion
   , bumpPatch, bumpMinor, bumpMajor
   , filterLatest, majorAndMinor
-  , versionToString, versionFromText
+  , versionToString, versionToText, versionFromText
   )
   where
 
-import Data.Aeson
+import qualified Data.Aeson as Json
 import Data.Binary
 import qualified Data.Char as Char
 import Data.Function (on)
@@ -22,6 +22,9 @@ import qualified Data.List as List
 import Data.Monoid ((<>))
 import qualified Data.Text as Text
 import qualified Data.Text.Read as Text
+import qualified Data.Text.Lazy as B (toStrict)
+import qualified Data.Text.Lazy.Builder as B (singleton, toLazyText)
+import qualified Data.Text.Lazy.Builder.Int as B (decimal)
 import Data.Text (Text)
 import System.FilePath ((</>))
 
@@ -116,27 +119,29 @@ instance Binary Name where
             put project
 
 
-instance FromJSON Name where
-    parseJSON (String text) =
-      case fromText text of
-        Left msg ->
-          fail $
-            "Ran into an invalid package name: "
-            ++ Text.unpack text ++ "\n\n" ++ msg
+instance Json.FromJSON Name where
+  parseJSON (Json.String text) =
+    case fromText text of
+      Left msg ->
+        fail $
+          "Ran into an invalid package name: "
+          ++ Text.unpack text ++ "\n\n" ++ msg
 
-        Right name ->
-          return name
+      Right name ->
+        return name
 
-    parseJSON _ =
-        fail "Project name must be a string."
+  parseJSON _ =
+    fail "Project name must be a string."
 
 
-instance ToJSON Name where
-    toJSON name =
-        toJSON (toString name)
+instance Json.ToJSON Name where
+  toJSON name =
+    Json.String (toText name)
+
 
 
 -- PACKAGE VERSIONS
+
 
 data Version =
   Version
@@ -169,7 +174,9 @@ bumpMajor (Version major _minor _patch) =
     Version (major + 1) 0 0
 
 
+
 -- FILTERING
+
 
 filterLatest :: (Ord a) => (Version -> a) -> [Version] -> [Version]
 filterLatest characteristic versions =
@@ -181,11 +188,23 @@ majorAndMinor (Version major minor _patch) =
     (major, minor)
 
 
+
 -- CONVERSIONS
 
+
 versionToString :: Version -> String
-versionToString (Version major minor patch) =
-    show major ++ "." ++ show minor ++ "." ++ show patch
+versionToString version =
+  Text.unpack (versionToText version)
+
+
+versionToText :: Version -> Text
+versionToText (Version major minor patch) =
+  B.toStrict $ B.toLazyText $
+    B.decimal major
+    <> B.singleton '.'
+    <> B.decimal minor
+    <> B.singleton '.'
+    <> B.decimal patch
 
 
 versionFromText :: Text -> Either String Version
@@ -215,13 +234,13 @@ instance Binary Version where
     Version <$> get <*> get <*> get
 
   put (Version major minor patch) =
-      do put major
-         put minor
-         put patch
+    do  put major
+        put minor
+        put patch
 
 
-instance FromJSON Version where
-  parseJSON (String text) =
+instance Json.FromJSON Version where
+  parseJSON (Json.String text) =
     case versionFromText text of
       Right version ->
         return version
@@ -236,7 +255,7 @@ instance FromJSON Version where
     fail "Version number must be stored as a string."
 
 
-instance ToJSON Version where
-    toJSON version =
-        toJSON (versionToString version)
+instance Json.ToJSON Version where
+  toJSON version =
+    Json.String (versionToText version)
 
