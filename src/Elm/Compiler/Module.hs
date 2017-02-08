@@ -4,7 +4,7 @@ module Elm.Compiler.Module
     ( Interface, Interfaces
     , ModuleName.Raw
     , nameToPath
-    , nameToString, nameFromString
+    , nameToString, nameFromText
     , hyphenate, dehyphenate
     , RawForJson(RawForJson), fromJson
     , interfaceAliasedTypes, programTypes
@@ -78,39 +78,43 @@ nameToString name =
   Text.unpack name
 
 
-nameFromString :: String -> Maybe ModuleName.Raw
-nameFromString =
-  fromString '.'
+nameFromText :: Text -> Maybe ModuleName.Raw
+nameFromText =
+  fromText '.'
 
 
-hyphenate :: ModuleName.Raw -> String
-hyphenate names =
-  Text.unpack (Text.replace "." "-" names)
+hyphenate :: ModuleName.Raw -> Text
+hyphenate name =
+  Text.replace "." "-" name
 
 
-dehyphenate :: String -> Maybe ModuleName.Raw
+dehyphenate :: Text -> Maybe ModuleName.Raw
 dehyphenate =
-  fromString '-'
+  fromText '-'
 
 
-fromString :: Char -> String -> Maybe ModuleName.Raw
-fromString sep raw =
-  do  chunks <- mapM isLegit names
-      return (Text.pack (List.intercalate "." chunks))
-  where
-    names =
-        filter (/= [sep]) (List.groupBy (\a b -> a /= sep && b /= sep) raw)
+fromText :: Char -> Text -> Maybe ModuleName.Raw
+fromText sep name =
+  let
+    chunks =
+      Text.splitOn (Text.singleton sep) name
+  in
+    if all isGoodChunk chunks then Just name else Nothing
 
-    isLegit name =
-        case name of
-          [] ->
-            Nothing
 
-          char:rest ->
-            if Char.isUpper char && all legitChar rest then Just name else Nothing
+isGoodChunk :: Text -> Bool
+isGoodChunk chunk =
+  case Text.uncons chunk of
+    Nothing ->
+      False
 
-    legitChar char =
-        Char.isAlphaNum char || char == '_'
+    Just (first, rest) ->
+      Char.isUpper first && Text.all isGoodChar rest
+
+
+isGoodChar :: Char -> Bool
+isGoodChar char =
+  Char.isAlphaNum char || char == '_'
 
 
 
@@ -124,16 +128,12 @@ instance Json.ToJSON RawForJson where
 
 instance Json.FromJSON RawForJson where
   parseJSON (Json.String text) =
-    let
-      rawString =
-        Text.unpack text
-    in
-      case nameFromString rawString of
-        Nothing ->
-          fail (rawString ++ " is not a valid module name")
+    case nameFromText text of
+      Nothing ->
+        fail (Text.unpack text ++ " is not a valid module name")
 
-        Just name ->
-          return (RawForJson name)
+      Just name ->
+        return (RawForJson name)
 
   parseJSON _ =
     fail "expecting the module name to be a string"
