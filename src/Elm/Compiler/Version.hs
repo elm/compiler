@@ -6,14 +6,13 @@ import qualified Paths_elm_compiler as This
 import Elm.Package (Version(Version))
 
 
-rawVersion :: [Int]
-rawVersion =
-    Version.versionBranch This.version
+
+-- VERSION
 
 
 version :: Version
 version =
-  case rawVersion of
+  case map fromIntegral (Version.versionBranch This.version) of
     major : minor : patch : _ ->
         Version major minor patch
 
@@ -25,3 +24,4 @@ version =
 
     [] ->
         error "could not detect version of elm-compiler you are using"
+

@@ -145,9 +145,9 @@ instance Json.ToJSON Name where
 
 data Version =
   Version
-    { _major :: Int
-    , _minor :: Int
-    , _patch :: Int
+    { _major :: {-# UNPACK #-} !Word16
+    , _minor :: {-# UNPACK #-} !Word16
+    , _patch :: {-# UNPACK #-} !Word16
     }
     deriving (Eq, Ord)
 
@@ -165,9 +165,11 @@ bumpPatch :: Version -> Version
 bumpPatch (Version major minor patch) =
     Version major minor (patch + 1)
 
+
 bumpMinor :: Version -> Version
 bumpMinor (Version major minor _patch) =
     Version major (minor + 1) 0
+
 
 bumpMajor :: Version -> Version
 bumpMajor (Version major _minor _patch) =
@@ -183,9 +185,9 @@ filterLatest characteristic versions =
     map last (List.groupBy ((==) `on` characteristic) (List.sort versions))
 
 
-majorAndMinor :: Version -> (Int,Int)
+majorAndMinor :: Version -> ( Int, Int )
 majorAndMinor (Version major minor _patch) =
-    (major, minor)
+    ( fromIntegral major, fromIntegral minor )
 
 
 
@@ -209,34 +211,47 @@ versionToText (Version major minor patch) =
 
 versionFromText :: Text -> Either String Version
 versionFromText text =
-  let
-    chunks =
-      Text.splitOn "." text
+  case Text.splitOn "." text of
+    [major, minor, patch] ->
+      Version
+        <$> toNumber major
+        <*> toNumber minor
+        <*> toNumber patch
 
-    toNumber txt =
-      case Text.decimal txt of
-        Right (n, "") ->
-          Just n
+    _ ->
+      Left "Must have format MAJOR.MINOR.PATCH (e.g. 1.0.2)"
 
-        _ ->
-          Nothing
-  in
-    case traverse toNumber chunks of
-      Just [major, minor, patch] ->
-        Right (Version major minor patch)
 
-      _ ->
-        Left "Must have format MAJOR.MINOR.PATCH (e.g. 1.0.2)"
+toNumber :: Text -> Either String Word16
+toNumber txt =
+  case Text.decimal txt of
+    Right (n, "") ->
+      Right n
+
+    _ ->
+      Left "Must have format MAJOR.MINOR.PATCH (e.g. 1.0.2)"
 
 
 instance Binary Version where
   get =
-    Version <$> get <*> get <*> get
+    do  word <- getWord8
+        if word == 0
+          then Version <$> get <*> get <*> get
+          else
+            do  minor <- fromIntegral <$> getWord8
+                patch <- fromIntegral <$> getWord8
+                return (Version (fromIntegral word) minor patch)
 
   put (Version major minor patch) =
-    do  put major
-        put minor
-        put patch
+    if major < 256 && minor < 256 && patch < 256 then
+      do  putWord8 (fromIntegral major)
+          putWord8 (fromIntegral minor)
+          putWord8 (fromIntegral patch)
+    else
+      do  putWord8 0
+          put major
+          put minor
+          put patch
 
 
 instance Json.FromJSON Version where
