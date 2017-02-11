@@ -113,10 +113,12 @@ validateProjectName text =
 
 
 instance Binary Name where
-    get = Name <$> get <*> get
-    put (Name user project) =
-        do  put user
-            put project
+  get =
+    Name <$> get <*> get
+
+  put (Name user project) =
+    do  put user
+        put project
 
 
 instance Json.FromJSON Name where
