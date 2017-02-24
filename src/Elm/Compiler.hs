@@ -20,7 +20,7 @@ import qualified AST.Module.Name as ModuleName
 import qualified Compile
 import qualified Docs.Check as Docs
 import qualified Elm.Compiler.Imports as Imports
-import qualified Elm.Compiler.Module as PublicModule
+import qualified Elm.Compiler.Module as M
 import qualified Elm.Compiler.Version
 import qualified Elm.Docs as Docs
 import qualified Elm.Package as Package
@@ -55,7 +55,7 @@ data Tag
   | Port
 
 
-parseDependencies :: Maybe Package.Name -> Text -> Either Error (Tag, PublicModule.Raw, [PublicModule.Raw])
+parseDependencies :: Maybe Package.Name -> Text -> Either Error (Tag, M.Raw, [M.Raw])
 parseDependencies maybePkgName sourceCode =
   case Parse.run Parse.header sourceCode of
     Right header ->
@@ -65,7 +65,7 @@ parseDependencies maybePkgName sourceCode =
       Left (Error (A.map Error.Syntax err))
 
 
-getDeps :: Maybe Package.Name -> Module.Header [Module.UserImport] -> (Tag, PublicModule.Raw, [PublicModule.Raw])
+getDeps :: Maybe Package.Name -> Module.Header [Module.UserImport] -> (Tag, M.Raw, [M.Raw])
 getDeps maybePkgName (Module.Header sourceTag name _ _ _ imports) =
   let
     tag =
@@ -88,15 +88,15 @@ getDeps maybePkgName (Module.Header sourceTag name _ _ _ imports) =
 
 
 {-| Compiles Elm source code to JavaScript. -}
-compile :: Context -> Text -> PublicModule.Interfaces -> (Localizer, [Warning], Either [Error] Result)
-compile context source interfaces =
+compile :: Context -> Text -> (Localizer, [Warning], Either [Error] Result)
+compile context source =
   let
-    (Context packageName isExposed dependencies) =
+    (Context packageName exposed importDict interfaces) =
       context
 
     (Result.Result oneLocalizer warnings answer) =
-      do  modul <- Compile.compile packageName dependencies interfaces source
-          docs <- Result.format id (docsGen isExposed modul)
+      do  modul <- Compile.compile packageName importDict interfaces source
+          docs <- Result.format id (docsGen exposed modul)
 
           let interface = Module.toInterface packageName modul
           let javascript = {-# SCC elm_compiler_generate #-} JS.generate modul
@@ -111,15 +111,16 @@ compile context source interfaces =
 
 data Context =
   Context
-    { _packageName :: Package.Name
-    , _isExposed :: Bool
-    , _dependencies :: [PublicModule.Canonical]
+    { _package :: Package.Name
+    , _exposed :: Bool
+    , _imports :: Map.Map M.Raw M.Canonical
+    , _interfaces :: M.Interfaces
     }
 
 
 data Result = Result
     { _docs :: Maybe Docs.Documentation
-    , _interface :: PublicModule.Interface
+    , _interface :: M.Interface
     , _js :: LazyText.Text
     }
 

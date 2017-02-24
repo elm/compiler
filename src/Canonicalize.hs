@@ -9,8 +9,6 @@ import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import Data.Text (Text)
 
-import Elm.Utils ((|>))
-
 import qualified AST.Declaration as D
 import qualified AST.Expression.Source as Src
 import qualified AST.Expression.Canonical as C
@@ -46,19 +44,14 @@ type Result a =
 
 
 module'
-    :: [ModuleName.Canonical]
+    :: Map.Map ModuleName.Raw ModuleName.Canonical
     -> Module.Interfaces
     -> Module.Valid
     -> Result Module.Canonical
-module' allCanonicalImports interfaces modul =
+module' importDict interfaces modul =
   let
     (Module.Valid docs exports imports decls effects) =
       Module.info modul
-
-    importDict =
-      allCanonicalImports
-        |> map (\cName -> (ModuleName._module cName, cName))
-        |> Map.fromList
 
     (Result.Result uses warnings rawResults) =
       do  env <- Setup.environment importDict interfaces modul

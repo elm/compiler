@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Compile (compile) where
 
+import Data.Map (Map)
 import Data.Text (Text)
 
 import qualified AST.Expression.Canonical as Can
@@ -29,11 +30,11 @@ type Result =
 
 compile
     :: Package.Name
-    -> [ModuleName.Canonical]
+    -> Map ModuleName.Raw ModuleName.Canonical
     -> Module.Interfaces
     -> Text
     -> Result Module.Optimized
-compile packageName canonicalImports interfaces source =
+compile packageName importDict interfaces source =
   do
       -- Parse the source code
       validModule <-
@@ -44,7 +45,7 @@ compile packageName canonicalImports interfaces source =
       -- Canonicalize all variables, pinning down where they came from.
       canonicalModule <-
           {-# SCC elm_compiler_canonicalize #-}
-          Canonicalize.module' canonicalImports interfaces validModule
+          Canonicalize.module' importDict interfaces validModule
 
       -- Run type inference on the program.
       types <-
