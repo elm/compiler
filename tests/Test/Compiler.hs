@@ -29,6 +29,10 @@ import qualified AST.Variable as Variable
 import qualified AST.Type as Type
 
 
+
+-- TESTS
+
+
 writeExpectedJsEnvVarName :: String
 writeExpectedJsEnvVarName =
   "ELM_WRITE_NEW_EXPECTED"
@@ -64,6 +68,7 @@ testsDir :: FilePath
 testsDir =
     "tests" </> "test-files"
 
+
 convertToExpectedJsFilePath :: String -> FilePath -> FilePath
 convertToExpectedJsFilePath expectedJsDir filePath =
     testsDir
@@ -73,11 +78,35 @@ convertToExpectedJsFilePath expectedJsDir filePath =
 
 
 
--- TEST HELPERS
+-- COMPILE HELPERS
 
 
-essentialInterfaces :: Module.Interfaces
-essentialInterfaces =
+compile :: FilePath -> Text -> Either String Compiler.Result
+compile filePath source =
+  let
+    context =
+      Compiler.Context Package.core False importDict interfaces
+
+    (dealiaser, _warnings, result) =
+      Compiler.compile context source
+
+    formatErrors errors =
+      concatMap (Compiler.errorToString dealiaser filePath source) errors
+  in
+    either (Left . formatErrors) Right result
+
+
+importDict :: Map.Map ModuleName.Raw ModuleName.Canonical
+importDict =
+  let
+    toPair name =
+      ( ModuleName._module name, name )
+  in
+    Map.fromList $ map toPair $ Map.keys interfaces
+
+
+interfaces :: Module.Interfaces
+interfaces =
   Map.fromList
     [
       (ModuleName.inCore "Debug",
@@ -102,18 +131,8 @@ buildCoreInterface members =
     Module.Interface Compiler.version Package.core exports imports types adts aliases fixities
 
 
-compile :: FilePath -> Text -> Either String Compiler.Result
-compile filePath source =
-  let dependentModuleNames =
-        Map.keys essentialInterfaces
-      context =
-        Compiler.Context Package.core False dependentModuleNames
-      (dealiaser, _warnings, result) =
-        Compiler.compile context source essentialInterfaces
-      formatErrors errors =
-        concatMap (Compiler.errorToString dealiaser filePath source) errors
-  in
-      either (Left . formatErrors) Right result
+
+-- FILE HELPER
 
 
 readFileOrErrorStr :: FilePath -> IO String
