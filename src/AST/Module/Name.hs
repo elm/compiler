@@ -12,7 +12,8 @@ import qualified Elm.Package as Package
 type Raw = Text -- must be non-empty
 
 
-data Canonical = Canonical
+data Canonical =
+  Canonical
     { _package :: Package.Name
     , _module :: Raw
     }
