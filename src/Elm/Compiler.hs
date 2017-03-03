@@ -4,8 +4,8 @@ module Elm.Compiler
     , parseDependencies, Tag(..)
     , compile, Context(..), Result(..)
     , Localizer, dummyLocalizer
-    , Error, errorToString, errorToJson, printError
-    , Warning, warningToString, warningToJson, printWarning
+    , Error, errorToDoc, errorToJson
+    , Warning, warningToDoc, warningToJson
     )
     where
 
@@ -13,7 +13,7 @@ import qualified Data.Aeson as Json
 import qualified Data.Map as Map
 import qualified Data.Text.Lazy as LazyText
 import Data.Text (Text)
-import System.IO (Handle)
+import Text.PrettyPrint.ANSI.Leijen (Doc)
 
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
@@ -55,18 +55,18 @@ data Tag
   | Port
 
 
-parseDependencies :: Maybe Package.Name -> Text -> Either Error (Tag, M.Raw, [M.Raw])
-parseDependencies maybePkgName sourceCode =
+parseDependencies :: Package.Name -> Text -> Either Error (Tag, M.Raw, [M.Raw])
+parseDependencies pkgName sourceCode =
   case Parse.run Parse.header sourceCode of
     Right header ->
-      Right $ getDeps maybePkgName header
+      Right $ getDeps pkgName header
 
     Left err ->
       Left (Error (A.map Error.Syntax err))
 
 
-getDeps :: Maybe Package.Name -> Module.Header [Module.UserImport] -> (Tag, M.Raw, [M.Raw])
-getDeps maybePkgName (Module.Header sourceTag name _ _ _ imports) =
+getDeps :: Package.Name -> Module.Header [Module.UserImport] -> (Tag, M.Raw, [M.Raw])
+getDeps pkgName (Module.Header sourceTag name _ _ _ imports) =
   let
     tag =
       case sourceTag of
@@ -75,7 +75,7 @@ getDeps maybePkgName (Module.Header sourceTag name _ _ _ imports) =
         Module.Effect _ -> Effect
 
     deps =
-      if maybePkgName == Just Package.core then
+      if pkgName == Package.core then
         map (fst . A.drop) imports
       else
         map (fst . A.drop) imports ++ map fst Imports.defaults
@@ -159,14 +159,9 @@ newtype Error =
     Error (A.Located Error.Error)
 
 
-errorToString :: Localizer -> String -> Text -> Error -> String
-errorToString (Localizer localizer) location source (Error (A.A region err)) =
-    Report.toString location region (Error.toReport localizer err) source
-
-
-printError :: Handle -> Localizer -> String -> Text -> Error -> IO ()
-printError handle (Localizer localizer) location source (Error (A.A region err)) =
-    Report.toHandle handle location region (Error.toReport localizer err) source
+errorToDoc :: Localizer -> String -> Text -> Error -> Doc
+errorToDoc (Localizer localizer) location source (Error (A.A region err)) =
+    Report.toDoc location region (Error.toReport localizer err) source
 
 
 errorToJson :: Localizer -> String -> Error -> Json.Value
@@ -182,14 +177,9 @@ newtype Warning =
     Warning (A.Located Warning.Warning)
 
 
-warningToString :: Localizer -> String -> Text -> Warning -> String
-warningToString (Localizer localizer) location source (Warning (A.A region wrn)) =
-    Report.toString location region (Warning.toReport localizer wrn) source
-
-
-printWarning :: Handle -> Localizer -> String -> Text -> Warning -> IO ()
-printWarning handle (Localizer localizer) location source (Warning (A.A region wrn)) =
-    Report.toHandle handle location region (Warning.toReport localizer wrn) source
+warningToDoc :: Localizer -> String -> Text -> Warning -> Doc
+warningToDoc (Localizer localizer) location source (Warning (A.A region wrn)) =
+    Report.toDoc location region (Warning.toReport localizer wrn) source
 
 
 warningToJson :: Localizer -> String -> Warning -> Json.Value
