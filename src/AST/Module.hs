@@ -13,7 +13,7 @@ module AST.Module
     , Aliases
     , Unions, UnionInfo, CanonicalUnion
 
-    , Interfaces, Interface(..), toInterface
+    , Interfaces, Interface(..), toInterface, privatize
     )
     where
 
@@ -29,8 +29,6 @@ import qualified AST.Module.Name as Name
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Docs.AST as Docs
-import qualified Elm.Package as Package
-import qualified Elm.Compiler.Version as Compiler
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
@@ -191,10 +189,8 @@ type Interfaces =
 {-| Key facts about a module, used when reading info from .elmi files. -}
 data Interface =
   Interface
-    { iVersion  :: Package.Version
-    , iPackage  :: Package.Name
-    , iExports  :: [Var.Value]
-    , iImports  :: [Name.Raw]
+    { iExports  :: [Var.Value]
+    , iImports  :: [Name.Raw] -- TODO perhaps use this to crawl faster
     , iTypes    :: Types
     , iUnions   :: Unions
     , iAliases  :: Aliases
@@ -202,16 +198,14 @@ data Interface =
     }
 
 
-toInterface :: Package.Name -> Optimized -> Interface
-toInterface pkgName modul =
+toInterface :: Optimized -> Interface
+toInterface modul =
   let
     myInfo =
       info modul
   in
     Interface
-      { iVersion  = Compiler.version
-      , iPackage  = pkgName
-      , iExports  = exports myInfo
+      { iExports  = exports myInfo
       , iImports  = imports myInfo
       , iTypes    = types myInfo
       , iUnions   = unions myInfo
@@ -220,14 +214,28 @@ toInterface pkgName modul =
       }
 
 
+privatize :: Interface -> Maybe Interface
+privatize (Interface _ _ _ myUnions myAliases _) =
+  if Map.null myUnions && Map.null myAliases then
+    Nothing
+
+  else
+    Just $ Interface
+      { iExports  = []
+      , iImports  = []
+      , iTypes    = Map.empty
+      , iUnions   = myUnions
+      , iAliases  = myAliases
+      , iFixities = []
+      }
+
+
 instance Binary Interface where
   get =
-    Interface <$> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get
+    Interface <$> get <*> get <*> get <*> get <*> get <*> get
 
   put modul =
-    do  put (iVersion modul)
-        put (iPackage modul)
-        put (iExports modul)
+    do  put (iExports modul)
         put (iImports modul)
         put (iTypes modul)
         put (iUnions modul)

@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Elm.Compiler.Module
-    ( Interface, Interfaces
+    ( Module.Interface, Module.Interfaces, Module.privatize
     , ModuleName.Raw
     , nameToPath
     , nameToString, nameFromText
@@ -31,18 +31,12 @@ import qualified Generate.JavaScript.Variable as Gen
 -- INTERFACES
 
 
-type Interface = Module.Interface
-
-
-type Interfaces = Module.Interfaces
-
-
-interfaceAliasedTypes :: Interface -> Map.Map Text PublicType.Type
+interfaceAliasedTypes :: Module.Interface -> Map.Map Text PublicType.Type
 interfaceAliasedTypes interface =
     Map.map Extract.extract (Module.iTypes interface)
 
 
-programTypes :: Interfaces -> ModuleName.Canonical -> Maybe PublicType.Program
+programTypes :: Module.Interfaces -> ModuleName.Canonical -> Maybe PublicType.Program
 programTypes =
   Extract.extractProgram
 

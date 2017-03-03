@@ -98,7 +98,7 @@ compile context source =
       do  modul <- Compile.compile packageName importDict interfaces source
           docs <- Result.format id (docsGen exposed modul)
 
-          let interface = Module.toInterface packageName modul
+          let interface = Module.toInterface modul
           let javascript = {-# SCC elm_compiler_generate #-} JS.generate modul
 
           return (Result docs interface javascript)
