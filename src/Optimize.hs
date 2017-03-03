@@ -286,6 +286,9 @@ optimizeExpr context annExpr@(A.A region expression) =
     Can.IncomingPort name tipe ->
         pure (Opt.IncomingPort name tipe)
 
+    Can.TaskPort name ->
+        pure (Opt.TaskPort name)
+
     Can.Program kind expr ->
         Opt.Program kind <$> justConvert expr
 

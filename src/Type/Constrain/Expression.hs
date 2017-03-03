@@ -42,6 +42,9 @@ constrain env annotatedExpr@(A.A region expression) tipe =
     C.IncomingPort _ _ ->
       return CTrue
 
+    C.TaskPort _ ->
+      return CTrue
+
     C.Program _ _ ->
       error "DANGER - Program AST nodes should not be in type inference."
 

@@ -56,6 +56,7 @@ data Expr
     | Sub ModuleName.Canonical
     | OutgoingPort Text Type.Canonical
     | IncomingPort Text Type.Canonical
+    | TaskPort Text
     | Program Can.Main Expr
     | GLShader Text Text Literal.Shader
     | Crash ModuleName.Canonical R.Region (Maybe Expr)

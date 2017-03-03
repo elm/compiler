@@ -84,12 +84,13 @@ cmd :: Canonical
 cmd =
   inCore "Platform.Cmd" "Cmd"
 
-
 sub :: Canonical
 sub =
   inCore "Platform.Sub" "Sub"
 
-
+task :: Canonical
+task =
+  inCore "Task" "Task"
 
 -- VARIABLE RECOGNIZERS
 

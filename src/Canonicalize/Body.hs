@@ -180,3 +180,5 @@ toPortExpr name kind =
     Effects.Incoming tipe ->
       C.IncomingPort name tipe
 
+    Effects.Twoway outgoingTipe incomingErrorTipe incomingSuccessTipe ->
+      C.TaskPort name

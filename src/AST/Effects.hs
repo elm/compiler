@@ -68,3 +68,4 @@ data PortCanonical =
 data Kind
   = Outgoing Type.Canonical
   | Incoming Type.Canonical
+  | Twoway Type.Canonical Type.Canonical Type.Canonical

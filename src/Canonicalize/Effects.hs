@@ -64,15 +64,30 @@ canonicalizeRawPort env (A.A ann (Effects.PortRaw name rawType)) =
 figureOutKind :: R.Region -> Text -> T.Canonical -> Result Effects.Kind
 figureOutKind region name rootType =
   case T.deepDealias rootType of
+
+    -- outgoing port
+    -- port actions: Json.Encode.Value -> Cmd msg
     T.Lambda outgoingType (T.App (T.Type effect) [T.Var _])
       | effect == Var.cmd ->
           pure (Effects.Outgoing outgoingType)
             <* checkPortType (makeError region name) outgoingType
 
+    -- incoming port
+    -- port viewModel : (Model -> msg) -> Sub msg
     T.Lambda (T.Lambda incomingType (T.Var msg1)) (T.App (T.Type effect) [T.Var msg2])
       | effect == Var.sub && msg1 == msg2 ->
           pure (Effects.Incoming incomingType)
             <* checkPortType (makeError region name) incomingType
+
+    -- task port
+    -- port getUsername : Int -> Task Error String
+    T.Lambda outgoingType (T.App (T.Type task) [incomingErrorType, incomingSuccessType])
+      | True ->
+      -- | Var.isTask task -> -- TODO verify that it's a Task
+          pure (Effects.Twoway outgoingType incomingErrorType incomingSuccessType)
+            <* checkPortType (makeError region name) outgoingType
+            <* checkPortType (makeError region name) incomingErrorType
+            <* checkPortType (makeError region name) incomingSuccessType
 
     _ ->
       Result.throw region (Error.BadPort name rootType)

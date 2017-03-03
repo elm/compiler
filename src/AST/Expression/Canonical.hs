@@ -53,6 +53,7 @@ data Expr'
     | Sub ModuleName.Canonical
     | OutgoingPort Text Type.Canonical
     | IncomingPort Text Type.Canonical
+    | TaskPort Text
     | Program Main Expr
     | SaveEnv ModuleName.Canonical Effects.Canonical
     | GLShader Text Text Literal.Shader

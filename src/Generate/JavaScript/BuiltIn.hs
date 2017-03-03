@@ -5,7 +5,7 @@ module Generate.JavaScript.BuiltIn
   , list, cons
   , recordUpdate
   , eq, cmp
-  , effect, outgoingPort, incomingPort
+  , effect, outgoingPort, incomingPort, taskPort
   , crash
   )
   where
@@ -106,7 +106,11 @@ incomingPort name converter =
     (Var.coreNative "Platform" "incomingPort")
     [ JS.String name, converter ]
 
-
+taskPort :: Text -> JS.Expr
+taskPort name =
+  JS.Call
+  (Var.coreNative "Platform" "taskPort")
+  [ JS.String name ]
 
 -- CRASH
 
