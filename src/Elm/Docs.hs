@@ -23,7 +23,8 @@ import qualified Reporting.Annotation as A
 -- DATA STRUCTURES
 
 
-data Documentation = Documentation
+data Documentation =
+  Documentation
     { moduleName :: Module.Raw
     , comment :: Text
     , aliases :: [Alias]
@@ -33,7 +34,8 @@ data Documentation = Documentation
     }
 
 
-data Alias = Alias
+data Alias =
+  Alias
     { aliasName :: Text
     , aliasComment :: Text
     , aliasArgs :: [Text]
@@ -41,7 +43,8 @@ data Alias = Alias
     }
 
 
-data Union = Union
+data Union =
+  Union
     { unionName :: Text
     , unionComment :: Text
     , unionArgs :: [Text]
@@ -49,7 +52,8 @@ data Union = Union
     }
 
 
-data Value = Value
+data Value =
+  Value
     { valueName :: Text
     , valueComment :: Text
     , valueType :: Type.Type
