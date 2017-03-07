@@ -118,9 +118,10 @@ data Context =
     }
 
 
-data Result = Result
+data Result =
+  Result
     { _docs :: Maybe Docs.Documentation
-    , _interface :: M.Interface
+    , _iface :: M.Interface
     , _js :: LazyText.Text
     }
 
