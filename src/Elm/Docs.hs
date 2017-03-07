@@ -99,9 +99,10 @@ prettyJson value =
 
 config :: Json.Config
 config =
-    Json.Config
-    { Json.confIndent = 2
+  Json.Config
+    { Json.confIndent = Json.Tab
     , Json.confCompare = Json.keyOrder keys
+    , Json.confNumFormat = Json.Generic
     }
   where
     keys =
