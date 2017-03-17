@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module AST.Module
-    ( Header(..), defaultHeader, Module(..)
+    ( Header(..), HeaderDecl(..), defaultHeaderDecl
+    , Module(..)
 
     , Source, SourceInfo(..), SourceTag(..), SourceSettings, emptySettings
     , Valid, ValidInfo(..)
@@ -40,23 +41,28 @@ import qualified Reporting.Region as R
 {-| Basic info needed to identify modules and determine dependencies. -}
 data Header imports =
   Header
+    { _decl :: Maybe HeaderDecl
+    , _imports :: imports
+    }
+
+
+data HeaderDecl =
+  HeaderDecl
     { _tag :: SourceTag
     , _name :: Name.Raw
     , _exports :: Var.Listing (A.Located Var.Value)
     , _settings :: SourceSettings
     , _docs :: A.Located (Maybe Text)
-    , _imports :: imports
     }
 
 
-instance Show (Header a) where
-  show header =
-    show (_name header)
-
-
-defaultHeader :: R.Position -> R.Position -> imports -> Header imports
-defaultHeader start end imports_ =
-  Header Normal "Main" Var.openListing emptySettings (A.at start end Nothing) imports_
+defaultHeaderDecl :: HeaderDecl
+defaultHeaderDecl =
+  let
+    zero = R.Position 1 1
+    noDocs = A.at zero zero Nothing
+  in
+    HeaderDecl Normal "Main" Var.openListing emptySettings noDocs
 
 
 

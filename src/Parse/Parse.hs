@@ -32,9 +32,13 @@ program pkgName src =
 
 chompProgram :: Package.Name -> Parser Module.Source
 chompProgram pkgName =
-  do  (Module.Header tag name exports settings docs imports) <- Parse.header
+  do  (Module.Header maybeHeaderDecl imports) <- Parse.header
       decls <- chompDeclarations []
       endOfFile
+
+      let (Module.HeaderDecl tag name exports settings docs) =
+            maybe Module.defaultHeaderDecl id maybeHeaderDecl
+
       let moduleName = ModuleName.Canonical pkgName name
       let source = Module.Source tag settings docs exports imports decls
       return (Module.Module moduleName source)

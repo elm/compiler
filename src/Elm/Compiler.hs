@@ -55,7 +55,7 @@ data Tag
   | Port
 
 
-parseDependencies :: Package.Name -> Text -> Either Error (Tag, M.Raw, [M.Raw])
+parseDependencies :: Package.Name -> Text -> Either Error (Tag, Maybe M.Raw, [M.Raw])
 parseDependencies pkgName sourceCode =
   case Parse.run Parse.header sourceCode of
     Right header ->
@@ -65,22 +65,27 @@ parseDependencies pkgName sourceCode =
       Left (Error (A.map Error.Syntax err))
 
 
-getDeps :: Package.Name -> Module.Header [Module.UserImport] -> (Tag, M.Raw, [M.Raw])
-getDeps pkgName (Module.Header sourceTag name _ _ _ imports) =
+getDeps :: Package.Name -> Module.Header [Module.UserImport] -> (Tag, Maybe M.Raw, [M.Raw])
+getDeps pkgName (Module.Header maybeHeaderDecl imports) =
   let
-    tag =
-      case sourceTag of
-        Module.Normal -> Normal
-        Module.Port _ -> Port
-        Module.Effect _ -> Effect
-
-    deps =
-      if pkgName == Package.core then
-        map (fst . A.drop) imports
-      else
-        map (fst . A.drop) imports ++ map fst Imports.defaults
+    dependencies =
+      if pkgName == Package.core
+        then map (fst . A.drop) imports
+        else map (fst . A.drop) imports ++ map fst Imports.defaults
   in
-    ( tag, name, deps )
+    case maybeHeaderDecl of
+      Nothing ->
+        ( Normal, Nothing, dependencies )
+
+      Just (Module.HeaderDecl sourceTag name _ _ _) ->
+        let
+          tag =
+            case sourceTag of
+              Module.Normal -> Normal
+              Module.Port _ -> Port
+              Module.Effect _ -> Effect
+        in
+          ( tag, Just name, dependencies )
 
 
 

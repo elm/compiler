@@ -18,22 +18,26 @@ import qualified Reporting.Region as R
 
 header :: Parser (Module.Header [Module.UserImport])
 header =
+  do  freshLine
+      Module.Header <$> maybeHeaderDecl <*> chompImports []
+
+
+
+-- HEADER DECL
+
+
+maybeHeaderDecl :: Parser (Maybe Module.HeaderDecl)
+maybeHeaderDecl =
+  oneOf
+    [ Just <$> headerDecl
+    , return Nothing
+    ]
+
+
+headerDecl :: Parser Module.HeaderDecl
+headerDecl =
   do  start <- getPosition
-      freshLine
-      end <- getPosition
-      oneOf
-        [ fullHeader end
-        , Module.defaultHeader start end <$> chompImports []
-        ]
-
-
-
--- FULL HEADER
-
-
-fullHeader :: R.Position -> Parser (Module.Header [Module.UserImport])
-fullHeader start =
-  do  pushContext start E.Module
+      pushContext start E.Module
       tag <- sourceTag
       spaces
       name <- qualifiedCapVar
@@ -44,8 +48,7 @@ fullHeader start =
       exports <- listing (addLocation listingValue)
       popContext ()
       docs <- maybeDocComment
-      imports <- chompImports []
-      return (Module.Header tag name exports settings docs imports)
+      return (Module.HeaderDecl tag name exports settings docs)
 
 
 
