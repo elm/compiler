@@ -43,7 +43,7 @@ type Result warning a =
 
 
 patternMatches :: Module.Interfaces -> Module.Canonical -> Result wrn DT.VariantDict
-patternMatches interfaces (Module.Module name _ info) =
+patternMatches interfaces (Module.Module name info) =
   let
     arityDict =
       toArityDict interfaces name (Module.unions info)

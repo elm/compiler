@@ -35,7 +35,7 @@ environment
     -> Module.Interfaces
     -> Module.Valid
     -> Result Env.Env
-environment importDict interfaces (Module.Module name _ info) =
+environment importDict interfaces (Module.Module name info) =
   let
     (Module.Valid _ _ (defaults, imports) decls effects) =
       info

@@ -37,7 +37,7 @@ chompProgram pkgName =
       endOfFile
       let moduleName = ModuleName.Canonical pkgName name
       let source = Module.Source tag settings docs exports imports decls
-      return (Module.Module moduleName "" source)
+      return (Module.Module moduleName source)
 
 
 chompDeclarations :: [Decl.Source] -> Parser [Decl.Source]

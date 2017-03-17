@@ -66,7 +66,6 @@ defaultHeader start end imports_ =
 data Module phase =
   Module
     { name :: Name.Canonical
-    , path :: FilePath
     , info :: phase
     }
 

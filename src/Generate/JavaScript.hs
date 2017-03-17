@@ -21,7 +21,7 @@ import qualified Generate.JavaScript.Variable as Var
 
 
 generate :: Module.Optimized -> LazyText.Text
-generate (Module.Module moduleName _ info) =
+generate (Module.Module moduleName info) =
   let
     genBody =
       do  defsList <- mapM JS.generateDef (Module.program info)

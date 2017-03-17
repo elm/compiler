@@ -37,7 +37,7 @@ type Result warning a =
 
 
 validate :: Module.Source -> Result wrn Module.Valid
-validate (Module.Module name path info) =
+validate (Module.Module name info) =
   let
     (ModuleName.Canonical pkgName _) =
       name
@@ -49,7 +49,7 @@ validate (Module.Module name path info) =
 
         validEffects <- validateEffects tag settings ports (D._defs structure)
 
-        return $ Module.Module name path $
+        return $ Module.Module name $
           Module.Valid docs exports (addDefaults pkgName imports) structure validEffects
 
 
