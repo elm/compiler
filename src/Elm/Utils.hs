@@ -1,10 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE OverloadedStrings #-}
 module Elm.Utils
     ( (|>), (<|)
-    , run, unwrappedRun
-    , CommandError(..)
+    , nearbyNames
     , isDeclaration
     ) where
 
@@ -18,6 +15,11 @@ import qualified AST.Pattern as Pattern
 import qualified Parse.Helpers as Parse
 import qualified Parse.Expression as Parse
 import qualified Reporting.Annotation as A
+import Reporting.Helpers (nearbyNames)
+
+
+
+-- PIPES
 
 
 {-| Forward function application `x |> f == f x`. This function is useful
@@ -36,64 +38,6 @@ f <| x = f x
 
 infixr 0 <|
 infixl 0 |>
-
-
--- RUN EXECUTABLES
-
-data CommandError
-    = MissingExe String
-    | CommandFailed String String
-
-
-{-| Run a command, throw an error if the command is not found or if something
-goes wrong.
--}
-run :: (MonadError String m, MonadIO m) => String -> [String] -> m String
-run command args =
-  do  result <- liftIO (unwrappedRun command args)
-      case result of
-        Right out ->
-          return out
-
-        Left err ->
-          throwError (context (message err))
-  where
-    context msg =
-      "failure when running:" ++ concatMap (' ':) (command:args) ++ "\n" ++ msg
-
-    message err =
-      case err of
-        CommandFailed stdout stderr ->
-          stdout ++ stderr
-
-        MissingExe msg ->
-          msg
-
-
-unwrappedRun :: String -> [String] -> IO (Either CommandError String)
-unwrappedRun command args =
-  do  (exitCode, stdout, stderr) <- readProcessWithExitCode command args ""
-      return $
-          case exitCode of
-            ExitSuccess ->
-              Right stdout
-
-            ExitFailure code ->
-              if code == 127 then
-                Left (missingExe command)  -- UNIX
-
-              else if code == 9009 then
-                Left (missingExe command)  -- Windows
-
-              else
-                Left (CommandFailed stdout stderr)
-
-
-missingExe :: String -> CommandError
-missingExe command =
-  MissingExe $
-    "Could not find command `" ++ command ++ "`. Do you have it installed?\n\
-    \    Can it be run from anywhere? Is it on your PATH?"
 
 
 
