@@ -5,10 +5,7 @@ module Elm.Utils
     , isDeclaration
     ) where
 
-import Control.Monad.Except (MonadError, MonadIO, liftIO, throwError)
 import Data.Text (Text)
-import System.Exit (ExitCode(ExitSuccess, ExitFailure))
-import System.Process (readProcessWithExitCode)
 
 import qualified AST.Expression.Source as Source
 import qualified AST.Pattern as Pattern

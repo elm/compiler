@@ -7,16 +7,16 @@ import qualified Data.Aeson as Json
 
 data Region =
   Region
-    { start :: !Position
-    , end :: !Position
+    { _start :: !Position
+    , _end :: !Position
     }
     deriving (Eq, Show)
 
 
 data Position =
   Position
-    { line :: !Int
-    , column :: !Int
+    { _line :: !Int
+    , _column :: !Int
     }
     deriving (Eq, Show)
 

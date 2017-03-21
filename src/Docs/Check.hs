@@ -61,10 +61,10 @@ checkCategory
   -> (Text -> a -> Result w b)
   -> Map.Map Text a
   -> Result w (Map.Map Text b)
-checkCategory docSet check dict =
+checkCategory docSet checker dict =
   dict
     |> Map.filterWithKey (\key _ -> Set.member key docSet)
-    |> Map.mapWithKey check
+    |> Map.mapWithKey checker
     |> traverse id
 
 
