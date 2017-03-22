@@ -64,7 +64,7 @@ define maybeHome name body =
             JS.LBracket (JS.ref opsDictName) (JS.String name)
         in
           [ JS.VarDeclStmt [ JS.varDecl opsDictName (JS.refOrObject opsDictName) ]
-          , JS.ExprStmt (JS.Assign JS.OpAssign lvalue body)
+          , JS.ExprStmt (JS.Assign lvalue body)
           ]
 
 

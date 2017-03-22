@@ -153,7 +153,7 @@ generateCode expr =
           let
             reassign name tempName =
               JS.ExprStmt $
-                JS.Assign JS.OpAssign (JS.LVar (Var.safe name)) (ref tempName)
+                JS.Assign (JS.LVar (Var.safe name)) (ref tempName)
           in
             do  args' <- mapM generateJsExpr args
                 tempNames <- mapM (\_ -> Var.fresh) args

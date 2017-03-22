@@ -3,7 +3,7 @@
 module Generate.JavaScript.Builder
   ( Expr(..), Id(..), Prop(..), LValue(..)
   , Stmt(..), Case(..), VarDecl(..)
-  , InfixOp(..), AssignOp(..), PrefixOp(..)
+  , InfixOp(..), PrefixOp(..)
   , stmtsToText
   )
   where
@@ -41,7 +41,7 @@ data Expr
   | Prefix PrefixOp Expr
   | Infix InfixOp Expr Expr
   | If Expr Expr Expr
-  | Assign AssignOp LValue Expr
+  | Assign LValue Expr
   | Call Expr [Expr] -- ^ @f(x,y,z)@, spec 11.2.3
   | Function (Maybe Id) [Id] [Stmt]
 
@@ -120,29 +120,12 @@ data InfixOp
   | OpAdd -- +
 
 
-data AssignOp
-  = OpAssign -- =
-  | OpAssignAdd -- +=
-  | OpAssignSub -- -=
-  | OpAssignMul -- *=
-  | OpAssignDiv -- /=
-  | OpAssignMod -- %=
-  | OpAssignLShift -- <<=
-  | OpAssignSpRShift -- >>=
-  | OpAssignZfRShift -- >>>=
-  | OpAssignBAnd -- &=
-  | OpAssignBXor -- ^=
-  | OpAssignBOr -- |=
-
-
 data PrefixOp
   = PrefixLNot -- !
   | PrefixBNot -- ~
   | PrefixPlus -- +
   | PrefixMinus -- -
   | PrefixTypeof -- typeof
-  | PrefixVoid -- void
-  | PrefixDelete -- delete
 
 
 
@@ -435,7 +418,7 @@ fromExpr indent grouping expression =
         , parensFor grouping (condB <> " ? " <> thenB <> " : " <> elseB)
         )
 
-    Assign op lValue expr ->
+    Assign lValue expr ->
       let
         (leftLines, left) =
           fromLValue indent lValue
@@ -444,7 +427,7 @@ fromExpr indent grouping expression =
           fromExpr indent Whatever expr
       in
         ( merge leftLines rightLines
-        , parensFor grouping (left <> fromAssign op <> right)
+        , parensFor grouping (left <> " = " <> right)
         )
 
     Call function args ->
@@ -563,25 +546,6 @@ fromPrefix op =
     PrefixPlus   -> "+"
     PrefixMinus  -> "-"
     PrefixTypeof -> "typeof "
-    PrefixVoid   -> "void "
-    PrefixDelete -> "delete "
-
-
-fromAssign :: AssignOp -> Builder
-fromAssign op =
-  case op of
-    OpAssign         -> " = "
-    OpAssignAdd      -> " += "
-    OpAssignSub      -> " -= "
-    OpAssignMul      -> " *= "
-    OpAssignDiv      -> " /= "
-    OpAssignMod      -> " %= "
-    OpAssignLShift   -> " <<= "
-    OpAssignSpRShift -> " >>= "
-    OpAssignZfRShift -> " >>>= "
-    OpAssignBAnd     -> " &= "
-    OpAssignBXor     -> " ^= "
-    OpAssignBOr      -> " |= "
 
 
 fromInfix :: InfixOp -> Builder

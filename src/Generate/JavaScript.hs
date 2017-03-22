@@ -79,7 +79,7 @@ generateEffectManager moduleName effects =
               [ "tag" ==> "fx", entry "cmdMap", entry "subMap" ]
 
         addManager =
-          JS.Assign JS.OpAssign
+          JS.Assign
             (JS.LBracket managers managerName)
             (JS.Object (managerEntries ++ otherEntries))
       in
