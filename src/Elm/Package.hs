@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Elm.Package
   ( Name(..)
-  , Package
+  , Package(..)
   , dummyName, core, virtualDom, html
   , toString, toText, toUrl, toFilePath
   , fromText
@@ -35,13 +35,17 @@ import System.FilePath ((</>))
 
 data Name =
   Name
-    { _user :: Text
-    , _project :: Text
+    { _user :: !Text
+    , _project :: !Text
     }
     deriving (Eq, Ord, Show)
 
 
-type Package = (Name, Version)
+data Package =
+  Package
+    { _name :: !Name
+    , _version :: !Version
+    }
 
 
 dummyName :: Name
