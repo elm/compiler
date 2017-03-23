@@ -17,7 +17,7 @@ data Canonical =
     { _package :: Package.Name
     , _module :: Raw
     }
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord)
 
 
 inVirtualDom :: Raw -> Canonical
