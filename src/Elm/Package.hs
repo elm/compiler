@@ -46,6 +46,7 @@ data Package =
     { _name :: !Name
     , _version :: !Version
     }
+    deriving (Eq, Ord)
 
 
 dummyName :: Name
