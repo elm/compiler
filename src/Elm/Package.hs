@@ -126,6 +126,15 @@ instance Binary Name where
         put project
 
 
+instance Binary Package where
+  get =
+    Package <$> get <*> get
+
+  put (Package name version) =
+    do  put name
+        put version
+
+
 instance Json.FromJSON Name where
   parseJSON (Json.String text) =
     case fromText text of
