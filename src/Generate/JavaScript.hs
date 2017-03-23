@@ -4,7 +4,7 @@ module Generate.JavaScript (generate) where
 
 import qualified Control.Monad.State as State
 import Data.Text (Text)
-import qualified Data.Text.Lazy as LazyText
+import qualified Data.ByteString.Builder as BS
 
 import qualified AST.Effects as Effects
 import qualified AST.Module as Module
@@ -20,7 +20,7 @@ import qualified Generate.JavaScript.Variable as Var
 -- GENERATE JAVASCRIPT
 
 
-generate :: Module.Optimized -> LazyText.Text
+generate :: Module.Optimized -> BS.Builder
 generate (Module.Module moduleName info) =
   let
     genBody =
@@ -31,7 +31,7 @@ generate (Module.Module moduleName info) =
     body =
       State.evalState genBody 0
   in
-    JS.stmtsToText body
+    JS.encodeUtf8 body
 
 
 

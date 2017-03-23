@@ -1,10 +1,10 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Generate.JavaScript.Builder
-  ( Expr(..), Id(..), Prop(..), LValue(..)
+  ( encodeUtf8
+  , Expr(..), Id(..), Prop(..), LValue(..)
   , Stmt(..), Case(..), VarDecl(..)
   , InfixOp(..), PrefixOp(..)
-  , stmtsToText
   )
   where
 
@@ -15,12 +15,10 @@ module Generate.JavaScript.Builder
 
 import Prelude hiding (lines)
 import qualified Data.List as List
+import Data.ByteString.Builder
 import Data.Monoid ((<>))
 import Data.Text (Text)
-import Data.Text.Lazy.Builder
-import Data.Text.Lazy.Builder.Int (decimal)
-import Data.Text.Lazy.Builder.RealFloat (realFloat)
-import qualified Data.Text.Lazy as LazyText
+import qualified Data.Text.Encoding as Text
 
 
 
@@ -129,12 +127,12 @@ data PrefixOp
 
 
 
--- CONVERT TO LAZY TEXT
+-- ENCODE
 
 
-stmtsToText :: [Stmt] -> LazyText.Text
-stmtsToText stmts =
-  toLazyText (fromStmtBlock "" stmts)
+encodeUtf8 :: [Stmt] -> Builder
+encodeUtf8 stmts =
+  fromStmtBlock "" stmts
 
 
 
@@ -277,6 +275,11 @@ fromId (Id name) =
   fromText name
 
 
+fromText :: Text -> Builder
+fromText txt =
+  byteString (Text.encodeUtf8 txt)
+
+
 
 -- VAR DECLS
 
@@ -334,10 +337,10 @@ fromExpr indent grouping expression =
       (One, quoted string)
 
     Float n ->
-      (One, realFloat n)
+      (One, doubleDec n)
 
     Int n ->
-      (One, decimal n)
+      (One, intDec n)
 
     Bool bool ->
       (One, if bool then "true" else "false")
@@ -482,7 +485,7 @@ fromProp prop =
       quoted string
 
     IntProp n ->
-      decimal n
+      intDec n
 
 
 

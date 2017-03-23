@@ -11,8 +11,8 @@ module Elm.Compiler
 
 import qualified Data.Aeson as Json
 import qualified Data.Map as Map
-import qualified Data.Text.Lazy as LazyText
 import Data.Text (Text)
+import qualified Data.ByteString.Builder as BS
 import Text.PrettyPrint.ANSI.Leijen (Doc)
 
 import qualified AST.Module as Module
@@ -127,7 +127,7 @@ data Result =
   Result
     { _docs :: Maybe Docs.Documentation
     , _iface :: M.Interface
-    , _js :: LazyText.Text
+    , _js :: BS.Builder
     }
 
 
