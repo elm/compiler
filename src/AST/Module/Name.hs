@@ -1,6 +1,13 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module AST.Module.Name where
+module AST.Module.Name
+  ( Raw
+  , Canonical(..)
+  , inVirtualDom, inCore, inHtml
+  , toString, toText, canonicalToText
+  , isNative, canonicalIsNative
+  )
+  where
 
 import Data.Binary
 import qualified Data.Text as Text
@@ -9,15 +16,23 @@ import Data.Text (Text)
 import qualified Elm.Package as Package
 
 
+
+-- NAMES
+
+
 type Raw = Text -- must be non-empty
 
 
 data Canonical =
   Canonical
-    { _package :: Package.Name
-    , _module :: Raw
+    { _package :: !Package.Name
+    , _module :: !Raw
     }
     deriving (Eq, Ord)
+
+
+
+-- HELPERS
 
 
 inVirtualDom :: Raw -> Canonical
@@ -33,6 +48,10 @@ inCore raw =
 inHtml :: Raw -> Canonical
 inHtml raw =
   Canonical Package.html raw
+
+
+
+-- CONVERSIONS
 
 
 toString :: Raw -> String
@@ -51,6 +70,10 @@ canonicalToText (Canonical _ name) =
   toText name
 
 
+
+-- IS NATIVE
+
+
 isNative :: Raw -> Bool
 isNative name =
   Text.isPrefixOf "Native." name
@@ -61,9 +84,13 @@ canonicalIsNative (Canonical _ name) =
   isNative name
 
 
-instance Binary Canonical where
-    put (Canonical home name) =
-        put home >> put name
 
-    get =
-        Canonical <$> get <*> get
+-- BINARY
+
+
+instance Binary Canonical where
+  put (Canonical home name) =
+    put home >> put name
+
+  get =
+    Canonical <$> get <*> get
