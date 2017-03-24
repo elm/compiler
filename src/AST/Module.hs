@@ -24,6 +24,7 @@ import Data.Text (Text)
 
 import qualified AST.Declaration as Decl
 import qualified AST.Effects as Effects
+import qualified AST.Exposing as Exposing
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Expression.Optimized as Optimized
 import qualified AST.Module.Name as Name
@@ -50,7 +51,7 @@ data HeaderDecl =
   HeaderDecl
     { _tag :: SourceTag
     , _name :: Name.Raw
-    , _exports :: Var.Listing (A.Located Var.Value)
+    , _exports :: Exposing.Raw
     , _settings :: SourceSettings
     , _docs :: A.Located (Maybe Text)
     }
@@ -62,7 +63,7 @@ defaultHeaderDecl =
     zero = R.Position 1 1
     noDocs = A.at zero zero Nothing
   in
-    HeaderDecl Normal "Main" Var.openListing emptySettings noDocs
+    HeaderDecl Normal "Main" Exposing.Open emptySettings noDocs
 
 
 
@@ -85,7 +86,7 @@ data SourceInfo =
     { srcTag :: SourceTag
     , srcSettings :: SourceSettings
     , srcDocs :: A.Located (Maybe Text)
-    , srcExports :: Var.Listing (A.Located Var.Value)
+    , srcExports :: Exposing.Raw
     , srcImports :: [UserImport]
     , srcDecls :: [Decl.Source]
     }
@@ -113,7 +114,7 @@ type Valid =
 data ValidInfo =
   Valid
     { validDocs :: A.Located (Maybe Text)
-    , validExports :: Var.Listing (A.Located Var.Value)
+    , validExports :: Exposing.Raw
     , validImports :: ([DefaultImport], [UserImport])
     , validDecls :: Decl.Valid
     , validEffects :: Effects.Raw
@@ -141,7 +142,7 @@ type DefaultImport = (Name.Raw, ImportMethod)
 data ImportMethod =
   ImportMethod
     { alias :: Maybe Text
-    , exposedVars :: !(Var.Listing Var.Value)
+    , exposedVars :: !Exposing.Raw
     }
 
 
@@ -152,7 +153,7 @@ data ImportMethod =
 data Info program =
   Info
     { docs :: A.Located (Maybe Docs.Centralized)
-    , exports :: [Var.Value]
+    , exports :: Exposing.Canonical
     , imports :: [Name.Raw]
     , program :: program
     , types :: Types
@@ -194,7 +195,7 @@ type Interfaces =
 {-| Key facts about a module, used when reading info from .elmi files. -}
 data Interface =
   Interface
-    { iExports  :: [Var.Value]
+    { iExports  :: Exposing.Canonical
     , iImports  :: [Name.Raw] -- TODO perhaps use this to crawl faster
     , iTypes    :: Types
     , iUnions   :: Unions
@@ -226,7 +227,7 @@ privatize (Interface _ _ _ myUnions myAliases _) =
 
   else
     Just $ Interface
-      { iExports  = []
+      { iExports  = Exposing.nothing
       , iImports  = []
       , iTypes    = Map.empty
       , iUnions   = myUnions

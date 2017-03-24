@@ -16,7 +16,6 @@ import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Compiler.Version as Version
 import qualified Elm.Package as Pkg
-import qualified Reporting.Annotation as A
 
 
 
@@ -69,19 +68,16 @@ data Version = NonCanonicalTypes | Version Text
 
 
 fromCheckedDocs :: Module.Raw -> Docs.Checked -> Documentation
-fromCheckedDocs name (Docs.Docs comment aliases unions values) =
+fromCheckedDocs name (Docs.Checked comment values aliases unions) =
   let
-    unwrap cmnt =
-      maybe "" id cmnt
+    toValue (name, Docs.Value comment tipe fix) =
+      Value name comment tipe fix
 
-    toAlias (name, (A.A _ (Docs.Alias cmnt args tipe))) =
-      Alias name (unwrap cmnt) args tipe
+    toAlias (name, Docs.Alias comment args tipe) =
+      Alias name comment args tipe
 
-    toUnion (name, (A.A _ (Docs.Union cmnt args cases))) =
-      Union name (unwrap cmnt) args cases
-
-    toValue (name, (A.A _ (Docs.Value cmnt tipe fix))) =
-      Value name (unwrap cmnt) tipe fix
+    toUnion (name, Docs.Union comment args cases) =
+      Union name comment args cases
   in
     Documentation
       name

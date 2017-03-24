@@ -4,8 +4,8 @@ module Parse.Module where
 
 import Data.Text (Text)
 
+import qualified AST.Exposing as Exposing
 import qualified AST.Module as Module
-import qualified AST.Variable as Var
 import Parse.Helpers
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as E
@@ -45,7 +45,7 @@ headerDecl =
       settings <- effectSettings
       hint E.Exposing $ keyword "exposing"
       spaces
-      exports <- listing (addLocation listingValue)
+      exports <- exposing exposingEntry
       popContext ()
       docs <- maybeDocComment
       return (Module.HeaderDecl tag name exports settings docs)
@@ -156,7 +156,7 @@ chompImports imports =
           pos <- whitespace
           oneOf
             [ do  checkFreshLine pos
-                  let userImport = method start end name Nothing Var.closedListing
+                  let userImport = method start end name Nothing Exposing.closed
                   popContext ()
                   chompImports (userImport:imports)
             , do  checkSpace pos
@@ -178,7 +178,7 @@ chompAs start name imports =
       pos <- whitespace
       oneOf
         [ do  checkFreshLine pos
-              let userImport = method start end name (Just alias) Var.closedListing
+              let userImport = method start end name (Just alias) (Exposing.Explicit [])
               popContext ()
               chompImports (userImport:imports)
         , do  checkSpace pos
@@ -190,7 +190,7 @@ chompExposing :: R.Position -> Text -> Maybe Text -> [Module.UserImport] -> Pars
 chompExposing start name maybeAlias imports =
   do  keyword "exposing"
       spaces
-      exposed <- listing listingValue
+      exposed <- exposing exposingEntry
       end <- getPosition
       freshLine
       let userImport = method start end name maybeAlias exposed
@@ -198,7 +198,7 @@ chompExposing start name maybeAlias imports =
       chompImports (userImport:imports)
 
 
-method :: R.Position -> R.Position -> Text -> Maybe Text -> Var.Listing Var.Value -> Module.UserImport
+method :: R.Position -> R.Position -> Text -> Maybe Text -> Exposing.Raw -> Module.UserImport
 method start end name maybeAlias exposed =
   A.at start end ( name, Module.ImportMethod maybeAlias exposed )
 
@@ -207,8 +207,8 @@ method start end name maybeAlias exposed =
 -- LISTING
 
 
-listing :: Parser a -> Parser (Var.Listing a)
-listing parser =
+exposing :: Parser a -> Parser (Exposing.Exposing a)
+exposing parser =
   hint E.Listing $
   do  leftParen
       spaces
@@ -217,40 +217,41 @@ listing parser =
               dot
               spaces
               rightParen
-              return (Var.Listing [] True)
-        , do  value <- parser
+              return Exposing.Open
+        , do  value <- addLocation parser
               spaces
-              listingHelp parser [value]
+              exposingHelp parser [value]
         ]
 
 
-listingHelp :: Parser a -> [a] -> Parser (Var.Listing a)
-listingHelp parser values =
+exposingHelp :: Parser a -> [A.Located a] -> Parser (Exposing.Exposing a)
+exposingHelp parser values =
   oneOf
     [ do  comma
           spaces
-          value <- parser
+          value <- addLocation parser
           spaces
-          listingHelp parser (value:values)
+          exposingHelp parser (value:values)
     , do  rightParen
-          return (Var.Listing (reverse values) False)
+          return (Exposing.Explicit (reverse values))
     ]
 
 
-listingValue :: Parser Var.Value
-listingValue =
+exposingEntry :: Parser Exposing.Entry
+exposingEntry =
   oneOf
-    [ Var.Value <$> lowVar
+    [ Exposing.Lower <$> lowVar
     , do  leftParen
           op <- infixOp
           rightParen
-          return (Var.Value op)
+          return (Exposing.Lower op)
     , do  name <- capVar
           spaces
-          oneOf
-            [ Var.Union name <$> listing capVar
-            , return (Var.Alias name)
-            ]
+          Exposing.Upper name <$>
+            oneOf
+              [ Just <$> exposing capVar
+              , return Nothing
+              ]
     ]
 
 

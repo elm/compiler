@@ -1,4 +1,12 @@
-module Docs.AST where
+{-# OPTIONS_GHC -Wall #-}
+module Docs.AST
+  ( Centralized(..), Checked(..)
+  , Value(..), RawValue, GoodValue
+  , Alias(..), RawAlias, GoodAlias
+  , Union(..), RawUnion, GoodUnion
+  )
+  where
+
 
 import qualified Data.Map as Map
 import Data.Text (Text)
@@ -7,40 +15,77 @@ import qualified Elm.Compiler.Type as Type
 import qualified Reporting.Annotation as A
 
 
--- FULL DOCUMENTATION
 
-data Docs t =
-  Docs
+-- DOCS
+
+
+data Centralized =
+  Centralized
     { comment :: Text
-    , aliases :: Map.Map Text (A.Located Alias)
-    , types :: Map.Map Text (A.Located Union)
-    , values :: Map.Map Text (A.Located (Value t))
+    , values :: Map.Map Text (A.Located RawValue)
+    , aliases :: Map.Map Text (A.Located RawAlias)
+    , unions :: Map.Map Text (A.Located RawUnion)
     }
 
 
-type Centralized = Docs (Maybe Type.Type)
+data Checked =
+  Checked
+    { _comment :: Text
+    , _values :: Map.Map Text GoodValue
+    , _aliases :: Map.Map Text GoodAlias
+    , _unions :: Map.Map Text GoodUnion
+    }
 
-type Checked = Docs Type.Type
 
 
--- VALUE DOCUMENTATION
+-- VALUES
 
-data Alias = Alias
-    { aliasComment :: Maybe Text
+
+data Value comment tipe =
+  Value
+    { valueComment :: comment
+    , valueType :: tipe
+    , valueAssocPrec :: Maybe (Text,Int)
+    }
+
+
+type RawValue = Value (Maybe Text) (Maybe Type.Type)
+
+
+type GoodValue = Value Text Type.Type
+
+
+
+-- ALIAS
+
+
+data Alias comment =
+  Alias
+    { aliasComment :: comment
     , aliasArgs :: [Text]
     , aliasType :: Type.Type
     }
 
 
-data Union = Union
-    { unionComment :: Maybe Text
+type RawAlias = Alias (Maybe Text)
+
+
+type GoodAlias = Alias Text
+
+
+
+-- UNION
+
+
+data Union comment =
+  Union
+    { unionComment :: comment
     , unionArgs :: [Text]
     , unionCases :: [(Text, [Type.Type])]
     }
 
 
-data Value t = Value
-    { valueComment :: Maybe Text
-    , valueType :: t
-    , valueAssocPrec :: Maybe (Text,Int)
-    }
+type RawUnion = Union (Maybe Text)
+
+
+type GoodUnion = Union Text

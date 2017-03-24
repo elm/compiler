@@ -215,7 +215,7 @@ fromRawType (A.A _ astType) =
           Var x
 
       Type.RType var ->
-          Type (Var.toText var)
+          Type (Var.rawToText var)
 
       Type.RApp t ts ->
           App (fromRawType t) (map fromRawType ts)

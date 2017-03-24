@@ -1,14 +1,18 @@
-module Docs.Check (check) where
+{-# OPTIONS_GHC -Wall #-}
+module Docs.Check
+  ( check
+  )
+  where
 
-import qualified Data.List as List
+
+import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
 
-import qualified AST.Variable as Var
+import qualified AST.Exposing as Exposing
 import qualified Docs.AST as Docs
 import qualified Elm.Compiler.Type as Type
-import Elm.Utils ((|>))
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error as Error
 import qualified Reporting.Error.Docs as E
@@ -24,10 +28,10 @@ import Parse.Helpers
 
 
 
--- CHECK DOCUMENTATION
+-- CHECK
 
 
-check :: [Var.Value] -> A.Located (Maybe Docs.Centralized) -> R.Result () w Error.Error Docs.Checked
+check :: Exposing.Canonical -> A.Located (Maybe Docs.Centralized) -> R.Result () w Error.Error Docs.Checked
 check exports (A.A region maybeDocs) =
   case maybeDocs of
     Nothing ->
@@ -37,122 +41,141 @@ check exports (A.A region maybeDocs) =
       checkHelp region exports docs
 
 
-checkHelp :: R.Region -> [Var.Value] -> Docs.Centralized -> R.Result () w Error.Error Docs.Checked
-checkHelp region exports (Docs.Docs comment aliases types values) =
-  let
-    exportedUnions =
-      map (\(tipe, Var.Listing tags _) -> (tipe, tags)) (Var.getUnions exports)
-  in
-    do  docNames <- parseNames region comment
-        let docSet = Set.fromList (map A.drop docNames)
-        R.mapError Error.Docs $
-          (\() -> Docs.Docs comment)
-            <$> checkModuleComment region exports docNames
-            <*> checkCategory docSet (checkComment Docs.aliasComment) aliases
-            <*> checkCategory docSet (checkUnion exportedUnions) types
-            <*> checkCategory docSet checkValue values
+checkHelp :: R.Region -> Exposing.Canonical -> Docs.Centralized -> R.Result () w Error.Error Docs.Checked
+checkHelp region exposing (Docs.Centralized comment values aliases unions) =
+  do  docNames <- parseNames region comment
+
+      let docSet = Set.fromList (map A.drop docNames)
+      let restrict checker dict =
+            Map.traverseWithKey checker (Map.restrictKeys dict docSet)
+
+      R.mapError Error.Docs $
+        Docs.Checked comment
+          <$> restrict checkValue values
+          <*> restrict checkAlias aliases
+          <*> restrict (checkUnion exposing) unions
+          <*  checkCommentNames region exposing docNames
+
+
+
+-- CHECK COMMENT NAMES
 
 
 type Result w a = R.Result () w E.Error a
 
 
-checkCategory
-  :: Set.Set Text
-  -> (Text -> a -> Result w b)
-  -> Map.Map Text a
-  -> Result w (Map.Map Text b)
-checkCategory docSet checker dict =
-  dict
-    |> Map.filterWithKey (\key _ -> Set.member key docSet)
-    |> Map.mapWithKey checker
-    |> traverse id
-
-
-checkComment :: (a -> Maybe Text) -> Text -> A.Located a -> Result w (A.Located a)
-checkComment getComment name (A.A region value) =
-  case getComment value of
-    Nothing ->
-        R.throw region (E.NoComment name)
-
-    Just _ ->
-        R.ok (A.A region value)
-
-
-checkUnion :: [(Text, [Text])] -> Text -> A.Located Docs.Union -> Result w (A.Located Docs.Union)
-checkUnion exportedUnions name value =
-  const
-    <$> filterUnionTags exportedUnions name value
-    <*> checkComment Docs.unionComment name value
-
-
-filterUnionTags :: [(Text, [Text])] -> Text -> A.Located Docs.Union -> Result w (A.Located Docs.Union)
-filterUnionTags exportedUnions name (A.A region union@(Docs.Union _ _ ctors)) =
+checkCommentNames :: R.Region -> Exposing.Canonical -> [A.Located Text] -> Result w ()
+checkCommentNames region (Exposing.Canonical values aliases unions) docNames =
   let
-    exportedTags =
-      maybe [] id (List.lookup name exportedUnions)
-  in
-    R.ok $ A.A region $ union
-      { Docs.unionCases =
-          filter (\(tag, _) -> elem tag exportedTags) ctors
-      }
+    addUnit name =
+      ( name, () )
 
-
-
-checkValue :: Text -> A.Located (Docs.Value (Maybe Type.Type)) -> Result w (A.Located (Docs.Value Type.Type))
-checkValue name value =
-  const
-    <$> hasType name value
-    <*> checkComment Docs.valueComment name value
-
-
-hasType :: Text -> A.Located (Docs.Value (Maybe Type.Type)) -> Result w (A.Located (Docs.Value Type.Type))
-hasType name (A.A region value) =
-  case Docs.valueType value of
-    Just tipe ->
-        R.ok (A.A region (value { Docs.valueType = tipe }))
-
-    Nothing ->
-        R.throw region (E.NoType name)
-
-
-
--- CHECK MODULE COMMENT
-
-
-checkModuleComment :: R.Region -> [Var.Value] -> [A.Located Text] -> Result w ()
-checkModuleComment docRegion exports locatedDocNames =
-  let
-    exportNames =
-      map valueName exports
-
-    exportDict =
-      Map.fromList (map (\name -> (name, ())) exportNames)
+    exposed =
+      Map.fromList $ map addUnit $
+        values ++ aliases ++ map fst unions
 
     docDict =
-      Map.fromList (map (\(A.A region name) -> (name, region)) locatedDocNames)
-
-    extraNameError (name, region) =
-      R.throw region (E.OnlyInDocs name (Help.nearbyNames id name exportNames))
-
-    docErrors =
-      Map.difference docDict exportDict
-        |> Map.toList
-        |> traverse extraNameError
-
-    namesOnlyInExports =
-      Map.difference exportDict docDict
-        |> Map.toList
-        |> map fst
-
-    exportErrors =
-      if null namesOnlyInExports then
-          R.ok ()
-      else
-          R.throw docRegion (E.OnlyInExports namesOnlyInExports)
+      A.listToDict id docNames
   in
-    (\_ _ -> ())
-      <$> exportErrors
-      <*> docErrors
+    checkOnlyInExports region (Map.difference exposed docDict)
+      <* Map.traverseMaybeWithKey (checkDocName exposed) docDict
+
+
+checkOnlyInExports :: R.Region -> Map.Map Text () -> Result w ()
+checkOnlyInExports region onlyInExports =
+  case Map.keys onlyInExports of
+    [] ->
+      R.ok ()
+
+    names ->
+      R.throw region (E.OnlyInExports names)
+
+
+checkDocName :: Map.Map Text () -> Text -> NonEmpty R.Region -> Result w (Maybe a)
+checkDocName exposed name (region :| duplicates) =
+  case duplicates of
+    [] ->
+      if Map.member name exposed then
+        R.ok Nothing
+
+      else
+        R.throw region $ E.OnlyInDocs name $
+          Help.nearbyNames id name (Map.keys exposed)
+
+    _ ->
+      R.throw region (E.Duplicates name)
+
+
+
+-- CHECK COMMENT
+
+
+checkComment :: R.Region -> Text -> Maybe Text -> Result w Text
+checkComment region name maybeComment =
+  case maybeComment of
+    Just comment ->
+      R.ok comment
+
+    Nothing ->
+      R.throw region (E.NoComment name)
+
+
+
+-- CHECK VALUE
+
+
+checkValue :: Text -> A.Located Docs.RawValue -> Result w Docs.GoodValue
+checkValue name (A.A region (Docs.Value comment tipe assocPrec)) =
+  Docs.Value
+    <$> checkComment region name comment
+    <*> checkValueType region name tipe
+    <*> pure assocPrec
+
+
+checkValueType :: R.Region -> Text -> Maybe Type.Type -> Result w Type.Type
+checkValueType region name maybeType =
+  case maybeType of
+    Just tipe ->
+      R.ok tipe
+
+    Nothing ->
+      R.throw region (E.NoType name)
+
+
+
+-- CHECK ALIAS
+
+
+checkAlias :: Text -> A.Located Docs.RawAlias -> Result w Docs.GoodAlias
+checkAlias name (A.A region (Docs.Alias comment args tipe)) =
+  Docs.Alias
+    <$> checkComment region name comment
+    <*> pure args
+    <*> pure tipe
+
+
+
+-- CHECK UNION
+
+
+checkUnion :: Exposing.Canonical -> Text -> A.Located Docs.RawUnion -> Result w Docs.GoodUnion
+checkUnion (Exposing.Canonical _ _ unions) name (A.A region (Docs.Union comment args ctors)) =
+  Docs.Union
+    <$> checkComment region name comment
+    <*> pure args
+    <*> checkUnionCtors (Map.fromList unions) name ctors
+
+
+checkUnionCtors :: Map.Map Text [Text] -> Text -> [(Text, [Type.Type])] -> Result w [(Text, [Type.Type])]
+checkUnionCtors unions name ctors =
+  let
+    publicCtors =
+      maybe [] id (Map.lookup name unions)
+
+    isPublic (ctor, _) =
+      ctor `elem` publicCtors
+  in
+    R.ok $ filter isPublic ctors
 
 
 
@@ -167,7 +190,6 @@ parseNames (R.Region (R.Position row col) _) comment =
 
     Right names ->
       R.ok names
-
 
 
 namesParser :: [A.Located Text] -> Parser [A.Located Text]
@@ -204,11 +226,3 @@ operator =
       op <- infixOp
       rightParen
       return op
-
-
-valueName :: Var.Value -> Text
-valueName value =
-  case value of
-    Var.Value name -> name
-    Var.Alias name -> name
-    Var.Union name _ -> name

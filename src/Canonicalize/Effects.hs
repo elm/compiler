@@ -1,6 +1,11 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Canonicalize.Effects (canonicalize, toValues, checkPortType) where
+module Canonicalize.Effects
+  ( canonicalize
+  , toExposedValues
+  , checkPortType
+  )
+  where
 
 import qualified Data.Foldable as F
 import Data.Text (Text)
@@ -21,8 +26,8 @@ import Canonicalize.Variable (Result)
 -- TO EXPORT VALUES
 
 
-toValues :: Effects.Raw -> [Var.Value]
-toValues effects =
+toExposedValues :: Effects.Raw -> [Text]
+toExposedValues effects =
   case effects of
     Effects.None ->
       []
@@ -31,7 +36,7 @@ toValues effects =
       []
 
     Effects.Port ports ->
-      map (Var.Value . Effects._rawName . A.drop) ports
+      map (Effects._rawName . A.drop) ports
 
 
 

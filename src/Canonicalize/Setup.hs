@@ -12,6 +12,7 @@ import Data.Text (Text)
 
 import qualified AST.Declaration as D
 import qualified AST.Effects as Effects
+import qualified AST.Exposing as Exposing
 import qualified AST.Expression.Source as Src
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
@@ -66,10 +67,10 @@ environment importDict interfaces (Module.Module name info) =
 
 
 importToPatches
-    :: Map.Map ModuleName.Raw ModuleName.Canonical
-    -> Module.Interfaces
-    -> A.Located (ModuleName.Raw, Module.ImportMethod)
-    -> Result [Env.Patch]
+  :: Map.Map ModuleName.Raw ModuleName.Canonical
+  -> Module.Interfaces
+  -> A.Located (ModuleName.Raw, Module.ImportMethod)
+  -> Result [Env.Patch]
 importToPatches importDict allInterfaces (A.A region (rawImportName, method)) =
   let
     maybeInterface =
@@ -95,9 +96,6 @@ importToPatches importDict allInterfaces (A.A region (rawImportName, method)) =
         (Module.ImportMethod maybeAlias listing) =
           method
 
-        (Var.Listing exposedValues open) =
-          listing
-
         qualifier =
           maybe (ModuleName.toText rawImportName) id maybeAlias
 
@@ -108,11 +106,12 @@ importToPatches importDict allInterfaces (A.A region (rawImportName, method)) =
           interfaceToPatches importName (qualifier <> ".") interface
 
         unqualifiedPatches =
-          if open then
-            Result.ok (interfaceToPatches importName "" interface)
+          case listing of
+            Exposing.Open ->
+              Result.ok (interfaceToPatches importName "" interface)
 
-          else
-            concat <$> traverse (valueToPatches region importName interface) exposedValues
+            Exposing.Explicit xs ->
+              concat <$> traverse (entryToPatches importName interface) xs
       in
         (++) (infixPatches ++ qualifiedPatches) <$> unqualifiedPatches
 
@@ -154,76 +153,76 @@ interfaceToPatches moduleName prefix interface =
 
 
 
--- PATCHES FOR INDIVIDUAL VALUES
+-- PATCHES FOR INDIVIDUAL ENTRIES
 
 
-valueToPatches
-    :: R.Region
-    -> ModuleName.Canonical
-    -> Module.Interface
-    -> Var.Value
-    -> Result [Env.Patch]
-valueToPatches region moduleName interface value =
+entryToPatches
+  :: ModuleName.Canonical
+  -> Module.Interface
+  -> A.Located Exposing.Entry
+  -> Result [Env.Patch]
+entryToPatches moduleName interface (A.A region entry) =
   let
-    patch mkPatch x =
-      mkPatch x (Var.fromModule moduleName x)
+    patch mkPatch name =
+      mkPatch name (Var.fromModule moduleName name)
 
-    patternPatch (x, numArgs) =
-      Env.Pattern x (Var.fromModule moduleName x, numArgs)
+    patternPatch (name, numArgs) =
+      Env.Pattern name (Var.fromModule moduleName name, numArgs)
 
-    notFound getNames x =
+    notFound subRegion getNames name =
       Module.iExports interface
         |> getNames
-        |> Help.nearbyNames id x
-        |> Error.valueNotFound (ModuleName._module moduleName) x
-        |> Result.throw region
+        |> Help.nearbyNames id name
+        |> Error.valueNotFound (ModuleName._module moduleName) name
+        |> Result.throw subRegion
   in
-  case value of
-    Var.Value x ->
-      if Map.notMember x (Module.iTypes interface) then
-          notFound Var.getValues x
+  case entry of
+    Exposing.Lower name ->
+      if Map.notMember name (Module.iTypes interface) then
+          notFound region Exposing._values name
 
       else
-          Result.ok [patch Env.Value x]
+          Result.ok [patch Env.Value name]
 
-    Var.Alias x ->
+    Exposing.Upper x Nothing ->
       case Map.lookup x (Module.iAliases interface) of
         Just (tvars, t) ->
-            let
-              alias =
-                Env.Alias x (Var.fromModule moduleName x, tvars, t)
-            in
-              Result.ok $
-                if Map.member x (Module.iTypes interface) then
-                  [alias, patch Env.Value x]
+          let
+            alias =
+              Env.Alias x (Var.fromModule moduleName x, tvars, t)
+          in
+            Result.ok $
+              if Map.member x (Module.iTypes interface) then
+                [alias, patch Env.Value x]
 
-                else
-                  [alias]
+              else
+                [alias]
 
         Nothing ->
-            case Map.lookup x (Module.iUnions interface) of
-              Just (_,_) ->
-                  Result.ok [patch Env.Union x]
+          case Map.lookup x (Module.iUnions interface) of
+            Just (_,_) ->
+              Result.ok [patch Env.Union x]
 
-              Nothing ->
-                  let getNames values =
-                          Var.getAliases values
-                          ++ map fst (Var.getUnions values)
-                  in
-                      notFound getNames x
+            Nothing ->
+              let getNames values =
+                    Exposing._aliases values
+                    ++ map fst (Exposing._unions values)
+              in
+                notFound region getNames x
 
-    Var.Union givenName (Var.Listing givenCtorNames open) ->
+    Exposing.Upper givenName (Just exposing) ->
       case Map.lookup givenName (Module.iUnions interface) of
         Nothing ->
-            notFound (map fst . Var.getUnions) givenName
+          notFound region (map fst . Exposing._unions) givenName
 
         Just (_tvars, realCtors) ->
-            patches <$>
-                if open then
-                  Result.ok realCtorList
+          patches <$>
+            case exposing of
+              Exposing.Open ->
+                Result.ok realCtorList
 
-                else
-                  traverse ctorExists givenCtorNames
+              Exposing.Explicit xs ->
+                traverse ctorExists xs
           where
             realCtorList =
                 map (second length) realCtors
@@ -231,13 +230,13 @@ valueToPatches region moduleName interface value =
             realCtorDict =
                 Map.fromList realCtorList
 
-            ctorExists givenCtorName =
+            ctorExists (A.A ctorRegion givenCtorName) =
                 case Map.lookup givenCtorName realCtorDict of
                   Just numArgs ->
-                      Result.ok (givenCtorName, numArgs)
+                    Result.ok (givenCtorName, numArgs)
 
                   Nothing ->
-                      notFound (const (map fst realCtors)) givenCtorName
+                    notFound ctorRegion (const (map fst realCtors)) givenCtorName
 
             patches ctors =
                 patch Env.Union givenName
@@ -406,35 +405,21 @@ effectsToPatches moduleName effects =
 
 restrictToPublicApi :: Module.Interface -> Module.Interface
 restrictToPublicApi interface =
+  let
+    (Exposing.Canonical values aliases unions) =
+      Module.iExports interface
+  in
     interface
-    { Module.iTypes =
-        Map.fromList $
-          Maybe.mapMaybe
-            (get (Module.iTypes interface))
-            (Var.getValues exports ++ ctors)
+      { Module.iTypes = Map.fromList $
+          Maybe.mapMaybe (get (Module.iTypes interface)) (values ++ concatMap snd unions)
 
-    , Module.iAliases =
-        Map.fromList $
-          Maybe.mapMaybe
-            (get (Module.iAliases interface))
-            (Var.getAliases exports)
+      , Module.iAliases = Map.fromList $
+          Maybe.mapMaybe (get (Module.iAliases interface)) aliases
 
-    , Module.iUnions =
-        Map.fromList
-          (Maybe.mapMaybe (trimUnions interface) unions)
-    }
-  where
-    exports :: [Var.Value]
-    exports =
-        Module.iExports interface
+      , Module.iUnions = Map.fromList $
+          Maybe.mapMaybe (trimUnions interface) unions
+      }
 
-    unions :: [(Text, Var.Listing Text)]
-    unions =
-        Var.getUnions exports
-
-    ctors :: [Text]
-    ctors =
-        concatMap (\(_, Var.Listing ctorList _) -> ctorList) unions
 
 
 get :: Map.Map Text a -> Text -> Maybe (Text, a)
@@ -447,18 +432,15 @@ get dict key =
       Just (key, value)
 
 
-trimUnions
-    :: Module.Interface
-    -> (Text, Var.Listing Text)
-    -> Maybe (Text, Module.UnionInfo Text)
-trimUnions interface (name, Var.Listing exportedCtors _) =
+trimUnions :: Module.Interface -> (Text, [Text]) -> Maybe (Text, Module.UnionInfo Text)
+trimUnions interface (name, exposedCtors) =
   case Map.lookup name (Module.iUnions interface) of
     Nothing ->
       Nothing
 
     Just (tvars, ctors) ->
       let
-        isExported (ctor, _) =
-          ctor `elem` exportedCtors
+        isExposed (ctor, _) =
+          ctor `elem` exposedCtors
       in
-        Just (name, (tvars, filter isExported ctors))
+        Just (name, (tvars, filter isExposed ctors))

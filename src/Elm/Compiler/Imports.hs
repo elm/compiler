@@ -4,11 +4,15 @@ module Elm.Compiler.Imports (defaults) where
 
 import Data.Text (Text)
 
+import qualified AST.Exposing as E
 import qualified AST.Module as Module
-import qualified AST.Variable as Var
+import qualified Reporting.Annotation as A
+import qualified Reporting.Region as R
+
 
 
 -- DEFAULT IMPORTS
+
 
 (==>) :: a -> b -> (a,b)
 (==>) = (,)
@@ -16,30 +20,39 @@ import qualified AST.Variable as Var
 
 defaults :: [Module.DefaultImport]
 defaults =
-    [ "Basics" ==> Module.ImportMethod Nothing Var.openListing
-    , "Debug" ==> Module.ImportMethod Nothing Var.closedListing
-    , "List" ==> exposing [Var.Value "::"]
-    , "Maybe" ==> exposing [Var.Union "Maybe" Var.openListing]
-    , "Result" ==> exposing [Var.Union "Result" Var.openListing]
-    , "String" ==> Module.ImportMethod Nothing Var.closedListing
-    , "Tuple" ==> Module.ImportMethod Nothing Var.closedListing
+    [ "Basics" ==> Module.ImportMethod Nothing E.Open
+    , "Debug" ==> Module.ImportMethod Nothing E.closed
+    , "List" ==> exposing [E.Lower "::"]
+    , "Maybe" ==> exposing [E.Upper "Maybe" (Just E.Open)]
+    , "Result" ==> exposing [E.Upper "Result" (Just E.Open)]
+    , "String" ==> Module.ImportMethod Nothing E.closed
+    , "Tuple" ==> Module.ImportMethod Nothing E.closed
     , "Platform" ==> exposing [closedType "Program"]
-    , "Platform.Cmd" ==> named "Cmd" [closedType "Cmd", Var.Value "!"]
+    , "Platform.Cmd" ==> named "Cmd" [closedType "Cmd", E.Lower "!"]
     , "Platform.Sub" ==> named "Sub" [closedType "Sub"]
     ]
 
 
-exposing :: [Var.Value] -> Module.ImportMethod
-exposing vars =
-  Module.ImportMethod Nothing (Var.listing vars)
+exposing :: [E.Entry] -> Module.ImportMethod
+exposing entries =
+  Module.ImportMethod Nothing (explicit entries)
 
 
-closedType :: Text -> Var.Value
+closedType :: Text -> E.Entry
 closedType name =
-  Var.Union name Var.closedListing
+  E.Upper name Nothing
 
 
-named :: Text -> [Var.Value] -> Module.ImportMethod
-named name vars =
-  Module.ImportMethod (Just name) (Var.listing vars)
+named :: Text -> [E.Entry] -> Module.ImportMethod
+named name entries =
+  Module.ImportMethod (Just name) (explicit entries)
 
+
+explicit :: [E.Entry] -> E.Raw
+explicit entries =
+  E.Explicit (map (A.A nowhere) entries)
+
+
+nowhere :: R.Region
+nowhere =
+  R.Region (R.Position 1 1) (R.Position 1 1)

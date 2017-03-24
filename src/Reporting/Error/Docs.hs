@@ -14,6 +14,7 @@ data Error
     = NoDocs
     | OnlyInDocs Text [Text]
     | OnlyInExports [Text]
+    | Duplicates Text
     | NoComment Text
     | NoType Text
 
@@ -58,11 +59,20 @@ toReport err =
               <> "Learn more at <http://package.elm-lang.org/help/documentation-format>"
           )
 
+    Duplicates name ->
+        Report.report
+          "DOCUMENTATION ERROR"
+          Nothing
+          ( "There can only be one `" <> name <> "` in your module documentation."
+          )
+          ( text "Remove one of them!"
+          )
+
     NoComment name ->
         Report.report
           "DOCUMENTATION ERROR"
           Nothing
-          ("The value `" <> name <> "` does not have a documentation comment.")
+          ("The `" <> name <> "` definition does not have a documentation comment.")
           ( text "Learn more at <http://package.elm-lang.org/help/documentation-format>"
           )
 
@@ -70,7 +80,7 @@ toReport err =
         Report.report
           "MISSING ANNOTATION"
           Nothing
-          ("The value `" <> name <> "` does not have a type annotation.")
+          ("The `" <> name <> "` definition does not have a type annotation.")
           ( text $
               "Adding type annotations is best practice and it gives you a chance to name\n"
               <> "types and type variables so they are as easy as possible to understand!"

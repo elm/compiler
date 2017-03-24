@@ -70,7 +70,7 @@ toText pattern =
 toBuilder :: Bool -> Pattern -> Builder
 toBuilder needsParens pattern =
   case pattern of
-    Ctor tag [first,rest] | Var.toText tag == "::" ->
+    Ctor tag [first,rest] | Var.isCons tag ->
         toBuilder (isCons first) first <> " :: " <> toBuilder False rest
 
     Ctor tag args ->
@@ -104,7 +104,7 @@ isCons :: Pattern -> Bool
 isCons pattern =
   case pattern of
     Ctor tag [_,_] ->
-        Var.toText tag == "::"
+        Var.isCons tag
 
     _ ->
         False

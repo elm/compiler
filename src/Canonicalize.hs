@@ -3,6 +3,7 @@ module Canonicalize (module') where
 
 import Prelude hiding (last)
 import qualified Data.Foldable as T
+import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
@@ -10,6 +11,8 @@ import qualified Data.Set as Set
 import Data.Text (Text)
 
 import qualified AST.Declaration as D
+import qualified AST.Effects as Effects
+import qualified AST.Exposing as Exposing
 import qualified AST.Expression.Source as Src
 import qualified AST.Expression.Canonical as C
 import qualified AST.Module as Module
@@ -57,7 +60,7 @@ module' importDict interfaces modul =
       do  env <- Setup.environment importDict interfaces modul
 
           (,,,) env
-            <$> resolveExports (Effects.toValues effects ++ declsToValues decls) exports
+            <$> resolveExports (getInternalApi effects decls) exports
             <*> canonicalizeDecls env decls
             <*> Effects.canonicalize env effects
   in
@@ -135,77 +138,98 @@ type CResult a =
 -- EXPORTS
 
 
-resolveExports :: [Var.Value] -> Var.Listing (A.Located Var.Value) -> CResult [Var.Value]
-resolveExports fullList (Var.Listing partialList open) =
-  if open then
-    Result.ok fullList
+resolveExports :: Exposing.Canonical -> Exposing.Raw -> CResult Exposing.Canonical
+resolveExports internalApi@(Exposing.Canonical values aliases unions) rawExposing =
+  case rawExposing of
+    Exposing.Open ->
+      Result.ok internalApi
 
-  else
-    let
-      (allValues, allAliases, allAdts) =
-          maybeUnzip3 (map splitValue fullList)
+    Exposing.Explicit entries ->
+      let
+        valueSet = Set.fromList values
+        aliasSet = Set.fromList aliases
+        unionMap = Map.fromList unions
+      in
+        case List.foldl' (resolveEntry valueSet aliasSet unionMap) (Exposing.nothing, []) entries of
+          (exposing, []) ->
+            do  checkForDups entries
+                Result.ok exposing
 
-      (values, aliases, adts) =
-          maybeUnzip3 (map splitLocatedValue partialList)
-
-      adtTypes =
-          map fst allAdts
-    in
-      (\xs ys zs _ -> xs ++ ys ++ zs)
-        <$> traverse (getValueExport allValues (Set.fromList allValues)) values
-        <*> (concat <$> traverse (getAliasExport allValues allAliases adtTypes) aliases)
-        <*> traverse (getAdtExport allAdts adtTypes) adts
-        <*> allUnique partialList
+          (_, errors) ->
+            Result.throwMany errors
 
 
-getValueExport :: [Text] -> Set.Set Text -> A.Located Text -> CResult Var.Value
-getValueExport allValues allValuesSet (A.A region name) =
-  if Set.member name allValuesSet then
-    Result.ok (Var.Value name)
-  else
-    manyNotFound region [name] allValues
+resolveEntry
+  :: Set.Set Text
+  -> Set.Set Text
+  -> Map.Map Text [Text]
+  -> (Exposing.Canonical, [A.Located CError.Error])
+  -> A.Located Exposing.Entry
+  -> (Exposing.Canonical, [A.Located CError.Error])
+resolveEntry vSet aSet uSet (exposing@(Exposing.Canonical values aliases unions), errors) (A.A region entry) =
+  case entry of
+    Exposing.Lower name ->
+      if Set.member name vSet then
+        ( Exposing.Canonical (name:values) aliases unions
+        , errors
+        )
 
+      else
+        ( exposing
+        , notFound region (Set.toList vSet) name : errors
+        )
 
-getAliasExport :: [Text] -> [Text] -> [Text] -> A.Located Text -> CResult [Var.Value]
-getAliasExport allValues allAliases adtTypes (A.A region alias) =
-  if alias `elem` allAliases then
+    Exposing.Upper name Nothing ->
+      if Set.member name aSet then
+        ( Exposing.Canonical
+            (if Set.member name vSet then name:values else values)
+            (name:aliases)
+            unions
+        , errors
+        )
 
-      Result.ok $ (:) (Var.Alias alias) $
-          if alias `elem` allValues then [Var.Value alias] else []
+      else if Map.member name uSet then
+        ( Exposing.Canonical values aliases ((name, []) : unions)
+        , errors
+        )
 
-  else if List.elem alias adtTypes then
+      else
+        ( exposing
+        , notFound region (Set.toList aSet ++ Map.keys uSet) name : errors
+        )
 
-      Result.ok [Var.Union alias (Var.Listing [] False)]
+    Exposing.Upper name (Just exposedCtors) ->
+      case Map.lookup name uSet of
+        Nothing ->
+          ( exposing
+          , notFound region (Map.keys uSet) name : errors
+          )
 
-  else
+        Just allCtors ->
+          case exposedCtors of
+            Exposing.Open ->
+              ( Exposing.Canonical values aliases ((name, allCtors) : unions)
+              , errors
+              )
 
-      manyNotFound region [alias] (allAliases ++ adtTypes)
+            Exposing.Explicit ctors ->
+              let
+                isNotKnown (A.A _ ctor) =
+                  ctor `notElem` allCtors
 
+                notKnown (A.A ctorRegion ctor) =
+                  notFound ctorRegion allCtors ctor
+              in
+                case filter isNotKnown ctors of
+                  [] ->
+                    ( Exposing.Canonical values aliases ((name, map A.drop ctors) : unions)
+                    , errors
+                    )
 
-getAdtExport
-    :: [(Text, Var.Listing Text)]
-    -> [Text]
-    -> A.Located (Text, Var.Listing Text)
-    -> CResult Var.Value
-getAdtExport allAdts adtTypes (A.A region (name, Var.Listing ctors open)) =
-  case List.lookup name allAdts of
-    Nothing ->
-        manyNotFound region [name] adtTypes
-
-    Just (Var.Listing allCtors _) ->
-        if open then
-            Result.ok (Var.Union name (Var.Listing allCtors False))
-        else
-          case filter (`notElem` allCtors) ctors of
-            [] ->
-                Result.ok (Var.Union name (Var.Listing ctors False))
-            unfoundCtors ->
-                manyNotFound region unfoundCtors allCtors
-
-
-manyNotFound :: Region.Region -> [Text] -> [Text] -> CResult a
-manyNotFound region nameList possibilities =
-    Result.throwMany (map (notFound region possibilities) nameList)
+                  unfoundCtors ->
+                    ( exposing
+                    , map notKnown unfoundCtors ++ errors
+                    )
 
 
 notFound :: Region.Region -> [Text] -> Text -> A.Located CError.Error
@@ -214,100 +238,61 @@ notFound region possibilities badName =
       Help.nearbyNames id badName possibilities
 
 
-allUnique :: [A.Located Var.Value] -> CResult ()
-allUnique statedExports =
+checkForDups :: [A.Located Exposing.Entry] -> CResult ()
+checkForDups entries =
   let
-    valueToText value =
-        case value of
-          Var.Value name -> name
-          Var.Alias name -> name
-          Var.Union name _ -> name
-
     locations =
-        Map.fromListWith (++) (map (\(A.A region value) -> (value, [region])) statedExports)
+      A.listToDict Exposing.getName entries
 
-    isUnique value allRegions =
-        case allRegions of
-          region : _ : _ ->
-              Result.throw region (CError.DuplicateExport (valueToText value))
+    isUnique name (region :| duplicates) =
+      case duplicates of
+        [] ->
+          Result.ok ()
 
-          _ ->
-              Result.ok ()
+        _ ->
+          Result.throw region (CError.DuplicateExport name)
   in
     T.sequenceA_ (Map.mapWithKey isUnique locations)
 
 
 
--- CONVERSIONS
+-- ALL POSSIBLE EXPOSED VALUES
 
 
-declsToValues :: D.Valid -> [Var.Value]
-declsToValues (D.Decls defs unions aliases _) =
+getInternalApi :: Effects.Raw -> D.Valid -> Exposing.Canonical
+getInternalApi effects (D.Decls defs unions aliases _) =
   let
-    fromDef (A.A _ def) =
-      map Var.Value (P.boundVarList (Src.getPattern def))
-
-    fromUnion (A.A _ (D.Type name _ ctors)) =
-      Var.Union name (Var.Listing (map fst ctors) False)
-
-    fromAlias (A.A _ (D.Type name _ tipe)) =
-      case tipe of
-        A.A _ (Type.RRecord _ Nothing) ->
-          [ Var.Alias name, Var.Value name ]
-
-        _ ->
-          [ Var.Alias name ]
+    values =
+      Effects.toExposedValues effects
+      ++ concatMap getAliasValues aliases
+      ++ concatMap getDefValues defs
   in
-    concat
-      [ map fromUnion unions
-      , concatMap fromAlias aliases
-      , concatMap fromDef defs
-      ]
+    Exposing.Canonical values (map getAlias aliases) (map getUnion unions)
 
 
-
--- GROUPING VALUES
-
-
-maybeUnzip3 :: [(Maybe a, Maybe b, Maybe c)] -> ([a],[b],[c])
-maybeUnzip3 tuples =
-  let (as, bs, cs) = unzip3 tuples
-  in
-    (Maybe.catMaybes as, Maybe.catMaybes bs, Maybe.catMaybes cs)
+getDefValues :: A.Commented Src.ValidDef -> [Text]
+getDefValues (A.A _ def) =
+  P.boundVarList (Src.getPattern def)
 
 
-splitValue
-    :: Var.Value
-    -> ( Maybe Text, Maybe Text, Maybe (Text, Var.Listing Text) )
-splitValue value =
-  case value of
-    Var.Value name ->
-        (Just name, Nothing, Nothing)
+getAliasValues :: A.Commented (D.Alias Type.Raw) -> [Text]
+getAliasValues (A.A _ (D.Type name _ tipe)) =
+  case tipe of
+    A.A _ (Type.RRecord _ Nothing) ->
+      [ name ]
 
-    Var.Alias name ->
-        (Nothing, Just name, Nothing)
-
-    Var.Union name listing ->
-        (Nothing, Nothing, Just (name, listing))
+    _ ->
+      []
 
 
-splitLocatedValue
-    :: A.Located Var.Value
-    ->
-      ( Maybe (A.Located Text)
-      , Maybe (A.Located Text)
-      , Maybe (A.Located (Text, Var.Listing Text))
-      )
-splitLocatedValue (A.A region value) =
-  case value of
-    Var.Value name ->
-        (Just (A.A region name), Nothing, Nothing)
+getAlias :: A.Commented (D.Alias Type.Raw) -> Text
+getAlias (A.A _ (D.Type name _ _)) =
+  name
 
-    Var.Alias name ->
-        (Nothing, Just (A.A region name), Nothing)
 
-    Var.Union name listing ->
-        (Nothing, Nothing, Just (A.A region (name, listing)))
+getUnion :: A.Commented (D.Union Type.Raw) -> (Text, [Text])
+getUnion (A.A _ (D.Type name _ ctors)) =
+  (name, map fst ctors)
 
 
 
