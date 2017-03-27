@@ -272,12 +272,7 @@ fromClause indent clause =
 
 fromId :: Id -> Builder
 fromId (Id name) =
-  fromText name
-
-
-fromText :: Text -> Builder
-fromText txt =
-  byteString (Text.encodeUtf8 txt)
+  Text.encodeUtf8Builder name
 
 
 
@@ -288,10 +283,10 @@ fromVarDecl :: Builder -> VarDecl -> Builder
 fromVarDecl indent (VarDecl (Id name) maybeExpr) =
   case maybeExpr of
     Nothing ->
-      fromText name
+      Text.encodeUtf8Builder name
 
     Just expr ->
-      fromText name <> " = " <> snd (fromExpr indent Whatever expr)
+      Text.encodeUtf8Builder name <> " = " <> snd (fromExpr indent Whatever expr)
 
 
 
@@ -494,7 +489,7 @@ fromProp prop =
 
 quoted :: Text -> Builder
 quoted str =
-  "'" <> fromText str <> "'"
+  "'" <> Text.encodeUtf8Builder str <> "'"
 
 
 
@@ -505,7 +500,7 @@ fromLValue :: Builder -> LValue -> (Lines, Builder)
 fromLValue indent lValue =
   case lValue of
     LVar name ->
-      (One, fromText name)
+      (One, Text.encodeUtf8Builder name)
 
     LDot expr field ->
       makeDot indent expr field
@@ -520,7 +515,7 @@ makeDot indent expr field =
     (lines, builder) =
       fromExpr indent Atomic expr
   in
-    (lines, builder <> "." <> fromText field)
+    (lines, builder <> "." <> Text.encodeUtf8Builder field)
 
 
 makeBracketed :: Builder -> Expr -> Expr -> (Lines, Builder)
