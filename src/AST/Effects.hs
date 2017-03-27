@@ -1,4 +1,10 @@
-module AST.Effects where
+{-# OPTIONS_GHC -Wall #-}
+module AST.Effects
+  ( Effects(..), Raw, Canonical
+  , Info(..), ManagerType(..)
+  , PortRaw(..), PortCanonical(..), Kind(..)
+  )
+  where
 
 import Data.Text (Text)
 
