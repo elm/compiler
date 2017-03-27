@@ -1,20 +1,39 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Optimize.Environment
-    ( Optimizer, run
-    , Env
-    , getVariantDict
-    , getHome
-    , getTailCall, setTailCall
-    , freshName
-    ) where
+  ( Optimizer, run
+  , Env
+  , getVariantDict
+  , getHome
+  , getTailCall, setTailCall
+  , freshName
+  )
+  where
 
 import qualified Control.Monad.State as State
-import qualified Data.Text as Text
+import Data.Monoid ((<>))
 import Data.Text (Text)
+import qualified Data.Text as Text
 
 import qualified AST.Module.Name as ModuleName
 import qualified Optimize.DecisionTree as DT
+
+
+
+-- ENVIRONMENT
+
+
+data Env =
+  Env
+    { _hasTailCall :: Bool
+    , _uid :: Int
+    , _variantDict :: DT.VariantDict
+    , _home :: ModuleName.Canonical
+    }
+
+
+
+-- OPTIMIZER
 
 
 type Optimizer a =
@@ -26,12 +45,8 @@ run variantDict home optimizer =
   State.evalState optimizer (Env False 0 variantDict home)
 
 
-data Env = Env
-    { _hasTailCall :: Bool
-    , _uid :: Int
-    , _variantDict :: DT.VariantDict
-    , _home :: ModuleName.Canonical
-    }
+
+-- HELPERS
 
 
 getVariantDict :: Optimizer DT.VariantDict
@@ -59,5 +74,5 @@ freshName :: Optimizer Text
 freshName =
   do  (Env htc uid vd home) <- State.get
       State.put (Env htc (uid + 1) vd home)
-      return (Text.append "_p" (Text.pack (show uid)))
+      return ("_p" <> Text.pack (show uid))
 
