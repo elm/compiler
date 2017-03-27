@@ -87,7 +87,7 @@ constrainHelp env moduleName (Effects.Info tagRegion r0 r1 r2 managerType) =
 addEffectArgs
   :: Env.Env
   -> ModuleName.Canonical
-  -> Effects.ManagerType
+  -> Effects.RawManagerType
   -> Variable
   -> Type
   -> Type

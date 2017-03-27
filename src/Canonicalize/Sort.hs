@@ -139,10 +139,10 @@ reorder (A.A region expression) =
       C.Record
         <$> traverse (traverse reorder) fields
 
-    C.Cmd _ ->
+    C.Cmd _ _ ->
       return expression
 
-    C.Sub _ ->
+    C.Sub _ _ ->
       return expression
 
     C.OutgoingPort _ _ ->

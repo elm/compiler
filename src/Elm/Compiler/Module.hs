@@ -1,15 +1,30 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Elm.Compiler.Module
-    ( Module.Interface, Module.Interfaces, Module.privatize
-    , ModuleName.Raw
-    , nameToPath
-    , nameToString, nameFromText
-    , hyphenate, dehyphenate
-    , RawForJson(RawForJson), fromJson
-    , interfaceAliasedTypes, programTypes
-    , ModuleName.Canonical(..), qualifiedVar
-    )
+  -- interfaces
+  ( Module.Interface
+  , Module.Interfaces
+  , Module.privatize
+  , interfaceAliasedTypes
+  , programTypes
+
+  -- module names
+  , ModuleName.Raw
+  , nameToPath
+  , nameToString
+  , nameFromText
+  , hyphenate
+  , dehyphenate
+  , RawForJson(..)
+  , fromJson
+
+  -- canonical names
+  , ModuleName.Canonical(..)
+  , qualifiedVar
+
+  -- variables
+  , Var.Global(..)
+  )
   where
 
 import qualified Data.Aeson as Json
@@ -22,6 +37,7 @@ import System.FilePath ((</>))
 
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
+import qualified AST.Variable as Var
 import qualified Elm.Compiler.Type as PublicType
 import qualified Elm.Compiler.Type.Extract as Extract
 import qualified Generate.JavaScript.Variable as Gen

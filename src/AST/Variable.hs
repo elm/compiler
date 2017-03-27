@@ -1,7 +1,9 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module AST.Variable
-  ( Raw(..), Canonical(..), Home(..)
+  ( Raw(..)
+  , Canonical(..), Home(..)
+  , Global(..)
   , local, topLevel, builtin, fromModule
   , inCore, inHtml, cmd, sub
   , isLocalHome, isCons
@@ -46,6 +48,14 @@ data Canonical =
     , _name :: !Text
     }
     deriving (Eq, Ord)
+
+
+
+-- GLOBAL NAMES
+
+
+data Global = Global !ModuleName.Canonical !Text
+  deriving (Eq, Ord)
 
 
 

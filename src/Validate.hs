@@ -132,7 +132,7 @@ noPorts ports =
 toManagerType
   :: R.Region
   -> Map.Map Text [(R.Region, A.Located Text)]
-  -> Result wrn Effects.ManagerType
+  -> Result wrn Effects.RawManagerType
 toManagerType tagRegion settingsDict =
   let
     toErrors name entries =
@@ -191,7 +191,7 @@ extractOne name settingsDict =
 
 checkManager
   :: R.Region
-  -> Effects.ManagerType
+  -> Effects.RawManagerType
   -> [A.Commented Src.ValidDef]
   -> Result wrn (R.Region, R.Region, R.Region)
 checkManager tagRegion managerType validDefs =
@@ -219,7 +219,7 @@ getSimpleDefRegion decl =
 requireMaps
   :: R.Region
   -> Map.Map Text R.Region
-  -> Effects.ManagerType
+  -> Effects.RawManagerType
   -> Result wrn ()
 requireMaps tagRegion regionDict managerType =
   let

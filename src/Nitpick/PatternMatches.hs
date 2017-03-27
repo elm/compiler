@@ -114,10 +114,10 @@ checkExpression arityDict (A.A region expression) =
     C.Record fields ->
         F.traverse_ (go . snd) fields
 
-    C.Cmd _ ->
+    C.Cmd _ _ ->
         Result.ok ()
 
-    C.Sub _ ->
+    C.Sub _ _ ->
         Result.ok ()
 
     C.OutgoingPort _ _ ->

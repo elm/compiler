@@ -126,7 +126,7 @@ type Canonical =
 
 
 type Optimized =
-  Module (Info [Optimized.Def])
+  Module (Info [(Text, Optimized.Decl)])
 
 
 
@@ -205,19 +205,15 @@ data Interface =
 
 
 toInterface :: Optimized -> Interface
-toInterface modul =
-  let
-    myInfo =
-      info modul
-  in
-    Interface
-      { iExports  = exports myInfo
-      , iImports  = imports myInfo
-      , iTypes    = types myInfo
-      , iUnions   = unions myInfo
-      , iAliases  = aliases myInfo
-      , iFixities = fixities myInfo
-      }
+toInterface (Module _ myInfo) =
+  Interface
+    { iExports  = exports myInfo
+    , iImports  = imports myInfo
+    , iTypes    = types myInfo
+    , iUnions   = unions myInfo
+    , iAliases  = aliases myInfo
+    , iFixities = fixities myInfo
+    }
 
 
 privatize :: Interface -> Maybe Interface

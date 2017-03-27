@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 module AST.Effects
   ( Effects(..), Raw, Canonical
-  , Info(..), ManagerType(..)
+  , Info(..)
+  , RawManagerType(..), ManagerType(..)
   , PortRaw(..), PortCanonical(..), Kind(..)
   )
   where
@@ -42,14 +43,17 @@ data Info =
     , _init :: R.Region
     , _onEffects :: R.Region
     , _onSelfMsg :: R.Region
-    , _managerType :: ManagerType
+    , _managerType :: RawManagerType
     }
 
 
-data ManagerType
+data RawManagerType
   = CmdManager (A.Located Text)
   | SubManager (A.Located Text)
   | FxManager (A.Located Text) (A.Located Text)
+
+
+data ManagerType = Cmds | Subs | Both
 
 
 

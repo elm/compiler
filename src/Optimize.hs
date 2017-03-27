@@ -2,9 +2,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Optimize (optimize) where
 
+import Control.Arrow (second)
 import qualified Control.Monad as M
+import Data.Monoid ((<>))
 import qualified Data.Map as Map
-import qualified Data.Traversable as T
+import qualified Data.Set as Set
+import qualified Data.Text as Text
 import Data.Text (Text)
 
 import qualified AST.Expression.Canonical as Can
@@ -24,77 +27,95 @@ import qualified Reporting.Region as R
 -- OPTIMIZE
 
 
-optimize :: DT.VariantDict -> ModuleName.Canonical -> [Can.Def] -> [Opt.Def]
+optimize :: DT.VariantDict -> ModuleName.Canonical -> [Can.Def] -> [(Text, Opt.Decl)]
 optimize variantDict home defs =
-  Env.run variantDict home (concat <$> mapM (optimizeDef True) defs)
+  concat $ zipWith (optimizeDecl variantDict home) [1 .. length defs] defs
 
 
 
--- CONVERT DEFINITIONS
+-- OPTIMIZE DECLS
 
 
-optimizeDef :: Bool -> Can.Def -> Env.Optimizer [Opt.Def]
-optimizeDef isRoot (Can.Def _ pattern expression _) =
+optimizeDecl :: DT.VariantDict -> ModuleName.Canonical -> Int -> Can.Def -> [(Text, Opt.Decl)]
+optimizeDecl variantDict home index (Can.Def _ pattern@(A.A _ ptrn) expression _) =
   let
-    (args, canBody) =
+    (rawArgs, rawBody) =
       Can.collectLambdas expression
-
-    maybeGetHome =
-      if isRoot then
-        Just <$> Env.getHome
-
-      else
-        return Nothing
   in
-    do  home <- maybeGetHome
-        optimizeDefHelp home pattern args canBody
+    case (ptrn, rawArgs) of
+      (P.Var name, _) ->
+        (:[]) $ Env.run variantDict home $
+          optimizeNamedDef name rawArgs rawBody
+
+      (_, []) ->
+        let
+          name = "_" <> Text.pack (show index)
+          deps = Set.singleton (Var.Global home name)
+          decl =
+            Env.run variantDict home $
+              ((,) name . Opt.Def) <$> optimizeExpr Nothing rawBody
+          destructors =
+            destruct (Var.topLevel home name) pattern
+        in
+          decl : map (second (Opt.Decl deps Nothing)) destructors
+
+      _ ->
+        error "bug manifesting in Optimize.optimizeDecl, please report"
 
 
-optimizeDefHelp
-    :: Maybe ModuleName.Canonical
-    -> P.Canonical
-    -> [P.Canonical]
-    -> Can.Expr
-    -> Env.Optimizer [Opt.Def]
-optimizeDefHelp home pattern@(A.A _ ptrn) rawArgs rawBody =
+
+-- OPTIMIZE DEFS
+
+
+optimizeLetDef :: Can.Def -> Env.Optimizer [(Text, Opt.Def)]
+optimizeLetDef (Can.Def _ pattern@(A.A _ ptrn) expression _) =
   let
-    facts =
-      Opt.Facts home
+    (rawArgs, rawBody) =
+      Can.collectLambdas expression
   in
-  case (ptrn, rawArgs) of
-    (P.Var name, _ : _) ->
+    case (ptrn, rawArgs) of
+      (P.Var name, _) ->
+        do  def <- optimizeNamedDef name rawArgs rawBody
+            return [def]
 
-        do  htc <- Env.getTailCall
-            Env.setTailCall False
-
-            (args, body) <- optimizeFunction (Just name) rawArgs rawBody
-
-            isTailCall <- Env.getTailCall
-            Env.setTailCall htc
-
-            return $
-              if isTailCall then
-                  [ Opt.TailDef facts name args body ]
-
-              else
-                  [ Opt.Def facts name (Opt.Function args body) ]
-
-    (P.Var name, []) ->
-
-        do  hasTailCall <- Env.getTailCall
-            body <- optimizeExpr Nothing rawBody
-            Env.setTailCall hasTailCall
-            return [ Opt.Def facts name body ]
-
-    (_, []) ->
-
+      (_, []) ->
         do  name <- Env.freshName
-            optBody <- optimizeExpr Nothing rawBody
-            let optDef = Opt.Def facts name optBody
-            return (optDef : patternToDefs home name pattern)
+            body <- optimizeExpr Nothing rawBody
+            return $ (name, Opt.Def body) : destruct (Var.local name) pattern
 
-    _ ->
-        error "there should never be a function where the name is not a P.Var"
+      _ ->
+        error "bug manifesting in Optimize.optimizeLetDef, please report"
+
+
+optimizeNamedDef :: Text -> [P.Canonical] -> Can.Expr -> Env.Optimizer (Text, Opt.Def)
+optimizeNamedDef name rawArgs rawBody =
+  case rawArgs of
+    [] ->
+      do  hasTailCall <- Env.getTailCall
+          body <- optimizeExpr Nothing rawBody
+          Env.setTailCall hasTailCall
+          return (name, Opt.Def body)
+
+    _ : _ ->
+      do  htc <- Env.getTailCall
+          Env.setTailCall False
+
+          (args, body) <- optimizeFunction (Just name) rawArgs rawBody
+
+          isTailCall <- Env.getTailCall
+          Env.setTailCall htc
+
+          return $ (,) name $
+            if isTailCall then
+              Opt.TailDef args body
+            else
+              Opt.Def (Opt.Function args body)
+
+
+destruct :: Var.Canonical -> P.Canonical -> [(Text, Opt.Def)]
+destruct var pattern =
+  map (second Opt.Def) $
+    patternToSubstitutions (Opt.Var var) pattern
 
 
 
@@ -114,30 +135,13 @@ optimizeFunction maybeName patterns givenBody =
 
 makeContext :: [Text] -> Text -> Context
 makeContext argNames name =
-    Just (name, length argNames, argNames)
+  Just (name, length argNames, argNames)
 
 
 depatternArgs :: ([Text], Can.Expr) -> P.Canonical -> Env.Optimizer ([Text], Can.Expr)
 depatternArgs (names, rawExpr) ptrn =
-    do  (name, expr) <- depattern ptrn rawExpr
-        return (name : names, expr)
-
-
-patternToDefs :: Maybe ModuleName.Canonical -> Text -> P.Canonical -> [Opt.Def]
-patternToDefs home rootName pattern =
-    let
-        rootExpr =
-            case home of
-              Nothing ->
-                  Opt.Var (Var.local rootName)
-
-              Just moduleName ->
-                  Opt.Var (Var.topLevel moduleName rootName)
-
-        toDef (name, accessExpr) =
-            Opt.Def (Opt.Facts home) name accessExpr
-    in
-        map toDef (patternToSubstitutions rootExpr pattern)
+  do  (name, expr) <- depattern ptrn rawExpr
+      return (name : names, expr)
 
 
 
@@ -196,16 +200,17 @@ optimizeExpr context annExpr@(A.A region expression) =
         pure (Opt.Literal lit)
 
     Can.Var name ->
-        if name == Var.inCore "Debug" "crash" then
-            do  home <- Env.getHome
-                pure (Opt.Crash home region Nothing)
-
-        else
-            pure (Opt.Var name)
+        do  Env.register name
+            if name == debugCrash
+              then
+                do  home <- Env.getHome
+                    pure (Opt.Crash home region Nothing)
+              else
+                pure (Opt.Var name)
 
     Can.List elements ->
         Opt.List
-          <$> T.traverse justConvert elements
+          <$> traverse justConvert elements
 
     Can.Binop op leftExpr rightExpr ->
         optimizeBinop context region op leftExpr rightExpr
@@ -224,14 +229,14 @@ optimizeExpr context annExpr@(A.A region expression) =
         in
             case getTailCallInfo context func (length args) of
               Just (name, argNames) ->
-                  do  optArgs <- T.traverse justConvert args
+                  do  optArgs <- traverse justConvert args
                       Env.setTailCall True
                       return (Opt.TailCall name argNames optArgs)
 
               Nothing ->
                   do  hasTailCall <- Env.getTailCall
                       optFunc <- justConvert func
-                      optArgs <- T.traverse justConvert args
+                      optArgs <- traverse justConvert args
                       Env.setTailCall hasTailCall
                       return (Opt.Call optFunc optArgs)
 
@@ -241,11 +246,11 @@ optimizeExpr context annExpr@(A.A region expression) =
                 (,) <$> justConvert cond <*> keepLooking branch
         in
             Opt.If
-              <$> T.traverse crawlBranch branches
+              <$> traverse crawlBranch branches
               <*> keepLooking finally
 
     Can.Let defs body ->
-        do  optDefs <- concat <$> T.traverse (optimizeDef False) defs
+        do  optDefs <- concat <$> traverse optimizeLetDef defs
             Opt.Let optDefs <$> keepLooking body
 
     Can.Case expr branches ->
@@ -253,12 +258,12 @@ optimizeExpr context annExpr@(A.A region expression) =
             variantDict <- Env.getVariantDict
 
             name <- Env.freshName
-            optBranches <- T.traverse (optimizeBranch context region name) branches
+            optBranches <- traverse (optimizeBranch context region name) branches
             let optCase = Case.optimize variantDict name optBranches
-            return $ Opt.Let [ Opt.Def Opt.dummyFacts name optExpr ] optCase
+            return $ Opt.Let [ (name, Opt.Def optExpr) ] optCase
 
     Can.Ctor (Var.Canonical _ name) exprs ->
-        Opt.Ctor name <$> T.traverse justConvert exprs
+        Opt.Ctor name <$> traverse justConvert exprs
 
     Can.Access record field ->
         Opt.Access
@@ -268,17 +273,17 @@ optimizeExpr context annExpr@(A.A region expression) =
     Can.Update record fields ->
         Opt.Update
           <$> justConvert record
-          <*> T.traverse (mapSnd justConvert) fields
+          <*> traverse (traverse justConvert) fields
 
     Can.Record fields ->
         Opt.Record
-          <$> T.traverse (mapSnd justConvert) fields
+          <$> traverse (traverse justConvert) fields
 
-    Can.Cmd moduleName ->
-        pure (Opt.Cmd moduleName)
+    Can.Cmd moduleName manager ->
+        Opt.Cmd moduleName <$> Env.registerEffects manager
 
-    Can.Sub moduleName ->
-        pure (Opt.Sub moduleName)
+    Can.Sub moduleName manager ->
+        Opt.Sub moduleName <$> Env.registerEffects manager
 
     Can.OutgoingPort name tipe ->
         pure (Opt.OutgoingPort name tipe)
@@ -294,11 +299,6 @@ optimizeExpr context annExpr@(A.A region expression) =
 
     Can.GLShader uid src gltipe ->
         pure (Opt.GLShader uid src gltipe)
-
-
-mapSnd :: M.Functor box => (a -> box b) -> (x, a) -> box (x, b)
-mapSnd func (x, a) =
-  (,) x <$> func a
 
 
 
@@ -485,6 +485,11 @@ backwardCompose =
 cons :: Var.Canonical
 cons =
   Var.Canonical Var.BuiltIn "::"
+
+
+debugCrash :: Var.Canonical
+debugCrash =
+  Var.inCore "Debug" "crash"
 
 
 type Assoc =

@@ -49,8 +49,8 @@ data Expr'
     | Update Expr [(Text, Expr)]
     | Record [(Text, Expr)]
     -- for type checking and code gen only
-    | Cmd ModuleName.Canonical
-    | Sub ModuleName.Canonical
+    | Cmd ModuleName.Canonical Effects.ManagerType
+    | Sub ModuleName.Canonical Effects.ManagerType
     | OutgoingPort Text Type.Canonical
     | IncomingPort Text Type.Canonical
     | Program Main Expr

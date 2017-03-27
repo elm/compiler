@@ -86,15 +86,15 @@ toExpr code =
 -- DEFINITIONS
 
 
-generateDef :: Opt.Def -> State Int [JS.Stmt]
-generateDef def =
-  do  (home, name, jsBody) <-
-          case def of
-            Opt.TailDef (Opt.Facts home) name argNames body ->
-                (,,) home name <$> generateTailFunction name argNames body
+generateDef :: Maybe ModuleName.Canonical -> Text -> Opt.Def -> State Int [JS.Stmt]
+generateDef home name def =
+  do  jsBody <-
+        case def of
+          Opt.TailDef argNames body ->
+            generateTailFunction name argNames body
 
-            Opt.Def (Opt.Facts home) name body ->
-                (,,) home name <$> generateJsExpr body
+          Opt.Def body ->
+            generateJsExpr body
 
       return (Var.define home name jsBody)
 
@@ -163,7 +163,8 @@ generateCode expr =
                   ++ [JS.Continue (Just (JS.Id (Var.safe name)))]
 
       Let defs body ->
-          do  stmts <- mapM generateDef defs
+          do  let genDef (name, def) = generateDef Nothing name def
+              stmts <- mapM genDef defs
               code <- generateCode body
               jsBlock (concat stmts ++ toStatementList code)
 
@@ -192,10 +193,10 @@ generateCode expr =
           do  jsDataExpr <- generateJsExpr dataExpr
               jsExpr $ JS.DotRef jsDataExpr (JS.Id ("_" <> Text.pack (show index)))
 
-      Cmd moduleName ->
+      Cmd moduleName _ ->
           jsExpr $ BuiltIn.effect moduleName
 
-      Sub moduleName ->
+      Sub moduleName _ ->
           jsExpr $ BuiltIn.effect moduleName
 
       OutgoingPort name tipe ->

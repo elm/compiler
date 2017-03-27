@@ -30,10 +30,10 @@ constrain env annotatedExpr@(A.A region expression) tipe =
     C.Literal lit ->
       Literal.constrain env region lit tipe
 
-    C.Cmd _ ->
+    C.Cmd _ _ ->
       return CTrue
 
-    C.Sub _ ->
+    C.Sub _ _ ->
       return CTrue
 
     C.OutgoingPort _ _ ->

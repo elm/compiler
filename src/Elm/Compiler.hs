@@ -3,6 +3,7 @@ module Elm.Compiler
     ( version
     , parseDependencies, Tag(..)
     , compile, Context(..), Result(..)
+    , generate
     , Localizer, dummyLocalizer
     , Error, errorToDoc, errorToJson
     , Warning, warningToDoc, warningToJson
@@ -11,10 +12,12 @@ module Elm.Compiler
 
 import qualified Data.Aeson as Json
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.ByteString.Builder as BS
 import Text.PrettyPrint.ANSI.Leijen (Doc)
 
+import qualified AST.Expression.Optimized as Opt
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified Compile
@@ -49,10 +52,7 @@ version =
 -- DEPENDENCIES
 
 
-data Tag
-  = Normal
-  | Effect
-  | Port
+data Tag = Normal | Effect | Port
 
 
 parseDependencies :: Package.Name -> Text -> Either Error (Tag, Maybe M.Raw, [M.Raw])
@@ -103,10 +103,10 @@ compile context source =
       do  modul <- Compile.compile packageName importDict interfaces source
           docs <- Result.format id (docsGen exposed modul)
 
-          let interface = Module.toInterface modul
-          let javascript = {-# SCC elm_compiler_generate #-} JS.generate modul
+          let iface = Module.toInterface modul
+          let objs = Module.program (Module.info modul)
 
-          return (Result docs interface javascript)
+          return (Result docs iface objs)
   in
     ( Result.oneToValue dummyLocalizer Localizer oneLocalizer
     , Bag.toList Warning warnings
@@ -127,8 +127,12 @@ data Result =
   Result
     { _docs :: Maybe Docs.Documentation
     , _iface :: M.Interface
-    , _js :: BS.Builder
+    , _objs :: [(Text, Opt.Decl)]
     }
+
+
+
+-- DOCUMENTATION
 
 
 docsGen :: Bool -> Module.Optimized -> Result.Result () w Error.Error (Maybe Docs.Documentation)
@@ -142,6 +146,15 @@ docsGen isExposed (Module.Module name info) =
         Just (Docs.fromCheckedDocs (ModuleName._module name) checked)
     in
       toDocs <$> Docs.check (Module.exports info) (Module.docs info)
+
+
+
+-- CODE GENERATION
+
+
+generate :: Map.Map M.Global Opt.Decl -> [M.Global] -> (Set.Set M.Canonical, BS.Builder)
+generate =
+  JS.generate
 
 
 

@@ -31,10 +31,11 @@ inline rawSubs expression =
             inlinedExpr
 
           else
-            Let (map (\(name, expr) -> Opt.Def Opt.dummyFacts name expr) defs) inlinedExpr
+            Let (map (second Opt.Def) defs) inlinedExpr
 
 
-data Subs = Subs
+data Subs =
+  Subs
     { _substitutions :: Map.Map Text Opt.Expr
     , _definitions :: [(Text, Opt.Expr)]
     }
@@ -59,16 +60,6 @@ processSubs (Subs subs defs) (name, (n, expr)) =
 deleteBatch :: [Text] -> Map.Map Text a -> Map.Map Text a
 deleteBatch names dict =
   List.foldl' (flip Map.delete) dict names
-
-
-getDefName :: Opt.Def -> Text
-getDefName def =
-  case def of
-    Opt.Def _ name _ ->
-        name
-
-    Opt.TailDef _ name _ _ ->
-        name
 
 
 
@@ -122,16 +113,16 @@ count expression =
 
     Let defs expr ->
         let
-          countDef def =
+          countDef (name, def) =
             case def of
-              Opt.Def _ name body ->
+              Opt.Def body ->
                   Map.delete name (count body)
 
-              Opt.TailDef _ name argNames body ->
+              Opt.TailDef argNames body ->
                   deleteBatch (name:argNames) (count body)
 
           exprCount =
-            deleteBatch (map getDefName defs) (count expr)
+            deleteBatch (map fst defs) (count expr)
         in
           Map.unionsWith (+) (exprCount : map countDef defs)
 
@@ -168,10 +159,10 @@ count expression =
     Record fields ->
         countMany (map snd fields)
 
-    Cmd _ ->
+    Cmd _ _ ->
         Map.empty
 
-    Sub _ ->
+    Sub _ _ ->
         Map.empty
 
     OutgoingPort _ _ ->
@@ -229,18 +220,18 @@ replace substitutions expression =
 
     Let defs expr ->
         let
-          replaceDef def =
+          replaceDef (name, def) =
             case def of
-              Opt.Def facts name body ->
-                  Opt.Def facts name
-                      (replace (Map.delete name substitutions) body)
+              Opt.Def body ->
+                  (,) name $ Opt.Def $
+                    replace (Map.delete name substitutions) body
 
-              Opt.TailDef facts name argNames body ->
-                  Opt.TailDef facts name argNames
-                      (replace (deleteBatch (name:argNames) substitutions) body)
+              Opt.TailDef argNames body ->
+                  (,) name $ Opt.TailDef argNames $
+                    replace (deleteBatch (name:argNames) substitutions) body
 
           boundNames =
-            map getDefName defs
+            map fst defs
         in
           Let
             (map replaceDef defs)
@@ -279,10 +270,10 @@ replace substitutions expression =
     Record fields ->
         Record (map (second go) fields)
 
-    Cmd _ ->
+    Cmd _ _ ->
         expression
 
-    Sub _ ->
+    Sub _ _ ->
         expression
 
     OutgoingPort _ _ ->

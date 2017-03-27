@@ -1,12 +1,17 @@
 {-# OPTIONS_GHC -Wall #-}
 module AST.Expression.Optimized
-    ( Def(..), Facts(..), dummyFacts
-    , Expr(..)
-    , Decider(..), Choice(..)
-    ) where
+  ( Decl(..)
+  , Def(..)
+  , Expr(..)
+  , Decider(..), Choice(..)
+  )
+  where
 
+
+import qualified Data.Set as Set
 import Data.Text (Text)
 
+import qualified AST.Effects as Effects
 import qualified AST.Expression.Canonical as Can
 import qualified AST.Literal as Literal
 import qualified AST.Module.Name as ModuleName
@@ -17,24 +22,29 @@ import qualified Reporting.Region as R
 
 
 
--- DEFINITIONS
-
-data Def
-    = Def Facts Text Expr
-    | TailDef Facts Text [Text] Expr
+-- TOP LEVEL DECLARATIONS
 
 
-data Facts = Facts
-    { home :: Maybe ModuleName.Canonical
+data Decl =
+  Decl
+    { _deps :: Set.Set Var.Global
+    , _effects :: Maybe Effects.ManagerType
+    , _body :: !Def
     }
 
 
-dummyFacts :: Facts
-dummyFacts =
-  Facts Nothing
+
+-- DEFINITIONS
+
+
+data Def
+  = Def Expr
+  | TailDef [Text] Expr
+
 
 
 -- EXPRESSIONS
+
 
 data Expr
     = Literal Literal.Literal
@@ -45,15 +55,15 @@ data Expr
     | Call Expr [Expr]
     | TailCall Text [Text] [Expr]
     | If [(Expr, Expr)] Expr
-    | Let [Def] Expr
+    | Let [(Text, Def)] Expr
     | Case Text (Decider Choice) [(Int, Expr)]
     | Ctor Text [Expr]
     | CtorAccess Expr Int
     | Access Expr Text
     | Update Expr [(Text, Expr)]
     | Record [(Text, Expr)]
-    | Cmd ModuleName.Canonical
-    | Sub ModuleName.Canonical
+    | Cmd ModuleName.Canonical Effects.ManagerType
+    | Sub ModuleName.Canonical Effects.ManagerType
     | OutgoingPort Text Type.Canonical
     | IncomingPort Text Type.Canonical
     | Program Can.Main Expr

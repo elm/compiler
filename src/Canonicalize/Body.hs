@@ -137,32 +137,32 @@ effectsToDefs moduleName effects =
 
     Effects.Manager _ info ->
       let
-        cmdToDef (A.A region name) =
+        cmdToDef (A.A region name) managerType =
           definition
             "command"
-            (A.A region (C.Cmd moduleName))
+            (A.A region (C.Cmd moduleName managerType))
             region
             (Type.cmd moduleName name)
 
-        subToDef (A.A region name) =
+        subToDef (A.A region name) managerType =
           definition
             "subscription"
-            (A.A region (C.Sub moduleName))
+            (A.A region (C.Sub moduleName managerType))
             region
             (Type.sub moduleName name)
       in
         case Effects._managerType info of
           Effects.CmdManager cmd ->
-            [ cmdToDef cmd
+            [ cmdToDef cmd Effects.Cmds
             ]
 
           Effects.SubManager sub ->
-            [ subToDef sub
+            [ subToDef sub Effects.Subs
             ]
 
           Effects.FxManager cmd sub ->
-            [ cmdToDef cmd
-            , subToDef sub
+            [ cmdToDef cmd Effects.Both
+            , subToDef sub Effects.Both
             ]
 
 
