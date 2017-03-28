@@ -29,7 +29,9 @@ import qualified Reporting.Annotation as A
 type CPattern = P.Canonical
 
 
+
 -- COMPILE CASES
+
 
 {-| Users of this module will mainly interact with this function. It takes
 some normal branches and gives out a decision tree that has "labels" at all
@@ -66,7 +68,9 @@ type VariantDict =
     Map.Map Var.Home (Map.Map Text Int)
 
 
+
 -- DECISION TREES
+
 
 data DecisionTree
     = Match Int
@@ -92,7 +96,9 @@ data Path
     deriving (Eq)
 
 
+
 -- PATH HELPERS
+
 
 add :: Path -> Path -> Path
 add path finalLink =
@@ -118,7 +124,9 @@ subPositions path patterns =
       patterns
 
 
+
 -- ACTUALLY BUILD DECISION TREES
+
 
 data Branch =
   Branch
@@ -191,7 +199,9 @@ getArity variantDict (Var.Canonical home name) =
             \inference, it is impossible that a pattern cannot be found."
 
 
+
 -- FLATTEN PATTERNS
+
 
 {-| Flatten type aliases and use the VariantDict to figure out when a tag is
 the only variant so we can skip doing any tests on it.
@@ -229,7 +239,9 @@ flatten variantDict pathPattern@(path, A.A ann pattern) =
         [pathPattern]
 
 
+
 -- SUCCESSFULLY MATCH
+
 
 {-| If the first branch has no more "decision points" we can finally take that
 path. If that is the case we give the resulting label and a mapping from free
@@ -246,7 +258,9 @@ checkForMatch branches =
         Nothing
 
 
+
 -- GATHER OUTGOING EDGES
+
 
 gatherEdges :: VariantDict -> [Branch] -> Path -> ([(Test, [Branch])], [Branch])
 gatherEdges variantDict branches path =
@@ -266,7 +280,9 @@ gatherEdges variantDict branches path =
     ( allEdges, fallbacks )
 
 
+
 -- FIND RELEVANT TESTS
+
 
 testsAtPath :: Path -> [Branch] -> [Test]
 testsAtPath selectedPath branches =
@@ -312,7 +328,9 @@ testAtPath selectedPath (Branch _ pathPatterns) =
               Nothing
 
 
+
 -- BUILD EDGES
+
 
 edgesFor :: Path -> [Branch] -> Test -> (Test, [Branch])
 edgesFor path branches test =
@@ -369,7 +387,9 @@ extract selectedPath pathPatterns =
                   Just (first : start, foundPattern, end)
 
 
+
 -- FIND IRRELEVANT BRANCHES
+
 
 isIrrelevantTo :: Path -> Branch -> Bool
 isIrrelevantTo selectedPath (Branch _ pathPatterns) =
@@ -403,7 +423,9 @@ needsTests (A.A _ pattern) =
         True
 
 
+
 -- PICK A PATH
+
 
 pickPath :: VariantDict -> [Branch] -> Path
 pickPath variantDict branches =
@@ -453,7 +475,9 @@ bests allPaths =
         snd (List.foldl' gatherMinimum (headWeight, [headPath]) weightedPaths)
 
 
+
 -- PATH PICKING HEURISTICS
+
 
 smallDefaults :: [Branch] -> Path -> Int
 smallDefaults branches path =
