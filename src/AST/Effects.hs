@@ -7,6 +7,7 @@ module AST.Effects
   )
   where
 
+import Data.Binary
 import Data.Text (Text)
 
 import qualified AST.Type as Type
@@ -78,3 +79,23 @@ data PortCanonical =
 data Kind
   = Outgoing Type.Canonical
   | Incoming Type.Canonical
+
+
+
+-- BINARY
+
+
+instance Binary ManagerType where
+  put managerType =
+    case managerType of
+      Cmds -> putWord8 0
+      Subs -> putWord8 1
+      Both -> putWord8 2
+
+  get =
+    do  word <- getWord8
+        case word of
+          0 -> pure Cmds
+          1 -> pure Subs
+          2 -> pure Both
+          _ -> error "problem getting Effects.ManagerType binary"
