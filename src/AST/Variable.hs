@@ -245,6 +245,14 @@ toText (Canonical home name) =
 -- BINARY SERIALIZATION
 
 
+instance Binary Global where
+  put (Global home name) =
+    put home >> put name
+
+  get =
+    Global <$> get <*> get
+
+
 instance Binary Canonical where
   put (Canonical home name) =
     case home of
