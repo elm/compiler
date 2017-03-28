@@ -12,6 +12,7 @@ as SML/NJ to get nice trees.
 -}
 
 import Control.Arrow (second)
+import Data.Binary
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -491,3 +492,49 @@ smallBranchingFactor variantDict branches path =
       gatherEdges variantDict branches path
   in
     length edges + (if null fallback then 0 else 1)
+
+
+
+-- BINARY
+
+
+instance Binary Test where
+  get =
+    do  word <- getWord8
+        case word of
+          0 -> Constructor <$> get
+          1 -> Literal <$> get
+          _ -> error "problem getting DecisionTree.Test binary"
+
+  put test =
+    case test of
+      Constructor var ->
+        putWord8 0 >> put var
+
+      Literal literal ->
+        putWord8 1 >> put literal
+
+
+instance Binary Path where
+  get =
+    do  word <- getWord8
+        case word of
+          0 -> Position <$> get <*> get
+          1 -> Field <$> get <*> get
+          2 -> pure Empty
+          3 -> pure Alias
+          _ -> error "problem getting DecisionTree.Path binary"
+
+  put path =
+    case path of
+      Position index rest ->
+        putWord8 0 >> put index >> put rest
+
+      Field field rest ->
+        putWord8 1 >> put field >> put rest
+
+      Empty ->
+        putWord8 2
+
+      Alias ->
+        putWord8 3
