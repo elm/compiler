@@ -2,12 +2,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Generate.JavaScript.Variable
     ( fresh
-    , canonical
+    , local
+    , global
     , qualified
     , native
     , coreNative
     , staticProgram
-    , define
+    , defineGlobal
     , safe
     )
     where
@@ -20,7 +21,6 @@ import Data.Text (Text)
 
 import qualified AST.Helpers as Help
 import qualified AST.Module.Name as ModuleName
-import qualified AST.Variable as Var
 import qualified Elm.Package as Pkg
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Helpers as JS
@@ -38,72 +38,24 @@ fresh =
 
 
 
--- DEF NAMES
+-- VARIABLES
 
 
-define :: Maybe ModuleName.Canonical -> Text -> JS.Expr -> [JS.Stmt]
-define maybeHome name body =
-  if not (Help.isOp name) then
-    let
-      jsName =
-        maybe unqualified qualified maybeHome name
-    in
-      [ JS.VarDeclStmt [ JS.varDecl jsName body ] ]
-
-  else
-    case maybeHome of
-      Nothing ->
-        error "can only define infix operators at the top level"
-
-      Just home ->
-        let
-          opsDictName =
-            getOpsDictName (Var.TopLevel home)
-
-          lvalue =
-            JS.LBracket (JS.ref opsDictName) (JS.String name)
-        in
-          [ JS.VarDeclStmt [ JS.varDecl opsDictName (JS.refOrObject opsDictName) ]
-          , JS.ExprStmt (JS.Assign lvalue body)
-          ]
+local :: Text -> JS.Expr
+local name =
+  JS.ref (safe name)
 
 
-
--- INSTANTIATE VARIABLES
-
-
-canonical :: Var.Canonical -> JS.Expr
-canonical (Var.Canonical home name) =
+global :: ModuleName.Canonical -> Text -> JS.Expr
+global home name =
   if Help.isOp name then
-    JS.BracketRef (JS.ref (getOpsDictName home)) (JS.String name)
-
+    JS.BracketRef (JS.ref (opsDict home)) (JS.String name)
   else
-    case home of
-      Var.Local ->
-        JS.ref (unqualified name)
-
-      Var.BuiltIn ->
-        JS.ref (unqualified name)
-
-      Var.Module moduleName@(ModuleName.Canonical _ rawName) ->
-        if ModuleName.isNative rawName then
-          native moduleName name
-
-        else
-          JS.ref (qualified moduleName name)
-
-      Var.TopLevel moduleName ->
-        JS.ref (qualified moduleName name)
+    JS.ref (qualified home name)
 
 
-unqualified :: Text -> Text
-unqualified =
-  safe
 
-
-qualified :: ModuleName.Canonical -> Text -> Text
-qualified moduleName name =
-  moduleToText moduleName <> "$" <> name
+-- MISC
 
 
 native :: ModuleName.Canonical -> Text -> JS.Expr
@@ -121,17 +73,39 @@ staticProgram =
   native (ModuleName.inVirtualDom "Native.VirtualDom") "staticProgram"
 
 
-getOpsDictName :: Var.Home -> Text
-getOpsDictName home =
-  let
-    moduleName =
-      case home of
-        Var.Local -> error "infix operators should only be defined in top-level declarations"
-        Var.BuiltIn -> error "there should be no built-in infix operators"
-        Var.Module name -> name
-        Var.TopLevel name -> name
-  in
-    moduleToText moduleName <> "_ops"
+
+-- DEFINE GLOBALS
+
+
+defineGlobal :: ModuleName.Canonical -> Text -> JS.Expr -> [JS.Stmt]
+defineGlobal home name body =
+  case Help.isOp name of
+    False ->
+      [ JS.VarDeclStmt [ JS.varDecl (qualified home name) body ]
+      ]
+
+    True ->
+      let
+        dict = opsDict home
+        lvalue = JS.LBracket (JS.ref dict) (JS.String name)
+      in
+        [ JS.VarDeclStmt [ JS.varDecl dict (JS.refOrObject dict) ]
+        , JS.ExprStmt (JS.Assign lvalue body)
+        ]
+
+
+
+-- GLOBAL NAMES
+
+
+qualified :: ModuleName.Canonical -> Text -> Text
+qualified home name =
+  moduleToText home <> "$" <> name
+
+
+opsDict :: ModuleName.Canonical -> Text
+opsDict home =
+  moduleToText home <> "_ops"
 
 
 moduleToText :: ModuleName.Canonical -> Text
@@ -155,7 +129,7 @@ moduleToText (ModuleName.Canonical (Pkg.Name user project) moduleName) =
 
 safe :: Text -> Text
 safe name =
-  if Set.member name jsReserveds then "$" <> name else name
+  if Set.member name jsReserveds then "_" <> name else name
 
 
 jsReserveds :: Set.Set Text
@@ -175,4 +149,5 @@ jsReserveds =
     -- reserved by the Elm runtime system
     , "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9"
     , "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9"
+    , "ctor"
     ]

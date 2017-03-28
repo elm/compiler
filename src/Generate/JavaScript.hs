@@ -109,7 +109,7 @@ generateDecl :: Var.Global -> Opt.Def -> BS.Builder
 generateDecl (Var.Global home name) def =
   let
     genBody =
-      JS.generateDef (Just home) name def
+      JS.generateDecl home name def
   in
     JS.encodeUtf8 (State.evalState genBody 0)
 

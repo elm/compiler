@@ -48,9 +48,10 @@ data Def
 
 data Expr
     = Literal Literal.Literal
-    | Var Var.Canonical
+    | VarLocal Text
+    | VarGlobal ModuleName.Canonical Text
     | List [Expr]
-    | Binop Var.Canonical Expr Expr
+    | Binop ModuleName.Canonical Text Expr Expr
     | Function [Text] Expr
     | Call Expr [Expr]
     | TailCall Text [Text] [Expr]

@@ -9,6 +9,7 @@ import Data.Text (Text)
 
 import qualified AST.Expression.Optimized as Opt
 import qualified AST.Literal as Literal
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as T
 import qualified AST.Variable as Var
 import qualified Generate.JavaScript.Builder as JS
@@ -152,14 +153,14 @@ decode tipe =
 -- DECODE HELPERS
 
 
-inJsonDecode :: Text -> Var.Canonical
-inJsonDecode name =
-  Var.inCore "Json.Decode" name
-
-
 to :: Text -> Opt.Expr
 to name =
-  Opt.Var (inJsonDecode name)
+  Opt.VarGlobal jsonDecode name
+
+
+jsonDecode :: ModuleName.Canonical
+jsonDecode =
+  ModuleName.inCore "Json.Decode"
 
 
 field :: Text -> Opt.Expr -> Opt.Expr
@@ -185,7 +186,7 @@ toMaybe :: T.Canonical -> Opt.Expr
 toMaybe tipe =
   let
     maybe tag =
-      Opt.Var (Var.inCore "Maybe" tag)
+      Opt.VarGlobal (ModuleName.inCore "Maybe") tag
   in
     to "oneOf" <==
       [ Opt.List
@@ -216,7 +217,7 @@ toTuple types =
       to "succeed" <==
         [ Opt.Ctor
             (Text.pack ("_Tuple" ++ show size))
-            (map (Opt.Var . Var.local . toVar . fst) pairs)
+            (map (Opt.VarLocal . toVar . fst) pairs)
         ]
 
     andThen (i, tipe) decoder =
@@ -229,7 +230,7 @@ toRecord :: [(Text, T.Canonical)] -> Opt.Expr
 toRecord fields =
   let
     toFieldExpr (key, _) =
-      (key, Opt.Var (Var.local key))
+      (key, Opt.VarLocal key)
 
     finalDecoder =
       to "succeed" <== [ Opt.Record (map toFieldExpr fields) ]

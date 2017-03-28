@@ -10,7 +10,6 @@ import Data.Text (Text)
 
 import AST.Expression.Optimized (Expr(..), Decider(..), Choice(..))
 import qualified AST.Expression.Optimized as Opt
-import qualified AST.Variable as Var
 import qualified Optimize.Environment as Env
 
 
@@ -49,7 +48,7 @@ processSubs (Subs subs defs) (name, (n, expr)) =
   else
       do  uniqueName <- Env.freshName
           return $ Subs
-              (Map.insert name (Opt.Var (Var.local uniqueName)) subs)
+              (Map.insert name (Opt.VarLocal uniqueName) subs)
               ((uniqueName, expr) : defs)
 
 
@@ -79,24 +78,16 @@ count expression =
     Literal _ ->
         Map.empty
 
-    Var (Var.Canonical home name) ->
-        case home of
-          Var.Local ->
-              Map.singleton name 1
+    VarLocal name ->
+        Map.singleton name 1
 
-          Var.BuiltIn ->
-              Map.empty
-
-          Var.Module _ ->
-              Map.empty
-
-          Var.TopLevel _ ->
-              Map.empty
+    VarGlobal _ _ ->
+        Map.empty
 
     List exprs ->
         countMany exprs
 
-    Binop _op left right ->
+    Binop _ _ left right ->
         count2 left right
 
     Function args body ->
@@ -194,17 +185,17 @@ replace substitutions expression =
     Literal _ ->
         expression
 
-    Var (Var.Canonical Var.Local name) ->
+    VarLocal name ->
         maybe expression id (Map.lookup name substitutions)
 
-    Var _ ->
+    VarGlobal _ _ ->
         expression
 
     List exprs ->
         List (map go exprs)
 
-    Binop op left right ->
-        Binop op (go left) (go right)
+    Binop home op left right ->
+        Binop home op (go left) (go right)
 
     Function args body ->
         Function args (replace (deleteBatch args substitutions) body)

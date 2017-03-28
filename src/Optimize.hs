@@ -55,7 +55,7 @@ optimizeDecl variantDict home index (Can.Def _ pattern@(A.A _ ptrn) expression _
             Env.run variantDict home $
               ((,) name . Opt.Def) <$> optimizeExpr Nothing rawBody
           destructors =
-            destruct (Var.topLevel home name) pattern
+            destruct (Opt.VarGlobal home name) pattern
         in
           decl : map (second (Opt.Decl deps Nothing)) destructors
 
@@ -81,7 +81,7 @@ optimizeLetDef (Can.Def _ pattern@(A.A _ ptrn) expression _) =
       (_, []) ->
         do  name <- Env.freshName
             body <- optimizeExpr Nothing rawBody
-            return $ (name, Opt.Def body) : destruct (Var.local name) pattern
+            return $ (name, Opt.Def body) : destruct (Opt.VarLocal name) pattern
 
       _ ->
         error "bug manifesting in Optimize.optimizeLetDef, please report"
@@ -112,10 +112,10 @@ optimizeNamedDef name rawArgs rawBody =
               Opt.Def (Opt.Function args body)
 
 
-destruct :: Var.Canonical -> P.Canonical -> [(Text, Opt.Def)]
-destruct var pattern =
+destruct :: Opt.Expr -> P.Canonical -> [(Text, Opt.Def)]
+destruct root pattern =
   map (second Opt.Def) $
-    patternToSubstitutions (Opt.Var var) pattern
+    patternToSubstitutions root pattern
 
 
 
@@ -199,14 +199,8 @@ optimizeExpr context annExpr@(A.A region expression) =
     Can.Literal lit ->
         pure (Opt.Literal lit)
 
-    Can.Var name ->
-        do  Env.register name
-            if name == debugCrash
-              then
-                do  home <- Env.getHome
-                    pure (Opt.Crash home region Nothing)
-              else
-                pure (Opt.Var name)
+    Can.Var var ->
+        optimizeVariable region var
 
     Can.List elements ->
         Opt.List
@@ -302,6 +296,33 @@ optimizeExpr context annExpr@(A.A region expression) =
 
 
 
+-- OPTIMIZE VARIABLE
+
+
+optimizeVariable :: R.Region -> Var.Canonical -> Env.Optimizer Opt.Expr
+optimizeVariable region (Var.Canonical home name) =
+  case home of
+    Var.BuiltIn ->
+      pure (Opt.VarLocal name)
+
+    Var.Local ->
+      pure (Opt.VarLocal name)
+
+    Var.TopLevel modul ->
+      do  Env.register (Var.Global modul name)
+          pure (Opt.VarGlobal modul name)
+
+    Var.Module modul ->
+      do  Env.register (Var.Global modul name)
+          if name == "crash" && modul == ModuleName.inCore "Debug"
+            then
+              do  here <- Env.getHome
+                  pure (Opt.Crash here region Nothing)
+            else
+              pure (Opt.VarGlobal modul name)
+
+
+
 -- OPTIMIZE CASE BRANCHES
 
 
@@ -312,17 +333,13 @@ optimizeBranch
     -> (P.Canonical, Can.Expr)
     -> Env.Optimizer (P.Canonical, Opt.Expr)
 optimizeBranch context region exprName (rawPattern, canBranch) =
-  let
-    root =
-      Opt.Var (Var.Canonical Var.Local exprName)
-  in
-    do  optBranch <- optimizeExpr context canBranch
-        (pattern, branch) <- tagCrashBranch region rawPattern optBranch
+  do  optBranch <- optimizeExpr context canBranch
+      (pattern, branch) <- tagCrashBranch region rawPattern optBranch
 
-        let substitutions =
-              Map.fromList (patternToSubstitutions root pattern)
+      let substitutions = Map.fromList $
+            patternToSubstitutions (Opt.VarLocal exprName) pattern
 
-        (,) pattern <$> Inline.inline substitutions branch
+      (,) pattern <$> Inline.inline substitutions branch
 
 
 tagCrashBranch
@@ -336,7 +353,7 @@ tagCrashBranch region pattern@(A.A pr _) expr =
         do  name <- Env.freshName
             return
               ( A.A pr (P.Alias name pattern)
-              , Opt.Call (Opt.Crash home region (Just (Opt.Var (Var.local name)))) [arg]
+              , Opt.Call (Opt.Crash home region (Just (Opt.VarLocal name))) [arg]
               )
 
     _ ->
@@ -453,7 +470,7 @@ optimizeBinop context region op leftExpr rightExpr =
 
   else
 
-      Opt.Binop op
+      makeOptBinop op
         <$> optimizeExpr Nothing leftExpr
         <*> optimizeExpr Nothing rightExpr
 
@@ -487,11 +504,6 @@ cons =
   Var.Canonical Var.BuiltIn "::"
 
 
-debugCrash :: Var.Canonical
-debugCrash =
-  Var.inCore "Debug" "crash"
-
-
 type Assoc =
   Can.Expr -> Can.Expr -> (Can.Expr, Can.Expr)
 
@@ -517,3 +529,19 @@ collect makeRoot assoc desiredOp annExpr@(A.A ann expr) =
 
     _ ->
         makeRoot annExpr
+
+
+makeOptBinop :: Var.Canonical -> Opt.Expr -> Opt.Expr -> Opt.Expr
+makeOptBinop (Var.Canonical home op) leftExpr rightExpr =
+  case home of
+    Var.Local ->
+      error "bug manifesting in Optimize.makeOptBinop"
+
+    Var.BuiltIn ->
+      error "bug manifesting in Optimize.makeOptBinop"
+
+    Var.Module name ->
+      Opt.Binop name op leftExpr rightExpr
+
+    Var.TopLevel name ->
+      Opt.Binop name op leftExpr rightExpr

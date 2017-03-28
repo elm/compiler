@@ -106,20 +106,9 @@ freshName =
 -- REGISTER DEPENDENCIES
 
 
-register :: Var.Canonical -> Optimizer ()
-register (Var.Canonical home name) =
-  case home of
-    Var.BuiltIn ->
-      return ()
-
-    Var.Module realHome ->
-      State.modify (registerHelp (Var.Global realHome name))
-
-    Var.TopLevel realHome ->
-      State.modify (registerHelp (Var.Global realHome name))
-
-    Var.Local ->
-      return ()
+register :: Var.Global -> Optimizer ()
+register global =
+  State.modify (registerHelp global)
 
 
 registerHelp :: Var.Global -> Env -> Env
