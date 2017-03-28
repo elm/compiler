@@ -291,8 +291,8 @@ optimizeExpr context annExpr@(A.A region expression) =
     Can.SaveEnv _ _ ->
         error "save_the_environment should never make it to optimization phase"
 
-    Can.GLShader uid src gltipe ->
-        pure (Opt.GLShader uid src gltipe)
+    Can.GLShader _ src _ ->
+        pure (Opt.GLShader src)
 
 
 

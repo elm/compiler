@@ -206,7 +206,7 @@ generateCode expr =
       Program kind body ->
           generateProgram kind body
 
-      GLShader _uid src _tipe ->
+      GLShader src ->
           jsExpr $ JS.Object [(JS.StringProp "src", Literal.literal (L.Str src))]
 
       Crash home region maybeBranchProblem ->

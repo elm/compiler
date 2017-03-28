@@ -68,7 +68,7 @@ data Expr
     | OutgoingPort Text Type.Canonical
     | IncomingPort Text Type.Canonical
     | Program Can.Main Expr
-    | GLShader Text Text Literal.Shader
+    | GLShader Text
     | Crash ModuleName.Canonical R.Region (Maybe Expr)
 
 

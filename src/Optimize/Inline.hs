@@ -165,7 +165,7 @@ count expression =
     Program _ expr ->
         count expr
 
-    GLShader _ _ _ ->
+    GLShader _ ->
         Map.empty
 
     Crash _ _ maybeBranchProblem ->
@@ -276,7 +276,7 @@ replace substitutions expression =
     Program kind expr ->
         Program kind (go expr)
 
-    GLShader _ _ _ ->
+    GLShader _ ->
         expression
 
     Crash home region maybeBranchProblem ->
