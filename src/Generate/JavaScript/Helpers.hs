@@ -1,4 +1,14 @@
-module Generate.JavaScript.Helpers where
+{-# OPTIONS_GHC -Wall #-}
+module Generate.JavaScript.Helpers
+  ( varDecl
+  , refOrObject
+  , ref
+  , (==>)
+  , obj
+  , (<|)
+  , function
+  )
+  where
 
 import Data.Text (Text)
 import Generate.JavaScript.Builder
