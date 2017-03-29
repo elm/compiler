@@ -4,6 +4,7 @@ module Elm.Compiler.Objects.Internal
   ( Graph(..)
   , fromModule
   , union
+  , unions
   , Roots
   , main
   , toGlobals
@@ -43,6 +44,16 @@ fromModule (Module.Module home info) =
 union :: Graph -> Graph -> Graph
 union (Graph objs1) (Graph objs2) =
   Graph (Map.union objs1 objs2)
+
+
+unions :: [Graph] -> Graph
+unions graphs =
+  Graph (Map.unions (map destruct graphs))
+
+
+destruct :: Graph -> Map.Map Var.Global Opt.Decl
+destruct (Graph graph) =
+  graph
 
 
 

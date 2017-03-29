@@ -2,6 +2,7 @@
 module Elm.Compiler.Objects
   ( Graph
   , union
+  , unions
   , Roots
   , main
   )
