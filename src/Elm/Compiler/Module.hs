@@ -21,9 +21,6 @@ module Elm.Compiler.Module
   -- canonical names
   , ModuleName.Canonical(..)
   , qualifiedVar
-
-  -- variables
-  , Var.Global(..)
   )
   where
 
@@ -37,7 +34,6 @@ import System.FilePath ((</>))
 
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
-import qualified AST.Variable as Var
 import qualified Elm.Compiler.Type as PublicType
 import qualified Elm.Compiler.Type.Extract as Extract
 import qualified Generate.JavaScript.Variable as Gen
@@ -59,23 +55,6 @@ programTypes =
 
 
 -- NAMES
-
-
-newtype RawForJson = RawForJson ModuleName.Raw
-
-
-fromJson :: RawForJson -> ModuleName.Raw
-fromJson (RawForJson raw) =
-  raw
-
-
-qualifiedVar :: ModuleName.Canonical -> Text -> Text
-qualifiedVar =
-  Gen.qualified
-
-
-
--- STRING CONVERSIONS for RAW NAMES
 
 
 nameToPath :: ModuleName.Raw -> FilePath
@@ -131,6 +110,15 @@ isGoodChar char =
 -- JSON for NAME
 
 
+newtype RawForJson =
+  RawForJson ModuleName.Raw
+
+
+fromJson :: RawForJson -> ModuleName.Raw
+fromJson (RawForJson raw) =
+  raw
+
+
 instance Json.ToJSON RawForJson where
   toJSON (RawForJson name) =
     Json.toJSON (nameToString name)
@@ -148,3 +136,11 @@ instance Json.FromJSON RawForJson where
   parseJSON _ =
     fail "expecting the module name to be a string"
 
+
+
+-- CANONICAL NAMES
+
+
+qualifiedVar :: ModuleName.Canonical -> Text -> Text
+qualifiedVar =
+  Gen.qualified

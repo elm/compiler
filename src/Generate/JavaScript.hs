@@ -15,6 +15,7 @@ import qualified AST.Expression.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
 import qualified Elm.Package as Pkg
+import qualified Elm.Compiler.Objects.Internal as Obj
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Expression as JS
 import qualified Generate.JavaScript.Helpers as JS
@@ -25,15 +26,11 @@ import qualified Generate.JavaScript.Variable as JS
 -- GENERATE JAVASCRIPT
 
 
-type Graph =
-  Map.Map Var.Global Opt.Decl
-
-
-generate :: Graph -> [Var.Global] -> (Set.Set ModuleName.Canonical, BS.Builder)
-generate graph roots =
+generate :: Obj.Graph -> Obj.Roots -> (Set.Set ModuleName.Canonical, BS.Builder)
+generate (Obj.Graph graph) roots =
   let
     (State builders _ natives effects) =
-      List.foldl' (crawl graph) empty roots
+      List.foldl' (crawl graph) empty (Obj.toGlobals roots)
 
     managers =
       Map.foldrWithKey addManager "" effects
@@ -64,6 +61,9 @@ empty =
 
 
 -- DEAD CODE ELIMINATION
+
+
+type Graph = Map.Map Var.Global Opt.Decl
 
 
 crawl :: Graph -> State -> Var.Global -> State

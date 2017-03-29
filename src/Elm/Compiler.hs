@@ -17,13 +17,13 @@ import Data.Text (Text)
 import qualified Data.ByteString.Builder as BS
 import Text.PrettyPrint.ANSI.Leijen (Doc)
 
-import qualified AST.Expression.Optimized as Opt
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified Compile
 import qualified Docs.Check as Docs
 import qualified Elm.Compiler.Imports as Imports
 import qualified Elm.Compiler.Module as M
+import qualified Elm.Compiler.Objects.Internal as Obj
 import qualified Elm.Compiler.Version
 import qualified Elm.Docs as Docs
 import qualified Elm.Package as Package
@@ -104,7 +104,7 @@ compile context source =
           docs <- Result.format id (docsGen exposed modul)
 
           let iface = Module.toInterface modul
-          let objs = Module.program (Module.info modul)
+          let objs = Obj.fromModule modul
 
           return (Result docs iface objs)
   in
@@ -127,7 +127,7 @@ data Result =
   Result
     { _docs :: Maybe Docs.Documentation
     , _iface :: M.Interface
-    , _objs :: [(Text, Opt.Decl)]
+    , _objs :: Obj.Graph
     }
 
 
@@ -152,7 +152,7 @@ docsGen isExposed (Module.Module name info) =
 -- CODE GENERATION
 
 
-generate :: Map.Map M.Global Opt.Decl -> [M.Global] -> (Set.Set M.Canonical, BS.Builder)
+generate :: Obj.Graph -> Obj.Roots -> (Set.Set M.Canonical, BS.Builder)
 generate =
   JS.generate
 

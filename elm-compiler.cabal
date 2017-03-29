@@ -42,7 +42,7 @@ Library
     if flag(dev)
         ghc-options: -O0 -W -Werror
     else
-        ghc-options: -O2
+        ghc-options: -O2 -fsimpl-tick-factor=200
 
     Hs-Source-Dirs:
         src
@@ -50,6 +50,7 @@ Library
     exposed-modules:
         Elm.Compiler,
         Elm.Compiler.Module,
+        Elm.Compiler.Objects,
         Elm.Compiler.Type,
         Elm.Docs,
         Elm.Package,
@@ -83,6 +84,7 @@ Library
         Docs.Centralize,
         Docs.Check,
         Elm.Compiler.Imports,
+        Elm.Compiler.Objects.Internal,
         Elm.Compiler.Type.Extract,
         Elm.Compiler.Version,
         Generate.JavaScript,
@@ -160,48 +162,48 @@ Library
         union-find >= 0.2 && < 0.3
 
 
-Test-Suite compiler-tests
-    ghc-options:
-        -O0
-
-    Type:
-        exitcode-stdio-1.0
-
-    Hs-Source-Dirs:
-        tests, src
-
-    Main-is:
-        Test.hs
-
-    other-modules:
-        Test.Compiler
-        Test.Property
-        Test.Property.Arbitrary
-        AST.Helpers
-        AST.Literal
-
-    build-depends:
-        test-framework > 0.8 && < 0.9,
-        test-framework-hunit >= 0.3 && < 0.4,
-        test-framework-quickcheck2 >= 0.3 && < 0.4,
-        HUnit >= 1.1 && < 2,
-        QuickCheck >= 2 && < 3,
-        aeson >= 0.11,
-        aeson-pretty >= 0.8 && < 0.9,
-        ansi-terminal >= 0.6.2.1 && < 0.7,
-        ansi-wl-pprint >= 0.6.7 && < 0.7,
-        base >=4.2 && <5,
-        binary >= 0.7.0.0 && < 0.8,
-        bytestring >= 0.9 && < 0.11,
-        containers >= 0.3 && < 0.6,
-        directory >= 1.0 && < 2.0,
-        edit-distance >= 0.2 && < 0.3,
-        filemanip >= 0.3.5 && < 0.4,
-        filepath >= 1 && < 2.0,
-        language-glsl >= 0.0.2 && < 0.3,
-        mtl >= 2.2 && < 3,
-        parsec,
-        pretty >= 1.0 && < 2.0,
-        process,
-        text >= 1 && < 2,
-        union-find >= 0.2 && < 0.3
+--Test-Suite compiler-tests
+--    ghc-options:
+--        -O0
+--
+--    Type:
+--        exitcode-stdio-1.0
+--
+--    Hs-Source-Dirs:
+--        tests, src
+--
+--    Main-is:
+--        Test.hs
+--
+--    other-modules:
+--        Test.Compiler
+--        Test.Property
+--        Test.Property.Arbitrary
+--        AST.Helpers
+--        AST.Literal
+--
+--    build-depends:
+--        test-framework > 0.8 && < 0.9,
+--        test-framework-hunit >= 0.3 && < 0.4,
+--        test-framework-quickcheck2 >= 0.3 && < 0.4,
+--        HUnit >= 1.1 && < 2,
+--        QuickCheck >= 2 && < 3,
+--        aeson >= 0.11,
+--        aeson-pretty >= 0.8 && < 0.9,
+--        ansi-terminal >= 0.6.2.1 && < 0.7,
+--        ansi-wl-pprint >= 0.6.7 && < 0.7,
+--        base >=4.2 && <5,
+--        binary >= 0.7.0.0 && < 0.8,
+--        bytestring >= 0.9 && < 0.11,
+--        containers >= 0.3 && < 0.6,
+--        directory >= 1.0 && < 2.0,
+--        edit-distance >= 0.2 && < 0.3,
+--        filemanip >= 0.3.5 && < 0.4,
+--        filepath >= 1 && < 2.0,
+--        language-glsl >= 0.0.2 && < 0.3,
+--        mtl >= 2.2 && < 3,
+--        parsec,
+--        pretty >= 1.0 && < 2.0,
+--        process,
+--        text >= 1 && < 2,
+--        union-find >= 0.2 && < 0.3
