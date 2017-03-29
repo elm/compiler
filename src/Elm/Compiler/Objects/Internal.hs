@@ -6,7 +6,7 @@ module Elm.Compiler.Objects.Internal
   , union
   , unions
   , Roots
-  , main
+  , root
   , toGlobals
   )
   where
@@ -64,8 +64,8 @@ data Roots
   = Main ModuleName.Canonical
 
 
-main :: Pkg.Name -> ModuleName.Raw -> Roots
-main pkg name =
+root :: Pkg.Name -> ModuleName.Raw -> Roots
+root pkg name =
   Main (ModuleName.Canonical pkg name)
 
 

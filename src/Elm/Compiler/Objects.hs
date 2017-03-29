@@ -4,7 +4,7 @@ module Elm.Compiler.Objects
   , union
   , unions
   , Roots
-  , main
+  , root
   )
   where
 
