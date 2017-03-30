@@ -43,6 +43,11 @@ list elements =
   Var.coreNative "List" "fromArray" <| JS.Array elements
 
 
+cons :: JS.Expr -> JS.Expr -> JS.Expr
+cons front back =
+  JS.Call (Var.coreNative "List" "Cons") [front, back]
+
+
 
 -- RECORDS
 
