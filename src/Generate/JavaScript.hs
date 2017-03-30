@@ -72,6 +72,9 @@ crawl graph state@(State js seen natives effects) name@(Var.Global home _) =
   if Set.member name seen then
     state
 
+  else if home == virtualDomDebug then
+    state
+
   else
     case Map.lookup name graph of
       Just decl ->
@@ -82,6 +85,11 @@ crawl graph state@(State js seen natives effects) name@(Var.Global home _) =
           State js seen (Set.insert home natives) effects
         else
           error (crawlError name)
+
+
+virtualDomDebug :: ModuleName.Canonical
+virtualDomDebug =
+  ModuleName.inVirtualDom "VirtualDom.Debug"
 
 
 crawlDecl :: Graph -> Var.Global -> Opt.Decl -> State -> State
