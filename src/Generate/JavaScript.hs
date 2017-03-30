@@ -7,6 +7,7 @@ import Data.Monoid ((<>))
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import Data.Text (Text)
 import qualified Data.ByteString.Builder as BS
 
@@ -80,7 +81,7 @@ crawl graph state@(State js seen natives effects) name@(Var.Global home _) =
         if ModuleName.canonicalIsNative home then
           State js seen (Set.insert home natives) effects
         else
-          error "TODO something went wrong"
+          error (crawlError name)
 
 
 crawlDecl :: Graph -> Var.Global -> Opt.Decl -> State -> State
@@ -103,6 +104,15 @@ crawlDecl graph name@(Var.Global home _) (Opt.Decl deps mfx body) state =
       , _natives = natives
       , _effects = newEffects
       }
+
+
+crawlError :: Var.Global -> String
+crawlError (Var.Global (ModuleName.Canonical pkg home) name) =
+  Text.unpack $
+    "compiler bug manifesting in Generate.JavaScript\n"
+    <> "could not find " <> Pkg.toText pkg <> " " <> ModuleName.toText home <> "." <> name <> "\n"
+    <> "please report at <https://github.com/elm-lang/elm-compiler/issues>\n"
+    <> "try to make an <http://sscce.org/> that demonstrates the issue!"
 
 
 generateDecl :: Var.Global -> Opt.Def -> BS.Builder
