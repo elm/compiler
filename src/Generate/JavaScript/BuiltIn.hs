@@ -40,21 +40,7 @@ character char =
 
 list :: [JS.Expr] -> JS.Expr
 list elements =
-  case elements of
-    [] ->
-      JS.Object [ "ctor" ==> JS.String "[]" ]
-
-    front : back ->
-      cons front (list back)
-
-
-cons :: JS.Expr -> JS.Expr -> JS.Expr
-cons front back =
-  JS.Object
-    [ "ctor" ==> JS.String "::"
-    , "_0" ==> front
-    , "_1" ==> back
-    ]
+  Var.coreNative "List" "fromArray" <| JS.Array elements
 
 
 
