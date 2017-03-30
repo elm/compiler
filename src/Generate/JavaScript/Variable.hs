@@ -5,7 +5,6 @@ module Generate.JavaScript.Variable
     , local
     , global
     , qualified
-    , native
     , coreNative
     , staticProgram
     , defineGlobal
@@ -58,19 +57,14 @@ global home name =
 -- MISC
 
 
-native :: ModuleName.Canonical -> Text -> JS.Expr
-native moduleName name =
-  JS.obj [ moduleToText moduleName, name ]
-
-
 coreNative :: Text -> Text -> JS.Expr
 coreNative moduleName name =
-  native (ModuleName.inCore ("Native." <> moduleName)) name
+  global (ModuleName.inCore ("Native." <> moduleName)) name
 
 
 staticProgram :: JS.Expr
 staticProgram =
-  native (ModuleName.inVirtualDom "Native.VirtualDom") "staticProgram"
+  global (ModuleName.inVirtualDom "Native.VirtualDom") "staticProgram"
 
 
 
