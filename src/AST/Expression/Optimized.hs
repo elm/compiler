@@ -8,6 +8,7 @@ module AST.Expression.Optimized
   where
 
 
+import Control.Monad (liftM, liftM2, liftM3, liftM4)
 import Data.Binary
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -99,7 +100,7 @@ data Choice
 
 instance Binary Decl where
   get =
-    Decl <$> get <*> get <*> get
+    liftM3 Decl get get get
 
   put (Decl deps fx body) =
     put deps >> put fx >> put body
@@ -126,29 +127,29 @@ instance Binary Expr where
   get =
     do  word <- getWord8
         case word of
-          0  -> Literal <$> get
-          1  -> VarLocal <$> get
-          2  -> VarGlobal <$> get <*> get
-          3  -> List <$> get
-          4  -> Binop <$> get <*> get <*> get <*> get
-          5  -> Function <$> get <*> get
-          6  -> Call <$> get <*> get
-          7  -> TailCall <$> get <*> get <*> get
-          8  -> If <$> get <*> get
-          9  -> Let <$> get <*> get
-          10 -> Case <$> get <*> get <*> get
-          11 -> Ctor <$> get <*> get
-          12 -> CtorAccess <$> get <*> get
-          13 -> Access <$> get <*> get
-          14 -> Update <$> get <*> get
-          15 -> Record <$> get
-          16 -> Cmd <$> get <*> get
-          17 -> Sub <$> get <*> get
-          18 -> OutgoingPort <$> get <*> get
-          19 -> IncomingPort <$> get <*> get
-          20 -> Program <$> get <*> get
-          21 -> GLShader <$> get
-          22 -> Crash <$> get <*> get <*> get
+          0  -> liftM  Literal get
+          1  -> liftM  VarLocal get
+          2  -> liftM2 VarGlobal get get
+          3  -> liftM  List get
+          4  -> liftM4 Binop get get get get
+          5  -> liftM2 Function get get
+          6  -> liftM2 Call get get
+          7  -> liftM3 TailCall get get get
+          8  -> liftM2 If get get
+          9  -> liftM2 Let get get
+          10 -> liftM3 Case get get get
+          11 -> liftM2 Ctor get get
+          12 -> liftM2 CtorAccess get get
+          13 -> liftM2 Access get get
+          14 -> liftM2 Update get get
+          15 -> liftM  Record get
+          16 -> liftM2 Cmd get get
+          17 -> liftM2 Sub get get
+          18 -> liftM2 OutgoingPort get get
+          19 -> liftM2 IncomingPort get get
+          20 -> liftM2 Program get get
+          21 -> liftM  GLShader get
+          22 -> liftM3 Crash get get get
           _  -> error "problem getting Opt.Expr binary"
 
   put expr =
@@ -182,9 +183,9 @@ instance (Binary a) => Binary (Decider a) where
   get =
     do  word <- getWord8
         case word of
-          0 -> Leaf <$> get
-          1 -> Chain <$> get <*> get <*> get
-          2 -> FanOut <$> get <*> get <*> get
+          0 -> liftM  Leaf get
+          1 -> liftM3 Chain get get get
+          2 -> liftM3 FanOut get get get
           _ -> error "problem getting Opt.Decider binary"
 
   put decider =
@@ -215,7 +216,7 @@ instance Binary Choice where
   get =
     do  word <- getWord8
         case word of
-          0 -> Inline <$> get
-          1 -> Jump <$> get
+          0 -> liftM Inline get
+          1 -> liftM Jump get
           _ -> error "problem getting Opt.Choice binary"
 
