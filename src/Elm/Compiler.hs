@@ -1,14 +1,14 @@
 {-# OPTIONS_GHC -Wall #-}
 module Elm.Compiler
-    ( version
-    , parseDependencies, Tag(..)
-    , compile, Context(..), Result(..)
-    , generate
-    , Localizer, dummyLocalizer
-    , Error, errorToDoc, errorToJson
-    , Warning, warningToDoc, warningToJson
-    )
-    where
+  ( version
+  , parseDependencies, Tag(..)
+  , compile, Context(..), Result(..)
+  , generate
+  , Localizer, dummyLocalizer
+  , Error, errorToDoc, errorToJson
+  , Warning, warningToDoc, warningToJson
+  )
+  where
 
 import qualified Data.Aeson as Json
 import qualified Data.Map as Map
@@ -152,7 +152,7 @@ docsGen isExposed (Module.Module name info) =
 -- CODE GENERATION
 
 
-generate :: Obj.Graph -> Obj.Roots -> (Set.Set M.Canonical, BS.Builder)
+generate :: Obj.SymbolTable -> Obj.Graph -> Obj.Roots -> (Set.Set M.Canonical, BS.Builder)
 generate =
   JS.generate
 

@@ -1,58 +1,74 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Generate.JavaScript.BuiltIn
-  ( character
-  , list, cons
+  ( char
+  , list
+  , cons
   , recordUpdate
-  , eq, cmp
-  , effect, outgoingPort, incomingPort
+  , eq
+  , cmp
+  , effectManagers
+  , effect
+  , outgoingPort
+  , incomingPort
+  , staticProgram
   , crash
   )
   where
 
+
 import Data.Text (Text)
 
 import qualified AST.Module.Name as ModuleName
+import qualified AST.Variable as Var
 import qualified Generate.JavaScript.Builder as JS
 import Generate.JavaScript.Helpers ((<|), (==>))
 import qualified Generate.JavaScript.Variable as Var
+import Generate.JavaScript.Variable (Generator)
 import qualified Reporting.Region as R
-
-
-
-utils :: Text -> [JS.Expr] -> JS.Expr
-utils func args =
-  JS.Call (Var.coreNative "Utils" func) args
 
 
 
 -- LITERALS
 
 
-character :: Text -> JS.Expr
-character char =
-  utils "chr" [ JS.String char ]
+char :: Text -> Generator JS.Expr
+char c =
+  utils "chr" [ JS.String c ]
+
+
+utils :: Text -> [JS.Expr] -> Generator JS.Expr
+utils name args =
+  do  func <- core "Native.Utils" name
+      return $ JS.Call func args
+
+
+core :: ModuleName.Raw -> Text -> Generator JS.Expr
+core home name =
+  Var.global (Var.Global (ModuleName.inCore home) name)
 
 
 
 -- LISTS
 
 
-list :: [JS.Expr] -> JS.Expr
+list :: [JS.Expr] -> Generator JS.Expr
 list elements =
-  Var.coreNative "List" "fromArray" <| JS.Array elements
+  do  fromArray <- core "Native.List" "fromArray"
+      return $ fromArray <| JS.Array elements
 
 
-cons :: JS.Expr -> JS.Expr -> JS.Expr
-cons front back =
-  JS.Call (Var.coreNative "List" "Cons") [front, back]
+cons :: JS.Expr -> JS.Expr -> Generator JS.Expr
+cons first rest =
+  do  func <- core "Native.List" "Cons"
+      return $ JS.Call func [first, rest]
 
 
 
 -- RECORDS
 
 
-recordUpdate :: JS.Expr -> [(Text, JS.Expr)] -> JS.Expr
+recordUpdate :: JS.Expr -> [(Text, JS.Expr)] -> Generator JS.Expr
 recordUpdate record fields =
   utils "update"
     [ record
@@ -64,12 +80,12 @@ recordUpdate record fields =
 -- COMPARISIONS
 
 
-eq :: JS.Expr -> JS.Expr -> JS.Expr
+eq :: JS.Expr -> JS.Expr -> Generator JS.Expr
 eq left right =
   utils "eq" [ left, right ]
 
 
-cmp :: JS.Expr -> JS.Expr -> JS.Expr
+cmp :: JS.Expr -> JS.Expr -> Generator JS.Expr
 cmp left right =
   utils "cmp" [ left, right ]
 
@@ -78,55 +94,67 @@ cmp left right =
 -- EFFECTS
 
 
-effect :: ModuleName.Canonical -> JS.Expr
+effectManagers :: Generator JS.Expr
+effectManagers =
+  core "Native.Platform" "effectManagers"
+
+
+effect :: ModuleName.Canonical -> Generator JS.Expr
 effect effectName =
-  Var.coreNative "Platform" "leaf" <|
-    JS.String (ModuleName.canonicalToText effectName)
+  do  leaf <- core "Native.Platform" "leaf"
+      return $ leaf <| JS.String (ModuleName.canonicalToText effectName)
 
 
-outgoingPort :: Text -> JS.Expr -> JS.Expr
+outgoingPort :: Text -> JS.Expr -> Generator JS.Expr
 outgoingPort name converter =
-  JS.Call
-    (Var.coreNative "Platform" "outgoingPort")
-    [ JS.String name, converter ]
+  do  outPort <- core "Native.Platform" "outgoingPort"
+      return $ JS.Call outPort [ JS.String name, converter ]
 
 
-incomingPort :: Text -> JS.Expr -> JS.Expr
+incomingPort :: Text -> JS.Expr -> Generator JS.Expr
 incomingPort name converter =
-  JS.Call
-    (Var.coreNative "Platform" "incomingPort")
-    [ JS.String name, converter ]
+  do  inPort <- core "Native.Platform" "incomingPort"
+      return $ JS.Call inPort [ JS.String name, converter ]
+
+
+
+-- VIRTUAL DOM
+
+
+staticProgram :: Generator JS.Expr
+staticProgram =
+  Var.global (Var.Global (ModuleName.inVirtualDom "Native.VirtualDom") "staticProgram")
 
 
 
 -- CRASH
 
 
-crash :: ModuleName.Canonical -> R.Region -> Maybe (JS.Expr) -> JS.Expr
+crash :: ModuleName.Canonical -> R.Region -> Maybe (JS.Expr) -> Generator JS.Expr
 crash home region maybeCaseCrashValue =
   let
     homeString =
       JS.String (ModuleName.canonicalToText home)
   in
-  case maybeCaseCrashValue of
-    Nothing ->
+    case maybeCaseCrashValue of
+      Nothing ->
         utils "crash" [ homeString, regionToJs region ]
 
-    Just crashValue ->
+      Just crashValue ->
         utils "crashCase" [ homeString, regionToJs region, crashValue ]
 
 
 regionToJs :: R.Region -> JS.Expr
 regionToJs (R.Region start end) =
-    JS.Object
-      [ "start" ==> positionToJs start
-      , "end"   ==> positionToJs end
-      ]
+  JS.Object
+    [ "start" ==> positionToJs start
+    , "end"   ==> positionToJs end
+    ]
 
 
 positionToJs :: R.Position -> JS.Expr
 positionToJs (R.Position line column) =
-    JS.Object
-      [ "line"   ==> JS.Int line
-      , "column" ==> JS.Int column
-      ]
+  JS.Object
+    [ "line"   ==> JS.Int line
+    , "column" ==> JS.Int column
+    ]

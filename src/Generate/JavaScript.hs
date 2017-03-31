@@ -2,13 +2,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Generate.JavaScript (generate) where
 
-import qualified Control.Monad.State as State
+import Prelude hiding (init)
 import Data.Monoid ((<>))
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Text (Text)
 import qualified Data.ByteString.Builder as BS
 
 import qualified AST.Effects as Effects
@@ -18,8 +17,8 @@ import qualified AST.Variable as Var
 import qualified Elm.Package as Pkg
 import qualified Elm.Compiler.Objects.Internal as Obj
 import qualified Generate.JavaScript.Builder as JS
+import qualified Generate.JavaScript.Effects as Effects
 import qualified Generate.JavaScript.Expression as JS
-import qualified Generate.JavaScript.Helpers as JS
 import qualified Generate.JavaScript.Variable as JS
 
 
@@ -27,37 +26,38 @@ import qualified Generate.JavaScript.Variable as JS
 -- GENERATE JAVASCRIPT
 
 
-generate :: Obj.Graph -> Obj.Roots -> (Set.Set ModuleName.Canonical, BS.Builder)
-generate (Obj.Graph graph) roots =
+generate :: Obj.SymbolTable -> Obj.Graph -> Obj.Roots -> (Set.Set ModuleName.Canonical, BS.Builder)
+generate symbols (Obj.Graph graph) roots =
   let
-    (State builders _ natives effects) =
-      List.foldl' (crawl graph) empty (Obj.toGlobals roots)
+    (State builders _ natives effects table) =
+      List.foldl' (crawl graph) (init symbols) (Obj.toGlobals roots)
 
     managers =
-      Map.foldrWithKey addManager "" effects
+      fst $ JS.run table (Effects.generate effects)
 
     javascript =
-      List.foldl' (\rest js -> js <> rest) managers builders
+      List.foldl' (\rest stmt -> JS.encodeUtf8 stmt <> rest) managers builders
   in
     (natives, javascript)
 
 
 
--- DEAD CODE ELIMINATION
+-- DCE STATE
 
 
 data State =
   State
-    { _js :: [BS.Builder]
+    { _stmts :: [JS.Stmt]
     , _seen :: Set.Set Var.Global
     , _natives :: Set.Set ModuleName.Canonical
     , _effects :: Map.Map ModuleName.Canonical Effects.ManagerType
+    , _table :: JS.Table
     }
 
 
-empty :: State
-empty =
-  State [] Set.empty Set.empty Map.empty
+init :: Obj.SymbolTable -> State
+init symbols =
+  State [] Set.empty Set.empty Map.empty (JS.init symbols)
 
 
 
@@ -68,7 +68,7 @@ type Graph = Map.Map Var.Global Opt.Decl
 
 
 crawl :: Graph -> State -> Var.Global -> State
-crawl graph state@(State js seen natives effects) name@(Var.Global home _) =
+crawl graph state@(State js seen natives effects table) name@(Var.Global home _) =
   if Set.member name seen then
     state
 
@@ -82,35 +82,29 @@ crawl graph state@(State js seen natives effects) name@(Var.Global home _) =
 
       Nothing ->
         if ModuleName.canonicalIsNative home then
-          State js seen (Set.insert home natives) effects
+          State js seen (Set.insert home natives) effects table
         else
           error (crawlError name)
 
 
-virtualDomDebug :: ModuleName.Canonical
-virtualDomDebug =
-  ModuleName.inVirtualDom "VirtualDom.Debug"
-
-
 crawlDecl :: Graph -> Var.Global -> Opt.Decl -> State -> State
-crawlDecl graph name@(Var.Global home _) (Opt.Decl deps mfx body) state =
+crawlDecl graph var@(Var.Global home name) (Opt.Decl deps fx body) state =
   let
     newState =
-      state { _seen = Set.insert name (_seen state) }
+      state { _seen = Set.insert var (_seen state) }
 
-    (State js seen natives effects) =
+    (State stmts seen natives effects table) =
       Set.foldl' (crawl graph) newState deps
 
-    newEffects =
-      case mfx of
-        Nothing -> effects
-        Just fx -> Map.insert home fx effects
+    (stmt, newTable) =
+      JS.run table (JS.generateDecl home name body)
   in
     State
-      { _js = generateDecl name body : js
+      { _stmts = stmt : stmts
       , _seen = seen
       , _natives = natives
-      , _effects = newEffects
+      , _effects = maybe id (Map.insert home) fx effects
+      , _table = newTable
       }
 
 
@@ -123,59 +117,6 @@ crawlError (Var.Global (ModuleName.Canonical pkg home) name) =
     <> "try to make an <http://sscce.org/> that demonstrates the issue!"
 
 
-generateDecl :: Var.Global -> Opt.Def -> BS.Builder
-generateDecl (Var.Global home name) def =
-  let
-    genBody =
-      JS.generateDecl home name def
-  in
-    JS.encodeUtf8 (State.evalState genBody 0)
-
-
-
--- ADD EFFECT MANAGER
-
-
-addManager :: ModuleName.Canonical -> Effects.ManagerType -> BS.Builder -> BS.Builder
-addManager name manager builder =
-  JS.encodeUtf8 [genManager name manager] <> builder
-
-
-genManager :: ModuleName.Canonical -> Effects.ManagerType -> JS.Stmt
-genManager moduleName@(ModuleName.Canonical pkg _) manager =
-  let
-    managers =
-      JS.coreNative "Platform" "effectManagers"
-
-    managerName =
-      JS.String (ModuleName.canonicalToText moduleName)
-
-    entry name =
-      ( JS.IdProp (JS.Id name)
-      , JS.ref (JS.qualified moduleName name)
-      )
-
-    managerEntries =
-      [ "pkg" ==> Pkg.toText pkg
-      , entry "init"
-      , entry "onEffects"
-      , entry "onSelfMsg"
-      ]
-
-    otherEntries =
-      case manager of
-        Effects.Cmds -> [ "tag" ==> "cmd", entry "cmdMap" ]
-        Effects.Subs -> [ "tag" ==> "sub", entry "subMap" ]
-        Effects.Both -> [ "tag" ==> "fx", entry "cmdMap", entry "subMap" ]
-  in
-    JS.ExprStmt $
-      JS.Assign
-        (JS.LBracket managers managerName)
-        (JS.Object (managerEntries ++ otherEntries))
-
-
-(==>) :: Text -> Text -> ( JS.Prop, JS.Expr )
-(==>) key value =
-  ( JS.IdProp (JS.Id key)
-  , JS.String value
-  )
+virtualDomDebug :: ModuleName.Canonical
+virtualDomDebug =
+  ModuleName.inVirtualDom "VirtualDom.Debug"

@@ -14,7 +14,6 @@ import qualified AST.Type as T
 import qualified AST.Variable as Var
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Helpers as JS (function, ref)
-import qualified Generate.JavaScript.Variable as Var
 import Generate.JavaScript.Helpers ((<|), (==>))
 
 
@@ -83,7 +82,7 @@ fromList :: T.Canonical -> JS.Expr -> JS.Expr
 fromList tipe expr =
   let
     array =
-      Var.coreNative "List" "toArray" <| expr
+      error "TODO port fromList" expr -- Var.coreNative "List" "toArray" <| expr
   in
     JS.DotRef array (JS.Id "map") <| encode tipe
 
@@ -92,7 +91,7 @@ fromArray :: T.Canonical -> JS.Expr -> JS.Expr
 fromArray tipe expr =
   let
     array =
-      Var.coreNative "Array" "toJSArray" <| expr
+      error "TODO port fromArray" expr -- Var.coreNative "Array" "toJSArray" <| expr
   in
     JS.DotRef array (JS.Id "map") <| encode tipe
 

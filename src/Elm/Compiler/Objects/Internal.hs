@@ -5,6 +5,9 @@ module Elm.Compiler.Objects.Internal
   , fromModule
   , union
   , unions
+  , SymbolTable
+  , Symbol(..)
+  , lookup
   , Roots
   , root
   , toGlobals
@@ -12,7 +15,9 @@ module Elm.Compiler.Objects.Internal
   where
 
 
+import Prelude hiding (lookup)
 import Control.Arrow (first)
+import Control.Monad (liftM, liftM2)
 import Data.Binary
 import qualified Data.Map as Map
 
@@ -24,7 +29,7 @@ import qualified Elm.Package as Pkg
 
 
 
--- OBJECTS
+-- OBJECT GRAPH
 
 
 newtype Graph =
@@ -32,7 +37,7 @@ newtype Graph =
 
 
 
--- HELPERS
+-- OBJECT GRAPH HELPERS
 
 
 fromModule :: Module.Optimized -> Graph
@@ -54,6 +59,26 @@ unions graphs =
 destruct :: Graph -> Map.Map Var.Global Opt.Decl
 destruct (Graph graph) =
   graph
+
+
+
+-- SYMBOLS
+
+
+data Symbol =
+  Symbol
+    { _home :: !Word16
+    , _name :: !Word32
+    }
+
+
+newtype SymbolTable =
+  SymbolTable (Map.Map Var.Global Symbol)
+
+
+lookup :: Var.Global -> SymbolTable -> Maybe Symbol
+lookup var (SymbolTable symbols) =
+  Map.lookup var symbols
 
 
 
@@ -85,4 +110,12 @@ instance Binary Graph where
     put dict
 
   get =
-    Graph <$> get
+    liftM Graph get
+
+
+instance Binary Symbol where
+  put (Symbol home name) =
+    put home >> put name
+
+  get =
+    liftM2 Symbol get get

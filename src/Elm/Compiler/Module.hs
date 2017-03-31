@@ -20,7 +20,6 @@ module Elm.Compiler.Module
 
   -- canonical names
   , ModuleName.Canonical(..)
-  , qualifiedVar
   )
   where
 
@@ -36,7 +35,6 @@ import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified Elm.Compiler.Type as PublicType
 import qualified Elm.Compiler.Type.Extract as Extract
-import qualified Generate.JavaScript.Variable as Gen
 
 
 
@@ -45,7 +43,7 @@ import qualified Generate.JavaScript.Variable as Gen
 
 interfaceAliasedTypes :: Module.Interface -> Map.Map Text PublicType.Type
 interfaceAliasedTypes interface =
-    Map.map Extract.extract (Module.iTypes interface)
+  Map.map Extract.extract (Module.iTypes interface)
 
 
 programTypes :: Module.Interfaces -> ModuleName.Canonical -> Maybe PublicType.Program
@@ -136,11 +134,3 @@ instance Json.FromJSON RawForJson where
   parseJSON _ =
     fail "expecting the module name to be a string"
 
-
-
--- CANONICAL NAMES
-
-
-qualifiedVar :: ModuleName.Canonical -> Text -> Text
-qualifiedVar =
-  Gen.qualified

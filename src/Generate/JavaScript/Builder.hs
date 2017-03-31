@@ -130,9 +130,9 @@ data PrefixOp
 -- ENCODE
 
 
-encodeUtf8 :: [Stmt] -> Builder
+encodeUtf8 :: Stmt -> Builder
 encodeUtf8 stmts =
-  fromStmtBlock "" stmts
+  fromStmt "" stmts
 
 
 

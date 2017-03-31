@@ -90,6 +90,7 @@ Library
         Generate.JavaScript,
         Generate.JavaScript.Builder,
         Generate.JavaScript.BuiltIn,
+        Generate.JavaScript.Effects,
         Generate.JavaScript.Expression,
         Generate.JavaScript.Foreign,
         Generate.JavaScript.Helpers,

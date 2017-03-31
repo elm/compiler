@@ -5,7 +5,7 @@ module Generate.JavaScript.Expression
   where
 
 import Control.Arrow (second)
-import Control.Monad.State (State, foldM)
+import Control.Monad (foldM)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import Data.Monoid ((<>))
@@ -23,6 +23,7 @@ import qualified Generate.JavaScript.BuiltIn as BuiltIn
 import qualified Generate.JavaScript.Foreign as Foreign
 import qualified Generate.JavaScript.Literal as Literal
 import qualified Generate.JavaScript.Variable as Var
+import Generate.JavaScript.Variable (Generator)
 import qualified Optimize.DecisionTree as DT
 
 
@@ -30,9 +31,11 @@ import qualified Optimize.DecisionTree as DT
 -- GENERATE DECLARATION
 
 
-generateDecl :: ModuleName.Canonical -> Text -> Opt.Def -> State Int [JS.Stmt]
+generateDecl :: ModuleName.Canonical -> Text -> Opt.Def -> Generator JS.Stmt
 generateDecl home name def =
-  Var.defineGlobal home name <$> generateDef name def
+  do  jsName <- Var.getGlobalName (V.Global home name)
+      jsBody <- generateDef name def
+      return $ JS.VarDeclStmt [ Help.varDecl jsName jsBody ]
 
 
 
@@ -44,12 +47,12 @@ data Code
     | JsBlock [JS.Stmt]
 
 
-jsExpr :: JS.Expr -> State Int Code
+jsExpr :: JS.Expr -> Generator Code
 jsExpr exp =
   return (JsExpr exp)
 
 
-jsBlock :: [JS.Stmt] -> State Int Code
+jsBlock :: [JS.Stmt] -> Generator Code
 jsBlock exp =
   return (JsBlock exp)
 
@@ -98,22 +101,22 @@ toExpr code =
 -- EXPRESSIONS
 
 
-generateJsExpr :: Opt.Expr -> State Int JS.Expr
+generateJsExpr :: Opt.Expr -> Generator JS.Expr
 generateJsExpr optExpr =
   toExpr <$> generateCode optExpr
 
 
-generateCode :: Opt.Expr -> State Int Code
+generateCode :: Opt.Expr -> Generator Code
 generateCode expr =
     case expr of
       VarLocal name ->
           jsExpr $ Var.local name
 
       VarGlobal name ->
-          jsExpr $ Var.global name
+          JsExpr <$> Var.global name
 
       Literal lit ->
-          jsExpr (Literal.literal lit)
+          JsExpr <$> Literal.literal lit
 
       Access record field ->
           do  jsRecord <- generateJsExpr record
@@ -127,7 +130,7 @@ generateCode expr =
           in
             do  jsRecord <- generateJsExpr record
                 jsFields <- mapM fieldToJs fields
-                jsExpr $ BuiltIn.recordUpdate jsRecord jsFields
+                JsExpr <$> BuiltIn.recordUpdate jsRecord jsFields
 
       Record fields ->
           let
@@ -173,7 +176,7 @@ generateCode expr =
 
       List elements ->
           do  jsElements <- mapM generateJsExpr elements
-              jsExpr $ BuiltIn.list jsElements
+              JsExpr <$> BuiltIn.list jsElements
 
       Ctor tag members ->
         let
@@ -191,39 +194,41 @@ generateCode expr =
               jsExpr $ JS.DotRef jsDataExpr (JS.Id ("_" <> Text.pack (show index)))
 
       Cmd moduleName _ ->
-          jsExpr $ BuiltIn.effect moduleName
+          JsExpr <$> BuiltIn.effect moduleName
 
       Sub moduleName _ ->
-          jsExpr $ BuiltIn.effect moduleName
+          JsExpr <$> BuiltIn.effect moduleName
 
       OutgoingPort name tipe ->
-          jsExpr $ BuiltIn.outgoingPort name (Foreign.encode tipe)
+          JsExpr <$> BuiltIn.outgoingPort name (Foreign.encode tipe)
 
       IncomingPort name tipe ->
           do  jsDecoder <- generateJsExpr (Foreign.decode tipe)
-              jsExpr $ BuiltIn.incomingPort name jsDecoder
+              JsExpr <$> BuiltIn.incomingPort name jsDecoder
 
       Program kind body ->
           generateProgram kind body
 
       GLShader src ->
-          jsExpr $ JS.Object [(JS.StringProp "src", Literal.literal (L.Str src))]
+          do  string <- Literal.literal (L.Str src)
+              jsExpr $ JS.Object [(JS.StringProp "src", string)]
 
       Crash home region maybeBranchProblem ->
           do  maybeOptBranchProblem <- traverse generateJsExpr maybeBranchProblem
-              jsExpr $ BuiltIn.crash home region maybeOptBranchProblem
+              JsExpr <$> BuiltIn.crash home region maybeOptBranchProblem
 
 
 
 -- PROGRAMS
 
 
-generateProgram :: Can.Main -> Opt.Expr -> State Int Code
+generateProgram :: Can.Main -> Opt.Expr -> Generator Code
 generateProgram kind body =
   case kind of
     Can.VDom ->
       do  html <- generateJsExpr body
-          jsExpr (Var.staticProgram <| html)
+          func <- BuiltIn.staticProgram
+          jsExpr (func <| html)
 
     Can.NoFlags ->
       do  almostProgram <- generateJsExpr body
@@ -239,13 +244,13 @@ generateProgram kind body =
 -- DEFINITIONS
 
 
-generateLetDef :: (Text, Opt.Def) -> State Int JS.Stmt
+generateLetDef :: (Text, Opt.Def) -> Generator JS.Stmt
 generateLetDef (name, def) =
   do  jsBody <- generateDef name def
       return $ JS.VarDeclStmt [ Help.varDecl name jsBody ]
 
 
-generateDef :: Text -> Opt.Def -> State Int JS.Expr
+generateDef :: Text -> Opt.Def -> Generator JS.Expr
 generateDef name def =
   case def of
     Opt.TailDef argNames body ->
@@ -255,7 +260,7 @@ generateDef name def =
       generateJsExpr body
 
 
-generateTailFunction :: Text -> [Text] -> Opt.Expr -> State Int JS.Expr
+generateTailFunction :: Text -> [Text] -> Opt.Expr -> Generator JS.Expr
 generateTailFunction name args body =
   do  code <- generateCode body
       return $ generateFunctionWithArity args $ JsBlock $ (:[]) $
@@ -268,7 +273,7 @@ generateTailFunction name args body =
 -- FUNCTIONS
 
 
-generateFunction :: [Text] -> Opt.Expr -> State Int Code
+generateFunction :: [Text] -> Opt.Expr -> Generator Code
 generateFunction args body =
   do  code <- generateCode body
       jsExpr (generateFunctionWithArity args code)
@@ -297,7 +302,7 @@ generateFunctionWithArity rawArgs code =
 -- GENERATE CALL
 
 
-generateCall :: Opt.Expr -> [Opt.Expr] -> State Int Code
+generateCall :: Opt.Expr -> [Opt.Expr] -> Generator Code
 generateCall func args =
   case (func, args) of
     (Opt.VarGlobal (V.Global home name), [arg]) ->
@@ -320,13 +325,13 @@ generateCall func args =
       generateCallHelp func args
 
 
-genPrefix :: JS.PrefixOp -> Opt.Expr -> State Int Code
+genPrefix :: JS.PrefixOp -> Opt.Expr -> Generator Code
 genPrefix op arg =
   do  jsArg <- generateJsExpr arg
       jsExpr (JS.Prefix op jsArg)
 
 
-genInfix :: JS.InfixOp -> Opt.Expr -> Opt.Expr -> State Int Code
+genInfix :: JS.InfixOp -> Opt.Expr -> Opt.Expr -> Generator Code
 genInfix op left right =
   do  jsLeft <- generateJsExpr left
       jsRight <- generateJsExpr right
@@ -343,7 +348,7 @@ bitwise =
   ModuleName.inCore "Bitwise"
 
 
-generateCallHelp :: Opt.Expr -> [Opt.Expr] -> State Int Code
+generateCallHelp :: Opt.Expr -> [Opt.Expr] -> Generator Code
 generateCallHelp func args =
   let
     arity = length args
@@ -362,7 +367,7 @@ generateCallHelp func args =
 -- GENERATE IFS
 
 
-generateIf :: [(Opt.Expr, Opt.Expr)] -> Opt.Expr -> State Int Code
+generateIf :: [(Opt.Expr, Opt.Expr)] -> Opt.Expr -> Generator Code
 generateIf givenBranches givenFinally =
   let
     (branches, finally) =
@@ -421,7 +426,7 @@ crushIfsHelp visitedBranches unvisitedBranches finally =
 -- CASE EXPRESSIONS
 
 
-generateCase :: Text -> Opt.Decider Opt.Choice -> [(Int, Opt.Expr)] -> State Int [JS.Stmt]
+generateCase :: Text -> Opt.Decider Opt.Choice -> [(Int, Opt.Expr)] -> Generator [JS.Stmt]
 generateCase exprName decider jumps =
   do  labelRoot <- Var.fresh
       decider <- generateDecider exprName labelRoot decider
@@ -432,7 +437,7 @@ generateCase exprName decider jumps =
 -- handle any jumps
 
 
-goto :: Text -> [JS.Stmt] -> (Int, Opt.Expr) -> State Int [JS.Stmt]
+goto :: Text -> [JS.Stmt] -> (Int, Opt.Expr) -> Generator [JS.Stmt]
 goto labelRoot deciderStmts (target, branch) =
   let
     labeledDeciderStmt =
@@ -453,7 +458,7 @@ toLabel root target =
 -- turn deciders into ifs and switches
 
 
-generateDecider :: Text -> Text -> Opt.Decider Opt.Choice -> State Int [JS.Stmt]
+generateDecider :: Text -> Text -> Opt.Decider Opt.Choice -> Generator [JS.Stmt]
 generateDecider exprName labelRoot decisionTree =
   case decisionTree of
     Opt.Leaf (Opt.Inline branch) ->
@@ -466,7 +471,7 @@ generateDecider exprName labelRoot decisionTree =
         let
           makeTest (path, test) =
             do  testExpr <- pathToTestableExpr exprName path test
-                return (JS.Infix JS.OpStrictEq testExpr (testToExpr test))
+                JS.Infix JS.OpStrictEq testExpr <$> testToExpr test
         in
           do  testExprs <- mapM makeTest testChain
               let cond = List.foldl1' (JS.Infix JS.OpLAnd) testExprs
@@ -481,29 +486,31 @@ generateDecider exprName labelRoot decisionTree =
             return [ JS.Switch testExpr (caseClauses ++ [caseDefault]) ]
 
 
-edgeToCase :: Text -> Text -> (DT.Test, Opt.Decider Opt.Choice) -> State Int JS.Case
+edgeToCase :: Text -> Text -> (DT.Test, Opt.Decider Opt.Choice) -> Generator JS.Case
 edgeToCase exprName labelRoot (test, subTree) =
-  JS.Case (testToExpr test) <$> generateDecider exprName labelRoot subTree
+  JS.Case
+    <$> testToExpr test
+    <*> generateDecider exprName labelRoot subTree
 
 
-testToExpr :: DT.Test -> JS.Expr
+testToExpr :: DT.Test -> Generator JS.Expr
 testToExpr test =
   case test of
     DT.Constructor (V.Canonical _ tag) ->
-        JS.String tag
+      return $ JS.String tag
 
     DT.Literal (L.Chr char) ->
-        JS.String char
+      return $ JS.String char
 
     DT.Literal lit ->
-        Literal.literal lit
+      Literal.literal lit
 
 
 
 -- work with paths
 
 
-pathToTestableExpr :: Text -> DT.Path -> DT.Test -> State Int JS.Expr
+pathToTestableExpr :: Text -> DT.Path -> DT.Test -> Generator JS.Expr
 pathToTestableExpr root path exampleTest =
   do  accessExpr <- generateJsExpr (pathToExpr root path)
       case exampleTest of
@@ -540,31 +547,32 @@ pathToExpr root fullPath =
 -- BINARY OPERATORS
 
 
-generateBinop :: V.Global -> Opt.Expr -> Opt.Expr -> State Int Code
+generateBinop :: V.Global -> Opt.Expr -> Opt.Expr -> Generator Code
 generateBinop op left right =
   do  jsLeft <- generateJsExpr left
       jsRight <- generateJsExpr right
-      jsExpr (generateBinopHelp op jsLeft jsRight)
+      JsExpr <$> generateBinopHelp op jsLeft jsRight
 
 
 
 -- BINARY OPERATOR HELPERS
 
 
-generateBinopHelp :: V.Global -> JS.Expr -> JS.Expr -> JS.Expr
-generateBinopHelp var@(V.Global home op) leftExpr rightExpr =
+generateBinopHelp :: V.Global -> JS.Expr -> JS.Expr -> Generator JS.Expr
+generateBinopHelp var@(V.Global home op) jsLeft jsRight =
   let
     simpleMake left right =
-      JS.Call (ref "A2") [ Var.global var, left, right ]
+      do  func <- Var.global var
+          return $ JS.Call (ref "A2") [ func, left, right ]
   in
     if home == basics then
-        (Map.findWithDefault simpleMake op basicOps) leftExpr rightExpr
+      (Map.findWithDefault simpleMake op basicsOps) jsLeft jsRight
 
     else if op == "::" && home == list then
-        BuiltIn.cons leftExpr rightExpr
+      BuiltIn.cons jsLeft jsRight
 
     else
-        simpleMake leftExpr rightExpr
+      simpleMake jsLeft jsRight
 
 
 list :: ModuleName.Canonical
@@ -572,39 +580,43 @@ list =
   ModuleName.inCore "List"
 
 
-basicOps :: Map.Map Text (JS.Expr -> JS.Expr -> JS.Expr)
-basicOps =
-    Map.fromList (infixOps ++ specialOps)
+basicsOps :: Map.Map Text (JS.Expr -> JS.Expr -> Generator JS.Expr)
+basicsOps =
+  Map.fromList (basicsOpsNormal ++ basicsOpsSpecial)
 
 
-infixOps :: [(Text, JS.Expr -> JS.Expr -> JS.Expr)]
-infixOps =
-    let
-        infixOp str op =
-            (str, JS.Infix op)
-    in
-        [ infixOp "+"  JS.OpAdd
-        , infixOp "-"  JS.OpSub
-        , infixOp "*"  JS.OpMul
-        , infixOp "/"  JS.OpDiv
-        , infixOp "&&" JS.OpLAnd
-        , infixOp "||" JS.OpLOr
-        ]
-
-
-specialOps :: [(Text, JS.Expr -> JS.Expr -> JS.Expr)]
-specialOps =
-    [ (,) "^"  $ \a b -> JS.Call (obj ["Math","pow"]) [a,b]
-    , (,) "==" $ \a b -> BuiltIn.eq a b
-    , (,) "/=" $ \a b -> JS.Prefix JS.PrefixLNot (BuiltIn.eq a b)
-    , (,) "<"  $ cmp JS.OpLT 0
-    , (,) ">"  $ cmp JS.OpGT 0
-    , (,) "<=" $ cmp JS.OpLT 1
-    , (,) ">=" $ cmp JS.OpGT (-1)
-    , (,) "//" $ \a b -> JS.Infix JS.OpBOr (JS.Infix JS.OpDiv a b) (JS.Int 0)
+basicsOpsNormal :: [(Text, JS.Expr -> JS.Expr -> Generator JS.Expr)]
+basicsOpsNormal =
+  let
+    (=*>) str op =
+      ( str, \left right -> return (JS.Infix op left right) )
+  in
+    [ "+"  =*> JS.OpAdd
+    , "-"  =*> JS.OpSub
+    , "*"  =*> JS.OpMul
+    , "/"  =*> JS.OpDiv
+    , "&&" =*> JS.OpLAnd
+    , "||" =*> JS.OpLOr
     ]
 
 
-cmp :: JS.InfixOp -> Int -> JS.Expr -> JS.Expr -> JS.Expr
+basicsOpsSpecial :: [(Text, JS.Expr -> JS.Expr -> Generator JS.Expr)]
+basicsOpsSpecial =
+  let
+    (=*>) = (,)
+  in
+    [ "^"  =*> \a b -> return $ JS.Call (obj ["Math","pow"]) [a,b]
+    , "==" =*> BuiltIn.eq
+    , "/=" =*> \a b -> JS.Prefix JS.PrefixLNot <$> BuiltIn.eq a b
+    , "<"  =*> cmp JS.OpLT 0
+    , ">"  =*> cmp JS.OpGT 0
+    , "<=" =*> cmp JS.OpLT 1
+    , ">=" =*> cmp JS.OpGT (-1)
+    , "//" =*> \a b -> return $ JS.Infix JS.OpBOr (JS.Infix JS.OpDiv a b) (JS.Int 0)
+    ]
+
+
+cmp :: JS.InfixOp -> Int -> JS.Expr -> JS.Expr -> Generator JS.Expr
 cmp op n a b =
-    JS.Infix op (BuiltIn.cmp a b) (JS.Int n)
+  do  ordering <- BuiltIn.cmp a b
+      return $ JS.Infix op ordering (JS.Int n)

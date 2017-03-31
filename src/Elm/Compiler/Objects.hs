@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Elm.Compiler.Objects
-  ( Graph
+  ( Symbol(..)
+  , Graph
   , union
   , unions
   , Roots

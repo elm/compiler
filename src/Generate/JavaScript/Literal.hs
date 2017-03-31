@@ -3,22 +3,23 @@ module Generate.JavaScript.Literal (literal) where
 import qualified AST.Literal as Lit
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.BuiltIn as BuiltIn
+import Generate.JavaScript.Variable (Generator)
 
 
-literal :: Lit.Literal -> JS.Expr
+literal :: Lit.Literal -> Generator JS.Expr
 literal lit =
   case lit of
     Lit.Chr char ->
-        BuiltIn.character char
+      BuiltIn.char char
 
     Lit.Str string ->
-        JS.String string
+      return $ JS.String string
 
     Lit.IntNum number ->
-        JS.Int number
+      return $ JS.Int number
 
     Lit.FloatNum number ->
-        JS.Float number
+      return $ JS.Float number
 
     Lit.Boolean boolean ->
-        JS.Bool boolean
+      return $ JS.Bool boolean
