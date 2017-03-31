@@ -10,6 +10,7 @@ module AST.Type
     where
 
 import Control.Arrow (second)
+import Control.Monad (liftM, liftM2, liftM3)
 import Data.Binary
 import qualified Data.Map as Map
 import qualified Data.Text as Text
@@ -197,12 +198,12 @@ instance Binary Canonical where
   get =
     do  n <- getWord8
         case n of
-          0 -> Lambda <$> get <*> get
-          1 -> Var <$> get
-          2 -> Type <$> get
-          3 -> App <$> get <*> get
-          4 -> Record <$> get <*> get
-          5 -> Aliased <$> get <*> get <*> get
+          0 -> liftM2 Lambda get get
+          1 -> liftM  Var get
+          2 -> liftM  Type get
+          3 -> liftM2 App get get
+          4 -> liftM2 Record get get
+          5 -> liftM3 Aliased get get get
           _ -> error "Error reading a valid type from serialized string"
 
 
@@ -218,6 +219,6 @@ instance Binary t => Binary (Aliased t) where
   get =
     do  n <- getWord8
         case n of
-          0 -> Holey <$> get
-          1 -> Filled <$> get
+          0 -> liftM Holey get
+          1 -> liftM Filled get
           _ -> error "Error reading a valid type from serialized string"
