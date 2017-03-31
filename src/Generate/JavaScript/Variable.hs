@@ -20,6 +20,7 @@ import Data.Text (Text)
 
 import qualified AST.Helpers as Help
 import qualified AST.Module.Name as ModuleName
+import qualified AST.Variable as Var
 import qualified Elm.Package as Pkg
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Helpers as JS
@@ -45,8 +46,8 @@ local name =
   JS.ref (safe name)
 
 
-global :: ModuleName.Canonical -> Text -> JS.Expr
-global home name =
+global :: Var.Global -> JS.Expr
+global (Var.Global home name) =
   if Help.isOp name then
     JS.BracketRef (JS.ref (opsDict home)) (JS.String name)
   else
@@ -59,12 +60,12 @@ global home name =
 
 coreNative :: Text -> Text -> JS.Expr
 coreNative moduleName name =
-  global (ModuleName.inCore ("Native." <> moduleName)) name
+  global (Var.Global (ModuleName.inCore ("Native." <> moduleName)) name)
 
 
 staticProgram :: JS.Expr
 staticProgram =
-  global (ModuleName.inVirtualDom "Native.VirtualDom") "staticProgram"
+  global (Var.Global (ModuleName.inVirtualDom "Native.VirtualDom") "staticProgram")
 
 
 

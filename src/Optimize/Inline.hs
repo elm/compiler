@@ -81,13 +81,13 @@ count expression =
     VarLocal name ->
         Map.singleton name 1
 
-    VarGlobal _ _ ->
+    VarGlobal _ ->
         Map.empty
 
     List exprs ->
         countMany exprs
 
-    Binop _ _ left right ->
+    Binop _ left right ->
         count2 left right
 
     Function args body ->
@@ -188,14 +188,14 @@ replace substitutions expression =
     VarLocal name ->
         maybe expression id (Map.lookup name substitutions)
 
-    VarGlobal _ _ ->
+    VarGlobal _ ->
         expression
 
     List exprs ->
         List (map go exprs)
 
-    Binop home op left right ->
-        Binop home op (go left) (go right)
+    Binop op left right ->
+        Binop op (go left) (go right)
 
     Function args body ->
         Function args (replace (deleteBatch args substitutions) body)

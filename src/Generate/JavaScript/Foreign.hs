@@ -155,7 +155,7 @@ decode tipe =
 
 to :: Text -> Opt.Expr
 to name =
-  Opt.VarGlobal jsonDecode name
+  Opt.VarGlobal (Var.Global jsonDecode name)
 
 
 jsonDecode :: ModuleName.Canonical
@@ -186,7 +186,7 @@ toMaybe :: T.Canonical -> Opt.Expr
 toMaybe tipe =
   let
     maybe tag =
-      Opt.VarGlobal (ModuleName.inCore "Maybe") tag
+      Opt.VarGlobal (Var.Global (ModuleName.inCore "Maybe") tag)
   in
     to "oneOf" <==
       [ Opt.List

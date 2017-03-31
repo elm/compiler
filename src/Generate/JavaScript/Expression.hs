@@ -109,8 +109,8 @@ generateCode expr =
       VarLocal name ->
           jsExpr $ Var.local name
 
-      VarGlobal home name ->
-          jsExpr $ Var.global home name
+      VarGlobal name ->
+          jsExpr $ Var.global name
 
       Literal lit ->
           jsExpr (Literal.literal lit)
@@ -138,8 +138,8 @@ generateCode expr =
             do  jsFields <- mapM toField fields
                 jsExpr $ JS.Object jsFields
 
-      Binop home op leftExpr rightExpr ->
-          generateBinop home op leftExpr rightExpr
+      Binop op leftExpr rightExpr ->
+          generateBinop op leftExpr rightExpr
 
       Function args body ->
           generateFunction args body
@@ -300,13 +300,13 @@ generateFunctionWithArity rawArgs code =
 generateCall :: Opt.Expr -> [Opt.Expr] -> State Int Code
 generateCall func args =
   case (func, args) of
-    (Opt.VarGlobal home name, [arg]) ->
+    (Opt.VarGlobal (V.Global home name), [arg]) ->
       case name of
         "complement" | home == bitwise -> genPrefix JS.PrefixBNot arg
         "not"        | home == basics  -> genPrefix JS.PrefixLNot arg
         _                              -> generateCallHelp func args
 
-    (Opt.VarGlobal home name, [ left, right ]) | home == bitwise ->
+    (Opt.VarGlobal (V.Global home name), [ left, right ]) | home == bitwise ->
       case name of
         "and"            -> genInfix JS.OpBAnd     left right
         "or"             -> genInfix JS.OpBOr      left right
@@ -540,22 +540,22 @@ pathToExpr root fullPath =
 -- BINARY OPERATORS
 
 
-generateBinop :: ModuleName.Canonical -> Text -> Opt.Expr -> Opt.Expr -> State Int Code
-generateBinop home op left right =
+generateBinop :: V.Global -> Opt.Expr -> Opt.Expr -> State Int Code
+generateBinop op left right =
   do  jsLeft <- generateJsExpr left
       jsRight <- generateJsExpr right
-      jsExpr (generateBinopHelp home op jsLeft jsRight)
+      jsExpr (generateBinopHelp op jsLeft jsRight)
 
 
 
 -- BINARY OPERATOR HELPERS
 
 
-generateBinopHelp :: ModuleName.Canonical -> Text -> JS.Expr -> JS.Expr -> JS.Expr
-generateBinopHelp home op leftExpr rightExpr =
+generateBinopHelp :: V.Global -> JS.Expr -> JS.Expr -> JS.Expr
+generateBinopHelp var@(V.Global home op) leftExpr rightExpr =
   let
     simpleMake left right =
-      JS.Call (ref "A2") [ Var.global home op, left, right ]
+      JS.Call (ref "A2") [ Var.global var, left, right ]
   in
     if home == basics then
         (Map.findWithDefault simpleMake op basicOps) leftExpr rightExpr

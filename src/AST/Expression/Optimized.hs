@@ -8,7 +8,7 @@ module AST.Expression.Optimized
   where
 
 
-import Control.Monad (liftM, liftM2, liftM3, liftM4)
+import Control.Monad (liftM, liftM2, liftM3)
 import Data.Binary
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -51,9 +51,9 @@ data Def
 data Expr
     = Literal Literal.Literal
     | VarLocal Text
-    | VarGlobal ModuleName.Canonical Text
+    | VarGlobal Var.Global
     | List [Expr]
-    | Binop ModuleName.Canonical Text Expr Expr
+    | Binop Var.Global Expr Expr
     | Function [Text] Expr
     | Call Expr [Expr]
     | TailCall Text [Text] [Expr]
@@ -129,9 +129,9 @@ instance Binary Expr where
         case word of
           0  -> liftM  Literal get
           1  -> liftM  VarLocal get
-          2  -> liftM2 VarGlobal get get
+          2  -> liftM  VarGlobal get
           3  -> liftM  List get
-          4  -> liftM4 Binop get get get get
+          4  -> liftM3 Binop get get get
           5  -> liftM2 Function get get
           6  -> liftM2 Call get get
           7  -> liftM3 TailCall get get get
@@ -156,9 +156,9 @@ instance Binary Expr where
     case expr of
       Literal a        -> putWord8  0 >> put a
       VarLocal a       -> putWord8  1 >> put a
-      VarGlobal a b    -> putWord8  2 >> put a >> put b
+      VarGlobal a      -> putWord8  2 >> put a
       List a           -> putWord8  3 >> put a
-      Binop a b c d    -> putWord8  4 >> put a >> put b >> put c >> put d
+      Binop a b c      -> putWord8  4 >> put a >> put b >> put c
       Function a b     -> putWord8  5 >> put a >> put b
       Call a b         -> putWord8  6 >> put a >> put b
       TailCall a b c   -> putWord8  7 >> put a >> put b >> put c

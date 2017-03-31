@@ -50,12 +50,13 @@ optimizeDecl variantDict home index (Can.Def _ pattern@(A.A _ ptrn) expression _
       (_, []) ->
         let
           name = "_" <> Text.pack (show index)
-          deps = Set.singleton (Var.Global home name)
+          var = Var.Global home name
+          deps = Set.singleton var
           decl =
             Env.run variantDict home $
               ((,) name . Opt.Def) <$> optimizeExpr Nothing rawBody
           destructors =
-            destruct (Opt.VarGlobal home name) pattern
+            destruct (Opt.VarGlobal var) pattern
         in
           decl : map (second (Opt.Decl deps Nothing)) destructors
 
@@ -309,17 +310,19 @@ optimizeVariable region (Var.Canonical home name) =
       pure (Opt.VarLocal name)
 
     Var.TopLevel modul ->
-      do  Env.register (Var.Global modul name)
-          pure (Opt.VarGlobal modul name)
+      do  let var = Var.Global modul name
+          Env.register var
+          pure (Opt.VarGlobal var)
 
     Var.Module modul ->
-      do  Env.register (Var.Global modul name)
+      do  let var = Var.Global modul name
+          Env.register var
           if name == "crash" && modul == ModuleName.inCore "Debug"
             then
               do  here <- Env.getHome
                   pure (Opt.Crash here region Nothing)
             else
-              pure (Opt.VarGlobal modul name)
+              pure (Opt.VarGlobal var)
 
 
 
@@ -541,7 +544,7 @@ makeOptBinop (Var.Canonical home op) leftExpr rightExpr =
       error "bug manifesting in Optimize.makeOptBinop"
 
     Var.Module name ->
-      Opt.Binop name op leftExpr rightExpr
+      Opt.Binop (Var.Global name op) leftExpr rightExpr
 
     Var.TopLevel name ->
-      Opt.Binop name op leftExpr rightExpr
+      Opt.Binop (Var.Global name op) leftExpr rightExpr
