@@ -5,7 +5,7 @@ module AST.Module.Name
   , Canonical(..)
   , inVirtualDom, inCore, inHtml
   , toString, toText, canonicalToText
-  , isNative, canonicalIsNative
+  , isKernel, getKernel, canonicalIsKernel
   )
   where
 
@@ -71,17 +71,22 @@ canonicalToText (Canonical _ name) =
 
 
 
--- IS NATIVE
+-- IS KERNEL
 
 
-isNative :: Raw -> Bool
-isNative name =
-  Text.isPrefixOf "Native." name
+isKernel :: Raw -> Bool
+isKernel name =
+  Text.isPrefixOf "Elm.Kernel." name
 
 
-canonicalIsNative :: Canonical -> Bool
-canonicalIsNative (Canonical _ name) =
-  isNative name
+getKernel :: Raw -> Text
+getKernel name =
+  Text.drop 11 name
+
+
+canonicalIsKernel :: Canonical -> Bool
+canonicalIsKernel (Canonical _ name) =
+  isKernel name
 
 
 

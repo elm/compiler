@@ -6,6 +6,7 @@ module Elm.Compiler.Objects.Internal
   , union
   , unions
   , SymbolTable
+  , symbolTable
   , Symbol(..)
   , lookup
   , Roots
@@ -65,15 +66,20 @@ destruct (Graph graph) =
 -- SYMBOLS
 
 
+newtype SymbolTable =
+  SymbolTable (Map.Map Var.Global Symbol)
+
+
+symbolTable :: Map.Map Var.Global Symbol -> SymbolTable
+symbolTable =
+  SymbolTable
+
+
 data Symbol =
   Symbol
     { _home :: !Word16
     , _name :: !Word32
     }
-
-
-newtype SymbolTable =
-  SymbolTable (Map.Map Var.Global Symbol)
 
 
 lookup :: Var.Global -> SymbolTable -> Maybe Symbol

@@ -200,7 +200,8 @@ generateCode expr =
           JsExpr <$> BuiltIn.effect moduleName
 
       OutgoingPort name tipe ->
-          JsExpr <$> BuiltIn.outgoingPort name (Foreign.encode tipe)
+          do  encoder <- Foreign.encode tipe
+              JsExpr <$> BuiltIn.outgoingPort name encoder
 
       IncomingPort name tipe ->
           do  jsDecoder <- generateJsExpr (Foreign.decode tipe)

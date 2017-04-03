@@ -200,7 +200,7 @@ actuallySolve constraint =
                       TS.makeInstance tipe
 
                   Nothing ->
-                      if Text.isPrefixOf "Native." name then
+                      if Text.isPrefixOf "Elm.Kernel." name then
                           liftIO (mkVar Nothing)
 
                       else

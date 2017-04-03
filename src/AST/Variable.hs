@@ -8,7 +8,7 @@ module AST.Variable
   , inCore, inHtml, cmd, sub
   , isLocalHome, isCons
   , is, isJson, isMaybe, isArray, isTask, isList
-  , isNative, isTuple, isPrimitive, isPrim, isLocal
+  , isKernel, isTuple, isPrimitive, isPrim, isLocal
   , rawToText, toText
   )
   where
@@ -157,23 +157,23 @@ isTask =
 
 
 isList :: Canonical -> Bool
-isList v =
-    v == Canonical BuiltIn "List"
+isList var =
+    var == Canonical BuiltIn "List"
 
 
-isNative :: Canonical -> Bool
-isNative v =
-    case v of
+isKernel :: Canonical -> Bool
+isKernel var =
+    case var of
       Canonical (Module name) _ ->
-        ModuleName.canonicalIsNative name
+        ModuleName.canonicalIsKernel name
 
       _ ->
         False
 
 
 isTuple :: Canonical -> Bool
-isTuple v =
-    case v of
+isTuple var =
+    case var of
       Canonical BuiltIn name ->
         Help.isTuple name
 
@@ -182,8 +182,8 @@ isTuple v =
 
 
 isPrimitive :: Canonical -> Bool
-isPrimitive v =
-  case v of
+isPrimitive var =
+  case var of
     Canonical BuiltIn name ->
       Set.member name primitiveSet
 

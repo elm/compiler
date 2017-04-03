@@ -3,6 +3,7 @@
 module Generate.JavaScript.Foreign (encode, decode) where
 
 import Prelude hiding (maybe)
+import Control.Monad (zipWithM)
 import qualified Data.List as List
 import qualified Data.Text as Text
 import Data.Text (Text)
@@ -15,18 +16,20 @@ import qualified AST.Variable as Var
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Helpers as JS (function, ref)
 import Generate.JavaScript.Helpers ((<|), (==>))
+import qualified Generate.JavaScript.Variable as JS (Generator, global)
 
 
 
 -- ENCODE
 
 
-encode :: T.Canonical -> JS.Expr
+encode :: T.Canonical -> JS.Generator JS.Expr
 encode tipe =
-  JS.function ["v"] [ JS.Return (Just (encodeHelp tipe (JS.ref "v"))) ]
+  do  js <- encodeHelp tipe (JS.ref "v")
+      return $ JS.function ["v"] [ JS.Return (Just js) ]
 
 
-encodeHelp :: T.Canonical -> JS.Expr -> JS.Expr
+encodeHelp :: T.Canonical -> JS.Expr -> JS.Generator JS.Expr
 encodeHelp tipe expr =
   case tipe of
     T.Aliased _ args t ->
@@ -39,12 +42,12 @@ encodeHelp tipe expr =
       error "encodeHelp: type variable"
 
     T.Type name
-      | Var.isPrim "Float"  name -> expr
-      | Var.isPrim "Int"    name -> expr
-      | Var.isPrim "Bool"   name -> expr
-      | Var.isPrim "String" name -> expr
-      | Var.isJson name          -> expr
-      | Var.isTuple name         -> JS.Null
+      | Var.isPrim "Float"  name -> pure expr
+      | Var.isPrim "Int"    name -> pure expr
+      | Var.isPrim "Bool"   name -> pure expr
+      | Var.isPrim "String" name -> pure expr
+      | Var.isJson name          -> pure expr
+      | Var.isTuple name         -> pure JS.Null
       | otherwise                -> error "encodeHelp: bad type"
 
     T.App (T.Type name) [arg]
@@ -65,44 +68,41 @@ encodeHelp tipe expr =
     T.Record fields Nothing ->
       let
         convert (k, t) =
-          k ==> encodeHelp t (JS.DotRef expr (JS.Id k))
+          (==>) k <$> encodeHelp t (JS.DotRef expr (JS.Id k))
       in
-        JS.Object (map convert fields)
+        JS.Object <$> traverse convert fields
 
 
-fromMaybe :: T.Canonical -> JS.Expr -> JS.Expr
+fromMaybe :: T.Canonical -> JS.Expr -> JS.Generator JS.Expr
 fromMaybe tipe expr =
-  JS.If
-    (JS.Infix JS.OpStrictEq (JS.DotRef expr (JS.Id "ctor")) (JS.String "Nothing"))
-    (JS.Null)
-    (encodeHelp tipe (JS.DotRef expr (JS.Id "_0")))
+  do  js <- encodeHelp tipe (JS.DotRef expr (JS.Id "_0"))
+      let isNothing = JS.Infix JS.OpStrictEq (JS.DotRef expr (JS.Id "ctor")) (JS.String "Nothing")
+      return $ JS.If isNothing JS.Null js
 
 
-fromList :: T.Canonical -> JS.Expr -> JS.Expr
+fromList :: T.Canonical -> JS.Expr -> JS.Generator JS.Expr
 fromList tipe expr =
-  let
-    array =
-      error "TODO port fromList" expr -- Var.coreNative "List" "toArray" <| expr
-  in
-    JS.DotRef array (JS.Id "map") <| encode tipe
+  do  let var = Var.Global (ModuleName.inCore "Elm.Kernel.List") "toArray"
+      toArray <- JS.global var
+      encoder <- encode tipe
+      return $ JS.DotRef (toArray <| expr) (JS.Id "map") <| encoder
 
 
-fromArray :: T.Canonical -> JS.Expr -> JS.Expr
+fromArray :: T.Canonical -> JS.Expr -> JS.Generator JS.Expr
 fromArray tipe expr =
-  let
-    array =
-      error "TODO port fromArray" expr -- Var.coreNative "Array" "toJSArray" <| expr
-  in
-    JS.DotRef array (JS.Id "map") <| encode tipe
+  do  let var = Var.Global (ModuleName.inCore "Elm.Kernel.Array") "toJSArray"
+      toArray <- JS.global var
+      encoder <- encode tipe
+      return $ JS.DotRef (toArray <| expr) (JS.Id "map") <| encoder
 
 
-fromTuple :: [T.Canonical] -> JS.Expr -> JS.Expr
+fromTuple :: [T.Canonical] -> JS.Expr -> JS.Generator JS.Expr
 fromTuple types expr =
   let
     convert subType n =
       encodeHelp subType $ JS.DotRef expr (JS.Id (Text.pack ('_':show n)))
   in
-    JS.Array (zipWith convert types [ 0 .. length types ])
+    JS.Array <$> zipWithM convert types [ 0 .. length types ]
 
 
 

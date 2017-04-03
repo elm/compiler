@@ -52,7 +52,7 @@ logVar var =
 variable :: R.Region -> Env.Env -> Text -> Result Var.Canonical
 variable region env var =
   case toVarName var of
-    Right (name, varName) | ModuleName.isNative name ->
+    Right (name, varName) | ModuleName.isKernel name ->
       let
         localPkg =
           ModuleName._package (Env._home env)

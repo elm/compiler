@@ -39,7 +39,7 @@ char c =
 
 utils :: Text -> [JS.Expr] -> Generator JS.Expr
 utils name args =
-  do  func <- core "Native.Utils" name
+  do  func <- core "Elm.Kernel.Utils" name
       return $ JS.Call func args
 
 
@@ -54,13 +54,13 @@ core home name =
 
 list :: [JS.Expr] -> Generator JS.Expr
 list elements =
-  do  fromArray <- core "Native.List" "fromArray"
+  do  fromArray <- core "Elm.Kernel.List" "fromArray"
       return $ fromArray <| JS.Array elements
 
 
 cons :: JS.Expr -> JS.Expr -> Generator JS.Expr
 cons first rest =
-  do  func <- core "Native.List" "Cons"
+  do  func <- core "Elm.Kernel.List" "Cons"
       return $ JS.Call func [first, rest]
 
 
@@ -96,24 +96,24 @@ cmp left right =
 
 effectManagers :: Generator JS.Expr
 effectManagers =
-  core "Native.Platform" "effectManagers"
+  core "Elm.Kernel.Platform" "effectManagers"
 
 
 effect :: ModuleName.Canonical -> Generator JS.Expr
 effect effectName =
-  do  leaf <- core "Native.Platform" "leaf"
+  do  leaf <- core "Elm.Kernel.Platform" "leaf"
       return $ leaf <| JS.String (ModuleName.canonicalToText effectName)
 
 
 outgoingPort :: Text -> JS.Expr -> Generator JS.Expr
 outgoingPort name converter =
-  do  outPort <- core "Native.Platform" "outgoingPort"
+  do  outPort <- core "Elm.Kernel.Platform" "outgoingPort"
       return $ JS.Call outPort [ JS.String name, converter ]
 
 
 incomingPort :: Text -> JS.Expr -> Generator JS.Expr
 incomingPort name converter =
-  do  inPort <- core "Native.Platform" "incomingPort"
+  do  inPort <- core "Elm.Kernel.Platform" "incomingPort"
       return $ JS.Call inPort [ JS.String name, converter ]
 
 
@@ -123,7 +123,7 @@ incomingPort name converter =
 
 staticProgram :: Generator JS.Expr
 staticProgram =
-  Var.global (Var.Global (ModuleName.inVirtualDom "Native.VirtualDom") "staticProgram")
+  Var.global (Var.Global (ModuleName.inVirtualDom "Elm.Kernel.VirtualDom") "staticProgram")
 
 
 

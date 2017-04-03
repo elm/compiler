@@ -29,7 +29,7 @@ import qualified Generate.JavaScript.Variable as JS
 generate :: Obj.SymbolTable -> Obj.Graph -> Obj.Roots -> (Set.Set ModuleName.Canonical, BS.Builder)
 generate symbols (Obj.Graph graph) roots =
   let
-    (State builders _ natives effects table) =
+    (State builders _ kernels effects table) =
       List.foldl' (crawl graph) (init symbols) (Obj.toGlobals roots)
 
     managers =
@@ -38,7 +38,7 @@ generate symbols (Obj.Graph graph) roots =
     javascript =
       List.foldl' (\rest stmt -> JS.encodeUtf8 stmt <> rest) managers builders
   in
-    (natives, javascript)
+    (kernels, javascript)
 
 
 
@@ -49,7 +49,7 @@ data State =
   State
     { _stmts :: [JS.Stmt]
     , _seen :: Set.Set Var.Global
-    , _natives :: Set.Set ModuleName.Canonical
+    , _kernels :: Set.Set ModuleName.Canonical
     , _effects :: Map.Map ModuleName.Canonical Effects.ManagerType
     , _table :: JS.Table
     }
@@ -68,7 +68,7 @@ type Graph = Map.Map Var.Global Opt.Decl
 
 
 crawl :: Graph -> State -> Var.Global -> State
-crawl graph state@(State js seen natives effects table) name@(Var.Global home _) =
+crawl graph state@(State js seen kernels effects table) name@(Var.Global home _) =
   if Set.member name seen then
     state
 
@@ -81,8 +81,8 @@ crawl graph state@(State js seen natives effects table) name@(Var.Global home _)
         crawlDecl graph name decl state
 
       Nothing ->
-        if ModuleName.canonicalIsNative home then
-          State js seen (Set.insert home natives) effects table
+        if ModuleName.canonicalIsKernel home then
+          State js seen (Set.insert home kernels) effects table
         else
           error (crawlError name)
 
@@ -93,7 +93,7 @@ crawlDecl graph var@(Var.Global home name) (Opt.Decl deps fx body) state =
     newState =
       state { _seen = Set.insert var (_seen state) }
 
-    (State stmts seen natives effects table) =
+    (State stmts seen kernels effects table) =
       Set.foldl' (crawl graph) newState deps
 
     (stmt, newTable) =
@@ -102,7 +102,7 @@ crawlDecl graph var@(Var.Global home name) (Opt.Decl deps fx body) state =
     State
       { _stmts = stmt : stmts
       , _seen = seen
-      , _natives = natives
+      , _kernels = kernels
       , _effects = maybe id (Map.insert home) fx effects
       , _table = newTable
       }

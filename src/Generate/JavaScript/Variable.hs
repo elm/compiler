@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE UnboxedTuples #-}
 module Generate.JavaScript.Variable
   ( Generator
   , run
@@ -142,24 +143,28 @@ getGlobalNameHelp var@(Var.Global home name) (Table uid names symbols) =
       return jsName
 
     Nothing ->
-      case Help.isOp name of
-        False ->
-          do  let jsName = globalToName home name
-              State.put (Table uid (Map.insert var jsName names) symbols)
-              return jsName
-
-        True ->
-          do  let jsName = globalToName home ("_op" <> Text.pack (show uid))
-              State.put (Table (uid + 1) (Map.insert var jsName names) symbols)
-              return jsName
+      let
+        (# newUid, newName #) =
+          if Help.isOp name
+            then (# uid + 1, "_op" <> Text.pack (show uid) #)
+            else (# uid, name #)
+      in
+        do  let jsName = globalToName home newName
+            let newNames = Map.insert var jsName names
+            State.put (Table newUid newNames symbols)
+            return jsName
 
 
 globalToName :: ModuleName.Canonical -> Text -> Text
 globalToName (ModuleName.Canonical (Pkg.Name user project) moduleName) name =
-  Text.replace "-" "_" user
-  <> "$" <> Text.replace "-" "_" project
-  <> "$" <> Text.replace "." "_" moduleName
-  <> "$" <> name
+  if ModuleName.isKernel moduleName then
+    "_" <> ModuleName.getKernel moduleName <> "_" <> name
+
+  else
+    Text.replace "-" "_" user
+    <> "$" <> Text.replace "-" "_" project
+    <> "$" <> Text.replace "." "_" moduleName
+    <> "$" <> name
 
 
 

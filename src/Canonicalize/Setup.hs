@@ -80,7 +80,7 @@ importToPatches importDict allInterfaces (A.A region (rawImportName, method)) =
   in
   case maybeInterface of
     Nothing ->
-      if ModuleName.isNative rawImportName then
+      if ModuleName.isKernel rawImportName then
         Result.ok []
 
       else
