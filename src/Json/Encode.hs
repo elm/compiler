@@ -9,8 +9,10 @@ module Json.Encode
   , text
   , string
   , bool
+  , int
   , dict
   , list
+  , (==>)
   )
   where
 
@@ -34,6 +36,7 @@ data Value
   | Object [(String, Value)]
   | String B.Builder
   | Boolean Bool
+  | Integer Int
 
 
 array :: [Value] -> Value
@@ -61,6 +64,11 @@ bool =
   Boolean
 
 
+int :: Int -> Value
+int =
+  Integer
+
+
 dict :: (k -> String) -> (v -> Value) -> Map.Map k v -> Value
 dict encodeKey encodeValue pairs =
   Object $ map (encodeKey *** encodeValue) (Map.toList pairs)
@@ -69,6 +77,15 @@ dict encodeKey encodeValue pairs =
 list :: (a -> Value) -> [a] -> Value
 list encodeEntry entries =
   Array $ map encodeEntry entries
+
+
+
+-- HELPERS
+
+
+(==>) :: a -> b -> (a, b)
+(==>) a b =
+  (a, b)
 
 
 
@@ -110,6 +127,9 @@ encodeHelp indent value =
 
     Boolean boolean ->
       B.string7 (if boolean then "true" else "false")
+
+    Integer n ->
+      B.intDec n
 
 
 
