@@ -54,7 +54,9 @@ Library
         Elm.Compiler.Type,
         Elm.Docs,
         Elm.Package,
-        Elm.Utils
+        Elm.Utils,
+        Json.Decode,
+        Json.Encode
 
     other-modules:
         AST.Declaration,
@@ -143,7 +145,6 @@ Library
 
     Build-depends:
         aeson >= 0.11,
-        aeson-pretty >= 0.8 && < 0.9,
         ansi-terminal >= 0.6.2.1 && < 0.7,
         ansi-wl-pprint >= 0.6.7 && < 0.7,
         base >=4.2 && <5,
@@ -158,9 +159,12 @@ Library
         parsec,
         pretty >= 1.0 && < 2.0,
         process,
+        scientific,
         semigroups,
         text >= 1 && < 2,
-        union-find >= 0.2 && < 0.3
+        union-find >= 0.2 && < 0.3,
+        unordered-containers,
+        vector
 
 
 --Test-Suite compiler-tests
