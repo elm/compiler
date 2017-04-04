@@ -4,6 +4,7 @@ module Generate.JavaScript.Expression
   )
   where
 
+import Prelude hiding (exp)
 import Control.Arrow (second)
 import Control.Monad (foldM)
 import qualified Data.List as List
@@ -53,8 +54,8 @@ jsExpr exp =
 
 
 jsBlock :: [JS.Stmt] -> Generator Code
-jsBlock exp =
-  return (JsBlock exp)
+jsBlock stmts =
+  return (JsBlock stmts)
 
 
 isBlock :: Code -> Bool
@@ -152,9 +153,9 @@ generateCode expr =
 
       TailCall name argNames args ->
           let
-            reassign name tempName =
+            reassign argName tempName =
               JS.ExprStmt $
-                JS.Assign (JS.LVar (Var.safe name)) (ref tempName)
+                JS.Assign (JS.LVar (Var.safe argName)) (ref tempName)
           in
             do  args' <- mapM generateJsExpr args
                 tempNames <- mapM (\_ -> Var.fresh) args
@@ -377,11 +378,11 @@ generateIf givenBranches givenFinally =
     convertBranch (condition, expr) =
         (,) <$> generateJsExpr condition <*> generateCode expr
 
-    ifExpression (condition, branch) otherwise =
-        JS.If condition branch otherwise
+    ifExpression (condition, branch) final =
+        JS.If condition branch final
 
-    ifStatement (condition, branch) otherwise =
-        JS.IfStmt condition branch otherwise
+    ifStatement (condition, branch) final =
+        JS.IfStmt condition branch final
   in
     do  jsBranches <- mapM convertBranch branches
         jsFinally <- generateCode finally
@@ -430,8 +431,8 @@ crushIfsHelp visitedBranches unvisitedBranches finally =
 generateCase :: Text -> Opt.Decider Opt.Choice -> [(Int, Opt.Expr)] -> Generator [JS.Stmt]
 generateCase exprName decider jumps =
   do  labelRoot <- Var.fresh
-      decider <- generateDecider exprName labelRoot decider
-      foldM (goto labelRoot) decider jumps
+      jsDecider <- generateDecider exprName labelRoot decider
+      foldM (goto labelRoot) jsDecider jumps
 
 
 
