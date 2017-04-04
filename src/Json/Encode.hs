@@ -10,6 +10,7 @@ module Json.Encode
   , string
   , bool
   , int
+  , null
   , dict
   , list
   , (==>)
@@ -17,6 +18,7 @@ module Json.Encode
   where
 
 
+import Prelude hiding (null)
 import Control.Arrow ((***))
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Builder as B
@@ -37,6 +39,7 @@ data Value
   | String B.Builder
   | Boolean Bool
   | Integer Int
+  | Null
 
 
 array :: [Value] -> Value
@@ -67,6 +70,11 @@ bool =
 int :: Int -> Value
 int =
   Integer
+
+
+null :: Value
+null =
+  Null
 
 
 dict :: (k -> String) -> (v -> Value) -> Map.Map k v -> Value
@@ -130,6 +138,9 @@ encodeHelp indent value =
 
     Integer n ->
       B.intDec n
+
+    Null ->
+      "null"
 
 
 
