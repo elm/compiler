@@ -120,12 +120,23 @@ registerHelp dep (Env vs home uid deps fx htc) =
 -- REGISTER EFFECTS
 
 
-registerEffects :: Effects.ManagerType -> Optimizer Effects.ManagerType
-registerEffects manager =
-  do  State.modify (registerEffectsHelp manager)
+registerEffects :: ModuleName.Canonical -> Effects.ManagerType -> Optimizer Effects.ManagerType
+registerEffects home manager =
+  do  (Env vs hm uid deps _ htc) <- State.get
+      let newDeps = Set.union deps (getEffectDeps home manager)
+      State.put (Env vs hm uid newDeps (Just manager) htc)
       return manager
 
 
-registerEffectsHelp :: Effects.ManagerType -> Env -> Env
-registerEffectsHelp manager (Env vs home uid deps _ htc) =
-  Env vs home uid deps (Just manager) htc
+getEffectDeps :: ModuleName.Canonical -> Effects.ManagerType -> Set.Set Var.Global
+getEffectDeps home manager =
+  Set.fromList $ map (Var.Global home) $
+    case manager of
+      Effects.Cmds ->
+        [ "init", "onEffects", "onSelfMsg", "cmdMap" ]
+
+      Effects.Subs ->
+        [ "init", "onEffects", "onSelfMsg", "subMap" ]
+
+      Effects.Both ->
+        [ "init", "onEffects", "onSelfMsg", "cmdMap", "subMap" ]

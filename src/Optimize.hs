@@ -274,11 +274,11 @@ optimizeExpr context annExpr@(A.A region expression) =
         Opt.Record
           <$> traverse (traverse justConvert) fields
 
-    Can.Cmd moduleName manager ->
-        Opt.Cmd moduleName <$> Env.registerEffects manager
+    Can.Cmd home manager ->
+        Opt.Cmd home <$> Env.registerEffects home manager
 
-    Can.Sub moduleName manager ->
-        Opt.Sub moduleName <$> Env.registerEffects manager
+    Can.Sub home manager ->
+        Opt.Sub home <$> Env.registerEffects home manager
 
     Can.OutgoingPort name tipe ->
         pure (Opt.OutgoingPort name tipe)
