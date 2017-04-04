@@ -3,14 +3,13 @@
 module Elm.Compiler.Type
   ( Type(..), toString
   , Program(..)
+  , encode
+  , decoder
+  , encodeProgram
   )
   where
 
 import Control.Arrow ((***))
-import Data.Aeson ((.:), (.=))
-import qualified Data.Aeson as Json
-import qualified Data.Aeson.Types as Json
-import qualified Data.ByteString.Lazy.Char8 as BS
 import qualified Data.Text as Text
 import Data.Text (Text)
 import Text.PrettyPrint as P
@@ -21,7 +20,13 @@ import qualified AST.Variable as Var
 import qualified Parse.Helpers as Parse
 import qualified Parse.Type as Type
 import qualified Reporting.Annotation as A
+import qualified Json.Decode as Decode
+import qualified Json.Encode as Encode
+import Json.Encode ((==>))
 
+
+
+-- TYPES
 
 
 data Type
@@ -153,106 +158,72 @@ flattenRecord tipe =
 -- JSON for TYPE
 
 
-instance Json.ToJSON Type where
-  toJSON tipe =
-    Json.String (Text.unwords (Text.words (Text.pack (toString tipe))))
+encode :: Type -> Encode.Value
+encode tipe =
+  Encode.text (Text.unwords (Text.words (Text.pack (toString tipe))))
 
 
-instance Json.FromJSON Type where
-  parseJSON value =
-    let
-      failure _ =
-        fail $
-          "Trying to decode a type string, but could not handle this value:\n"
-          ++ BS.unpack (Json.encode value)
-    in
-      case value of
-        Json.String txt ->
-          case Parse.run Type.expression (Text.replace "'" "_" txt) of
-            Left err ->
-              failure err
+decoder :: Decode.Decoder Type
+decoder =
+  do  txt <- Decode.text
+      case Parse.run Type.expression txt of
+        Left _ ->
+          Decode.fail "a type, like (String -> Int)"
 
-            Right (tipe, _, _) ->
-              return (fromRawType tipe)
-
-        Json.Object obj ->
-          fromObject obj
-
-        _ ->
-          failure ()
-
-
-fromObject :: Json.Object -> Json.Parser Type
-fromObject obj =
-  do  tag <- obj .: "tag"
-      case (tag :: String) of
-        "lambda" ->
-            Lambda <$> obj .: "in" <*> obj .: "out"
-
-        "var" ->
-            Var <$> obj .: "name"
-
-        "type" ->
-            Type <$> obj .: "name"
-
-        "app" ->
-            App <$> obj .: "func" <*> obj .: "args"
-
-        "record" ->
-            Record <$> obj .: "fields" <*> obj .: "extension"
-
-        _ ->
-            fail $ "Error when decoding type with tag: " ++ tag
+        Right (tipe, _, _) ->
+          Decode.succeed (fromRawType tipe)
 
 
 fromRawType :: Type.Raw -> Type
 fromRawType (A.A _ astType) =
-    case astType of
-      Type.RLambda t1 t2 ->
-          Lambda (fromRawType t1) (fromRawType t2)
+  case astType of
+    Type.RLambda t1 t2 ->
+        Lambda (fromRawType t1) (fromRawType t2)
 
-      Type.RVar x ->
-          Var x
+    Type.RVar x ->
+        Var x
 
-      Type.RType var ->
-          Type (Var.rawToText var)
+    Type.RType var ->
+        Type (Var.rawToText var)
 
-      Type.RApp t ts ->
-          App (fromRawType t) (map fromRawType ts)
+    Type.RApp t ts ->
+        App (fromRawType t) (map fromRawType ts)
 
-      Type.RRecord fields ext ->
-          Record (map (A.drop *** fromRawType) fields) (fmap fromRawType ext)
+    Type.RRecord fields ext ->
+        Record (map (A.drop *** fromRawType) fields) (fmap fromRawType ext)
 
 
 
 -- JSON for PROGRAM
 
 
-instance Json.ToJSON Program where
-  toJSON (Program msg aliases unions) =
-    Json.object
-      [ "message" .= msg
-      , "aliases" .= Json.object (map toAliasField aliases)
-      , "unions" .= Json.object (map toUnionField unions)
+encodeProgram :: Program -> Encode.Value
+encodeProgram (Program msg aliases unions) =
+  Encode.object
+    [ "message" ==> encode msg
+    , "aliases" ==> Encode.object (map toAliasField aliases)
+    , "unions" ==> Encode.object (map toUnionField unions)
+    ]
+
+
+toAliasField :: ( Text, [Text], Type ) -> ( String, Encode.Value )
+toAliasField ( name, args, tipe ) =
+  Text.unpack name ==>
+    Encode.object
+      [ "args" ==> Encode.list Encode.text args
+      , "type" ==> encode tipe
       ]
 
 
-toAliasField :: ( Text, [Text], Type ) -> Json.Pair
-toAliasField ( name, args, tipe ) =
-  name .= Json.object
-    [ "args" .= args
-    , "type" .= tipe
-    ]
-
-
-toUnionField :: ( Text, [Text], [(Text, [Type])] ) -> Json.Pair
+toUnionField :: ( Text, [Text], [(Text, [Type])] ) -> ( String, Encode.Value )
 toUnionField ( name, args, constructors ) =
-  name .= Json.object
-    [ "args" .= args
-    , "tags" .= Json.object (map toCtorObject constructors)
-    ]
+  Text.unpack name ==>
+    Encode.object
+      [ "args" ==> Encode.list Encode.text args
+      , "tags" ==> Encode.object (map toCtorObject constructors)
+      ]
 
 
-toCtorObject :: (Text, [Type]) -> Json.Pair
+toCtorObject :: (Text, [Type]) -> ( String, Encode.Value )
 toCtorObject (name, args) =
-  name .= args
+  Text.unpack name ==> Encode.list encode args

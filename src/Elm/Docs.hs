@@ -1,14 +1,17 @@
+{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Elm.Docs where
+module Elm.Docs
+  ( Documentation(..)
+  , Alias(..)
+  , Union(..)
+  , Value(..)
+  , fromCheckedDocs
+  , decoder
+  , encode
+  )
+  where
 
-import Control.Applicative ((<|>))
-import Control.Monad
-import Data.Aeson ((.:), (.:?), (.=))
-import qualified Data.Aeson as Json
-import qualified Data.Aeson.Encode.Pretty as Json
-import qualified Data.ByteString.Lazy.Char8 as BS
 import qualified Data.Map as Map
-import qualified Data.Text as Text
 import Data.Text (Text)
 
 import qualified Docs.AST as Docs
@@ -16,6 +19,9 @@ import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Compiler.Version as Version
 import qualified Elm.Package as Pkg
+import qualified Json.Decode as Decode
+import qualified Json.Encode as Encode
+import Json.Encode ((==>))
 
 
 
@@ -24,43 +30,40 @@ import qualified Elm.Package as Pkg
 
 data Documentation =
   Documentation
-    { moduleName :: Module.Raw
-    , comment :: Text
-    , aliases :: [Alias]
-    , types :: [Union]
-    , values :: [Value]
-    , version :: Version
+    { _name :: Module.Raw
+    , _comment :: Text
+    , _aliases :: [Alias]
+    , _types :: [Union]
+    , _values :: [Value]
+    , _version :: Maybe Pkg.Version
     }
 
 
 data Alias =
   Alias
-    { aliasName :: Text
-    , aliasComment :: Text
-    , aliasArgs :: [Text]
-    , aliasType :: Type.Type
+    { _a_name :: Text
+    , _a_comment :: Text
+    , _a_args :: [Text]
+    , _a_type :: Type.Type
     }
 
 
 data Union =
   Union
-    { unionName :: Text
-    , unionComment :: Text
-    , unionArgs :: [Text]
-    , unionCases :: [(Text, [Type.Type])]
+    { _u_name :: Text
+    , _u_comment :: Text
+    , _u_args :: [Text]
+    , _u_cases :: [(Text, [Type.Type])]
     }
 
 
 data Value =
   Value
-    { valueName :: Text
-    , valueComment :: Text
-    , valueType :: Type.Type
-    , valueFix :: Maybe (Text,Int)
+    { _v_name :: Text
+    , _v_comment :: Text
+    , _v_type :: Type.Type
+    , _v_fix :: Maybe (Text,Int)
     }
-
-
-data Version = NonCanonicalTypes | Version Text
 
 
 
@@ -70,14 +73,14 @@ data Version = NonCanonicalTypes | Version Text
 fromCheckedDocs :: Module.Raw -> Docs.Checked -> Documentation
 fromCheckedDocs name (Docs.Checked comment values aliases unions) =
   let
-    toValue (name, Docs.Value comment tipe fix) =
-      Value name comment tipe fix
+    toValue (vName, Docs.Value vComment tipe fix) =
+      Value vName vComment tipe fix
 
-    toAlias (name, Docs.Alias comment args tipe) =
-      Alias name comment args tipe
+    toAlias (aName, Docs.Alias aComment args tipe) =
+      Alias aName aComment args tipe
 
-    toUnion (name, Docs.Union comment args cases) =
-      Union name comment args cases
+    toUnion (uName, Docs.Union uComment args cases) =
+      Union uName uComment args cases
   in
     Documentation
       name
@@ -85,168 +88,131 @@ fromCheckedDocs name (Docs.Checked comment values aliases unions) =
       (map toAlias (Map.toList aliases))
       (map toUnion (Map.toList unions))
       (map toValue (Map.toList values))
-      (Version (Text.pack (Pkg.versionToString Version.version)))
+      (Just Version.version)
 
 
 
--- PRETTY JSON
+-- JSON
 
 
-prettyJson :: (Json.ToJSON a) => a -> BS.ByteString
-prettyJson value =
-  Json.encodePretty' config value
+encode :: Documentation -> Encode.Value
+encode (Documentation name comment aliases types values elmVersion) =
+  Encode.object $
+    [ "name" ==> Module.encode name
+    , "comment" ==> Encode.text comment
+    , "aliases" ==> Encode.list encodeAlias aliases
+    , "types" ==> Encode.list encodeUnion types
+    , "values" ==> Encode.list encodeValue values
+    ]
+    ++
+      case elmVersion of
+        Nothing ->
+          []
+
+        Just version ->
+          [ "generated-with-elm-version" ==> Pkg.encodeVersion version
+          ]
 
 
-config :: Json.Config
-config =
-  Json.Config
-    { Json.confIndent = Json.Tab
-    , Json.confCompare = Json.keyOrder keys
-    , Json.confNumFormat = Json.Generic
-    }
-  where
-    keys =
-        [ "tag", "name", "comment", "aliases", "types"
-        , "values", "func", "args", "type", "cases"
-        ]
-
-
-
--- JSON for DOCUMENTATION
-
-
-instance Json.ToJSON Documentation where
-    toJSON (Documentation name comment aliases types values version) =
-        Json.object
-        [ "name" .= Module.RawForJson name
-        , "comment" .= comment
-        , "aliases" .= aliases
-        , "types" .= types
-        , "values" .= values
-        , "generated-with-elm-version" .= version
-        ]
-
-
-instance Json.FromJSON Documentation where
-    parseJSON (Json.Object obj) =
-        Documentation
-            <$> fmap Module.fromJson (obj .: "name")
-            <*> obj .: "comment"
-            <*> obj .: "aliases"
-            <*> obj .: "types"
-            <*> obj .: "values"
-            <*> ((obj .: "generated-with-elm-version") <|> return NonCanonicalTypes)
-
-    parseJSON value =
-        fail $ "Cannot decode Documentation from: " ++ BS.unpack (Json.encode value)
-
-
-
-
--- JSON for VERSION
-
-
-instance Json.ToJSON Version where
-    toJSON version =
-      case version of
-        NonCanonicalTypes ->
-          Json.String "old"
-
-        Version vsn ->
-          Json.String vsn
-
-
-instance Json.FromJSON Version where
-    parseJSON (Json.String text) =
-        case text of
-          "old" -> return NonCanonicalTypes
-          vrsn -> return (Version vrsn)
-
-    parseJSON value =
-        fail $ "Cannot decode version of documentation from: " ++ BS.unpack (Json.encode value)
+decoder :: Decode.Decoder Documentation
+decoder =
+  Documentation
+    <$> Decode.field "name" Module.decoder
+    <*> Decode.field "comment" Decode.text
+    <*> Decode.field "aliases" (Decode.list aliasDecoder)
+    <*> Decode.field "types" (Decode.list unionDecoder)
+    <*> Decode.field "values" (Decode.list valueDecoder)
+    <*> Decode.maybe (Decode.field "generated-with-elm-version" Pkg.versionDecoder)
 
 
 
 -- JSON for ALIAS
 
 
-instance Json.ToJSON Alias where
-    toJSON (Alias name comment args tipe) =
-        Json.object
-        [ "name" .= name
-        , "comment" .= comment
-        , "args" .= args
-        , "type" .= tipe
-        ]
+encodeAlias :: Alias -> Encode.Value
+encodeAlias (Alias name comment args tipe) =
+  Encode.object
+    [ "name" ==> Encode.text name
+    , "comment" ==> Encode.text comment
+    , "args" ==> Encode.list Encode.text args
+    , "type" ==> Type.encode tipe
+    ]
 
-instance Json.FromJSON Alias where
-    parseJSON (Json.Object obj) =
-        Alias
-            <$> obj .: "name"
-            <*> obj .: "comment"
-            <*> obj .: "args"
-            <*> obj .: "type"
 
-    parseJSON value =
-        fail $ "Cannot decode Alias from: " ++ BS.unpack (Json.encode value)
+aliasDecoder :: Decode.Decoder Alias
+aliasDecoder =
+  Alias
+    <$> Decode.field "name" Decode.text
+    <*> Decode.field "comment" Decode.text
+    <*> Decode.field "args" (Decode.list Decode.text)
+    <*> Decode.field "type" Type.decoder
 
 
 
 -- JSON for UNION
 
 
-instance Json.ToJSON Union where
-    toJSON (Union name comment args cases) =
-        Json.object
-        [ "name" .= name
-        , "comment" .= comment
-        , "args" .= args
-        , "cases" .= cases
-        ]
+encodeUnion :: Union -> Encode.Value
+encodeUnion (Union name comment args cases) =
+  Encode.object
+    [ "name" ==> Encode.text name
+    , "comment" ==> Encode.text comment
+    , "args" ==> Encode.list Encode.text args
+    , "cases" ==> Encode.list encodeCase cases
+    ]
 
-instance Json.FromJSON Union where
-    parseJSON (Json.Object obj) =
-        Union
-            <$> obj .: "name"
-            <*> obj .: "comment"
-            <*> obj .: "args"
-            <*> obj .: "cases"
 
-    parseJSON value =
-        fail $ "Cannot decode Union from: " ++ BS.unpack (Json.encode value)
+unionDecoder :: Decode.Decoder Union
+unionDecoder =
+  Union
+    <$> Decode.field "name" Decode.text
+    <*> Decode.field "comment" Decode.text
+    <*> Decode.field "args" (Decode.list Decode.text)
+    <*> Decode.field "cases" (Decode.list caseDecoder)
+
+
+encodeCase :: ( Text, [Type.Type] ) -> Encode.Value
+encodeCase ( tag, args ) =
+  Encode.list id [ Encode.text tag, Encode.list Type.encode args ]
+
+
+caseDecoder :: Decode.Decoder ( Text, [Type.Type] )
+caseDecoder =
+  (,)
+    <$> Decode.index 0 Decode.text
+    <*> Decode.index 1 (Decode.list Type.decoder)
 
 
 
 -- JSON for VALUE
 
 
-instance Json.ToJSON Value where
-    toJSON (Value name comment tipe assocPrec) =
-        Json.object (fields ++ possibleFields)
-      where
-        fields =
-            [ "name" .= name
-            , "comment" .= comment
-            , "type" .= tipe
-            ]
+encodeValue :: Value -> Encode.Value
+encodeValue (Value name comment tipe assocPrec) =
+  Encode.object $
+    [ "name" ==> Encode.text name
+    , "comment" ==> Encode.text comment
+    , "type" ==> Type.encode tipe
+    ]
+    ++
+      case assocPrec of
+        Nothing ->
+          []
 
-        possibleFields =
-            case assocPrec of
-              Nothing -> []
-              Just (assoc, prec) ->
-                  [ "associativity" .= assoc
-                  , "precedence" .= prec
-                  ]
+        Just (assoc, prec) ->
+          [ "associativity" ==> Encode.text assoc
+          , "precedence" ==> Encode.int prec
+          ]
 
 
-instance Json.FromJSON Value where
-    parseJSON (Json.Object obj) =
-        Value
-            <$> obj .: "name"
-            <*> obj .: "comment"
-            <*> obj .: "type"
-            <*> (liftM2 (,) <$> obj .:? "associativity" <*> obj .:? "precedence")
-
-    parseJSON value =
-        fail $ "Cannot decode Value from: " ++ BS.unpack (Json.encode value)
-
+valueDecoder :: Decode.Decoder Value
+valueDecoder =
+  Value
+    <$> Decode.field "name" Decode.text
+    <*> Decode.field "comment" Decode.text
+    <*> Decode.field "type" Type.decoder
+    <*> Decode.maybe (
+      (,)
+        <$> Decode.field "associativity" Decode.text
+        <*> Decode.field "precedence" Decode.int
+    )
