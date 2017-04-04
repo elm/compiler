@@ -5,6 +5,7 @@ module Json.Decode
   , text, bool, int, float
   , list, dict, maybe
   , field, at
+  , index
   , map, map2, succeed, fail, andThen
   )
   where
@@ -20,6 +21,7 @@ import qualified Data.HashMap.Lazy as HashMap
 import qualified Data.Scientific as Scientific
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
+import Data.Vector ((!?))
 
 
 
@@ -173,6 +175,27 @@ field name (Decoder run) =
 at :: [Text] -> Decoder a -> Decoder a
 at names decoder =
   foldr field decoder names
+
+
+
+-- ARRAY PRIMITIVES
+
+
+index :: Int -> Decoder a -> Decoder a
+index i (Decoder run) =
+  Decoder $ \mkError value ->
+    case value of
+      Aeson.Array vector ->
+        case vector !? i of
+          Just v ->
+            run (mkError . Index i) v
+
+          Nothing ->
+            Left $ mkError $
+              Failure value ("index " ++ show i ++ " of an array")
+
+      _ ->
+        Left (mkError (Failure value "an array"))
 
 
 
