@@ -11,11 +11,15 @@ module Elm.Package
   , bumpPatch, bumpMinor, bumpMajor
   , filterLatest, majorAndMinor
   , versionToString, versionToText, versionFromText
+  , decoder
+  , encode
+  , versionDecoder
+  , encodeVersion
   )
   where
 
-import qualified Data.Aeson as Json
-import Data.Binary
+
+import Data.Binary (Binary, get, getWord8, put, putWord8)
 import qualified Data.Char as Char
 import Data.Function (on)
 import qualified Data.List as List
@@ -26,7 +30,10 @@ import qualified Data.Text.Lazy as B (toStrict)
 import qualified Data.Text.Lazy.Builder as B (singleton, toLazyText)
 import qualified Data.Text.Lazy.Builder.Int as B (decimal)
 import Data.Text (Text)
+import Data.Word (Word16)
 import System.FilePath ((</>))
+import qualified Json.Decode as Decode
+import qualified Json.Encode as Encode
 
 
 
@@ -115,44 +122,6 @@ validateProjectName text =
 
   else
     Right text
-
-
-instance Binary Name where
-  get =
-    Name <$> get <*> get
-
-  put (Name user project) =
-    do  put user
-        put project
-
-
-instance Binary Package where
-  get =
-    Package <$> get <*> get
-
-  put (Package name version) =
-    do  put name
-        put version
-
-
-instance Json.FromJSON Name where
-  parseJSON (Json.String text) =
-    case fromText text of
-      Left msg ->
-        fail $
-          "Ran into an invalid package name: "
-          ++ Text.unpack text ++ "\n\n" ++ msg
-
-      Right name ->
-        return name
-
-  parseJSON _ =
-    fail "Project name must be a string."
-
-
-instance Json.ToJSON Name where
-  toJSON name =
-    Json.String (toText name)
 
 
 
@@ -248,6 +217,28 @@ toNumber txt =
       Left "Must have format MAJOR.MINOR.PATCH (e.g. 1.0.2)"
 
 
+
+-- BINARY
+
+
+instance Binary Name where
+  get =
+    Name <$> get <*> get
+
+  put (Name user project) =
+    do  put user
+        put project
+
+
+instance Binary Package where
+  get =
+    Package <$> get <*> get
+
+  put (Package name version) =
+    do  put name
+        put version
+
+
 instance Binary Version where
   get =
     do  word <- getWord8
@@ -270,23 +261,38 @@ instance Binary Version where
           put patch
 
 
-instance Json.FromJSON Version where
-  parseJSON (Json.String text) =
-    case versionFromText text of
-      Right version ->
-        return version
 
-      Left problem ->
-        fail $ unlines $
-          [ "Ran into an invalid version number: " ++ Text.unpack text
-          , problem
-          ]
-
-  parseJSON _ =
-    fail "Version number must be stored as a string."
+-- JSON
 
 
-instance Json.ToJSON Version where
-  toJSON version =
-    Json.String (versionToText version)
+decoder :: Decode.Decoder Name
+decoder =
+  do  txt <- Decode.text
+      case fromText txt of
+        Left _ ->
+          Decode.fail "a valid project name, like \"elm-lang/core\""
 
+        Right name ->
+          Decode.succeed name
+
+
+encode :: Name -> Encode.Value
+encode name =
+  Encode.text (toText name)
+
+
+
+versionDecoder :: Decode.Decoder Version
+versionDecoder =
+  do  txt <- Decode.text
+      case versionFromText txt of
+        Right version ->
+          Decode.succeed version
+
+        Left _ ->
+          Decode.fail "a version number, like 1.0.0"
+
+
+encodeVersion :: Version -> Encode.Value
+encodeVersion version =
+  Encode.text (versionToText version)

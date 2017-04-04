@@ -15,15 +15,14 @@ module Elm.Compiler.Module
   , nameFromText
   , hyphenate
   , dehyphenate
-  , RawForJson(..)
-  , fromJson
+  , encode
+  , decoder
 
   -- canonical names
   , ModuleName.Canonical(..)
   )
   where
 
-import qualified Data.Aeson as Json
 import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -35,6 +34,8 @@ import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified Elm.Compiler.Type as PublicType
 import qualified Elm.Compiler.Type.Extract as Extract
+import qualified Json.Decode as Decode
+import qualified Json.Encode as Encode
 
 
 
@@ -105,32 +106,20 @@ isGoodChar char =
 
 
 
--- JSON for NAME
+-- JSON
 
 
-newtype RawForJson =
-  RawForJson ModuleName.Raw
+encode :: ModuleName.Raw -> Encode.Value
+encode =
+  Encode.text
 
 
-fromJson :: RawForJson -> ModuleName.Raw
-fromJson (RawForJson raw) =
-  raw
+decoder :: Decode.Decoder ModuleName.Raw
+decoder =
+  do  txt <- Decode.text
+      case nameFromText txt of
+        Nothing ->
+          Decode.fail "a module name like \"Html.Events\""
 
-
-instance Json.ToJSON RawForJson where
-  toJSON (RawForJson name) =
-    Json.toJSON (nameToString name)
-
-
-instance Json.FromJSON RawForJson where
-  parseJSON (Json.String text) =
-    case nameFromText text of
-      Nothing ->
-        fail (Text.unpack text ++ " is not a valid module name")
-
-      Just name ->
-        return (RawForJson name)
-
-  parseJSON _ =
-    fail "expecting the module name to be a string"
-
+        Just name ->
+          Decode.succeed name

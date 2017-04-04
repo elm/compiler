@@ -6,8 +6,6 @@ module Json.Decode
   , list, dict, maybe
   , field, at
   , map, map2, succeed, fail, andThen
-  -- elm specific stuff
-  , moduleName, packageName
   )
   where
 
@@ -22,9 +20,6 @@ import qualified Data.HashMap.Lazy as HashMap
 import qualified Data.Scientific as Scientific
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
-
-import qualified Elm.Compiler.Module as Module
-import qualified Elm.Package as Pkg
 
 
 
@@ -251,30 +246,3 @@ andThen callback (Decoder runA) =
     do  a <- runA mkError value
         let (Decoder runB) = callback a
         runB mkError value
-
-
-
--- ELM SPECIFIC STUFF
-
-
-moduleName :: Decoder Module.Raw
-moduleName =
-  do  txt <- text
-      case Module.nameFromText txt of
-        Nothing ->
-          fail "a module name like \"Html.Events\""
-
-        Just name ->
-          succeed name
-
-
-packageName :: Decoder Pkg.Name
-packageName =
-  do  txt <- text
-      case Pkg.fromText txt of
-        Left _ ->
-          fail "a valid project name, like \"elm-lang/core\""
-
-        Right name ->
-          succeed name
-
