@@ -40,7 +40,7 @@ Flag dev {
 
 Library
     if flag(dev)
-        ghc-options: -O0 -W -Werror
+        ghc-options: -O0 -Wall -Werror
     else
         ghc-options: -O2 -fsimpl-tick-factor=200
 
