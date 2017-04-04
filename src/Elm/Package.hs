@@ -19,6 +19,7 @@ module Elm.Package
   where
 
 
+import Control.Monad (liftM, liftM2, liftM3)
 import Data.Binary (Binary, get, getWord8, put, putWord8)
 import qualified Data.Char as Char
 import Data.Function (on)
@@ -223,7 +224,7 @@ toNumber txt =
 
 instance Binary Name where
   get =
-    Name <$> get <*> get
+    liftM2 Name get get
 
   put (Name user project) =
     do  put user
@@ -232,7 +233,7 @@ instance Binary Name where
 
 instance Binary Package where
   get =
-    Package <$> get <*> get
+    liftM2 Package get get
 
   put (Package name version) =
     do  put name
@@ -243,10 +244,10 @@ instance Binary Version where
   get =
     do  word <- getWord8
         if word == 0
-          then Version <$> get <*> get <*> get
+          then liftM3 Version get get get
           else
-            do  minor <- fromIntegral <$> getWord8
-                patch <- fromIntegral <$> getWord8
+            do  minor <- liftM fromIntegral getWord8
+                patch <- liftM fromIntegral getWord8
                 return (Version (fromIntegral word) minor patch)
 
   put (Version major minor patch) =
