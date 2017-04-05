@@ -3,6 +3,7 @@ module AST.Expression.Optimized
   ( Decl(..)
   , Def(..)
   , Expr(..)
+  , Main(..)
   , Decider(..), Choice(..)
   )
   where
@@ -14,10 +15,8 @@ import qualified Data.Set as Set
 import Data.Text (Text)
 
 import qualified AST.Effects as Effects
-import qualified AST.Expression.Canonical as Can
 import qualified AST.Literal as Literal
 import qualified AST.Module.Name as ModuleName
-import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Optimize.DecisionTree as DT
 import qualified Reporting.Region as R
@@ -67,11 +66,17 @@ data Expr
     | Record [(Text, Expr)]
     | Cmd ModuleName.Canonical Effects.ManagerType
     | Sub ModuleName.Canonical Effects.ManagerType
-    | OutgoingPort Text Type.Canonical
-    | IncomingPort Text Type.Canonical
-    | Program Can.Main Expr
+    | OutgoingPort Text Expr
+    | IncomingPort Text Expr
+    | Program Main Expr
     | GLShader Text
     | Crash ModuleName.Canonical R.Region (Maybe Expr)
+
+
+data Main
+  = VDom
+  | NoFlags
+  | Flags Expr
 
 
 data Decider a
@@ -177,6 +182,22 @@ instance Binary Expr where
       Program a b      -> putWord8 20 >> put a >> put b
       GLShader a       -> putWord8 21 >> put a
       Crash a b c      -> putWord8 22 >> put a >> put b >> put c
+
+
+instance Binary Main where
+  put main =
+    case main of
+      VDom       -> putWord8 0
+      NoFlags    -> putWord8 1
+      Flags expr -> putWord8 2 >> put expr
+
+  get =
+    do  word <- getWord8
+        case word of
+          0 -> pure VDom
+          1 -> pure NoFlags
+          2 -> liftM Flags get
+          _ -> error "problem getting Can.Main binary"
 
 
 instance (Binary a) => Binary (Decider a) where

@@ -11,7 +11,6 @@ module AST.Expression.Canonical
   where
 
 
-import Data.Binary
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text.Lazy as LText
@@ -161,28 +160,3 @@ collectLambdas lexpr@(A.A _ expr) =
 
     _ ->
       ([], lexpr)
-
-
-
--- BINARY
-
-
-instance Binary Main where
-  put main =
-    case main of
-      VDom ->
-        putWord8 0
-
-      NoFlags ->
-        putWord8 1
-
-      Flags tipe ->
-        putWord8 2 >> put tipe
-
-  get =
-    do  word <- getWord8
-        case word of
-          0 -> pure VDom
-          1 -> pure NoFlags
-          2 -> pure Flags <*> get
-          _ -> error "problem getting Can.Main binary"

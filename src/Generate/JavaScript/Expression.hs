@@ -13,7 +13,6 @@ import Data.Monoid ((<>))
 import qualified Data.Text as Text
 import Data.Text (Text)
 
-import qualified AST.Expression.Canonical as Can
 import AST.Expression.Optimized as Opt
 import qualified AST.Literal as L
 import qualified AST.Module.Name as ModuleName
@@ -21,7 +20,6 @@ import qualified AST.Variable as V
 import Generate.JavaScript.Helpers as Help
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.BuiltIn as BuiltIn
-import qualified Generate.JavaScript.Foreign as Foreign
 import qualified Generate.JavaScript.Literal as Literal
 import qualified Generate.JavaScript.Variable as Var
 import Generate.JavaScript.Variable (Generator)
@@ -200,12 +198,12 @@ generateCode expr =
       Sub moduleName _ ->
           JsExpr <$> BuiltIn.effect moduleName
 
-      OutgoingPort name tipe ->
-          do  encoder <- Foreign.encode tipe
-              JsExpr <$> BuiltIn.outgoingPort name encoder
+      OutgoingPort name encoder ->
+          do  jsEncoder <- generateJsExpr encoder
+              JsExpr <$> BuiltIn.outgoingPort name jsEncoder
 
-      IncomingPort name tipe ->
-          do  jsDecoder <- generateJsExpr (Foreign.decode tipe)
+      IncomingPort name decoder ->
+          do  jsDecoder <- generateJsExpr decoder
               JsExpr <$> BuiltIn.incomingPort name jsDecoder
 
       Program kind body ->
@@ -224,21 +222,21 @@ generateCode expr =
 -- PROGRAMS
 
 
-generateProgram :: Can.Main -> Opt.Expr -> Generator Code
+generateProgram :: Opt.Main -> Opt.Expr -> Generator Code
 generateProgram kind body =
   case kind of
-    Can.VDom ->
+    Opt.VDom ->
       do  html <- generateJsExpr body
           func <- BuiltIn.staticProgram
           jsExpr (func <| html)
 
-    Can.NoFlags ->
+    Opt.NoFlags ->
       do  almostProgram <- generateJsExpr body
           jsExpr (JS.Call almostProgram [])
 
-    Can.Flags tipe ->
+    Opt.Flags decoder ->
       do  almostProgram <- generateJsExpr body
-          flagDecoder <- generateJsExpr (Foreign.decode tipe)
+          flagDecoder <- generateJsExpr decoder
           jsExpr (almostProgram <| flagDecoder)
 
 

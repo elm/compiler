@@ -19,6 +19,7 @@ import qualified Optimize.Case as Case
 import qualified Optimize.DecisionTree as DT
 import qualified Optimize.Environment as Env
 import qualified Optimize.Inline as Inline
+import qualified Optimize.Port as Port
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
@@ -281,13 +282,13 @@ optimizeExpr context annExpr@(A.A region expression) =
         Opt.Sub home <$> Env.registerEffects home manager
 
     Can.OutgoingPort name tipe ->
-        pure (Opt.OutgoingPort name tipe)
+        Opt.OutgoingPort name <$> Port.toEncoder tipe
 
     Can.IncomingPort name tipe ->
-        pure (Opt.IncomingPort name tipe)
+        Opt.IncomingPort name <$> Port.toDecoder tipe
 
-    Can.Program kind expr ->
-        Opt.Program kind <$> justConvert expr
+    Can.Program main expr ->
+        Opt.Program <$> optimizeMain main <*> justConvert expr
 
     Can.SaveEnv _ _ ->
         error "save_the_environment should never make it to optimization phase"
@@ -323,6 +324,23 @@ optimizeVariable region (Var.Canonical home name) =
                   pure (Opt.Crash here region Nothing)
             else
               pure (Opt.VarGlobal var)
+
+
+
+-- OPTIMIZE MAIN
+
+
+optimizeMain :: Can.Main -> Env.Optimizer Opt.Main
+optimizeMain main =
+  case main of
+    Can.VDom ->
+      return Opt.VDom
+
+    Can.NoFlags ->
+      return Opt.NoFlags
+
+    Can.Flags tipe ->
+      Opt.Flags <$> Port.toDecoder tipe
 
 
 
