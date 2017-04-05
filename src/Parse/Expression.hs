@@ -120,7 +120,7 @@ tuple start =
         [ do  noSpace pos spos
               try (minus >> rightParen)
               end <- getPosition
-              return $ mkBinop start end "-"
+              return $ A.at start end (Src.var "-")
 
         , do  checkSpace spos
               (entry, _, spos2) <- expression
@@ -131,7 +131,7 @@ tuple start =
               op <- infixOp
               rightParen
               end <- getPosition
-              return $ mkBinop start end op
+              return $ A.at start end (Src.var op)
 
         , do  noSpace pos spos
               rightParen
@@ -153,16 +153,6 @@ tuple start =
 mkLambda :: R.Position -> R.Position -> Text -> Src.RawExpr -> Src.RawExpr
 mkLambda start end arg body =
   A.at start end (Src.Lambda (A.at start end (P.Var arg)) body)
-
-
-mkBinop :: R.Position -> R.Position -> Text -> Src.RawExpr
-mkBinop start end op =
-  let
-    x = A.at start end (Src.var "x")
-    y = A.at start end (Src.var "y")
-  in
-    mkLambda start end "x" $ mkLambda start end "y" $
-      A.at start end (Src.Binop [(x, A.at start end op)] y)
 
 
 chompCommas :: Int -> Parser Int
