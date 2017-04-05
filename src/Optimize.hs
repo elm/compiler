@@ -491,9 +491,9 @@ optimizeBinop context region op leftExpr rightExpr =
 
   else
 
-      makeOptBinop op
-        <$> optimizeExpr Nothing leftExpr
-        <*> optimizeExpr Nothing rightExpr
+      do  optLeft <- optimizeExpr Nothing leftExpr
+          optRight <- optimizeExpr Nothing rightExpr
+          makeOptBinop op optLeft optRight
 
 
 -- left-associative ((x |> f) |> g)
@@ -552,7 +552,7 @@ collect makeRoot assoc desiredOp annExpr@(A.A ann expr) =
         makeRoot annExpr
 
 
-makeOptBinop :: Var.Canonical -> Opt.Expr -> Opt.Expr -> Opt.Expr
+makeOptBinop :: Var.Canonical -> Opt.Expr -> Opt.Expr -> Env.Optimizer Opt.Expr
 makeOptBinop (Var.Canonical home op) leftExpr rightExpr =
   case home of
     Var.Local ->
@@ -562,7 +562,11 @@ makeOptBinop (Var.Canonical home op) leftExpr rightExpr =
       error "bug manifesting in Optimize.makeOptBinop"
 
     Var.Module name ->
-      Opt.Binop (Var.Global name op) leftExpr rightExpr
+      do  let var = Var.Global name op
+          Env.register var
+          return $ Opt.Binop var leftExpr rightExpr
 
     Var.TopLevel name ->
-      Opt.Binop (Var.Global name op) leftExpr rightExpr
+      do  let var = Var.Global name op
+          Env.register var
+          return $ Opt.Binop var leftExpr rightExpr
