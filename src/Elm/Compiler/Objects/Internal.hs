@@ -10,7 +10,7 @@ module Elm.Compiler.Objects.Internal
   , Symbol(..)
   , lookup
   , Roots
-  , root
+  , mains
   , toGlobals
   )
   where
@@ -26,7 +26,6 @@ import qualified AST.Expression.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Module as Module
 import qualified AST.Variable as Var
-import qualified Elm.Package as Pkg
 
 
 
@@ -92,19 +91,19 @@ lookup var (SymbolTable symbols) =
 
 
 data Roots
-  = Main ModuleName.Canonical
+  = Mains [ModuleName.Canonical]
 
 
-root :: Pkg.Name -> ModuleName.Raw -> Roots
-root pkg name =
-  Main (ModuleName.Canonical pkg name)
+mains :: [ModuleName.Canonical] -> Roots
+mains =
+  Mains
 
 
 toGlobals :: Roots -> [Var.Global]
 toGlobals roots =
   case roots of
-    Main home ->
-      [ Var.Global home "main" ]
+    Mains modules ->
+      map (\home -> Var.Global home "main") modules
 
 
 
