@@ -11,6 +11,7 @@ module Elm.Compiler.Objects.Internal
   , lookup
   , Roots
   , mains
+  , value
   , toGlobals
   )
   where
@@ -21,6 +22,7 @@ import Control.Arrow (first)
 import Control.Monad (liftM, liftM2)
 import Data.Binary
 import qualified Data.Map as Map
+import qualified Data.Text as Text
 
 import qualified AST.Expression.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
@@ -92,6 +94,7 @@ lookup var (SymbolTable symbols) =
 
 data Roots
   = Mains [ModuleName.Canonical]
+  | Value ModuleName.Canonical Text.Text
 
 
 mains :: [ModuleName.Canonical] -> Roots
@@ -99,11 +102,28 @@ mains =
   Mains
 
 
+value :: ModuleName.Canonical -> String -> Roots
+value home name =
+  Value home (Text.pack name)
+
+
 toGlobals :: Roots -> [Var.Global]
 toGlobals roots =
-  case roots of
-    Mains modules ->
-      map (\home -> Var.Global home "main") modules
+  hiddenDependencies ++
+    case roots of
+      Mains modules ->
+        map (\home -> Var.Global home "main") modules
+
+      Value home name ->
+        [ Var.Global home name ]
+
+
+-- needed for (==) and toString
+hiddenDependencies :: [Var.Global]
+hiddenDependencies =
+  [ Var.Global (ModuleName.inCore "Dict") "toList"
+  , Var.Global (ModuleName.inCore "Set") "toList"
+  ]
 
 
 

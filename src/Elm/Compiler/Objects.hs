@@ -8,6 +8,7 @@ module Elm.Compiler.Objects
   , unions
   , Roots
   , mains
+  , value
   )
   where
 
