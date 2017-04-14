@@ -114,6 +114,7 @@ Library
         Parse.Parse,
         Parse.Pattern,
         Parse.Primitives,
+        Parse.Repl,
         Parse.Type,
         Reporting.Annotation,
         Reporting.Bag,

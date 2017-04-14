@@ -1,17 +1,14 @@
 {-# OPTIONS_GHC -Wall #-}
 module Elm.Utils
-    ( (|>), (<|)
-    , nearbyNames
-    , isDeclaration
-    ) where
+  ( (|>), (<|)
+  , nearbyNames
+  , Entry(..)
+  , parseEntry
+  )
+  where
 
-import Data.Text (Text)
 
-import qualified AST.Expression.Source as Source
-import qualified AST.Pattern as Pattern
-import qualified Parse.Helpers as Parse
-import qualified Parse.Expression as Parse
-import qualified Reporting.Annotation as A
+import Parse.Repl (Entry(..), parseEntry)
 import Reporting.Helpers (nearbyNames)
 
 
@@ -36,16 +33,3 @@ f <| x = f x
 infixr 0 <|
 infixl 0 |>
 
-
-
--- DECL CHECKER
-
-
-isDeclaration :: Text -> Maybe [Text]
-isDeclaration source =
-  case Parse.run Parse.definition source of
-    Right (A.A _ (Source.Definition pattern _), _, _) ->
-        Just (Pattern.boundVarList pattern)
-
-    _ ->
-        Nothing

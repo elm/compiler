@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Parse.Expression (term, expression, definition) where
+module Parse.Expression (term, expression, definition, rootPattern) where
 
 import Control.Monad (guard)
 import qualified Data.List as List
