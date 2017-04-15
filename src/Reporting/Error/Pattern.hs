@@ -92,8 +92,8 @@ toCaseMessage =
 missingBranchesMessage :: Int -> Text
 missingBranchesMessage numUnhandled =
   if numUnhandled == 1 then
-    "Add a branch to cover this pattern!"
+    "Add a branch to cover this pattern."
 
   else
-    "Add branches to cover each of these patterns!"
+    "Add branches to cover each of these patterns."
 
