@@ -125,7 +125,7 @@ data Context =
 
 data Result =
   Result
-    { _docs :: Maybe Docs.Documentation
+    { _docs :: Maybe Docs.Module
     , _iface :: M.Interface
     , _objs :: Obj.Graph
     }
@@ -135,7 +135,7 @@ data Result =
 -- DOCUMENTATION
 
 
-docsGen :: Bool -> Module.Optimized -> Result.Result () w Error.Error (Maybe Docs.Documentation)
+docsGen :: Bool -> Module.Optimized -> Result.Result () w Error.Error (Maybe Docs.Module)
 docsGen isExposed (Module.Module name info) =
   if not isExposed then
     Result.ok Nothing
@@ -143,7 +143,7 @@ docsGen isExposed (Module.Module name info) =
   else
     let
       toDocs checked =
-        Just (Docs.fromCheckedDocs (ModuleName._module name) checked)
+        Just (Docs.Module (ModuleName._module name) checked)
     in
       toDocs <$> Docs.check (Module.exports info) (Module.docs info)
 

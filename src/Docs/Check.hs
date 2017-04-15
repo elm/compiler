@@ -42,18 +42,18 @@ check exports (A.A region maybeDocs) =
 
 
 checkHelp :: R.Region -> Exposing.Canonical -> Docs.Centralized -> R.Result () w Error.Error Docs.Checked
-checkHelp region exposing (Docs.Centralized comment values aliases unions) =
-  do  docNames <- parseNames region comment
+checkHelp region exposing (Docs.Docs overview unions aliases values) =
+  do  docNames <- parseNames region overview
 
       let docSet = Set.fromList (map A.drop docNames)
       let restrict checker dict =
-            Map.traverseWithKey checker (Map.restrictKeys dict docSet)
+            Map.traverseWithKey (checkEntry checker) (Map.restrictKeys dict docSet)
 
       R.mapError Error.Docs $
-        Docs.Checked comment
-          <$> restrict checkValue values
+        Docs.Docs overview
+          <$> restrict (checkUnion exposing) unions
           <*> restrict checkAlias aliases
-          <*> restrict (checkUnion exposing) unions
+          <*> restrict checkValue values
           <*  checkCommentNames region exposing docNames
 
 
@@ -121,15 +121,57 @@ checkComment region name maybeComment =
 
 
 
+-- CHECK ENTRY
+
+
+checkEntry :: (R.Region -> Text -> a -> Result w b) -> Text -> Docs.Raw a -> Result w (Docs.Good b)
+checkEntry checkDetails name (A.A region (Docs.Entry comment details)) =
+  Docs.Entry
+    <$> checkComment region name comment
+    <*> checkDetails region name details
+
+
+
+-- CHECK UNION
+
+
+checkUnion :: Exposing.Canonical -> R.Region -> Text -> Docs.Union -> Result w Docs.Union
+checkUnion (Exposing.Canonical _ _ unions) _region name (Docs.Union args ctors) =
+  let
+    publicCtors =
+      maybe [] id (lookup name unions)
+
+    isPublic (ctor, _) =
+      ctor `elem` publicCtors
+  in
+    pure $ Docs.Union args (filter isPublic ctors)
+
+
+
+-- CHECK ALIAS
+
+
+checkAlias :: R.Region -> Text -> Docs.Alias -> Result w Docs.Alias
+checkAlias _ _ alias =
+  pure alias
+
+
+
 -- CHECK VALUE
 
 
-checkValue :: Text -> A.Located Docs.RawValue -> Result w Docs.GoodValue
-checkValue name (A.A region (Docs.Value comment tipe assocPrec)) =
-  Docs.Value
-    <$> checkComment region name comment
-    <*> checkValueType region name tipe
-    <*> pure assocPrec
+checkValue :: R.Region -> Text -> Docs.RawValue -> Result w Docs.GoodValue
+checkValue region name value =
+  case value of
+    Docs.Value tipe ->
+      Docs.Value
+        <$> checkValueType region name tipe
+
+    Docs.Infix tipe assoc prec ->
+      Docs.Infix
+        <$> checkValueType region name tipe
+        <*> pure assoc
+        <*> pure prec
 
 
 checkValueType :: R.Region -> Text -> Maybe Type.Type -> Result w Type.Type
@@ -140,42 +182,6 @@ checkValueType region name maybeType =
 
     Nothing ->
       R.throw region (E.NoType name)
-
-
-
--- CHECK ALIAS
-
-
-checkAlias :: Text -> A.Located Docs.RawAlias -> Result w Docs.GoodAlias
-checkAlias name (A.A region (Docs.Alias comment args tipe)) =
-  Docs.Alias
-    <$> checkComment region name comment
-    <*> pure args
-    <*> pure tipe
-
-
-
--- CHECK UNION
-
-
-checkUnion :: Exposing.Canonical -> Text -> A.Located Docs.RawUnion -> Result w Docs.GoodUnion
-checkUnion (Exposing.Canonical _ _ unions) name (A.A region (Docs.Union comment args ctors)) =
-  Docs.Union
-    <$> checkComment region name comment
-    <*> pure args
-    <*> checkUnionCtors (Map.fromList unions) name ctors
-
-
-checkUnionCtors :: Map.Map Text [Text] -> Text -> [(Text, [Type.Type])] -> Result w [(Text, [Type.Type])]
-checkUnionCtors unions name ctors =
-  let
-    publicCtors =
-      maybe [] id (Map.lookup name unions)
-
-    isPublic (ctor, _) =
-      ctor `elem` publicCtors
-  in
-    R.ok $ filter isPublic ctors
 
 
 

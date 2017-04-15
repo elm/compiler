@@ -1,9 +1,10 @@
 {-# OPTIONS_GHC -Wall #-}
 module Docs.AST
-  ( Centralized(..), Checked(..)
+  ( Docs(..), Centralized, Checked
+  , Entry(..), Raw, Good
+  , Union(..)
+  , Alias(..)
   , Value(..), RawValue, GoodValue
-  , Alias(..), RawAlias, GoodAlias
-  , Union(..), RawUnion, GoodUnion
   )
   where
 
@@ -11,6 +12,7 @@ module Docs.AST
 import qualified Data.Map as Map
 import Data.Text (Text)
 
+import qualified AST.Declaration as Decl
 import qualified Elm.Compiler.Type as Type
 import qualified Reporting.Annotation as A
 
@@ -19,73 +21,59 @@ import qualified Reporting.Annotation as A
 -- DOCS
 
 
-data Centralized =
-  Centralized
-    { comment :: Text
-    , values :: Map.Map Text (A.Located RawValue)
-    , aliases :: Map.Map Text (A.Located RawAlias)
-    , unions :: Map.Map Text (A.Located RawUnion)
+data Docs unions aliases values =
+  Docs
+    { _overview :: Text
+    , _unions :: Map.Map Text unions
+    , _aliases :: Map.Map Text aliases
+    , _values :: Map.Map Text values
     }
 
 
-data Checked =
-  Checked
-    { _comment :: Text
-    , _values :: Map.Map Text GoodValue
-    , _aliases :: Map.Map Text GoodAlias
-    , _unions :: Map.Map Text GoodUnion
+type Centralized =
+  Docs (Raw Union) (Raw Alias) (Raw RawValue)
+
+
+type Checked =
+  Docs (Good Union) (Good Alias) (Good GoodValue)
+
+
+
+-- ENTRY
+
+
+data Entry comment details =
+  Entry
+    { _comment :: !comment
+    , _details :: !details
     }
 
 
-
--- VALUES
-
-
-data Value comment tipe =
-  Value
-    { valueComment :: comment
-    , valueType :: tipe
-    , valueAssocPrec :: Maybe (Text,Int)
-    }
+type Raw a =
+  A.Located (Entry (Maybe Text) a)
 
 
-type RawValue = Value (Maybe Text) (Maybe Type.Type)
-
-
-type GoodValue = Value Text Type.Type
+type Good a =
+  Entry Text a
 
 
 
--- ALIAS
+-- INFO
 
 
-data Alias comment =
-  Alias
-    { aliasComment :: comment
-    , aliasArgs :: [Text]
-    , aliasType :: Type.Type
-    }
+data Alias =
+  Alias [Text] Type.Type
 
 
-type RawAlias = Alias (Maybe Text)
+data Union =
+  Union [Text] [(Text, [Type.Type])]
 
 
-type GoodAlias = Alias Text
+data Value tipe
+  = Value tipe
+  | Infix tipe Decl.Assoc Int
 
 
+type RawValue = Value (Maybe Type.Type)
 
--- UNION
-
-
-data Union comment =
-  Union
-    { unionComment :: comment
-    , unionArgs :: [Text]
-    , unionCases :: [(Text, [Type.Type])]
-    }
-
-
-type RawUnion = Union (Maybe Text)
-
-
-type GoodUnion = Union Text
+type GoodValue = Value Type.Type

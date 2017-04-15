@@ -1,159 +1,106 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Elm.Docs
-  ( Documentation(..)
-  , Alias(..)
-  , Union(..)
-  , Value(..)
-  , fromCheckedDocs
+  ( Documentation
+  , Module(..)
+  , toDict
   , decoder
   , encode
+  , Docs.Docs(..)
+  , Docs.Checked
+  , Docs.Entry(..)
+  , Docs.Union(..)
+  , Docs.Alias(..)
+  , Docs.Value(..)
   )
   where
+
 
 import qualified Data.Map as Map
 import Data.Text (Text)
 
+import qualified AST.Declaration as Decl
 import qualified Docs.AST as Docs
 import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Type as Type
-import qualified Elm.Compiler.Version as Version
-import qualified Elm.Package as Pkg
 import qualified Json.Decode as Decode
 import qualified Json.Encode as Encode
 import Json.Encode ((==>))
 
 
 
--- DATA STRUCTURES
+-- DOCUMENTATION
 
 
-data Documentation =
-  Documentation
-    { _name :: Module.Raw
-    , _comment :: Text
-    , _aliases :: [Alias]
-    , _types :: [Union]
-    , _values :: [Value]
-    , _version :: Maybe Pkg.Version
+type Documentation =
+  Map.Map Module.Raw Docs.Checked
+
+
+data Module =
+  Module
+    { _name :: !Module.Raw
+    , _docs :: !Docs.Checked
     }
 
 
-data Alias =
-  Alias
-    { _a_name :: Text
-    , _a_comment :: Text
-    , _a_args :: [Text]
-    , _a_type :: Type.Type
-    }
-
-
-data Union =
-  Union
-    { _u_name :: Text
-    , _u_comment :: Text
-    , _u_args :: [Text]
-    , _u_cases :: [(Text, [Type.Type])]
-    }
-
-
-data Value =
-  Value
-    { _v_name :: Text
-    , _v_comment :: Text
-    , _v_type :: Type.Type
-    , _v_fix :: Maybe (Text,Int)
-    }
+toDict :: [Module] -> Documentation
+toDict modules =
+  Map.fromList $ map (\(Module name docs) -> (name, docs)) modules
 
 
 
--- FROM CHECKED DOCS
+-- ENCODE
 
 
-fromCheckedDocs :: Module.Raw -> Docs.Checked -> Documentation
-fromCheckedDocs name (Docs.Checked comment values aliases unions) =
-  let
-    toValue (vName, Docs.Value vComment tipe fix) =
-      Value vName vComment tipe fix
-
-    toAlias (aName, Docs.Alias aComment args tipe) =
-      Alias aName aComment args tipe
-
-    toUnion (uName, Docs.Union uComment args cases) =
-      Union uName uComment args cases
-  in
-    Documentation
-      name
-      comment
-      (map toAlias (Map.toList aliases))
-      (map toUnion (Map.toList unions))
-      (map toValue (Map.toList values))
-      (Just Version.version)
-
-
-
--- JSON
-
-
-encode :: Documentation -> Encode.Value
-encode (Documentation name comment aliases types values elmVersion) =
+encode :: Module -> Encode.Value
+encode (Module name (Docs.Docs overview unions aliases values)) =
   Encode.object $
     [ "name" ==> Module.encode name
-    , "comment" ==> Encode.text comment
-    , "aliases" ==> Encode.list encodeAlias aliases
-    , "types" ==> Encode.list encodeUnion types
-    , "values" ==> Encode.list encodeValue values
+    , "comment" ==> Encode.text overview
+    , "types" ==> Encode.list encodeUnion (Map.toList unions)
+    , "aliases" ==> Encode.list encodeAlias (Map.toList aliases)
+    , "values" ==> Encode.list encodeValue (Map.toList values)
     ]
-    ++
-      case elmVersion of
-        Nothing ->
-          []
-
-        Just version ->
-          [ "generated-with-elm-version" ==> Pkg.encodeVersion version
-          ]
 
 
-decoder :: Decode.Decoder Documentation
+
+-- DECODE
+
+
+decoder :: Decode.Decoder Module
 decoder =
-  Documentation
+  Module
     <$> Decode.field "name" Module.decoder
-    <*> Decode.field "comment" Decode.text
-    <*> Decode.field "aliases" (Decode.list aliasDecoder)
-    <*> Decode.field "types" (Decode.list unionDecoder)
-    <*> Decode.field "values" (Decode.list valueDecoder)
-    <*> Decode.maybe (Decode.field "generated-with-elm-version" Pkg.versionDecoder)
+    <*> decodeDocs
+
+
+decodeDocs :: Decode.Decoder Docs.Checked
+decodeDocs =
+  Docs.Docs
+    <$> Decode.field "comment" Decode.text
+    <*> Decode.field "types" (entryDictDecoder unionDecoder)
+    <*> Decode.field "aliases" (entryDictDecoder aliasDecoder)
+    <*> Decode.field "values" (entryDictDecoder valueDecoder)
+
+
+entryDictDecoder :: Decode.Decoder a -> Decode.Decoder (Map.Map Text (Docs.Good a))
+entryDictDecoder subDecoder =
+  Map.fromList <$> Decode.list (entryDecoder subDecoder)
+
+
+entryDecoder :: Decode.Decoder a -> Decode.Decoder ( Text, Docs.Good a )
+entryDecoder subDecoder =
+  Decode.map2 (,) (Decode.field "name" Decode.text) $
+    Decode.map2 Docs.Entry (Decode.field "comment" Decode.text) $
+      subDecoder
 
 
 
--- JSON for ALIAS
+-- ENCODE UNION
 
 
-encodeAlias :: Alias -> Encode.Value
-encodeAlias (Alias name comment args tipe) =
-  Encode.object
-    [ "name" ==> Encode.text name
-    , "comment" ==> Encode.text comment
-    , "args" ==> Encode.list Encode.text args
-    , "type" ==> Type.encode tipe
-    ]
-
-
-aliasDecoder :: Decode.Decoder Alias
-aliasDecoder =
-  Alias
-    <$> Decode.field "name" Decode.text
-    <*> Decode.field "comment" Decode.text
-    <*> Decode.field "args" (Decode.list Decode.text)
-    <*> Decode.field "type" Type.decoder
-
-
-
--- JSON for UNION
-
-
-encodeUnion :: Union -> Encode.Value
-encodeUnion (Union name comment args cases) =
+encodeUnion :: ( Text, Docs.Good Docs.Union ) -> Encode.Value
+encodeUnion ( name, Docs.Entry comment (Docs.Union args cases) ) =
   Encode.object
     [ "name" ==> Encode.text name
     , "comment" ==> Encode.text comment
@@ -162,18 +109,20 @@ encodeUnion (Union name comment args cases) =
     ]
 
 
-unionDecoder :: Decode.Decoder Union
-unionDecoder =
-  Union
-    <$> Decode.field "name" Decode.text
-    <*> Decode.field "comment" Decode.text
-    <*> Decode.field "args" (Decode.list Decode.text)
-    <*> Decode.field "cases" (Decode.list caseDecoder)
-
-
 encodeCase :: ( Text, [Type.Type] ) -> Encode.Value
 encodeCase ( tag, args ) =
   Encode.list id [ Encode.text tag, Encode.list Type.encode args ]
+
+
+
+-- DECODE UNION
+
+
+unionDecoder :: Decode.Decoder Docs.Union
+unionDecoder =
+  Docs.Union
+    <$> Decode.field "args" (Decode.list Decode.text)
+    <*> Decode.field "cases" (Decode.list caseDecoder)
 
 
 caseDecoder :: Decode.Decoder ( Text, [Type.Type] )
@@ -184,35 +133,73 @@ caseDecoder =
 
 
 
--- JSON for VALUE
+-- ENCODE ALIAS
 
 
-encodeValue :: Value -> Encode.Value
-encodeValue (Value name comment tipe assocPrec) =
+encodeAlias :: ( Text, Docs.Good Docs.Alias ) -> Encode.Value
+encodeAlias ( name, Docs.Entry comment (Docs.Alias args tipe) ) =
+  Encode.object
+    [ "name" ==> Encode.text name
+    , "comment" ==> Encode.text comment
+    , "args" ==> Encode.list Encode.text args
+    , "type" ==> Type.encode tipe
+    ]
+
+
+
+-- DECODE ALIAS
+
+
+aliasDecoder :: Decode.Decoder Docs.Alias
+aliasDecoder =
+  Docs.Alias
+    <$> Decode.field "args" (Decode.list Decode.text)
+    <*> Decode.field "type" Type.decoder
+
+
+
+-- ENCODE VALUE
+
+
+encodeValue :: ( Text, Docs.Good Docs.GoodValue ) -> Encode.Value
+encodeValue ( name, Docs.Entry comment value ) =
   Encode.object $
     [ "name" ==> Encode.text name
     , "comment" ==> Encode.text comment
-    , "type" ==> Type.encode tipe
     ]
     ++
-      case assocPrec of
-        Nothing ->
-          []
+      case value of
+        Docs.Value tipe ->
+          [ "type" ==> Type.encode tipe
+          ]
 
-        Just (assoc, prec) ->
-          [ "associativity" ==> Encode.text assoc
+        Docs.Infix tipe assoc prec ->
+          [ "type" ==> Type.encode tipe
+          , "associativity" ==> Encode.text (Decl.assocToText assoc)
           , "precedence" ==> Encode.int prec
           ]
 
 
-valueDecoder :: Decode.Decoder Value
+
+-- DECODE VALUE
+
+
+valueDecoder :: Decode.Decoder Docs.GoodValue
 valueDecoder =
-  Value
-    <$> Decode.field "name" Decode.text
-    <*> Decode.field "comment" Decode.text
-    <*> Decode.field "type" Type.decoder
-    <*> Decode.maybe (
-      (,)
-        <$> Decode.field "associativity" Decode.text
-        <*> Decode.field "precedence" Decode.int
-    )
+  do  tipe <- Decode.field "type" Type.decoder
+      Decode.oneOf
+        [ Docs.Infix tipe
+            <$> Decode.field "associativity" assocDecoder
+            <*> Decode.field "precedence" Decode.int
+        , Decode.succeed (Docs.Value tipe)
+        ]
+
+
+assocDecoder :: Decode.Decoder Decl.Assoc
+assocDecoder =
+  do  txt <- Decode.text
+      case txt of
+        "left"  -> Decode.succeed Decl.Left
+        "non"   -> Decode.succeed Decl.Non
+        "right" -> Decode.succeed Decl.Right
+        _       -> Decode.fail "an associativity"

@@ -117,11 +117,11 @@ infixDecl :: R.Position -> SParser Decl.Source
 infixDecl start =
   oneOf
     [ do  keyword "infixl"
-          inContext start E.Infix $ infixDeclHelp start Decl.L
+          inContext start E.Infix $ infixDeclHelp start Decl.Left
     , do  keyword "infixr"
-          inContext start E.Infix $ infixDeclHelp start Decl.R
+          inContext start E.Infix $ infixDeclHelp start Decl.Right
     , do  keyword "infix"
-          inContext start E.Infix $ infixDeclHelp start Decl.N
+          inContext start E.Infix $ infixDeclHelp start Decl.Non
     ]
 
 

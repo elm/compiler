@@ -5,7 +5,7 @@ import Prelude hiding (last)
 import qualified Data.Map as Map
 import Data.Text (Text)
 
-import AST.Declaration (Assoc(..))
+import qualified AST.Declaration as Decl
 import qualified AST.Expression.Canonical as C
 import qualified AST.Variable as Var
 import qualified Canonicalize.Environment as Env
@@ -23,7 +23,7 @@ import qualified Reporting.Result as R
 data Op =
   Op
     { _name :: Var.Canonical
-    , _assoc :: Assoc
+    , _assoc :: Decl.Assoc
     , _prec :: Int
     , _region :: Region.Region
     }
@@ -32,8 +32,13 @@ data Op =
 canonicalize :: Env.Env -> A.Located Text -> Var.Result Op
 canonicalize env (A.A region op) =
   do  name <- Var.variable region env op
-      let (assoc, prec) = Map.findWithDefault (L, 9) name (Env._infixes env)
+      let (assoc, prec) = Map.findWithDefault defaults name (Env._infixes env)
       return $ Op name assoc prec region
+
+
+defaults :: ( Decl.Assoc, Int )
+defaults =
+  ( Decl.defaultAssociativity, Decl.defaultPrecedence )
 
 
 
@@ -94,10 +99,10 @@ flattenHelp makeBinop rootOp@(Op _ rootAssoc rootPrec _) middle last =
       else
 
         case (rootAssoc, assoc) of
-          (L, L) ->
+          (Decl.Left, Decl.Left) ->
             flattenHelp (\right -> binop name (makeBinop expr) right) op rest last
 
-          (R, R) ->
+          (Decl.Right, Decl.Right) ->
             flattenHelp (\right -> makeBinop (binop name expr right)) op rest last
 
           (_, _) ->

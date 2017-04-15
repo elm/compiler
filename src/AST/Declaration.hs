@@ -2,6 +2,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module AST.Declaration where
 
+import Prelude hiding (Either(..))
+import Control.Monad (liftM3)
 import Data.Binary
 import Data.Text (Text)
 
@@ -105,30 +107,40 @@ data Infix =
     }
 
 
-data Assoc = L | N | R
+data Assoc = Left | Non | Right
     deriving (Eq)
+
+
+defaultAssociativity :: Assoc
+defaultAssociativity =
+  Left
+
+
+defaultPrecedence :: Int
+defaultPrecedence =
+  9
 
 
 assocToText :: Assoc -> Text
 assocToText assoc =
   case assoc of
-    L ->
+    Left ->
       "left"
 
-    N ->
+    Non ->
       "non"
 
-    R ->
+    Right ->
       "right"
 
 
 
--- BINARY CONVERSION
+-- BINARY
 
 
 instance Binary Infix where
   get =
-    Infix <$> get <*> get <*> get
+    liftM3 Infix get get get
 
   put (Infix op assoc prec) =
     do  put op
@@ -139,15 +151,16 @@ instance Binary Infix where
 instance Binary Assoc where
   get =
     do  n <- getWord8
-        return $ case n of
-          0 -> L
-          1 -> N
-          2 -> R
-          _ -> error "Error reading valid associativity from serialized string"
+        return $
+          case n of
+            0 -> Left
+            1 -> Non
+            2 -> Right
+            _ -> error "Error reading valid associativity from serialized string"
 
   put assoc =
     putWord8 $
       case assoc of
-        L -> 0
-        N -> 1
-        R -> 2
+        Left  -> 0
+        Non   -> 1
+        Right -> 2
