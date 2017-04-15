@@ -6,7 +6,7 @@ module Json.Decode
   , list, dict, maybe
   , field, at
   , index
-  , map, map2, succeed, fail, andThen
+  , map, map2, succeed, fail, andThen, oneOf
   )
   where
 
@@ -37,6 +37,7 @@ data Decoder a =
 data Error
   = Field Text Error
   | Index Int Error
+  | OneOf [Error]
   | Failure Aeson.Value String
 
 
@@ -269,3 +270,27 @@ andThen callback (Decoder runA) =
     do  a <- runA mkError value
         let (Decoder runB) = callback a
         runB mkError value
+
+
+
+-- ONE OF
+
+
+oneOf :: [Decoder a] -> Decoder a
+oneOf decoders =
+  Decoder (oneOfHelp decoders [])
+
+
+oneOfHelp :: [Decoder a] -> [Error] -> (Error -> Error) -> Aeson.Value -> Either Error a
+oneOfHelp decoders errors mkError value =
+  case decoders of
+    [] ->
+      Left (mkError (OneOf (reverse errors)))
+
+    Decoder run : otherDecoders ->
+      case run mkError value of
+        Right a ->
+          Right a
+
+        Left err ->
+          oneOfHelp otherDecoders (err:errors) mkError value
