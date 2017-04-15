@@ -1,7 +1,9 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Elm.Compiler.Type
-  ( Type(..), toString
+  ( Type(..)
+  , Format(..)
+  , toString
   , Program(..)
   , encode
   , decoder
@@ -49,12 +51,23 @@ data Program =
 -- TO STRING
 
 
-data Context = None | ADT | Function
+data Format = OneLine | MultiLine
 
 
-toString :: Type -> String
-toString tipe =
-  P.render (toDoc None tipe)
+toString :: Format -> Type -> String
+toString format tipe =
+  let
+    mode =
+      case format of
+        OneLine ->
+          P.OneLineMode
+        MultiLine ->
+          P.PageMode
+  in
+    P.renderStyle (P.Style mode 80 1.0) (toDoc None tipe)
+
+
+data Context = None | InType | InFunction
 
 
 toDoc :: Context -> Type -> P.Doc
@@ -62,7 +75,7 @@ toDoc context tipe =
   case tipe of
     Lambda _ _ ->
         let t:ts =
-              map (toDoc Function) (collectLambdas tipe)
+              map (toDoc InFunction) (collectLambdas tipe)
 
             lambda =
               P.sep [ t, P.sep (map (P.text "->" <+>) ts) ]
@@ -89,15 +102,18 @@ toDoc context tipe =
 
         else
           let
-              application =
-                  P.hang
-                      (P.text (Text.unpack name))
-                      2
-                      (P.sep $ map (toDoc ADT) args)
+            application =
+              P.hang
+                  (P.text (Text.unpack name))
+                  2
+                  (P.sep $ map (toDoc InType) args)
           in
-              case (context, args) of
-                (ADT, _ : _) -> P.parens application
-                _ -> application
+            case (context, args) of
+              (InType, _ : _) ->
+                P.parens application
+
+              _ ->
+                application
 
     App _ _ ->
         error $
@@ -160,7 +176,7 @@ flattenRecord tipe =
 
 encode :: Type -> Encode.Value
 encode tipe =
-  Encode.text (Text.unwords (Text.words (Text.pack (toString tipe))))
+  Encode.text (Text.pack (toString OneLine tipe))
 
 
 decoder :: Decode.Decoder Type
