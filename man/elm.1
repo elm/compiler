@@ -1,0 +1,51 @@
+.TH ELM "1" "June 2014" "elm 0.12.3" "User Commands"
+.SH NAME
+elm - The compiler for the Elm language
+.SH DESCRIPTION
+The Elm Compiler 0.12.3, (c) Evan Czaplicki 2011\-2014
+.SH SYNOPSIS
+elm flags [OPTIONS] [FILES]
+.IP
+Compile Elm programs to HTML, CSS, and JavaScript.
+.SS "Common flags:"
+.TP
+\fB\-m\fR \fB\-\-make\fR
+automatically compile dependencies.
+.TP
+\fB\-\-set\-runtime\fR=\fIFILE\fR
+Specify a custom location for Elm's runtime system.
+.TP
+\fB\-g\fR \fB\-\-get\-runtime\fR
+Print the absolute path to the default Elm runtime.
+.TP
+\fB\-o\fR \fB\-\-only\-js\fR
+Compile only to JavaScript.
+.TP
+\fB\-p\fR \fB\-\-print\-types\fR
+Print out inferred types of top\-level definitions.
+.TP
+\fB\-\-scripts\fR=\fIFILE\fR
+Load JavaScript files in generated HTML. Files will
+be included in the given order.
+.TP
+\fB\-n\fR \fB\-\-no\-prelude\fR
+Do not import Prelude by default, used only when
+compiling standard libraries.
+.TP
+\fB\-c\fR \fB\-\-cache\-dir\fR=\fIFILE\fR
+Directory for files cached to make builds faster.
+Defaults to cache/ directory.
+.TP
+\fB\-b\fR \fB\-\-build\-dir\fR=\fIFILE\fR
+Directory for generated HTML and JS files. Defaults
+to build/ directory.
+.TP
+\fB\-\-src\-dir\fR=\fIFILE\fR
+Additional source directories besides project root.
+Searched when using \fB\-\-make\fR
+.TP
+\fB\-h\fR \fB\-\-help\fR
+Display help message
+.TP
+\fB\-v\fR \fB\-\-version\fR
+Print version information
