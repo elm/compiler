@@ -84,7 +84,7 @@ type List
     | Node Int List
 ```
 
-No matter what, the type of `Node n xs` is going to be `List`. There is no expansion to be done. This means you can represent recursive structures with types do not explode into infinity.
+No matter what, the type of `Node n xs` is going to be `List`. There is no expansion to be done. This means you can represent recursive structures with types that do not explode into infinity.
 
 So let's return to wanting to represent a `Comment` that may have responses. There are a couple ways to do this:
 
