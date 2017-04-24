@@ -203,10 +203,10 @@ encodeSequence open close encodeEntry indent first rest =
       newline <> B.byteString indent <> close
 
     addValue field builder =
-      builder
-      <> commaNewline
+      commaNewline
       <> newIndentBuilder
       <> encodeEntry newIndent field
+      <> builder
   in
     open
     <> newIndentBuilder
