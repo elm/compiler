@@ -1,6 +1,6 @@
 BEFORE DELETING THIS:
 
-- Is it a runtime error?          See https://github.com/elm-lang/elm-compiler/issues/873
+- Is it a runtime error?          See https://github.com/elm-lang/elm-compiler/issues/1591
 - Is it about type annotations?   See https://github.com/elm-lang/elm-compiler/issues/1214
 - Is it about core libraries?     See https://github.com/elm-lang/core/issues
 - Is it a bad error message?      See https://github.com/elm-lang/error-message-catalog/issues
