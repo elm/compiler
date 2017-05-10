@@ -180,6 +180,9 @@ count expression =
     IncomingPort _ _ ->
         Map.empty
 
+    TaskPort _ ->
+        Map.empty
+
     Program _ expr ->
         count expr
 
@@ -289,6 +292,9 @@ replace substitutions expression =
         expression
 
     IncomingPort _ _ ->
+        expression
+
+    TaskPort _ ->
         expression
 
     Program kind expr ->

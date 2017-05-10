@@ -151,6 +151,9 @@ reorder (A.A region expression) =
     C.IncomingPort _ _ ->
       return expression
 
+    C.TaskPort _ ->
+      return expression
+
     C.Program _ _ ->
       error "DANGER - Program AST nodes should not be in def sorting."
 

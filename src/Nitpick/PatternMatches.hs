@@ -126,6 +126,9 @@ checkExpression arityDict (A.A region expression) =
     C.IncomingPort _ _ ->
         Result.ok ()
 
+    C.TaskPort _ ->
+        Result.ok ()
+
     C.Program _ _ ->
         error "DANGER - Program AST nodes should not be in Nitpick.PatternMatches."
 

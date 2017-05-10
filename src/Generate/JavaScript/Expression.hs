@@ -205,6 +205,9 @@ generateCode expr =
           do  jsDecoder <- generateJsExpr (Foreign.decode tipe)
               jsExpr $ BuiltIn.incomingPort name jsDecoder
 
+      TaskPort name ->
+          jsExpr $ BuiltIn.taskPort name
+
       Program kind body ->
           generateProgram kind body
 
