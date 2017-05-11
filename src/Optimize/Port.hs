@@ -13,6 +13,7 @@ import qualified Data.Text as Text
 import Data.Text (Text)
 
 import qualified AST.Expression.Optimized as Opt
+import qualified AST.Helpers as Help
 import qualified AST.Literal as Literal
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as T
@@ -224,7 +225,7 @@ decodeArray tipe =
 decodeTuple0 :: Env.Optimizer Opt.Expr
 decodeTuple0 =
   do  null <- decode "null"
-      return (Opt.Call null [ Opt.Ctor "_Tuple0" [] ])
+      return (Opt.Call null [ Opt.Ctor Help.zeroTuple [] ])
 
 
 decodeTuple :: [T.Canonical] -> Env.Optimizer Opt.Expr
@@ -238,7 +239,7 @@ decodeTuple types =
 
     tuple =
       Opt.Ctor
-        (Text.pack ("_Tuple" ++ show size))
+        (Help.makeTuple size)
         (map (Opt.VarLocal . indexToName . fst) entries)
   in
     do  succeed <- decode "succeed"

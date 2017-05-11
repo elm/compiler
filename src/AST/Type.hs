@@ -13,9 +13,9 @@ import Control.Arrow (second)
 import Control.Monad (liftM, liftM2, liftM3)
 import Data.Binary
 import qualified Data.Map as Map
-import qualified Data.Text as Text
 import Data.Text (Text)
 
+import qualified AST.Helpers as Help
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
@@ -62,7 +62,7 @@ tuple :: R.Region -> [Raw] -> Raw
 tuple region types =
   let
     name =
-      Var.Raw (Text.append "_Tuple" (Text.pack (show (length types))))
+      Var.Raw (Help.makeTuple (length types))
   in
     A.A region (RApp (A.A region (RType name)) types)
 

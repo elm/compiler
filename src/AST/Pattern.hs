@@ -6,10 +6,10 @@ import qualified Data.List as List
 import Data.Monoid ((<>))
 import qualified Data.Set as Set
 import Data.Text (Text)
-import qualified Data.Text as Text
 import qualified Data.Text.Lazy as LazyText
 import Data.Text.Lazy.Builder (Builder, fromText, toLazyText)
 
+import qualified AST.Helpers as Help
 import qualified AST.Literal as L
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
@@ -65,7 +65,7 @@ tuple :: [Raw] -> Raw'
 tuple patterns =
   let
     name =
-      Text.append "_Tuple" (Text.pack (show (length patterns)))
+      Help.makeTuple (length patterns)
   in
     Ctor (Var.Raw name) patterns
 

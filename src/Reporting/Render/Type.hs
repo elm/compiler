@@ -93,7 +93,7 @@ varToDoc localizer var =
     name =
       Var.toText var
   in
-    if name == "_Tuple0" then
+    if name == Help.zeroTuple then
       text "()"
 
     else

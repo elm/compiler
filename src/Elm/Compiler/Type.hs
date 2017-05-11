@@ -14,7 +14,8 @@ module Elm.Compiler.Type
 import Control.Arrow ((***))
 import qualified Data.Text as Text
 import Data.Text (Text)
-import Text.PrettyPrint as P
+import qualified Text.PrettyPrint as P
+import Text.PrettyPrint ((<+>))
 
 import qualified AST.Helpers as Help
 import qualified AST.Type as Type
@@ -88,10 +89,10 @@ toDoc context tipe =
         P.text (Text.unpack name)
 
     Type name ->
-        P.text (Text.unpack (if name == "_Tuple0" then "()" else name))
+        P.text (Text.unpack (if name == Help.zeroTuple then "()" else name))
 
     App (Type name) args ->
-        if name == "_Tuple0" then
+        if name == Help.zeroTuple then
           P.text "()"
 
         else if Help.isTuple name then

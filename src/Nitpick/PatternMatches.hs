@@ -423,7 +423,7 @@ makeTupleInfo :: Int -> ( Text, ArityInfo )
 makeTupleInfo n =
   let
     name =
-      Text.pack ("_Tuple" ++ show n)
+      Help.makeTuple n
   in
     ( name, ArityInfo 1 [ (Var.builtin name, n) ] )
 

@@ -17,6 +17,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Text (Text)
 
+import qualified AST.Helpers as Help
 import qualified AST.Declaration as Decl
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
@@ -134,7 +135,7 @@ builtinPatches =
 
     toTuple :: Int -> (Text, Int)
     toTuple n =
-        ( Text.pack ("_Tuple" ++ show n), n )
+        ( Help.makeTuple n, n )
 
 
 

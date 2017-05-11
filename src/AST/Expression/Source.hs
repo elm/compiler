@@ -7,9 +7,9 @@ module AST.Expression.Source
   )
   where
 
-import qualified Data.Text as Text
 import Data.Text (Text)
 
+import qualified AST.Helpers as Help
 import qualified AST.Literal as Literal
 import qualified AST.Pattern as Ptrn
 import qualified AST.Type as Type
@@ -80,7 +80,7 @@ var x =
 
 tuple :: [Expr def] -> Expr' def
 tuple expressions =
-  Ctor (Text.pack ("_Tuple" ++ show (length expressions))) expressions
+  Ctor (Help.makeTuple (length expressions)) expressions
 
 
 zero :: Expr' def

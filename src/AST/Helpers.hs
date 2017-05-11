@@ -1,6 +1,13 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module AST.Helpers (isTuple, isOp, isSymbol) where
+module AST.Helpers
+  ( zeroTuple
+  , makeTuple
+  , isTuple
+  , isOp
+  , isSymbol
+  )
+  where
 
 import qualified Data.Char as Char
 import qualified Data.Set as Set
@@ -10,6 +17,16 @@ import Data.Text (Text)
 
 
 -- TUPLES
+
+
+zeroTuple :: Text
+zeroTuple =
+  "_Tuple0"
+
+
+makeTuple :: Int -> Text
+makeTuple size =
+  Text.pack ("_Tuple" ++ show size)
 
 
 isTuple :: Text -> Bool

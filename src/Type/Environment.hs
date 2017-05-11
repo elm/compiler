@@ -15,9 +15,9 @@ import qualified Control.Monad.State as State
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Data.Text as Text
 import Data.Text (Text)
 
+import qualified AST.Helpers as Help
 import qualified AST.Type as T
 import qualified AST.Variable as Var
 import qualified AST.Module as Module
@@ -86,7 +86,7 @@ builtinTypes =
       , kind 0 ["Int","Float","Char","String","Bool"]
       ]
   where
-    tuple n = ( Text.pack ("_Tuple" ++ show n), n )
+    tuple size = ( Help.makeTuple size, size )
     kind n names = map (\name -> (name, n)) names
 
 
@@ -106,12 +106,12 @@ makeCtors env unions =
           let (args, result) = tipe (map (VarN) vars)
           return (length args, vars, args, result)
 
-    tupleCtor n =
+    tupleCtor size =
       let
         name =
-          Text.pack ("_Tuple" ++ show n)
+          Help.makeTuple size
       in
-        (name, inst n $ \vs -> (vs, foldl (<|) (getType env name) vs))
+        (name, inst size $ \vs -> (vs, foldl (<|) (getType env name) vs))
 
     builtins :: Dict Instantiator
     builtins =
