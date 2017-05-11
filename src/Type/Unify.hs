@@ -580,7 +580,7 @@ unifyStructure context term content otherContent =
         merge context content
 
     Var Flex (Just super) _ ->
-        unifyFlexSuper (reorient context) super otherContent content
+        unifyFlexSuperStructure (reorient context) super term
 
     Var Rigid _ maybeName ->
         mismatch context (Just (Error.flipReason (badRigid maybeName)))
