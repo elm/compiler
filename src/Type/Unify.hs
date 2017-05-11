@@ -315,11 +315,12 @@ unifySuper context super otherContent =
 
     Var Flex (Just otherSuper) _ ->
         case combineFlexSupers super otherSuper of
-          Left reason ->
-              mismatch context (Just reason)
-
-          Right newSuper ->
+          Just newSuper ->
               merge context (Var Flex (Just newSuper) Nothing)
+
+          Nothing ->
+              mismatch context $ Just $
+                doubleBad (errorSuper super) (errorSuper otherSuper)
 
     Alias _ _ realVar ->
         subUnify context (_first context) realVar
@@ -328,27 +329,35 @@ unifySuper context super otherContent =
         return ()
 
 
-combineFlexSupers :: Super -> Super -> Either Error.Reason Super
+combineFlexSupers :: Super -> Super -> Maybe Super
 combineFlexSupers firstSuper secondSuper =
-  case (firstSuper, secondSuper) of
-    (Number    , Number    ) -> Right Number
-    (Comparable, Number    ) -> Right Number
-    (Number    , Comparable) -> Right Number
+  case firstSuper of
+    Number ->
+      case secondSuper of
+        Number     -> Just firstSuper
+        Comparable -> Just firstSuper
+        _          -> Nothing
 
-    (Comparable, Comparable) -> Right Comparable
-    (Appendable, Appendable) -> Right Appendable
+    Comparable ->
+      case secondSuper of
+        Comparable -> Just secondSuper
+        Number     -> Just secondSuper
+        Appendable -> Just CompAppend
+        CompAppend -> Just secondSuper
 
-    (Appendable, Comparable) -> Right CompAppend
-    (Comparable, Appendable) -> Right CompAppend
+    Appendable ->
+      case secondSuper of
+        Comparable -> Just CompAppend
+        Appendable -> Just secondSuper
+        CompAppend -> Just secondSuper
+        Number     -> Nothing
 
-    (CompAppend, CompAppend) -> Right CompAppend
-    (CompAppend, Comparable) -> Right CompAppend
-    (Comparable, CompAppend) -> Right CompAppend
-    (CompAppend, Appendable) -> Right CompAppend
-    (Appendable, CompAppend) -> Right CompAppend
-
-    (_         , _         ) ->
-        Left $ doubleBad (errorSuper firstSuper) (errorSuper secondSuper)
+    CompAppend ->
+      case secondSuper of
+        Comparable -> Just firstSuper
+        Appendable -> Just firstSuper
+        CompAppend -> Just firstSuper
+        Number     -> Nothing
 
 
 combineRigidSupers :: Super -> Super -> Bool
