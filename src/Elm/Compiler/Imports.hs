@@ -26,9 +26,9 @@ defaults =
     , "Maybe" ==> exposing [E.Upper "Maybe" (Just E.Open)]
     , "Result" ==> exposing [E.Upper "Result" (Just E.Open)]
     , "String" ==> Module.ImportMethod Nothing E.closed
-    , "Tuple" ==> Module.ImportMethod Nothing E.closed
+    , "Tuple" ==> exposing [E.Lower "=>"]
     , "Platform" ==> exposing [closedType "Program"]
-    , "Platform.Cmd" ==> named "Cmd" [closedType "Cmd", E.Lower "!"]
+    , "Platform.Cmd" ==> named "Cmd" [closedType "Cmd"]
     , "Platform.Sub" ==> named "Sub" [closedType "Sub"]
     ]
 
