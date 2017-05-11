@@ -115,6 +115,11 @@ badSuper super =
   Error.BadVar (Just (errorSuper super)) Nothing
 
 
+badSupers :: Super -> Super -> Error.Reason
+badSupers super1 super2 =
+  Error.BadVar (Just (errorSuper super1)) (Just (errorSuper super2))
+
+
 doubleBad :: Error.VarType -> Error.VarType -> Error.Reason
 doubleBad vt1 vt2 =
   Error.BadVar (Just vt1) (Just vt2)
@@ -206,7 +211,7 @@ actuallyUnify context@(Context _ _ firstDesc _ secondDesc) =
         unifyFlex context secondContent
 
     Var Flex (Just super) _ ->
-        unifyFlexSuper context super secondContent
+        unifyFlexSuper context super firstContent secondContent
 
     Var Rigid maybeSuper maybeName ->
         unifyRigid context maybeSuper maybeName firstContent secondContent
@@ -218,7 +223,7 @@ actuallyUnify context@(Context _ _ firstDesc _ secondDesc) =
         unifyAlias context name args realVar secondContent
 
     Structure term ->
-        unifyStructure context term secondContent
+        unifyStructure context term firstContent secondContent
 
 
 
@@ -289,8 +294,8 @@ unifyRigid context maybeSuper maybeName content otherContent =
 -- UNIFY SUPER VARIABLES
 
 
-unifyFlexSuper :: Context -> Super -> Content -> Unify ()
-unifyFlexSuper context super otherContent =
+unifyFlexSuper :: Context -> Super -> Content -> Content -> Unify ()
+unifyFlexSuper context super content otherContent =
   case otherContent of
     Structure term ->
         unifyFlexSuperStructure context super term
@@ -311,53 +316,42 @@ unifyFlexSuper context super otherContent =
             mismatch context $ Just $ badRigid maybeName
 
     Var Flex Nothing _ ->
-        merge context (Var Flex (Just super) Nothing)
+        merge context content
 
     Var Flex (Just otherSuper) _ ->
-        case combineFlexSupers super otherSuper of
-          Just newSuper ->
-              merge context (Var Flex (Just newSuper) Nothing)
+      case super of
+        Number ->
+          case otherSuper of
+            Number     -> merge context content
+            Comparable -> merge context content
+            _          -> mismatch context $ Just $ badSupers super otherSuper
 
-          Nothing ->
-              mismatch context $ Just $
-                doubleBad (errorSuper super) (errorSuper otherSuper)
+        Comparable ->
+          case otherSuper of
+            Comparable -> merge context otherContent
+            Number     -> merge context otherContent
+            Appendable -> merge context (Var Flex (Just CompAppend) Nothing)
+            CompAppend -> merge context otherContent
+
+        Appendable ->
+          case otherSuper of
+            Appendable -> merge context otherContent
+            Comparable -> merge context (Var Flex (Just CompAppend) Nothing)
+            CompAppend -> merge context otherContent
+            Number     -> mismatch context $ Just $ badSupers super otherSuper
+
+        CompAppend ->
+          case otherSuper of
+            Comparable -> merge context content
+            Appendable -> merge context content
+            CompAppend -> merge context content
+            Number     -> mismatch context $ Just $ badSupers super otherSuper
 
     Alias _ _ realVar ->
         subUnify context (_first context) realVar
 
     Error ->
         return ()
-
-
-combineFlexSupers :: Super -> Super -> Maybe Super
-combineFlexSupers firstSuper secondSuper =
-  case firstSuper of
-    Number ->
-      case secondSuper of
-        Number     -> Just firstSuper
-        Comparable -> Just firstSuper
-        _          -> Nothing
-
-    Comparable ->
-      case secondSuper of
-        Comparable -> Just secondSuper
-        Number     -> Just secondSuper
-        Appendable -> Just CompAppend
-        CompAppend -> Just secondSuper
-
-    Appendable ->
-      case secondSuper of
-        Comparable -> Just CompAppend
-        Appendable -> Just secondSuper
-        CompAppend -> Just secondSuper
-        Number     -> Nothing
-
-    CompAppend ->
-      case secondSuper of
-        Comparable -> Just firstSuper
-        Appendable -> Just firstSuper
-        CompAppend -> Just firstSuper
-        Number     -> Nothing
 
 
 combineRigidSupers :: Super -> Super -> Bool
@@ -576,17 +570,17 @@ unifyAlias context name args realVar otherContent =
 -- UNIFY STRUCTURES
 
 
-unifyStructure :: Context -> Term1 Variable -> Content -> Unify ()
-unifyStructure context term otherContent =
+unifyStructure :: Context -> Term1 Variable -> Content -> Content -> Unify ()
+unifyStructure context term content otherContent =
   case otherContent of
     Error ->
         return ()
 
     Var Flex Nothing _ ->
-        merge context (Structure term)
+        merge context content
 
     Var Flex (Just super) _ ->
-        unifyFlexSuper (reorient context) super (Structure term)
+        unifyFlexSuper (reorient context) super otherContent content
 
     Var Rigid _ maybeName ->
         mismatch context (Just (Error.flipReason (badRigid maybeName)))
