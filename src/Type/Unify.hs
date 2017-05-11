@@ -206,7 +206,7 @@ actuallyUnify context@(Context _ _ firstDesc _ secondDesc) =
         unifyFlex context secondContent
 
     Var Flex (Just super) _ ->
-        unifySuper context super secondContent
+        unifyFlexSuper context super secondContent
 
     Var Rigid maybeSuper maybeName ->
         unifyRigid context maybeSuper maybeName firstContent secondContent
@@ -289,11 +289,11 @@ unifyRigid context maybeSuper maybeName content otherContent =
 -- UNIFY SUPER VARIABLES
 
 
-unifySuper :: Context -> Super -> Content -> Unify ()
-unifySuper context super otherContent =
+unifyFlexSuper :: Context -> Super -> Content -> Unify ()
+unifyFlexSuper context super otherContent =
   case otherContent of
     Structure term ->
-        unifySuperStructure context super term
+        unifyFlexSuperStructure context super term
 
     Atom name ->
         if atomMatchesSuper super name then
@@ -388,8 +388,8 @@ atomMatchesSuper super name =
         Var.isPrim "String" name
 
 
-unifySuperStructure :: Context -> Super -> Term1 Variable -> Unify ()
-unifySuperStructure context super term =
+unifyFlexSuperStructure :: Context -> Super -> Term1 Variable -> Unify ()
+unifyFlexSuperStructure context super term =
   do  appStructure <- liftIO (collectApps (Structure term))
       case appStructure of
         Other ->
@@ -586,7 +586,7 @@ unifyStructure context term otherContent =
         merge context (Structure term)
 
     Var Flex (Just super) _ ->
-        unifySuper (reorient context) super (Structure term)
+        unifyFlexSuper (reorient context) super (Structure term)
 
     Var Rigid _ maybeName ->
         mismatch context (Just (Error.flipReason (badRigid maybeName)))
