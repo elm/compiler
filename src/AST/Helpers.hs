@@ -21,19 +21,19 @@ import Data.Text (Text)
 
 zeroTuple :: Text
 zeroTuple =
-  "_Tuple0"
+  "#0"
 
 
 makeTuple :: Int -> Text
 makeTuple size =
-  Text.pack ("_Tuple" ++ show size)
+  Text.pack ('#' : show size)
 
 
 isTuple :: Text -> Bool
 isTuple name =
-  Text.isPrefixOf "_Tuple" name
+  Text.isPrefixOf "#" name
   &&
-  Text.all Char.isDigit (Text.drop 6 name)
+  Text.all Char.isDigit (Text.drop 1 name)
 
 
 

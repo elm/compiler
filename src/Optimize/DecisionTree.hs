@@ -62,7 +62,7 @@ This helps us do a few optimizations:
     one we want
 
 So this dictionary maps tags to the number of variants that exist, so it'll
-contain things like [ ("Just", 2), ("Nothing", 2), ("_Tuple2", 1), ... ] which
+contain things like [ ("Just", 2), ("Nothing", 2), ("#2", 1), ... ] which
 we can use for these optimizations.
 -}
 type VariantDict =
