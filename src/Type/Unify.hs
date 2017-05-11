@@ -193,9 +193,10 @@ subUnify context var1 var2 =
 actuallyUnify :: Context -> Unify ()
 actuallyUnify context@(Context _ _ firstDesc _ secondDesc) =
   let
+    firstContent = _content firstDesc
     secondContent = _content secondDesc
   in
-  case _content firstDesc of
+  case firstContent of
     Error ->
         -- If there was an error, just pretend it is okay. This lets us avoid
         -- "cascading" errors where one problem manifests as multiple message.
@@ -208,7 +209,7 @@ actuallyUnify context@(Context _ _ firstDesc _ secondDesc) =
         unifySuper context super secondContent
 
     Var Rigid maybeSuper maybeName ->
-        unifyRigid context maybeSuper maybeName secondContent
+        unifyRigid context maybeSuper maybeName firstContent secondContent
 
     Atom name ->
         unifyAtom context name secondContent
@@ -250,8 +251,8 @@ unifyFlex context otherContent =
 -- UNIFY RIGID VARIABLES
 
 
-unifyRigid :: Context -> Maybe Super -> Maybe Text -> Content -> Unify ()
-unifyRigid context maybeSuper maybeName otherContent =
+unifyRigid :: Context -> Maybe Super -> Maybe Text -> Content -> Content -> Unify ()
+unifyRigid context maybeSuper maybeName content otherContent =
   case otherContent of
     Error ->
         return ()
@@ -259,18 +260,16 @@ unifyRigid context maybeSuper maybeName otherContent =
     Var Flex otherMaybeSuper _ ->
         case (maybeSuper, otherMaybeSuper) of
           (_, Nothing) ->
-              merge context (Var Rigid maybeSuper maybeName)
+              merge context content
 
           (Nothing, Just _) ->
               mismatch context (Just (badRigid maybeName))
 
           (Just super, Just otherSuper) ->
-              case combineSupers super otherSuper of
-                Right newSuper | newSuper == otherSuper ->
-                    merge context otherContent
-
-                _ ->
-                    mismatch context (Just (badRigid maybeName))
+              if combineRigidSupers super otherSuper then
+                  merge context content
+              else
+                  mismatch context (Just (badRigid maybeName))
 
     Var Rigid _ otherMaybeName ->
         mismatch context $ Just $
@@ -306,19 +305,16 @@ unifySuper context super otherContent =
         mismatch context (Just (doubleBad (errorSuper super) (Error.Rigid maybeName)))
 
     Var Rigid (Just otherSuper) maybeName ->
-        case combineSupers super otherSuper of
-          Right newSuper | newSuper == super ->
-              merge context otherContent
-
-          _ ->
-              mismatch context $ Just $
-                doubleBad (errorSuper super) (Error.Rigid maybeName)
+        if combineRigidSupers otherSuper super then
+            merge context otherContent
+        else
+            mismatch context $ Just $ badRigid maybeName
 
     Var Flex Nothing _ ->
         merge context (Var Flex (Just super) Nothing)
 
     Var Flex (Just otherSuper) _ ->
-        case combineSupers super otherSuper of
+        case combineFlexSupers super otherSuper of
           Left reason ->
               mismatch context (Just reason)
 
@@ -332,8 +328,8 @@ unifySuper context super otherContent =
         return ()
 
 
-combineSupers :: Super -> Super -> Either Error.Reason Super
-combineSupers firstSuper secondSuper =
+combineFlexSupers :: Super -> Super -> Either Error.Reason Super
+combineFlexSupers firstSuper secondSuper =
   case (firstSuper, secondSuper) of
     (Number    , Number    ) -> Right Number
     (Comparable, Number    ) -> Right Number
@@ -353,6 +349,13 @@ combineSupers firstSuper secondSuper =
 
     (_         , _         ) ->
         Left $ doubleBad (errorSuper firstSuper) (errorSuper secondSuper)
+
+
+combineRigidSupers :: Super -> Super -> Bool
+combineRigidSupers rigid flex =
+  rigid == flex
+  || (rigid == Number && flex == Comparable)
+  || (rigid == CompAppend && (flex == Comparable || flex == Appendable))
 
 
 isPrimitiveFrom :: [Text] -> Var.Canonical -> Bool
