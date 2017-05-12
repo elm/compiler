@@ -1,6 +1,9 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Parse.Module where
+module Parse.Module
+  ( header
+  )
+  where
 
 import Data.Text (Text)
 
