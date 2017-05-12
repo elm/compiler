@@ -1,12 +1,12 @@
 {-# OPTIONS_GHC -Wall #-}
 module Elm.Compiler
   ( version
-  , parseDependencies, Tag(..)
   , compile, Context(..), Result(..)
   , generate
   , Localizer, dummyLocalizer
   , Error, errorToDoc, errorToJson
   , Warning, warningToDoc, warningToJson
+  , parseDependencies, Tag(..)
   )
   where
 
@@ -46,46 +46,6 @@ import qualified Reporting.Warning as Warning
 version :: Package.Version
 version =
   Elm.Compiler.Version.version
-
-
-
--- DEPENDENCIES
-
-
-data Tag = Normal | Effect | Port
-
-
-parseDependencies :: Package.Name -> Text -> Either Error (Tag, Maybe M.Raw, [M.Raw])
-parseDependencies pkgName sourceCode =
-  case Parse.run Parse.header sourceCode of
-    Right header ->
-      Right $ getDeps pkgName header
-
-    Left err ->
-      Left (Error (A.map Error.Syntax err))
-
-
-getDeps :: Package.Name -> Module.Header [Module.UserImport] -> (Tag, Maybe M.Raw, [M.Raw])
-getDeps pkgName (Module.Header maybeHeaderDecl imports) =
-  let
-    dependencies =
-      if pkgName == Package.core
-        then map (fst . A.drop) imports
-        else map (fst . A.drop) imports ++ map fst Imports.defaults
-  in
-    case maybeHeaderDecl of
-      Nothing ->
-        ( Normal, Nothing, dependencies )
-
-      Just (Module.HeaderDecl sourceTag name _ _ _) ->
-        let
-          tag =
-            case sourceTag of
-              Module.Normal -> Normal
-              Module.Port _ -> Port
-              Module.Effect _ -> Effect
-        in
-          ( tag, Just name, dependencies )
 
 
 
@@ -204,3 +164,43 @@ warningToDoc (Localizer localizer) location source (Warning (A.A region wrn)) =
 warningToJson :: Localizer -> String -> Warning -> Json.Value
 warningToJson (Localizer localizer) location (Warning wrn) =
     Warning.toJson localizer location wrn
+
+
+
+-- DEPENDENCIES
+
+
+data Tag = Normal | Effect | Port
+
+
+parseDependencies :: Package.Name -> Text -> Either Error (Tag, Maybe M.Raw, [M.Raw])
+parseDependencies pkgName sourceCode =
+  case Parse.run Parse.header sourceCode of
+    Right header ->
+      Right $ getDeps pkgName header
+
+    Left err ->
+      Left (Error (A.map Error.Syntax err))
+
+
+getDeps :: Package.Name -> Module.Header [Module.UserImport] -> (Tag, Maybe M.Raw, [M.Raw])
+getDeps pkgName (Module.Header maybeHeaderDecl imports) =
+  let
+    dependencies =
+      if pkgName == Package.core
+        then map (fst . A.drop) imports
+        else map (fst . A.drop) imports ++ map fst Imports.defaults
+  in
+    case maybeHeaderDecl of
+      Nothing ->
+        ( Normal, Nothing, dependencies )
+
+      Just (Module.HeaderDecl sourceTag name _ _ _) ->
+        let
+          tag =
+            case sourceTag of
+              Module.Normal -> Normal
+              Module.Port _ -> Port
+              Module.Effect _ -> Effect
+        in
+          ( tag, Just name, dependencies )
