@@ -37,7 +37,7 @@ generalize youngPool =
       -- start at low ranks so that we only have to pass
       -- over the information once.
       visitedMark <- TS.uniqueMark
-      forM_ (Map.toList rankDict) $ \(poolRank, vars) ->
+      liftIO $ forM_ (Map.toList rankDict) $ \(poolRank, vars) ->
           forM_ vars (adjustRank youngMark visitedMark poolRank)
 
       -- For variables that have rank lowerer than youngRank, register them in
@@ -82,32 +82,30 @@ rigidify content =
 
 -- adjust the ranks of variables such that ranks never increase as you
 -- move deeper into a variable.
-adjustRank :: Int -> Int -> Int -> Variable -> TS.Solver Int
+adjustRank :: Int -> Int -> Int -> Variable -> IO Int
 adjustRank youngMark visitedMark groupRank var =
-  do  descriptor <- liftIO $ UF.descriptor var
+  do  descriptor <- UF.descriptor var
       adjustRankHelp youngMark visitedMark groupRank var descriptor
 
 
-adjustRankHelp :: Int -> Int -> Int -> Variable -> Descriptor -> TS.Solver Int
+adjustRankHelp :: Int -> Int -> Int -> Variable -> Descriptor -> IO Int
 adjustRankHelp youngMark visitedMark groupRank var descriptor@(Descriptor content rank mark _) =
   if mark == youngMark then
 
       do  -- Set the variable as marked first because it may be cyclic.
-          liftIO $ UF.modifyDescriptor var $ \desc ->
-              desc { _mark = visitedMark }
+          UF.modifyDescriptor var $ \desc -> desc { _mark = visitedMark }
 
           maxRank <-
               adjustRankContent youngMark visitedMark groupRank content
 
-          liftIO $ UF.modifyDescriptor var $ \desc ->
-              desc { _rank = maxRank }
+          UF.modifyDescriptor var $ \desc -> desc { _rank = maxRank }
 
           return maxRank
 
   else if mark /= visitedMark then
 
       do  let minRank = min groupRank rank
-          liftIO $ UF.setDescriptor var (descriptor { _mark = visitedMark, _rank = minRank })
+          UF.setDescriptor var (descriptor { _mark = visitedMark, _rank = minRank })
           return minRank
 
   else
@@ -115,7 +113,7 @@ adjustRankHelp youngMark visitedMark groupRank var descriptor@(Descriptor conten
       return rank
 
 
-adjustRankContent :: Int -> Int -> Int -> Content -> TS.Solver Int
+adjustRankContent :: Int -> Int -> Int -> Content -> IO Int
 adjustRankContent youngMark visitedMark groupRank content =
   let
     go = adjustRank youngMark visitedMark groupRank
@@ -131,6 +129,7 @@ adjustRankContent youngMark visitedMark groupRank content =
           return groupRank
 
       Alias _ args realVar ->
+          -- TODO do you have to crawl the args?
           do  realRank <- go realVar
               foldM (\rank (_, argVar) -> max rank <$> go argVar) realRank args
 
