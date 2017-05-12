@@ -47,7 +47,7 @@ generalize youngPool =
                 if isRedundant then return var else TS.register var
 
       let rankDict' = Map.delete youngRank rankDict
-      F.traverse_ (mapM registerIfNotRedundant) rankDict'
+      F.traverse_ (F.traverse_ registerIfNotRedundant) rankDict'
 
       -- For variables with rank youngRank
       --   If rank < youngRank: register in oldPool
