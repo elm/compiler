@@ -201,9 +201,9 @@ makeCopy alreadyCopiedMark variable =
 
 
 makeCopyHelp :: Descriptor -> Int -> Variable -> Solver Variable
-makeCopyHelp descriptor alreadyCopiedMark variable =
-  if _mark descriptor == alreadyCopiedMark then
-      case _copy descriptor of
+makeCopyHelp (Descriptor content rank mark copy) alreadyCopiedMark variable =
+  if mark == alreadyCopiedMark then
+      case copy of
         Just copiedVariable ->
             return copiedVariable
 
@@ -214,14 +214,14 @@ makeCopyHelp descriptor alreadyCopiedMark variable =
               \ with a <http://sscce.org> and information on your OS, how you installed,\
               \ and any other configuration information that might be helpful."
 
-  else if _rank descriptor /= noRank || not (needsCopy (_content descriptor)) then
+  else if rank /= noRank || not (needsCopy content) then
       return variable
 
   else
       do  pool <- getPool
           newVar <-
               State.liftIO $ UF.fresh $ Descriptor
-                { _content = error "will be filled in soon!"
+                { _content = content -- place holder!
                 , _rank = maxRank pool
                 , _mark = noMark
                 , _copy = Nothing
@@ -236,34 +236,37 @@ makeCopyHelp descriptor alreadyCopiedMark variable =
           State.liftIO $ UF.modifyDescriptor variable $ \desc ->
               desc { _mark = alreadyCopiedMark, _copy = Just newVar }
 
+
+          let setContent newContent =
+                State.liftIO $ UF.modifyDescriptor newVar $ \desc ->
+                  desc { _content = newContent }
+
           -- Now we recursively copy the content of the variable.
           -- We have already marked the variable as copied, so we
           -- will not repeat this work or crawl this variable again.
-          let oldContent = _content descriptor
-          newContent <-
-              case oldContent of
-                Structure term ->
-                    Structure <$> traverseTerm (makeCopy alreadyCopiedMark) term
+          case content of
+            Structure term ->
+                do  newTerm <- traverseTerm (makeCopy alreadyCopiedMark) term
+                    setContent (Structure newTerm)
 
-                Atom _ ->
-                    return oldContent
+            Atom _ ->
+                return ()
 
-                Var Rigid maybeSuper maybeName ->
-                    return (Var Flex maybeSuper maybeName)
+            Var Rigid maybeSuper maybeName ->
+                setContent (Var Flex maybeSuper maybeName)
 
-                Var Flex _ _ ->
-                    return oldContent
+            Var Flex _ _ ->
+                return ()
 
-                Alias name args realType ->
-                    Alias name
-                        <$> mapM (traverse (makeCopy alreadyCopiedMark)) args
-                        <*> makeCopy alreadyCopiedMark realType
+            Alias name args realType ->
+                setContent =<< (
+                  Alias name
+                    <$> mapM (traverse (makeCopy alreadyCopiedMark)) args
+                    <*> makeCopy alreadyCopiedMark realType
+                )
 
-                Error ->
-                    return oldContent
-
-          State.liftIO $ UF.modifyDescriptor newVar $ \desc ->
-              desc { _content = newContent }
+            Error ->
+                return ()
 
           return newVar
 
