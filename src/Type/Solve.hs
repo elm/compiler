@@ -38,7 +38,7 @@ generalize youngPool =
       -- over the information once.
       visitedMark <- TS.uniqueMark
       forM_ (Map.toList rankDict) $ \(poolRank, vars) ->
-          mapM (adjustRank youngMark visitedMark poolRank) vars
+          forM_ vars (adjustRank youngMark visitedMark poolRank)
 
       -- For variables that have rank lowerer than youngRank, register them in
       -- the old pool if they are not redundant.
