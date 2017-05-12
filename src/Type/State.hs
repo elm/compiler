@@ -173,6 +173,7 @@ nextRankPool =
 {-# INLINE register #-}
 register :: Variable -> Solver Variable
 register variable =
+  {-# SCC elm_compiler_type_register #-}
   Solver $ \state ->
     let
       (Pool maxRank inhabitants) =
@@ -184,6 +185,7 @@ register variable =
 {-# INLINE introduce #-}
 introduce :: Variable -> Solver Variable
 introduce variable =
+  {-# SCC elm_compiler_type_introduce #-}
   Solver $ \state ->
     let
       (Pool maxRank inhabitants) =
@@ -199,6 +201,7 @@ introduce variable =
 
 flatten :: Type -> Solver Variable
 flatten term =
+  {-# SCC elm_compiler_type_flatten #-}
   flattenHelp Map.empty term
 
 
@@ -213,7 +216,7 @@ flattenHelp aliasDict termN =
             flatVar <- flattenHelp (Map.fromList flatArgs) realType
             pool <- getPool
             variable <-
-                liftIO . UF.fresh $ Descriptor
+                liftIO $ UF.fresh $ Descriptor
                   { _content = Alias name flatArgs flatVar
                   , _rank = _maxRank pool
                   , _mark = noMark
@@ -228,7 +231,7 @@ flattenHelp aliasDict termN =
         do  variableTerm <- traverseTerm (flattenHelp aliasDict) term1
             pool <- getPool
             variable <-
-                liftIO . UF.fresh $ Descriptor
+                liftIO $ UF.fresh $ Descriptor
                   { _content = Structure variableTerm
                   , _rank = _maxRank pool
                   , _mark = noMark
@@ -255,6 +258,7 @@ makeInstance var =
 
 makeCopy :: Int -> Variable -> Solver Variable
 makeCopy alreadyCopiedMark variable =
+  {-# SCC elm_compiler_type_copy #-}
   do  desc <- liftIO $ UF.descriptor variable
       makeCopyHelp desc alreadyCopiedMark variable
 
@@ -423,13 +427,15 @@ traverseTerm f term =
 
 instance Functor Solver where
   {-# INLINE fmap #-}
-  fmap f (Solver solver) = Solver $ \s1 ->
-    fmap (\(a, s2) -> (f a, s2)) (solver s1)
+  fmap f (Solver solver) =
+    Solver $ \s1 ->
+      fmap (\(a, s2) -> (f a, s2)) (solver s1)
 
 
 instance Applicative Solver where
   {-# INLINE pure #-}
-  pure a = Solver $ \s -> return (a, s)
+  pure a =
+    Solver $ \s -> return (a, s)
 
   {-# INLINE (<*>) #-}
   Solver solverFunc <*> Solver solverValue =

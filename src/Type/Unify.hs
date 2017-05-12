@@ -22,6 +22,7 @@ import Type.Type as Type
 
 unify :: Error.Hint -> R.Region -> Variable -> Variable -> TS.Solver ()
 unify hint region expected actual =
+  {-# SCC elm_compiler_type_unify #-}
   do  result <- runExceptT (guardedUnify ExpectedActual expected actual)
       case result of
         Right () ->

@@ -22,8 +22,10 @@ This sorts variables into the young and old pools accordingly.
 -}
 generalize :: TS.Pool -> TS.Solver ()
 generalize (TS.Pool youngRank youngInhabitants) =
+  {-# SCC elm_compiler_type_generalize #-}
   do  youngMark <- TS.uniqueMark
       let insert dict var =
+            {-# SCC elm_compiler_type_insert #-}
             do  descriptor <- UF.descriptor var
                 UF.modifyDescriptor var (\desc -> desc { _mark = youngMark })
                 return $ Map.insertWith (++) (_rank descriptor) [var] dict
@@ -50,20 +52,21 @@ generalize (TS.Pool youngRank youngInhabitants) =
       -- For variables with rank youngRank
       --   If rank < youngRank: register in oldPool
       --   otherwise generalize
-      let registerIfLowerRank var = do
-            isRedundant <- liftIO $ UF.redundant var
-            case isRedundant of
-              True -> return ()
-              False -> do
-                desc <- liftIO $ UF.descriptor var
-                case _rank desc < youngRank of
-                  True ->
-                      TS.register var >> return ()
-                  False ->
-                      liftIO $ UF.setDescriptor var $ desc
-                        { _rank = noRank
-                        , _content = rigidify (_content desc)
-                        }
+      let registerIfLowerRank var =
+            {-# SCC elm_compiler_type_register #-}
+            do  isRedundant <- liftIO $ UF.redundant var
+                case isRedundant of
+                  True -> return ()
+                  False -> do
+                    desc <- liftIO $ UF.descriptor var
+                    case _rank desc < youngRank of
+                      True ->
+                          TS.register var >> return ()
+                      False ->
+                          liftIO $ UF.setDescriptor var $ desc
+                            { _rank = noRank
+                            , _content = rigidify (_content desc)
+                            }
 
       mapM_ registerIfLowerRank (Map.findWithDefault [] youngRank rankDict)
 
@@ -82,6 +85,7 @@ rigidify content =
 -- move deeper into a variable.
 adjustRank :: Int -> Int -> Int -> Variable -> IO Int
 adjustRank youngMark visitedMark groupRank var =
+  {-# SCC elm_compiler_type_adjust #-}
   do  descriptor <- UF.descriptor var
       adjustRankHelp youngMark visitedMark groupRank var descriptor
 
@@ -92,12 +96,8 @@ adjustRankHelp youngMark visitedMark groupRank var descriptor@(Descriptor conten
 
       do  -- Set the variable as marked first because it may be cyclic.
           UF.modifyDescriptor var $ \desc -> desc { _mark = visitedMark }
-
-          maxRank <-
-              adjustRankContent youngMark visitedMark groupRank content
-
+          maxRank <- adjustRankContent youngMark visitedMark groupRank content
           UF.modifyDescriptor var $ \desc -> desc { _rank = maxRank }
-
           return maxRank
 
   else if mark /= visitedMark then
@@ -151,6 +151,7 @@ adjustRankContent youngMark visitedMark groupRank content =
 
 solve :: TypeConstraint -> ExceptT [A.Located Error.Error] IO TS.State
 solve constraint =
+  {-# SCC elm_compiler_type_solve #-}
   do  state <- liftIO (TS.run (actuallySolve constraint))
       case TS.sError state of
         [] ->
@@ -265,6 +266,7 @@ crash msg =
 
 occurs :: (Text.Text, A.Located Variable) -> TS.Solver ()
 occurs (name, A.A region variable) =
+  {-# SCC elm_compiler_type_occurs #-}
   do  hasOccurred <- liftIO $ occursHelp [] variable
       case hasOccurred of
         False ->
