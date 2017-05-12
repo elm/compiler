@@ -23,14 +23,14 @@ This sorts variables into the young and old pools accordingly.
 generalize :: TS.Pool -> TS.Solver ()
 generalize youngPool =
   do  youngMark <- TS.uniqueMark
-      let youngRank = TS.maxRank youngPool
+      let youngRank = TS._maxRank youngPool
       let insert dict var =
             do  descriptor <- liftIO $ UF.descriptor var
                 liftIO $ UF.modifyDescriptor var (\desc -> desc { _mark = youngMark })
                 return $ Map.insertWith (++) (_rank descriptor) [var] dict
 
       -- Sort the youngPool variables by rank.
-      rankDict <- foldM insert Map.empty (TS.inhabitants youngPool)
+      rankDict <- foldM insert Map.empty (TS._inhabitants youngPool)
 
       -- get the ranks right for each entry.
       -- start at low ranks so that we only have to pass
@@ -150,7 +150,7 @@ adjustRankContent youngMark visitedMark groupRank content =
 -- SOLVER
 
 
-solve :: TypeConstraint -> ExceptT [A.Located Error.Error] IO TS.SolverState
+solve :: TypeConstraint -> ExceptT [A.Located Error.Error] IO TS.State
 solve constraint =
   do  state <- liftIO (TS.run (actuallySolve constraint))
       case TS.sError state of

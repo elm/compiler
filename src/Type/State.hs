@@ -2,7 +2,7 @@
 module Type.State
   ( Solver
   , run
-  , SolverState(..)
+  , State(..)
   , Pool(..)
   , Env
   , modifyEnv
@@ -21,7 +21,9 @@ module Type.State
   )
   where
 
-import qualified Control.Monad.State as State
+
+import Control.Monad (liftM2)
+import Control.Monad.Trans (MonadIO, liftIO)
 import qualified Data.Map as Map
 import Data.Map ((!))
 import Data.Text (Text)
@@ -33,29 +35,40 @@ import qualified Reporting.Region as R
 import Type.Type
 
 
+
 -- SOLVER
 
 
-type Solver = State.StateT SolverState IO
+newtype Solver a =
+  Solver { _solve :: State -> IO (a, State) }
 
 
-run :: Solver () -> IO SolverState
-run solver =
-  State.execStateT solver $
-    SS
-      { sEnv = Map.empty
-      , sSavedEnv = Map.empty
-      , sPool = Pool outermostRank []
-      , sMark = noMark + 1  -- The mark must never be equal to noMark!
-      , sError = []
-      }
+
+-- RUN SOLVER
+
+
+run :: Solver () -> IO State
+run (Solver solver) =
+  do  (_, state) <- solver initialState
+      return state
+
+
+initialState :: State
+initialState =
+  SS
+    { sEnv = Map.empty
+    , sSavedEnv = Map.empty
+    , sPool = Pool outermostRank []
+    , sMark = noMark + 1  -- The mark must never be equal to noMark!
+    , sError = []
+    }
 
 
 
 -- SOLVER STATE
 
 
-data SolverState =
+data State =
   SS
     { sEnv :: Env
     , sSavedEnv :: Env
@@ -71,8 +84,8 @@ The young pool exists to make it possible to identify these vars in constant tim
 -}
 data Pool =
   Pool
-    { maxRank :: Int
-    , inhabitants :: [Variable]
+    { _maxRank :: Int
+    , _inhabitants :: [Variable]
     }
 
 
@@ -83,67 +96,105 @@ type Env = Map.Map Text (A.Located Variable)
 -- HELPERS
 
 
+{-# INLINE modifyEnv #-}
 modifyEnv :: (Env -> Env) -> Solver ()
 modifyEnv f =
-    State.modify $ \state -> state { sEnv = f (sEnv state) }
+  Solver $ \state ->
+    return ( (), state { sEnv = f (sEnv state) } )
 
 
+{-# INLINE modifyPool #-}
 modifyPool :: (Pool -> Pool) -> Solver ()
 modifyPool f =
-    State.modify $ \state -> state { sPool = f (sPool state) }
+  Solver $ \state ->
+    return ( (), state { sPool = f (sPool state) } )
 
 
+{-# INLINE addError #-}
 addError :: R.Region -> Error.Error -> Solver ()
 addError region err =
-    State.modify $ \state -> state { sError = A.A region err : sError state }
+  Solver $ \state ->
+    return ( (), state { sError = A.A region err : sError state } )
 
 
+{-# INLINE switchToPool #-}
 switchToPool :: Pool -> Solver ()
 switchToPool pool =
-    modifyPool (\_ -> pool)
+  modifyPool (\_ -> pool)
 
 
+{-# INLINE getPool #-}
 getPool :: Solver Pool
 getPool =
-    State.gets sPool
+  Solver $ \state ->
+    return ( sPool state, state )
 
 
+{-# INLINE getEnv #-}
 getEnv :: Solver Env
 getEnv =
-    State.gets sEnv
+  Solver $ \state ->
+    return ( sEnv state, state )
 
 
+{-# INLINE saveLocalEnv #-}
 saveLocalEnv :: Solver ()
 saveLocalEnv =
-  do  currentEnv <- getEnv
-      State.modify $ \state -> state { sSavedEnv = currentEnv }
+  Solver $ \state ->
+    return ( (), state { sSavedEnv = sEnv state } )
 
 
+{-# INLINE uniqueMark #-}
 uniqueMark :: Solver Int
 uniqueMark =
-  do  state <- State.get
-      let mark = sMark state
-      State.put $ state { sMark = mark + 1 }
-      return mark
+  Solver $ \state ->
+    let
+      mark =
+        sMark state
+    in
+      return ( mark, state { sMark = mark + 1 } )
 
 
+{-# INLINE nextRankPool #-}
 nextRankPool :: Solver Pool
 nextRankPool =
-  do  pool <- getPool
-      return $ Pool { maxRank = maxRank pool + 1, inhabitants = [] }
+  Solver $ \state ->
+    let
+      (Pool maxRank _) =
+        sPool state
+    in
+      return ( Pool (maxRank + 1) [], state )
 
 
+
+-- REGISTER VARIABLES
+
+
+{-# INLINE register #-}
 register :: Variable -> Solver Variable
 register variable =
-  do  modifyPool $ \pool -> pool { inhabitants = variable : inhabitants pool }
-      return variable
+  Solver $ \state ->
+    let
+      (Pool maxRank inhabitants) =
+        sPool state
+    in
+      return ( variable, state { sPool = Pool maxRank (variable : inhabitants) } )
 
 
+{-# INLINE introduce #-}
 introduce :: Variable -> Solver Variable
 introduce variable =
-  do  pool <- getPool
-      State.liftIO $ UF.modifyDescriptor variable (\desc -> desc { _rank = maxRank pool })
-      register variable
+  Solver $ \state ->
+    let
+      (Pool maxRank inhabitants) =
+        sPool state
+    in
+      do  UF.modifyDescriptor variable (\desc -> desc { _rank = maxRank })
+          return ( variable, state { sPool = Pool maxRank (variable : inhabitants) } )
+
+
+
+-- FLATTEN
 
 
 flatten :: Type -> Solver Variable
@@ -162,9 +213,9 @@ flattenHelp aliasDict termN =
             flatVar <- flattenHelp (Map.fromList flatArgs) realType
             pool <- getPool
             variable <-
-                State.liftIO . UF.fresh $ Descriptor
+                liftIO . UF.fresh $ Descriptor
                   { _content = Alias name flatArgs flatVar
-                  , _rank = maxRank pool
+                  , _rank = _maxRank pool
                   , _mark = noMark
                   , _copy = Nothing
                   }
@@ -177,13 +228,17 @@ flattenHelp aliasDict termN =
         do  variableTerm <- traverseTerm (flattenHelp aliasDict) term1
             pool <- getPool
             variable <-
-                State.liftIO . UF.fresh $ Descriptor
+                liftIO . UF.fresh $ Descriptor
                   { _content = Structure variableTerm
-                  , _rank = maxRank pool
+                  , _rank = _maxRank pool
                   , _mark = noMark
                   , _copy = Nothing
                   }
             register variable
+
+
+
+-- MAKE INSTANCE
 
 
 makeInstance :: Variable -> Solver Variable
@@ -194,9 +249,13 @@ makeInstance var =
       return freshVar
 
 
+
+-- MAKE COPY
+
+
 makeCopy :: Int -> Variable -> Solver Variable
 makeCopy alreadyCopiedMark variable =
-  do  desc <- State.liftIO $ UF.descriptor variable
+  do  desc <- liftIO $ UF.descriptor variable
       makeCopyHelp desc alreadyCopiedMark variable
 
 
@@ -220,9 +279,9 @@ makeCopyHelp (Descriptor content rank mark copy) alreadyCopiedMark variable =
   else
       do  pool <- getPool
           newVar <-
-              State.liftIO $ UF.fresh $ Descriptor
+              liftIO $ UF.fresh $ Descriptor
                 { _content = content -- place holder!
-                , _rank = maxRank pool
+                , _rank = _maxRank pool
                 , _mark = noMark
                 , _copy = Nothing
                 }
@@ -233,12 +292,12 @@ makeCopyHelp (Descriptor content rank mark copy) alreadyCopiedMark variable =
           --
           -- Need to do this before recursively copying the content of
           -- the variable to avoid looping on cyclic terms.
-          State.liftIO $ UF.modifyDescriptor variable $ \desc ->
+          liftIO $ UF.modifyDescriptor variable $ \desc ->
               desc { _mark = alreadyCopiedMark, _copy = Just newVar }
 
 
           let setContent newContent =
-                State.liftIO $ UF.modifyDescriptor newVar $ \desc ->
+                liftIO $ UF.modifyDescriptor newVar $ \desc ->
                   desc { _content = newContent }
 
           -- Now we recursively copy the content of the variable.
@@ -291,9 +350,12 @@ needsCopy content =
 
 
 
+-- RESTORE
+
+
 restore :: Int -> Variable -> Solver Variable
 restore alreadyCopiedMark variable =
-  do  desc <- State.liftIO $ UF.descriptor variable
+  do  desc <- liftIO $ UF.descriptor variable
       if _mark desc /= alreadyCopiedMark
         then
           return variable
@@ -301,7 +363,7 @@ restore alreadyCopiedMark variable =
         else
           do  restoredContent <-
                   restoreContent alreadyCopiedMark (_content desc)
-              State.liftIO $ UF.setDescriptor variable $ Descriptor
+              liftIO $ UF.setDescriptor variable $ Descriptor
                   { _content = restoredContent
                   , _rank = noRank
                   , _mark = noMark
@@ -339,17 +401,60 @@ restoreContent alreadyCopiedMark content =
 -- TERM TRAVERSAL
 
 
-traverseTerm :: (Monad f, Applicative f) => (a -> f b) -> Term1 a -> f (Term1 b)
+traverseTerm :: (a -> Solver b) -> Term1 a -> Solver (Term1 b)
 traverseTerm f term =
   case term of
     App1 a b ->
-        App1 <$> f a <*> f b
+        liftM2 App1 (f a) (f b)
 
     Fun1 a b ->
-        Fun1 <$> f a <*> f b
+        liftM2 Fun1 (f a) (f b)
 
     EmptyRecord1 ->
-        return EmptyRecord1
+        pure EmptyRecord1
 
     Record1 fields ext ->
-        Record1 <$> traverse f fields <*> f ext
+        liftM2 Record1 (traverse f fields) (f ext)
+
+
+
+-- INSTANCES
+
+
+instance Functor Solver where
+  {-# INLINE fmap #-}
+  fmap f (Solver solver) = Solver $ \s1 ->
+    fmap (\(a, s2) -> (f a, s2)) (solver s1)
+
+
+instance Applicative Solver where
+  {-# INLINE pure #-}
+  pure a = Solver $ \s -> return (a, s)
+
+  {-# INLINE (<*>) #-}
+  Solver solverFunc <*> Solver solverValue =
+    Solver $ \s1 ->
+      do  (f, s2) <- solverFunc s1
+          (x, s3) <- solverValue s2
+          return (f x, s3)
+
+
+instance Monad Solver where
+  {-# INLINE (>>=) #-}
+  Solver solver >>= k =
+    Solver $ \s1 ->
+      do  (a, s2) <- solver s1
+          (b, s3) <- _solve (k a) s2
+          return (b, s3)
+
+  {-# INLINE fail #-}
+  fail msg =
+    Solver $ \_ -> fail msg
+
+
+instance MonadIO Solver where
+  {-# INLINE liftIO #-}
+  liftIO io =
+    Solver $ \state ->
+      do  a <- io
+          return (a, state)
