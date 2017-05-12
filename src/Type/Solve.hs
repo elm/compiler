@@ -3,8 +3,7 @@
 module Type.Solve (solve) where
 
 import Control.Monad
-import Control.Monad.State (execStateT, liftIO)
-import Control.Monad.Except (ExceptT, throwError)
+import Control.Monad.Except (ExceptT, liftIO, throwError)
 import qualified Data.Foldable as F
 import qualified Data.Map as Map
 import qualified Data.Text as Text
@@ -153,8 +152,7 @@ adjustRankContent youngMark visitedMark groupRank content =
 
 solve :: TypeConstraint -> ExceptT [A.Located Error.Error] IO TS.SolverState
 solve constraint =
-  do  state <-
-          liftIO (execStateT (actuallySolve constraint) TS.initialState)
+  do  state <- liftIO (TS.run (actuallySolve constraint))
       case TS.sError state of
         [] ->
             return state

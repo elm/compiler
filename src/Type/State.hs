@@ -1,5 +1,25 @@
 {-# OPTIONS_GHC -Wall #-}
-module Type.State where
+module Type.State
+  ( Solver
+  , run
+  , SolverState(..)
+  , Pool(..)
+  , Env
+  , modifyEnv
+  , addError
+  , switchToPool
+  , getPool
+  , getEnv
+  , saveLocalEnv
+  , uniqueMark
+  , nextRankPool
+  , register
+  , introduce
+  , flatten
+  , makeInstance
+  , makeCopy
+  )
+  where
 
 import qualified Control.Monad.State as State
 import qualified Data.Map as Map
@@ -13,33 +33,28 @@ import qualified Reporting.Region as R
 import Type.Type
 
 
--- Pool
--- Holds a bunch of variables
--- The rank of each variable is less than or equal to the pool's "maxRank"
--- The young pool exists to make it possible to identify these vars in constant time.
-
-data Pool =
-  Pool
-    { maxRank :: Int
-    , inhabitants :: [Variable]
-    }
-
-
-emptyPool :: Pool
-emptyPool =
-  Pool
-    { maxRank = outermostRank
-    , inhabitants = []
-    }
-
-
-type Env = Map.Map Text (A.Located Variable)
+-- SOLVER
 
 
 type Solver = State.StateT SolverState IO
 
 
--- Keeps track of the environment, type variable pool, and a list of errors
+run :: Solver () -> IO SolverState
+run solver =
+  State.execStateT solver $
+    SS
+      { sEnv = Map.empty
+      , sSavedEnv = Map.empty
+      , sPool = Pool outermostRank []
+      , sMark = noMark + 1  -- The mark must never be equal to noMark!
+      , sError = []
+      }
+
+
+
+-- SOLVER STATE
+
+
 data SolverState =
   SS
     { sEnv :: Env
@@ -50,15 +65,22 @@ data SolverState =
     }
 
 
-initialState :: SolverState
-initialState =
-    SS
-    { sEnv = Map.empty
-    , sSavedEnv = Map.empty
-    , sPool = emptyPool
-    , sMark = noMark + 1  -- The mark must never be equal to noMark!
-    , sError = []
+{-| A pool holds a bunch of variables
+The rank of each variable is less than or equal to the pool's "maxRank"
+The young pool exists to make it possible to identify these vars in constant time.
+-}
+data Pool =
+  Pool
+    { maxRank :: Int
+    , inhabitants :: [Variable]
     }
+
+
+type Env = Map.Map Text (A.Located Variable)
+
+
+
+-- HELPERS
 
 
 modifyEnv :: (Env -> Env) -> Solver ()
