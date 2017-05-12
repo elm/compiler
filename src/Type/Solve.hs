@@ -21,16 +21,15 @@ import Type.Unify
 This sorts variables into the young and old pools accordingly.
 -}
 generalize :: TS.Pool -> TS.Solver ()
-generalize youngPool =
+generalize (TS.Pool youngRank youngInhabitants) =
   do  youngMark <- TS.uniqueMark
-      let youngRank = TS._maxRank youngPool
       let insert dict var =
-            do  descriptor <- liftIO $ UF.descriptor var
-                liftIO $ UF.modifyDescriptor var (\desc -> desc { _mark = youngMark })
+            do  descriptor <- UF.descriptor var
+                UF.modifyDescriptor var (\desc -> desc { _mark = youngMark })
                 return $ Map.insertWith (++) (_rank descriptor) [var] dict
 
       -- Sort the youngPool variables by rank.
-      rankDict <- foldM insert Map.empty (TS._inhabitants youngPool)
+      rankDict <- liftIO $ foldM insert Map.empty youngInhabitants
 
       -- get the ranks right for each entry.
       -- start at low ranks so that we only have to pass
