@@ -131,7 +131,8 @@ adjustRankContent youngMark visitedMark groupRank content =
           return groupRank
 
       Alias _ args realVar ->
-          maximum <$> mapM go (realVar : map snd args)
+          do  realRank <- go realVar
+              foldM (\rank (_, argVar) -> max rank <$> go argVar) realRank args
 
       Structure (App1 func arg) ->
           max <$> go func <*> go arg
@@ -143,7 +144,8 @@ adjustRankContent youngMark visitedMark groupRank content =
           return outermostRank
 
       Structure (Record1 fields extension) ->
-          maximum <$> mapM go (extension : Map.elems fields)
+          do  extRank <- go extension
+              foldM (\rank field -> max rank <$> go field) extRank fields
 
 
 
