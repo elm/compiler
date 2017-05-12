@@ -89,30 +89,30 @@ adjustRank youngMark visitedMark groupRank var =
 
 
 adjustRankHelp :: Int -> Int -> Int -> Variable -> Descriptor -> TS.Solver Int
-adjustRankHelp youngMark visitedMark groupRank var descriptor =
-  if _mark descriptor == youngMark then
+adjustRankHelp youngMark visitedMark groupRank var descriptor@(Descriptor content rank mark _) =
+  if mark == youngMark then
 
       do  -- Set the variable as marked first because it may be cyclic.
           liftIO $ UF.modifyDescriptor var $ \desc ->
               desc { _mark = visitedMark }
 
           maxRank <-
-              adjustRankContent youngMark visitedMark groupRank (_content descriptor)
+              adjustRankContent youngMark visitedMark groupRank content
 
           liftIO $ UF.modifyDescriptor var $ \desc ->
               desc { _rank = maxRank }
 
           return maxRank
 
-  else if _mark descriptor /= visitedMark then
+  else if mark /= visitedMark then
 
-      do  let minRank = min groupRank (_rank descriptor)
+      do  let minRank = min groupRank rank
           liftIO $ UF.setDescriptor var (descriptor { _mark = visitedMark, _rank = minRank })
           return minRank
 
   else
 
-      return (_rank descriptor)
+      return rank
 
 
 adjustRankContent :: Int -> Int -> Int -> Content -> TS.Solver Int
