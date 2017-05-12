@@ -613,8 +613,8 @@ unifyStructure context term content otherContent =
               subUnify context (_first context) ext
 
           (Record1 fields extension, Record1 otherFields otherExtension) ->
-              do  firstStructure <- gatherFields context fields extension
-                  secondStructure <- gatherFields context otherFields otherExtension
+              do  firstStructure <- liftIO $ gatherFields context fields extension
+                  secondStructure <- liftIO $ gatherFields context otherFields otherExtension
                   unifyRecord context firstStructure secondStructure
 
           _ ->
@@ -714,9 +714,9 @@ data ExtensionStructure
     | Extension
 
 
-gatherFields :: Context -> Map.Map Text Variable -> Variable -> Unify RecordStructure
+gatherFields :: Context -> Map.Map Text Variable -> Variable -> IO RecordStructure
 gatherFields context fields variable =
-  do  desc <- liftIO (UF.descriptor variable)
+  do  desc <- UF.descriptor variable
       case _content desc of
         Structure (Record1 subFields subExt) ->
             gatherFields context (Map.union fields subFields) subExt
