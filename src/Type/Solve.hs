@@ -9,6 +9,7 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.UnionFind.IO as UF
 
+import qualified AST.Module.Name as ModuleName
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Type.State as TS
@@ -199,7 +200,7 @@ actuallySolve constraint =
                       TS.makeInstance tipe
 
                   Nothing ->
-                      if Text.isPrefixOf "Elm.Kernel." name then
+                      if ModuleName.isKernel name then
                           liftIO (mkVar Nothing)
 
                       else
