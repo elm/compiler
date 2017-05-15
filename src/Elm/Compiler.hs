@@ -6,7 +6,7 @@ module Elm.Compiler
   , Localizer, dummyLocalizer
   , Error, errorToDoc, errorToJson
   , Warning, warningToDoc, warningToJson
-  , parseDependencies, Tag(..)
+  , Tag(..), parseHeader
   )
   where
 
@@ -167,24 +167,24 @@ warningToJson (Localizer localizer) location (Warning wrn) =
 
 
 
--- DEPENDENCIES
+-- PARSE HEADER
 
 
 data Tag = Normal | Effect | Port
 
 
-parseDependencies :: Package.Name -> Text -> Either Error (Tag, Maybe M.Raw, [M.Raw])
-parseDependencies pkgName sourceCode =
+parseHeader :: Package.Name -> Text -> Either Error (Tag, Maybe M.Raw, [M.Raw])
+parseHeader pkgName sourceCode =
   case Parse.run Parse.header sourceCode of
     Right header ->
-      Right $ getDeps pkgName header
+      Right $ toHeaderSummary pkgName header
 
     Left err ->
       Left (Error (A.map Error.Syntax err))
 
 
-getDeps :: Package.Name -> Module.Header [Module.UserImport] -> (Tag, Maybe M.Raw, [M.Raw])
-getDeps pkgName (Module.Header maybeHeaderDecl imports) =
+toHeaderSummary :: Package.Name -> Module.Header [Module.UserImport] -> (Tag, Maybe M.Raw, [M.Raw])
+toHeaderSummary pkgName (Module.Header maybeHeaderDecl imports) =
   let
     dependencies =
       if pkgName == Package.core
