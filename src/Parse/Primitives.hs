@@ -15,6 +15,7 @@ module Parse.Primitives
   , string, character
   , digit, number
   , shaderSource, shaderFailure
+  , kernelChunk
   )
   where
 
@@ -1298,3 +1299,62 @@ eatShader array offset length row col =
 
       else
         eatShader array (offset + 2) (length - 2) row (col + 1)
+
+
+
+-- KERNEL CHOMP
+
+
+kernelChunk :: Parser (Either Text (Text, Text))
+kernelChunk =
+  Parser $ \(State array offset length indent row col ctx) cok _ _ _ ->
+    let
+      (# isAtUnderscores, newOffset, newLength, newRow, newCol #) =
+        kernelChunkHelp array offset length row col
+
+      javascript =
+        Text.Text array offset (newOffset - offset)
+    in
+      if not isAtUnderscores then
+
+        let
+          !newState =
+            State array newOffset newLength indent newRow newCol ctx
+        in
+          cok (Left javascript) newState noError
+
+      else
+
+        let
+          (# newerOffset, newerLength, newerCol #) =
+            varPrimHelp array newOffset newLength newCol
+
+          !newState =
+            State array newerOffset newerLength indent newRow newerCol ctx
+
+          !kernelSymbol =
+            Text.Text array newOffset (newerOffset - newOffset)
+        in
+          cok (Right (javascript, kernelSymbol)) newState noError
+
+
+kernelChunkHelp :: Text.Array -> Int -> Int -> Int -> Int -> (# Bool, Int, Int, Int, Int #)
+kernelChunkHelp array offset length row col =
+  if length < 2 then
+    (# False, offset, length, row, col #)
+
+  else
+    let
+      !word = Text.unsafeIndex array offset
+    in
+      if word == 0x005F {- _ -} && Text.unsafeIndex array (offset + 1) == 0x005F {- _ -} then
+        (# True, offset, length, row, col #)
+
+      else if word == 0x000A {- \n -} then
+        kernelChunkHelp array (offset + 1) (length - 1) (row + 1) 1
+
+      else if word < 0xD800 || word > 0xDBFF then
+        kernelChunkHelp array (offset + 1) (length - 1) row (col + 1)
+
+      else
+        kernelChunkHelp array (offset + 2) (length - 2) row (col + 1)

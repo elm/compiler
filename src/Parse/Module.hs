@@ -1,7 +1,8 @@
-{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
+{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Parse.Module
   ( header
+  , kernelHeader
   )
   where
 
@@ -23,6 +24,15 @@ header :: Parser (Module.Header [Module.UserImport])
 header =
   do  freshLine
       Module.Header <$> maybeHeaderDecl <*> chompImports []
+
+
+kernelHeader :: Parser [Module.UserImport]
+kernelHeader =
+  do  symbol "/*"
+      freshLine
+      imports <- chompImports []
+      symbol "*/"
+      return imports
 
 
 
