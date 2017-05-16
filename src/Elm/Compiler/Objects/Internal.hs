@@ -104,21 +104,12 @@ value home name =
 
 toGlobals :: Roots -> [Var.Global]
 toGlobals roots =
-  hiddenDependencies ++
-    case roots of
-      Mains modules ->
-        map (\home -> Var.Global home "main") modules
+  case roots of
+    Mains modules ->
+      map (\home -> Var.Global home "main") modules
 
-      Value home name ->
-        [ Var.Global home name ]
-
-
--- needed for (==) and toString
-hiddenDependencies :: [Var.Global]
-hiddenDependencies =
-  [ Var.Global (ModuleName.inCore "Dict") "toList"
-  , Var.Global (ModuleName.inCore "Set") "toList"
-  ]
+    Value home name ->
+      [ Var.Global home name ]
 
 
 
