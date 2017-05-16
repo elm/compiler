@@ -6,6 +6,7 @@ module Parse.Kernel
   )
   where
 
+import qualified Data.ByteString as BS
 import qualified Data.Map as Map
 import Data.Monoid ((<>))
 import Data.Text (Text)
@@ -25,7 +26,7 @@ import qualified Reporting.Annotation as A
 
 
 data Chunk
-  = JS Text
+  = JS BS.ByteString
   | Var Module.Raw Text
 
 

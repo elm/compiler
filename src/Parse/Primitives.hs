@@ -22,12 +22,14 @@ module Parse.Primitives
 import Prelude hiding (length)
 import qualified Control.Applicative as Applicative ( Applicative(..), Alternative(..) )
 import Control.Monad
+import qualified Data.ByteString as BS
 import qualified Data.Char as Char
 import Data.Monoid ((<>))
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Array as Text
+import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Internal as Text
 import qualified Data.Text.Unsafe as Text
 import qualified Data.Text.Lazy as LT
@@ -1305,7 +1307,7 @@ eatShader array offset length row col =
 -- KERNEL CHOMP
 
 
-kernelChunk :: Parser (Either Text (Text, Text))
+kernelChunk :: Parser (Either BS.ByteString (BS.ByteString, Text))
 kernelChunk =
   Parser $ \(State array offset length indent row col ctx) cok _ _ _ ->
     let
@@ -1313,7 +1315,7 @@ kernelChunk =
         kernelChunkHelp array offset length row col
 
       javascript =
-        Text.Text array offset (newOffset - offset)
+        Text.encodeUtf8 (Text.Text array offset (newOffset - offset))
     in
       if not isAtUnderscores then
 
