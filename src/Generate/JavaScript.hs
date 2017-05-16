@@ -88,24 +88,27 @@ crawl graph state@(State js seen kernels effects table) name@(Var.Global home _)
 
 
 crawlDecl :: Graph -> Var.Global -> Opt.Decl -> State -> State
-crawlDecl graph var@(Var.Global home name) (Opt.Decl deps fx body) state =
+crawlDecl graph var@(Var.Global home name) (Opt.Decl direct indirect fx body) state1 =
   let
-    newState =
-      state { _seen = Set.insert var (_seen state) }
+    state2 =
+      state1 { _seen = Set.insert var (_seen state1) }
 
     (State stmts seen kernels effects table) =
-      Set.foldl' (crawl graph) newState deps
+      Set.foldl' (crawl graph) state2 direct
 
     (stmt, newTable) =
       JS.run table (JS.generateDecl home name body)
+
+    state4 =
+      State
+        { _stmts = stmt : stmts
+        , _seen = seen
+        , _kernels = kernels
+        , _effects = maybe id (Map.insert home) fx effects
+        , _table = newTable
+        }
   in
-    State
-      { _stmts = stmt : stmts
-      , _seen = seen
-      , _kernels = kernels
-      , _effects = maybe id (Map.insert home) fx effects
-      , _table = newTable
-      }
+    Set.foldl' (crawl graph) state4 indirect
 
 
 crawlError :: Var.Global -> String

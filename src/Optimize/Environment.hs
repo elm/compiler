@@ -9,6 +9,7 @@ module Optimize.Environment
   , freshName
   , register
   , registerEffects
+  , indirectly
   )
   where
 
@@ -34,10 +35,44 @@ data Env =
     { _read_only_variants :: !DT.VariantDict
     , _read_only_home :: !ModuleName.Canonical
     , _uid :: !Int
-    , _deps :: Set.Set Var.Global
+    , _deps :: Deps
     , _effects :: Maybe Effects.ManagerType
     , _has_tail_call :: !Bool
     }
+
+
+
+-- DEPS
+
+
+data Deps
+  = Direct { _direct :: Set.Set Var.Global, _indirect :: Set.Set Var.Global }
+  | Indirect (Set.Set Var.Global)
+
+
+emptyDeps :: Deps
+emptyDeps =
+  Direct Set.empty Set.empty
+
+
+insertDep :: Var.Global -> Deps -> Deps
+insertDep var deps =
+  case deps of
+    Direct direct indirect ->
+      Direct (Set.insert var direct) indirect
+
+    Indirect indirect ->
+      Indirect (Set.insert var indirect)
+
+
+unionDeps :: Set.Set Var.Global -> Deps -> Deps
+unionDeps vars deps =
+  case deps of
+    Direct direct indirect ->
+      Direct (Set.union vars direct) indirect
+
+    Indirect indirect ->
+      Indirect (Set.union vars indirect)
 
 
 
@@ -55,11 +90,11 @@ run
   -> (Text, Opt.Decl)
 run variantDict home optimizer =
   let
-    ((name, def), Env _ _ _ deps fx _) =
+    ((name, def), Env _ _ _ (Direct direct indirect) fx _) =
       State.runState optimizer $
-        Env variantDict home 0 Set.empty Nothing False
+        Env variantDict home 0 emptyDeps Nothing False
   in
-    ( name, Opt.Decl deps fx def )
+    ( name, Opt.Decl direct indirect fx def )
 
 
 
@@ -113,7 +148,22 @@ register global =
 
 registerHelp :: Var.Global -> Env -> Env
 registerHelp dep (Env vs home uid deps fx htc) =
-  Env vs home uid (Set.insert dep deps) fx htc
+  Env vs home uid (insertDep dep deps) fx htc
+
+
+indirectly :: Optimizer a -> Optimizer a
+indirectly optimizer =
+  do  (Env vs home uid deps fx htc) <- State.get
+      case deps of
+        Indirect _ ->
+          optimizer
+
+        Direct direct indirect ->
+          do  State.put (Env vs home uid (Indirect indirect) fx htc)
+              result <- optimizer
+              (Env vs_ home_ uid_ (Indirect indirect_) fx_ htc_) <- State.get
+              State.put (Env vs_ home_ uid_ (Direct direct indirect_) fx_ htc_)
+              return result
 
 
 
@@ -123,7 +173,7 @@ registerHelp dep (Env vs home uid deps fx htc) =
 registerEffects :: ModuleName.Canonical -> Effects.ManagerType -> Optimizer Effects.ManagerType
 registerEffects home manager =
   do  (Env vs hm uid deps _ htc) <- State.get
-      let newDeps = Set.union deps (getEffectDeps home manager)
+      let newDeps = unionDeps (getEffectDeps home manager) deps
       State.put (Env vs hm uid newDeps (Just manager) htc)
       return manager
 

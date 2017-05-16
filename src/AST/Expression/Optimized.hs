@@ -9,7 +9,7 @@ module AST.Expression.Optimized
   where
 
 
-import Control.Monad (liftM, liftM2, liftM3)
+import Control.Monad (liftM, liftM2, liftM3, liftM4)
 import Data.Binary
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -28,7 +28,8 @@ import qualified Reporting.Region as R
 
 data Decl =
   Decl
-    { _deps :: Set.Set Var.Global
+    { _direct :: Set.Set Var.Global
+    , _indirect :: Set.Set Var.Global
     , _effects :: Maybe Effects.ManagerType
     , _body :: !Def
     }
@@ -105,10 +106,10 @@ data Choice
 
 instance Binary Decl where
   get =
-    liftM3 Decl get get get
+    liftM4 Decl get get get get
 
-  put (Decl deps fx body) =
-    put deps >> put fx >> put body
+  put (Decl direct indirect fx body) =
+    put direct >> put indirect >> put fx >> put body
 
 
 instance Binary Def where

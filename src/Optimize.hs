@@ -59,7 +59,7 @@ optimizeDecl variantDict home index (Can.Def _ pattern@(A.A _ ptrn) expression _
           destructors =
             destruct (Opt.VarGlobal var) pattern
         in
-          decl : map (second (Opt.Decl deps Nothing)) destructors
+          decl : map (second (Opt.Decl deps Set.empty Nothing)) destructors
 
       _ ->
         error "bug manifesting in Optimize.optimizeDecl, please report"
@@ -130,6 +130,7 @@ optimizeFunction
     -> Can.Expr
     -> Env.Optimizer ([Text], Opt.Expr)
 optimizeFunction maybeName patterns givenBody =
+  Env.indirectly $
   do  (argNames, body) <- M.foldM depatternArgs ([], givenBody) (reverse patterns)
       optBody <- optimizeExpr (makeContext argNames =<< maybeName) body
       return (argNames, optBody)
