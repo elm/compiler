@@ -35,7 +35,7 @@ import qualified AST.Variable as Var
 
 
 newtype Graph =
-  Graph (Map.Map Var.Global Opt.Decl)
+  Graph { _graph :: Map.Map Var.Global Opt.Decl }
 
 
 
@@ -55,12 +55,7 @@ union (Graph objs1) (Graph objs2) =
 
 unions :: [Graph] -> Graph
 unions graphs =
-  Graph (Map.unions (map destruct graphs))
-
-
-destruct :: Graph -> Map.Map Var.Global Opt.Decl
-destruct (Graph graph) =
-  graph
+  Graph (Map.unions (map _graph graphs))
 
 
 
