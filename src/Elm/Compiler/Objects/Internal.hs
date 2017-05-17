@@ -5,10 +5,6 @@ module Elm.Compiler.Objects.Internal
   , fromModule
   , union
   , unions
-  , SymbolTable
-  , symbolTable
-  , Symbol(..)
-  , lookup
   , Roots
   , mains
   , value
@@ -56,31 +52,6 @@ union (Graph objs1) (Graph objs2) =
 unions :: [Graph] -> Graph
 unions graphs =
   Graph (Map.unions (map _graph graphs))
-
-
-
--- SYMBOLS
-
-
-newtype SymbolTable =
-  SymbolTable (Map.Map Var.Global Symbol)
-
-
-symbolTable :: Map.Map Var.Global Symbol -> SymbolTable
-symbolTable =
-  SymbolTable
-
-
-data Symbol =
-  Symbol
-    { _home :: !Word16
-    , _name :: !Word32
-    }
-
-
-lookup :: Var.Global -> SymbolTable -> Maybe Symbol
-lookup var (SymbolTable symbols) =
-  Map.lookup var symbols
 
 
 

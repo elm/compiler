@@ -1,35 +1,30 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE UnboxedTuples #-}
 module Generate.JavaScript.Variable
   ( Generator
   , run
   , Table
-  , init
+  , emptyTable
   , fresh
   , local
   , safe
   , global
-  , getGlobalName
+  , globalName
   )
   where
 
 
-import Prelude hiding (init)
 import qualified Control.Monad.State as State
-import qualified Data.Char as Char
 import Data.Monoid ((<>))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Text (Text)
-import Data.Word (Word16, Word32)
 
 import qualified AST.Helpers as Help
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
 import qualified Elm.Package as Pkg
-import qualified Elm.Compiler.Objects.Internal as Obj
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Helpers as JS
 
@@ -54,13 +49,12 @@ data Table =
   Table
     { _uid :: !Int
     , _names :: Map.Map Var.Global Text
-    , _symbols :: Obj.SymbolTable
     }
 
 
-init :: Obj.SymbolTable -> Table
-init symbols =
-  Table 0 Map.empty symbols
+emptyTable :: Table
+emptyTable =
+  Table 0 Map.empty
 
 
 
@@ -69,8 +63,8 @@ init symbols =
 
 fresh :: Generator Text
 fresh =
-  do  (Table uid names symbols) <- State.get
-      State.put (Table (uid + 1) names symbols)
+  do  (Table uid names) <- State.get
+      State.put (Table (uid + 1) names)
       return (Text.pack ("_v" ++ show uid))
 
 
@@ -118,41 +112,30 @@ reservedWords =
 
 global :: Var.Global -> Generator JS.Expr
 global var =
-  do  table@(Table _ _ symbols) <- State.get
-      case Obj.lookup var symbols of
-        Nothing ->
-          JS.ref <$> getGlobalNameHelp var table
-
-        Just (Obj.Symbol symHome symName) ->
-          return $
-            JS.DotRef
-              (JS.ref (symbolHomeToText symHome))
-              (JS.Id (symbolNameToText symName))
+  JS.ref <$> globalName var
 
 
-getGlobalName :: Var.Global -> Generator Text
-getGlobalName var =
+globalName :: Var.Global -> Generator Text
+globalName var =
   do  table <- State.get
-      getGlobalNameHelp var table
+      globalNameHelp var table
 
 
-getGlobalNameHelp :: Var.Global -> Table -> Generator Text
-getGlobalNameHelp var@(Var.Global home name) (Table uid names symbols) =
-  case Map.lookup var names of
-    Just jsName ->
-      return jsName
+globalNameHelp :: Var.Global -> Table -> Generator Text
+globalNameHelp var@(Var.Global home name) (Table uid names) =
+  case Help.isOp name of
+    False ->
+      return $ globalToName home name
 
-    Nothing ->
-      let
-        (# newUid, newName #) =
-          if Help.isOp name
-            then (# uid + 1, "_op" <> Text.pack (show uid) #)
-            else (# uid, name #)
-      in
-        do  let jsName = globalToName home newName
-            let newNames = Map.insert var jsName names
-            State.put (Table newUid newNames symbols)
-            return jsName
+    True ->
+      case Map.lookup var names of
+        Just jsName ->
+          return jsName
+
+        Nothing ->
+          do  let jsName = globalToName home ("_op" <> Text.pack (show uid))
+              State.put (Table (uid + 1) (Map.insert var jsName names))
+              return jsName
 
 
 globalToName :: ModuleName.Canonical -> Text -> Text
@@ -166,46 +149,3 @@ globalToName (ModuleName.Canonical (Pkg.Name user project) moduleName) name =
     <> "$" <> Text.replace "." "_" moduleName
     <> "$" <> name
 
-
-
--- SYMBOLS
-
-
-symbolHomeToText :: Word16 -> Text
-symbolHomeToText word =
-  Text.pack ('$' : show word)
-
-
-symbolNameToText :: Word32 -> Text
-symbolNameToText word =
-  Text.pack (makeName word "")
-
-
-makeName :: Word32 -> String -> String
-makeName word str =
-  if word < 26 then
-    makeChar 97 word : str
-
-  else if word < 52 then
-    makeChar 65 (word - 26) : str
-
-  else
-    let
-      (next, leftover) =
-        quotRem word 52
-    in
-      makeName next (makeInnerChar leftover : str)
-
-
-makeInnerChar :: Word32 -> Char
-makeInnerChar word =
-  if word < 26 then
-    makeChar 97 word
-  else
-    makeChar 65 (word - 26)
-
-
-{-# INLINE makeChar #-}
-makeChar :: Word32 -> Word32 -> Char
-makeChar root offset =
-  Char.chr (fromIntegral (root + offset))
