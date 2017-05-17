@@ -30,11 +30,11 @@ import qualified Generate.JavaScript.Variable as JS
 generate :: Obj.Graph -> Obj.Roots -> BS.Builder
 generate graph roots =
   let
-    (State builders _ _ effects table) =
+    (State builders _ _ effects) =
       List.foldl' (crawl graph) initialState (Obj.toGlobals roots)
 
     managers =
-      fst $ JS.run table (JsEffects.generate effects)
+      JS.run (JsEffects.generate effects)
   in
     List.foldl' (\rest stmt -> stmt <> rest) managers builders
 
@@ -49,13 +49,12 @@ data State =
     , _seenDecls :: Set.Set Var.Global
     , _seenKernels :: Set.Set ModuleName.Raw
     , _effects :: Map.Map ModuleName.Canonical Effects.ManagerType
-    , _table :: JS.Table
     }
 
 
 initialState :: State
 initialState =
-  State [] Set.empty Set.empty Map.empty JS.emptyTable
+  State [] Set.empty Set.empty Map.empty
 
 
 
@@ -63,7 +62,7 @@ initialState =
 
 
 crawl :: Obj.Graph -> State -> Var.Global -> State
-crawl graph@(Obj.Graph decls kernels) state@(State _ seenDecls seenKernels _ _) name@(Var.Global home _) =
+crawl graph@(Obj.Graph decls kernels) state@(State _ seenDecls seenKernels _) name@(Var.Global home _) =
   if Set.member name seenDecls then
     state
 
@@ -101,11 +100,11 @@ crawlDecl graph var@(Var.Global home name) (Opt.Decl direct indirect fx body) st
     state2 =
       state1 { _seenDecls = Set.insert var (_seenDecls state1) }
 
-    (State builders seenDecls seenKernels effects table) =
+    (State builders seenDecls seenKernels effects) =
       Set.foldl' (crawl graph) state2 direct
 
-    (stmt, newTable) =
-      JS.run table (JsExpr.generateDecl home name body)
+    stmt =
+      JS.run (JsExpr.generateDecl home name body)
 
     state4 =
       State
@@ -113,7 +112,6 @@ crawlDecl graph var@(Var.Global home name) (Opt.Decl direct indirect fx body) st
         , _seenDecls = seenDecls
         , _seenKernels = seenKernels
         , _effects = maybe id (Map.insert home) fx effects
-        , _table = newTable
         }
   in
     Set.foldl' (crawl graph) state4 indirect
@@ -129,18 +127,17 @@ crawlKernel graph name (Kernel.Info imports chunks) state1 =
     state2 =
       state1 { _seenKernels = Set.insert name (_seenKernels state1) }
 
-    (State builders seenDecls seenKernels effects table) =
+    (State builders seenDecls seenKernels effects) =
       List.foldl' (crawl graph) state2 (map toCoreGlobal imports)
 
-    (builder, newTable) =
-      JS.run table (foldM chunkToBuilder mempty chunks)
+    builder =
+      JS.run (foldM chunkToBuilder mempty chunks)
   in
     State
       { _builders = builder : builders
       , _seenDecls = seenDecls
       , _seenKernels = seenKernels
       , _effects = effects
-      , _table = newTable
       }
 
 
