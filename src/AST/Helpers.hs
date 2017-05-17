@@ -6,11 +6,13 @@ module AST.Helpers
   , isTuple
   , isOp
   , isSymbol
+  , desymbol
   )
   where
 
 import qualified Data.Char as Char
-import qualified Data.Set as Set
+import qualified Data.Map as Map
+import Data.Map ((!))
 import qualified Data.Text as Text
 import Data.Text (Text)
 
@@ -47,9 +49,17 @@ isOp name =
 
 isSymbol :: Char -> Bool
 isSymbol c =
-  Set.member c validSymbols
+  Map.member c validSymbols
 
 
-validSymbols :: Set.Set Char
+validSymbols :: Map.Map Char Char
 validSymbols =
-  Set.fromList "+-/*=.<>:&|^?%~!"
+  Map.fromList $
+    zip
+      "+-/*=.<>:&|^?%~!"
+      "abcdefghijklmnop"
+
+
+desymbol :: Text -> Text
+desymbol name =
+  Text.map (\c -> validSymbols ! c) name

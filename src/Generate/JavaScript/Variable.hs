@@ -3,8 +3,6 @@
 module Generate.JavaScript.Variable
   ( Generator
   , run
-  , Table
-  , emptyTable
   , fresh
   , local
   , safe
@@ -15,9 +13,8 @@ module Generate.JavaScript.Variable
   where
 
 
-import qualified Control.Monad.State as State
+import qualified Control.Monad.State.Strict as State
 import Data.Monoid ((<>))
-import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Text (Text)
@@ -34,28 +31,12 @@ import qualified Generate.JavaScript.Helpers as JS
 -- GENERATOR
 
 
-type Generator = State.State Table
+type Generator = State.State Int
 
 
-run :: Table -> Generator a -> ( a, Table )
-run table generator =
-  State.runState generator table
-
-
-
--- STATE
-
-
-data Table =
-  Table
-    { _uid :: !Int
-    , _names :: Map.Map Var.Global Text
-    }
-
-
-emptyTable :: Table
-emptyTable =
-  Table 0 Map.empty
+run :: Generator a -> a
+run generator =
+  State.evalState generator 0
 
 
 
@@ -64,9 +45,9 @@ emptyTable =
 
 fresh :: Generator Text
 fresh =
-  do  (Table uid names) <- State.get
-      State.put (Table (uid + 1) names)
-      return (Text.pack ("_v" ++ show uid))
+  do  uid <- State.get
+      State.put (uid + 1)
+      return ("_v" <> Text.pack (show uid))
 
 
 
@@ -117,26 +98,8 @@ global var =
 
 
 globalName :: Var.Global -> Generator Text
-globalName var =
-  do  table <- State.get
-      globalNameHelp var table
-
-
-globalNameHelp :: Var.Global -> Table -> Generator Text
-globalNameHelp var@(Var.Global home name) (Table uid names) =
-  case Help.isOp name of
-    False ->
-      return $ globalToName home name
-
-    True ->
-      case Map.lookup var names of
-        Just jsName ->
-          return jsName
-
-        Nothing ->
-          do  let jsName = globalToName home ("_op" <> Text.pack (show uid))
-              State.put (Table (uid + 1) (Map.insert var jsName names))
-              return jsName
+globalName (Var.Global home name) =
+  return (globalToName home name)
 
 
 globalToName :: ModuleName.Canonical -> Text -> Text
@@ -145,8 +108,15 @@ globalToName (ModuleName.Canonical (Pkg.Name user project) moduleName) name =
     "_" <> ModuleName.getKernel moduleName <> "_" <> name
 
   else
-    Text.replace "-" "_" user
-    <> "$" <> Text.replace "-" "_" project
-    <> "$" <> Text.replace "." "_" moduleName
-    <> "$" <> name
+    let
+      revisedName =
+        if Help.isOp name then
+          "_op_" <> Help.desymbol name
+        else
+          name
+    in
+      Text.replace "-" "_" user
+      <> "$" <> Text.replace "-" "_" project
+      <> "$" <> Text.replace "." "_" moduleName
+      <> "$" <> revisedName
 
