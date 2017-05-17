@@ -10,6 +10,7 @@ module Generate.JavaScript.Variable
   , safe
   , global
   , globalName
+  , globalToName
   )
   where
 

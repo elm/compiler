@@ -20,6 +20,7 @@ module Elm.Compiler.Module
 
   -- canonical names
   , ModuleName.Canonical(..)
+  , canonicalToMain
   )
   where
 
@@ -34,6 +35,7 @@ import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified Elm.Compiler.Type as PublicType
 import qualified Elm.Compiler.Type.Extract as Extract
+import qualified Generate.JavaScript.Variable as JS
 import qualified Json.Decode as Decode
 import qualified Json.Encode as Encode
 
@@ -123,3 +125,12 @@ decoder =
 
         Just name ->
           Decode.succeed name
+
+
+
+-- CANONICAL TO MAIN
+
+
+canonicalToMain :: ModuleName.Canonical -> Text
+canonicalToMain home =
+  JS.globalToName home "main"
