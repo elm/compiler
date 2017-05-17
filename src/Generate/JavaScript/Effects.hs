@@ -30,7 +30,7 @@ generate managers =
     add home mngr makeBuilder =
       do  builder <- makeBuilder
           stmt <- generateManager home mngr
-          return (JS.encodeUtf8 stmt <> builder)
+          return (JS.stmtToBuilder stmt <> builder)
   in
     Map.foldrWithKey' add (return "") managers
 

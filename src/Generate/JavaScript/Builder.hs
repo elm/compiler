@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Generate.JavaScript.Builder
-  ( encodeUtf8
+  ( stmtToBuilder
+  , exprToBuilder
   , Expr(..), Id(..), Prop(..), LValue(..)
   , Stmt(..), Case(..), VarDecl(..)
   , InfixOp(..), PrefixOp(..)
@@ -130,9 +131,14 @@ data PrefixOp
 -- ENCODE
 
 
-encodeUtf8 :: Stmt -> Builder
-encodeUtf8 stmts =
+stmtToBuilder :: Stmt -> Builder
+stmtToBuilder stmts =
   fromStmt "" stmts
+
+
+exprToBuilder :: Expr -> Builder
+exprToBuilder expr =
+  snd $ fromExpr "" Whatever expr
 
 
 

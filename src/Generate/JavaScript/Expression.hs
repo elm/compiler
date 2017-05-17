@@ -32,7 +32,7 @@ import qualified Optimize.DecisionTree as DT
 
 generateDecl :: ModuleName.Canonical -> Text -> Opt.Def -> Generator JS.Stmt
 generateDecl home name def =
-  do  jsName <- Var.getGlobalName (V.Global home name)
+  do  jsName <- Var.globalName (V.Global home name)
       jsBody <- generateDef name def
       return $ JS.VarDeclStmt [ Help.varDecl jsName jsBody ]
 
