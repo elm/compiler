@@ -1,18 +1,18 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Parse.Kernel
-  ( Chunk(..)
-  , parse
+  ( parser
   )
   where
 
-import qualified Data.ByteString as BS
+
 import qualified Data.Map as Map
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as Text
 
 import qualified AST.Exposing as Exposing
+import qualified AST.Kernel as Kernel
 import qualified AST.Module as Module
 import qualified AST.Module.Name as Module
 import Parse.Helpers (Parser)
@@ -22,42 +22,23 @@ import qualified Reporting.Annotation as A
 
 
 
--- PARSE
-
-
-data Chunk
-  = JS BS.ByteString
-  | Var Module.Raw Text
-
-
-parse :: Text -> ( [(Module.Raw, Text)], [Chunk] )
-parse source =
-  case Parse.run parser source of
-    Left _ ->
-      error "problem parsing kernel code"
-
-    Right answer ->
-      answer
-
-
-
 -- PARSER
 
 
-parser :: Parser ( [(Module.Raw, Text)], [Chunk] )
+parser :: Parser Kernel.Info
 parser =
   do  imports <- Parse.kernelHeader
       let table = Map.unions (map importToTable imports)
-      chunks <- parserHelp table
-      return ( Map.elems table, chunks )
+      chunks <- parserHelp table []
+      return (Kernel.Info (Map.elems table) chunks)
 
 
-parserHelp :: Table -> Parser [Chunk]
-parserHelp table =
+parserHelp :: Table -> [Kernel.Chunk] -> Parser [Kernel.Chunk]
+parserHelp table chunks =
   do  chunk <- Parse.kernelChunk
       case chunk of
         Left js ->
-          return [JS js]
+          return (Kernel.JS js : chunks)
 
         Right (js, var) ->
           case Map.lookup var table of
@@ -65,8 +46,7 @@ parserHelp table =
               error $ show $ "could not find " <> var <> " when parsing kernel code"
 
             Just (home, name) ->
-              do  rest <- parserHelp table
-                  return (JS js : Var home name : rest)
+              parserHelp table (Kernel.Var home name : Kernel.JS js : chunks)
 
 
 

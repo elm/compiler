@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Generate.JavaScript (generate) where
 
-import Prelude hiding (init)
+import Control.Monad (foldM)
 import Data.Monoid ((<>))
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -12,13 +12,14 @@ import qualified Data.ByteString.Builder as BS
 
 import qualified AST.Effects as Effects
 import qualified AST.Expression.Optimized as Opt
+import qualified AST.Kernel as Kernel
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
 import qualified Elm.Package as Pkg
 import qualified Elm.Compiler.Objects.Internal as Obj
-import qualified Generate.JavaScript.Builder as JS
-import qualified Generate.JavaScript.Effects as Effects
-import qualified Generate.JavaScript.Expression as JS
+import qualified Generate.JavaScript.Builder as JsBuilder
+import qualified Generate.JavaScript.Effects as JsEffects
+import qualified Generate.JavaScript.Expression as JsExpr
 import qualified Generate.JavaScript.Variable as JS
 
 
@@ -26,84 +27,91 @@ import qualified Generate.JavaScript.Variable as JS
 -- GENERATE JAVASCRIPT
 
 
-generate :: Obj.SymbolTable -> Obj.Graph -> Obj.Roots -> (Set.Set ModuleName.Canonical, BS.Builder)
-generate symbols (Obj.Graph graph) roots =
+generate :: Obj.Graph -> Obj.Roots -> BS.Builder
+generate graph roots =
   let
-    (State builders _ kernels effects table) =
-      List.foldl' (crawl graph) (init symbols) (Obj.toGlobals roots)
+    (State builders _ _ effects table) =
+      List.foldl' (crawl graph) initialState (Obj.toGlobals roots)
 
     managers =
-      fst $ JS.run table (Effects.generate effects)
-
-    javascript =
-      List.foldl' (\rest stmt -> JS.encodeUtf8 stmt <> rest) managers builders
+      fst $ JS.run table (JsEffects.generate effects)
   in
-    (kernels, javascript)
+    List.foldl' (\rest stmt -> stmt <> rest) managers builders
 
 
 
--- DCE STATE
+-- CRAWL STATE
 
 
 data State =
   State
-    { _stmts :: [JS.Stmt]
-    , _seen :: Set.Set Var.Global
-    , _kernels :: Set.Set ModuleName.Canonical
+    { _builders :: [BS.Builder]
+    , _seenDecls :: Set.Set Var.Global
+    , _seenKernels :: Set.Set ModuleName.Raw
     , _effects :: Map.Map ModuleName.Canonical Effects.ManagerType
     , _table :: JS.Table
     }
 
 
-init :: Obj.SymbolTable -> State
-init symbols =
-  State [] Set.empty Set.empty Map.empty (JS.init symbols)
+initialState :: State
+initialState =
+  State [] Set.empty Set.empty Map.empty JS.emptyTable
 
 
 
--- DEAD CODE ELIMINATION
+-- CRAWL
 
 
-type Graph = Map.Map Var.Global Opt.Decl
-
-
-crawl :: Graph -> State -> Var.Global -> State
-crawl graph state@(State js seen kernels effects table) name@(Var.Global home _) =
-  if Set.member name seen then
+crawl :: Obj.Graph -> State -> Var.Global -> State
+crawl graph@(Obj.Graph decls kernels) state@(State _ seenDecls seenKernels _ _) name@(Var.Global home _) =
+  if Set.member name seenDecls then
     state
 
   else if home == virtualDomDebug then
     state
 
   else
-    case Map.lookup name graph of
+    case Map.lookup name decls of
       Just decl ->
         crawlDecl graph name decl state
 
       Nothing ->
-        if ModuleName.canonicalIsKernel home then
-          State js seen (Set.insert home kernels) effects table
-        else
-          error (crawlError name)
+        let
+          kernelModule =
+            ModuleName._module home
+        in
+          if Set.member kernelModule seenKernels then
+            state
+          else
+            case Map.lookup kernelModule kernels of
+              Just info ->
+                crawlKernel graph kernelModule info state
+
+              Nothing ->
+                error (crawlError name)
 
 
-crawlDecl :: Graph -> Var.Global -> Opt.Decl -> State -> State
+
+-- CRAWL DECL
+
+
+crawlDecl :: Obj.Graph -> Var.Global -> Opt.Decl -> State -> State
 crawlDecl graph var@(Var.Global home name) (Opt.Decl direct indirect fx body) state1 =
   let
     state2 =
-      state1 { _seen = Set.insert var (_seen state1) }
+      state1 { _seenDecls = Set.insert var (_seenDecls state1) }
 
-    (State stmts seen kernels effects table) =
+    (State builders seenDecls seenKernels effects table) =
       Set.foldl' (crawl graph) state2 direct
 
     (stmt, newTable) =
-      JS.run table (JS.generateDecl home name body)
+      JS.run table (JsExpr.generateDecl home name body)
 
     state4 =
       State
-        { _stmts = stmt : stmts
-        , _seen = seen
-        , _kernels = kernels
+        { _builders = JsBuilder.stmtToBuilder stmt : builders
+        , _seenDecls = seenDecls
+        , _seenKernels = seenKernels
         , _effects = maybe id (Map.insert home) fx effects
         , _table = newTable
         }
@@ -111,13 +119,57 @@ crawlDecl graph var@(Var.Global home name) (Opt.Decl direct indirect fx body) st
     Set.foldl' (crawl graph) state4 indirect
 
 
+
+-- CRAWL KERNEL
+
+
+crawlKernel :: Obj.Graph -> ModuleName.Raw -> Kernel.Info -> State -> State
+crawlKernel graph name (Kernel.Info imports chunks) state1 =
+  let
+    state2 =
+      state1 { _seenKernels = Set.insert name (_seenKernels state1) }
+
+    (State builders seenDecls seenKernels effects table) =
+      List.foldl' (crawl graph) state2 (map toCoreGlobal imports)
+
+    (builder, newTable) =
+      JS.run table (foldM chunkToBuilder mempty chunks)
+  in
+    State
+      { _builders = builder : builders
+      , _seenDecls = seenDecls
+      , _seenKernels = seenKernels
+      , _effects = effects
+      , _table = newTable
+      }
+
+
+toCoreGlobal :: ( ModuleName.Raw, Text.Text ) -> Var.Global
+toCoreGlobal (home, name) =
+  Var.Global (ModuleName.inCore home) name
+
+
+chunkToBuilder :: BS.Builder -> Kernel.Chunk -> JS.Generator BS.Builder
+chunkToBuilder builder chunk =
+  case chunk of
+    Kernel.JS javascript ->
+      return $ BS.byteString javascript <> builder
+
+    Kernel.Var home name ->
+      do  expr <- JS.global (Var.Global (ModuleName.inCore home) name)
+          return $ JsBuilder.exprToBuilder expr <> builder
+
+
+-- CRAWL HELPERS
+
+
 crawlError :: Var.Global -> String
 crawlError (Var.Global (ModuleName.Canonical pkg home) name) =
   Text.unpack $
     "compiler bug manifesting in Generate.JavaScript\n"
-    <> "could not find " <> Pkg.toText pkg <> " " <> ModuleName.toText home <> "." <> name <> "\n"
-    <> "please report at <https://github.com/elm-lang/elm-compiler/issues>\n"
-    <> "try to make an <http://sscce.org/> that demonstrates the issue!"
+    <> "Could not find " <> Pkg.toText pkg <> " " <> ModuleName.toText home <> "." <> name <> "\n"
+    <> "Please report at <https://github.com/elm-lang/elm-compiler/issues>\n"
+    <> "Try to make an <http://sscce.org/> that demonstrates the issue!"
 
 
 virtualDomDebug :: ModuleName.Canonical

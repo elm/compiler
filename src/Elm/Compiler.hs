@@ -7,16 +7,17 @@ module Elm.Compiler
   , Error, errorToDoc, errorToJson
   , Warning, warningToDoc, warningToJson
   , Tag(..), parseHeader
+  , KernelInfo(..), parseKernel
   )
   where
 
 import qualified Data.Aeson as Json
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.ByteString.Builder as BS
 import Text.PrettyPrint.ANSI.Leijen (Doc)
 
+import qualified AST.Kernel as Kernel (Info)
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified Compile
@@ -29,6 +30,7 @@ import qualified Elm.Docs as Docs
 import qualified Elm.Package as Package
 import qualified Generate.JavaScript as JS
 import qualified Parse.Helpers as Parse (run)
+import qualified Parse.Kernel as Kernel (parser)
 import qualified Parse.Module as Parse (header)
 import qualified Reporting.Annotation as A
 import qualified Reporting.Bag as Bag
@@ -112,7 +114,7 @@ docsGen isExposed (Module.Module name info) =
 -- CODE GENERATION
 
 
-generate :: Obj.SymbolTable -> Obj.Graph -> Obj.Roots -> (Set.Set M.Canonical, BS.Builder)
+generate :: Obj.Graph -> Obj.Roots -> BS.Builder
 generate =
   JS.generate
 
@@ -204,3 +206,21 @@ toHeaderSummary pkgName (Module.Header maybeHeaderDecl imports) =
               Module.Effect _ -> Effect
         in
           ( tag, Just name, dependencies )
+
+
+
+-- PARSE KERNEL
+
+
+newtype KernelInfo =
+  KernelInfo Kernel.Info
+
+
+parseKernel :: Text -> Either Error KernelInfo
+parseKernel sourceCode =
+  case Parse.run Kernel.parser sourceCode of
+    Right info ->
+      Right (KernelInfo info)
+
+    Left err ->
+      Left (Error (A.map Error.Syntax err))
