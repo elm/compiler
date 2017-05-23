@@ -15,7 +15,7 @@ module Parse.Primitives
   , string, character
   , digit, number
   , shaderSource, shaderFailure
-  , kernelChunk
+  , kernelChunk, ChunkTag(..)
   )
   where
 
@@ -36,7 +36,7 @@ import qualified Data.Text.Lazy as LT
 import qualified Data.Text.Lazy.Builder as LB
 import Data.Text.Internal.Encoding.Utf16 (chr2)
 import Data.Text.Internal.Unsafe.Char (unsafeChr)
-import GHC.Word (Word16(..))
+import GHC.Word (Word8, Word16)
 
 import qualified AST.Helpers as Help (isSymbol)
 import qualified AST.Literal as L
@@ -1029,7 +1029,7 @@ digit =
       in
         if isDigit word then
           cok
-            (fromIntegral (word - 0x0030))
+            (fromIntegral (word - 0x0030 {- 0 -}))
             (State array (offset + 1) (length - 1) indent row (col + 1) ctx)
             noError
         else
@@ -1307,50 +1307,52 @@ eatShader array offset length row col =
 -- KERNEL CHOMP
 
 
-kernelChunk :: Parser (Either BS.ByteString (BS.ByteString, Text))
+data ChunkTag = KernelEnum Word8 | KernelImport
+
+
+kernelChunk :: Parser (BS.ByteString, Maybe (ChunkTag, Text))
 kernelChunk =
   Parser $ \(State array offset length indent row col ctx) cok _ _ _ ->
     let
-      (# isAtUnderscores, newOffset, newLength, newRow, newCol #) =
+      (# maybeChunkTag, newOffset, newLength, newRow, newCol #) =
         kernelChunkHelp array offset length row col
 
       javascript =
         Text.encodeUtf8 (Text.Text array offset (newOffset - offset))
     in
-      if not isAtUnderscores then
+      case maybeChunkTag of
+        Nothing ->
+          let
+            !newState =
+              State array newOffset newLength indent newRow newCol ctx
+          in
+            cok (javascript, Nothing) newState noError
 
-        let
-          !newState =
-            State array newOffset newLength indent newRow newCol ctx
-        in
-          cok (Left javascript) newState noError
+        Just tag ->
+          let
+            (# newerOffset, newerLength, newerCol #) =
+              varPrimHelp array newOffset newLength newCol
 
-      else
+            !newState =
+              State array newerOffset newerLength indent newRow newerCol ctx
 
-        let
-          (# newerOffset, newerLength, newerCol #) =
-            varPrimHelp array newOffset newLength newCol
-
-          !newState =
-            State array newerOffset newerLength indent newRow newerCol ctx
-
-          !kernelSymbol =
-            Text.Text array newOffset (newerOffset - newOffset)
-        in
-          cok (Right (javascript, kernelSymbol)) newState noError
+            !kernelSymbol =
+              Text.Text array newOffset (newerOffset - newOffset)
+          in
+            cok (javascript, Just (tag, kernelSymbol)) newState noError
 
 
-kernelChunkHelp :: Text.Array -> Int -> Int -> Int -> Int -> (# Bool, Int, Int, Int, Int #)
+kernelChunkHelp :: Text.Array -> Int -> Int -> Int -> Int -> (# Maybe ChunkTag, Int, Int, Int, Int #)
 kernelChunkHelp array offset length row col =
-  if length < 2 then
-    (# False, offset, length, row, col #)
+  if length == 0 then
+    (# Nothing, offset, length, row, col #)
 
   else
     let
       !word = Text.unsafeIndex array offset
     in
-      if word == 0x005F {- _ -} && Text.unsafeIndex array (offset + 1) == 0x005F {- _ -} then
-        (# True, offset, length, row, col #)
+      if word == 0x005F {- _ -} && length > 3 && Text.unsafeIndex array (offset + 1) == 0x005F {- _ -} then
+        (# Just (toChunkTag (Text.unsafeIndex array (offset + 2))), offset, length, row, col #)
 
       else if word == 0x000A {- \n -} then
         kernelChunkHelp array (offset + 1) (length - 1) (row + 1) 1
@@ -1360,3 +1362,11 @@ kernelChunkHelp array offset length row col =
 
       else
         kernelChunkHelp array (offset + 2) (length - 2) row (col + 1)
+
+
+toChunkTag :: Word16 -> ChunkTag
+toChunkTag word =
+  if isDigit word then
+    KernelEnum (fromIntegral (word - 0x0030 {- 0 -}))
+  else
+    KernelImport

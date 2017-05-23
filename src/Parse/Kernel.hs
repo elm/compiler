@@ -6,10 +6,14 @@ module Parse.Kernel
   where
 
 
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Builder as BS
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map as Map
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as Text
+import Data.Word (Word8)
 
 import qualified AST.Exposing as Exposing
 import qualified AST.Kernel as Kernel
@@ -29,24 +33,54 @@ parser :: Parser Kernel.Info
 parser =
   do  imports <- Parse.kernelHeader
       let table = Map.unions (map importToTable imports)
-      chunks <- parserHelp table []
+      chunks <- parserHelp table Map.empty []
       return (Kernel.Info (Map.elems table) chunks)
 
 
-parserHelp :: Table -> [Kernel.Chunk] -> Parser [Kernel.Chunk]
-parserHelp table chunks =
-  do  chunk <- Parse.kernelChunk
-      case chunk of
-        Left js ->
-          return (Kernel.JS js : chunks)
+type Enums =
+  Map.Map Word8 (Map.Map Text BS.ByteString)
 
-        Right (js, var) ->
+
+parserHelp :: Table -> Enums -> [Kernel.Chunk] -> Parser [Kernel.Chunk]
+parserHelp table enums chunks =
+  do  (javascript, maybeMore) <- Parse.kernelChunk
+      case maybeMore of
+        Nothing ->
+          return (Kernel.JS javascript : chunks)
+
+        Just (Parse.KernelImport, var) ->
           case Map.lookup var table of
             Nothing ->
               error $ show $ "could not find " <> var <> " when parsing kernel code"
 
             Just (home, name) ->
-              parserHelp table (Kernel.Var home name : Kernel.JS js : chunks)
+              parserHelp table enums (Kernel.Var home name : Kernel.JS javascript : chunks)
+
+        Just (Parse.KernelEnum n, var) ->
+          let
+            (bytes, newEnums) =
+              lookupEnum n var enums
+          in
+            parserHelp table newEnums (Kernel.JS bytes : Kernel.JS javascript : chunks)
+
+
+lookupEnum :: Word8 -> Text -> Enums -> (BS.ByteString, Enums)
+lookupEnum word var allEnums =
+  case Map.lookup word allEnums of
+    Nothing ->
+      ( "0", Map.insert word (Map.singleton var "0") allEnums )
+
+    Just enums ->
+      case Map.lookup var enums of
+        Just bytes ->
+          ( bytes, allEnums )
+
+        Nothing ->
+          let
+            number =
+              LBS.toStrict $ BS.toLazyByteString $ BS.word8Dec $ fromIntegral (Map.size enums)
+          in
+            ( number, Map.insert word (Map.insert var number enums) allEnums )
 
 
 
