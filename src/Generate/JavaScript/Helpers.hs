@@ -7,10 +7,15 @@ module Generate.JavaScript.Helpers
   , obj
   , (<|)
   , function
+  , toFieldName
   )
   where
 
+
+import qualified Data.Char as Char
+import qualified Data.Text as Text
 import Data.Text (Text)
+
 import Generate.JavaScript.Builder
 
 
@@ -64,3 +69,30 @@ obj vars =
 function :: [Text] -> [Stmt] -> Expr
 function args stmts =
   Function Nothing (map Id args) stmts
+
+
+
+-- FIELD NAMES
+
+
+toFieldName :: Int -> Text
+toFieldName word =
+  Text.pack (toFieldNameHelp word [])
+
+
+toFieldNameHelp :: Int -> [Char] -> [Char]
+toFieldNameHelp word str =
+  if word < 52 then
+    toChar word : str
+
+  else
+    let
+      (next, remainder) =
+        quotRem word 52
+    in
+      toFieldNameHelp next (toChar remainder : str)
+
+
+toChar :: Int -> Char
+toChar word =
+  Char.chr $ fromIntegral $ word + (if word < 26 then 97 else 39)

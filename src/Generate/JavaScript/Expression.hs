@@ -179,18 +179,18 @@ generateCode expr =
 
       Ctor tag members ->
         let
-          ctor =
-            "ctor" ==> JS.String tag
+          tagField =
+            "$" ==> JS.String tag
 
           toEntry entry n =
-            ("_" <> Text.pack (show n)) ==> entry
+            (Help.toFieldName n) ==> entry
         in
           do  jsMembers <- mapM generateJsExpr members
-              jsExpr $ JS.Object (ctor : zipWith toEntry jsMembers [ 0 :: Int .. ])
+              jsExpr $ JS.Object (tagField : zipWith toEntry jsMembers [ 0 :: Int .. ])
 
       CtorAccess dataExpr index ->
           do  jsDataExpr <- generateJsExpr dataExpr
-              jsExpr $ JS.DotRef jsDataExpr (JS.Id ("_" <> Text.pack (show index)))
+              jsExpr $ JS.DotRef jsDataExpr (JS.Id (Help.toFieldName index))
 
       Cmd moduleName _ ->
           JsExpr <$> BuiltIn.effect moduleName
@@ -515,7 +515,7 @@ pathToTestableExpr root path exampleTest =
   do  accessExpr <- generateJsExpr (pathToExpr root path)
       case exampleTest of
         DT.Constructor _ ->
-            return $ JS.DotRef accessExpr (JS.Id "ctor")
+            return $ JS.DotRef accessExpr (JS.Id "$")
 
         DT.Literal (L.Chr _) ->
             return $ JS.Call (JS.DotRef accessExpr (JS.Id "valueOf")) []
