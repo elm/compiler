@@ -9,7 +9,6 @@ import qualified Data.Char as Char
 import qualified Data.Map as Map
 import Data.Monoid ((<>))
 import qualified Data.Text as Text
-import qualified Data.UnionFind.IO as UF
 import Data.Text (Text)
 
 import qualified AST.Type as T
@@ -17,49 +16,32 @@ import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Reporting.Region as R
-
-
-
--- CONCRETE TYPES
-
-
-type Type =
-    TermN Variable
-
-
-type Variable =
-    UF.Point Descriptor
-
-
-type TypeConstraint =
-    Constraint Type Variable
-
-
-type TypeScheme =
-    Scheme Type Variable
+import qualified Type.UnionFind as UF
 
 
 
 -- TYPE PRIMITIVES
 
 
-data Term1 a
-    = App1 a a
-    | Fun1 a a
+type Variable =
+    UF.Point Descriptor
+
+
+data FlatType
+    = App1 Variable Variable
+    | Fun1 Variable Variable
     | EmptyRecord1
-    | Record1 (Map.Map Text a) a
+    | Record1 (Map.Map Text Variable) Variable
 
 
-data TermN a
+data Type
     = PlaceHolder Text
-    | AliasN Var.Canonical [(Text, TermN a)] (TermN a)
-    | VarN a
-    | TermN (Term1 (TermN a))
-
-
-record :: Map.Map Text (TermN a) -> TermN a -> TermN a
-record fs rec =
-  TermN (Record1 fs rec)
+    | AliasN Var.Canonical [(Text, Type)] Type
+    | VarN Variable
+    | AppN Type Type
+    | FunN Type Type
+    | EmptyRecordN
+    | RecordN (Map.Map Text Type) Type
 
 
 
@@ -76,7 +58,7 @@ data Descriptor =
 
 
 data Content
-    = Structure (Term1 Variable)
+    = Structure FlatType
     | Atom Var.Canonical
     | Var Flex (Maybe Super) (Maybe Text)
     | Alias Var.Canonical [(Text,Variable)] Variable
@@ -126,23 +108,24 @@ getVarNamesMark =
 -- CONSTRAINTS
 
 
-data Constraint a b
+data Constraint
     = CTrue
     | CSaveEnv
-    | CEqual Error.Hint R.Region a a
-    | CAnd [Constraint a b]
-    | CLet [Scheme a b] (Constraint a b)
-    | CInstance R.Region SchemeName a
+    | CEqual Error.Hint R.Region Type Type
+    | CAnd [Constraint]
+    | CLet [Scheme] Constraint
+    | CInstance R.Region SchemeName Type
 
 
 type SchemeName = Text
 
 
-data Scheme a b = Scheme
-    { _rigidQuantifiers :: [b]
-    , _flexibleQuantifiers :: [b]
-    , _constraint :: Constraint a b
-    , _header :: Map.Map Text (A.Located a)
+data Scheme =
+  Scheme
+    { _rigidQuantifiers :: [Variable]
+    , _flexibleQuantifiers :: [Variable]
+    , _constraint :: Constraint
+    , _header :: Map.Map Text (A.Located Type)
     }
 
 
@@ -153,14 +136,16 @@ data Scheme a b = Scheme
 infixr 9 ==>
 
 
+{-# INLINE (==>) #-}
 (==>) :: Type -> Type -> Type
-(==>) a b =
-  TermN (Fun1 a b)
+(==>) =
+  FunN
 
 
-(<|) :: TermN a -> TermN a -> TermN a
-(<|) f a =
-  TermN (App1 f a)
+{-# INLINE (<|) #-}
+(<|) :: Type -> Type -> Type
+(<|) =
+  AppN
 
 
 
@@ -211,7 +196,7 @@ toSuper name =
 -- CONSTRAINT HELPERS
 
 
-monoscheme :: Map.Map Text (A.Located a) -> Scheme a b
+monoscheme :: Map.Map Text (A.Located Type) -> Scheme
 monoscheme headers =
   Scheme [] [] CTrue headers
 
@@ -219,7 +204,7 @@ monoscheme headers =
 infixl 8 /\
 
 
-(/\) :: Constraint a b -> Constraint a b -> Constraint a b
+(/\) :: Constraint -> Constraint -> Constraint
 (/\) c1 c2 =
     case (c1, c2) of
       (CTrue, _) -> c2
@@ -228,23 +213,23 @@ infixl 8 /\
 
 
 -- ex qs constraint == exists qs. constraint
-ex :: [Variable] -> TypeConstraint -> TypeConstraint
+ex :: [Variable] -> Constraint -> Constraint
 ex fqs constraint =
     CLet [Scheme [] fqs constraint Map.empty] CTrue
 
 
-forall :: [Variable] -> TypeConstraint -> TypeConstraint
+forall :: [Variable] -> Constraint -> Constraint
 forall rqs constraint =
     CLet [Scheme rqs [] constraint Map.empty] CTrue
 
 
-exists :: (Type -> IO TypeConstraint) -> IO TypeConstraint
+exists :: (Type -> IO Constraint) -> IO Constraint
 exists f =
   do  v <- mkVar Nothing
       ex [v] <$> f (VarN v)
 
 
-existsNumber :: (Type -> IO TypeConstraint) -> IO TypeConstraint
+existsNumber :: (Type -> IO Constraint) -> IO Constraint
 existsNumber f =
   do  v <- mkVar (Just Number)
       ex [v] <$> f (VarN v)
@@ -304,7 +289,7 @@ contentToSrcType variable content =
         return (T.Var "?")
 
 
-termToSrcType :: Term1 Variable -> StateT NameState IO T.Canonical
+termToSrcType :: FlatType -> StateT NameState IO T.Canonical
 termToSrcType term =
   case term of
     App1 func arg ->
@@ -344,7 +329,8 @@ termToSrcType term =
 -- MANAGE FRESH VARIABLE NAMES
 
 
-data NameState = NameState
+data NameState =
+  NameState
     { _taken :: TakenNames
     , _normals :: Int
     , _numbers :: Int
