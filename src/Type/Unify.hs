@@ -11,6 +11,7 @@ import Data.Text (Text)
 import qualified AST.Variable as Var
 import qualified Reporting.Region as R
 import qualified Reporting.Error.Type as Error
+import qualified Type.Occurs as Occurs
 import qualified Type.State as TS
 import Type.Type as Type
 import qualified Type.UnionFind as UF
@@ -48,7 +49,8 @@ type Unify =
   ExceptT Mismatch TS.Solver
 
 
-data Context = Context
+data Context =
+  Context
     { _orientation :: Orientation
     , _first :: Variable
     , _firstDesc :: Descriptor
@@ -152,8 +154,8 @@ merge (Context _ var1 (Descriptor _ rank1 _ _) var2 (Descriptor _ rank2 _ _)) co
 
 
 mergeHelp :: Variable -> Variable -> Content -> Int -> IO ()
-mergeHelp var1 second newContent newRank =
-  UF.union var1 second $
+mergeHelp var1 var2 newContent newRank =
+  UF.union var1 var2 $
     Descriptor
       { _content = newContent
       , _rank = newRank
@@ -384,7 +386,7 @@ atomMatchesSuper super name =
 
 unifyFlexSuperStructure :: Context -> Super -> FlatType -> Unify ()
 unifyFlexSuperStructure context super term =
-  do  appStructure <- liftIO (collectApps (Structure term))
+  do  appStructure <- liftIO (collectApps term)
       case appStructure of
         Other ->
             mismatch context (Just (badSuper super))
@@ -398,11 +400,13 @@ unifyFlexSuperStructure context super term =
                   merge context (Structure term)
 
               Comparable ->
-                  do  merge context (Structure term)
+                  do  comparableOccursCheck context
+                      merge context (Structure term)
                       unifyComparableRecursive (_orientation context) variable
 
               CompAppend ->
-                  do  merge context (Structure term)
+                  do  comparableOccursCheck context
+                      merge context (Structure term)
                       unifyComparableRecursive (_orientation context) variable
 
         Tuple entries ->
@@ -418,11 +422,22 @@ unifyFlexSuperStructure context super term =
                       mismatch context (Just (Error.TooLongComparableTuple (length entries)))
 
                   else
-                      do  merge context (Structure term)
+                      do  comparableOccursCheck context
+                          merge context (Structure term)
                           mapM_ (unifyComparableRecursive (_orientation context)) entries
 
               CompAppend ->
                   mismatch context (Just (badSuper super))
+
+
+-- TODO: is there some way to avoid doing this?
+-- Do type classes require occurs checks?
+comparableOccursCheck :: Context -> Unify ()
+comparableOccursCheck (Context _ _ _ var _) =
+  do  hasOccurred <- liftIO $ Occurs.occurs var
+      if hasOccurred
+        then throwError (Mismatch Nothing)
+        else return ()
 
 
 unifyComparableRecursive :: Orientation -> Variable -> Unify ()
@@ -447,22 +462,27 @@ data AppStructure
     | Other
 
 
-collectApps :: Content -> IO AppStructure
-collectApps content =
-    collectAppsHelp [] content
+collectApps :: FlatType -> IO AppStructure
+collectApps term =
+  case term of
+    App1 func arg ->
+      collectAppsHelp [arg] =<< getContent func
+
+    _ ->
+      return Other
 
 
 collectAppsHelp :: [Variable] -> Content -> IO AppStructure
 collectAppsHelp args content =
   case (content, args) of
     (Structure (App1 func arg), _) ->
-        collectAppsHelp (args ++ [arg]) =<< getContent func
+        collectAppsHelp (arg : args) =<< getContent func
 
     (Atom name, [arg]) | Var.isList name ->
         return (List arg)
 
     (Atom name, _) | Var.isTuple name ->
-        return (Tuple args)
+        return (Tuple (reverse args))
 
     _ ->
         return Other
