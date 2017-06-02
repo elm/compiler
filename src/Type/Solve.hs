@@ -11,6 +11,7 @@ import qualified Data.Text as Text
 import qualified AST.Module.Name as ModuleName
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
+import qualified Type.Occurs as Occurs
 import qualified Type.State as TS
 import Type.Type as Type
 import Type.Unify
@@ -268,7 +269,7 @@ crash msg =
 occurs :: (Text.Text, A.Located Variable) -> TS.Solver ()
 occurs (name, A.A region variable) =
   {-# SCC elm_compiler_type_occurs #-}
-  do  hasOccurred <- liftIO $ occursHelp [] variable
+  do  hasOccurred <- liftIO $ Occurs.occurs variable
       case hasOccurred of
         False ->
             return ()
@@ -276,44 +277,3 @@ occurs (name, A.A region variable) =
         True ->
             do  overallType <- liftIO (Type.toSrcType variable)
                 TS.addError region (Error.InfiniteType name overallType)
-
-
-occursHelp :: [Variable] -> Variable -> IO Bool
-occursHelp seen var =
-  if elem var seen then
-      do  infiniteDescriptor <- UF.descriptor var
-          UF.setDescriptor var (infiniteDescriptor { _content = Error })
-          return True
-
-  else
-      do  desc <- UF.descriptor var
-          case _content desc of
-            Atom _ ->
-                return False
-
-            Var _ _ _ ->
-                return False
-
-            Error ->
-                return False
-
-            Alias _ args _ ->
-                -- TODO is it okay to only check args?
-                or <$> mapM (occursHelp (var:seen) . snd) args
-
-            Structure term ->
-                let
-                  go = occursHelp (var:seen)
-                in
-                case term of
-                  App1 a b ->
-                      (||) <$> go a <*> go b
-
-                  Fun1 a b ->
-                      (||) <$> go a <*> go b
-
-                  EmptyRecord1 ->
-                      return False
-
-                  Record1 fields ext ->
-                      or <$> mapM go (ext : Map.elems fields)

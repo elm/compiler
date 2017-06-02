@@ -139,6 +139,7 @@ Library
         Type.Constrain.Pattern,
         Type.Environment,
         Type.Inference,
+        Type.Occurs,
         Type.Solve,
         Type.State,
         Type.Type,
