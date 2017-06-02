@@ -27,12 +27,12 @@ import Control.Monad.Trans (MonadIO, liftIO)
 import qualified Data.Map as Map
 import Data.Map ((!))
 import Data.Text (Text)
-import qualified Data.UnionFind.IO as UF
 
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Reporting.Region as R
 import Type.Type
+import qualified Type.UnionFind as UF
 
 
 
@@ -214,30 +214,41 @@ flattenHelp aliasDict termN =
     AliasN name args realType ->
         do  flatArgs <- mapM (traverse (flattenHelp aliasDict)) args
             flatVar <- flattenHelp (Map.fromList flatArgs) realType
-            pool <- getPool
-            variable <-
-                liftIO $ UF.fresh $ Descriptor
-                  { _content = Alias name flatArgs flatVar
-                  , _rank = _maxRank pool
-                  , _mark = noMark
-                  , _copy = Nothing
-                  }
-            register variable
+            makeFlatType (Alias name flatArgs flatVar)
 
     VarN v ->
         return v
 
-    TermN term1 ->
-        do  variableTerm <- traverseTerm (flattenHelp aliasDict) term1
-            pool <- getPool
-            variable <-
-                liftIO $ UF.fresh $ Descriptor
-                  { _content = Structure variableTerm
-                  , _rank = _maxRank pool
-                  , _mark = noMark
-                  , _copy = Nothing
-                  }
-            register variable
+    AppN a b ->
+        do  flatA <- flattenHelp aliasDict a
+            flatB <- flattenHelp aliasDict b
+            makeFlatType (Structure (App1 flatA flatB))
+
+    FunN a b ->
+        do  flatA <- flattenHelp aliasDict a
+            flatB <- flattenHelp aliasDict b
+            makeFlatType (Structure (Fun1 flatA flatB))
+
+    EmptyRecordN ->
+        makeFlatType (Structure EmptyRecord1)
+
+    RecordN fields ext ->
+        do  flatFields <- traverse (flattenHelp aliasDict) fields
+            flatExt <- flattenHelp aliasDict ext
+            makeFlatType (Structure (Record1 flatFields flatExt))
+
+
+makeFlatType :: Content -> Solver Variable
+makeFlatType content =
+  do  pool <- getPool
+      variable <- liftIO $ UF.fresh $
+        Descriptor
+          { _content = content
+          , _rank = _maxRank pool
+          , _mark = noMark
+          , _copy = Nothing
+          }
+      register variable
 
 
 
@@ -309,7 +320,7 @@ makeCopyHelp (Descriptor content rank mark copy) alreadyCopiedMark variable =
           -- will not repeat this work or crawl this variable again.
           case content of
             Structure term ->
-                do  newTerm <- traverseTerm (makeCopy alreadyCopiedMark) term
+                do  newTerm <- traverseFlatType (makeCopy alreadyCopiedMark) term
                     setContent (Structure newTerm)
 
             Atom _ ->
@@ -384,7 +395,7 @@ restoreContent alreadyCopiedMark content =
   in
   case content of
     Structure term ->
-        Structure <$> traverseTerm go term
+        Structure <$> traverseFlatType go term
 
     Atom _ ->
         return content
@@ -402,12 +413,12 @@ restoreContent alreadyCopiedMark content =
 
 
 
--- TERM TRAVERSAL
+-- TRAVERSE FLAT TYPE
 
 
-traverseTerm :: (a -> Solver b) -> Term1 a -> Solver (Term1 b)
-traverseTerm f term =
-  case term of
+traverseFlatType :: (Variable -> Solver Variable) -> FlatType -> Solver FlatType
+traverseFlatType f flatType =
+  case flatType of
     App1 a b ->
         liftM2 App1 (f a) (f b)
 
