@@ -467,9 +467,9 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
     Lambda ->
         report
           Nothing
-          "This anonymous function is being used in an unexpected way."
+          "This function is being used in an unexpected way."
           ( cmpHint
-              "The anonymous function has type:"
+              "The function has type:"
               "But you are trying to use it as:"
               []
           )
@@ -1052,7 +1052,7 @@ infiniteHint hint =
       ( Nothing, "this shader" )
 
     Lambda ->
-      ( Nothing, "this anonymous function" )
+      ( Nothing, "this function" )
 
     Access _ _ ->
       ( Nothing, "this field access" )
