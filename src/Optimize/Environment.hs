@@ -13,7 +13,7 @@ module Optimize.Environment
   )
   where
 
-import qualified Control.Monad.State as State
+import qualified Control.Monad.State.Strict as State
 import Data.Monoid ((<>))
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -143,7 +143,7 @@ freshName =
 
 register :: Var.Global -> Optimizer ()
 register global =
-  State.modify (registerHelp global)
+  State.modify' (registerHelp global)
 
 
 registerHelp :: Var.Global -> Env -> Env

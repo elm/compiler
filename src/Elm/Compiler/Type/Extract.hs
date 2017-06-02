@@ -6,7 +6,7 @@ module Elm.Compiler.Type.Extract
   )
   where
 
-import qualified Control.Monad.Writer as Writer
+import qualified Control.Monad.Writer.Strict as Writer
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set

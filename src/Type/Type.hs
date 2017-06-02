@@ -3,8 +3,8 @@
 module Type.Type where
 
 import Control.Monad (when)
-import Control.Monad.State (StateT, liftIO)
-import qualified Control.Monad.State as State
+import Control.Monad.State.Strict (StateT, liftIO)
+import qualified Control.Monad.State.Strict as State
 import qualified Data.Char as Char
 import qualified Data.Map as Map
 import Data.Monoid ((<>))

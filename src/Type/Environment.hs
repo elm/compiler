@@ -11,7 +11,7 @@ module Type.Environment
     where
 
 import Control.Monad (foldM)
-import qualified Control.Monad.State as State
+import qualified Control.Monad.State.Strict as State
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
