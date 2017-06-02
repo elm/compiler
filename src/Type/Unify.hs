@@ -29,16 +29,22 @@ unify hint region expected actual =
         Right () ->
             return ()
 
-        Left (Mismatch maybeReason) ->
-            let
-              mkError =
-                do  expectedSrcType <- Type.toSrcType expected
-                    actualSrcType <- Type.toSrcType actual
-                    mergeHelp expected actual (Error "?") noRank
-                    let info = Error.MismatchInfo hint expectedSrcType actualSrcType maybeReason
-                    return (Error.Mismatch info)
-            in
-              TS.addError region =<< liftIO mkError
+        Left problem ->
+          do  expectedSrcType <- liftIO $ Type.toSrcType expected
+              actualSrcType   <- liftIO $ Type.toSrcType actual
+              liftIO $ mergeHelp expected actual (Error "?") noRank
+              TS.addError region $
+                case problem of
+                  Typical ->
+                    Error.Mismatch $
+                      Error.MismatchInfo hint expectedSrcType actualSrcType Nothing
+
+                  Special reason ->
+                    Error.Mismatch $
+                      Error.MismatchInfo hint expectedSrcType actualSrcType (Just reason)
+
+                  Infinite ->
+                    Error.InfiniteType (Left hint) expectedSrcType
 
 
 
@@ -46,7 +52,7 @@ unify hint region expected actual =
 
 
 type Unify =
-  ExceptT Mismatch TS.Solver
+  ExceptT Problem TS.Solver
 
 
 data Context =
@@ -77,8 +83,10 @@ reorient (Context orientation var1 desc1 var2 desc2) =
 -- ERROR MESSAGES
 
 
-newtype Mismatch =
-  Mismatch (Maybe Error.Reason)
+data Problem
+  = Typical
+  | Special Error.Reason
+  | Infinite
 
 
 mismatch :: Context -> Maybe Error.Reason -> Unify a
@@ -99,13 +107,19 @@ mismatch context@(Context orientation var1 _ var2 _) maybeReason =
 
 mismatchHelp :: Orientation -> Maybe Error.Reason -> Unify a
 mismatchHelp orientation maybeReason =
-  throwError $ Mismatch $
-    case orientation of
-      ExpectedActual ->
-        maybeReason
+  throwError $
+    case maybeReason of
+      Nothing ->
+        Typical
 
-      ActualExpected ->
-        Error.flipReason <$> maybeReason
+      Just reason ->
+        Special $
+          case orientation of
+            ExpectedActual ->
+              reason
+
+            ActualExpected ->
+              Error.flipReason reason
 
 
 badRigid :: Maybe Text -> Error.Reason
@@ -436,7 +450,7 @@ comparableOccursCheck :: Context -> Unify ()
 comparableOccursCheck (Context _ _ _ var _) =
   do  hasOccurred <- liftIO $ Occurs.occurs var
       if hasOccurred
-        then throwError (Mismatch Nothing)
+        then throwError Infinite
         else return ()
 
 
@@ -714,8 +728,17 @@ unifyField context (field, (expected, actual)) =
         Right () ->
           return $ Nothing
 
-        Left (Mismatch maybeReason) ->
-          return $ Just (field, maybeReason)
+        Left problem ->
+          return $ Just $ (,) field $
+            case problem of
+              Typical ->
+                Nothing
+
+              Special reason ->
+                Just reason
+
+              Infinite ->
+                Nothing
 
 
 

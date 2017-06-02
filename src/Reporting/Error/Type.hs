@@ -37,7 +37,7 @@ data Error
     = Mismatch Mismatch
     | BadMain Type.Canonical
     | BadFlags Type.Canonical (Maybe Text)
-    | InfiniteType Text Type.Canonical
+    | InfiniteType (Either Hint Text) Type.Canonical
 
 
 data Mismatch = MismatchInfo
@@ -111,8 +111,8 @@ toReport localizer err =
     Mismatch info ->
         mismatchToReport localizer info
 
-    InfiniteType name overallType ->
-        infiniteTypeToReport localizer name overallType
+    InfiniteType context overallType ->
+        infiniteTypeToReport localizer context overallType
 
     BadMain tipe ->
         Report.report
@@ -960,25 +960,112 @@ padTypo arrow maxLen (missingField, knownField) =
 -- INFINITE TYPES
 
 
-infiniteTypeToReport
-    :: RenderType.Localizer
-    -> Text
-    -> Type.Canonical
-    -> Report.Report
-infiniteTypeToReport localizer name overallType =
-  Report.report
-    "INFINITE TYPE"
-    Nothing
-    ( "I am inferring a weird self-referential type for " <> functionName name
-    )
-    ( stack
-        [ reflowParagraph $
-            "Here is my best effort at writing down the type. You will see ? and ∞ for\
-            \ parts of the type that repeat something already printed out infinitely."
-        , indent 4 (RenderType.toDoc localizer overallType)
-        , reflowParagraph $
-            "Usually staring at the type is not so helpful in these cases, so definitely\
-            \ read the debugging hints for ideas on how to figure this out: "
-            <> Help.hintLink "infinite-type"
-        ]
-    )
+infiniteTypeToReport :: RenderType.Localizer -> Either Hint Text -> Type.Canonical -> Report.Report
+infiniteTypeToReport localizer context overallType =
+  let
+    (maybeRegion, description) =
+      case context of
+        Right name ->
+          ( Nothing, functionName name )
+        Left hint ->
+          infiniteHint hint
+  in
+    Report.report
+      "INFINITE TYPE"
+      maybeRegion
+      ( "I am inferring a weird self-referential type for " <> description <> ":"
+      )
+      ( stack
+          [ reflowParagraph $
+              "Here is my best effort at writing down the type. You will see ∞ for\
+              \ parts of the type that repeat something already printed out infinitely."
+          , indent 4 (RenderType.toDoc localizer overallType)
+          , reflowParagraph $
+              "Usually staring at the type is not so helpful in these cases, so definitely\
+              \ read the debugging hints for ideas on how to figure this out: "
+              <> Help.hintLink "infinite-type"
+          ]
+      )
+
+
+infiniteHint :: Hint -> (Maybe Region.Region, Text)
+infiniteHint hint =
+  case hint of
+    CaseBranch n region ->
+      ( Just region, "the " <> ordinalize n <> " `case` branch" )
+
+    Case ->
+      ( Nothing, "this `case` expression" )
+
+    IfCondition ->
+      ( Nothing, "the `if` condition" )
+
+    IfBranches ->
+      ( Nothing, "the `if` branches" )
+
+    MultiIfBranch n region ->
+      ( Just region, "the " <> ordinalize n <> " `if` branch" )
+
+    If ->
+      ( Nothing, "this `if` expression" )
+
+    List ->
+      ( Nothing, "this list" )
+
+    ListElement n region ->
+      ( Just region, "the " <> ordinalize n <> " list entry" )
+
+    BinopLeft _ region ->
+      ( Just region, "the left argument" )
+
+    BinopRight _ region ->
+      ( Just region, "the right argument" )
+
+    Binop _ ->
+      ( Nothing, "this expression" )
+
+    Function maybeName ->
+      ( Nothing, maybeFuncName maybeName )
+
+    UnexpectedArg maybeName 1 1 region ->
+      ( Just region, "the argument to " <> maybeFuncName maybeName )
+
+    UnexpectedArg maybeName index _total region ->
+      ( Just region, "the " <> ordinalize index <> " argument to " <> maybeFuncName maybeName )
+
+    FunctionArity maybeName _ _ region ->
+      ( Just region, maybeFuncName maybeName )
+
+    ReturnType name _ _ region ->
+      ( Just region, functionName name )
+
+    Instance name ->
+      ( Nothing, functionName name )
+
+    Literal name ->
+      ( Nothing, name )
+
+    Pattern _ ->
+      ( Nothing, "this pattern" )
+
+    Shader ->
+      ( Nothing, "this shader" )
+
+    Lambda ->
+      ( Nothing, "this anonymous function" )
+
+    Access _ _ ->
+      ( Nothing, "this field access" )
+
+    Record ->
+      ( Nothing, "this record" )
+
+    -- effect manager problems
+    Manager name ->
+      ( Nothing, functionName name )
+
+    State name ->
+      ( Nothing, functionName name )
+
+    SelfMsg ->
+      ( Nothing, "this code" )

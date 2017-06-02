@@ -20,39 +20,37 @@ occurs var =
 occursHelp :: [Type.Variable] -> Type.Variable -> IO Bool
 occursHelp seen var =
   if elem var seen then
-      do  infiniteDescriptor <- UF.descriptor var
-          UF.setDescriptor var (infiniteDescriptor { _content = Error "∞" })
-          return True
+    return True
 
   else
-      do  desc <- UF.descriptor var
-          case _content desc of
-            Atom _ ->
-                return False
+    do  desc <- UF.descriptor var
+        case _content desc of
+          Atom _ ->
+              return False
 
-            Var _ _ _ ->
-                return False
+          Var _ _ _ ->
+              return False
 
-            Error ->
-                return False
+          Error _ ->
+              return False
 
-            Alias _ args _ ->
-                -- TODO is it okay to only check args?
-                or <$> traverse (occursHelp (var:seen) . snd) args
+          Alias _ args _ ->
+              -- TODO is it okay to only check args?
+              or <$> traverse (occursHelp (var:seen) . snd) args
 
-            Structure term ->
-                let
-                  go = occursHelp (var:seen)
-                in
-                case term of
-                  App1 a b ->
-                      (||) <$> go a <*> go b
+          Structure term ->
+              let
+                go = occursHelp (var:seen)
+              in
+              case term of
+                App1 a b ->
+                    (||) <$> go a <*> go b
 
-                  Fun1 a b ->
-                      (||) <$> go a <*> go b
+                Fun1 a b ->
+                    (||) <$> go a <*> go b
 
-                  EmptyRecord1 ->
-                      return False
+                EmptyRecord1 ->
+                    return False
 
-                  Record1 fields ext ->
-                      or <$> traverse go (ext : Map.elems fields)
+                Record1 fields ext ->
+                    or <$> traverse go (ext : Map.elems fields)

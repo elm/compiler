@@ -272,8 +272,11 @@ occurs (name, A.A region variable) =
   do  hasOccurred <- liftIO $ Occurs.occurs variable
       case hasOccurred of
         False ->
-            return ()
+          return ()
 
         True ->
-            do  overallType <- liftIO (Type.toSrcType variable)
-                TS.addError region (Error.InfiniteType name overallType)
+          do  overallType <- liftIO $ Type.toSrcType variable
+              infiniteDescriptor <- liftIO $ UF.descriptor variable
+              liftIO $ UF.setDescriptor variable (infiniteDescriptor { _content = Error "∞" })
+              TS.addError region (Error.InfiniteType (Right name) overallType)
+
