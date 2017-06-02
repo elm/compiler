@@ -7,13 +7,13 @@ import Control.Monad.Except (ExceptT, lift, liftIO, throwError, runExceptT)
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import Data.Text (Text)
-import qualified Data.UnionFind.IO as UF
 
 import qualified AST.Variable as Var
 import qualified Reporting.Region as R
 import qualified Reporting.Error.Type as Error
 import qualified Type.State as TS
 import Type.Type as Type
+import qualified Type.UnionFind as UF
 
 
 
@@ -33,7 +33,7 @@ unify hint region expected actual =
               mkError =
                 do  expectedSrcType <- Type.toSrcType expected
                     actualSrcType <- Type.toSrcType actual
-                    mergeHelp expected actual Error
+                    mergeHelp expected actual Error noRank
                     let info = Error.MismatchInfo hint expectedSrcType actualSrcType maybeReason
                     return (Error.Mismatch info)
             in
@@ -147,20 +147,19 @@ errorSuper super =
 
 
 merge :: Context -> Content -> Unify ()
-merge (Context _ first _ second _) content =
-  liftIO $ mergeHelp first second content
+merge (Context _ var1 (Descriptor _ rank1 _ _) var2 (Descriptor _ rank2 _ _)) content =
+  liftIO $ mergeHelp var1 var2 content (min rank1 rank2)
 
 
-mergeHelp :: Variable -> Variable -> Content -> IO ()
-mergeHelp first second content =
-  UF.union' first second $ \desc1 desc2 ->
-      return $
-        Descriptor
-          { _content = content
-          , _rank = min (_rank desc1) (_rank desc2)
-          , _mark = noMark
-          , _copy = Nothing
-          }
+mergeHelp :: Variable -> Variable -> Content -> Int -> IO ()
+mergeHelp var1 second newContent newRank =
+  UF.union var1 second $
+    Descriptor
+      { _content = newContent
+      , _rank = newRank
+      , _mark = noMark
+      , _copy = Nothing
+      }
 
 
 fresh :: Context -> Content -> Unify Variable
@@ -383,7 +382,7 @@ atomMatchesSuper super name =
         Var.isPrim "String" name
 
 
-unifyFlexSuperStructure :: Context -> Super -> Term1 Variable -> Unify ()
+unifyFlexSuperStructure :: Context -> Super -> FlatType -> Unify ()
 unifyFlexSuperStructure context super term =
   do  appStructure <- liftIO (collectApps (Structure term))
       case appStructure of
@@ -571,7 +570,7 @@ unifyAlias context name args realVar otherContent =
 -- UNIFY STRUCTURES
 
 
-unifyStructure :: Context -> Term1 Variable -> Content -> Content -> Unify ()
+unifyStructure :: Context -> FlatType -> Content -> Content -> Unify ()
 unifyStructure context term content otherContent =
   case otherContent of
     Error ->
