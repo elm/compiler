@@ -143,6 +143,7 @@ Library
         Type.State,
         Type.Type,
         Type.Unify,
+        Type.UnionFind,
         Validate,
         Paths_elm_compiler
 
@@ -165,7 +166,6 @@ Library
         scientific,
         semigroups,
         text >= 1 && < 2,
-        union-find >= 0.2 && < 0.3,
         unordered-containers,
         vector
 
