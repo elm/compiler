@@ -11,8 +11,8 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Type.Environment as Env
 import Type.Type
-  ( Variable, Type, TypeConstraint, Constraint(..), Scheme(Scheme)
-  , TermN(VarN), (==>), (<|), mkVar
+  ( Variable, Type(VarN), Constraint(..), Scheme(Scheme)
+  , (==>), (<|), mkVar
   )
 
 
@@ -20,7 +20,7 @@ import Type.Type
 -- CONSTRAIN EFFECTS
 
 
-constrain :: Env.Env -> ModuleName.Canonical -> Effects.Canonical -> IO TypeConstraint
+constrain :: Env.Env -> ModuleName.Canonical -> Effects.Canonical -> IO Constraint
 constrain env moduleName effects =
   case effects of
     Effects.None ->
@@ -33,7 +33,7 @@ constrain env moduleName effects =
       constrainHelp env moduleName info
 
 
-constrainHelp :: Env.Env -> ModuleName.Canonical -> Effects.Info -> IO TypeConstraint
+constrainHelp :: Env.Env -> ModuleName.Canonical -> Effects.Info -> IO Constraint
 constrainHelp env moduleName (Effects.Info tagRegion r0 r1 r2 managerType) =
   let
     task t =

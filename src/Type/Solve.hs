@@ -7,7 +7,6 @@ import Control.Monad.Except (ExceptT, liftIO, throwError)
 import qualified Data.Foldable as F
 import qualified Data.Map as Map
 import qualified Data.Text as Text
-import qualified Data.UnionFind.IO as UF
 
 import qualified AST.Module.Name as ModuleName
 import qualified Reporting.Annotation as A
@@ -15,6 +14,7 @@ import qualified Reporting.Error.Type as Error
 import qualified Type.State as TS
 import Type.Type as Type
 import Type.Unify
+import qualified Type.UnionFind as UF
 
 
 
@@ -150,7 +150,7 @@ adjustRankContent youngMark visitedMark groupRank content =
 -- SOLVER
 
 
-solve :: TypeConstraint -> ExceptT [A.Located Error.Error] IO TS.State
+solve :: Constraint -> ExceptT [A.Located Error.Error] IO TS.State
 solve constraint =
   {-# SCC elm_compiler_type_solve #-}
   do  state <- liftIO (TS.run (actuallySolve constraint))
@@ -161,7 +161,7 @@ solve constraint =
             throwError errors
 
 
-actuallySolve :: TypeConstraint -> TS.Solver ()
+actuallySolve :: Constraint -> TS.Solver ()
 actuallySolve constraint =
   case constraint of
     CTrue ->
@@ -210,7 +210,7 @@ actuallySolve constraint =
             unify (Error.Instance name) region freshCopy t
 
 
-solveScheme :: TypeScheme -> TS.Solver TS.Env
+solveScheme :: Scheme -> TS.Solver TS.Env
 solveScheme scheme =
   let
     flatten (A.A region term) =

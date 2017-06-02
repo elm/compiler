@@ -255,9 +255,9 @@ instantiatorHelp flex env aliasVars sourceType =
               text <-
                   case ext of
                     Nothing ->
-                        return $ TermN EmptyRecord1
+                        return EmptyRecordN
 
                     Just extType ->
                         go extType
 
-              return $ TermN (Record1 tfields text)
+              return $ RecordN tfields text

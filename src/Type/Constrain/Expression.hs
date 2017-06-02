@@ -24,7 +24,7 @@ import Type.Type hiding (Descriptor(..))
 
 
 
-constrain :: Env.Env -> C.Expr -> Type -> IO TypeConstraint
+constrain :: Env.Env -> C.Expr -> Type -> IO Constraint
 constrain env annotatedExpr@(A.A region expression) tipe =
   case expression of
     C.Literal lit ->
@@ -64,11 +64,11 @@ constrain env annotatedExpr@(A.A region expression) tipe =
               if Map.null decls then
                   baseRec
               else
-                  record (Map.map glToType decls) baseRec
+                  RecordN (Map.map glToType decls) baseRec
 
           attribute = makeRec Lit.attribute attr
           uniform = makeRec Lit.uniform unif
-          varying = makeRec Lit.varying (TermN EmptyRecord1)
+          varying = makeRec Lit.varying EmptyRecordN
         in
           return (CEqual Error.Shader region (shaderTipe attribute uniform varying) tipe)
 
@@ -117,7 +117,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
       exists $ \ext ->
         do  recordCon <- constrain env expr recordType
             let maybeBody = C.collectFields expr
-            let desiredType = record (Map.singleton field tipe) ext
+            let desiredType = RecordN (Map.singleton field tipe) ext
             let fieldCon = CEqual (Error.Access maybeBody field) region recordType desiredType
             return $ recordCon /\ fieldCon
 
@@ -125,11 +125,11 @@ constrain env annotatedExpr@(A.A region expression) tipe =
       exists $ \t ->
         do  oldVars <- mapM (\_ -> mkVar Nothing) fields
             let oldFields = Map.fromList (zip (map fst fields) (map VarN oldVars))
-            cOld <- ex oldVars <$> constrain env expr (record oldFields t)
+            cOld <- ex oldVars <$> constrain env expr (RecordN oldFields t)
 
             newVars <- mapM (\_ -> mkVar Nothing) fields
             let newFields = Map.fromList (zip (map fst fields) (map VarN newVars))
-            let cNew = CEqual Error.Record region (record newFields t) tipe
+            let cNew = CEqual Error.Record region (RecordN newFields t) tipe
 
             cs <- Monad.zipWithM (constrain env) (map snd fields) (map VarN newVars)
 
@@ -143,7 +143,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
                   (map snd fields)
                   (map VarN vars)
           let fields' = Map.fromList (zip (map fst fields) (map VarN vars))
-          let recordType = record fields' (TermN EmptyRecord1)
+          let recordType = RecordN fields' EmptyRecordN
           return (ex vars (CAnd (fieldCons ++ [CEqual Error.Record region recordType tipe])))
 
     C.Let defs body ->
@@ -171,7 +171,7 @@ constrainApp
     -> C.Expr
     -> [C.Expr]
     -> Type
-    -> IO TypeConstraint
+    -> IO Constraint
 constrainApp env region f args tipe =
   do  funcVar <- mkVar Nothing
       funcCon <- constrain env f (VarN funcVar)
@@ -202,7 +202,7 @@ argConstraints
     -> Variable
     -> Int
     -> [C.Expr]
-    -> IO ([Variable], [TypeConstraint], [TypeConstraint], [TypeConstraint], Maybe R.Region, Variable)
+    -> IO ([Variable], [Constraint], [Constraint], [Constraint], Maybe R.Region, Variable)
 argConstraints env name region totalArgs overallVar index args =
   case args of
     [] ->
@@ -255,7 +255,7 @@ constrainBinop
     -> C.Expr
     -> C.Expr
     -> Type
-    -> IO TypeConstraint
+    -> IO Constraint
 constrainBinop env region op leftExpr@(A.A leftRegion _) rightExpr@(A.A rightRegion _) tipe =
   do  leftVar <- mkVar Nothing
       rightVar <- mkVar Nothing
@@ -284,7 +284,7 @@ constrainBinop env region op leftExpr@(A.A leftRegion _) rightExpr@(A.A rightReg
 -- CONSTRAIN LISTS
 
 
-constrainList :: Env.Env -> R.Region -> [C.Expr] -> Type -> IO TypeConstraint
+constrainList :: Env.Env -> R.Region -> [C.Expr] -> Type -> IO Constraint
 constrainList env region exprs tipe =
   do  (exprInfo, exprCons) <-
           unzip <$> mapM elementConstraint exprs
@@ -312,7 +312,7 @@ constrainIf
     -> [(C.Expr, C.Expr)]
     -> C.Expr
     -> Type
-    -> IO TypeConstraint
+    -> IO Constraint
 constrainIf env region branches finally tipe =
   do  let (conditions, branchExprs) =
             second (++ [finally]) (unzip branches)
@@ -371,7 +371,7 @@ constrainCase
     -> C.Expr
     -> [(P.Canonical, C.Expr)]
     -> Type
-    -> IO TypeConstraint
+    -> IO Constraint
 constrainCase env region expr branches tipe =
   do  exprVar <- mkVar Nothing
       exprCon <- constrain env expr (VarN exprVar)
@@ -411,9 +411,9 @@ data Pair = Pair
 pairCons
     :: R.Region
     -> (Int -> R.Region -> Error.Hint)
-    -> (Variable -> TypeConstraint)
+    -> (Variable -> Constraint)
     -> [(Variable, R.Region)]
-    -> IO ([Variable], [TypeConstraint])
+    -> IO ([Variable], [Constraint])
 pairCons region pairHint varToCon items =
   let
     pairToCon (Pair index var1 var2 subregion) =
@@ -488,12 +488,12 @@ expandPattern def@(C.Def facts lpattern expr maybeType) =
 
 data Info =
   Info
-    { iSchemes :: [TypeScheme]
+    { iSchemes :: [Scheme]
     , iRigid :: [Variable]
     , iFlex :: [Variable]
     , iHeaders :: Map.Map Text (A.Located Type)
-    , iC2 :: TypeConstraint
-    , iC1 :: TypeConstraint
+    , iC2 :: Constraint
+    , iC1 :: Constraint
     }
 
 
@@ -566,7 +566,7 @@ data ArgInfo =
     }
 
 
-constrainAnnDefHelp :: C.Expr -> ST.Canonical -> ArgInfo -> IO TypeConstraint
+constrainAnnDefHelp :: C.Expr -> ST.Canonical -> ArgInfo -> IO Constraint
 constrainAnnDefHelp expr tipe (ArgInfo name defRegion env args vars) =
   case (expr, tipe) of
     (A.A _ (C.Lambda arg result), ST.Lambda argType resultType) ->

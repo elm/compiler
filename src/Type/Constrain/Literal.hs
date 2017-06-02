@@ -13,7 +13,7 @@ import qualified Type.Environment as Env
 -- CONSTRAIN LITERALS
 
 
-constrain :: Env.Env -> R.Region -> L.Literal -> T.Type -> IO T.TypeConstraint
+constrain :: Env.Env -> R.Region -> L.Literal -> T.Type -> IO T.Constraint
 constrain env region literal tipe =
   do  definiteType <- litType
       return (T.CEqual (Error.Literal name) region definiteType tipe)

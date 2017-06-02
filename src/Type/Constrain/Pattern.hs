@@ -24,7 +24,7 @@ data Info =
   Info
     { _headers :: Map.Map Text (A.Located Type)
     , _vars :: [Variable]
-    , _cons :: TypeConstraint
+    , _cons :: Constraint
     }
 
 
@@ -47,7 +47,7 @@ joinInfos infos =
     List.foldl' (flip joinInfo) emptyInfo infos
 
 
-infoToScheme :: Info -> Scheme Type Variable
+infoToScheme :: Info -> Scheme
 infoToScheme (Info headers vars cons) =
     Scheme [] vars cons headers
 
@@ -116,7 +116,7 @@ constrain env (A.A region pattern) tipe =
                   Map.map A.drop tenv
 
             con <- exists $ \t ->
-              return (equal Error.PRecord tipe (record unannotatedTenv t))
+              return (equal Error.PRecord tipe (RecordN unannotatedTenv t))
 
             return $ Info
                 { _headers = tenv

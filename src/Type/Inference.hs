@@ -44,7 +44,7 @@ infer interfaces modul =
 genConstraints
     :: Module.Interfaces
     -> Module.Canonical
-    -> IO (Map.Map Text T.Type, T.TypeConstraint)
+    -> IO (Map.Map Text T.Type, T.Constraint)
 genConstraints interfaces modul =
   do  env <-
         Env.initialize (canonicalizeUnions interfaces modul)
