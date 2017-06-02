@@ -119,7 +119,7 @@ adjustRankContent youngMark visitedMark groupRank content =
     go = adjustRank youngMark visitedMark groupRank
   in
     case content of
-      Error ->
+      Error _ ->
           return groupRank
 
       Atom _ ->

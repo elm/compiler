@@ -34,7 +34,7 @@ unify hint region expected actual =
               mkError =
                 do  expectedSrcType <- Type.toSrcType expected
                     actualSrcType <- Type.toSrcType actual
-                    mergeHelp expected actual Error noRank
+                    mergeHelp expected actual (Error "?") noRank
                     let info = Error.MismatchInfo hint expectedSrcType actualSrcType maybeReason
                     return (Error.Mismatch info)
             in
@@ -204,7 +204,7 @@ actuallyUnify context@(Context _ _ firstDesc _ secondDesc) =
     secondContent = _content secondDesc
   in
   case firstContent of
-    Error ->
+    Error _ ->
         -- If there was an error, just pretend it is okay. This lets us avoid
         -- "cascading" errors where one problem manifests as multiple message.
         return ()
@@ -235,7 +235,7 @@ actuallyUnify context@(Context _ _ firstDesc _ secondDesc) =
 unifyFlex :: Context -> Content -> Unify ()
 unifyFlex context otherContent =
   case otherContent of
-    Error ->
+    Error _ ->
         return ()
 
     Var Flex _ _ ->
@@ -261,7 +261,7 @@ unifyFlex context otherContent =
 unifyRigid :: Context -> Maybe Super -> Maybe Text -> Content -> Content -> Unify ()
 unifyRigid context maybeSuper maybeName content otherContent =
   case otherContent of
-    Error ->
+    Error _ ->
         return ()
 
     Var Flex otherMaybeSuper _ ->
@@ -352,7 +352,7 @@ unifyFlexSuper context super content otherContent =
     Alias _ _ realVar ->
         subUnify context (_first context) realVar
 
-    Error ->
+    Error _ ->
         return ()
 
 
@@ -516,7 +516,7 @@ getContent variable =
 unifyAtom :: Context -> Var.Canonical -> Content -> Unify ()
 unifyAtom context name otherContent =
   case otherContent of
-    Error ->
+    Error _ ->
         return ()
 
     Var Flex Nothing _ ->
@@ -562,7 +562,7 @@ isIntFloat name otherName =
 unifyAlias :: Context -> Var.Canonical -> [(Text, Variable)] -> Variable -> Content -> Unify ()
 unifyAlias context name args realVar otherContent =
   case otherContent of
-    Error ->
+    Error _ ->
         return ()
 
     Var Flex Nothing _ ->
@@ -593,7 +593,7 @@ unifyAlias context name args realVar otherContent =
 unifyStructure :: Context -> FlatType -> Content -> Content -> Unify ()
 unifyStructure context term content otherContent =
   case otherContent of
-    Error ->
+    Error _ ->
         return ()
 
     Var Flex Nothing _ ->

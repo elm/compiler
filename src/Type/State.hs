@@ -339,7 +339,7 @@ makeCopyHelp (Descriptor content rank mark copy) alreadyCopiedMark variable =
                     <*> makeCopy alreadyCopiedMark realType
                 )
 
-            Error ->
+            Error _ ->
                 return ()
 
           return newVar
@@ -360,7 +360,7 @@ needsCopy content =
     Alias _ _ _ ->
         True
 
-    Error ->
+    Error _ ->
         False
 
 
@@ -408,7 +408,7 @@ restoreContent alreadyCopiedMark content =
           <$> mapM (traverse go) args
           <*> go var
 
-    Error ->
+    Error _ ->
         return content
 
 
