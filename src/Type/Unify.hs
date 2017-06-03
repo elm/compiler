@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Type.Unify (unify) where
 
-import Control.Monad (zipWithM_)
+import Control.Monad (liftM2, when, zipWithM_)
 import Control.Monad.Except (ExceptT, lift, liftIO, throwError, runExceptT)
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
@@ -91,7 +91,10 @@ data Problem
 
 mismatch :: Context -> Maybe Error.Reason -> Unify a
 mismatch context@(Context orientation var1 _ var2 _) maybeReason =
-  do  args1 <- liftIO $ collectArgs var1
+  do  anyInfinite <- liftIO $ liftM2 (||) (Occurs.occurs var1) (Occurs.occurs var2)
+      when anyInfinite $ throwError Infinite
+
+      args1 <- liftIO $ collectArgs var1
       args2 <- liftIO $ collectArgs var2
 
       let numArgs1 = length args1
@@ -99,27 +102,26 @@ mismatch context@(Context orientation var1 _ var2 _) maybeReason =
 
       if numArgs1 == numArgs2
         then
-          mismatchHelp orientation maybeReason
+          throwError $ reasonToProblem orientation maybeReason
         else
-          do  zipWithM_ (\arg1 arg2 -> lift $ runExceptT $ subUnify context arg1 arg2) args1 args2
-              mismatchHelp orientation $ Just $ Error.MissingArgs $ abs (numArgs2 - numArgs1)
+          do  lift $ zipWithM_ (\a1 a2 -> runExceptT $ subUnify context a1 a2) args1 args2
+              throwError $ reasonToProblem orientation $ Just $
+                Error.MissingArgs $ abs (numArgs2 - numArgs1)
 
 
-mismatchHelp :: Orientation -> Maybe Error.Reason -> Unify a
-mismatchHelp orientation maybeReason =
-  throwError $
-    case maybeReason of
-      Nothing ->
-        Typical
+reasonToProblem :: Orientation -> Maybe Error.Reason -> Problem
+reasonToProblem orientation maybeReason =
+  case maybeReason of
+    Nothing ->
+      Typical
 
-      Just reason ->
-        Special $
-          case orientation of
-            ExpectedActual ->
-              reason
+    Just reason ->
+      case orientation of
+        ExpectedActual ->
+          Special reason
 
-            ActualExpected ->
-              Error.flipReason reason
+        ActualExpected ->
+          Special (Error.flipReason reason)
 
 
 badRigid :: Maybe Text -> Error.Reason
