@@ -3,6 +3,8 @@
 module Json.Encode
   ( write
   , encode
+  , writeUgly
+  , encodeUgly
   , Value
   , array
   , object
@@ -104,6 +106,52 @@ write :: FilePath -> Value -> IO ()
 write path value =
   withBinaryFile path WriteMode $ \handle ->
     B.hPutBuilder handle (encode value)
+
+
+writeUgly :: FilePath -> Value -> IO ()
+writeUgly path value =
+  withBinaryFile path WriteMode $ \handle ->
+    B.hPutBuilder handle (encodeUgly value)
+
+
+
+-- ENCODE UGLY
+
+
+encodeUgly :: Value -> B.Builder
+encodeUgly value =
+  case value of
+    Array [] ->
+      B.string7 "[]"
+
+    Array (first : rest) ->
+      let
+        encodeEntry entry =
+          B.char7 ',' <> encodeUgly entry
+      in
+        B.char7 '[' <> encodeUgly first <> mconcat (map encodeEntry rest) <> B.char7 ']'
+
+    Object [] ->
+      B.string7 "{}"
+
+    Object (first : rest) ->
+      let
+        encodeEntry char (key, entry) =
+          B.char7 char <> encodeString key <> B.char7 ':' <> encodeUgly entry
+      in
+        encodeEntry '[' first <> mconcat (map (encodeEntry ',') rest) <> B.char7 ']'
+
+    String builder ->
+      builder
+
+    Boolean boolean ->
+      B.string7 (if boolean then "true" else "false")
+
+    Integer n ->
+      B.intDec n
+
+    Null ->
+      "null"
 
 
 
