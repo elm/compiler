@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Json.Decode
   ( Decoder, Error(..), decode, parse
-  , text, bool, int, float
+  , string, text, bool, int, float
   , list, dict, maybe
   , field, at
   , index
@@ -63,6 +63,11 @@ parse decoder bytestring =
 
 
 -- PRIMITIVES
+
+
+string :: Decoder String
+string =
+  Text.unpack <$> text
 
 
 text :: Decoder Text
