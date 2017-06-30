@@ -728,7 +728,7 @@ docComment =
 
           Right (newOffset, newLength, newRow, newCol) ->
             cok
-              (copyText array offset (newOffset - offset))
+              (copyText array offset (newOffset - offset - 2))
               (State array newOffset newLength indent newRow newCol ctx)
               noError
 
