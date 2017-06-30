@@ -56,11 +56,8 @@ version =
 
 {-| Compiles Elm source code to JavaScript. -}
 compile :: Context -> Text -> (Localizer, [Warning], Either [Error] Result)
-compile context source =
+compile (Context packageName exposed importDict interfaces) source =
   let
-    (Context packageName exposed importDict interfaces) =
-      context
-
     (Result.Result oneLocalizer warnings answer) =
       do  modul <- Compile.compile packageName importDict interfaces source
           docs <- Result.format id (docsGen exposed modul)
