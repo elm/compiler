@@ -87,11 +87,11 @@ checkMain typeEnv (Can.Def facts pattern@(A.A region _) body maybeType) =
 
     getMainKind =
       case Type.deepDealias mainType of
-        Type.App name [_]
+        Type.Type name [_]
           | name == vdomNode ->
               return Can.VDom
 
-        Type.App name [flags, _, _]
+        Type.Type name [flags, _, _]
           | name == program && flags == never ->
               return Can.NoFlags
 
@@ -107,21 +107,21 @@ checkMain typeEnv (Can.Def facts pattern@(A.A region _) body maybeType) =
         return (Can.Def facts pattern newBody maybeType)
 
 
-program :: Type.Canonical
+program :: Var.Canonical
 program =
-  Type.Type (Var.inCore "Platform" "Program")
+  Var.inCore "Platform" "Program"
 
 
 never :: Type.Canonical
 never =
-  Type.Type (Var.inCore "Basics" "Never")
+  Type.Type (Var.inCore "Basics" "Never") []
 
 
-vdomNode :: Type.Canonical
+vdomNode :: Var.Canonical
 vdomNode =
   let
     vdom =
       ModuleName.Canonical Pkg.virtualDom "VirtualDom"
   in
-    Type.Type (Var.fromModule vdom "Node")
+    Var.fromModule vdom "Node"
 

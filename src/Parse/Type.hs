@@ -21,7 +21,7 @@ term =
   hint E.Type $
     do  start <- getPosition
         oneOf
-          [ constructor
+          [ app0
           , variable start
           , tuple start
           , record start
@@ -67,28 +67,23 @@ expression =
 -- TYPE CONSTRUCTORS
 
 
-constructor :: Parser Type.Raw
-constructor =
-  addLocation $
-    fmap (Type.RType . Var.Raw) qualifiedCapVar
+app0 :: Parser Type.Raw
+app0 =
+  do  start <- getPosition
+      name <- qualifiedCapVar
+      end <- getPosition
+      return (A.at start end (Type.RType (A.at start end (Var.Raw name)) []))
 
 
 app :: R.Position -> SParser Type.Raw
 app start =
-  do  ctor <- constructor
+  do  ctor <- qualifiedCapVar
       ctorEnd <- getPosition
+      let name = A.at start ctorEnd (Var.Raw ctor)
       ctorPos <- whitespace
       (args, end, pos) <- eatArgs [] ctorEnd ctorPos
-      case args of
-        [] ->
-          return ( ctor, end, pos )
-
-        _ ->
-          let
-            tipe =
-              A.at start end (Type.RApp ctor args)
-          in
-            return ( tipe, end, pos )
+      let tipe = A.at start end (Type.RType name args)
+      return ( tipe, end, pos )
 
 
 unionConstructor :: SParser (Text, [Type.Raw])

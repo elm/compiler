@@ -234,9 +234,6 @@ actuallyUnify context@(Context _ _ firstDesc _ secondDesc) =
     Var Rigid maybeSuper maybeName ->
         unifyRigid context maybeSuper maybeName firstContent secondContent
 
-    Atom name ->
-        unifyAtom context name secondContent
-
     Alias name args realVar ->
         unifyAlias context name args realVar secondContent
 
@@ -258,9 +255,6 @@ unifyFlex context otherContent =
         merge context otherContent
 
     Var Rigid _ _ ->
-        merge context otherContent
-
-    Atom _ ->
         merge context otherContent
 
     Alias _ _ _ ->
@@ -298,9 +292,6 @@ unifyRigid context maybeSuper maybeName content otherContent =
         mismatch context $ Just $
           doubleBad (Error.Rigid maybeName) (Error.Rigid otherMaybeName)
 
-    Atom _ ->
-        mismatch context (Just (badRigid maybeName))
-
     Alias _ _ _ ->
         mismatch context (Just (badRigid maybeName))
 
@@ -317,12 +308,6 @@ unifyFlexSuper context super content otherContent =
   case otherContent of
     Structure term ->
         unifyFlexSuperStructure context super term
-
-    Atom name ->
-        if atomMatchesSuper super name then
-            merge context otherContent
-        else
-            mismatch context (Just (badSuper super))
 
     Var Rigid Nothing maybeName ->
         mismatch context (Just (doubleBad (errorSuper super) (Error.Rigid maybeName)))
@@ -379,71 +364,71 @@ combineRigidSupers rigid flex =
   || (rigid == CompAppend && (flex == Comparable || flex == Appendable))
 
 
-isPrimitiveFrom :: [Text] -> Var.Canonical -> Bool
-isPrimitiveFrom prims var =
-  any (\p -> Var.isPrim p var) prims
-
-
 atomMatchesSuper :: Super -> Var.Canonical -> Bool
 atomMatchesSuper super name =
   case super of
     Number ->
-        isPrimitiveFrom ["Int", "Float"] name
+        elem name [ Var.int, Var.float ]
 
     Comparable ->
-        isPrimitiveFrom ["Int", "Float", "Char", "String"] name
+        elem name [ Var.string, Var.int, Var.float, Var.char]
 
     Appendable ->
-        Var.isPrim "String" name
+        name == Var.string
 
     CompAppend ->
-        Var.isPrim "String" name
+        name == Var.string
 
 
 unifyFlexSuperStructure :: Context -> Super -> FlatType -> Unify ()
 unifyFlexSuperStructure context super term =
-  do  appStructure <- liftIO (collectApps term)
-      case appStructure of
-        Other ->
+  do  case term of
+        App1 name [] ->
+          if atomMatchesSuper super name then
+            merge context (Structure term)
+          else
             mismatch context (Just (badSuper super))
 
-        List variable ->
-            case super of
-              Number ->
-                  mismatch context (Just (badSuper super))
+        App1 name [variable] | name == Var.list ->
+          case super of
+            Number ->
+                mismatch context (Just (badSuper super))
 
-              Appendable ->
-                  merge context (Structure term)
+            Appendable ->
+                merge context (Structure term)
 
-              Comparable ->
-                  do  comparableOccursCheck context
-                      merge context (Structure term)
-                      unifyComparableRecursive (_orientation context) variable
+            Comparable ->
+                do  comparableOccursCheck context
+                    merge context (Structure term)
+                    unifyComparableRecursive (_orientation context) variable
 
-              CompAppend ->
-                  do  comparableOccursCheck context
-                      merge context (Structure term)
-                      unifyComparableRecursive (_orientation context) variable
+            CompAppend ->
+                do  comparableOccursCheck context
+                    merge context (Structure term)
+                    unifyComparableRecursive (_orientation context) variable
 
-        Tuple entries ->
-            case super of
-              Number ->
-                  mismatch context (Just (badSuper super))
+        App1 name args | Var.isTuple name ->
+          case super of
+            Number ->
+                mismatch context (Just (badSuper super))
 
-              Appendable ->
-                  mismatch context (Just (badSuper super))
+            Appendable ->
+                mismatch context (Just (badSuper super))
 
-              Comparable ->
-                  if length entries > 6 then
-                      mismatch context (Just (Error.TooLongComparableTuple (length entries)))
+            Comparable ->
+                if length args > 6 then
+                    mismatch context (Just (Error.TooLongComparableTuple (length args)))
 
-                  else
-                      do  comparableOccursCheck context
-                          merge context (Structure term)
-                          mapM_ (unifyComparableRecursive (_orientation context)) entries
+                else
+                    do  comparableOccursCheck context
+                        merge context (Structure term)
+                        mapM_ (unifyComparableRecursive (_orientation context)) args
 
-              CompAppend ->
-                  mismatch context (Just (badSuper super))
+            CompAppend ->
+                mismatch context (Just (badSuper super))
+
+        _ ->
+          mismatch context (Just (badSuper super))
 
 
 -- TODO: is there some way to avoid doing this?
@@ -472,38 +457,6 @@ unifyComparableRecursive orientation var =
       guardedUnify orientation compVar var
 
 
-data AppStructure
-    = List Variable
-    | Tuple [Variable]
-    | Other
-
-
-collectApps :: FlatType -> IO AppStructure
-collectApps term =
-  case term of
-    App1 func arg ->
-      collectAppsHelp [arg] =<< getContent func
-
-    _ ->
-      return Other
-
-
-collectAppsHelp :: [Variable] -> Content -> IO AppStructure
-collectAppsHelp args content =
-  case (content, args) of
-    (Structure (App1 func arg), _) ->
-        collectAppsHelp (arg : args) =<< getContent func
-
-    (Atom name, [arg]) | Var.isList name ->
-        return (List arg)
-
-    (Atom name, _) | Var.isTuple name ->
-        return (Tuple (reverse args))
-
-    _ ->
-        return Other
-
-
 collectArgs :: Variable -> IO [Variable]
 collectArgs variable =
   collectArgsHelp [] variable
@@ -526,52 +479,6 @@ getContent variable =
 
 
 
--- UNIFY ATOMS
-
-
-unifyAtom :: Context -> Var.Canonical -> Content -> Unify ()
-unifyAtom context name otherContent =
-  case otherContent of
-    Error _ ->
-        return ()
-
-    Var Flex Nothing _ ->
-        merge context (Atom name)
-
-    Var Flex (Just super) _ ->
-        if atomMatchesSuper super name then
-            merge context (Atom name)
-
-        else
-            mismatch context (Just ((Error.flipReason (badSuper super))))
-
-    Var Rigid _ maybeName ->
-        mismatch context (Just (Error.flipReason (badRigid maybeName)))
-
-    Atom otherName ->
-        if name == otherName then
-            merge context otherContent
-
-        else
-            mismatch context $
-              if isIntFloat name otherName || isIntFloat otherName name then
-                  Just Error.IntFloat
-              else
-                  Nothing
-
-    Alias _ _ realVar ->
-        subUnify context (_first context) realVar
-
-    Structure _ ->
-        mismatch context Nothing
-
-
-isIntFloat :: Var.Canonical -> Var.Canonical -> Bool
-isIntFloat name otherName =
-  Var.isPrim "Int" name && Var.isPrim "Float" otherName
-
-
-
 -- UNIFY ALIASES
 
 
@@ -585,9 +492,6 @@ unifyAlias context name args realVar otherContent =
         merge context (Alias name args realVar)
 
     Var _ _ _ ->
-        subUnify context realVar (_second context)
-
-    Atom _ ->
         subUnify context realVar (_second context)
 
     Alias otherName otherArgs otherRealVar ->
@@ -621,18 +525,21 @@ unifyStructure context term content otherContent =
     Var Rigid _ maybeName ->
         mismatch context (Just (Error.flipReason (badRigid maybeName)))
 
-    Atom _ ->
-        mismatch context Nothing
-
     Alias _ _ realVar ->
         subUnify context (_first context) realVar
 
     Structure otherTerm ->
         case (term, otherTerm) of
-          (App1 func arg, App1 otherFunc otherArg) ->
-              do  subUnify context func otherFunc
-                  subUnify context arg otherArg
-                  merge context otherContent
+          (App1 name args, App1 otherName otherArgs) ->
+              if name == otherName then
+                do  zipWithM_ (subUnify context) args otherArgs
+                    merge context otherContent
+
+              else if isIntFloat name otherName || isIntFloat otherName name then
+                mismatch context (Just Error.IntFloat)
+
+              else
+                mismatch context Nothing
 
           (Fun1 arg result, Fun1 otherArg otherResult) ->
               do  subUnify context arg otherArg
@@ -655,6 +562,11 @@ unifyStructure context term content otherContent =
 
           _ ->
               mismatch context Nothing
+
+
+isIntFloat :: Var.Canonical -> Var.Canonical -> Bool
+isIntFloat name otherName =
+  Var.isPrim "Int" name && Var.isPrim "Float" otherName
 
 
 

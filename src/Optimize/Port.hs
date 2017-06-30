@@ -38,7 +38,7 @@ toEncoder tipe =
     T.Var _ ->
       error "toEncoder: type variable"
 
-    T.Type name
+    T.Type name []
       | Var.isPrim "Float"  name -> encode "float"
       | Var.isPrim "Int"    name -> encode "int"
       | Var.isPrim "Bool"   name -> encode "bool"
@@ -47,16 +47,16 @@ toEncoder tipe =
       | Var.isTuple name         -> encode "null"
       | otherwise                -> error "toEncoder: bad type"
 
-    T.App (T.Type name) [arg]
+    T.Type name [arg]
       | Var.isMaybe name -> encodeMaybe arg
       | Var.isList  name -> encodeList arg
       | Var.isArray name -> encodeArray arg
       | otherwise        -> error "toEncoder: bad union type"
 
-    T.App (T.Type name) args
+    T.Type name args
       | Var.isTuple name -> encodeTuple args
 
-    T.App _ _ ->
+    T.Type _ _ ->
       error "toEncoder: bad union type"
 
     T.Record _ (Just _) ->
@@ -142,7 +142,7 @@ toDecoder tipe =
     T.Aliased _ args t ->
       toDecoder (T.dealias args t)
 
-    T.Type name
+    T.Type name []
       | Var.isPrim "Float"  name -> decode "float"
       | Var.isPrim "Int"    name -> decode "int"
       | Var.isPrim "Bool"   name -> decode "bool"
@@ -151,16 +151,16 @@ toDecoder tipe =
       | Var.isTuple name         -> decodeTuple0
       | otherwise                -> error "toDecoder: bad type"
 
-    T.App (T.Type name) [arg]
+    T.Type name [arg]
       | Var.isMaybe name -> decodeMaybe arg
       | Var.isList  name -> decodeList arg
       | Var.isArray name -> decodeArray arg
       | otherwise        -> error "toDecoder: bad union type"
 
-    T.App (T.Type name) args
+    T.Type name args
       | Var.isTuple name -> decodeTuple args
 
-    T.App _ _ ->
+    T.Type _ _ ->
       error "toDecoder: bad union type"
 
     T.Record _ (Just _) ->

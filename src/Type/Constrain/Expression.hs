@@ -28,7 +28,7 @@ constrain :: Env.Env -> C.Expr -> Type -> IO Constraint
 constrain env annotatedExpr@(A.A region expression) tipe =
   case expression of
     C.Literal lit ->
-      Literal.constrain env region lit tipe
+      Literal.constrain region lit tipe
 
     C.Cmd _ _ ->
       return CTrue
@@ -46,17 +46,17 @@ constrain env annotatedExpr@(A.A region expression) tipe =
       error "DANGER - Program AST nodes should not be in type inference."
 
     C.SaveEnv moduleName effects ->
-      Effects.constrain env moduleName effects
+      Effects.constrain moduleName effects
 
     C.GLShader _uid _src glType ->
       exists $ \attr ->
       exists $ \unif ->
         let
           shaderTipe a u v =
-            Env.getType env "WebGL.Shader" <| a <| u <| v
+            AppN V.shader [a, u, v]
 
           glToType gl =
-            Env.getType env (Lit.glTypeToText gl)
+            AppN (Lit.glTypeToVar gl) []
 
           makeRec accessor baseRec =
             let decls = accessor glType
@@ -299,7 +299,7 @@ constrainList env region exprs tipe =
           return ( (var, region'), con )
 
     varToCon var =
-      CEqual Error.List region (Env.getType env "List" <| VarN var) tipe
+      CEqual Error.List region (AppN V.list [VarN var]) tipe
 
 
 
@@ -328,7 +328,7 @@ constrainIf env region branches finally tipe =
       return $ ex (condVars ++ vars) (CAnd (condCons ++ branchExprCons ++ cons))
   where
     bool =
-      Env.getType env "Bool"
+      AppN V.bool []
 
     constrainCondition condition@(A.A condRegion _) =
       do  condVar <- mkVar Nothing

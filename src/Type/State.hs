@@ -22,7 +22,7 @@ module Type.State
   where
 
 
-import Control.Monad (liftM2)
+import Control.Monad (liftM, liftM2)
 import Control.Monad.Trans (MonadIO, liftIO)
 import qualified Data.Map as Map
 import Data.Map ((!))
@@ -219,10 +219,9 @@ flattenHelp aliasDict termN =
     VarN v ->
         return v
 
-    AppN a b ->
-        do  flatA <- flattenHelp aliasDict a
-            flatB <- flattenHelp aliasDict b
-            makeFlatType (Structure (App1 flatA flatB))
+    AppN name args ->
+        do  flatArgs <- traverse (flattenHelp aliasDict) args
+            makeFlatType (Structure (App1 name flatArgs))
 
     FunN a b ->
         do  flatA <- flattenHelp aliasDict a
@@ -323,9 +322,6 @@ makeCopyHelp (Descriptor content rank mark copy) alreadyCopiedMark variable =
                 do  newTerm <- traverseFlatType (makeCopy alreadyCopiedMark) term
                     setContent (Structure newTerm)
 
-            Atom _ ->
-                return ()
-
             Var Rigid maybeSuper maybeName ->
                 setContent (Var Flex maybeSuper maybeName)
 
@@ -350,9 +346,6 @@ needsCopy content =
   case content of
     Structure _ ->
         True
-
-    Atom _ ->
-        False
 
     Var _ _ _ ->
         True
@@ -397,9 +390,6 @@ restoreContent alreadyCopiedMark content =
     Structure term ->
         Structure <$> traverseFlatType go term
 
-    Atom _ ->
-        return content
-
     Var _ _ _ ->
         return content
 
@@ -419,8 +409,8 @@ restoreContent alreadyCopiedMark content =
 traverseFlatType :: (Variable -> Solver Variable) -> FlatType -> Solver FlatType
 traverseFlatType f flatType =
   case flatType of
-    App1 a b ->
-        liftM2 App1 (f a) (f b)
+    App1 name args ->
+        liftM (App1 name) (traverse f args)
 
     Fun1 a b ->
         liftM2 Fun1 (f a) (f b)

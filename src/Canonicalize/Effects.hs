@@ -8,6 +8,7 @@ module Canonicalize.Effects
   where
 
 import qualified Data.Foldable as F
+import qualified Data.Set as Set
 import Data.Text (Text)
 
 import qualified AST.Effects as Effects
@@ -69,12 +70,12 @@ canonicalizeRawPort env (A.A ann (Effects.PortRaw name rawType)) =
 figureOutKind :: R.Region -> Text -> T.Canonical -> Result Effects.Kind
 figureOutKind region name rootType =
   case T.deepDealias rootType of
-    T.Lambda outgoingType (T.App (T.Type effect) [T.Var _])
+    T.Lambda outgoingType (T.Type effect [T.Var _])
       | effect == Var.cmd ->
           pure (Effects.Outgoing outgoingType)
             <* checkPortType (makeError region name) outgoingType
 
-    T.Lambda (T.Lambda incomingType (T.Var msg1)) (T.App (T.Type effect) [T.Var msg2])
+    T.Lambda (T.Lambda incomingType (T.Var msg1)) (T.Type effect [T.Var msg2])
       | effect == Var.sub && msg1 == msg2 ->
           pure (Effects.Incoming incomingType)
             <* checkPortType (makeError region name) incomingType
@@ -109,26 +110,22 @@ checkPortType mkError tipe =
       T.Aliased _ args aliasedType ->
         check (T.dealias args aliasedType)
 
-      T.Type name ->
-        if Var.isJson name || Var.isPrimitive name || Var.isTuple name then
+      T.Type name [] ->
+        if Var.isJson name || isPrimitive name || Var.isTuple name then
           return ()
 
         else
           throw Nothing
 
-      T.App name [] ->
-          check name
-
-      T.App (T.Type name) [arg]
+      T.Type name [arg]
           | Var.isMaybe name -> check arg
           | Var.isArray name -> check arg
           | Var.isList  name -> check arg
 
-      T.App (T.Type name) args
-          | Var.isTuple name ->
-              F.traverse_ check args
-
-      T.App _ _ ->
+      T.Type name args ->
+        if Var.isTuple name then
+          F.traverse_ check args
+        else
           throw Nothing
 
       T.Var _ ->
@@ -142,3 +139,18 @@ checkPortType mkError tipe =
 
       T.Record fields Nothing ->
           F.traverse_ (\(k,v) -> (,) k <$> check v) fields
+
+
+isPrimitive :: Var.Canonical -> Bool
+isPrimitive var =
+  case var of
+    Var.Canonical Var.BuiltIn name ->
+      Set.member name primitiveSet
+
+    _ ->
+      False
+
+
+primitiveSet :: Set.Set Text
+primitiveSet =
+  Set.fromList ["Int","Float","String","Bool"]

@@ -3,7 +3,7 @@
 module AST.Literal
   ( Literal(..)
   , toBuilder
-  , GLType(..), glTypeToText, Shader(..)
+  , GLType(..), glTypeToVar, Shader(..)
   )
   where
 
@@ -15,6 +15,10 @@ import Data.Text (Text)
 import Data.Text.Lazy.Builder (Builder, fromText)
 import Data.Text.Lazy.Builder.Int (decimal)
 import Data.Text.Lazy.Builder.RealFloat (realFloat)
+
+import qualified AST.Module.Name as ModuleName
+import qualified AST.Variable as Var
+import qualified Elm.Package as Pkg
 
 
 
@@ -64,16 +68,21 @@ data GLType
   deriving (Eq)
 
 
-glTypeToText :: GLType -> Text
-glTypeToText glTipe =
+glTypeToVar :: GLType -> Var.Canonical
+glTypeToVar glTipe =
   case glTipe of
-    V2 -> "Math.Vector2.Vec2"
-    V3 -> "Math.Vector3.Vec3"
-    V4 -> "Math.Vector4.Vec4"
-    M4 -> "Math.Matrix4.Mat4"
-    Int -> "Int"
-    Float -> "Float"
-    Texture -> "WebGL.Texture"
+    V2 -> inLinearAlgebra "Math.Vector2" "Vec2"
+    V3 -> inLinearAlgebra "Math.Vector3" "Vec3"
+    V4 -> inLinearAlgebra "Math.Vector4" "Vec4"
+    M4 -> inLinearAlgebra "Math.Matrix4" "Mat4"
+    Int -> Var.int
+    Float -> Var.float
+    Texture -> Var.fromModule (ModuleName.Canonical Pkg.webgl "WebGL") "Texture"
+
+
+inLinearAlgebra :: ModuleName.Raw -> Text -> Var.Canonical
+inLinearAlgebra moduleName tipe =
+  Var.fromModule (ModuleName.Canonical Pkg.linearAlgebra moduleName) tipe
 
 
 

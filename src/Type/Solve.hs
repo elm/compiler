@@ -122,9 +122,6 @@ adjustRankContent youngMark visitedMark groupRank content =
       Error _ ->
           return groupRank
 
-      Atom _ ->
-          return groupRank
-
       Var _ _ _ ->
           return groupRank
 
@@ -133,8 +130,12 @@ adjustRankContent youngMark visitedMark groupRank content =
           do  realRank <- go realVar
               foldM (\rank (_, argVar) -> max rank <$> go argVar) realRank args
 
-      Structure (App1 func arg) ->
-          max <$> go func <*> go arg
+      Structure (App1 _ []) ->
+          return groupRank
+
+      Structure (App1 _ (first:rest)) ->
+        do  firstRank <- go first
+            foldM (\rank arg -> max rank <$> go arg) firstRank rest
 
       Structure (Fun1 arg result) ->
           max <$> go arg <*> go result

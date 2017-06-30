@@ -3,23 +3,23 @@
 module Type.Constrain.Literal where
 
 import qualified AST.Literal as L
+import qualified AST.Variable as Var
 import qualified Reporting.Error.Type as Error
 import qualified Reporting.Region as R
 import qualified Type.Type as T
-import qualified Type.Environment as Env
 
 
 
 -- CONSTRAIN LITERALS
 
 
-constrain :: Env.Env -> R.Region -> L.Literal -> T.Type -> IO T.Constraint
-constrain env region literal tipe =
+constrain :: R.Region -> L.Literal -> T.Type -> IO T.Constraint
+constrain region literal tipe =
   do  definiteType <- litType
       return (T.CEqual (Error.Literal name) region definiteType tipe)
   where
-    prim tipeName =
-        return (Env.getType env tipeName)
+    prim var =
+        return (T.AppN var [])
 
     (name, litType) =
         case literal of
@@ -30,20 +30,20 @@ constrain env region literal tipe =
 
           L.FloatNum _ ->
               ( "float"
-              , prim "Float"
+              , prim Var.float
               )
 
           L.Chr _ ->
               ( "character"
-              , prim "Char"
+              , prim Var.char
               )
 
           L.Str _ ->
               ( "string"
-              , prim "String"
+              , prim Var.string
               )
 
           L.Boolean _ ->
               ( "boolean"
-              , prim "Bool"
+              , prim Var.bool
               )

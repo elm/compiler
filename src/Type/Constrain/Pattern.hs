@@ -70,7 +70,7 @@ constrain env (A.A region pattern) tipe =
         return emptyInfo
 
       P.Literal lit ->
-        do  c <- Literal.constrain env region lit tipe
+        do  c <- Literal.constrain region lit tipe
             return $ emptyInfo { _cons = c }
 
       P.Var name ->

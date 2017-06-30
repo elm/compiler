@@ -50,12 +50,9 @@ extractHelp astType =
     T.Var x ->
       return (Var x)
 
-    T.Type var ->
+    T.Type var args ->
       do  Writer.tell ( Set.empty, Set.singleton var )
-          return (Type (Var.toText var))
-
-    T.App constructor args ->
-      App <$> extractHelp constructor <*> traverse extractHelp args
+          Type (Var.toText var) <$> traverse extractHelp args
 
     T.Record fields ext ->
       Record
@@ -65,7 +62,7 @@ extractHelp astType =
     T.Aliased name args aliasedType ->
       do  Writer.tell ( Set.singleton name, Set.empty )
           _ <- extractHelp (T.dealias args aliasedType)
-          App (Type (Var.toText name)) <$> traverse (extractHelp . snd) args
+          Type (Var.toText name) <$> traverse (extractHelp . snd) args
 
 
 
@@ -79,8 +76,8 @@ extractProgram interfaces name =
 
       message <-
         case T.deepDealias mainType of
-          T.App _program [_flags, _model, msg] -> Just msg
-          T.App _node [msg] -> Just msg
+          T.Type _program [_flags, _model, msg] -> Just msg
+          T.Type _node [msg] -> Just msg
           _ -> Nothing
 
       let (msgType, msgDeps) = Writer.runWriter (extractHelp message)

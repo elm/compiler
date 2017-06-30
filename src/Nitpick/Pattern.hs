@@ -49,10 +49,10 @@ fromCanonicalPattern (A.A _ pattern) =
         Anything
 
     P.Literal (L.Boolean True) ->
-        Ctor (Var.builtin "True") []
+        Ctor Var.true []
 
     P.Literal (L.Boolean False) ->
-        Ctor (Var.builtin "False") []
+        Ctor Var.false []
 
     P.Literal literal ->
         Literal literal

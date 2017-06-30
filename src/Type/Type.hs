@@ -28,7 +28,7 @@ type Variable =
 
 
 data FlatType
-    = App1 Variable Variable
+    = App1 Var.Canonical [Variable]
     | Fun1 Variable Variable
     | EmptyRecord1
     | Record1 (Map.Map Text Variable) Variable
@@ -38,7 +38,7 @@ data Type
     = PlaceHolder Text
     | AliasN Var.Canonical [(Text, Type)] Type
     | VarN Variable
-    | AppN Type Type
+    | AppN Var.Canonical [Type]
     | FunN Type Type
     | EmptyRecordN
     | RecordN (Map.Map Text Type) Type
@@ -59,7 +59,6 @@ data Descriptor =
 
 data Content
     = Structure FlatType
-    | Atom Var.Canonical
     | Var Flex (Maybe Super) (Maybe Text)
     | Alias Var.Canonical [(Text,Variable)] Variable
     | Error Text
@@ -142,12 +141,6 @@ infixr 9 ==>
   FunN
 
 
-{-# INLINE (<|) #-}
-(<|) :: Type -> Type -> Type
-(<|) =
-  AppN
-
-
 
 -- VARIABLE CREATION
 
@@ -160,11 +153,6 @@ mkDescriptor content =
     , _mark = noMark
     , _copy = Nothing
     }
-
-
-mkAtom :: Var.Canonical -> IO Variable
-mkAtom name =
-  UF.fresh $ mkDescriptor (Atom name)
 
 
 mkVar :: Maybe Super -> IO Variable
@@ -268,9 +256,6 @@ contentToSrcType variable content =
     Structure term ->
         termToSrcType term
 
-    Atom name ->
-        return (T.Type name)
-
     Var _ _ (Just name) ->
         return (T.Var name)
 
@@ -292,15 +277,8 @@ contentToSrcType variable content =
 termToSrcType :: FlatType -> StateT NameState IO T.Canonical
 termToSrcType term =
   case term of
-    App1 func arg ->
-      do  srcFunc <- variableToSrcType func
-          srcArg <- variableToSrcType arg
-          case srcFunc of
-            T.App f args ->
-              return (T.App f (args ++ [srcArg]))
-
-            _ ->
-              return (T.App srcFunc [srcArg])
+    App1 name args ->
+      T.Type name <$> traverse variableToSrcType args
 
     Fun1 a b ->
       T.Lambda
@@ -431,9 +409,6 @@ getVarNames var =
         False ->
           do  liftIO $ UF.setDescriptor var (desc { _mark = getVarNamesMark })
               case _content desc of
-                Atom _ ->
-                  return ()
-
                 Error _ ->
                   return ()
 
@@ -449,9 +424,8 @@ getVarNames var =
                   do  mapM_ (getVarNames . snd) args
                       getVarNames realVar
 
-                Structure (App1 func arg) ->
-                  do  getVarNames func
-                      getVarNames arg
+                Structure (App1 _ args) ->
+                  mapM_ getVarNames args
 
                 Structure (Fun1 arg body) ->
                   do  getVarNames arg

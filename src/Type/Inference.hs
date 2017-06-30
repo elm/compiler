@@ -46,8 +46,7 @@ genConstraints
     -> Module.Canonical
     -> IO (Map.Map Text T.Type, T.Constraint)
 genConstraints interfaces modul =
-  do  env <-
-        Env.initialize (canonicalizeUnions interfaces modul)
+  do  let env = Env.initialize (canonicalizeUnions interfaces modul)
 
       ctors <-
           forM (Env.ctorNames env) $ \name ->

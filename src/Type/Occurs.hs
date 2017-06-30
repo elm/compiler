@@ -25,9 +25,6 @@ occursHelp seen var =
   else
     do  desc <- UF.descriptor var
         case _content desc of
-          Atom _ ->
-              return False
-
           Var _ _ _ ->
               return False
 
@@ -43,8 +40,8 @@ occursHelp seen var =
                 go = occursHelp (var:seen)
               in
               case term of
-                App1 a b ->
-                    (||) <$> go a <*> go b
+                App1 _ args ->
+                    or <$> traverse go args
 
                 Fun1 a b ->
                     (||) <$> go a <*> go b

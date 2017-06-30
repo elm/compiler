@@ -35,8 +35,7 @@ import Json.Encode ((==>))
 data Type
     = Lambda Type Type
     | Var Text
-    | Type Text
-    | App Type [Type]
+    | Type Text [Type]
     | Record [(Text, Type)] (Maybe Type)
 
 
@@ -88,17 +87,14 @@ toDoc context tipe =
     Var name ->
         P.text (Text.unpack name)
 
-    Type name ->
-        P.text (Text.unpack (if name == Help.zeroTuple then "()" else name))
+    Type name [] ->
+        P.text (if name == Help.zeroTuple then "()" else Text.unpack name)
 
-    App (Type name) args ->
-        if name == Help.zeroTuple then
-          P.text "()"
-
-        else if Help.isTuple name then
+    Type name arguments@(arg:args) ->
+        if Help.isTuple name then
           P.sep
-            [ P.cat (zipWith (<+>) (P.lparen : repeat P.comma) (map (toDoc None) args))
-            , P.rparen
+            [ P.cat ("(" <+> toDoc None arg : map (\a -> "," <+> toDoc None a) args)
+            , ")"
             ]
 
         else
@@ -107,19 +103,14 @@ toDoc context tipe =
               P.hang
                   (P.text (Text.unpack name))
                   2
-                  (P.sep $ map (toDoc InType) args)
+                  (P.sep $ map (toDoc InType) arguments)
           in
-            case (context, args) of
-              (InType, _ : _) ->
+            case context of
+              InType ->
                 P.parens application
 
               _ ->
                 application
-
-    App _ _ ->
-        error $
-          "Somehow ended up with an unexpected type, please post a minimal example that\n"
-          ++ "reproduces this error to <https://github.com/elm-lang/elm-compiler/issues>"
 
     Record _ _ ->
         case flattenRecord tipe of
@@ -128,22 +119,22 @@ toDoc context tipe =
 
             (fields, Nothing) ->
                 P.sep
-                  [ P.cat (zipWith (<+>) (P.lbrace : repeat P.comma) (map prettyField fields))
-                  , P.rbrace
+                  [ P.cat (zipWith (<+>) ("{" : repeat ",") (map prettyField fields))
+                  , "}"
                   ]
 
             (fields, Just x) ->
                 P.hang
-                    (P.lbrace <+> P.text (Text.unpack x) <+> P.text "|")
+                    ("{" <+> P.text (Text.unpack x) <+> "|")
                     4
                     (P.sep
-                      [ P.sep (P.punctuate P.comma (map prettyField fields))
-                      , P.rbrace
+                      [ P.sep (P.punctuate "," (map prettyField fields))
+                      , "}"
                       ]
                     )
           where
             prettyField (field, fieldType) =
-                P.text (Text.unpack field) <+> P.text ":" <+> toDoc None fieldType
+                P.text (Text.unpack field) <+> ":" <+> toDoc None fieldType
 
 
 collectLambdas :: Type -> [Type]
@@ -200,11 +191,8 @@ fromRawType (A.A _ astType) =
     Type.RVar x ->
         Var x
 
-    Type.RType var ->
-        Type (Var.rawToText var)
-
-    Type.RApp t ts ->
-        App (fromRawType t) (map fromRawType ts)
+    Type.RType (A.A _ name) args ->
+        Type (Var.rawToText name) (map fromRawType args)
 
     Type.RRecord fields ext ->
         Record (map (A.drop *** fromRawType) fields) (fmap fromRawType ext)

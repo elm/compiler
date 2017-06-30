@@ -115,27 +115,32 @@ insert key value =
 
 builtinPatches :: [Patch]
 builtinPatches =
-  concat
-    [ map (patch Value) tupleNames
-    , map (patch Union) (tupleNames ++ ["List","Int","Float","Char","Bool","String"])
-    , map (patternPatch) (tuples ++ [ ("::", 2), ("[]", 0) ])
-    ]
+    valuePatches ++ unionPatches ++ patternPatches
   where
-    patch mkPatch name =
-        mkPatch name (Var.builtin name)
+    validTupleSizes =
+      [0..9]
 
-    patternPatch (name, args) =
-        Pattern name (Var.builtin name, args)
+    valuePatches :: [Patch]
+    valuePatches =
+      map (\n -> Value (Help.makeTuple n) (Var.tuple n)) validTupleSizes
 
-    tupleNames =
-        map fst tuples
+    unionPatches :: [Patch]
+    unionPatches =
+      [ Union "List" Var.list
+      , Union "Int" Var.int
+      , Union "Float" Var.float
+      , Union "Char" Var.char
+      , Union "Bool" Var.bool
+      , Union "String" Var.string
+      ]
+      ++ map (\n -> Union (Help.makeTuple n) (Var.tuple n)) validTupleSizes
 
-    tuples =
-        map toTuple [0..9]
-
-    toTuple :: Int -> (Text, Int)
-    toTuple n =
-        ( Help.makeTuple n, n )
+    patternPatches :: [Patch]
+    patternPatches =
+      [ Pattern "::" (Var.cons, 2)
+      , Pattern "[]" (Var.nil, 0)
+      ]
+      ++ map (\n -> Pattern (Help.makeTuple n) (Var.tuple n, n)) validTupleSizes
 
 
 

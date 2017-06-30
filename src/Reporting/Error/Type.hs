@@ -24,7 +24,7 @@ import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Report as Report
 import qualified Reporting.Helpers as Help
 import Reporting.Helpers
-  ( Doc, (<>), (<+>), capitalize, colon, dullyellow, fillSep, functionName
+  ( Doc, (<>), (<+>), capitalize, dullyellow, fillSep, functionName
   , i2t, indent, ordinalize, reflowParagraph, stack, text, underline, vcat
   )
 
@@ -847,7 +847,7 @@ doubleRigidError maybeLeftName maybeRightName =
 
 hintDoc :: Doc
 hintDoc =
-  underline (text "Hint") <> colon
+  underline (text "Hint") <> ":"
 
 
 toHint :: Text -> Doc

@@ -264,11 +264,8 @@ node region name tvars alias =
         Type.RVar _ ->
           []
 
-        Type.RType (Var.Raw x) ->
-          [x]
-
-        Type.RApp t ts ->
-          edges t ++ concatMap edges ts
+        Type.RType (A.A _ (Var.Raw x)) args ->
+          x : concatMap edges args
 
         Type.RRecord fs ext ->
           maybe [] edges ext ++ concatMap (edges . snd) fs

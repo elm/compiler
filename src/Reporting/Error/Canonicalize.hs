@@ -361,11 +361,8 @@ unsafePromote (A.A _ rawType) =
     Type.RVar x ->
         Type.Var x
 
-    Type.RType (Var.Raw name) ->
-        Type.Type (Var.local name)
-
-    Type.RApp func args ->
-        Type.App (unsafePromote func) (map unsafePromote args)
+    Type.RType (A.A _ (Var.Raw name)) args ->
+        Type.Type (Var.local name) (map unsafePromote args)
 
     Type.RRecord fields ext ->
         Type.Record (map (A.drop *** unsafePromote) fields) (fmap unsafePromote ext)

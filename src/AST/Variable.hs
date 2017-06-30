@@ -4,22 +4,26 @@ module AST.Variable
   ( Raw(..)
   , Canonical(..), Home(..)
   , Global(..)
-  , local, topLevel, builtin, fromModule
-  , inCore, inHtml, cmd, sub
+  , local, topLevel, fromModule
+  , inCore, inHtml
+  , int, float, char, string, tuple
+  , list, cons, nil
+  , bool, true, false
+  , never, task, cmd, sub, router, shader
   , isLocalHome, isCons
   , is, isJson, isMaybe, isArray, isTask, isList
-  , isKernel, isTuple, isPrimitive, isPrim, isLocal
+  , isKernel, isTuple, isPrim, isLocal
   , rawToText, toText
   )
   where
 
 import Data.Binary
 import Data.Monoid ((<>))
-import qualified Data.Set as Set
 import Data.Text (Text)
 
 import qualified AST.Helpers as Help
 import qualified AST.Module.Name as ModuleName
+import qualified Elm.Package as Pkg
 
 
 
@@ -72,11 +76,6 @@ topLevel home x =
     Canonical (TopLevel home) x
 
 
-builtin :: Text -> Canonical
-builtin x =
-    Canonical BuiltIn x
-
-
 fromModule :: ModuleName.Canonical -> Text -> Canonical
 fromModule home name =
     Canonical (Module home) name
@@ -92,6 +91,87 @@ inHtml home name =
     Canonical (Module (ModuleName.inHtml home)) name
 
 
+
+-- BUILT IN TYPES
+
+
+int :: Canonical
+int =
+  Canonical BuiltIn "Int"
+
+
+float :: Canonical
+float =
+  Canonical BuiltIn "Float"
+
+
+char :: Canonical
+char =
+  Canonical BuiltIn "Char"
+
+
+string :: Canonical
+string =
+  Canonical BuiltIn "String"
+
+
+tuple :: Int -> Canonical
+tuple size =
+  Canonical BuiltIn (Help.makeTuple size)
+
+
+
+-- LIST
+
+
+list :: Canonical
+list =
+  Canonical BuiltIn "List"
+
+
+cons :: Canonical
+cons =
+  Canonical BuiltIn "::"
+
+
+nil :: Canonical
+nil =
+  Canonical BuiltIn "[]"
+
+
+
+-- BOOLEANS
+
+
+bool :: Canonical
+bool =
+  Canonical BuiltIn "Bool"
+
+
+true :: Canonical
+true =
+  Canonical BuiltIn "True"
+
+
+false :: Canonical
+false =
+  Canonical BuiltIn "False"
+
+
+
+-- CORE TYPES
+
+
+never :: Canonical
+never =
+  inCore "Basics" "Never"
+
+
+task :: Canonical
+task =
+  inCore "Platform" "Task"
+
+
 cmd :: Canonical
 cmd =
   inCore "Platform.Cmd" "Cmd"
@@ -100,6 +180,16 @@ cmd =
 sub :: Canonical
 sub =
   inCore "Platform.Sub" "Sub"
+
+
+router :: Canonical
+router =
+  inCore "Platform" "Router"
+
+
+shader :: Canonical
+shader =
+  fromModule (ModuleName.Canonical Pkg.webgl "WebGL") "Shader"
 
 
 
@@ -179,21 +269,6 @@ isTuple var =
 
       _ ->
         False
-
-
-isPrimitive :: Canonical -> Bool
-isPrimitive var =
-  case var of
-    Canonical BuiltIn name ->
-      Set.member name primitiveSet
-
-    _ ->
-      False
-
-
-primitiveSet :: Set.Set Text
-primitiveSet =
-  Set.fromList ["Int","Float","String","Bool"]
 
 
 isPrim :: Text -> Canonical -> Bool

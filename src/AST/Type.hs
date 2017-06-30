@@ -10,7 +10,7 @@ module AST.Type
     where
 
 import Control.Arrow (second)
-import Control.Monad (liftM, liftM2, liftM3)
+import Control.Monad (liftM, liftM2, liftM3, replicateM)
 import Data.Binary
 import qualified Data.Map as Map
 import Data.Text (Text)
@@ -33,16 +33,14 @@ type Raw =
 data Raw'
     = RLambda Raw Raw
     | RVar Text
-    | RType Var.Raw
-    | RApp Raw [Raw]
+    | RType (A.Located Var.Raw) [Raw]
     | RRecord [(A.Located Text, Raw)] (Maybe Raw)
 
 
 data Canonical
     = Lambda Canonical Canonical
     | Var Text
-    | Type Var.Canonical
-    | App Canonical [Canonical]
+    | Type Var.Canonical [Canonical]
     | Record [(Text, Canonical)] (Maybe Canonical)
     | Aliased Var.Canonical [(Text, Canonical)] (Aliased Canonical)
     deriving (Eq, Ord)
@@ -64,7 +62,7 @@ tuple region types =
     name =
       Var.Raw (Help.makeTuple (length types))
   in
-    A.A region (RApp (A.A region (RType name)) types)
+    A.A region (RType (A.A region name) types)
 
 
 cmd :: ModuleName.Canonical -> Text -> Canonical
@@ -80,8 +78,8 @@ sub =
 effect :: Var.Canonical -> ModuleName.Canonical -> Text -> Canonical
 effect effectName moduleName tipe =
   Lambda
-    (App (Type (Var.fromModule moduleName tipe)) [Var "msg"])
-    (App (Type effectName) [Var "msg"])
+    (Type (Var.fromModule moduleName tipe) [Var "msg"])
+    (Type effectName [Var "msg"])
 
 
 
@@ -103,11 +101,8 @@ deepDealias tipe =
     Aliased _name args tipe' ->
       deepDealias (dealias args tipe')
 
-    Type _ ->
-      tipe
-
-    App f args ->
-      App (deepDealias f) (map deepDealias args)
+    Type name args ->
+      Type name (map deepDealias args)
 
 
 iteratedDealias :: Canonical -> Canonical
@@ -149,11 +144,8 @@ dealiasHelp typeTable tipe =
     Aliased original args t' ->
       Aliased original (map (second go) args) t'
 
-    Type _ ->
-      tipe
-
-    App f args ->
-      App (go f) (map go args)
+    Type name args ->
+      Type name (map go args)
 
 
 
@@ -183,28 +175,33 @@ instance Binary Canonical where
       Var x ->
         putWord8 1 >> put x
 
-      Type name ->
-        putWord8 2 >> put name
-
-      App t1 t2 ->
-        putWord8 3 >> put t1 >> put t2
-
       Record fs ext ->
-        putWord8 4 >> put fs >> put ext
+        putWord8 2 >> put fs >> put ext
 
       Aliased var args t ->
-        putWord8 5 >> put var >> put args >> put t
+        putWord8 3 >> put var >> put args >> put t
+
+      Type name ts ->
+        let
+          potentialWord =
+            length ts + 5
+        in
+          if potentialWord <= fromIntegral (maxBound :: Word8) then
+            do  putWord8 (fromIntegral potentialWord)
+                put name
+                mapM_ put ts
+          else
+            putWord8 4 >> put name >> put ts
 
   get =
-    do  n <- getWord8
-        case n of
+    do  word <- getWord8
+        case word of
           0 -> liftM2 Lambda get get
           1 -> liftM  Var get
-          2 -> liftM  Type get
-          3 -> liftM2 App get get
-          4 -> liftM2 Record get get
-          5 -> liftM3 Aliased get get get
-          _ -> error "Error reading a valid type from serialized string"
+          2 -> liftM2 Record get get
+          3 -> liftM3 Aliased get get get
+          4 -> liftM2 Type get get
+          n -> liftM2 Type get (replicateM (fromIntegral (n - 5)) get)
 
 
 instance Binary t => Binary (Aliased t) where

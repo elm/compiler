@@ -4,13 +4,12 @@ module Type.Environment
     ( Env
     , Dict
     , initialize
-    , get, getType, freshDataScheme, ctorNames
+    , get, freshDataScheme, ctorNames
     , addValues
     , instantiateType
     )
     where
 
-import Control.Monad (foldM)
 import qualified Control.Monad.State.Strict as State
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -31,7 +30,6 @@ import Type.Type
 data Env =
   Env
     { _ctor  :: Dict Instantiator
-    , _types :: Dict Type
     , _value :: Dict Type
     }
 
@@ -44,61 +42,20 @@ type Dict a =
   Map.Map Text a
 
 
-initialize :: [Module.CanonicalUnion] -> IO Env
+initialize :: [Module.CanonicalUnion] -> Env
 initialize unions =
-  do  types <- makeTypes unions
-      let env =
-            Env
-              { _ctor = Map.empty
-              , _value = Map.empty
-              , _types = types
-              }
-      return $ env { _ctor = makeCtors env unions }
-
-
-
--- TYPES
-
-
-makeTypes :: [Module.CanonicalUnion] -> IO (Dict Type)
-makeTypes unions =
-  do  builtinDict <- Map.fromList <$> mapM makeBuiltin builtinTypes
-      foldM addImported builtinDict unions
-
-
-addImported :: Dict Type -> (Var.Canonical, unionInfo) -> IO (Dict Type)
-addImported dict ( var, _ ) =
-  do  atom <- mkAtom var
-      return (Map.insert (Var.toText var) (VarN atom) dict)
-
-
-makeBuiltin :: (Text, Int) -> IO (Text, Type)
-makeBuiltin (name, _) =
-  do  atom <- mkAtom (Var.builtin name)
-      return (name, VarN atom)
-
-
-builtinTypes :: [(Text, Int)]
-builtinTypes =
-    concat
-      [ map tuple [0..9]
-      , kind 1 ["List"]
-      , kind 0 ["Int","Float","Char","String","Bool"]
-      ]
-  where
-    tuple size = ( Help.makeTuple size, size )
-    kind n names = map (\name -> (name, n)) names
+  Env (makeCtors unions) Map.empty
 
 
 
 -- CONSTRUCTORS
 
 
-makeCtors :: Env -> [Module.CanonicalUnion] -> Dict Instantiator
-makeCtors env unions =
+makeCtors :: [Module.CanonicalUnion] -> Dict Instantiator
+makeCtors unions =
   let
     list t =
-      getType env "List" <| t
+      AppN Var.list [t]
 
     inst :: Int -> ([Type] -> ([Type], Type)) -> Instantiator
     inst numTVars tipe =
@@ -111,7 +68,7 @@ makeCtors env unions =
         name =
           Help.makeTuple size
       in
-        (name, inst size $ \vs -> (vs, foldl (<|) (getType env name) vs))
+        (name, inst size $ \vs -> (vs, AppN (Var.tuple size) vs))
 
     builtins :: Dict Instantiator
     builtins =
@@ -121,15 +78,15 @@ makeCtors env unions =
         ]
         ++ map tupleCtor [0..9]
   in
-    List.foldl' (makeCtorsHelp env) builtins unions
+    List.foldl' makeCtorsHelp builtins unions
 
 
 type VarDict =
   Map.Map Text Variable
 
 
-makeCtorsHelp :: Env -> Dict Instantiator -> Module.CanonicalUnion -> Dict Instantiator
-makeCtorsHelp env constructorDict ( var, (rawTypeVars, ctors) ) =
+makeCtorsHelp :: Dict Instantiator -> Module.CanonicalUnion -> Dict Instantiator
+makeCtorsHelp constructorDict ( var, (rawTypeVars, ctors) ) =
   let
     inst :: Dict Instantiator -> (Var.Canonical, [T.Canonical]) -> Dict Instantiator
     inst ctorDict (name, rawArgs) =
@@ -145,8 +102,8 @@ makeCtorsHelp env constructorDict ( var, (rawTypeVars, ctors) ) =
 
     go :: [T.Canonical] -> State.StateT VarDict IO ([Type], Type)
     go args =
-      do  types <- mapM (instantiator Flex env) args
-          returnType <- instantiator Flex env (T.App (T.Type var) tvars)
+      do  types <- mapM (instantiator Flex Map.empty) args
+          returnType <- instantiator Flex Map.empty (T.Type var tvars)
           return (types, returnType)
   in
     List.foldl' inst constructorDict ctors
@@ -160,11 +117,6 @@ makeCtorsHelp env constructorDict ( var, (rawTypeVars, ctors) ) =
 get :: Dict a -> Text -> a
 get dict var =
   dict Map.! var
-
-
-getType :: Env -> Text -> Type
-getType env var =
-  get (_types env) var
 
 
 freshDataScheme :: Env -> Text -> Instantiator
@@ -192,19 +144,19 @@ addValues newValues env =
 
 instantiateType :: Flex -> Env -> T.Canonical -> IO (Type, VarDict)
 instantiateType flex env sourceType =
-  State.runStateT (instantiator flex env sourceType) Map.empty
+  State.runStateT (instantiator flex (_value env) sourceType) Map.empty
 
 
-instantiator :: Flex -> Env -> T.Canonical -> State.StateT VarDict IO Type
-instantiator flex env sourceType =
-    instantiatorHelp flex env Set.empty sourceType
+instantiator :: Flex -> Dict Type -> T.Canonical -> State.StateT VarDict IO Type
+instantiator flex values sourceType =
+    instantiatorHelp flex values Set.empty sourceType
 
 
-instantiatorHelp :: Flex -> Env -> Set.Set Text -> T.Canonical -> State.StateT VarDict IO Type
-instantiatorHelp flex env aliasVars sourceType =
+instantiatorHelp :: Flex -> Dict Type -> Set.Set Text -> T.Canonical -> State.StateT VarDict IO Type
+instantiatorHelp flex values aliasVars sourceType =
   let
     go =
-      instantiatorHelp flex env aliasVars
+      instantiatorHelp flex values aliasVars
   in
     case sourceType of
       T.Lambda t1 t2 ->
@@ -215,12 +167,12 @@ instantiatorHelp flex env aliasVars sourceType =
               return (PlaceHolder name)
 
           else
-              do  dict <- State.get
-                  case Map.lookup name (_value env) of
-                    Just tipe ->
-                      return tipe
+              case Map.lookup name values of
+                Just tipe ->
+                  return tipe
 
-                    Nothing ->
+                Nothing ->
+                  do  dict <- State.get
                       case Map.lookup name dict of
                         Just variable ->
                           return (VarN variable)
@@ -235,20 +187,15 @@ instantiatorHelp flex env aliasVars sourceType =
               realType <-
                   case aliasType of
                     T.Filled tipe ->
-                        instantiatorHelp flex env Set.empty tipe
+                        instantiatorHelp flex values Set.empty tipe
 
                     T.Holey tipe ->
-                        instantiatorHelp flex env (Set.fromList (map fst args)) tipe
+                        instantiatorHelp flex values (Set.fromList (map fst args)) tipe
 
               return (AliasN name targs realType)
 
-      T.Type name ->
-          return (getType env (Var.toText name))
-
-      T.App func args ->
-          do  tfunc <- go func
-              targs <- traverse go args
-              return $ foldl (<|) tfunc targs
+      T.Type name args ->
+          AppN name <$> traverse go args
 
       T.Record fields ext ->
           do  tfields <- traverse go (Map.fromList fields)

@@ -687,11 +687,8 @@ freeVars (A.A region tipe) =
     Type.RVar x ->
       Result.ok [A.A region x]
 
-    Type.RType _ ->
-      Result.ok []
-
-    Type.RApp t ts ->
-      concat <$> traverse freeVars (t:ts)
+    Type.RType _ args ->
+      concat <$> traverse freeVars args
 
     Type.RRecord fields ext ->
       do  checkDuplicateFields region fields
@@ -709,11 +706,8 @@ checkDuplicateFieldsInType (A.A region tipe) =
     Type.RVar _ ->
       Result.ok ()
 
-    Type.RType _ ->
-      Result.ok ()
-
-    Type.RApp t ts ->
-      F.traverse_ checkDuplicateFieldsInType (t:ts)
+    Type.RType _ args ->
+      F.traverse_ checkDuplicateFieldsInType args
 
     Type.RRecord fields ext ->
       do  checkDuplicateFields region fields

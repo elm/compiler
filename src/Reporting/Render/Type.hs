@@ -19,10 +19,7 @@ import qualified AST.Helpers as Help
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Reporting.Helpers as Help
-import Reporting.Helpers
-  ( Doc, (<+>), cat, colon, comma, dullyellow, equals, hang, hsep
-  , lbrace, lparen, parens, rbrace, rparen, sep, text, vcat
-  )
+import Reporting.Helpers ( Doc, (<+>), cat, dullyellow, hang, hsep, parens, sep, text, vcat )
 
 
 
@@ -51,11 +48,9 @@ decl localizer name vars tags =
       hang 2 (sep (text tag : map (docType localizer App) args))
   in
     hang 4 $ vcat $
-      (hsep (text "type" : map text (name : vars)))
+      (hsep ("type" : map text (name : vars)))
       :
-      zipWith (<+>)
-        (equals : repeat (text "|"))
-        (map docTag tags)
+      zipWith (<+>) ("=" : repeat "|") (map docTag tags)
 
 
 annotation :: Localizer -> Text -> Type.Canonical -> Doc
@@ -69,12 +64,12 @@ annotation localizer name tipe =
           hang 4 $ sep $
             docName
             : zipWith (<+>)
-                (colon : repeat (text "->"))
+                (":" : repeat "->")
                 (map (docType localizer Func) parts)
 
       _ ->
           hang 4 $ sep $
-            [ docName <+> colon
+            [ docName <+> ":"
             , docType localizer None tipe
             ]
 
@@ -185,10 +180,7 @@ diff localizer context leftType rightType =
     (Type.Var x, Type.Var y) | x == y ->
         pure (text x)
 
-    (Type.Type leftName, Type.Type rightName) | leftName == rightName ->
-        pure (varToDoc localizer leftName)
-
-    (Type.App (Type.Type leftName) leftArgs, Type.App (Type.Type rightName) rightArgs) ->
+    (Type.Type leftName leftArgs, Type.Type rightName rightArgs) ->
         if leftName /= rightName || length leftArgs /= length rightArgs then
             difference
               (docApp localizer context leftName leftArgs)
@@ -201,9 +193,6 @@ diff localizer context leftType rightType =
             in
               docAppHelp localizer context leftName
                 <$> sequenceA (zipWith (go subContext) leftArgs rightArgs)
-
-    (Type.App _ _, Type.App _ _) ->
-        error "Type applications without concrete names should not get here."
 
     (Type.Record outerLeftFields outerLeftExt, Type.Record outerRightFields outerRightExt) ->
         let
@@ -404,14 +393,8 @@ docType localizer context tipe =
     Type.Var x ->
         text x
 
-    Type.Type name ->
-        varToDoc localizer name
-
-    Type.App (Type.Type name) args ->
+    Type.Type name args ->
         docApp localizer context name args
-
-    Type.App _ _ ->
-        error "type applications should start with a type atom"
 
     Type.Record outerFields outerExt ->
         let
@@ -436,13 +419,13 @@ docLambda context docs =
     arg:rest ->
         case context of
           None ->
-              sep (arg : map (text "->" <+>) rest)
+              sep (arg : map ("->" <+>) rest)
 
           _ ->
               cat
-                [ lparen
-                , sep (arg : map (text "->" <+>) rest)
-                , rparen
+                [ "("
+                , sep (arg : map ("->" <+>) rest)
+                , ")"
                 ]
 
 
@@ -457,27 +440,25 @@ docApp localizer context name args =
 
 
 docAppHelp :: Localizer -> Context -> Var.Canonical -> [Doc] -> Doc
-docAppHelp localizer context name args =
-  if Var.isTuple name then
-      sep
-        [ cat (zipWith (<+>) (lparen : repeat comma) args)
-        , rparen
-        ]
+docAppHelp localizer context name arguments =
+  case arguments of
+    [] ->
+      if Var.isTuple name then "()" else varToDoc localizer name
 
-  else if null args then
-      varToDoc localizer name
+    arg : args ->
+      if Var.isTuple name then
+        sep
+          [ cat ("(" <+> arg : map ("," <+>) args)
+          , ")"
+          ]
 
-  else
-      case context of
-        App ->
-            cat
-              [ lparen
-              , hang 4 (sep (varToDoc localizer name : args))
-              , rparen
-              ]
+      else
+        case context of
+          App ->
+            cat [ "(", hang 4 (sep (varToDoc localizer name : arg : args)), ")" ]
 
-        _ ->
-            hang 4 (sep (varToDoc localizer name : args))
+          _ ->
+            hang 4 (sep (varToDoc localizer name : arg : args))
 
 
 
@@ -490,7 +471,7 @@ docRecord :: Style -> [(Doc,Doc)] -> Maybe Doc -> Doc
 docRecord style fields maybeExt =
   let
     docField (name, tipe) =
-      hang 4 (sep [ name <+> colon, tipe ])
+      hang 4 (sep [ name <+> ":", tipe ])
 
     elision =
       case style of
@@ -509,16 +490,16 @@ docRecord style fields maybeExt =
 
     (_, Nothing) ->
         sep
-          [ cat (zipWith (<+>) (lbrace : repeat comma) fieldDocs)
-          , rbrace
+          [ cat (zipWith (<+>) ("{" : repeat ",") fieldDocs)
+          , "}"
           ]
 
     (_, Just ext) ->
         sep
           [ hang 4 $ sep $
-              [ lbrace <+> ext
-              , cat (zipWith (<+>) (text "|" : repeat comma) fieldDocs)
+              [ "{" <+> ext
+              , cat (zipWith (<+>) (text "|" : repeat ",") fieldDocs)
               ]
-          , rbrace
+          , "}"
           ]
 

@@ -405,10 +405,10 @@ builtinDict :: ArityDict
 builtinDict =
   let
     listInfo =
-      ArityInfo 2 [ (Var.builtin "::", 2), (Var.builtin "[]", 0) ]
+      ArityInfo 2 [ (Var.cons, 2), (Var.nil, 0) ]
 
     boolInfo =
-      ArityInfo 2 [ (Var.builtin "True", 0), (Var.builtin "False", 0) ]
+      ArityInfo 2 [ (Var.true, 0), (Var.false, 0) ]
   in
     Map.singleton Var.BuiltIn $ Map.fromList $
       [ ("::", listInfo)
@@ -421,11 +421,7 @@ builtinDict =
 
 makeTupleInfo :: Int -> ( Text, ArityInfo )
 makeTupleInfo n =
-  let
-    name =
-      Help.makeTuple n
-  in
-    ( name, ArityInfo 1 [ (Var.builtin name, n) ] )
+  ( Help.makeTuple n, ArityInfo 1 [ (Var.tuple n, n) ] )
 
 
 toArityEntry :: ModuleName.Canonical -> Module.Unions -> Map.Map Text ArityInfo

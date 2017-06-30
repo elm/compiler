@@ -19,7 +19,7 @@ import qualified Reporting.Result as Result
 
 
 tipe :: Env.Env -> T.Raw -> Result T.Canonical
-tipe env annType@(A.A _ typ) =
+tipe env (A.A _ typ) =
   let
     go =
       tipe env
@@ -31,11 +31,8 @@ tipe env annType@(A.A _ typ) =
       T.RVar x ->
           Result.ok (T.Var x)
 
-      T.RType _ ->
-          canonicalizeApp env annType []
-
-      T.RApp t ts ->
-          canonicalizeApp env t ts
+      T.RType name args ->
+          canonicalizeApp env name args
 
       T.RLambda a b ->
           T.Lambda <$> go a <*> go b
@@ -44,30 +41,15 @@ tipe env annType@(A.A _ typ) =
           T.Record <$> traverse goField fields <*> traverse go ext
 
 
-canonicalizeApp :: Env.Env -> T.Raw -> [T.Raw] -> Result T.Canonical
-canonicalizeApp env annFunc@(A.A region func) args =
-  case func of
-    T.RType (Var.Raw rawName) ->
-      canonicalizeWithTvar =<< Canonicalize.tvar region env rawName
+canonicalizeApp :: Env.Env -> A.Located Var.Raw -> [T.Raw] -> Result T.Canonical
+canonicalizeApp env (A.A region (Var.Raw rawName)) args =
+  do  tvar <- Canonicalize.tvar region env rawName
+      case tvar of
+        Right alias ->
+          canonicalizeAlias region env alias args
 
-    _ ->
-      T.App
-        <$> tipe env annFunc
-        <*> traverse (tipe env) args
-
-  where
-    canonicalizeWithTvar tvar =
-        case tvar of
-          Right alias ->
-              canonicalizeAlias region env alias args
-
-          Left name ->
-              case args of
-                [] ->
-                    Result.ok (T.Type name)
-
-                _ ->
-                    T.App (T.Type name) <$> traverse (tipe env) args
+        Left name ->
+          T.Type name <$> traverse (tipe env) args
 
 
 canonicalizeAlias

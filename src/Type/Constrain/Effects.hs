@@ -3,16 +3,15 @@
 module Type.Constrain.Effects (constrain) where
 
 import qualified Data.Map as Map
-import Data.Monoid ((<>))
 
 import qualified AST.Effects as Effects
 import qualified AST.Module.Name as ModuleName
+import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
-import qualified Type.Environment as Env
 import Type.Type
-  ( Variable, Type(VarN), Constraint(..), Scheme(Scheme)
-  , (==>), (<|), mkVar
+  ( Variable, Type(AppN,VarN), Constraint(..)
+  , Scheme(Scheme), (==>), mkVar
   )
 
 
@@ -20,8 +19,8 @@ import Type.Type
 -- CONSTRAIN EFFECTS
 
 
-constrain :: Env.Env -> ModuleName.Canonical -> Effects.Canonical -> IO Constraint
-constrain env moduleName effects =
+constrain :: ModuleName.Canonical -> Effects.Canonical -> IO Constraint
+constrain moduleName effects =
   case effects of
     Effects.None ->
       return CSaveEnv
@@ -30,17 +29,22 @@ constrain env moduleName effects =
       return CSaveEnv
 
     Effects.Manager _ info ->
-      constrainHelp env moduleName info
+      constrainHelp moduleName info
 
 
-constrainHelp :: Env.Env -> ModuleName.Canonical -> Effects.Info -> IO Constraint
-constrainHelp env moduleName (Effects.Info tagRegion r0 r1 r2 managerType) =
+never :: Type
+never =
+  AppN Var.never []
+
+
+constrainHelp :: ModuleName.Canonical -> Effects.Info -> IO Constraint
+constrainHelp moduleName (Effects.Info tagRegion r0 r1 r2 managerType) =
   let
     task t =
-      Env.getType env "Platform.Task" <| Env.getType env "Basics.Never" <| VarN t
+      AppN Var.task [ never, VarN t ]
 
     router msg selfMsg =
-      Env.getType env "Platform.Router" <| VarN msg <| VarN selfMsg
+      AppN Var.router [ VarN msg, VarN selfMsg ]
   in
     do  v0 <- mkVar Nothing
         v1 <- mkVar Nothing
@@ -62,7 +66,7 @@ constrainHelp env moduleName (Effects.Info tagRegion r0 r1 r2 managerType) =
 
           onEffectsType =
             router msg1 selfMsg1
-            ==> addEffectArgs env moduleName managerType msg1
+            ==> addEffectArgs moduleName managerType msg1
                   (VarN state1 ==> task state1)
 
           onSelfMsgType =
@@ -85,20 +89,18 @@ constrainHelp env moduleName (Effects.Info tagRegion r0 r1 r2 managerType) =
 
 
 addEffectArgs
-  :: Env.Env
-  -> ModuleName.Canonical
+  :: ModuleName.Canonical
   -> Effects.RawManagerType
   -> Variable
   -> Type
   -> Type
-addEffectArgs env moduleName managerType msg result =
+addEffectArgs moduleName managerType msg result =
   let
-    toTypeName (A.A _ name) =
-      ModuleName.canonicalToText moduleName <> "." <> name
+    toVar (A.A _ name) =
+      Var.fromModule moduleName name
 
     effectList fxName =
-      Env.getType env "List" <|
-        (Env.getType env (toTypeName fxName) <| VarN msg)
+      AppN Var.list [AppN (toVar fxName) [VarN msg]]
   in
     case managerType of
       Effects.CmdManager cmd ->

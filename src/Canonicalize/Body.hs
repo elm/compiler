@@ -57,9 +57,7 @@ unionToDefs moduleName (A.A (region,_) (Decl.Type name tvars constructors)) =
           generateArgs (length tipes) []
 
         tbody =
-          Type.App
-            (Type.Type (Var.fromModule moduleName name))
-            (map Type.Var tvars)
+          Type.Type (Var.fromModule moduleName name) (map Type.Var tvars)
 
         body =
           A.A region $
