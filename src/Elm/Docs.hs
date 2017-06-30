@@ -12,6 +12,8 @@ module Elm.Docs
   , Docs.Union(..)
   , Docs.Alias(..)
   , Docs.Value(..)
+  , Decl.Assoc(..)
+  , Decl.assocToText
   )
   where
 
