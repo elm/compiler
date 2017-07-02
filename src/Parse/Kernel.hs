@@ -7,18 +7,18 @@ module Parse.Kernel
 
 
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Builder as BS
-import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map as Map
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import Data.Word (Word8)
 
 import qualified AST.Exposing as Exposing
 import qualified AST.Kernel as Kernel
 import qualified AST.Module as Module
 import qualified AST.Module.Name as Module
+import Generate.JavaScript.Helpers as Help (toFieldName)
 import Parse.Helpers (Parser)
 import qualified Parse.Helpers as Parse
 import qualified Parse.Module as Parse
@@ -66,21 +66,20 @@ parserHelp table enums chunks =
 
 lookupEnum :: Word8 -> Text -> Enums -> (BS.ByteString, Enums)
 lookupEnum word var allEnums =
-  case Map.lookup word allEnums of
-    Nothing ->
-      ( "0", Map.insert word (Map.singleton var "0") allEnums )
+  let
+    enums =
+      Map.findWithDefault Map.empty word allEnums
+  in
+    case Map.lookup var enums of
+      Just bytes ->
+        ( bytes, allEnums )
 
-    Just enums ->
-      case Map.lookup var enums of
-        Just bytes ->
-          ( bytes, allEnums )
-
-        Nothing ->
-          let
-            number =
-              LBS.toStrict $ BS.toLazyByteString $ BS.word8Dec $ fromIntegral (Map.size enums)
-          in
-            ( number, Map.insert word (Map.insert var number enums) allEnums )
+      Nothing ->
+        let
+          identifier =
+            Text.encodeUtf8 ("'" <> Help.toFieldName (Map.size enums) <> "'")
+        in
+          ( identifier, Map.insert word (Map.insert var identifier enums) allEnums )
 
 
 
