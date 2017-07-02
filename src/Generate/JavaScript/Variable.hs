@@ -105,7 +105,7 @@ globalName (Var.Global home name) =
 globalToName :: ModuleName.Canonical -> Text -> Text
 globalToName (ModuleName.Canonical (Pkg.Name user project) moduleName) name =
   if ModuleName.isKernel moduleName then
-    "_" <> ModuleName.getKernel moduleName <> "_" <> name
+    kernelToName (ModuleName.getKernel moduleName) name
 
   else
     let
@@ -120,3 +120,17 @@ globalToName (ModuleName.Canonical (Pkg.Name user project) moduleName) name =
       <> "$" <> Text.replace "." "_" moduleName
       <> "$" <> revisedName
 
+
+kernelToName :: Text -> Text -> Text
+kernelToName home name =
+  if home == "Error" && name == "throw" then
+    "_Error_throw_prod"
+
+  else if name == "toString" && home == "Debug" then
+    "_Debug_toString_prod"
+
+  else if name == "log" && home == "Debug" then
+    "_Debug_log_prod"
+
+  else
+    "_" <> home <> "_" <> name
