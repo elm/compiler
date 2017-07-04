@@ -12,6 +12,8 @@ module Elm.Compiler.Type
   where
 
 import Control.Arrow ((***))
+import Data.Aeson ((.:))
+import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Data.Text (Text)
 import qualified Text.PrettyPrint as P
@@ -173,13 +175,50 @@ encode tipe =
 
 decoder :: Decode.Decoder Type
 decoder =
-  do  txt <- Decode.text
-      case Parse.run Type.expression txt of
-        Left _ ->
-          Decode.fail "a type, like (String -> Int)"
+  Decode.oneOf
+    [
+      do  txt <- Decode.text
+          case Parse.run Type.expression (Text.replace "'" "_" txt) of
+            Left _ ->
+              Decode.fail "a type, like (String -> Int)"
 
-        Right (tipe, _, _) ->
-          Decode.succeed (fromRawType tipe)
+            Right (tipe, _, _) ->
+              Decode.succeed (fromRawType tipe)
+    ,
+      Decode.aeson
+    ]
+
+
+instance Aeson.FromJSON Type where
+  parseJSON =
+    Aeson.withObject "Type" $ \object ->
+      do  tag <- object .: "tag"
+          case (tag :: String) of
+            "lambda" ->
+                Lambda <$> object .: "in" <*> object .: "out"
+
+            "var" ->
+                Var <$> object .: "name"
+
+            "type" ->
+                do  name <- object .: "name"
+                    return (Type name [])
+
+            "app" ->
+                do  func <- object .: "func"
+                    args <- object .: "args"
+                    case func of
+                      Type name [] ->
+                        return (Type name args)
+
+                      _ ->
+                        fail "unexpected type application"
+
+            "record" ->
+                Record <$> object .: "fields" <*> object .: "extension"
+
+            _ ->
+                fail $ "Error when decoding type with tag: " ++ tag
 
 
 fromRawType :: Type.Raw -> Type

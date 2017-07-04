@@ -7,6 +7,7 @@ module Json.Decode
   , field, at
   , index
   , map, map2, succeed, fail, andThen, oneOf
+  , aeson
   )
   where
 
@@ -39,6 +40,7 @@ data Error
   | Index Int Error
   | OneOf [Error]
   | Failure Aeson.Value String
+  deriving (Show)
 
 
 decode :: Decoder a -> Aeson.Value -> Either Error a
@@ -299,3 +301,18 @@ oneOfHelp decoders errors mkError value =
 
         Left err ->
           oneOfHelp otherDecoders (err:errors) mkError value
+
+
+
+-- AESON
+
+
+aeson :: (Aeson.FromJSON a) => Decoder a
+aeson =
+  Decoder $ \mkError value ->
+    case Aeson.fromJSON value of
+      Aeson.Error msg ->
+        Left (mkError (Failure value msg))
+
+      Aeson.Success a ->
+        Right a
