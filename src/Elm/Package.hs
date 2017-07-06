@@ -125,11 +125,17 @@ validateProjectName text =
   else if Text.isInfixOf "_" text then
     Left "Underscores are not allowed in package names."
 
+  else if Text.isInfixOf "." text then
+    Left "Dots are not allowed in package names."
+
   else if Text.any Char.isUpper text then
     Left "Upper case characters are not allowed in package names."
 
   else if not (Char.isLetter (Text.head text)) then
     Left "Package names must start with a letter."
+
+  else if Text.isSuffixOf "-" text then
+    Left "Package names cannot end with a dash."
 
   else
     Right text
