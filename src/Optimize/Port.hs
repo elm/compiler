@@ -43,7 +43,7 @@ toEncoder tipe =
       | Var.isPrim "Int"    name -> encode "int"
       | Var.isPrim "Bool"   name -> encode "bool"
       | Var.isPrim "String" name -> encode "string"
-      | Var.isJson name          -> encode "string"
+      | Var.isJson name          -> encode "value"
       | Var.isTuple name         -> encode "null"
       | otherwise                -> error "toEncoder: bad type"
 
