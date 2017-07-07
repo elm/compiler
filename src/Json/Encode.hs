@@ -139,7 +139,7 @@ encodeUgly value =
         encodeEntry char (key, entry) =
           B.char7 char <> encodeString key <> B.char7 ':' <> encodeUgly entry
       in
-        encodeEntry '[' first <> mconcat (map (encodeEntry ',') rest) <> B.char7 ']'
+        encodeEntry '{' first <> mconcat (map (encodeEntry ',') rest) <> B.char7 '}'
 
     String builder ->
       builder
