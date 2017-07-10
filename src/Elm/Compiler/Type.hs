@@ -180,7 +180,7 @@ decoder =
       do  txt <- Decode.text
           case Parse.run Type.expression (Text.replace "'" "_" txt) of
             Left _ ->
-              Decode.fail "a type, like (String -> Int)"
+              Decode.fail "Expecting a type, like (String -> Int)"
 
             Right (tipe, _, _) ->
               Decode.succeed (fromRawType tipe)

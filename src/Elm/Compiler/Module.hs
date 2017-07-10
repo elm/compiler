@@ -121,7 +121,7 @@ decoder =
   do  txt <- Decode.text
       case nameFromText txt of
         Nothing ->
-          Decode.fail "a module name like \"Html.Events\""
+          Decode.fail "Expecting a module name like \"Html.Events\""
 
         Just name ->
           Decode.succeed name

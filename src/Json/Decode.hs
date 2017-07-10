@@ -80,7 +80,7 @@ text =
         Right txt
 
       _ ->
-        Left (mkError (Failure value "a string"))
+        Left (mkError (Failure value "Expecting a STRING"))
 
 
 bool :: Decoder Bool
@@ -91,7 +91,7 @@ bool =
         Right boolean
 
       _ ->
-        Left (mkError (Failure value "a boolean"))
+        Left (mkError (Failure value "Expecting a BOOL"))
 
 
 int :: Decoder Int
@@ -101,13 +101,13 @@ int =
       Aeson.Number number ->
         case Scientific.toBoundedInteger number of
           Nothing ->
-            Left (mkError (Failure value "an integer"))
+            Left (mkError (Failure value "Expecting an INT"))
 
           Just integer ->
             Right integer
 
       _ ->
-        Left (mkError (Failure value "an integer"))
+        Left (mkError (Failure value "Expecting an INT"))
 
 
 float :: Decoder Float
@@ -118,7 +118,7 @@ float =
         Right (Scientific.toRealFloat number)
 
       _ ->
-        Left (mkError (Failure value "a float"))
+        Left (mkError (Failure value "Expecting a FLOAT"))
 
 
 
@@ -134,7 +134,7 @@ list (Decoder run) =
           Vector.imapM (\i v -> run (mkError . Index i) v) vector
 
       _ ->
-        Left (mkError (Failure value "an array"))
+        Left (mkError (Failure value "Expecting an ARRAY"))
 
 
 dict :: Decoder a -> Decoder (HashMap.HashMap Text a)
@@ -145,7 +145,7 @@ dict (Decoder run) =
         HashMap.traverseWithKey (\k v -> run (mkError . Field k) v) hashMap
 
       _ ->
-        Left (mkError (Failure value "an object"))
+        Left (mkError (Failure value "Expecting an OBJECT"))
 
 
 maybe :: Decoder a -> Decoder (Maybe a)
@@ -173,11 +173,11 @@ field name (Decoder run) =
             run (mkError . Field name) v
 
           Nothing ->
-            Left $ mkError $
-              Failure value ("a \"" ++ Text.unpack name ++ "\" field")
+            Left $ mkError $ Failure value $
+              "Expecting a \"" ++ Text.unpack name ++ "\" field."
 
       _ ->
-        Left (mkError (Failure value "an object"))
+        Left (mkError (Failure value "Expecting an OBJECT"))
 
 
 at :: [Text] -> Decoder a -> Decoder a
@@ -199,11 +199,13 @@ index i (Decoder run) =
             run (mkError . Index i) v
 
           Nothing ->
-            Left $ mkError $
-              Failure value ("index " ++ show i ++ " of an array")
+            Left $ mkError $ Failure value $
+              "Expecting a longer ARRAY. I need index " ++ show i
+              ++ ", but the array only has " ++ show (Vector.length vector)
+              ++ " elements."
 
       _ ->
-        Left (mkError (Failure value "an array"))
+        Left (mkError (Failure value "Expecting an ARRAY"))
 
 
 

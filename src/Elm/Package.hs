@@ -286,8 +286,8 @@ decoder :: Decode.Decoder Name
 decoder =
   do  txt <- Decode.text
       case fromText txt of
-        Left _ ->
-          Decode.fail "a valid project name, like \"elm-lang/core\""
+        Left msg ->
+          Decode.fail $ "Expecting a PACKAGE name. " ++ msg
 
         Right name ->
           Decode.succeed name
@@ -306,8 +306,8 @@ versionDecoder =
         Right version ->
           Decode.succeed version
 
-        Left _ ->
-          Decode.fail "a version number, like 1.0.0"
+        Left msg ->
+          Decode.fail $ "Expecting a VERSION. " ++ msg
 
 
 encodeVersion :: Version -> Encode.Value

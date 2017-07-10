@@ -204,4 +204,4 @@ assocDecoder =
         "left"  -> Decode.succeed Decl.Left
         "non"   -> Decode.succeed Decl.Non
         "right" -> Decode.succeed Decl.Right
-        _       -> Decode.fail "an associativity"
+        _       -> Decode.fail "Expecting an ASSOCIATIVITY (e.g. left, non, right)"
