@@ -12,6 +12,7 @@ module Json.Encode
   , string
   , bool
   , int
+  , number
   , null
   , dict
   , list
@@ -25,6 +26,7 @@ import Control.Arrow ((***))
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Builder as B
 import qualified Data.Map as Map
+import qualified Data.Scientific as Sci
 import Data.Monoid ((<>))
 import qualified Data.Text as Text
 import qualified Numeric
@@ -41,6 +43,7 @@ data Value
   | String B.Builder
   | Boolean Bool
   | Integer Int
+  | Number Sci.Scientific
   | Null
 
 
@@ -72,6 +75,11 @@ bool =
 int :: Int -> Value
 int =
   Integer
+
+
+number :: Sci.Scientific -> Value
+number =
+  Number
 
 
 null :: Value
@@ -149,6 +157,9 @@ encodeUgly value =
 
     Integer n ->
       B.intDec n
+
+    Number scientific ->
+      B.string7 (Sci.formatScientific Sci.Generic Nothing scientific)
 
     Null ->
       "null"
@@ -242,7 +253,7 @@ encodeSequence :: B.Builder -> B.Builder -> (BSC.ByteString -> a -> B.Builder) -
 encodeSequence open close encodeEntry indent first rest =
   let
     newIndent =
-      indent <> "\t"
+      indent <> "    "
 
     newIndentBuilder =
       B.byteString newIndent
