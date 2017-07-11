@@ -3,6 +3,8 @@
 When getting started with Elm, it is pretty common to have questions about how the `import` declarations work exactly. These questions usually arise when you start playing with the `Html` library so we will focus on that.
 
 
+<br>
+
 ## `import`
 
 An Elm file is called a **module**. To access code in other files, you need to `import` it!
@@ -36,6 +38,8 @@ We are referring to the [`Html`](http://package.elm-lang.org/packages/elm-lang/h
 > **Note:** Modules do not contain other modules. So the `Html` module *does not* contain the `Html.Attributes` module. Those are separate names that happen to have some overlap. So if you say `import Html` you *do not* get access to `Html.Attributes.style`. You must `import Html.Attributes` module separately.
 
 
+<br>
+
 ## `as`
 
 It is best practice to always use *qualified* names, but sometimes module names are so long that it becomes unweildy. This is common for the `Html.Attributes` module. We can use the `as` keyword to help with this:
@@ -50,6 +54,8 @@ main =
 
 Saying `import Html.Attributes as A` lets us refer to any value or type in `Html.Attributes` as long as it is qualified with an `A`. So now we can refer to [`style`](http://package.elm-lang.org/packages/elm-lang/html/latest/Html-Attributes#style) as `A.style`.
 
+
+<br>
 
 ## `exposing`
 
@@ -71,6 +77,8 @@ Saying `import Html exposing (..)` means I can refer to any value or type from t
 Saying `import Html.Attributes exposing (style)` is a bit more reasonable. It means I can refer to the `style` function without qualification, but that is it. You are still importing the `Html.Attributes` module like normal though, so you would say `Html.Attributes.class` or `Html.Attributes.id` to refer to other values and types from that module.
 
 
+<br>
+
 ## `as` and `exposing`
 
 There is one last way to import a module. You can combine `as` and `exposing` to try to get a nice balance of qualified names:
@@ -86,6 +94,8 @@ main =
 
 Notice that I refer to `A.class` which is qualified and `style` which is unqualified.
 
+
+<br>
 
 ## Default Imports
 
