@@ -56,7 +56,7 @@ parserHelp table enums chunks =
             Parse.KernelImport var ->
               case Map.lookup var table of
                 Nothing ->
-                  error $ show $ "could not find " <> var <> " when parsing kernel code"
+                  error ("Bad kernel symbol: " ++ Text.unpack var)
 
                 Just (home, name) ->
                   parserHelp table enums (Kernel.Var home name : Kernel.JS javascript : chunks)
@@ -112,7 +112,7 @@ importToTable (A.A _ ( A.A _ fullName, Module.ImportMethod maybeAlias exposed ))
             fullName
 
     toEntry value =
-      ( "__" <> shortName <> "_" <> value, ( fullName, value ) )
+      ( shortName <> "_" <> value, ( fullName, value ) )
   in
     Map.fromList $ map toEntry $
       concatMap entryToValues $ getExplicits exposed
