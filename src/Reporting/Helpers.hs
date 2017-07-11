@@ -11,7 +11,7 @@ module Reporting.Helpers
   , toHint, hintLink, stack, reflowParagraph
   , commaSep, capitalize, ordinalize, drawCycle
   , findPotentialTypos, findTypoPairs, vetTypos
-  , nearbyNames, distance, maybeYouWant
+  , nearbyNames, distance, maybeYouWant, maybeYouWant'
   )
   where
 
@@ -234,27 +234,19 @@ distance x y =
     (Text.unpack y)
 
 
-maybeYouWant :: Maybe Doc -> [Text] -> Maybe Doc -> Doc
-maybeYouWant maybeStarter suggestions maybeEnder =
+maybeYouWant :: Maybe Doc -> [Text] -> Doc
+maybeYouWant maybeStarter suggestions =
+  maybe P.empty id (maybeYouWant' maybeStarter suggestions)
+
+
+maybeYouWant' :: Maybe Doc -> [Text] -> Maybe Doc
+maybeYouWant' maybeStarter suggestions =
   case suggestions of
     [] ->
-      case (maybeStarter, maybeEnder) of
-        (Nothing, Nothing) ->
-          P.empty
-
-        (Just starter, Nothing) ->
-          starter
-
-        (Nothing, Just ender) ->
-          ender
-
-        (Just starter, Just ender) ->
-          stack [ starter, ender ]
+      maybeStarter
 
     _:_ ->
-      stack $
+      Just $ stack $
         [ maybe id (<+>) maybeStarter "Maybe you want one of the following?"
-        , P.indent 4 (P.vcat (map text (take 4 suggestions)))
+        , P.indent 4 $ P.vcat $ map (P.dullyellow . text) (take 4 suggestions)
         ]
-        ++ maybe [] pure maybeEnder
-

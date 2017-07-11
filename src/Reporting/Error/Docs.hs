@@ -42,7 +42,7 @@ toReport err =
           Nothing
           ("Your module documentation includes `" <> name <> "` which is not exported."
           )
-          ( Help.maybeYouWant (Just "Is it misspelled? Should it be exported?") suggestions Nothing
+          ( Help.maybeYouWant (Just "Is it misspelled? Should it be exported?") suggestions
           )
 
     OnlyInExports names ->

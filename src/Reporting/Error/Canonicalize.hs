@@ -19,7 +19,7 @@ import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Report as Report
 import qualified Reporting.Helpers as Help
 import Reporting.Helpers
-  ( Doc, (<>), dullyellow, fillSep, i2t, indent, maybeYouWant, reflowParagraph, text
+  ( Doc, (<>), dullyellow, fillSep, i2t, indent, reflowParagraph, text
   )
 
 
@@ -141,14 +141,18 @@ toReport localizer err =
           variableName =
             kind <> " `" <> name <> "`"
 
-          learnMore =
-            Help.toHint $
-              "New to Elm? Unsure exactly how `import` works? Learn all about it here: "
+          learnMore orMaybe =
+            Help.reflowParagraph $
+              orMaybe <> " `import` works different than you expect? Learn all about it here: "
               <> Help.hintLink "imports"
 
           namingError overview maybeStarter specializedSuggestions =
             Report.report "NAMING ERROR" Nothing overview $
-              maybeYouWant maybeStarter specializedSuggestions (Just learnMore)
+              case Help.maybeYouWant' maybeStarter specializedSuggestions of
+                Nothing ->
+                  learnMore "Maybe"
+                Just doc ->
+                  Help.stack [ doc, learnMore "Or maybe" ]
         in
         case problem of
           Ambiguous ->
@@ -244,17 +248,17 @@ toReport localizer err =
           ModuleNotFound suggestions ->
               Report.report "IMPORT ERROR" Nothing
                 ("Could not find a module named `" <> ModuleName.toText name <> "`")
-                (maybeYouWant Nothing suggestions Nothing)
+                (Help.maybeYouWant Nothing suggestions)
 
           ValueNotFound value suggestions ->
               Report.report "IMPORT ERROR" Nothing
                 ("Module `" <> ModuleName.toText name <> "` does not expose `" <> value <> "`")
-                (maybeYouWant Nothing suggestions Nothing)
+                (Help.maybeYouWant Nothing suggestions)
 
     Export name suggestions ->
         Report.report "EXPOSING ERROR" Nothing
           ("Could not expose `" <> name <> "` which is not defined in this module.")
-          (maybeYouWant Nothing suggestions Nothing)
+          (Help.maybeYouWant Nothing suggestions)
 
     DuplicateExport name ->
         Report.report "EXPOSING ERROR" Nothing
