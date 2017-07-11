@@ -164,7 +164,7 @@ chompImports imports =
           keyword "import"
           pushContext start E.Import
           spaces
-          name <- qualifiedCapVar
+          name <- addLocation qualifiedCapVar
           end <- getPosition
           pos <- whitespace
           oneOf
@@ -182,7 +182,7 @@ chompImports imports =
     ]
 
 
-chompAs :: R.Position -> Text -> [Module.UserImport] -> Parser [Module.UserImport]
+chompAs :: R.Position -> A.Located Text -> [Module.UserImport] -> Parser [Module.UserImport]
 chompAs start name imports =
   do  keyword "as"
       spaces
@@ -199,7 +199,7 @@ chompAs start name imports =
         ]
 
 
-chompExposing :: R.Position -> Text -> Maybe Text -> [Module.UserImport] -> Parser [Module.UserImport]
+chompExposing :: R.Position -> A.Located Text -> Maybe Text -> [Module.UserImport] -> Parser [Module.UserImport]
 chompExposing start name maybeAlias imports =
   do  keyword "exposing"
       spaces
@@ -211,7 +211,7 @@ chompExposing start name maybeAlias imports =
       chompImports (userImport:imports)
 
 
-method :: R.Position -> R.Position -> Text -> Maybe Text -> Exposing.Raw -> Module.UserImport
+method :: R.Position -> R.Position -> A.Located Text -> Maybe Text -> Exposing.Raw -> Module.UserImport
 method start end name maybeAlias exposed =
   A.at start end ( name, Module.ImportMethod maybeAlias exposed )
 

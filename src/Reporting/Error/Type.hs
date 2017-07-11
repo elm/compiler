@@ -24,8 +24,8 @@ import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Report as Report
 import qualified Reporting.Helpers as Help
 import Reporting.Helpers
-  ( Doc, (<>), (<+>), capitalize, dullyellow, fillSep, functionName
-  , i2t, indent, ordinalize, reflowParagraph, stack, text, underline, vcat
+  ( Doc, (<>), (<+>), capitalize, dullyellow, functionName
+  , i2t, indent, ordinalize, reflowParagraph, stack, text, toHint, vcat
   )
 
 
@@ -843,16 +843,6 @@ doubleRigidError maybeLeftName maybeRightName =
 
     _ ->
       weirdRigidError
-
-
-hintDoc :: Doc
-hintDoc =
-  underline (text "Hint") <> ":"
-
-
-toHint :: Text -> Doc
-toHint txt =
-  fillSep (hintDoc : map text (Text.words txt))
 
 
 messyFieldsHelp :: [Text] -> [Text] -> [Text] -> Maybe (Text, [Doc])

@@ -42,7 +42,7 @@ environment importDict interfaces (Module.Module name info) =
       info
 
     allImports =
-      imports ++ map (A.A (error "default import not found")) defaults
+      imports ++ map toPretendUserImport defaults
 
     getImportPatches =
       traverse (importToPatches importDict interfaces) allImports
@@ -62,6 +62,15 @@ environment importDict interfaces (Module.Module name info) =
         addTypeAliases name typeAliasNodes env
 
 
+toPretendUserImport :: Module.DefaultImport -> Module.UserImport
+toPretendUserImport (name, method) =
+  let
+    errLoc =
+      error "default import not found"
+  in
+    A.A errLoc ( A.A errLoc name, method )
+
+
 
 -- PATCHES FOR IMPORTS
 
@@ -69,9 +78,9 @@ environment importDict interfaces (Module.Module name info) =
 importToPatches
   :: Map.Map ModuleName.Raw ModuleName.Canonical
   -> Module.Interfaces
-  -> A.Located (ModuleName.Raw, Module.ImportMethod)
+  -> Module.UserImport
   -> Result [Env.Patch]
-importToPatches importDict allInterfaces (A.A region (rawImportName, method)) =
+importToPatches importDict allInterfaces (A.A _ (A.A region rawImportName, method)) =
   let
     maybeInterface =
       do  canonicalName <- Map.lookup rawImportName importDict

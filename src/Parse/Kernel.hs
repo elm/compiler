@@ -91,7 +91,7 @@ type Table =
 
 
 importToTable :: Module.UserImport -> Table
-importToTable (A.A _ ( fullName, Module.ImportMethod maybeAlias exposed )) =
+importToTable (A.A _ ( A.A _ fullName, Module.ImportMethod maybeAlias exposed )) =
   let
     shortName =
       case maybeAlias of

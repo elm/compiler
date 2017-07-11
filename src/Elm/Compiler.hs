@@ -187,8 +187,8 @@ toHeaderSummary pkgName (Module.Header maybeHeaderDecl imports) =
   let
     dependencies =
       if pkgName == Package.core
-        then map (fst . A.drop) imports
-        else map (fst . A.drop) imports ++ map fst Imports.defaults
+        then map (A.drop . fst . A.drop) imports
+        else map (A.drop . fst . A.drop) imports ++ map fst Imports.defaults
   in
     case maybeHeaderDecl of
       Nothing ->

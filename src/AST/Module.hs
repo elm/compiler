@@ -133,7 +133,7 @@ type Optimized =
 -- IMPORTS
 
 
-type UserImport = A.Located (Name.Raw, ImportMethod)
+type UserImport = A.Located (A.Located Name.Raw, ImportMethod)
 
 
 type DefaultImport = (Name.Raw, ImportMethod)

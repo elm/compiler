@@ -112,7 +112,7 @@ filterImports
     -> Result [ModuleName.Raw]
 filterImports uses (defaults, imports) =
   let
-    checkImport (A.A region (name, _method)) =
+    checkImport (A.A region (A.A _ name, _method)) =
       if Set.member name uses then
         return (Just name)
 

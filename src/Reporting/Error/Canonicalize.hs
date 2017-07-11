@@ -133,41 +133,47 @@ port name tipe maybeMessage =
 -- TO REPORT
 
 
-namingError :: Text -> Text -> Report.Report
-namingError pre post =
-  Report.report "NAMING ERROR" Nothing pre (text post)
-
-
 toReport :: RenderType.Localizer -> Error -> Report.Report
 toReport localizer err =
   case err of
     Var (VarError kind name problem suggestions) ->
-        let var = kind <> " `" <> name <> "`"
+        let
+          variableName =
+            kind <> " `" <> name <> "`"
+
+          learnMore =
+            Help.toHint $
+              "New to Elm? Unsure exactly how `import` works? Learn all about it here: "
+              <> Help.hintLink "imports"
+
+          namingError overview maybeStarter specializedSuggestions =
+            Report.report "NAMING ERROR" Nothing overview $
+              maybeYouWant maybeStarter specializedSuggestions (Just learnMore)
         in
         case problem of
           Ambiguous ->
               namingError
-                ("This usage of " <> var <> " is ambiguous.")
-                (maybeYouWant suggestions)
+                ("This usage of " <> variableName <> " is ambiguous.")
+                Nothing
+                suggestions
 
           UnknownQualifier qualifier localName ->
               namingError
-                ("Cannot find " <> var <> ".")
-                ( "No module called `" <> qualifier <> "` has been imported. "
-                  <> maybeYouWant (map (\modul -> modul <> "." <> localName) suggestions)
-                )
+                ("Cannot find " <> variableName)
+                (Just $ text $ "No module called `" <> qualifier <> "` has been imported.")
+                (map (\modul -> modul <> "." <> localName) suggestions)
 
           QualifiedUnknown qualifier localName ->
               namingError
-                ("Cannot find " <> var <> ".")
-                ( "`" <> qualifier <> "` does not expose `" <> localName <> "`. "
-                  <> maybeYouWant (map (\v -> qualifier <> "." <> v) suggestions)
-                )
+                ("Cannot find " <> variableName)
+                (Just $ text $ "`" <> qualifier <> "` does not expose `" <> localName <> "`.")
+                (map (\v -> qualifier <> "." <> v) suggestions)
 
           ExposedUnknown ->
               namingError
-                ("Cannot find " <> var)
-                (maybeYouWant suggestions)
+                ("Cannot find " <> variableName)
+                Nothing
+                suggestions
 
     BadRecursion region def defs ->
       case defs of
@@ -234,27 +240,25 @@ toReport localizer err =
                 )
 
     Import name importError ->
-        let moduleName = ModuleName.toText name
-        in
         case importError of
           ModuleNotFound suggestions ->
-              namingError
-                ("Could not find a module named `" <> moduleName <> "`")
-                (maybeYouWant suggestions)
+              Report.report "IMPORT ERROR" Nothing
+                ("Could not find a module named `" <> ModuleName.toText name <> "`")
+                (maybeYouWant Nothing suggestions Nothing)
 
           ValueNotFound value suggestions ->
-              namingError
-                ("Module `" <> moduleName <> "` does not expose `" <> value <> "`")
-                (maybeYouWant suggestions)
+              Report.report "IMPORT ERROR" Nothing
+                ("Module `" <> ModuleName.toText name <> "` does not expose `" <> value <> "`")
+                (maybeYouWant Nothing suggestions Nothing)
 
     Export name suggestions ->
-        namingError
-          ("Could not export `" <> name <> "` which is not defined in this module.")
-          (maybeYouWant suggestions)
+        Report.report "EXPOSING ERROR" Nothing
+          ("Could not expose `" <> name <> "` which is not defined in this module.")
+          (maybeYouWant Nothing suggestions Nothing)
 
     DuplicateExport name ->
-        namingError
-          ("You are trying to export `" <> name <> "` multiple times!")
+        Report.report "EXPOSING ERROR" Nothing
+          ("You are trying to expose `" <> name <> "` multiple times!")
           "Remove duplicates until there is only one listed."
 
     Port (PortError name tipe maybeMessage) ->

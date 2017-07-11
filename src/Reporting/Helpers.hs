@@ -8,7 +8,7 @@ module Reporting.Helpers
   -- custom helpers
   , i2t
   , functionName, args
-  , hintLink, stack, reflowParagraph
+  , toHint, hintLink, stack, reflowParagraph
   , commaSep, capitalize, ordinalize, drawCycle
   , findPotentialTypos, findTypoPairs, vetTypos
   , nearbyNames, distance, maybeYouWant
@@ -70,6 +70,19 @@ functionName opName =
 args :: Int -> Text
 args n =
   i2t n <> if n == 1 then " argument" else " arguments"
+
+
+
+-- HINTS
+
+
+toHint :: Text -> Doc
+toHint txt =
+  let
+    hint =
+      underline (text "Hint") <> ":"
+  in
+    fillSep (hint : map text (Text.words txt))
 
 
 hintLink :: Text -> Text
@@ -221,14 +234,27 @@ distance x y =
     (Text.unpack y)
 
 
-maybeYouWant :: [Text] -> Text
-maybeYouWant suggestions =
+maybeYouWant :: Maybe Doc -> [Text] -> Maybe Doc -> Doc
+maybeYouWant maybeStarter suggestions maybeEnder =
   case suggestions of
     [] ->
-        ""
+      case (maybeStarter, maybeEnder) of
+        (Nothing, Nothing) ->
+          P.empty
+
+        (Just starter, Nothing) ->
+          starter
+
+        (Nothing, Just ender) ->
+          ender
+
+        (Just starter, Just ender) ->
+          stack [ starter, ender ]
 
     _:_ ->
-        "Maybe you want one of the following?\n"
-        <>
-        Text.concat (map ("\n    " <>) (take 4 suggestions))
+      stack $
+        [ maybe id (<+>) maybeStarter "Maybe you want one of the following?"
+        , P.indent 4 (P.vcat (map text (take 4 suggestions)))
+        ]
+        ++ maybe [] pure maybeEnder
 
