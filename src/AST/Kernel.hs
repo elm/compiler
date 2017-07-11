@@ -28,6 +28,7 @@ data Info =
 data Chunk
   = JS BS.ByteString
   | Var ModuleName.Raw Text.Text
+  | Prod Bool
 
 
 
@@ -51,9 +52,17 @@ instance Binary Chunk where
       Var home name ->
         putWord8 1 >> put home >> put name
 
+      Prod True ->
+        putWord8 2
+
+      Prod False ->
+        putWord8 3
+
   get =
     do  word <- getWord8
         case word of
           0 -> liftM JS get
           1 -> liftM2 Var get get
+          2 -> return (Prod True)
+          3 -> return (Prod False)
           _ -> error "problem deserializing Parse.Kernel.Chunk"

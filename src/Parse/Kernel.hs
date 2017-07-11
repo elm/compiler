@@ -43,25 +43,30 @@ type Enums =
 
 parserHelp :: Table -> Enums -> [Kernel.Chunk] -> Parser [Kernel.Chunk]
 parserHelp table enums chunks =
-  do  (javascript, maybeMore) <- Parse.kernelChunk
-      case maybeMore of
+  do  (javascript, maybeTag) <- Parse.kernelChunk
+      case maybeTag of
         Nothing ->
           return (Kernel.JS javascript : chunks)
 
-        Just (Parse.KernelImport, var) ->
-          case Map.lookup var table of
-            Nothing ->
-              error $ show $ "could not find " <> var <> " when parsing kernel code"
+        Just tag ->
+          case tag of
+            Parse.KernelProd isProd ->
+              parserHelp table enums (Kernel.Prod isProd : Kernel.JS javascript : chunks)
 
-            Just (home, name) ->
-              parserHelp table enums (Kernel.Var home name : Kernel.JS javascript : chunks)
+            Parse.KernelImport var ->
+              case Map.lookup var table of
+                Nothing ->
+                  error $ show $ "could not find " <> var <> " when parsing kernel code"
 
-        Just (Parse.KernelEnum n, var) ->
-          let
-            (bytes, newEnums) =
-              lookupEnum n var enums
-          in
-            parserHelp table newEnums (Kernel.JS bytes : Kernel.JS javascript : chunks)
+                Just (home, name) ->
+                  parserHelp table enums (Kernel.Var home name : Kernel.JS javascript : chunks)
+
+            Parse.KernelEnum n var ->
+              let
+                (bytes, newEnums) =
+                  lookupEnum n var enums
+              in
+                parserHelp table newEnums (Kernel.JS bytes : Kernel.JS javascript : chunks)
 
 
 lookupEnum :: Word8 -> Text -> Enums -> (BS.ByteString, Enums)

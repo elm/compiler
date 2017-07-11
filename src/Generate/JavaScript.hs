@@ -156,6 +156,13 @@ chunkToBuilder builder chunk =
       do  expr <- JS.global (Var.Global (ModuleName.inCore home) name)
           return $ JsBuilder.exprToBuilder expr <> builder
 
+    Kernel.Prod isProd ->
+      if isProd then
+        return "_UNUSED"
+      else
+        return ""
+
+
 
 -- CRAWL HELPERS
 
