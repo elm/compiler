@@ -99,7 +99,7 @@ Notice that I refer to `A.class` which is qualified and `style` which is unquali
 
 ## Default Imports
 
-We just learned all the variations of the `import` syntax in Elm. You will use some version of that syntay to `import` any module you ever write.
+We just learned all the variations of the `import` syntax in Elm. You will use some version of that syntax to `import` any module you ever write.
 
 It would be the best policy to make it so every module in the whole ecosystem works this way. We thought so in the past at least, but there are some modules that are so commonly used that the Elm compiler automatically adds the imports to every file. These default imports include:
 
@@ -120,6 +120,6 @@ import Platform.Sub as Sub exposing ( Sub )
 
 You can think of these imports being at the top of any module you write.
 
-One could argue that `Maybe` fundamental to how we handle errors in Elm code that it is *basically* part of the language. One could also argue that it is extraordinarily annoying to have to import `Maybe` once you get past your first couple weeks with Elm. Either way, we know that default imports are not ideal in some sense, so we have tried to keep the default imports as minimal as possible.
+One could argue that `Maybe` is so fundamental to how we handle errors in Elm code that it is *basically* part of the language. One could also argue that it is extraordinarily annoying to have to import `Maybe` once you get past your first couple weeks with Elm. Either way, we know that default imports are not ideal in some sense, so we have tried to keep the default imports as minimal as possible.
 
 > **Note:** Elm performs dead code elimination, so if you do not use something from a module, it is not included in the generated code. So if you `import` a module with hundreds of functions, you do not need to worry about the size of your assets. You will only get what you use!
