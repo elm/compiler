@@ -198,6 +198,9 @@ encodeHelp indent value =
     Integer n ->
       B.intDec n
 
+    Number scientific ->
+      B.string7 (Sci.formatScientific Sci.Generic Nothing scientific)
+
     Null ->
       "null"
 
