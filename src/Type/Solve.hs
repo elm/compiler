@@ -86,34 +86,32 @@ rigidify content =
         content
 
 
--- adjust the ranks of variables such that ranks never increase as you
--- move deeper into a variable.
+
+-- ADJUST RANK
+
+--
+-- Adjust variable ranks such that ranks never increase as you move deeper.
+-- This way the outermost rank is representative of the entire structure.
+--
 adjustRank :: Int -> Int -> Int -> Variable -> IO Int
 adjustRank youngMark visitedMark groupRank var =
   {-# SCC elm_compiler_type_adjust #-}
-  do  descriptor <- UF.descriptor var
-      adjustRankHelp youngMark visitedMark groupRank var descriptor
+  do  (Descriptor content rank mark copy) <- UF.descriptor var
+      if mark == youngMark then
+          do  -- Set the variable as marked first because it may be cyclic.
+              UF.setDescriptor var $ Descriptor content rank visitedMark copy
+              maxRank <- adjustRankContent youngMark visitedMark groupRank content
+              UF.setDescriptor var $ Descriptor content maxRank visitedMark copy
+              return maxRank
 
+        else if mark == visitedMark then
+          return rank
 
-adjustRankHelp :: Int -> Int -> Int -> Variable -> Descriptor -> IO Int
-adjustRankHelp youngMark visitedMark groupRank var descriptor@(Descriptor content rank mark _) =
-  if mark == youngMark then
-
-      do  -- Set the variable as marked first because it may be cyclic.
-          UF.modifyDescriptor var $ \desc -> desc { _mark = visitedMark }
-          maxRank <- adjustRankContent youngMark visitedMark groupRank content
-          UF.modifyDescriptor var $ \desc -> desc { _rank = maxRank }
-          return maxRank
-
-  else if mark /= visitedMark then
-
-      do  let minRank = min groupRank rank
-          UF.setDescriptor var (descriptor { _mark = visitedMark, _rank = minRank })
-          return minRank
-
-  else
-
-      return rank
+        else
+          do  let minRank = min groupRank rank
+              -- TODO how can minRank ever be groupRank?
+              UF.setDescriptor var $ Descriptor content minRank visitedMark copy
+              return minRank
 
 
 adjustRankContent :: Int -> Int -> Int -> Content -> IO Int
@@ -128,27 +126,25 @@ adjustRankContent youngMark visitedMark groupRank content =
       Var _ _ _ ->
           return groupRank
 
-      Alias _ args realVar ->
-          -- TODO do you have to crawl the args?
-          do  realRank <- go realVar
-              foldM (\rank (_, argVar) -> max rank <$> go argVar) realRank args
+      Alias _ args _ ->
+          -- THEORY: anything in the realVar would be outermostRank
+          foldM (\rank (_, argVar) -> max rank <$> go argVar) outermostRank args
 
-      Structure (App1 _ []) ->
-          return groupRank
+      Structure flatType ->
+        case flatType of
+          App1 _ args ->
+            foldM (\rank arg -> max rank <$> go arg) outermostRank args
 
-      Structure (App1 _ (first:rest)) ->
-        do  firstRank <- go first
-            foldM (\rank arg -> max rank <$> go arg) firstRank rest
+          Fun1 arg result ->
+              max <$> go arg <*> go result
 
-      Structure (Fun1 arg result) ->
-          max <$> go arg <*> go result
+          EmptyRecord1 ->
+              -- THEORY: an empty record never needs to get generalized
+              return outermostRank
 
-      Structure EmptyRecord1 ->
-          return outermostRank
-
-      Structure (Record1 fields extension) ->
-          do  extRank <- go extension
-              foldM (\rank field -> max rank <$> go field) extRank fields
+          Record1 fields extension ->
+              do  extRank <- go extension
+                  foldM (\rank field -> max rank <$> go field) extRank fields
 
 
 
