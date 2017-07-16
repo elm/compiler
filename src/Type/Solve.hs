@@ -7,6 +7,8 @@ import Control.Monad.Except (ExceptT, liftIO, throwError)
 import qualified Data.Foldable as F
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import qualified Data.Vector as Vector
+import qualified Data.Vector.Mutable as MVector
 
 import qualified AST.Module.Name as ModuleName
 import qualified Reporting.Annotation as A
@@ -23,54 +25,55 @@ import qualified Type.UnionFind as UF
 This sorts variables into the young and old pools accordingly.
 -}
 generalize :: TS.Pool -> TS.Solver ()
-generalize (TS.Pool youngRank youngInhabitants) =
+generalize pool@(TS.Pool youngRank _) =
   {-# SCC elm_compiler_type_generalize #-}
   do  youngMark <- TS.uniqueMark
-      let insert dict var =
-            {-# SCC elm_compiler_type_insert #-}
-            do  descriptor <- UF.descriptor var
-                UF.modifyDescriptor var (\desc -> desc { _mark = youngMark })
-                return $ Map.insertWith (++) (_rank descriptor) [var] dict
 
-      -- Sort the youngPool variables by rank.
-      rankDict <- liftIO $ foldM insert Map.empty youngInhabitants
+      rankTable <- liftIO $ poolToRankTable youngMark pool
 
       -- get the ranks right for each entry.
       -- start at low ranks so that we only have to pass
       -- over the information once.
       visitedMark <- TS.uniqueMark
-      liftIO $ forM_ (Map.toList rankDict) $ \(poolRank, vars) ->
-          forM_ vars (adjustRank youngMark visitedMark poolRank)
+      let adjust poolRank vars =
+            F.traverse_ (adjustRank youngMark visitedMark poolRank) vars
+      liftIO $ Vector.imapM_ adjust rankTable
 
       -- For variables that have rank lowerer than youngRank, register them in
       -- the old pool if they are not redundant.
-      let registerIfNotRedundant var =
-            do  isRedundant <- liftIO $ UF.redundant var
-                if isRedundant then return var else TS.register var
-
-      let rankDict' = Map.delete youngRank rankDict
-      F.traverse_ (F.traverse_ registerIfNotRedundant) rankDict'
+      Vector.forM_ (Vector.unsafeInit rankTable) $ \vars ->
+        forM_ vars $ \var ->
+          do  isRedundant <- liftIO $ UF.redundant var
+              if isRedundant then return var else TS.register var
 
       -- For variables with rank youngRank
       --   If rank < youngRank: register in oldPool
       --   otherwise generalize
-      let registerIfLowerRank var =
-            {-# SCC elm_compiler_type_register #-}
-            do  isRedundant <- liftIO $ UF.redundant var
-                case isRedundant of
-                  True -> return ()
-                  False -> do
-                    desc <- liftIO $ UF.descriptor var
-                    case _rank desc < youngRank of
-                      True ->
-                          TS.register var >> return ()
-                      False ->
-                          liftIO $ UF.setDescriptor var $ desc
-                            { _rank = noRank
-                            , _content = rigidify (_content desc)
-                            }
+      forM_ (Vector.unsafeLast rankTable) $ \var ->
+        {-# SCC elm_compiler_type_register #-}
+        do  isRedundant <- liftIO $ UF.redundant var
+            if isRedundant
+              then return ()
+              else do
+                (Descriptor content rank mark copy) <- liftIO $ UF.descriptor var
+                if rank < youngRank
+                  then
+                    TS.register var >> return ()
+                  else
+                    liftIO $ UF.setDescriptor var $ Descriptor (rigidify content) noRank mark copy
 
-      mapM_ registerIfLowerRank (Map.findWithDefault [] youngRank rankDict)
+
+poolToRankTable :: Int -> TS.Pool -> IO (Vector.Vector [Variable])
+poolToRankTable youngMark (TS.Pool youngRank youngInhabitants) =
+  do  mutableTable <- MVector.replicate (youngRank + 1) []
+
+      -- Sort the youngPool variables by rank.
+      forM_ youngInhabitants $ \var ->
+        do  (Descriptor content rank _ copy) <- UF.descriptor var
+            UF.setDescriptor var (Descriptor content rank youngMark copy)
+            MVector.modify mutableTable (var:) rank
+
+      Vector.unsafeFreeze mutableTable
 
 
 rigidify :: Content -> Content

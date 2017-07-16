@@ -78,29 +78,29 @@ data Super
 
 
 noRank :: Int
-noRank = -1
+noRank = 0
 
 
 outermostRank :: Int
-outermostRank = 0
+outermostRank = 1
 
 
 noMark :: Int
-noMark = 0
+noMark = 2
 
 
 initialMark :: Int
-initialMark = 1
+initialMark = 3
 
 
 occursMark :: Int
 occursMark =
-  -1
+  1
 
 
 getVarNamesMark :: Int
 getVarNamesMark =
-  -2
+  0
 
 
 
