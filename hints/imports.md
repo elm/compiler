@@ -42,7 +42,7 @@ We are referring to the [`Html`](http://package.elm-lang.org/packages/elm-lang/h
 
 ## `as`
 
-It is best practice to always use *qualified* names, but sometimes module names are so long that it becomes unweildy. This is common for the `Html.Attributes` module. We can use the `as` keyword to help with this:
+It is best practice to always use *qualified* names, but sometimes module names are so long that it becomes unwieldy. This is common for the `Html.Attributes` module. We can use the `as` keyword to help with this:
 
 ```elm
 import Html
