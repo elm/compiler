@@ -23,8 +23,8 @@ occursHelp seen var =
     return True
 
   else
-    do  desc <- UF.descriptor var
-        case _content desc of
+    do  (Descriptor content _ _ _) <- UF.descriptor var
+        case content of
           Var _ _ _ ->
               return False
 

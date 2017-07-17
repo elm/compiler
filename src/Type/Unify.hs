@@ -172,24 +172,14 @@ merge (Context _ var1 (Descriptor _ rank1 _ _) var2 (Descriptor _ rank2 _ _)) co
 mergeHelp :: Variable -> Variable -> Content -> Int -> IO ()
 mergeHelp var1 var2 newContent newRank =
   UF.union var1 var2 $
-    Descriptor
-      { _content = newContent
-      , _rank = newRank
-      , _mark = noMark
-      , _copy = Nothing
-      }
+    Descriptor newContent newRank noMark Nothing
 
 
 fresh :: Context -> Content -> Unify Variable
-fresh (Context _ _ desc1 _ desc2) content =
+fresh (Context _ _ (Descriptor _ rank1 _ _) _ (Descriptor _ rank2 _ _)) content =
   do  freshVariable <-
           liftIO $ UF.fresh $
-            Descriptor
-              { _content = content
-              , _rank = min (_rank desc1) (_rank desc2)
-              , _mark = noMark
-              , _copy = Nothing
-              }
+            Descriptor content (min rank1 rank2) noMark Nothing
       lift (TS.register freshVariable)
 
 
@@ -214,11 +204,7 @@ subUnify context var1 var2 =
 
 
 actuallyUnify :: Context -> Unify ()
-actuallyUnify context@(Context _ _ firstDesc _ secondDesc) =
-  let
-    firstContent = _content firstDesc
-    secondContent = _content secondDesc
-  in
+actuallyUnify context@(Context _ _ (Descriptor firstContent _ _ _) _ (Descriptor secondContent _ _ _)) =
   case firstContent of
     Error _ ->
         -- If there was an error, just pretend it is okay. This lets us avoid
@@ -443,16 +429,9 @@ comparableOccursCheck (Context _ _ _ var _) =
 
 unifyComparableRecursive :: Orientation -> Variable -> Unify ()
 unifyComparableRecursive orientation var =
-  do  compVar <-
-          liftIO $
-            do  desc <- UF.descriptor var
-                UF.fresh $
-                  Descriptor
-                    { _content = Var Flex (Just Comparable) Nothing
-                    , _rank = _rank desc
-                    , _mark = noMark
-                    , _copy = Nothing
-                    }
+  do  compVar <- liftIO $
+        do  (Descriptor _ rank _ _) <- UF.descriptor var
+            UF.fresh $ Descriptor (Var Flex (Just Comparable) Nothing) rank noMark Nothing
 
       guardedUnify orientation compVar var
 
@@ -464,18 +443,13 @@ collectArgs variable =
 
 collectArgsHelp :: [Variable] -> Variable -> IO [Variable]
 collectArgsHelp revArgs variable =
-  do  content <- getContent variable
+  do  (Descriptor content _ _ _) <- UF.descriptor variable
       case content of
         Structure (Fun1 arg returnType) ->
           collectArgsHelp (arg : revArgs) returnType
 
         _ ->
           return $ variable : revArgs
-
-
-getContent :: Variable -> IO Content
-getContent variable =
-  _content <$> UF.descriptor variable
 
 
 
@@ -673,8 +647,8 @@ data ExtensionStructure
 
 gatherFields :: Context -> Map.Map Text Variable -> Variable -> IO RecordStructure
 gatherFields context fields variable =
-  do  desc <- UF.descriptor variable
-      case _content desc of
+  do  (Descriptor content _ _ _) <- UF.descriptor variable
+      case content of
         Structure (Record1 subFields subExt) ->
             gatherFields context (Map.union fields subFields) subExt
 

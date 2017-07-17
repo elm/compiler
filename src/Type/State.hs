@@ -16,8 +16,7 @@ module Type.State
   , register
   , introduce
   , flatten
-  , makeInstance
-  , makeCopy
+  , copy
   )
   where
 
@@ -130,6 +129,13 @@ getPool =
     return ( sPool state, state )
 
 
+{-# INLINE getMaxRank #-}
+getMaxRank :: Solver Int
+getMaxRank =
+  Solver $ \state@(SS _ _ (Pool maxRank _) _ _) ->
+    return ( maxRank, state )
+
+
 {-# INLINE getEnv #-}
 getEnv :: Solver Env
 getEnv =
@@ -147,23 +153,15 @@ saveLocalEnv =
 {-# INLINE uniqueMark #-}
 uniqueMark :: Solver Int
 uniqueMark =
-  Solver $ \state ->
-    let
-      mark =
-        sMark state
-    in
-      return ( mark, state { sMark = mark + 1 } )
+  Solver $ \(SS env savedEnv pool mark errors) ->
+    return ( mark, SS env savedEnv pool (mark + 1) errors )
 
 
 {-# INLINE nextRankPool #-}
 nextRankPool :: Solver Pool
 nextRankPool =
-  Solver $ \state ->
-    let
-      (Pool maxRank _) =
-        sPool state
-    in
-      return ( Pool (maxRank + 1) [], state )
+  Solver $ \state@(SS _ _ (Pool maxRank _) _ _) ->
+    return ( Pool (maxRank + 1) [], state )
 
 
 
@@ -186,13 +184,10 @@ register variable =
 introduce :: Variable -> Solver Variable
 introduce variable =
   {-# SCC elm_compiler_type_introduce #-}
-  Solver $ \state ->
-    let
-      (Pool maxRank inhabitants) =
-        sPool state
-    in
-      do  UF.modifyDescriptor variable (\desc -> desc { _rank = maxRank })
-          return ( variable, state { sPool = Pool maxRank (variable : inhabitants) } )
+  Solver $ \(SS env savedEnv (Pool maxRank inhabitants) mark errors) ->
+    do  UF.modifyDescriptor variable $ \(Descriptor c _ m cp) -> Descriptor c maxRank m cp
+        let newPool = Pool maxRank (variable : inhabitants)
+        return ( variable, SS env savedEnv newPool mark errors )
 
 
 
@@ -202,201 +197,140 @@ introduce variable =
 flatten :: Type -> Solver Variable
 flatten term =
   {-# SCC elm_compiler_type_flatten #-}
-  flattenHelp Map.empty term
+  do  maxRank <- getMaxRank
+      flattenHelp maxRank Map.empty term
 
 
-flattenHelp :: Map.Map Text Variable -> Type -> Solver Variable
-flattenHelp aliasDict termN =
+flattenHelp :: Int -> Map.Map Text Variable -> Type -> Solver Variable
+flattenHelp maxRank aliasDict termN =
   case termN of
     PlaceHolder name ->
         return (aliasDict ! name)
 
     AliasN name args realType ->
-        do  flatArgs <- mapM (traverse (flattenHelp aliasDict)) args
-            flatVar <- flattenHelp (Map.fromList flatArgs) realType
-            makeFlatType (Alias name flatArgs flatVar)
+        do  flatArgs <- mapM (traverse (flattenHelp maxRank aliasDict)) args
+            flatVar <- flattenHelp maxRank (Map.fromList flatArgs) realType
+            makeFlatType maxRank (Alias name flatArgs flatVar)
 
     VarN v ->
         return v
 
     AppN name args ->
-        do  flatArgs <- traverse (flattenHelp aliasDict) args
-            makeFlatType (Structure (App1 name flatArgs))
+        do  flatArgs <- traverse (flattenHelp maxRank aliasDict) args
+            makeFlatType maxRank (Structure (App1 name flatArgs))
 
     FunN a b ->
-        do  flatA <- flattenHelp aliasDict a
-            flatB <- flattenHelp aliasDict b
-            makeFlatType (Structure (Fun1 flatA flatB))
+        do  flatA <- flattenHelp maxRank aliasDict a
+            flatB <- flattenHelp maxRank aliasDict b
+            makeFlatType maxRank (Structure (Fun1 flatA flatB))
 
     EmptyRecordN ->
-        makeFlatType (Structure EmptyRecord1)
+        makeFlatType maxRank (Structure EmptyRecord1)
 
     RecordN fields ext ->
-        do  flatFields <- traverse (flattenHelp aliasDict) fields
-            flatExt <- flattenHelp aliasDict ext
-            makeFlatType (Structure (Record1 flatFields flatExt))
+        do  flatFields <- traverse (flattenHelp maxRank aliasDict) fields
+            flatExt <- flattenHelp maxRank aliasDict ext
+            makeFlatType maxRank (Structure (Record1 flatFields flatExt))
 
 
-makeFlatType :: Content -> Solver Variable
-makeFlatType content =
-  do  pool <- getPool
-      variable <- liftIO $ UF.fresh $
-        Descriptor
-          { _content = content
-          , _rank = _maxRank pool
-          , _mark = noMark
-          , _copy = Nothing
-          }
-      register variable
+makeFlatType :: Int -> Content -> Solver Variable
+makeFlatType maxRank content =
+  register =<< liftIO (UF.fresh (Descriptor content maxRank noMark Nothing))
 
 
 
--- MAKE INSTANCE
+-- COPY
 
 
-makeInstance :: Variable -> Solver Variable
-makeInstance var =
-  do  alreadyCopiedMark <- uniqueMark
-      freshVar <- makeCopy alreadyCopiedMark var
-      _ <- restore alreadyCopiedMark var
-      return freshVar
-
-
-
--- MAKE COPY
-
-
-makeCopy :: Int -> Variable -> Solver Variable
-makeCopy alreadyCopiedMark variable =
+copy :: Variable -> Solver Variable
+copy var =
   {-# SCC elm_compiler_type_copy #-}
-  do  desc <- liftIO $ UF.descriptor variable
-      makeCopyHelp desc alreadyCopiedMark variable
+  do  maxRank <- getMaxRank
+      copyVar <- copyHelp maxRank var
+      _ <- restore var
+      return copyVar
 
 
-makeCopyHelp :: Descriptor -> Int -> Variable -> Solver Variable
-makeCopyHelp (Descriptor content rank mark copy) alreadyCopiedMark variable =
-  if mark == alreadyCopiedMark then
-      case copy of
+copyHelp :: Int -> Variable -> Solver Variable
+copyHelp maxRank variable =
+  do  (Descriptor content rank _mark maybeCopy) <- liftIO $ UF.descriptor variable
+      case maybeCopy of
         Just copiedVariable ->
-            return copiedVariable
+          return copiedVariable
 
         Nothing ->
-            error
-              "Error copying type variable. This should be impossible.\
-              \ Please report this at <https://github.com/elm-lang/elm-compiler/issues>\
-              \ with a <http://sscce.org> and information on your OS, how you installed,\
-              \ and any other configuration information that might be helpful."
+          if rank /= noRank then
+            return variable
 
-  else if rank /= noRank || not (needsCopy content) then
-      return variable
+          else
+            do  let mkCopyDesc cont = Descriptor cont maxRank noMark Nothing
+                newVar <- liftIO $ UF.fresh $ mkCopyDesc content
+                _ <- register newVar
 
-  else
-      do  pool <- getPool
-          newVar <-
-              liftIO $ UF.fresh $ Descriptor
-                { _content = content -- place holder!
-                , _rank = _maxRank pool
-                , _mark = noMark
-                , _copy = Nothing
-                }
-          _ <- register newVar
+                -- Link the original variable to the new variable. This lets us
+                -- avoid making multiple copies of the variable we are instantiating.
+                --
+                -- Need to do this before recursively copying the content of
+                -- the variable to avoid looping on cyclic terms.
+                liftIO $ UF.setDescriptor variable $
+                  Descriptor content rank noMark (Just newVar)
 
-          -- Link the original variable to the new variable. This lets us
-          -- avoid making multiple copies of the variable we are instantiating.
-          --
-          -- Need to do this before recursively copying the content of
-          -- the variable to avoid looping on cyclic terms.
-          liftIO $ UF.modifyDescriptor variable $ \desc ->
-              desc { _mark = alreadyCopiedMark, _copy = Just newVar }
+                -- Now we recursively copy the content of the variable.
+                -- We have already marked the variable as copied, so we
+                -- will not repeat this work or crawl this variable again.
+                case content of
+                  Structure term ->
+                    do  newTerm <- traverseFlatType (copyHelp maxRank) term
+                        liftIO $ UF.setDescriptor newVar $ mkCopyDesc (Structure newTerm)
 
+                  Var Rigid maybeSuper maybeName ->
+                    liftIO $ UF.setDescriptor newVar $ mkCopyDesc $ Var Flex maybeSuper maybeName
 
-          let setContent newContent =
-                liftIO $ UF.modifyDescriptor newVar $ \desc ->
-                  desc { _content = newContent }
+                  Var Flex _ _ ->
+                    return ()
 
-          -- Now we recursively copy the content of the variable.
-          -- We have already marked the variable as copied, so we
-          -- will not repeat this work or crawl this variable again.
-          case content of
-            Structure term ->
-                do  newTerm <- traverseFlatType (makeCopy alreadyCopiedMark) term
-                    setContent (Structure newTerm)
+                  Alias name args realType ->
+                    do  newArgs <- mapM (traverse (copyHelp maxRank)) args
+                        newRealType <- copyHelp maxRank realType
+                        liftIO $ UF.setDescriptor newVar $ mkCopyDesc (Alias name newArgs newRealType)
 
-            Var Rigid maybeSuper maybeName ->
-                setContent (Var Flex maybeSuper maybeName)
+                  Error _ ->
+                    return ()
 
-            Var Flex _ _ ->
-                return ()
-
-            Alias name args realType ->
-                setContent =<< (
-                  Alias name
-                    <$> mapM (traverse (makeCopy alreadyCopiedMark)) args
-                    <*> makeCopy alreadyCopiedMark realType
-                )
-
-            Error _ ->
-                return ()
-
-          return newVar
-
-
-needsCopy :: Content -> Bool
-needsCopy content =
-  case content of
-    Structure _ ->
-        True
-
-    Var _ _ _ ->
-        True
-
-    Alias _ _ _ ->
-        True
-
-    Error _ ->
-        False
+                return newVar
 
 
 
 -- RESTORE
 
 
-restore :: Int -> Variable -> Solver Variable
-restore alreadyCopiedMark variable =
-  do  desc <- liftIO $ UF.descriptor variable
-      if _mark desc /= alreadyCopiedMark
-        then
+restore :: Variable -> Solver Variable
+restore variable =
+  do  (Descriptor content _rank _mark maybeCopy) <- liftIO $ UF.descriptor variable
+      case maybeCopy of
+        Nothing ->
           return variable
 
-        else
-          do  restoredContent <-
-                  restoreContent alreadyCopiedMark (_content desc)
-              liftIO $ UF.setDescriptor variable $ Descriptor
-                  { _content = restoredContent
-                  , _rank = noRank
-                  , _mark = noMark
-                  , _copy = Nothing
-                  }
+        Just _ ->
+          do  restoredContent <- restoreContent content
+              liftIO $ UF.setDescriptor variable $
+                Descriptor restoredContent noRank noMark Nothing
               return variable
 
 
-
-restoreContent :: Int -> Content -> Solver Content
-restoreContent alreadyCopiedMark content =
-  let
-    go = restore alreadyCopiedMark
-  in
+restoreContent :: Content -> Solver Content
+restoreContent content =
   case content of
     Structure term ->
-        Structure <$> traverseFlatType go term
+        Structure <$> traverseFlatType restore term
 
     Var _ _ _ ->
         return content
 
     Alias name args var ->
         Alias name
-          <$> mapM (traverse go) args
-          <*> go var
+          <$> mapM (traverse restore) args
+          <*> restore var
 
     Error _ ->
         return content

@@ -199,7 +199,7 @@ actuallySolve constraint =
             freshCopy <-
                 case Map.lookup name env of
                   Just (A.A _ tipe) ->
-                      TS.makeInstance tipe
+                      TS.copy tipe
 
                   Nothing ->
                       if ModuleName.isKernel name then
@@ -248,8 +248,8 @@ solveScheme scheme =
 -- Check that a variable has rank == noRank, meaning that it can be generalized.
 isGeneric :: Variable -> TS.Solver ()
 isGeneric var =
-  do  desc <- liftIO $ UF.descriptor var
-      if _rank desc == noRank
+  do  (Descriptor _ rank _ _) <- liftIO $ UF.descriptor var
+      if rank == noRank
         then return ()
         else crash "Unable to generalize a type variable. It is not unranked."
 
@@ -277,7 +277,7 @@ occurs (name, A.A region variable) =
 
         True ->
           do  overallType <- liftIO $ Type.toSrcType variable
-              infiniteDescriptor <- liftIO $ UF.descriptor variable
-              liftIO $ UF.setDescriptor variable (infiniteDescriptor { _content = Error "∞" })
+              (Descriptor _ rank mark copy) <- liftIO $ UF.descriptor variable
+              liftIO $ UF.setDescriptor variable (Descriptor (Error "∞") rank mark copy)
               TS.addError region (Error.InfiniteType (Right name) overallType)
 

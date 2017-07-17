@@ -4,7 +4,7 @@ module Type.Type
   ( Variable
   , FlatType(..)
   , Type(..)
-  , Descriptor(..)
+  , Descriptor(Descriptor)
   , Content(..)
   , Flex(..)
   , Super(..)
