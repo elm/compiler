@@ -55,7 +55,7 @@ actuallySolve constraint =
 
     CLet [Scheme [] fqs constraint' _] CTrue ->
         do  oldEnv <- TS.getEnv
-            mapM_ TS.introduce fqs
+            TS.introduce fqs
             actuallySolve constraint'
             TS.modifyEnv (\_ -> oldEnv)
 
@@ -103,7 +103,7 @@ solveScheme scheme =
             -- fill in a new pool when working on this scheme's constraints
             freshPool <- TS.nextRankPool
             TS.switchToPool freshPool
-            mapM_ TS.introduce quantifiers
+            TS.introduce quantifiers
             header' <- traverse flatten header
             actuallySolve constraint
 

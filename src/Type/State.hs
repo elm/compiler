@@ -181,13 +181,14 @@ register variable =
 
 
 {-# INLINE introduce #-}
-introduce :: Variable -> Solver Variable
-introduce variable =
+introduce :: [Variable] -> Solver ()
+introduce variables =
   {-# SCC elm_compiler_type_introduce #-}
   Solver $ \(SS env savedEnv (Pool maxRank inhabitants) mark errors) ->
-    do  UF.modifyDescriptor variable $ \(Descriptor c _ m cp) -> Descriptor c maxRank m cp
-        let newPool = Pool maxRank (variable : inhabitants)
-        return ( variable, SS env savedEnv newPool mark errors )
+    do  let toMaxRank (Descriptor c _ m cp) = Descriptor c maxRank m cp
+        mapM_ (\var -> UF.modifyDescriptor var toMaxRank) variables
+        let newPool = Pool maxRank (variables ++ inhabitants)
+        return ( (), SS env savedEnv newPool mark errors )
 
 
 
