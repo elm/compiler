@@ -30,7 +30,7 @@ import Data.Text (Text)
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Reporting.Region as R
-import Type.Type
+import Type.Type as Type
 import qualified Type.UnionFind as UF
 
 
@@ -58,7 +58,7 @@ initialState =
     { sEnv = Map.empty
     , sSavedEnv = Map.empty
     , sPool = Pool outermostRank []
-    , sMark = noMark + 1  -- The mark must never be equal to noMark!
+    , sMark = Type.nextMark noMark  -- The mark must never be equal to noMark!
     , sError = []
     }
 
@@ -72,7 +72,7 @@ data State =
     { sEnv :: Env
     , sSavedEnv :: Env
     , sPool :: Pool
-    , sMark :: Int
+    , sMark :: Mark
     , sError :: [A.Located Error.Error]
     }
 
@@ -151,10 +151,10 @@ saveLocalEnv =
 
 
 {-# INLINE uniqueMark #-}
-uniqueMark :: Solver Int
+uniqueMark :: Solver Mark
 uniqueMark =
   Solver $ \(SS env savedEnv pool mark errors) ->
-    return ( mark, SS env savedEnv pool (mark + 1) errors )
+    return ( mark, SS env savedEnv pool (Type.nextMark mark) errors )
 
 
 {-# INLINE nextRankPool #-}

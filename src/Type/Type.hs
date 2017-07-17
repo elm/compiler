@@ -10,8 +10,9 @@ module Type.Type
   , Super(..)
   , noRank
   , outermostRank
+  , Mark
   , noMark
-  , initialMark
+  , nextMark
   , (==>), float, char, string, bool
   , mkFlexVar
   , mkFlexNumber
@@ -28,6 +29,7 @@ import qualified Data.Map as Map
 import Data.Monoid ((<>))
 import qualified Data.Text as Text
 import Data.Text (Text)
+import Data.Word (Word32)
 
 import qualified AST.Type as T
 import qualified AST.Variable as Var
@@ -67,7 +69,7 @@ data Descriptor =
   Descriptor
     { _content :: Content
     , _rank :: Int
-    , _mark :: Int
+    , _mark :: Mark
     , _copy :: Maybe Variable
     }
 
@@ -105,22 +107,33 @@ outermostRank :: Int
 outermostRank = 1
 
 
-noMark :: Int
-noMark = 2
+
+-- MARKS
 
 
-initialMark :: Int
-initialMark = 3
+newtype Mark = Mark Word32
+  deriving (Eq, Ord)
 
 
-occursMark :: Int
+noMark :: Mark
+noMark =
+  Mark 2
+
+
+occursMark :: Mark
 occursMark =
-  1
+  Mark 1
 
 
-getVarNamesMark :: Int
+getVarNamesMark :: Mark
 getVarNamesMark =
-  0
+  Mark 0
+
+
+{-# INLINE nextMark #-}
+nextMark :: Mark -> Mark
+nextMark (Mark mark) =
+  Mark (mark + 1)
 
 
 

@@ -64,7 +64,7 @@ generalize pool@(TS.Pool youngRank _) =
                     liftIO $ UF.setDescriptor var $ Descriptor (rigidify content) noRank mark copy
 
 
-poolToRankTable :: Int -> TS.Pool -> IO (Vector.Vector [Variable])
+poolToRankTable :: Mark -> TS.Pool -> IO (Vector.Vector [Variable])
 poolToRankTable youngMark (TS.Pool youngRank youngInhabitants) =
   do  mutableTable <- MVector.replicate (youngRank + 1) []
 
@@ -94,7 +94,7 @@ rigidify content =
 -- Adjust variable ranks such that ranks never increase as you move deeper.
 -- This way the outermost rank is representative of the entire structure.
 --
-adjustRank :: Int -> Int -> Int -> Variable -> IO Int
+adjustRank :: Mark -> Mark -> Int -> Variable -> IO Int
 adjustRank youngMark visitedMark groupRank var =
   {-# SCC elm_compiler_type_adjust #-}
   do  (Descriptor content rank mark copy) <- UF.descriptor var
@@ -115,7 +115,7 @@ adjustRank youngMark visitedMark groupRank var =
               return minRank
 
 
-adjustRankContent :: Int -> Int -> Int -> Content -> IO Int
+adjustRankContent :: Mark -> Mark -> Int -> Content -> IO Int
 adjustRankContent youngMark visitedMark groupRank content =
   let
     go = adjustRank youngMark visitedMark groupRank
