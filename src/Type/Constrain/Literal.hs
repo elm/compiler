@@ -2,8 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Type.Constrain.Literal (constrain) where
 
-import qualified AST.Literal as L
-import qualified AST.Variable as Var
+import qualified AST.Literal as Lit
 import qualified Reporting.Error.Type as Error
 import qualified Reporting.Region as R
 import qualified Type.Constraint as T
@@ -14,37 +13,55 @@ import qualified Type.Type as T
 -- CONSTRAIN LITERALS
 
 
-constrain :: R.Region -> L.Literal -> T.Type -> IO T.Constraint
+constrain :: R.Region -> Lit.Literal -> T.Type -> IO T.Constraint
 constrain region literal tipe =
-  do  definiteType <- litType
-      return (T.CEqual (Error.Literal name) region definiteType tipe)
-  where
-    prim var =
-        return (T.AppN var [])
+  case literal of
+    Lit.IntNum _ ->
+      do  var <- T.mkFlexNumber
+          return $ T.CEqual numberError region (T.VarN var) tipe
 
-    (name, litType) =
-        case literal of
-          L.IntNum _ ->
-              ( "number"
-              , T.VarN <$> T.mkVar (Just T.Number)
-              )
+    Lit.FloatNum _ ->
+      return $ T.CEqual floatError region T.float tipe
 
-          L.FloatNum _ ->
-              ( "float"
-              , prim Var.float
-              )
+    Lit.Chr _ ->
+      return $ T.CEqual charError region T.char tipe
 
-          L.Chr _ ->
-              ( "character"
-              , prim Var.char
-              )
+    Lit.Str _ ->
+      return $ T.CEqual stringError region T.string tipe
 
-          L.Str _ ->
-              ( "string"
-              , prim Var.string
-              )
+    Lit.Boolean _ ->
+      return $ T.CEqual boolError region T.bool tipe
 
-          L.Boolean _ ->
-              ( "boolean"
-              , prim Var.bool
-              )
+
+
+-- LITERAL ERRORS
+
+
+{-# NOINLINE numberError #-}
+numberError :: Error.Hint
+numberError =
+  Error.Literal "number"
+
+
+{-# NOINLINE floatError #-}
+floatError :: Error.Hint
+floatError =
+  Error.Literal "float"
+
+
+{-# NOINLINE charError #-}
+charError :: Error.Hint
+charError =
+  Error.Literal "character"
+
+
+{-# NOINLINE stringError #-}
+stringError :: Error.Hint
+stringError =
+  Error.Literal "string"
+
+
+{-# NOINLINE boolError #-}
+boolError :: Error.Hint
+boolError =
+  Error.Literal "boolean"

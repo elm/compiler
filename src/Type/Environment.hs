@@ -59,7 +59,7 @@ makeCtors unions =
 
     inst :: Int -> ([Type] -> ([Type], Type)) -> Instantiator
     inst numTVars tipe =
-      do  vars <- mapM (\_ -> mkVar Nothing) [1..numTVars]
+      do  vars <- mapM (\_ -> mkFlexVar) [1..numTVars]
           let (args, result) = tipe (map (VarN) vars)
           return (length args, vars, args, result)
 

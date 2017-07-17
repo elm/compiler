@@ -104,7 +104,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
       constrainCase env region expr branches tipe
 
     C.Ctor name exprs ->
-      do  vars <- Monad.forM exprs $ \_ -> mkVar Nothing
+      do  vars <- mapM (\_ -> mkFlexVar) exprs
           let pairs = zip exprs (map VarN vars)
           (ctipe, cs) <- Monad.foldM step (tipe, CTrue) (reverse pairs)
           return $ ex vars (cs /\ CInstance region (V.toText name) ctipe)
@@ -124,11 +124,11 @@ constrain env annotatedExpr@(A.A region expression) tipe =
 
     C.Update expr fields ->
       exists $ \t ->
-        do  oldVars <- mapM (\_ -> mkVar Nothing) fields
+        do  oldVars <- mapM (\_ -> mkFlexVar) fields
             let oldFields = Map.fromList (zip (map fst fields) (map VarN oldVars))
             cOld <- ex oldVars <$> constrain env expr (RecordN oldFields t)
 
-            newVars <- mapM (\_ -> mkVar Nothing) fields
+            newVars <- mapM (\_ -> mkFlexVar) fields
             let newFields = Map.fromList (zip (map fst fields) (map VarN newVars))
             let cNew = CEqual Error.Record region (RecordN newFields t) tipe
 
@@ -137,7 +137,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
             return $ cOld /\ ex newVars (CAnd (cNew : cs))
 
     C.Record fields ->
-      do  vars <- Monad.forM fields (\_ -> mkVar Nothing)
+      do  vars <- mapM (\_ -> mkFlexVar) fields
           fieldCons <-
               Monad.zipWithM
                   (constrain env)
@@ -174,7 +174,7 @@ constrainApp
     -> Type
     -> IO Constraint
 constrainApp env region f args tipe =
-  do  funcVar <- mkVar Nothing
+  do  funcVar <- mkFlexVar
       funcCon <- constrain env f (VarN funcVar)
 
       (vars, argCons, numberOfArgsCons, argMatchCons, _, returnVar) <-
@@ -210,10 +210,10 @@ argConstraints env name region totalArgs overallVar index args =
       return ([], [], [], [], Nothing, overallVar)
 
     expr@(A.A subregion _) : rest ->
-      do  argVar <- mkVar Nothing
+      do  argVar <- mkFlexVar
           argCon <- constrain env expr (VarN argVar)
-          argIndexVar <- mkVar Nothing
-          localReturnVar <- mkVar Nothing
+          argIndexVar <- mkFlexVar
+          localReturnVar <- mkFlexVar
 
           (vars, argConRest, numberOfArgsRest, argMatchRest, restRegion, returnVar) <-
               argConstraints env name region totalArgs localReturnVar (index + 1) rest
@@ -258,15 +258,15 @@ constrainBinop
     -> Type
     -> IO Constraint
 constrainBinop env region op leftExpr@(A.A leftRegion _) rightExpr@(A.A rightRegion _) tipe =
-  do  leftVar <- mkVar Nothing
-      rightVar <- mkVar Nothing
+  do  leftVar <- mkFlexVar
+      rightVar <- mkFlexVar
 
       leftCon <- constrain env leftExpr (VarN leftVar)
       rightCon <- constrain env rightExpr (VarN rightVar)
 
-      leftVar' <- mkVar Nothing
-      rightVar' <- mkVar Nothing
-      answerVar <- mkVar Nothing
+      leftVar' <- mkFlexVar
+      rightVar' <- mkFlexVar
+      answerVar <- mkFlexVar
 
       let opType = VarN leftVar' ==> VarN rightVar' ==> VarN answerVar
 
@@ -295,7 +295,7 @@ constrainList env region exprs tipe =
       return $ ex vars (CAnd (exprCons ++ cons))
   where
     elementConstraint expr@(A.A region' _) =
-      do  var <- mkVar Nothing
+      do  var <- mkFlexVar
           con <- constrain env expr (VarN var)
           return ( (var, region'), con )
 
@@ -328,17 +328,14 @@ constrainIf env region branches finally tipe =
 
       return $ ex (condVars ++ vars) (CAnd (condCons ++ branchExprCons ++ cons))
   where
-    bool =
-      AppN V.bool []
-
     constrainCondition condition@(A.A condRegion _) =
-      do  condVar <- mkVar Nothing
+      do  condVar <- mkFlexVar
           condCon <- constrain env condition (VarN condVar)
           let boolCon = CEqual Error.IfCondition condRegion (VarN condVar) bool
           return (condVar, CAnd [ condCon, boolCon ])
 
     constrainBranch expr@(A.A branchRegion _) =
-      do  branchVar <- mkVar Nothing
+      do  branchVar <- mkFlexVar
           exprCon <- constrain env expr (VarN branchVar)
           return
             ( (branchVar, branchRegion)
@@ -374,7 +371,7 @@ constrainCase
     -> Type
     -> IO Constraint
 constrainCase env region expr branches tipe =
-  do  exprVar <- mkVar Nothing
+  do  exprVar <- mkFlexVar
       exprCon <- constrain env expr (VarN exprVar)
 
       (branchInfo, branchExprCons) <-
@@ -385,7 +382,7 @@ constrainCase env region expr branches tipe =
       return $ ex (exprVar : vars) (CAnd (exprCon : branchExprCons ++ cons))
   where
     branch patternType (pattern, branchExpr@(A.A branchRegion _)) =
-        do  branchVar <- mkVar Nothing
+        do  branchVar <- mkFlexVar
             scheme <- Pattern.infoToScheme <$> Pattern.constrain env pattern patternType
             branchCon <- constrain env branchExpr (VarN branchVar)
             return
@@ -422,7 +419,7 @@ pairCons region pairHint varToCon items =
   in
   case collectPairs 2 items of
     Nothing ->
-      do  var <- mkVar Nothing
+      do  var <- mkFlexVar
           return ([var], [varToCon var])
 
     Just (pairs, var) ->
@@ -519,7 +516,7 @@ constrainUnannotatedDef
     -> Info
     -> IO Info
 constrainUnannotatedDef env patternRegion name expr info =
-  do  v <- mkVar Nothing
+  do  v <- mkFlexVar
       let tipe = VarN v
       defCon <- constrain env expr tipe
       return $ info
@@ -592,7 +589,7 @@ constrainAnnDefHelp expr tipe (ArgInfo name defRegion env args vars) =
           (Pattern.Info headers argVars argCons) <-
             Pattern.joinInfos <$> mapM (uncurry (Pattern.constrain finalEnv)) finalArgs
 
-          resultVar <- mkVar Nothing
+          resultVar <- mkFlexVar
           let resultType = VarN resultVar
           defCon <- constrain finalEnv expr resultType
 

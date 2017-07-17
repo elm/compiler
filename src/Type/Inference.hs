@@ -62,7 +62,7 @@ genConstraints interfaces modul =
       let header = Map.map snd (Map.fromList allTypes)
       let environ = T.CLet [ T.Scheme vars [] T.CTrue (Map.map (A.A undefined) header) ]
 
-      fvar <- T.mkVar Nothing
+      fvar <- T.mkFlexVar
 
       constraint <-
           TcExpr.constrain env (Module.program (Module.info modul)) (T.VarN fvar)

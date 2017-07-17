@@ -15,7 +15,7 @@ import Data.Text (Text)
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Reporting.Region as R
-import Type.Type (Type(VarN), Variable, mkVar, Super(Number))
+import Type.Type (Type(VarN), Variable, mkFlexVar, mkFlexNumber)
 
 
 
@@ -84,11 +84,11 @@ forall rqs constraint =
 
 exists :: (Type -> IO Constraint) -> IO Constraint
 exists f =
-  do  v <- mkVar Nothing
+  do  v <- mkFlexVar
       ex [v] <$> f (VarN v)
 
 
 existsNumber :: (Type -> IO Constraint) -> IO Constraint
 existsNumber f =
-  do  v <- mkVar (Just Number)
+  do  v <- mkFlexNumber
       ex [v] <$> f (VarN v)

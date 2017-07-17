@@ -203,7 +203,7 @@ actuallySolve constraint =
 
                   Nothing ->
                       if ModuleName.isKernel name then
-                          liftIO (mkVar Nothing)
+                          liftIO mkFlexVar
 
                       else
                           error ("Could not find `" ++ Text.unpack name ++ "` when solving type constraints.")

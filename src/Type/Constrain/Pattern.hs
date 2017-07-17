@@ -75,7 +75,7 @@ constrain env (A.A region pattern) tipe =
             return $ emptyInfo { _cons = c }
 
       P.Var name ->
-        do  variable <- mkVar Nothing
+        do  variable <- mkFlexVar
             return $ Info
                 { _headers = Map.singleton name (rvar variable)
                 , _vars = [variable]
@@ -83,7 +83,7 @@ constrain env (A.A region pattern) tipe =
                 }
 
       P.Alias name ptrn ->
-        do  variable <- mkVar Nothing
+        do  variable <- mkFlexVar
             info <- constrain env ptrn tipe
             return $ info
               { _headers = Map.insert name (rvar variable) (_headers info)
@@ -108,7 +108,7 @@ constrain env (A.A region pattern) tipe =
 
       P.Record fields ->
         do  pairs <-
-                mapM (\name -> (,) name <$> mkVar Nothing) fields
+                mapM (\name -> (,) name <$> mkFlexVar) fields
 
             let tenv =
                   Map.fromList (map (second rvar) pairs)

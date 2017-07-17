@@ -10,7 +10,7 @@ import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import Type.Constraint (Constraint(..), Scheme(Scheme))
-import Type.Type (Variable, Type(AppN,VarN), (==>), mkVar)
+import Type.Type (Variable, Type(AppN,VarN), (==>), mkFlexVar)
 
 
 
@@ -44,19 +44,19 @@ constrainHelp moduleName (Effects.Info tagRegion r0 r1 r2 managerType) =
     router msg selfMsg =
       AppN Var.router [ VarN msg, VarN selfMsg ]
   in
-    do  v0 <- mkVar Nothing
-        v1 <- mkVar Nothing
-        v2 <- mkVar Nothing
+    do  v0 <- mkFlexVar
+        v1 <- mkFlexVar
+        v2 <- mkFlexVar
 
-        state0 <- mkVar Nothing
-        state1 <- mkVar Nothing
-        state2 <- mkVar Nothing
+        state0 <- mkFlexVar
+        state1 <- mkFlexVar
+        state2 <- mkFlexVar
 
-        msg1 <- mkVar Nothing
-        msg2 <- mkVar Nothing
+        msg1 <- mkFlexVar
+        msg2 <- mkFlexVar
 
-        selfMsg1 <- mkVar Nothing
-        selfMsg2 <- mkVar Nothing
+        selfMsg1 <- mkFlexVar
+        selfMsg2 <- mkFlexVar
 
         let
           vars =

@@ -12,8 +12,9 @@ module Type.Type
   , outermostRank
   , noMark
   , initialMark
-  , (==>)
-  , mkVar
+  , (==>), float, char, string, bool
+  , mkFlexVar
+  , mkFlexNumber
   , mkNamedVar
   , toSrcType
   )
@@ -78,6 +79,11 @@ data Content
     | Error Text
 
 
+makeDescriptor :: Content -> Descriptor
+makeDescriptor content =
+  Descriptor content noRank noMark Nothing
+
+
 data Flex
     = Rigid
     | Flex
@@ -130,28 +136,79 @@ infixr 9 ==>
   FunN
 
 
-
--- VARIABLE CREATION
-
-
-mkDescriptor :: Content -> Descriptor
-mkDescriptor content =
-  Descriptor
-    { _content = content
-    , _rank = noRank
-    , _mark = noMark
-    , _copy = Nothing
-    }
+{-# NOINLINE float #-}
+float :: Type
+float =
+  AppN Var.float []
 
 
-mkVar :: Maybe Super -> IO Variable
-mkVar maybeSuper =
-  UF.fresh $ mkDescriptor (Var Flex maybeSuper Nothing)
+{-# NOINLINE char #-}
+char :: Type
+char =
+  AppN Var.char []
+
+
+{-# NOINLINE string #-}
+string :: Type
+string =
+  AppN Var.string []
+
+
+{-# NOINLINE bool #-}
+bool :: Type
+bool =
+  AppN Var.bool []
+
+
+
+-- MAKE FLEX VARIABLES
+
+
+mkFlexVar :: IO Variable
+mkFlexVar =
+  UF.fresh flexVarDescriptor
+
+
+{-# NOINLINE flexVarDescriptor #-}
+flexVarDescriptor :: Descriptor
+flexVarDescriptor =
+  makeDescriptor unnamedFlexVar
+
+
+
+{-# NOINLINE unnamedFlexVar #-}
+unnamedFlexVar :: Content
+unnamedFlexVar =
+  Var Flex Nothing Nothing
+
+
+
+-- MAKE FLEX NUMBERS
+
+
+mkFlexNumber :: IO Variable
+mkFlexNumber =
+  UF.fresh flexNumberDescriptor
+
+
+{-# NOINLINE flexNumberDescriptor #-}
+flexNumberDescriptor :: Descriptor
+flexNumberDescriptor =
+  makeDescriptor (unnamedFlexSuper Number)
+
+
+unnamedFlexSuper :: Super -> Content
+unnamedFlexSuper super =
+  Var Flex (Just super) Nothing
+
+
+
+-- MAKE NAMED FLEX VARIABLES
 
 
 mkNamedVar :: Flex -> Text -> IO Variable
 mkNamedVar flex name =
-    UF.fresh $ mkDescriptor $ Var flex (toSuper name) (Just name)
+    UF.fresh $ makeDescriptor $ Var flex (toSuper name) (Just name)
 
 
 toSuper :: Text -> Maybe Super
@@ -164,6 +221,9 @@ toSuper name =
 
   else if Text.isPrefixOf "appendable" name then
       Just Appendable
+
+  else if Text.isPrefixOf "compappend" name then
+      Just CompAppend
 
   else
       Nothing
@@ -301,11 +361,11 @@ getFreshNormal index taken =
     (postfix, letter) =
       quotRem index 26
 
-    char =
+    character =
       Char.chr (97 + letter)
 
     name =
-      Text.pack (if postfix <= 0 then [char] else char : show postfix)
+      Text.pack (if postfix <= 0 then [character] else character : show postfix)
   in
     if Map.member name taken then
       getFreshNormal (index + 1) taken
