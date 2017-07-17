@@ -21,7 +21,7 @@ import qualified Type.Constrain.Effects as Effects
 import qualified Type.Constrain.Literal as Literal
 import qualified Type.Constrain.Pattern as Pattern
 import qualified Type.Environment as Env
-import Type.Type hiding (Descriptor(..))
+import Type.Type as Type hiding (Descriptor(..))
 
 
 
@@ -331,7 +331,7 @@ constrainIf env region branches finally tipe =
     constrainCondition condition@(A.A condRegion _) =
       do  condVar <- mkFlexVar
           condCon <- constrain env condition (VarN condVar)
-          let boolCon = CEqual Error.IfCondition condRegion (VarN condVar) bool
+          let boolCon = CEqual Error.IfCondition condRegion (VarN condVar) Type.bool
           return (condVar, CAnd [ condCon, boolCon ])
 
     constrainBranch expr@(A.A branchRegion _) =
