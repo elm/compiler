@@ -22,133 +22,6 @@ import qualified Type.UnionFind as UF
 
 
 
-{-| Every variable has rank less than or equal to the maxRank of the pool.
-This sorts variables into the young and old pools accordingly.
--}
-generalize :: TS.Pool -> TS.Solver ()
-generalize pool@(TS.Pool youngRank _) =
-  {-# SCC elm_compiler_type_generalize #-}
-  do  youngMark <- TS.uniqueMark
-
-      rankTable <- liftIO $ poolToRankTable youngMark pool
-
-      -- get the ranks right for each entry.
-      -- start at low ranks so that we only have to pass
-      -- over the information once.
-      visitedMark <- TS.uniqueMark
-      let adjust poolRank vars =
-            F.traverse_ (adjustRank youngMark visitedMark poolRank) vars
-      liftIO $ Vector.imapM_ adjust rankTable
-
-      -- For variables that have rank lowerer than youngRank, register them in
-      -- the old pool if they are not redundant.
-      Vector.forM_ (Vector.unsafeInit rankTable) $ \vars ->
-        forM_ vars $ \var ->
-          do  isRedundant <- liftIO $ UF.redundant var
-              if isRedundant then return var else TS.register var
-
-      -- For variables with rank youngRank
-      --   If rank < youngRank: register in oldPool
-      --   otherwise generalize
-      forM_ (Vector.unsafeLast rankTable) $ \var ->
-        {-# SCC elm_compiler_type_register #-}
-        do  isRedundant <- liftIO $ UF.redundant var
-            if isRedundant
-              then return ()
-              else do
-                (Descriptor content rank mark copy) <- liftIO $ UF.descriptor var
-                if rank < youngRank
-                  then
-                    TS.register var >> return ()
-                  else
-                    liftIO $ UF.setDescriptor var $ Descriptor (rigidify content) noRank mark copy
-
-
-poolToRankTable :: Mark -> TS.Pool -> IO (Vector.Vector [Variable])
-poolToRankTable youngMark (TS.Pool youngRank youngInhabitants) =
-  do  mutableTable <- MVector.replicate (youngRank + 1) []
-
-      -- Sort the youngPool variables by rank.
-      forM_ youngInhabitants $ \var ->
-        do  (Descriptor content rank _ copy) <- UF.descriptor var
-            UF.setDescriptor var (Descriptor content rank youngMark copy)
-            MVector.modify mutableTable (var:) rank
-
-      Vector.unsafeFreeze mutableTable
-
-
-rigidify :: Content -> Content
-rigidify content =
-  case content of
-    Var Flex maybeSuper maybeName ->
-        Var Rigid maybeSuper maybeName
-
-    _ ->
-        content
-
-
-
--- ADJUST RANK
-
---
--- Adjust variable ranks such that ranks never increase as you move deeper.
--- This way the outermost rank is representative of the entire structure.
---
-adjustRank :: Mark -> Mark -> Int -> Variable -> IO Int
-adjustRank youngMark visitedMark groupRank var =
-  {-# SCC elm_compiler_type_adjust #-}
-  do  (Descriptor content rank mark copy) <- UF.descriptor var
-      if mark == youngMark then
-          do  -- Set the variable as marked first because it may be cyclic.
-              UF.setDescriptor var $ Descriptor content rank visitedMark copy
-              maxRank <- adjustRankContent youngMark visitedMark groupRank content
-              UF.setDescriptor var $ Descriptor content maxRank visitedMark copy
-              return maxRank
-
-        else if mark == visitedMark then
-          return rank
-
-        else
-          do  let minRank = min groupRank rank
-              -- TODO how can minRank ever be groupRank?
-              UF.setDescriptor var $ Descriptor content minRank visitedMark copy
-              return minRank
-
-
-adjustRankContent :: Mark -> Mark -> Int -> Content -> IO Int
-adjustRankContent youngMark visitedMark groupRank content =
-  let
-    go = adjustRank youngMark visitedMark groupRank
-  in
-    case content of
-      Error _ ->
-          return groupRank
-
-      Var _ _ _ ->
-          return groupRank
-
-      Alias _ args _ ->
-          -- THEORY: anything in the realVar would be outermostRank
-          foldM (\rank (_, argVar) -> max rank <$> go argVar) outermostRank args
-
-      Structure flatType ->
-        case flatType of
-          App1 _ args ->
-            foldM (\rank arg -> max rank <$> go arg) outermostRank args
-
-          Fun1 arg result ->
-              max <$> go arg <*> go result
-
-          EmptyRecord1 ->
-              -- THEORY: an empty record never needs to get generalized
-              return outermostRank
-
-          Record1 fields extension ->
-              do  extRank <- go extension
-                  foldM (\rank field -> max rank <$> go field) extRank fields
-
-
-
 -- SOLVER
 
 
@@ -281,3 +154,132 @@ occurs (name, A.A region variable) =
               liftIO $ UF.setDescriptor variable (Descriptor (Error "∞") rank mark copy)
               TS.addError region (Error.InfiniteType (Right name) overallType)
 
+
+
+-- GENERALIZE
+
+
+{-| Every variable has rank less than or equal to the maxRank of the pool.
+This sorts variables into the young and old pools accordingly.
+-}
+generalize :: TS.Pool -> TS.Solver ()
+generalize pool@(TS.Pool youngRank _) =
+  {-# SCC elm_compiler_type_generalize #-}
+  do  youngMark <- TS.uniqueMark
+
+      rankTable <- liftIO $ poolToRankTable youngMark pool
+
+      -- get the ranks right for each entry.
+      -- start at low ranks so that we only have to pass
+      -- over the information once.
+      visitedMark <- TS.uniqueMark
+      let adjust poolRank vars =
+            F.traverse_ (adjustRank youngMark visitedMark poolRank) vars
+      liftIO $ Vector.imapM_ adjust rankTable
+
+      -- For variables that have rank lowerer than youngRank, register them in
+      -- the old pool if they are not redundant.
+      Vector.forM_ (Vector.unsafeInit rankTable) $ \vars ->
+        forM_ vars $ \var ->
+          do  isRedundant <- liftIO $ UF.redundant var
+              if isRedundant then return var else TS.register var
+
+      -- For variables with rank youngRank
+      --   If rank < youngRank: register in oldPool
+      --   otherwise generalize
+      forM_ (Vector.unsafeLast rankTable) $ \var ->
+        {-# SCC elm_compiler_type_register #-}
+        do  isRedundant <- liftIO $ UF.redundant var
+            if isRedundant
+              then return ()
+              else do
+                (Descriptor content rank mark copy) <- liftIO $ UF.descriptor var
+                if rank < youngRank
+                  then
+                    TS.register var >> return ()
+                  else
+                    liftIO $ UF.setDescriptor var $ Descriptor (rigidify content) noRank mark copy
+
+
+poolToRankTable :: Mark -> TS.Pool -> IO (Vector.Vector [Variable])
+poolToRankTable youngMark (TS.Pool youngRank youngInhabitants) =
+  do  mutableTable <- MVector.replicate (youngRank + 1) []
+
+      -- Sort the youngPool variables by rank.
+      forM_ youngInhabitants $ \var ->
+        do  (Descriptor content rank _ copy) <- UF.descriptor var
+            UF.setDescriptor var (Descriptor content rank youngMark copy)
+            MVector.modify mutableTable (var:) rank
+
+      Vector.unsafeFreeze mutableTable
+
+
+rigidify :: Content -> Content
+rigidify content =
+  case content of
+    Var Flex maybeSuper maybeName ->
+        Var Rigid maybeSuper maybeName
+
+    _ ->
+        content
+
+
+
+-- ADJUST RANK
+
+--
+-- Adjust variable ranks such that ranks never increase as you move deeper.
+-- This way the outermost rank is representative of the entire structure.
+--
+adjustRank :: Mark -> Mark -> Int -> Variable -> IO Int
+adjustRank youngMark visitedMark groupRank var =
+  {-# SCC elm_compiler_type_adjust #-}
+  do  (Descriptor content rank mark copy) <- UF.descriptor var
+      if mark == youngMark then
+          do  -- Set the variable as marked first because it may be cyclic.
+              UF.setDescriptor var $ Descriptor content rank visitedMark copy
+              maxRank <- adjustRankContent youngMark visitedMark groupRank content
+              UF.setDescriptor var $ Descriptor content maxRank visitedMark copy
+              return maxRank
+
+        else if mark == visitedMark then
+          return rank
+
+        else
+          do  let minRank = min groupRank rank
+              -- TODO how can minRank ever be groupRank?
+              UF.setDescriptor var $ Descriptor content minRank visitedMark copy
+              return minRank
+
+
+adjustRankContent :: Mark -> Mark -> Int -> Content -> IO Int
+adjustRankContent youngMark visitedMark groupRank content =
+  let
+    go = adjustRank youngMark visitedMark groupRank
+  in
+    case content of
+      Error _ ->
+          return groupRank
+
+      Var _ _ _ ->
+          return groupRank
+
+      Alias _ args _ ->
+          -- THEORY: anything in the realVar would be outermostRank
+          foldM (\rank (_, argVar) -> max rank <$> go argVar) outermostRank args
+
+      Structure flatType ->
+        case flatType of
+          App1 _ args ->
+            foldM (\rank arg -> max rank <$> go arg) outermostRank args
+
+          Fun1 arg result ->
+              max <$> go arg <*> go result
+
+          EmptyRecord1 ->
+              -- THEORY: an empty record never needs to get generalized
+              return outermostRank
+
+          Record1 fields extension ->
+              do  extRank <- go extension
+                  foldM (\rank field -> max rank <$> go field) extRank fields
