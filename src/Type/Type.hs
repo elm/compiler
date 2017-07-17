@@ -7,7 +7,6 @@ module Type.Type
   , Descriptor(Descriptor)
   , Content(..)
   , Flex(..)
-  , Super(..)
   , noRank
   , outermostRank
   , Mark
@@ -76,7 +75,7 @@ data Descriptor =
 
 data Content
     = Structure FlatType
-    | Var Flex (Maybe Super) (Maybe Text)
+    | Var Flex (Maybe T.Super) (Maybe Text)
     | Alias Var.Canonical [(Text,Variable)] Variable
     | Error Text
 
@@ -91,12 +90,8 @@ data Flex
     | Flex
 
 
-data Super
-    = Number
-    | Comparable
-    | Appendable
-    | CompAppend
-    deriving (Eq)
+
+-- RANKS
 
 
 noRank :: Int
@@ -207,10 +202,10 @@ mkFlexNumber =
 {-# NOINLINE flexNumberDescriptor #-}
 flexNumberDescriptor :: Descriptor
 flexNumberDescriptor =
-  makeDescriptor (unnamedFlexSuper Number)
+  makeDescriptor (unnamedFlexSuper T.Number)
 
 
-unnamedFlexSuper :: Super -> Content
+unnamedFlexSuper :: T.Super -> Content
 unnamedFlexSuper super =
   Var Flex (Just super) Nothing
 
@@ -224,19 +219,19 @@ mkNamedVar flex name =
     UF.fresh $ makeDescriptor $ Var flex (toSuper name) (Just name)
 
 
-toSuper :: Text -> Maybe Super
+toSuper :: Text -> Maybe T.Super
 toSuper name =
   if Text.isPrefixOf "number" name then
-      Just Number
+      Just T.Number
 
   else if Text.isPrefixOf "comparable" name then
-      Just Comparable
+      Just T.Comparable
 
   else if Text.isPrefixOf "appendable" name then
-      Just Appendable
+      Just T.Appendable
 
   else if Text.isPrefixOf "compappend" name then
-      Just CompAppend
+      Just T.CompAppend
 
   else
       Nothing
@@ -345,7 +340,7 @@ makeNameState taken =
   NameState taken 0 0 0 0 0
 
 
-getFreshName :: (Monad m) => Maybe Super -> StateT NameState m Text
+getFreshName :: (Monad m) => Maybe T.Super -> StateT NameState m Text
 getFreshName maybeSuper =
   case maybeSuper of
     Nothing ->
@@ -355,16 +350,16 @@ getFreshName maybeSuper =
           State.modify (\state -> state { _normals = newIndex })
           return uniqueName
 
-    Just Number ->
+    Just T.Number ->
         getFreshSuper "number" _numbers (\index state -> state { _numbers = index })
 
-    Just Comparable ->
+    Just T.Comparable ->
         getFreshSuper "comparable" _comparables (\index state -> state { _comparables = index })
 
-    Just Appendable ->
+    Just T.Appendable ->
         getFreshSuper "appendable" _appendables (\index state -> state { _appendables = index })
 
-    Just CompAppend ->
+    Just T.CompAppend ->
         getFreshSuper "compappend" _compAppends (\index state -> state { _compAppends = index })
 
 
@@ -458,7 +453,7 @@ getVarNames var =
                       getVarNames extension
 
 
-addVarName :: Int -> Text -> Variable -> Flex -> Maybe Super -> TakenNames -> IO TakenNames
+addVarName :: Int -> Text -> Variable -> Flex -> Maybe T.Super -> TakenNames -> IO TakenNames
 addVarName index givenName var flex maybeSuper taken =
   let
     name =

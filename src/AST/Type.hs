@@ -3,6 +3,7 @@
 module AST.Type
     ( Raw, Raw'(..)
     , Canonical(..), Aliased(..)
+    , Super(..)
     , deepDealias, iteratedDealias, dealias
     , collectLambdas
     , tuple, cmd, sub
@@ -50,6 +51,14 @@ data Aliased t
     = Holey t
     | Filled t
     deriving (Eq, Ord)
+
+
+data Super
+    = Number
+    | Comparable
+    | Appendable
+    | CompAppend
+    deriving (Eq)
 
 
 

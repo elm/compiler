@@ -8,6 +8,7 @@ import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import Data.Text (Text)
 
+import AST.Type (Super(..))
 import qualified AST.Variable as Var
 import qualified Reporting.Region as R
 import qualified Reporting.Error.Type as Error
