@@ -11,6 +11,7 @@ import qualified AST.Pattern as P
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
+import Type.Constraint
 import qualified Type.Constrain.Literal as Literal
 import qualified Type.Environment as Env
 import Type.Type

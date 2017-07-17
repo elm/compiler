@@ -133,6 +133,7 @@ Library
         Reporting.Report,
         Reporting.Result,
         Reporting.Warning,
+        Type.Constraint,
         Type.Constrain.Effects,
         Type.Constrain.Expression,
         Type.Constrain.Literal,

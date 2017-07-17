@@ -15,6 +15,7 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Type.Occurs as Occurs
 import qualified Type.State as TS
+import Type.Constraint (Constraint(..), Scheme(..))
 import Type.Type as Type
 import Type.Unify
 import qualified Type.UnionFind as UF

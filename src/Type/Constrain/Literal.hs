@@ -1,11 +1,12 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Type.Constrain.Literal where
+module Type.Constrain.Literal (constrain) where
 
 import qualified AST.Literal as L
 import qualified AST.Variable as Var
 import qualified Reporting.Error.Type as Error
 import qualified Reporting.Region as R
+import qualified Type.Constraint as T
 import qualified Type.Type as T
 
 

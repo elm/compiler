@@ -16,6 +16,7 @@ import qualified AST.Variable as V
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Reporting.Region as R
+import Type.Constraint
 import qualified Type.Constrain.Effects as Effects
 import qualified Type.Constrain.Literal as Literal
 import qualified Type.Constrain.Pattern as Pattern

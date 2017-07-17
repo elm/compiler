@@ -13,6 +13,7 @@ import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
+import qualified Type.Constraint as T
 import qualified Type.Constrain.Expression as TcExpr
 import qualified Type.Environment as Env
 import qualified Type.Solve as Solve

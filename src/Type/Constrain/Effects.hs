@@ -9,10 +9,8 @@ import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
-import Type.Type
-  ( Variable, Type(AppN,VarN), Constraint(..)
-  , Scheme(Scheme), (==>), mkVar
-  )
+import Type.Constraint (Constraint(..), Scheme(Scheme))
+import Type.Type (Variable, Type(AppN,VarN), (==>), mkVar)
 
 
 
