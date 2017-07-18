@@ -106,8 +106,8 @@ data InfixOp
   | OpStrictEq -- ===
   | OpStrictNEq -- !===
   | OpLAnd -- &&
-  | OpLOr -- ||
-  | OpMul -- *
+  | OpLOr -- for ||
+  | OpMul -- for *
   | OpDiv -- /
   | OpMod -- %
   | OpSub -- -
@@ -115,8 +115,8 @@ data InfixOp
   | OpSpRShift -- >>
   | OpZfRShift -- >>>
   | OpBAnd -- &
-  | OpBXor -- ^
-  | OpBOr -- |
+  | OpBXor -- for ^
+  | OpBOr -- for |
   | OpAdd -- +
 
 
@@ -124,15 +124,15 @@ data AssignOp
   = OpAssign -- =
   | OpAssignAdd -- +=
   | OpAssignSub -- -=
-  | OpAssignMul -- *=
+  | OpAssignMul -- for *=
   | OpAssignDiv -- /=
   | OpAssignMod -- %=
   | OpAssignLShift -- <<=
   | OpAssignSpRShift -- >>=
   | OpAssignZfRShift -- >>>=
   | OpAssignBAnd -- &=
-  | OpAssignBXor -- ^=
-  | OpAssignBOr -- |=
+  | OpAssignBXor -- for ^=
+  | OpAssignBOr -- for |=
 
 
 data PrefixOp
