@@ -276,15 +276,17 @@ adjustRankContent youngMark visitMark groupRank content =
     go = adjustRank youngMark visitMark groupRank
   in
     case content of
-      Error _ ->
+      FlexVar _ ->
           return groupRank
 
-      Var _ _ _ ->
+      FlexSuper _ _ ->
           return groupRank
 
-      Alias _ args _ ->
-          -- THEORY: anything in the realVar would be outermostRank
-          foldM (\rank (_, argVar) -> max rank <$> go argVar) outermostRank args
+      RigidVar _ ->
+          return groupRank
+
+      RigidSuper _ _ ->
+          return groupRank
 
       Structure flatType ->
         case flatType of
@@ -301,3 +303,11 @@ adjustRankContent youngMark visitMark groupRank content =
           Record1 fields extension ->
               do  extRank <- go extension
                   foldM (\rank field -> max rank <$> go field) extRank fields
+
+      Alias _ args _ ->
+          -- THEORY: anything in the realVar would be outermostRank
+          foldM (\rank (_, argVar) -> max rank <$> go argVar) outermostRank args
+
+      Error _ ->
+          return groupRank
+

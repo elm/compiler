@@ -125,42 +125,6 @@ reasonToProblem orientation maybeReason =
           Special (Error.flipReason reason)
 
 
-badRigid :: Maybe Text -> Error.Reason
-badRigid maybeName =
-  Error.BadVar (Just (Error.Rigid maybeName)) Nothing
-
-
-badSuper :: Super -> Error.Reason
-badSuper super =
-  Error.BadVar (Just (errorSuper super)) Nothing
-
-
-badSupers :: Super -> Super -> Error.Reason
-badSupers super1 super2 =
-  Error.BadVar (Just (errorSuper super1)) (Just (errorSuper super2))
-
-
-doubleBad :: Error.VarType -> Error.VarType -> Error.Reason
-doubleBad vt1 vt2 =
-  Error.BadVar (Just vt1) (Just vt2)
-
-
-errorSuper :: Super -> Error.VarType
-errorSuper super =
-  case super of
-    Number ->
-        Error.Number
-
-    Comparable ->
-        Error.Comparable
-
-    Appendable ->
-        Error.Appendable
-
-    CompAppend ->
-        Error.CompAppend
-
-
 
 -- MERGE
 
@@ -210,25 +174,28 @@ subUnify context var1 var2 =
 actuallyUnify :: Context -> Unify ()
 actuallyUnify context@(Context _ _ (Descriptor firstContent _ _ _) _ (Descriptor secondContent _ _ _)) =
   case firstContent of
-    Error _ ->
-        -- If there was an error, just pretend it is okay. This lets us avoid
-        -- "cascading" errors where one problem manifests as multiple message.
-        return ()
-
-    Var Flex Nothing _ ->
+    FlexVar _ ->
         unifyFlex context secondContent
 
-    Var Flex (Just super) _ ->
+    FlexSuper super _ ->
         unifyFlexSuper context super firstContent secondContent
 
-    Var Rigid maybeSuper maybeName ->
-        unifyRigid context maybeSuper maybeName firstContent secondContent
+    RigidVar name ->
+        unifyRigid context Nothing name firstContent secondContent
+
+    RigidSuper super name ->
+        unifyRigid context (Just super) name firstContent secondContent
 
     Alias name args realVar ->
         unifyAlias context name args realVar secondContent
 
-    Structure term ->
-        unifyStructure context term firstContent secondContent
+    Structure flatType ->
+        unifyStructure context flatType firstContent secondContent
+
+    Error _ ->
+        -- If there was an error, just pretend it is okay. This lets us avoid
+        -- "cascading" errors where one problem manifests as multiple message.
+        return ()
 
 
 
@@ -241,10 +208,18 @@ unifyFlex context otherContent =
     Error _ ->
         return ()
 
-    Var Flex _ _ ->
+    -- TODO see if wildcarding makes a noticable perf difference
+
+    FlexVar _ ->
         merge context otherContent
 
-    Var Rigid _ _ ->
+    FlexSuper _ _ ->
+        merge context otherContent
+
+    RigidVar _ ->
+        merge context otherContent
+
+    RigidSuper _ _ ->
         merge context otherContent
 
     Alias _ _ _ ->
@@ -258,35 +233,61 @@ unifyFlex context otherContent =
 -- UNIFY RIGID VARIABLES
 
 
-unifyRigid :: Context -> Maybe Super -> Maybe Text -> Content -> Content -> Unify ()
-unifyRigid context maybeSuper maybeName content otherContent =
+unifyRigid :: Context -> Maybe Super -> Text -> Content -> Content -> Unify ()
+unifyRigid context maybeSuper name content otherContent =
   case otherContent of
+    FlexVar _ ->
+        merge context content
+
+    FlexSuper otherSuper _ ->
+        case maybeSuper of
+          Just super ->
+            if combineRigidSupers super otherSuper then
+              merge context content
+            else
+              mismatch context $ Just $
+                Error.RigidSuperTooGeneric super name $ Error.SpecificSuper otherSuper
+
+          Nothing ->
+            mismatch context $ Just $
+              Error.RigidVarTooGeneric name $ Error.SpecificSuper otherSuper
+
+    RigidVar otherName ->
+        mismatch context $ Just $
+          Error.RigidClash name otherName
+
+    RigidSuper _ otherName ->
+        mismatch context $ Just $
+          Error.RigidClash name otherName
+
+    Alias otherName _ _ ->
+        mismatch context $ Just $
+          maybe Error.RigidVarTooGeneric Error.RigidSuperTooGeneric maybeSuper name $
+            Error.SpecificType otherName
+
+    Structure flatType ->
+        mismatch context $ Just $
+          maybe Error.RigidVarTooGeneric Error.RigidSuperTooGeneric maybeSuper name $
+            flatTypeToSpecificThing flatType
+
     Error _ ->
         return ()
 
-    Var Flex otherMaybeSuper _ ->
-        case (maybeSuper, otherMaybeSuper) of
-          (_, Nothing) ->
-              merge context content
 
-          (Nothing, Just _) ->
-              mismatch context (Just (badRigid maybeName))
+flatTypeToSpecificThing :: FlatType -> Error.SpecificThing
+flatTypeToSpecificThing flatType =
+  case flatType of
+    App1 name _ ->
+      Error.SpecificType name
 
-          (Just super, Just otherSuper) ->
-              if combineRigidSupers super otherSuper then
-                  merge context content
-              else
-                  mismatch context (Just (badRigid maybeName))
+    Fun1 _ _ ->
+      Error.SpecificFunction
 
-    Var Rigid _ otherMaybeName ->
-        mismatch context $ Just $
-          doubleBad (Error.Rigid maybeName) (Error.Rigid otherMaybeName)
+    EmptyRecord1 ->
+      Error.SpecificRecord
 
-    Alias _ _ _ ->
-        mismatch context (Just (badRigid maybeName))
-
-    Structure _ ->
-        mismatch context (Just (badRigid maybeName))
+    Record1 _ _ ->
+      Error.SpecificRecord
 
 
 
@@ -296,49 +297,51 @@ unifyRigid context maybeSuper maybeName content otherContent =
 unifyFlexSuper :: Context -> Super -> Content -> Content -> Unify ()
 unifyFlexSuper context super content otherContent =
   case otherContent of
-    Structure term ->
-        unifyFlexSuperStructure context super term
+    Structure flatType ->
+        unifyFlexSuperStructure context super flatType
 
-    Var Rigid Nothing maybeName ->
-        mismatch context (Just (doubleBad (errorSuper super) (Error.Rigid maybeName)))
+    RigidVar name ->
+        mismatch context $ Just $
+          Error.RigidVarTooGeneric name (Error.SpecificSuper super)
 
-    Var Rigid (Just otherSuper) maybeName ->
+    RigidSuper otherSuper name ->
         if combineRigidSupers otherSuper super then
             merge context otherContent
         else
-            mismatch context $ Just $ badRigid maybeName
+            mismatch context $ Just $
+              Error.RigidSuperTooGeneric otherSuper name (Error.SpecificSuper super)
 
-    Var Flex Nothing _ ->
+    FlexVar _ ->
         merge context content
 
-    Var Flex (Just otherSuper) _ ->
+    FlexSuper otherSuper _ ->
       case super of
         Number ->
           case otherSuper of
             Number     -> merge context content
             Comparable -> merge context content
-            _          -> mismatch context $ Just $ badSupers super otherSuper
+            _          -> mismatch context Nothing -- Error.NumberAppendableClash
 
         Comparable ->
           case otherSuper of
             Comparable -> merge context otherContent
             Number     -> merge context otherContent
-            Appendable -> merge context (Var Flex (Just CompAppend) Nothing)
+            Appendable -> merge context (Type.unnamedFlexSuper CompAppend)
             CompAppend -> merge context otherContent
 
         Appendable ->
           case otherSuper of
             Appendable -> merge context otherContent
-            Comparable -> merge context (Var Flex (Just CompAppend) Nothing)
+            Comparable -> merge context (Type.unnamedFlexSuper CompAppend)
             CompAppend -> merge context otherContent
-            Number     -> mismatch context $ Just $ badSupers super otherSuper
+            Number     -> mismatch context Nothing -- Error.NumberAppendableClash
 
         CompAppend ->
           case otherSuper of
             Comparable -> merge context content
             Appendable -> merge context content
             CompAppend -> merge context content
-            Number     -> mismatch context $ Just $ badSupers super otherSuper
+            Number     -> mismatch context Nothing -- Error.NumberAppendableClash
 
     Alias _ _ realVar ->
         subUnify context (_first context) realVar
@@ -371,54 +374,54 @@ atomMatchesSuper super name =
 
 
 unifyFlexSuperStructure :: Context -> Super -> FlatType -> Unify ()
-unifyFlexSuperStructure context super term =
-  do  case term of
-        App1 name [] ->
-          if atomMatchesSuper super name then
-            merge context (Structure term)
-          else
-            mismatch context (Just (badSuper super))
+unifyFlexSuperStructure context super flatType =
+  case flatType of
+    App1 name [] ->
+      if atomMatchesSuper super name then
+        merge context (Structure flatType)
+      else
+        mismatch context $ Just $ Error.NotPartOfSuper super
 
-        App1 name [variable] | name == Var.list ->
-          case super of
-            Number ->
-                mismatch context (Just (badSuper super))
+    App1 name [variable] | name == Var.list ->
+      case super of
+        Number ->
+            mismatch context $ Just $ Error.NotPartOfSuper super
 
-            Appendable ->
-                merge context (Structure term)
+        Appendable ->
+            merge context (Structure flatType)
 
-            Comparable ->
+        Comparable ->
+            do  comparableOccursCheck context
+                merge context (Structure flatType)
+                unifyComparableRecursive (_orientation context) variable
+
+        CompAppend ->
+            do  comparableOccursCheck context
+                merge context (Structure flatType)
+                unifyComparableRecursive (_orientation context) variable
+
+    App1 name args | Var.isTuple name ->
+      case super of
+        Number ->
+            mismatch context $ Just $ Error.NotPartOfSuper super
+
+        Appendable ->
+            mismatch context $ Just $ Error.NotPartOfSuper super
+
+        Comparable ->
+            if length args > 6 then
+                mismatch context (Just (Error.TooLongComparableTuple (length args)))
+
+            else
                 do  comparableOccursCheck context
-                    merge context (Structure term)
-                    unifyComparableRecursive (_orientation context) variable
+                    merge context (Structure flatType)
+                    mapM_ (unifyComparableRecursive (_orientation context)) args
 
-            CompAppend ->
-                do  comparableOccursCheck context
-                    merge context (Structure term)
-                    unifyComparableRecursive (_orientation context) variable
+        CompAppend ->
+            mismatch context $ Just $ Error.NotPartOfSuper super
 
-        App1 name args | Var.isTuple name ->
-          case super of
-            Number ->
-                mismatch context (Just (badSuper super))
-
-            Appendable ->
-                mismatch context (Just (badSuper super))
-
-            Comparable ->
-                if length args > 6 then
-                    mismatch context (Just (Error.TooLongComparableTuple (length args)))
-
-                else
-                    do  comparableOccursCheck context
-                        merge context (Structure term)
-                        mapM_ (unifyComparableRecursive (_orientation context)) args
-
-            CompAppend ->
-                mismatch context (Just (badSuper super))
-
-        _ ->
-          mismatch context (Just (badSuper super))
+    _ ->
+      mismatch context $ Just $ Error.NotPartOfSuper super
 
 
 -- TODO: is there some way to avoid doing this?
@@ -435,7 +438,7 @@ unifyComparableRecursive :: Orientation -> Variable -> Unify ()
 unifyComparableRecursive orientation var =
   do  compVar <- liftIO $
         do  (Descriptor _ rank _ _) <- UF.descriptor var
-            UF.fresh $ Descriptor (Var Flex (Just Comparable) Nothing) rank noMark Nothing
+            UF.fresh $ Descriptor (Type.unnamedFlexSuper Comparable) rank noMark Nothing
 
       lift $ TS.register compVar
 
@@ -465,13 +468,16 @@ collectArgsHelp revArgs variable =
 unifyAlias :: Context -> Var.Canonical -> [(Text, Variable)] -> Variable -> Content -> Unify ()
 unifyAlias context name args realVar otherContent =
   case otherContent of
-    Error _ ->
-        return ()
-
-    Var Flex Nothing _ ->
+    FlexVar _ ->
         merge context (Alias name args realVar)
 
-    Var _ _ _ ->
+    FlexSuper _ _ ->
+        subUnify context realVar (_second context)
+
+    RigidVar _ ->
+        subUnify context realVar (_second context)
+
+    RigidSuper _ _ ->
         subUnify context realVar (_second context)
 
     Alias otherName otherArgs otherRealVar ->
@@ -485,31 +491,34 @@ unifyAlias context name args realVar otherContent =
     Structure _ ->
         subUnify context realVar (_second context)
 
+    Error _ ->
+        return ()
+
 
 
 -- UNIFY STRUCTURES
 
 
 unifyStructure :: Context -> FlatType -> Content -> Content -> Unify ()
-unifyStructure context term content otherContent =
+unifyStructure context flatType content otherContent =
   case otherContent of
-    Error _ ->
-        return ()
-
-    Var Flex Nothing _ ->
+    FlexVar _ ->
         merge context content
 
-    Var Flex (Just super) _ ->
-        unifyFlexSuperStructure (reorient context) super term
+    FlexSuper super _ ->
+        unifyFlexSuperStructure (reorient context) super flatType
 
-    Var Rigid _ maybeName ->
-        mismatch context (Just (Error.flipReason (badRigid maybeName)))
+    RigidVar name ->
+        mismatch context $ Just $ Error.RigidVarTooGeneric name (flatTypeToSpecificThing flatType)
+
+    RigidSuper super name ->
+        mismatch context $ Just $ Error.RigidSuperTooGeneric super name (flatTypeToSpecificThing flatType)
 
     Alias _ _ realVar ->
         subUnify context (_first context) realVar
 
     Structure otherTerm ->
-        case (term, otherTerm) of
+        case (flatType, otherTerm) of
           (App1 name args, App1 otherName otherArgs) ->
               if name == otherName then
                 do  zipWithM_ (subUnify context) args otherArgs
@@ -542,6 +551,10 @@ unifyStructure context term content otherContent =
 
           _ ->
               mismatch context Nothing
+
+    Error _ ->
+        return ()
+
 
 
 isIntFloat :: Var.Canonical -> Var.Canonical -> Bool
@@ -595,7 +608,7 @@ unifyRecord context firstStructure secondStructure =
 
         (Extension, False, Extension, False) ->
             do  let subFields = Map.union uniqueExpFields uniqueActFields
-                subExt <- fresh context (Var Flex Nothing Nothing)
+                subExt <- fresh context Type.unnamedFlexVar
                 expRecord <- fresh context (Structure (Record1 uniqueActFields subExt))
                 actRecord <- fresh context (Structure (Record1 uniqueExpFields subExt))
                 subUnify context expVar expRecord

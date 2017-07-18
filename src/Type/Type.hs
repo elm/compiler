@@ -6,7 +6,6 @@ module Type.Type
   , Type(..)
   , Descriptor(Descriptor)
   , Content(..)
-  , Flex(..)
   , noRank
   , outermostRank
   , Mark
@@ -15,12 +14,14 @@ module Type.Type
   , (==>), float, char, string, bool
   , mkFlexVar
   , mkFlexNumber
-  , mkNamedVar
+  , unnamedFlexVar
+  , unnamedFlexSuper
+  , nameToFlex
+  , nameToRigid
   , toSrcType
   )
   where
 
-import Control.Monad (when)
 import Control.Monad.State.Strict (StateT, liftIO)
 import qualified Control.Monad.State.Strict as State
 import qualified Data.Char as Char
@@ -74,8 +75,11 @@ data Descriptor =
 
 
 data Content
-    = Structure FlatType
-    | Var Flex (Maybe T.Super) (Maybe Text)
+    = FlexVar (Maybe Text)
+    | FlexSuper T.Super (Maybe Text)
+    | RigidVar Text
+    | RigidSuper T.Super Text
+    | Structure FlatType
     | Alias Var.Canonical [(Text,Variable)] Variable
     | Error Text
 
@@ -85,21 +89,18 @@ makeDescriptor content =
   Descriptor content noRank noMark Nothing
 
 
-data Flex
-    = Rigid
-    | Flex
-
-
 
 -- RANKS
 
 
 noRank :: Int
-noRank = 0
+noRank =
+  0
 
 
 outermostRank :: Int
-outermostRank = 1
+outermostRank =
+  1
 
 
 
@@ -183,11 +184,10 @@ flexVarDescriptor =
   makeDescriptor unnamedFlexVar
 
 
-
 {-# NOINLINE unnamedFlexVar #-}
 unnamedFlexVar :: Content
 unnamedFlexVar =
-  Var Flex Nothing Nothing
+  FlexVar Nothing
 
 
 
@@ -207,16 +207,23 @@ flexNumberDescriptor =
 
 unnamedFlexSuper :: T.Super -> Content
 unnamedFlexSuper super =
-  Var Flex (Just super) Nothing
+  FlexSuper super Nothing
 
 
 
--- MAKE NAMED FLEX VARIABLES
+-- MAKE NAMED VARIABLES
 
 
-mkNamedVar :: Flex -> Text -> IO Variable
-mkNamedVar flex name =
-    UF.fresh $ makeDescriptor $ Var flex (toSuper name) (Just name)
+nameToFlex :: Text -> IO Variable
+nameToFlex name =
+  UF.fresh $ makeDescriptor $
+    maybe FlexVar FlexSuper (toSuper name) (Just name)
+
+
+nameToRigid :: Text -> IO Variable
+nameToRigid name =
+  UF.fresh $ makeDescriptor $
+    maybe RigidVar RigidSuper (toSuper name) name
 
 
 toSuper :: Text -> Maybe T.Super
@@ -270,14 +277,31 @@ contentToSrcType variable content =
     Structure term ->
         termToSrcType term
 
-    Var _ _ (Just name) ->
+    FlexVar maybeName ->
+      case maybeName of
+        Just name ->
+          return (T.Var name)
+
+        Nothing ->
+          do  name <- getFreshVarName
+              liftIO $ UF.modifyDescriptor variable (\desc -> desc { _content = FlexVar (Just name) })
+              return (T.Var name)
+
+    FlexSuper super maybeName ->
+      case maybeName of
+        Just name ->
+          return (T.Var name)
+
+        Nothing ->
+          do  name <- getFreshSuperName super
+              liftIO $ UF.modifyDescriptor variable (\desc -> desc { _content = FlexSuper super (Just name) })
+              return (T.Var name)
+
+    RigidVar name ->
         return (T.Var name)
 
-    Var flex maybeSuper Nothing ->
-        do  freshName <- getFreshName maybeSuper
-            liftIO $ UF.modifyDescriptor variable $ \desc ->
-                desc { _content = Var flex maybeSuper (Just freshName) }
-            return (T.Var freshName)
+    RigidSuper _ name ->
+        return (T.Var name)
 
     Alias name args realVariable ->
         do  srcArgs <- traverse (traverse variableToSrcType) args
@@ -340,27 +364,29 @@ makeNameState taken =
   NameState taken 0 0 0 0 0
 
 
-getFreshName :: (Monad m) => Maybe T.Super -> StateT NameState m Text
-getFreshName maybeSuper =
-  case maybeSuper of
-    Nothing ->
-      do  index <- State.gets _normals
-          taken <- State.gets _taken
-          let (uniqueName, newIndex) = getFreshNormal index taken
-          State.modify (\state -> state { _normals = newIndex })
-          return uniqueName
+getFreshVarName :: (Monad m) => StateT NameState m Text
+getFreshVarName =
+  do  index <- State.gets _normals
+      taken <- State.gets _taken
+      let (uniqueName, newIndex) = getFreshNormal index taken
+      State.modify (\state -> state { _normals = newIndex })
+      return uniqueName
 
-    Just T.Number ->
-        getFreshSuper "number" _numbers (\index state -> state { _numbers = index })
 
-    Just T.Comparable ->
-        getFreshSuper "comparable" _comparables (\index state -> state { _comparables = index })
+getFreshSuperName :: (Monad m) => T.Super -> StateT NameState m Text
+getFreshSuperName super =
+  case super of
+    T.Number ->
+      getFreshSuper "number" _numbers (\index state -> state { _numbers = index })
 
-    Just T.Appendable ->
-        getFreshSuper "appendable" _appendables (\index state -> state { _appendables = index })
+    T.Comparable ->
+      getFreshSuper "comparable" _comparables (\index state -> state { _comparables = index })
 
-    Just T.CompAppend ->
-        getFreshSuper "compappend" _compAppends (\index state -> state { _compAppends = index })
+    T.Appendable ->
+      getFreshSuper "appendable" _appendables (\index state -> state { _appendables = index })
+
+    T.CompAppend ->
+      getFreshSuper "compappend" _compAppends (\index state -> state { _compAppends = index })
 
 
 getFreshNormal :: Int -> TakenNames -> (Text, Int)
@@ -415,70 +441,87 @@ getFreshSuperHelp name index taken =
 
 getVarNames :: Variable -> StateT TakenNames IO ()
 getVarNames var =
-  do  desc <- liftIO $ UF.descriptor var
-      case _mark desc == getVarNamesMark of
-        True ->
-          return ()
+  do  (Descriptor content rank mark copy) <- liftIO $ UF.descriptor var
+      if mark == getVarNamesMark then return () else
+        do  liftIO $ UF.setDescriptor var (Descriptor content rank getVarNamesMark copy)
+            case content of
+              Error _ ->
+                return ()
 
-        False ->
-          do  liftIO $ UF.setDescriptor var (desc { _mark = getVarNamesMark })
-              case _content desc of
-                Error _ ->
-                  return ()
+              FlexVar maybeName ->
+                case maybeName of
+                  Nothing ->
+                    return ()
 
-                Var _ _ Nothing ->
-                  return ()
+                  Just name ->
+                    registerName name var (FlexVar . Just)
 
-                Var flex maybeSuper (Just name) ->
-                  do  oldTaken <- State.get
-                      newTaken <- liftIO $ addVarName 0 name var flex maybeSuper oldTaken
-                      State.put newTaken
+              FlexSuper super maybeName ->
+                case maybeName of
+                  Nothing ->
+                    return ()
 
-                Alias _ args realVar ->
-                  do  mapM_ (getVarNames . snd) args
-                      getVarNames realVar
+                  Just name ->
+                    registerName name var (FlexSuper super . Just)
 
-                Structure (App1 _ args) ->
-                  mapM_ getVarNames args
+              RigidVar name ->
+                registerName name var RigidVar
 
-                Structure (Fun1 arg body) ->
-                  do  getVarNames arg
-                      getVarNames body
+              RigidSuper super name ->
+                registerName name var (RigidSuper super)
 
-                Structure EmptyRecord1 ->
-                  return ()
+              Alias _ args realVar ->
+                do  mapM_ (getVarNames . snd) args
+                    getVarNames realVar
 
-                Structure (Record1 fields extension) ->
-                  do  mapM_ getVarNames fields
-                      getVarNames extension
+              Structure (App1 _ args) ->
+                mapM_ getVarNames args
+
+              Structure (Fun1 arg body) ->
+                do  getVarNames arg
+                    getVarNames body
+
+              Structure EmptyRecord1 ->
+                return ()
+
+              Structure (Record1 fields extension) ->
+                do  mapM_ getVarNames fields
+                    getVarNames extension
 
 
-addVarName :: Int -> Text -> Variable -> Flex -> Maybe T.Super -> TakenNames -> IO TakenNames
-addVarName index givenName var flex maybeSuper taken =
+
+-- REGISTER NAME / RENAME DUPLICATES
+
+
+registerName :: Text -> Variable -> (Text -> Content) -> StateT TakenNames IO ()
+registerName givenName var makeContent =
+  if Text.null givenName then
+    return ()
+  else
+    do  takenNames <- State.get
+        State.put =<< liftIO (checkName 0 givenName var makeContent takenNames)
+
+
+checkName :: Int -> Text -> Variable -> (Text -> Content) -> TakenNames -> IO TakenNames
+checkName index givenName var makeContent takenNames =
   let
-    name =
-      makeIndexedName givenName index
+    indexedName =
+      if index <= 0 then
+        givenName
+      else if Char.isDigit (Text.last givenName) then
+        givenName <> Text.pack ('_' : show index)
+      else
+        givenName <> Text.pack (show index)
   in
-    case Map.lookup name taken of
+    case Map.lookup indexedName takenNames of
       Nothing ->
-        do  when (name /= givenName) $ UF.modifyDescriptor var $ \desc ->
-              desc { _content = Var flex maybeSuper (Just name) }
-            return $ Map.insert name var taken
+        do  if indexedName == givenName then return () else
+              UF.modifyDescriptor var $ \(Descriptor _ rank mark copy) ->
+                Descriptor (makeContent indexedName) rank mark copy
+            return $ Map.insert indexedName var takenNames
 
       Just otherVar ->
         do  same <- UF.equivalent var otherVar
             if same
-              then return taken
-              else addVarName (index + 1) givenName var flex maybeSuper taken
-
-
-makeIndexedName :: Text -> Int -> Text
-makeIndexedName name index =
-  if index <= 0 then
-    name
-
-  else if Char.isDigit (Text.last name) then
-    name <> Text.pack ('_' : show index)
-
-  else
-    name <> Text.pack (show index)
+              then return takenNames
+              else checkName (index + 1) givenName var makeContent takenNames

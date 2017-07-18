@@ -221,11 +221,17 @@ copyHelp maxRank pools variable =
                     do  newTerm <- traverseFlatType (copyHelp maxRank pools) term
                         UF.setDescriptor newVar $ mkCopyDesc (Structure newTerm)
 
-                  Var Rigid maybeSuper maybeName ->
-                    UF.setDescriptor newVar $ mkCopyDesc $ Var Flex maybeSuper maybeName
-
-                  Var Flex _ _ ->
+                  FlexVar _ ->
                     return ()
+
+                  FlexSuper _ _ ->
+                    return ()
+
+                  RigidVar name ->
+                    UF.setDescriptor newVar $ mkCopyDesc $ FlexVar (Just name)
+
+                  RigidSuper super name ->
+                    UF.setDescriptor newVar $ mkCopyDesc $ FlexSuper super (Just name)
 
                   Alias name args realType ->
                     do  newArgs <- mapM (traverse (copyHelp maxRank pools)) args
@@ -259,11 +265,20 @@ restore variable =
 restoreContent :: Content -> IO Content
 restoreContent content =
   case content of
+    FlexVar _ ->
+        return content
+
+    FlexSuper _ _ ->
+        return content
+
+    RigidVar _ ->
+        return content
+
+    RigidSuper _ _ ->
+        return content
+
     Structure term ->
         Structure <$> traverseFlatType restore term
-
-    Var _ _ _ ->
-        return content
 
     Alias name args var ->
         Alias name

@@ -536,7 +536,7 @@ constrainAnnotatedDef
     -> Info
     -> IO Info
 constrainAnnotatedDef env defRegion region name expr tipe info =
-  do  (flexType, flexVars) <- Env.instantiateType Flex env tipe
+  do  (flexType, flexVars) <- Env.instantiateFlex env tipe
 
       let scheme =
             Scheme
@@ -568,7 +568,7 @@ constrainAnnDefHelp :: C.Expr -> ST.Canonical -> ArgInfo -> IO Constraint
 constrainAnnDefHelp expr tipe (ArgInfo name defRegion env args vars) =
   case (expr, tipe) of
     (A.A _ (C.Lambda arg result), ST.Lambda argType resultType) ->
-      do  (rigidArgType, newVars) <- Env.instantiateType Rigid env argType
+      do  (rigidArgType, newVars) <- Env.instantiateRigid env argType
 
           constrainAnnDefHelp result resultType $
             ArgInfo
@@ -580,7 +580,7 @@ constrainAnnDefHelp expr tipe (ArgInfo name defRegion env args vars) =
               }
 
     (A.A region _, _) ->
-      do  (rigidType, newVars) <- Env.instantiateType Rigid env tipe
+      do  (rigidType, newVars) <- Env.instantiateRigid env tipe
 
           let finalEnv = Env.addValues newVars env
           let finalArgs = reverse args

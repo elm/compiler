@@ -79,7 +79,7 @@ canonicalizeValues
     -> IO [(Text, ([T.Variable], T.Type))]
 canonicalizeValues env (moduleName, iface) =
     forM (Map.toList (Module.iTypes iface)) $ \(name, tipe) ->
-        do  (flexType, flexVars) <- Env.instantiateType T.Flex env tipe
+        do  (flexType, flexVars) <- Env.instantiateFlex env tipe
             return
               ( ModuleName.canonicalToText moduleName <> "." <> name
               , ( Map.elems flexVars

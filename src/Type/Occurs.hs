@@ -25,15 +25,17 @@ occursHelp seen var =
   else
     do  (Descriptor content _ _ _) <- UF.descriptor var
         case content of
-          Var _ _ _ ->
+          FlexVar _ ->
               return False
 
-          Error _ ->
+          FlexSuper _ _ ->
               return False
 
-          Alias _ args _ ->
-              -- TODO is it okay to only check args?
-              or <$> traverse (occursHelp (var:seen) . snd) args
+          RigidVar _ ->
+              return False
+
+          RigidSuper _ _ ->
+              return False
 
           Structure term ->
               let
@@ -51,3 +53,10 @@ occursHelp seen var =
 
                 Record1 fields ext ->
                     or <$> traverse go (ext : Map.elems fields)
+
+          Alias _ args _ ->
+              -- TODO is it okay to only check args?
+              or <$> traverse (occursHelp (var:seen) . snd) args
+
+          Error _ ->
+              return False

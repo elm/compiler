@@ -6,7 +6,8 @@ module Type.Environment
     , initialize
     , get, freshDataScheme, ctorNames
     , addValues
-    , instantiateType
+    , instantiateFlex
+    , instantiateRigid
     )
     where
 
@@ -102,8 +103,8 @@ makeCtorsHelp constructorDict ( var, (rawTypeVars, ctors) ) =
 
     go :: [T.Canonical] -> State.StateT VarDict IO ([Type], Type)
     go args =
-      do  types <- mapM (instantiator Flex Map.empty) args
-          returnType <- instantiator Flex Map.empty (T.Type var tvars)
+      do  types <- mapM (instantiator nameToFlex Map.empty) args
+          returnType <- instantiator nameToFlex Map.empty (T.Type var tvars)
           return (types, returnType)
   in
     List.foldl' inst constructorDict ctors
@@ -142,25 +143,31 @@ addValues newValues env =
 -- INSTANTIATE TYPES
 
 
-instantiateType :: Flex -> Env -> T.Canonical -> IO (Type, VarDict)
-instantiateType flex env sourceType =
-  State.runStateT (instantiator flex (_value env) sourceType) Map.empty
+instantiateFlex :: Env -> T.Canonical -> IO (Type, VarDict)
+instantiateFlex env sourceType =
+  State.runStateT (instantiator nameToFlex (_value env) sourceType) Map.empty
 
 
-instantiator :: Flex -> Dict Type -> T.Canonical -> State.StateT VarDict IO Type
-instantiator flex values sourceType =
-    instantiatorHelp flex values Set.empty sourceType
+instantiateRigid :: Env -> T.Canonical -> IO (Type, VarDict)
+instantiateRigid env sourceType =
+  State.runStateT (instantiator nameToRigid (_value env) sourceType) Map.empty
 
 
-instantiatorHelp :: Flex -> Dict Type -> Set.Set Text -> T.Canonical -> State.StateT VarDict IO Type
-instantiatorHelp flex values aliasVars sourceType =
+instantiator :: (Text -> IO Variable) -> Dict Type -> T.Canonical -> State.StateT VarDict IO Type
+instantiator nameToVar values sourceType =
+    instantiatorHelp nameToVar values Set.empty sourceType
+
+
+instantiatorHelp :: (Text -> IO Variable) -> Dict Type -> Set.Set Text -> T.Canonical -> State.StateT VarDict IO Type
+instantiatorHelp nameToVar values aliasVars sourceType =
+  {-# SCC elm_compiler_type_instantiate #-}
   let
     go =
-      instantiatorHelp flex values aliasVars
+      instantiatorHelp nameToVar values aliasVars
   in
     case sourceType of
       T.Lambda t1 t2 ->
-          (==>) <$> go t1 <*> go t2
+          FunN <$> go t1 <*> go t2
 
       T.Var name ->
           if Set.member name aliasVars then
@@ -178,7 +185,7 @@ instantiatorHelp flex values aliasVars sourceType =
                           return (VarN variable)
 
                         Nothing ->
-                          do  variable <- State.liftIO (mkNamedVar flex name)
+                          do  variable <- State.liftIO (nameToVar name)
                               State.put (Map.insert name variable dict)
                               return (VarN variable)
 
@@ -187,10 +194,10 @@ instantiatorHelp flex values aliasVars sourceType =
               realType <-
                   case aliasType of
                     T.Filled tipe ->
-                        instantiatorHelp flex values Set.empty tipe
+                        instantiatorHelp nameToVar values Set.empty tipe
 
                     T.Holey tipe ->
-                        instantiatorHelp flex values (Set.fromList (map fst args)) tipe
+                        instantiatorHelp nameToVar values (Set.fromList (map fst args)) tipe
 
               return (AliasN name targs realType)
 

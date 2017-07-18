@@ -3,7 +3,7 @@
 module Reporting.Error.Type
   ( Error(..)
   , Mismatch(..), Hint(..)
-  , Reason(..), VarType(..)
+  , Reason(..), SpecificThing(..)
   , Pattern(..)
   , toReport
   , flipReason
@@ -54,15 +54,17 @@ data Reason
     | IntFloat
     | TooLongComparableTuple Int
     | MissingArgs Int
-    | BadVar (Maybe VarType) (Maybe VarType)
+    | RigidClash Text Text
+    | NotPartOfSuper Type.Super
+    | RigidVarTooGeneric Text SpecificThing
+    | RigidSuperTooGeneric Type.Super Text SpecificThing
 
 
-data VarType
-    = Number
-    | Comparable
-    | Appendable
-    | CompAppend
-    | Rigid (Maybe Text)
+data SpecificThing
+  = SpecificSuper Type.Super
+  | SpecificType Var.Canonical
+  | SpecificFunction
+  | SpecificRecord
 
 
 data Hint
@@ -694,8 +696,17 @@ flipReason reason =
     MissingArgs num ->
         MissingArgs num
 
-    BadVar left right ->
-        BadVar right left
+    RigidClash a b ->
+        RigidClash b a
+
+    NotPartOfSuper super ->
+        NotPartOfSuper super
+
+    RigidVarTooGeneric name specific ->
+        RigidVarTooGeneric name specific
+
+    RigidSuperTooGeneric super name specific ->
+        RigidSuperTooGeneric super name specific
 
 
 reasonToString :: Reason -> Maybe Doc
@@ -776,26 +787,83 @@ reasonToStringHelp reason =
         go $
           "It looks like a function needs " <> Help.moreArgs num <> "."
 
-    BadVar (Just Comparable) _ ->
+    RigidClash name1 name2 ->
+        go $
+          "Your type annotation uses `" <> name1 <> "` and `" <> name2 <>
+          "` as DIFFERENT type variables. By using separate names, you are\
+          \ claiming the values can be different, but the code suggests that\
+          \ they must be the SAME based on how they are used. Maybe these two\
+          \ type variables in your type annotation should just be one? Maybe\
+          \ your code uses them in a weird way? More help at: "
+          <> Help.hintLink "type-annotations"
+
+    NotPartOfSuper Type.Number ->
+        go "Only ints and floats are numbers."
+
+    NotPartOfSuper Type.Comparable ->
         go "Only ints, floats, chars, strings, lists, and tuples are comparable."
 
-    BadVar (Just Appendable) _ ->
-        go "Only strings, text, and lists are appendable."
+    NotPartOfSuper Type.Appendable ->
+        go "Only strings and lists are appendable."
 
-    BadVar (Just CompAppend) _ ->
+    NotPartOfSuper Type.CompAppend ->
         go "Only strings and lists are both comparable and appendable."
 
-    BadVar (Just (Rigid maybeLeftName)) (Just (Rigid maybeRightName)) ->
-        go $ doubleRigidError maybeLeftName maybeRightName
+    RigidVarTooGeneric name specific ->
+        go $ rigidTooGenericHelp "ANY type of value" name specific
 
-    BadVar (Just (Rigid maybeName)) _  ->
-        go $ singleRigidError maybeName
+    RigidSuperTooGeneric Type.Number name specific ->
+        go $ rigidTooGenericHelp "BOTH Ints and Floats" name specific
 
-    BadVar _ (Just (Rigid maybeName))  ->
-        go $ singleRigidError maybeName
+    RigidSuperTooGeneric Type.Comparable name specific ->
+        go $ rigidTooGenericHelp "ANY comparable value" name specific
 
-    BadVar _ _ ->
-        Nothing
+    RigidSuperTooGeneric Type.Appendable name specific ->
+        go $ rigidTooGenericHelp "BOTH Strings and Lists" name specific
+
+    RigidSuperTooGeneric Type.CompAppend name specific ->
+        go $ rigidTooGenericHelp "Strings and ANY comparable List" name specific
+
+
+rigidTooGenericHelp :: Text -> Text -> SpecificThing -> Text
+rigidTooGenericHelp manyTypesOfValues name specific =
+  "The type variable `" <> name <> "` in your type annotation suggests that"
+  <> manyTypesOfValues <> " can flow through, but the code suggests that it must be "
+  <> specificThingToText specific <> " based on how it is used. Maybe make your\
+  \ type annotation more specific? Maybe the code has a problem? More help at: "
+  <> Help.hintLink "type-annotations"
+
+
+specificThingToText :: SpecificThing -> Text
+specificThingToText specific =
+  case specific of
+    SpecificSuper Type.Number ->
+      "a number"
+
+    SpecificSuper Type.Comparable ->
+      "comparable"
+
+    SpecificSuper Type.Appendable ->
+      "appendable"
+
+    SpecificSuper Type.CompAppend ->
+      "comparable AND appendable"
+
+    SpecificType var@(Var.Canonical _ name) ->
+      if Var.isTuple var then
+        "a tuple"
+
+      else if Text.isInfixOf (Text.take 1 name) "AEIOU" then
+        "an " <> name
+
+      else
+        "a " <> name
+
+    SpecificRecord ->
+      "a record"
+
+    SpecificFunction ->
+      "a function"
 
 
 badFieldElaboration :: Text
@@ -803,46 +871,6 @@ badFieldElaboration =
   "I always figure out field types in alphabetical order. If a field\
   \ seems fine, I assume it is \"correct\" in subsequent checks.\
   \ So the problem may actually be a weird interaction with previous fields."
-
-
-weirdRigidError :: Text
-weirdRigidError =
-  "You are having a problem with \"rigid\" type variables. That usually\
-  \ means you have a type annotation that says it accepts anything, but\
-  \ in fact, it accepts a much more specific type. More info at: "
-  <> Help.hintLink "type-annotations" <>
-  ". This case is weird though, so please turn it into an <http://sscce.org>\
-  \ and report it to <https://github.com/elm-lang/error-message-catalog>."
-
-
-singleRigidError :: Maybe Text -> Text
-singleRigidError maybeName =
-  case maybeName of
-    Just name ->
-      "Your type annotation uses type variable `" <> name <>
-      "` which means any type of value can flow through. Your code is saying\
-      \ it CANNOT be anything though! Maybe change your type annotation to\
-      \ be more specific? Maybe the code has a problem? More at: "
-      <> Help.hintLink "type-annotations"
-
-    Nothing ->
-      weirdRigidError
-
-
-doubleRigidError :: Maybe Text -> Maybe Text -> Text
-doubleRigidError maybeLeftName maybeRightName =
-  case (maybeLeftName, maybeRightName) of
-    (Just leftName, Just rightName) ->
-      "Your type annotation uses `" <> leftName <> "` and `" <> rightName <>
-      "` as separate type variables. Each one can be any type of value,\
-      \ but because they have separate names, there is no guarantee that they\
-      \ are equal to each other. Your code seems to be saying they ARE the\
-      \ same though! Maybe they should be the same in your type annotation?\
-      \ Maybe your code uses them in a weird way? More at: "
-      <> Help.hintLink "type-annotations"
-
-    _ ->
-      weirdRigidError
 
 
 messyFieldsHelp :: [Text] -> [Text] -> [Text] -> Maybe (Text, [Doc])
