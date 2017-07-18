@@ -226,7 +226,7 @@ generalize youngMark visitMark youngRank pools =
                       then
                         MVector.modify pools (var:) rank
                       else
-                        UF.setDescriptor var $ Descriptor (rigidify content) noRank mark copy
+                        UF.setDescriptor var $ Descriptor content noRank mark copy
 
 
 poolToRankTable :: Mark -> Int -> [Variable] -> IO (Vector.Vector [Variable])
@@ -240,16 +240,6 @@ poolToRankTable youngMark youngRank youngInhabitants =
             MVector.modify mutableTable (var:) rank
 
       Vector.unsafeFreeze mutableTable
-
-
-rigidify :: Content -> Content
-rigidify content =
-  case content of
-    Var Flex maybeSuper maybeName ->
-        Var Rigid maybeSuper maybeName
-
-    _ ->
-        content
 
 
 
