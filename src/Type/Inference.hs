@@ -50,11 +50,13 @@ genConstraints interfaces modul =
   do  let env = Env.initialize (canonicalizeUnions interfaces modul)
 
       ctors <-
+          {-# SCC elm_compiler_mk_ctor_types #-}
           forM (Env.ctorNames env) $ \name ->
             do  (_, vars, args, result) <- Env.freshDataScheme env name
-                return (name, (vars, foldr (T.==>) result args))
+                return (name, (vars, foldr T.FunN result args))
 
       importedVars <-
+          {-# SCC elm_compiler_mk_value_types #-}
           mapM (canonicalizeValues env) (Map.toList interfaces)
 
       let allTypes = concat (ctors : importedVars)
@@ -65,6 +67,7 @@ genConstraints interfaces modul =
       fvar <- T.mkFlexVar
 
       constraint <-
+          {-# SCC elm_compiler_constrain #-}
           TcExpr.constrain env (Module.program (Module.info modul)) (T.VarN fvar)
 
       return (header, environ constraint)
