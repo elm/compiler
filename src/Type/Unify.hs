@@ -181,7 +181,10 @@ fresh (Context _ _ (Descriptor _ rank1 _ _) _ (Descriptor _ rank2 _ _)) content 
   do  freshVariable <-
           liftIO $ UF.fresh $
             Descriptor content (min rank1 rank2) noMark Nothing
-      lift (TS.register freshVariable)
+
+      lift $ TS.register freshVariable
+
+      return freshVariable
 
 
 
@@ -433,6 +436,8 @@ unifyComparableRecursive orientation var =
   do  compVar <- liftIO $
         do  (Descriptor _ rank _ _) <- UF.descriptor var
             UF.fresh $ Descriptor (Var Flex (Just Comparable) Nothing) rank noMark Nothing
+
+      lift $ TS.register compVar
 
       guardedUnify orientation compVar var
 

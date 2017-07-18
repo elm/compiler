@@ -1,18 +1,14 @@
 {-# OPTIONS_GHC -Wall #-}
 module Type.State
-  ( Solver
+  ( Solver(..)
   , run
   , State(..)
-  , Pool(..)
+  , Pools
   , Env
   , modifyEnv
   , addError
-  , switchToPool
-  , getPool
   , getEnv
   , saveLocalEnv
-  , uniqueMark
-  , nextRankPool
   , register
   , introduce
   , flatten
@@ -21,11 +17,12 @@ module Type.State
   where
 
 
-import Control.Monad (liftM, liftM2)
+import Control.Monad (forM_, liftM, liftM2)
 import Control.Monad.Trans (MonadIO, liftIO)
 import qualified Data.Map as Map
 import Data.Map ((!))
 import Data.Text (Text)
+import qualified Data.Vector.Mutable as MVector
 
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
@@ -42,53 +39,32 @@ newtype Solver a =
   Solver { _solve :: State -> IO (a, State) }
 
 
+data State =
+  SS
+    { _env :: Env
+    , _savedEnv :: Env
+    , _rank :: Int
+    , _pools :: Pools
+    , _mark :: Mark
+    , _errors :: [A.Located Error.Error]
+    }
+
+
+type Pools = MVector.IOVector [Variable]
+
+
+type Env = Map.Map Text (A.Located Variable)
+
+
 
 -- RUN SOLVER
 
 
 run :: Solver () -> IO State
 run (Solver solver) =
-  do  (_, state) <- solver initialState
+  do  pools <- MVector.replicate 8 []
+      (_, state) <- solver (SS Map.empty Map.empty outermostRank pools (Type.nextMark noMark) [])
       return state
-
-
-initialState :: State
-initialState =
-  SS
-    { sEnv = Map.empty
-    , sSavedEnv = Map.empty
-    , sPool = Pool outermostRank []
-    , sMark = Type.nextMark noMark  -- The mark must never be equal to noMark!
-    , sError = []
-    }
-
-
-
--- SOLVER STATE
-
-
-data State =
-  SS
-    { sEnv :: Env
-    , sSavedEnv :: Env
-    , sPool :: Pool
-    , sMark :: Mark
-    , sError :: [A.Located Error.Error]
-    }
-
-
-{-| A pool holds a bunch of variables
-The rank of each variable is less than or equal to the pool's "maxRank"
-The young pool exists to make it possible to identify these vars in constant time.
--}
-data Pool =
-  Pool
-    { _maxRank :: Int
-    , _inhabitants :: [Variable]
-    }
-
-
-type Env = Map.Map Text (A.Located Variable)
 
 
 
@@ -99,96 +75,54 @@ type Env = Map.Map Text (A.Located Variable)
 modifyEnv :: (Env -> Env) -> Solver ()
 modifyEnv f =
   Solver $ \state ->
-    return ( (), state { sEnv = f (sEnv state) } )
-
-
-{-# INLINE modifyPool #-}
-modifyPool :: (Pool -> Pool) -> Solver ()
-modifyPool f =
-  Solver $ \state ->
-    return ( (), state { sPool = f (sPool state) } )
+    return ( (), state { _env = f (_env state) } )
 
 
 {-# INLINE addError #-}
 addError :: R.Region -> Error.Error -> Solver ()
 addError region err =
   Solver $ \state ->
-    return ( (), state { sError = A.A region err : sError state } )
-
-
-{-# INLINE switchToPool #-}
-switchToPool :: Pool -> Solver ()
-switchToPool pool =
-  modifyPool (\_ -> pool)
-
-
-{-# INLINE getPool #-}
-getPool :: Solver Pool
-getPool =
-  Solver $ \state ->
-    return ( sPool state, state )
-
-
-{-# INLINE getMaxRank #-}
-getMaxRank :: Solver Int
-getMaxRank =
-  Solver $ \state@(SS _ _ (Pool maxRank _) _ _) ->
-    return ( maxRank, state )
+    return ( (), state { _errors = A.A region err : _errors state } )
 
 
 {-# INLINE getEnv #-}
 getEnv :: Solver Env
 getEnv =
   Solver $ \state ->
-    return ( sEnv state, state )
+    return ( _env state, state )
 
 
 {-# INLINE saveLocalEnv #-}
 saveLocalEnv :: Solver ()
 saveLocalEnv =
   Solver $ \state ->
-    return ( (), state { sSavedEnv = sEnv state } )
-
-
-{-# INLINE uniqueMark #-}
-uniqueMark :: Solver Mark
-uniqueMark =
-  Solver $ \(SS env savedEnv pool mark errors) ->
-    return ( mark, SS env savedEnv pool (Type.nextMark mark) errors )
-
-
-{-# INLINE nextRankPool #-}
-nextRankPool :: Solver Pool
-nextRankPool =
-  Solver $ \state@(SS _ _ (Pool maxRank _) _ _) ->
-    return ( Pool (maxRank + 1) [], state )
+    return ( (), state { _savedEnv = _env state } )
 
 
 
 -- REGISTER VARIABLES
 
 
-{-# INLINE register #-}
-register :: Variable -> Solver Variable
-register variable =
-  {-# SCC elm_compiler_type_register #-}
-  Solver $ \state ->
-    let
-      (Pool maxRank inhabitants) =
-        sPool state
-    in
-      return ( variable, state { sPool = Pool maxRank (variable : inhabitants) } )
+register :: Variable -> Solver ()
+register var =
+  Solver $ \state@(SS _ _ maxRank pools _ _) ->
+    {-# SCC elm_compiler_type_register #-}
+    do  MVector.modify pools (var:) maxRank
+        return ( (), state )
 
 
-{-# INLINE introduce #-}
 introduce :: [Variable] -> Solver ()
 introduce variables =
-  {-# SCC elm_compiler_type_introduce #-}
-  Solver $ \(SS env savedEnv (Pool maxRank inhabitants) mark errors) ->
-    do  let toMaxRank (Descriptor c _ m cp) = Descriptor c maxRank m cp
-        mapM_ (\var -> UF.modifyDescriptor var toMaxRank) variables
-        let newPool = Pool maxRank (variables ++ inhabitants)
-        return ( (), SS env savedEnv newPool mark errors )
+  Solver $ \state@(SS _ _ maxRank pools _ _) ->
+    {-# SCC elm_compiler_type_introduce #-}
+    do
+        forM_ variables $ \var ->
+          UF.modifyDescriptor var $ \(Descriptor content _ mark cp) ->
+            Descriptor content maxRank mark cp
+
+        MVector.modify pools (variables++) maxRank
+
+        return ( (), state )
 
 
 
@@ -196,47 +130,50 @@ introduce variables =
 
 
 flatten :: Type -> Solver Variable
-flatten term =
-  {-# SCC elm_compiler_type_flatten #-}
-  do  maxRank <- getMaxRank
-      flattenHelp maxRank Map.empty term
+flatten tipe =
+  Solver $ \state@(SS _ _ maxRank pools _ _) ->
+    {-# SCC elm_compiler_type_flatten #-}
+    do  var <- flattenHelp maxRank pools Map.empty tipe
+        return (var, state)
 
 
-flattenHelp :: Int -> Map.Map Text Variable -> Type -> Solver Variable
-flattenHelp maxRank aliasDict termN =
-  case termN of
+flattenHelp :: Int -> Pools -> Map.Map Text Variable -> Type -> IO Variable
+flattenHelp maxRank pools aliasDict tipe =
+  case tipe of
     PlaceHolder name ->
         return (aliasDict ! name)
 
     AliasN name args realType ->
-        do  flatArgs <- mapM (traverse (flattenHelp maxRank aliasDict)) args
-            flatVar <- flattenHelp maxRank (Map.fromList flatArgs) realType
-            makeFlatType maxRank (Alias name flatArgs flatVar)
+        do  flatArgs <- mapM (traverse (flattenHelp maxRank pools aliasDict)) args
+            flatVar <- flattenHelp maxRank pools (Map.fromList flatArgs) realType
+            registerFlatType maxRank pools (Alias name flatArgs flatVar)
 
     VarN v ->
         return v
 
     AppN name args ->
-        do  flatArgs <- traverse (flattenHelp maxRank aliasDict) args
-            makeFlatType maxRank (Structure (App1 name flatArgs))
+        do  flatArgs <- traverse (flattenHelp maxRank pools aliasDict) args
+            registerFlatType maxRank pools (Structure (App1 name flatArgs))
 
     FunN a b ->
-        do  flatA <- flattenHelp maxRank aliasDict a
-            flatB <- flattenHelp maxRank aliasDict b
-            makeFlatType maxRank (Structure (Fun1 flatA flatB))
+        do  flatA <- flattenHelp maxRank pools aliasDict a
+            flatB <- flattenHelp maxRank pools aliasDict b
+            registerFlatType maxRank pools (Structure (Fun1 flatA flatB))
 
     EmptyRecordN ->
-        makeFlatType maxRank (Structure EmptyRecord1)
+        registerFlatType maxRank pools (Structure EmptyRecord1)
 
     RecordN fields ext ->
-        do  flatFields <- traverse (flattenHelp maxRank aliasDict) fields
-            flatExt <- flattenHelp maxRank aliasDict ext
-            makeFlatType maxRank (Structure (Record1 flatFields flatExt))
+        do  flatFields <- traverse (flattenHelp maxRank pools aliasDict) fields
+            flatExt <- flattenHelp maxRank pools aliasDict ext
+            registerFlatType maxRank pools (Structure (Record1 flatFields flatExt))
 
 
-makeFlatType :: Int -> Content -> Solver Variable
-makeFlatType maxRank content =
-  register =<< liftIO (UF.fresh (Descriptor content maxRank noMark Nothing))
+registerFlatType :: Int -> Pools -> Content -> IO Variable
+registerFlatType maxRank pools content =
+  do  var <- UF.fresh (Descriptor content maxRank noMark Nothing)
+      MVector.modify pools (var:) maxRank
+      return var
 
 
 
@@ -245,16 +182,16 @@ makeFlatType maxRank content =
 
 copy :: Variable -> Solver Variable
 copy var =
-  {-# SCC elm_compiler_type_copy #-}
-  do  maxRank <- getMaxRank
-      copyVar <- copyHelp maxRank var
-      _ <- restore var
-      return copyVar
+  Solver $ \state@(SS _ _ maxRank pools _ _) ->
+    {-# SCC elm_compiler_type_copy #-}
+    do  copyVar <- copyHelp maxRank pools var
+        _ <- restore var
+        return ( copyVar, state )
 
 
-copyHelp :: Int -> Variable -> Solver Variable
-copyHelp maxRank variable =
-  do  (Descriptor content rank _mark maybeCopy) <- liftIO $ UF.descriptor variable
+copyHelp :: Int -> Pools -> Variable -> IO Variable
+copyHelp maxRank pools variable =
+  do  (Descriptor content rank _mark maybeCopy) <- UF.descriptor variable
       case maybeCopy of
         Just copiedVariable ->
           return copiedVariable
@@ -265,15 +202,15 @@ copyHelp maxRank variable =
 
           else
             do  let mkCopyDesc cont = Descriptor cont maxRank noMark Nothing
-                newVar <- liftIO $ UF.fresh $ mkCopyDesc content
-                _ <- register newVar
+                newVar <- UF.fresh $ mkCopyDesc content
+                MVector.modify pools (newVar:) maxRank
 
                 -- Link the original variable to the new variable. This lets us
                 -- avoid making multiple copies of the variable we are instantiating.
                 --
                 -- Need to do this before recursively copying the content of
                 -- the variable to avoid looping on cyclic terms.
-                liftIO $ UF.setDescriptor variable $
+                UF.setDescriptor variable $
                   Descriptor content rank noMark (Just newVar)
 
                 -- Now we recursively copy the content of the variable.
@@ -281,19 +218,19 @@ copyHelp maxRank variable =
                 -- will not repeat this work or crawl this variable again.
                 case content of
                   Structure term ->
-                    do  newTerm <- traverseFlatType (copyHelp maxRank) term
-                        liftIO $ UF.setDescriptor newVar $ mkCopyDesc (Structure newTerm)
+                    do  newTerm <- traverseFlatType (copyHelp maxRank pools) term
+                        UF.setDescriptor newVar $ mkCopyDesc (Structure newTerm)
 
                   Var Rigid maybeSuper maybeName ->
-                    liftIO $ UF.setDescriptor newVar $ mkCopyDesc $ Var Flex maybeSuper maybeName
+                    UF.setDescriptor newVar $ mkCopyDesc $ Var Flex maybeSuper maybeName
 
                   Var Flex _ _ ->
                     return ()
 
                   Alias name args realType ->
-                    do  newArgs <- mapM (traverse (copyHelp maxRank)) args
-                        newRealType <- copyHelp maxRank realType
-                        liftIO $ UF.setDescriptor newVar $ mkCopyDesc (Alias name newArgs newRealType)
+                    do  newArgs <- mapM (traverse (copyHelp maxRank pools)) args
+                        newRealType <- copyHelp maxRank pools realType
+                        UF.setDescriptor newVar $ mkCopyDesc (Alias name newArgs newRealType)
 
                   Error _ ->
                     return ()
@@ -305,21 +242,21 @@ copyHelp maxRank variable =
 -- RESTORE
 
 
-restore :: Variable -> Solver Variable
+restore :: Variable -> IO Variable
 restore variable =
-  do  (Descriptor content _rank _mark maybeCopy) <- liftIO $ UF.descriptor variable
+  do  (Descriptor content _rank _mark maybeCopy) <- UF.descriptor variable
       case maybeCopy of
         Nothing ->
           return variable
 
         Just _ ->
           do  restoredContent <- restoreContent content
-              liftIO $ UF.setDescriptor variable $
+              UF.setDescriptor variable $
                 Descriptor restoredContent noRank noMark Nothing
               return variable
 
 
-restoreContent :: Content -> Solver Content
+restoreContent :: Content -> IO Content
 restoreContent content =
   case content of
     Structure term ->
@@ -341,7 +278,7 @@ restoreContent content =
 -- TRAVERSE FLAT TYPE
 
 
-traverseFlatType :: (Variable -> Solver Variable) -> FlatType -> Solver FlatType
+traverseFlatType :: (Variable -> IO Variable) -> FlatType -> IO FlatType
 traverseFlatType f flatType =
   case flatType of
     App1 name args ->

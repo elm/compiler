@@ -4,7 +4,6 @@ module Type.Solve (solve) where
 
 import Control.Monad
 import Control.Monad.Except (ExceptT, liftIO, throwError)
-import qualified Data.Foldable as F
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
@@ -29,9 +28,10 @@ solve :: Constraint -> ExceptT [A.Located Error.Error] IO TS.State
 solve constraint =
   {-# SCC elm_compiler_type_solve #-}
   do  state <- liftIO (TS.run (actuallySolve constraint))
-      case TS.sError state of
+      case TS._errors state of
         [] ->
             return state
+
         errors ->
             throwError errors
 
@@ -85,6 +85,10 @@ actuallySolve constraint =
             unify (Error.Instance name) region freshCopy t
 
 
+
+-- SOLVE SCHEMES
+
+
 solveScheme :: Scheme -> TS.Solver TS.Env
 solveScheme scheme =
   let
@@ -96,32 +100,56 @@ solveScheme scheme =
         do  actuallySolve constraint
             traverse flatten header
 
-    Scheme rigidQuantifiers flexibleQuantifiers constraint header ->
-        do  let quantifiers = rigidQuantifiers ++ flexibleQuantifiers
-            oldPool <- TS.getPool
-
-            -- fill in a new pool when working on this scheme's constraints
-            freshPool <- TS.nextRankPool
-            TS.switchToPool freshPool
-            TS.introduce quantifiers
-            header' <- traverse flatten header
-            actuallySolve constraint
-
-            youngPool <- TS.getPool
-            TS.switchToPool oldPool
-            generalize youngPool
-            mapM_ isGeneric rigidQuantifiers
-            return header'
+    Scheme rigidQuantifiers flexQuantifiers constraint header ->
+        -- work in the next pool for this scheme's constraints
+        solveSchemeHelp rigidQuantifiers flexQuantifiers $
+          do  flatHeader <- traverse flatten header
+              actuallySolve constraint
+              return flatHeader
 
 
 
--- ADDITIONAL CHECKS
+solveSchemeHelp :: [Variable] -> [Variable] -> TS.Solver a -> TS.Solver a
+solveSchemeHelp rigidQuantifiers flexQuantifiers (TS.Solver stepState) =
+  TS.Solver $ \state@(TS.SS _ _ rank oldPools _ _) ->
+    do
+        -- push pool
+        let nextRank = rank + 1
+        let poolsLength = MVector.length oldPools
+
+        pools <-
+          if nextRank < poolsLength
+            then return oldPools
+            else MVector.grow oldPools poolsLength
+
+        -- introduce quantifiers
+        let allQuantifiers = rigidQuantifiers ++ flexQuantifiers
+        forM_ allQuantifiers $ \var ->
+          UF.modifyDescriptor var $ \(Descriptor content _ mark copy) ->
+            Descriptor content nextRank mark copy
+        MVector.write pools nextRank allQuantifiers
+
+        -- run solver in next pool
+        (value, TS.SS env savedEnv _ _ mark errors) <- stepState (state { TS._rank = nextRank })
+
+        -- pop pool
+        let youngMark = mark
+        let visitMark = nextMark mark
+        let finalMark = nextMark visitMark
+        generalize youngMark visitMark nextRank pools
+        MVector.write pools nextRank []
+
+        -- check that things went well
+        mapM_ isGeneric rigidQuantifiers
+
+        -- return result with pool popped
+        return ( value, TS.SS env savedEnv rank pools finalMark errors )
 
 
 -- Check that a variable has rank == noRank, meaning that it can be generalized.
-isGeneric :: Variable -> TS.Solver ()
+isGeneric :: Variable -> IO ()
 isGeneric var =
-  do  (Descriptor _ rank _ _) <- liftIO $ UF.descriptor var
+  do  (Descriptor _ rank _ _) <- UF.descriptor var
       if rank == noRank
         then return ()
         else crash "Unable to generalize a type variable. It is not unranked."
@@ -162,50 +190,50 @@ occurs (name, A.A region variable) =
 {-| Every variable has rank less than or equal to the maxRank of the pool.
 This sorts variables into the young and old pools accordingly.
 -}
-generalize :: TS.Pool -> TS.Solver ()
-generalize pool@(TS.Pool youngRank _) =
+generalize :: Mark -> Mark -> Int -> TS.Pools -> IO ()
+generalize youngMark visitMark youngRank pools =
   {-# SCC elm_compiler_type_generalize #-}
-  do  youngMark <- TS.uniqueMark
-
-      rankTable <- liftIO $ poolToRankTable youngMark pool
+  do
+      youngVars <- MVector.read pools youngRank
+      rankTable <- poolToRankTable youngMark youngRank youngVars
 
       -- get the ranks right for each entry.
       -- start at low ranks so that we only have to pass
       -- over the information once.
-      visitedMark <- TS.uniqueMark
-      let adjust poolRank vars =
-            F.traverse_ (adjustRank youngMark visitedMark poolRank) vars
-      liftIO $ Vector.imapM_ adjust rankTable
+      Vector.imapM_ (mapM_ . adjustRank youngMark visitMark) rankTable
 
       -- For variables that have rank lowerer than youngRank, register them in
-      -- the old pool if they are not redundant.
+      -- the appropriate old pool if they are not redundant.
       Vector.forM_ (Vector.unsafeInit rankTable) $ \vars ->
         forM_ vars $ \var ->
-          do  isRedundant <- liftIO $ UF.redundant var
-              if isRedundant then return var else TS.register var
+          do  isRedundant <- UF.redundant var
+              if isRedundant
+                then return ()
+                else
+                  do  (Descriptor _ rank _ _) <- UF.descriptor var
+                      MVector.modify pools (var:) rank
 
       -- For variables with rank youngRank
       --   If rank < youngRank: register in oldPool
       --   otherwise generalize
       forM_ (Vector.unsafeLast rankTable) $ \var ->
-        {-# SCC elm_compiler_type_register #-}
-        do  isRedundant <- liftIO $ UF.redundant var
+        do  isRedundant <- UF.redundant var
             if isRedundant
               then return ()
-              else do
-                (Descriptor content rank mark copy) <- liftIO $ UF.descriptor var
-                if rank < youngRank
-                  then
-                    TS.register var >> return ()
-                  else
-                    liftIO $ UF.setDescriptor var $ Descriptor (rigidify content) noRank mark copy
+              else
+                do  (Descriptor content rank mark copy) <- liftIO $ UF.descriptor var
+                    if rank < youngRank
+                      then
+                        MVector.modify pools (var:) rank
+                      else
+                        UF.setDescriptor var $ Descriptor (rigidify content) noRank mark copy
 
 
-poolToRankTable :: Mark -> TS.Pool -> IO (Vector.Vector [Variable])
-poolToRankTable youngMark (TS.Pool youngRank youngInhabitants) =
+poolToRankTable :: Mark -> Int -> [Variable] -> IO (Vector.Vector [Variable])
+poolToRankTable youngMark youngRank youngInhabitants =
   do  mutableTable <- MVector.replicate (youngRank + 1) []
 
-      -- Sort the youngPool variables by rank.
+      -- Sort the youngPool variables into buckets by rank.
       forM_ youngInhabitants $ \var ->
         do  (Descriptor content rank _ copy) <- UF.descriptor var
             UF.setDescriptor var (Descriptor content rank youngMark copy)
@@ -232,30 +260,30 @@ rigidify content =
 -- This way the outermost rank is representative of the entire structure.
 --
 adjustRank :: Mark -> Mark -> Int -> Variable -> IO Int
-adjustRank youngMark visitedMark groupRank var =
+adjustRank youngMark visitMark groupRank var =
   {-# SCC elm_compiler_type_adjust #-}
   do  (Descriptor content rank mark copy) <- UF.descriptor var
       if mark == youngMark then
           do  -- Set the variable as marked first because it may be cyclic.
-              UF.setDescriptor var $ Descriptor content rank visitedMark copy
-              maxRank <- adjustRankContent youngMark visitedMark groupRank content
-              UF.setDescriptor var $ Descriptor content maxRank visitedMark copy
+              UF.setDescriptor var $ Descriptor content rank visitMark copy
+              maxRank <- adjustRankContent youngMark visitMark groupRank content
+              UF.setDescriptor var $ Descriptor content maxRank visitMark copy
               return maxRank
 
-        else if mark == visitedMark then
+        else if mark == visitMark then
           return rank
 
         else
           do  let minRank = min groupRank rank
               -- TODO how can minRank ever be groupRank?
-              UF.setDescriptor var $ Descriptor content minRank visitedMark copy
+              UF.setDescriptor var $ Descriptor content minRank visitMark copy
               return minRank
 
 
 adjustRankContent :: Mark -> Mark -> Int -> Content -> IO Int
-adjustRankContent youngMark visitedMark groupRank content =
+adjustRankContent youngMark visitMark groupRank content =
   let
-    go = adjustRank youngMark visitedMark groupRank
+    go = adjustRank youngMark visitMark groupRank
   in
     case content of
       Error _ ->

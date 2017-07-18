@@ -37,7 +37,7 @@ infer interfaces modul =
         state <- Solve.solve constraint
 
         let header' = Map.delete "::" header
-        let types = Map.map A.drop (Map.difference (TS.sSavedEnv state) header')
+        let types = Map.map A.drop (Map.difference (TS._savedEnv state) header')
 
         liftIO (traverse T.toSrcType types)
 
