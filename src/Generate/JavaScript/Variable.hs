@@ -71,7 +71,7 @@ reservedWords :: Set.Set Text
 reservedWords =
   Set.fromList
     -- reserved by JavaScript
-    [ "null", "undefined", "Nan", "Infinity", "true", "false", "eval"
+    [ "null", "undefined", "NaN", "Infinity", "true", "false", "eval"
     , "arguments", "int", "byte", "char", "goto", "long", "final", "float"
     , "short", "double", "native", "throws", "boolean", "abstract", "volatile"
     , "transient", "synchronized", "function", "break", "case", "catch"
@@ -84,7 +84,6 @@ reservedWords =
     -- reserved by Elm
     , "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9"
     , "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9"
-    , "ctor"
     ]
 
 
@@ -105,7 +104,7 @@ globalName (Var.Global home name) =
 globalToName :: ModuleName.Canonical -> Text -> Text
 globalToName (ModuleName.Canonical (Pkg.Name user project) moduleName) name =
   if ModuleName.isKernel moduleName then
-    kernelToName (ModuleName.getKernel moduleName) name
+    "_" <> ModuleName.getKernel moduleName <> "_" <> name
 
   else
     let
@@ -120,17 +119,3 @@ globalToName (ModuleName.Canonical (Pkg.Name user project) moduleName) name =
       <> "$" <> Text.replace "." "_" moduleName
       <> "$" <> revisedName
 
-
-kernelToName :: Text -> Text -> Text
-kernelToName home name =
-  if home == "Error" && name == "throw" then
-    "_Error_throw_prod"
-
-  else if name == "toString" && home == "Debug" then
-    "_Debug_toString_prod"
-
-  else if name == "log" && home == "Debug" then
-    "_Debug_log_prod"
-
-  else
-    "_" <> home <> "_" <> name
