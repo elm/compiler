@@ -1311,6 +1311,8 @@ data ChunkTag
   = KernelEnum Word8 Text
   | KernelProd Bool
   | KernelImport Text
+  | KernelJsField Text
+  | KernelElmField Text
 
 
 kernelChunk :: Parser (BS.ByteString, Maybe ChunkTag)
@@ -1355,22 +1357,30 @@ chompChunkTag :: Text.Array -> Int -> Int -> Int -> Int -> Int -> (# Maybe Chunk
 chompChunkTag array jsOffset offset length row col =
   let
     (# newOffset, newLength, newCol #) =
-      varPrimHelp array offset length col
+      varPrimHelp array (offset + 1) (length - 1) (col + 1)
 
     !word =
       Text.unsafeIndex array offset
 
-    !kernelSymbol =
-      Text.Text array offset (newOffset - offset)
-
     !chunkTag =
-      if isDigit word then
-        KernelEnum (fromIntegral (word - 0x0030 {- 0 -})) kernelSymbol
-      else if kernelSymbol == "DEV" then
-        KernelProd False
-      else if kernelSymbol == "PROD" then
-        KernelProd True
+      if word == 0x0024 {- $ -} then
+        KernelElmField (Text.Text array (offset + 1) (newOffset - offset - 1))
+
       else
-        KernelImport kernelSymbol
+        let !chunk = Text.Text array offset (newOffset - offset) in
+        if isDigit word then
+          KernelEnum (fromIntegral (word - 0x0030 {- 0 -})) chunk
+
+        else if 0x0061 {- a -} <= word && word <= 0x007A {- z -} then
+          KernelJsField chunk
+
+        else if chunk == "DEV" then
+          KernelProd False
+
+        else if chunk == "PROD" then
+          KernelProd True
+
+        else
+          KernelImport chunk
   in
     (# Just chunkTag, jsOffset, newOffset, newLength, row, newCol #)

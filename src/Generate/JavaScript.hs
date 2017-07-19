@@ -8,6 +8,7 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import qualified Data.ByteString.Builder as BS
 
 import qualified AST.Effects as Effects
@@ -155,6 +156,9 @@ chunkToBuilder builder chunk =
     Kernel.Var home name ->
       do  expr <- JS.global (Var.Global (ModuleName.inCore home) name)
           return $ JsBuilder.exprToBuilder expr <> builder
+
+    Kernel.Field name ->
+      return $ Text.encodeUtf8Builder name
 
     Kernel.Prod isProd ->
       if isProd then

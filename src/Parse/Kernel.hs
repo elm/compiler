@@ -19,6 +19,7 @@ import qualified AST.Kernel as Kernel
 import qualified AST.Module as Module
 import qualified AST.Module.Name as Module
 import Generate.JavaScript.Helpers as Help (toFieldName)
+import Generate.JavaScript.Variable as Var (intToAscii)
 import Parse.Helpers (Parser)
 import qualified Parse.Helpers as Parse
 import qualified Parse.Module as Parse
@@ -31,18 +32,14 @@ import qualified Reporting.Annotation as A
 
 parser :: Parser Kernel.Info
 parser =
-  do  imports <- Parse.kernelHeader
-      let table = Map.unions (map importToTable imports)
-      chunks <- parserHelp table Map.empty []
-      return (Kernel.Info (Map.elems table) chunks)
+  do  header <- Parse.kernelHeader
+      let imports = Map.unions (map headerToImport header)
+      chunks <- parserHelp imports Map.empty Map.empty []
+      return (Kernel.Info (Map.elems imports) chunks)
 
 
-type Enums =
-  Map.Map Word8 (Map.Map Text BS.ByteString)
-
-
-parserHelp :: Table -> Enums -> [Kernel.Chunk] -> Parser [Kernel.Chunk]
-parserHelp table enums chunks =
+parserHelp :: Imports -> Enums -> Fields -> [Kernel.Chunk] -> Parser [Kernel.Chunk]
+parserHelp imports enums fields chunks =
   do  (javascript, maybeTag) <- Parse.kernelChunk
       case maybeTag of
         Nothing ->
@@ -51,22 +48,62 @@ parserHelp table enums chunks =
         Just tag ->
           case tag of
             Parse.KernelProd isProd ->
-              parserHelp table enums (Kernel.Prod isProd : Kernel.JS javascript : chunks)
+              parserHelp imports enums fields (Kernel.Prod isProd : Kernel.JS javascript : chunks)
 
             Parse.KernelImport var ->
-              case Map.lookup var table of
+              case Map.lookup var imports of
                 Nothing ->
                   error ("Bad kernel symbol: " ++ Text.unpack var)
 
                 Just (home, name) ->
-                  parserHelp table enums (Kernel.Var home name : Kernel.JS javascript : chunks)
+                  parserHelp imports enums fields (Kernel.Var home name : Kernel.JS javascript : chunks)
 
             Parse.KernelEnum n var ->
               let
                 (bytes, newEnums) =
                   lookupEnum n var enums
               in
-                parserHelp table newEnums (Kernel.JS bytes : Kernel.JS javascript : chunks)
+                parserHelp imports newEnums fields (Kernel.JS bytes : Kernel.JS javascript : chunks)
+
+            Parse.KernelElmField name ->
+              parserHelp imports enums fields (Kernel.Field name : Kernel.JS javascript : chunks)
+
+            Parse.KernelJsField name ->
+              let
+                (bytes, newFields) =
+                  lookupField name fields
+              in
+                parserHelp imports enums newFields (Kernel.JS bytes : Kernel.JS javascript : chunks)
+
+
+
+-- FIELDS
+
+
+type Fields =
+  Map.Map Text BS.ByteString
+
+
+lookupField :: Text -> Fields -> (BS.ByteString, Fields)
+lookupField longName fields =
+  case Map.lookup longName fields of
+    Just bytes ->
+      ( bytes, fields )
+
+    Nothing ->
+      let
+        shortName =
+          Var.intToAscii (Map.size fields)
+      in
+        ( shortName, Map.insert longName shortName fields )
+
+
+
+-- ENUMS
+
+
+type Enums =
+  Map.Map Word8 (Map.Map Text BS.ByteString)
 
 
 lookupEnum :: Word8 -> Text -> Enums -> (BS.ByteString, Enums)
@@ -88,15 +125,15 @@ lookupEnum word var allEnums =
 
 
 
--- SYMBOL TABLE
+-- IMPORTS
 
 
-type Table =
+type Imports =
   Map.Map Text (Module.Raw, Text)
 
 
-importToTable :: Module.UserImport -> Table
-importToTable (A.A _ ( A.A _ fullName, Module.ImportMethod maybeAlias exposed )) =
+headerToImport :: Module.UserImport -> Imports
+headerToImport (A.A _ ( A.A _ fullName, Module.ImportMethod maybeAlias exposed )) =
   let
     shortName =
       case maybeAlias of
