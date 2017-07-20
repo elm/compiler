@@ -177,6 +177,7 @@ endOfFile =
 
 
 instance Functor Parser where
+  {-# INLINE fmap #-}
   fmap f parser =
     Parser $ \state cok cerr eok eerr ->
       let
@@ -191,12 +192,18 @@ instance Functor Parser where
 
 
 instance Applicative.Applicative Parser where
+    {-# INLINE pure #-}
     pure = return
+
+    {-# INLINE (<*>) #-}
     (<*>) = ap
 
 
 instance Applicative.Alternative Parser where
+    {-# INLINE empty #-}
     empty = allTheOptionsFailed
+
+    {-# INLINE (<|>) #-}
     (<|>) = oneOfHelp
 
 
@@ -257,10 +264,12 @@ mergeErrors e1@(ParseError r1 c1 p1) e2@(ParseError r2 c2 p2) =
 
 
 instance Monad Parser where
+  {-# INLINE return #-}
   return value =
     Parser $ \state _ _ eok _ ->
       eok value state noError
 
+  {-# INLINE (>>=) #-}
   parser >>= callback =
     Parser $ \state cok cerr eok eerr ->
       let
