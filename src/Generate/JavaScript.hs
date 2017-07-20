@@ -158,13 +158,13 @@ chunkToBuilder builder chunk =
           return $ JsBuilder.exprToBuilder expr <> builder
 
     Kernel.Field name ->
-      return $ Text.encodeUtf8Builder name
+      return $ Text.encodeUtf8Builder name <> builder
 
     Kernel.Prod isProd ->
       if isProd then
-        return "_UNUSED"
+        return $ "_UNUSED" <> builder
       else
-        return ""
+        return builder
 
 
 
