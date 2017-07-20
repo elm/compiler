@@ -158,13 +158,15 @@ chunkToBuilder builder chunk =
           return $ JsBuilder.exprToBuilder expr <> builder
 
     Kernel.Field name ->
+      -- TODO generate a smaller field
       return $ Text.encodeUtf8Builder name <> builder
 
     Kernel.Prod isProd ->
+      -- TODO pick based on what compile mode we are in
       if isProd then
-        return $ "_UNUSED" <> builder
-      else
         return builder
+      else
+        return $ "_UNUSED" <> builder
 
 
 
