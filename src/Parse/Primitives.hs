@@ -537,6 +537,7 @@ infixOpHelp array offset length row col =
 -- STATE
 
 
+{-# INLINE getPosition #-}
 getPosition :: Parser R.Position
 getPosition =
   Parser $ \state@(State _ _ _ _ row col _) _ _ eok _ ->
