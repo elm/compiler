@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Elm.Utils
   ( (|>), (<|)
+  , drawCycle
   , nearbyNames
   , Entry(..)
   , parseEntry
@@ -9,7 +10,7 @@ module Elm.Utils
 
 
 import Parse.Repl (Entry(..), parseEntry)
-import Reporting.Helpers (nearbyNames)
+import Reporting.Helpers (drawCycle, nearbyNames)
 
 
 
