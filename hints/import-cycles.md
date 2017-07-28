@@ -1,7 +1,7 @@
 
-# Module Cycles
+# Import Cycles
 
-In practice, the simplest example of a module cycle will be two modules with types like this:
+In practice, the simplest example of a import cycle will be two modules with types like this:
 
 ```elm
 module Comment exposing (..)
