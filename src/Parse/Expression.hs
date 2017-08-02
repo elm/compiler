@@ -189,33 +189,34 @@ tupleHelp start entries =
 record :: R.Position -> Parser Src.RawExpr
 record start =
   do  leftCurly
+      spaces
       inContext start E.ExprRecord $
-        do  spaces
-            oneOf
-              [ do  rightCurly
-                    end <- getPosition
-                    return (A.at start end (Src.Record []))
-              , do  starter <- addLocation lowVar
-                    spaces
-                    oneOf
-                      [ do  pipe
-                            spaces
-                            firstField <- chompField
-                            fields <- chompFields [firstField]
-                            end <- getPosition
-                            return (A.at start end (Src.Update (A.map Src.var starter) fields))
-                      , do  equals
-                            spaces
-                            (value, _, nextPos) <- expression
-                            checkSpace nextPos
-                            fields <- chompFields [(starter, value)]
-                            end <- getPosition
-                            return (A.at start end (Src.Record fields))
-                      ]
-              ]
-
+        oneOf [
+            -- Allow the empty record, but you cannot have { myRecord | }.
+            do  rightCurly
+                end <- getPosition
+                return $ A.at start end (Src.Record [])
+          , do  mUpdateExpr <- optionMaybe $ try $
+                    do  (expr, _, pos) <- expression
+                        checkSpace pos
+                        spaces
+                        pipe
+                        return expr
+                spaces
+                fields <- recordFields
+                end <- getPosition
+                let expr = case mUpdateExpr of
+                            Nothing -> Src.Record fields
+                            Just e -> Src.Update e fields
+                return (A.at start end expr)
+          ]
 
 type Field = ( A.Located Text, Src.RawExpr )
+
+recordFields :: Parser [Field]
+recordFields =
+    do firstField <- chompField
+       chompFields [firstField]
 
 
 chompFields :: [Field] -> Parser [Field]
@@ -258,11 +259,15 @@ expression =
         , if_ start
         , case_ start
         , function start
-        , do  starter <- possiblyNegativeTerm start
-              end <- getPosition
-              space <- whitespace
-              exprHelp start (State [] starter end space)
+        , applicationHelp start
         ]
+
+applicationHelp :: R.Position -> ExprParser
+applicationHelp start =
+  do  starter <- possiblyNegativeTerm start
+      end <- getPosition
+      space <- whitespace
+      exprHelp start (State [] starter end space)
 
 
 data State =
@@ -289,7 +294,15 @@ exprHelp start (State ops lastExpr end pos) =
     , -- infix operator
       do  checkSpace pos
           opStart <- getPosition
-          opName <- infixOp
+          -- Why is this 'try infixOp' and not simply 'infixOp'? Well infix
+          -- operators are consumed as a series of one or more operator
+          -- symbols. Having done this 'infixOp' then checks for anything
+          -- that is not valid as an infix operator, for example a single '|'
+          -- character. So if your grammar rule has something like
+          -- 'expression >> pipe' (expression followed by a pipe),
+          -- the parsing will fail because the infixOp will consume the '|'
+          -- character and then fail. So to allow this we use 'try' here.
+          opName <- try infixOp
           opEnd <- getPosition
           let op = A.at opStart opEnd opName
           spos <- whitespace
