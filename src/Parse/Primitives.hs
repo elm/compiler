@@ -3,7 +3,7 @@
 module Parse.Primitives
   ( Parser
   , run, runAt
-  , try, deadend, hint, endOfFile
+  , try, optionMaybe, option, deadend, hint, endOfFile
   , oneOf
   , symbol, underscore, keyword, keywords
   , lowVar, capVar, infixOp
@@ -135,6 +135,26 @@ try :: Parser a -> Parser a
 try parser =
   Parser $ \state cok _ eok eerr ->
     _run parser state cok eerr eok eerr
+
+
+optionMaybe :: Parser a -> Parser (Maybe a)
+optionMaybe parser =
+    -- Similar to 'option' in that this will consume input even if the parser
+    -- fails, so you have to combine this with 'try' if you wish to avoid
+    -- consuming input in the case that the parser fails, eg:
+    -- optionMaybe $ try typeSignature
+    oneOf
+        [ do result <- parser
+             return (Just result)
+        , return Nothing
+        ]
+
+option :: a -> Parser a -> Parser a
+option defaultValue parser =
+    -- Note, this will consume input if 'parser' does whether or not it
+    -- ultimately fails, so if you want to avoid that then combine this
+    -- with 'try'.
+    oneOf [ parser, return defaultValue ]
 
 
 shaderFailure :: Int -> Int -> Text -> Parser a
