@@ -34,7 +34,7 @@ The thing is that you can always write the code *without* cycles by shuffling de
 
 # Breaking Cycles
 
-There are quite a few ways to break our `Comment` and `User` cycle from above. Let’s go through a couple of strategies!
+There are quite a few ways to break our `Comment` and `User` cycle from above. Let’s go through a couple strategies!
 
 
 ## Combine the Modules
