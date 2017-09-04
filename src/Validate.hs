@@ -36,7 +36,7 @@ type Result warning a =
 -- MODULES
 
 
-validate :: Module.Source -> Result wrn Module.Valid
+validate :: Module.Source -> Result w Module.Valid
 validate (Module.Module name info) =
   let
     (ModuleName.Canonical pkgName _) =
@@ -79,7 +79,7 @@ validateEffects
   -> Module.SourceSettings
   -> [A.Commented Effects.PortRaw]
   -> [A.Commented Src.ValidDef]
-  -> Result wrn Effects.Raw
+  -> Result w Effects.Raw
 validateEffects tag settings@(A.A _ pairs) ports validDefs =
   case tag of
     Module.Normal ->
@@ -105,7 +105,7 @@ validateEffects tag settings@(A.A _ pairs) ports validDefs =
             return (Effects.Manager () (Effects.Info tagRegion r0 r1 r2 managerType))
 
 
-noSettings :: Error.Error -> Module.SourceSettings -> Result wrn ()
+noSettings :: Error.Error -> Module.SourceSettings -> Result w ()
 noSettings errorMsg (A.A region settings) =
   case settings of
     [] ->
@@ -115,7 +115,7 @@ noSettings errorMsg (A.A region settings) =
       Result.throw region errorMsg
 
 
-noPorts :: [A.Commented Effects.PortRaw] -> Result wrn ()
+noPorts :: [A.Commented Effects.PortRaw] -> Result w ()
 noPorts ports =
   case ports of
     [] ->
@@ -132,7 +132,7 @@ noPorts ports =
 toManagerType
   :: R.Region
   -> Map.Map Text [(R.Region, A.Located Text)]
-  -> Result wrn Effects.RawManagerType
+  -> Result w Effects.RawManagerType
 toManagerType tagRegion settingsDict =
   let
     toErrors name entries =
@@ -169,7 +169,7 @@ toManagerType tagRegion settingsDict =
 extractOne
   :: Text
   -> Map.Map Text [(R.Region, A.Located Text)]
-  -> Result wrn (Maybe (A.Located Text))
+  -> Result w (Maybe (A.Located Text))
 extractOne name settingsDict =
   case Map.lookup name settingsDict of
     Nothing ->
@@ -193,7 +193,7 @@ checkManager
   :: R.Region
   -> Effects.RawManagerType
   -> [A.Commented Src.ValidDef]
-  -> Result wrn (R.Region, R.Region, R.Region)
+  -> Result w (R.Region, R.Region, R.Region)
 checkManager tagRegion managerType validDefs =
   let
     regionDict =
@@ -220,7 +220,7 @@ requireMaps
   :: R.Region
   -> Map.Map Text R.Region
   -> Effects.RawManagerType
-  -> Result wrn ()
+  -> Result w ()
 requireMaps tagRegion regionDict managerType =
   let
     check name =
@@ -238,7 +238,7 @@ requireMaps tagRegion regionDict managerType =
       check "cmdMap" <* check "subMap"
 
 
-requireRegion :: R.Region -> Map.Map Text R.Region -> Text -> Result wrn R.Region
+requireRegion :: R.Region -> Map.Map Text R.Region -> Text -> Result w R.Region
 requireRegion tagRegion regionDict name =
   case Map.lookup name regionDict of
     Just region ->
@@ -252,7 +252,7 @@ requireRegion tagRegion regionDict name =
 -- COLLAPSE COMMENTS
 
 
-collapseComments :: [D.CommentOr (A.Located a)] -> Result wrn [A.Commented a]
+collapseComments :: [D.CommentOr (A.Located a)] -> Result w [A.Commented a]
 collapseComments listWithComments =
   case listWithComments of
     [] ->
@@ -282,7 +282,7 @@ collapseComments listWithComments =
 -- VALIDATE STRUCTURED SOURCE
 
 
-validateDecls :: [D.Source] -> Result wrn ValidStuff
+validateDecls :: [D.Source] -> Result w ValidStuff
 validateDecls sourceDecls =
   do  rawDecls <- collapseComments sourceDecls
 
@@ -307,7 +307,7 @@ data ValidStuff =
     }
 
 
-validateRawDecls :: [A.Commented D.Raw] -> Result wrn ValidStuff
+validateRawDecls :: [A.Commented D.Raw] -> Result w ValidStuff
 validateRawDecls commentedDecls =
   vrdHelp commentedDecls [] (D.Decls [] [] [] [])
 
@@ -316,7 +316,7 @@ vrdHelp
   :: [A.Commented D.Raw]
   -> [A.Commented Effects.PortRaw]
   -> D.Valid
-  -> Result wrn ValidStuff
+  -> Result w ValidStuff
 vrdHelp commentedDecls ports structure =
   case commentedDecls of
     [] ->
@@ -346,7 +346,7 @@ vrdDefHelp
   -> A.Commented Src.RawDef'
   -> [A.Commented Effects.PortRaw]
   -> D.Valid
-  -> Result wrn ValidStuff
+  -> Result w ValidStuff
 vrdDefHelp remainingDecls (A.A ann def) ports structure =
   let
     addDef validDef (ValidStuff finalPorts struct) =
@@ -375,7 +375,7 @@ vrdDefHelp remainingDecls (A.A ann def) ports structure =
 -- VALIDATE DEFINITIONS
 
 
-definitions :: [Src.RawDef] -> Result wrn [Src.ValidDef]
+definitions :: [Src.RawDef] -> Result w [Src.ValidDef]
 definitions sourceDefs =
   do  validDefs <- definitionsHelp sourceDefs
 
@@ -387,7 +387,7 @@ definitions sourceDefs =
       return validDefs
 
 
-definitionsHelp :: [Src.RawDef] -> Result wrn [Src.ValidDef]
+definitionsHelp :: [Src.RawDef] -> Result w [Src.ValidDef]
 definitionsHelp sourceDefs =
   case sourceDefs of
     [] ->
@@ -415,7 +415,7 @@ validateDef
   -> Pattern.Raw
   -> Src.RawExpr
   -> Maybe Type.Raw
-  -> Result wrn Src.ValidDef
+  -> Result w Src.ValidDef
 validateDef region pat expr maybeType =
   do  validExpr <- expression expr
       validateDefPattern pat validExpr
@@ -423,7 +423,7 @@ validateDef region pat expr maybeType =
       return $ Src.Def region pat validExpr maybeType
 
 
-validateDefPattern :: Pattern.Raw -> Src.ValidExpr -> Result wrn ()
+validateDefPattern :: Pattern.Raw -> Src.ValidExpr -> Result w ()
 validateDefPattern pattern body =
   case fst (Src.collectLambdas body) of
     [] ->
@@ -442,7 +442,7 @@ validateDefPattern pattern body =
                 Result.throw (R.merge start end) (Error.BadFunctionName (length args))
 
 
-checkArguments :: Text -> [Pattern.Raw] -> Result wrn ()
+checkArguments :: Text -> [Pattern.Raw] -> Result w ()
 checkArguments funcName args =
   let
     vars =
@@ -462,7 +462,7 @@ checkArguments funcName args =
 -- VALIDATE EXPRESSIONS
 
 
-expression :: Src.RawExpr -> Result wrn Src.ValidExpr
+expression :: Src.RawExpr -> Result w Src.ValidExpr
 expression (A.A ann sourceExpression) =
   A.A ann <$>
   case sourceExpression of
@@ -532,17 +532,17 @@ expression (A.A ann sourceExpression) =
         return (Src.GLShader uid src gltipe)
 
 
-second :: (a, Src.RawExpr) -> Result wrn (a, Src.ValidExpr)
+second :: (a, Src.RawExpr) -> Result w (a, Src.ValidExpr)
 second (value, expr) =
     (,) value <$> expression expr
 
 
-both :: (Src.RawExpr, Src.RawExpr) -> Result wrn (Src.ValidExpr, Src.ValidExpr)
+both :: (Src.RawExpr, Src.RawExpr) -> Result w (Src.ValidExpr, Src.ValidExpr)
 both (expr1, expr2) =
     (,) <$> expression expr1 <*> expression expr2
 
 
-checkDuplicateFields :: R.Region -> [(A.Located Text, a)] -> Result wrn ()
+checkDuplicateFields :: R.Region -> [(A.Located Text, a)] -> Result w ()
 checkDuplicateFields recordRegion fields =
   let
     checkDups seenFields ( A.A region field, _ ) =
@@ -558,7 +558,7 @@ checkDuplicateFields recordRegion fields =
 -- VALIDATE PATTERNS
 
 
-validatePattern :: Pattern.Raw -> Result wrn Pattern.Raw
+validatePattern :: Pattern.Raw -> Result w Pattern.Raw
 validatePattern pattern =
   do  detectDuplicates Error.BadPattern (Pattern.boundVars pattern)
       return pattern
@@ -568,7 +568,7 @@ validatePattern pattern =
 -- DETECT DUPLICATES
 
 
-checkDuplicates :: ValidStuff -> Result wrn ()
+checkDuplicates :: ValidStuff -> Result w ()
 checkDuplicates (ValidStuff ports (D.Decls defs unions aliases _)) =
   let
     -- SIMPLE NAMES
@@ -608,7 +608,7 @@ checkDuplicates (ValidStuff ports (D.Decls defs unions aliases _)) =
       ]
 
 
-detectDuplicates :: (Text -> Error.Error) -> [A.Located Text] -> Result wrn ()
+detectDuplicates :: (Text -> Error.Error) -> [A.Located Text] -> Result w ()
 detectDuplicates tag names =
   let
     add (A.A region name) dict =
@@ -632,7 +632,7 @@ detectDuplicates tag names =
 -- UNBOUND TYPE VARIABLES
 
 
-checkTypeVarsInUnion :: A.Commented (D.Union Type.Raw) -> Result wrn ()
+checkTypeVarsInUnion :: A.Commented (D.Union Type.Raw) -> Result w ()
 checkTypeVarsInUnion (A.A (region,_) (D.Type name boundVars ctors)) =
   do  allFreeVars <- concat <$> traverse freeVars (concatMap snd ctors)
       case diff boundVars allFreeVars of
@@ -644,7 +644,7 @@ checkTypeVarsInUnion (A.A (region,_) (D.Type name boundVars ctors)) =
               (Error.UnboundTypeVarsInUnion name boundVars unbound)
 
 
-checkTypeVarsInAlias :: A.Commented (D.Alias Type.Raw) -> Result wrn ()
+checkTypeVarsInAlias :: A.Commented (D.Alias Type.Raw) -> Result w ()
 checkTypeVarsInAlias (A.A (region,_) (D.Type name boundVars tipe)) =
   do  allFreeVars <- freeVars tipe
       case diff boundVars allFreeVars of
@@ -678,7 +678,7 @@ diff left right =
     )
 
 
-freeVars :: Type.Raw -> Result wrn [A.Located Text]
+freeVars :: Type.Raw -> Result w [A.Located Text]
 freeVars (A.A region tipe) =
   case tipe of
     Type.RLambda t1 t2 ->
@@ -696,7 +696,7 @@ freeVars (A.A region tipe) =
           concat <$> traverse freeVars types
 
 
-checkDuplicateFieldsInType :: Type.Raw -> Result wrn ()
+checkDuplicateFieldsInType :: Type.Raw -> Result w ()
 checkDuplicateFieldsInType (A.A region tipe) =
   case tipe of
     Type.RLambda t1 t2 ->
