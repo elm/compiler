@@ -11,7 +11,6 @@ import qualified Data.Text as Text
 import Data.Text (Text)
 
 import Parse.Helpers
-import qualified Parse.Expression as Expr
 import qualified Parse.Pattern as Pattern
 
 import qualified AST.Pattern as P
@@ -74,7 +73,7 @@ entryParser source =
           name <- capVar
           return (Type (Text.unpack name) source)
 
-    , do  root <- Expr.rootPattern =<< getPosition
+    , do  root <- Pattern.term
           spaces
           case A.drop root of
             P.Var name ->

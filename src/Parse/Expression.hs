@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Parse.Expression (term, expression, definition, rootPattern) where
+module Parse.Expression (term, expression, topLevelDef) where
 
 import Control.Monad (guard)
 import qualified Data.List as List
@@ -474,7 +474,7 @@ let_ start =
       spaces
       defIndent <- getCol
       setIndent defIndent
-      (def, end, space) <- definition
+      (def, end, space) <- letDef
       letHelp start oldIndent [def] end space
 
 
@@ -482,7 +482,7 @@ letHelp :: R.Position -> Int -> [Src.RawDef] -> R.Position -> SPos -> ExprParser
 letHelp start oldIndent revDefs end pos =
   oneOf
     [ do  checkAligned pos
-          (def, newEnd, newPos) <- definition
+          (def, newEnd, newPos) <- letDef
           letHelp start oldIndent (def:revDefs) newEnd newPos
 
     , do  setIndent oldIndent
@@ -500,10 +500,27 @@ letHelp start oldIndent revDefs end pos =
 -- DEFINITIONS
 
 
-definition :: SParser Src.RawDef
-definition =
+letDef :: SParser Src.RawDef
+letDef =
+  definition $ \_ -> Pattern.term
+
+
+topLevelDef :: SParser Src.RawDef
+topLevelDef =
+  definition $ \start ->
+    oneOf
+      [ do  op <- try (leftParen >> infixOp)
+            rightParen
+            end <- getPosition
+            return (A.at start end (P.Var op))
+      , Pattern.term
+      ]
+
+
+definition :: (R.Position -> Parser P.Raw) -> SParser Src.RawDef
+definition parseRoot =
   do  start <- getPosition
-      root <- rootPattern start
+      root <- parseRoot start
       spaces
       case A.drop root of
         P.Var name ->
@@ -519,17 +536,6 @@ definition =
 
         _ ->
           definitionHelp start root []
-
-
-rootPattern :: R.Position -> Parser P.Raw
-rootPattern start =
-  oneOf
-    [ do  op <- try (leftParen >> infixOp)
-          rightParen
-          end <- getPosition
-          return (A.at start end (P.Var op))
-    , Pattern.term
-    ]
 
 
 definitionHelp :: R.Position -> P.Raw -> [P.Raw] -> SParser Src.RawDef

@@ -48,7 +48,7 @@ docDecl start =
 
 defDecl :: R.Position -> SParser Decl.Source
 defDecl start =
-  do  (def, end, pos) <- Expr.definition
+  do  (def, end, pos) <- Expr.topLevelDef
       let decl = A.at start end (Decl.Def def)
       return ( Decl.Whatever decl, end, pos )
 
