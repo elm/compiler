@@ -3,7 +3,7 @@
 module Elm.Package
   ( Name(..)
   , Package(..)
-  , dummyName, core, virtualDom, html, webgl, linearAlgebra
+  , dummyName, core, browser, virtualDom, html, webgl, linearAlgebra
   , toString, toText, toUrl, toFilePath
   , fromText
   , Version(..)
@@ -65,6 +65,11 @@ dummyName =
 core :: Name
 core =
   Name "elm-lang" "core"
+
+
+browser :: Name
+browser =
+  Name "elm-lang" "browser"
 
 
 virtualDom :: Name

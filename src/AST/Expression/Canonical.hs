@@ -59,9 +59,8 @@ data Expr'
 
 
 data Main
-  = VDom
-  | NoFlags
-  | Flags Type.Canonical
+  = Static
+  | Dynamic Type.Canonical
 
 
 

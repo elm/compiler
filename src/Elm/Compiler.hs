@@ -172,7 +172,7 @@ warningToJson (Localizer localizer) location (Warning wrn) =
 data Tag = Normal | Effect | Port
 
 
-parseHeader :: Package.Name -> Text -> Either Error (Tag, Maybe M.Raw, [M.Raw])
+parseHeader :: Package.Name -> Text -> Either Error (Maybe (Tag, M.Raw), [M.Raw])
 parseHeader pkgName sourceCode =
   case Parse.run Parse.header sourceCode of
     Right header ->
@@ -182,7 +182,7 @@ parseHeader pkgName sourceCode =
       Left (Error (A.map Error.Syntax err))
 
 
-toHeaderSummary :: Package.Name -> Module.Header [Module.UserImport] -> (Tag, Maybe M.Raw, [M.Raw])
+toHeaderSummary :: Package.Name -> Module.Header [Module.UserImport] -> (Maybe (Tag, M.Raw), [M.Raw])
 toHeaderSummary pkgName (Module.Header maybeHeaderDecl imports) =
   let
     dependencies =
@@ -192,7 +192,7 @@ toHeaderSummary pkgName (Module.Header maybeHeaderDecl imports) =
   in
     case maybeHeaderDecl of
       Nothing ->
-        ( Normal, Nothing, dependencies )
+        ( Nothing, dependencies )
 
       Just (Module.HeaderDecl sourceTag name _ _ _) ->
         let
@@ -202,7 +202,7 @@ toHeaderSummary pkgName (Module.Header maybeHeaderDecl imports) =
               Module.Port _ -> Port
               Module.Effect _ -> Effect
         in
-          ( tag, Just name, dependencies )
+          ( Just (tag, name), dependencies )
 
 
 

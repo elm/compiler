@@ -123,11 +123,7 @@ incomingPort name converter =
 
 staticProgram :: Generator JS.Expr
 staticProgram =
-  let
-    home =
-      ModuleName.inVirtualDom "Elm.Kernel.VirtualDom"
-  in
-    Var.global (Var.Global home "staticProgram")
+  Var.global (Var.Global (ModuleName.inBrowser "Browser") "staticPage")
 
 
 

@@ -89,14 +89,11 @@ checkMain typeEnv (Can.Def facts pattern@(A.A region _) body maybeType) =
       case Type.deepDealias mainType of
         Type.Type name [_]
           | name == vdomNode ->
-              return Can.VDom
+              return Can.Static
 
         Type.Type name [flags, _, _]
-          | name == program && flags == never ->
-              return Can.NoFlags
-
           | name == program ->
-              return (Can.Flags flags)
+              return (Can.Dynamic flags)
                 <* Effects.checkPortType makeError flags
 
         _ ->
@@ -110,11 +107,6 @@ checkMain typeEnv (Can.Def facts pattern@(A.A region _) body maybeType) =
 program :: Var.Canonical
 program =
   Var.inCore "Platform" "Program"
-
-
-never :: Type.Canonical
-never =
-  Type.Type (Var.inCore "Basics" "Never") []
 
 
 vdomNode :: Var.Canonical

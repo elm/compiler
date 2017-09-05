@@ -225,16 +225,12 @@ generateCode expr =
 generateProgram :: Opt.Main -> Opt.Expr -> Generator Code
 generateProgram kind body =
   case kind of
-    Opt.VDom ->
+    Opt.Static ->
       do  html <- generateJsExpr body
           func <- BuiltIn.staticProgram
           jsExpr (func <| html)
 
-    Opt.NoFlags ->
-      do  almostProgram <- generateJsExpr body
-          jsExpr (JS.Call almostProgram [])
-
-    Opt.Flags decoder ->
+    Opt.Dynamic decoder ->
       do  almostProgram <- generateJsExpr body
           flagDecoder <- generateJsExpr decoder
           jsExpr (almostProgram <| flagDecoder)
@@ -247,7 +243,7 @@ generateProgram kind body =
 generateLetDef :: (Text, Opt.Def) -> Generator JS.Stmt
 generateLetDef (name, def) =
   do  jsBody <- generateDef name def
-      return $ JS.VarDeclStmt [ Help.varDecl name jsBody ]
+      return $ JS.VarDeclStmt [ Help.varDecl (Var.safe name) jsBody ]
 
 
 generateDef :: Text -> Opt.Def -> Generator JS.Expr

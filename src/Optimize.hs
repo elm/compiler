@@ -334,14 +334,11 @@ optimizeVariable region (Var.Canonical home name) =
 optimizeMain :: Can.Main -> Env.Optimizer Opt.Main
 optimizeMain main =
   case main of
-    Can.VDom ->
-      return Opt.VDom
+    Can.Static ->
+      return Opt.Static
 
-    Can.NoFlags ->
-      return Opt.NoFlags
-
-    Can.Flags tipe ->
-      Opt.Flags <$> Port.toDecoder tipe
+    Can.Dynamic tipe ->
+      Opt.Dynamic <$> Port.toFlagsDecoder tipe
 
 
 

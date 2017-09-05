@@ -3,7 +3,7 @@
 module AST.Module.Name
   ( Raw
   , Canonical(..)
-  , inVirtualDom, inCore, inHtml
+  , inVirtualDom, inCore, inHtml, inBrowser
   , toString, toText, canonicalToText
   , isKernel, getKernel, canonicalIsKernel
   )
@@ -48,6 +48,11 @@ inCore raw =
 inHtml :: Raw -> Canonical
 inHtml raw =
   Canonical Package.html raw
+
+
+inBrowser :: Raw -> Canonical
+inBrowser raw =
+  Canonical Package.browser raw
 
 
 

@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Optimize.Port
   ( toEncoder
+  , toFlagsDecoder
   , toDecoder
   )
   where
@@ -124,6 +125,21 @@ encodeTuple tipes =
     do  list <- encode "list"
         entries <- zipWithM convert tipes [ 0 .. length tipes ]
         return $ Opt.Function ["t"] $ Opt.Call list entries
+
+
+
+-- FLAGS DECODER
+
+
+toFlagsDecoder :: T.Canonical -> Env.Optimizer Opt.Expr
+toFlagsDecoder tipe =
+  case tipe of
+    T.Type name [] | Var.isTuple name ->
+      do  succeed <- decode "succeed"
+          return $ Opt.Call succeed [ Opt.Ctor Help.zeroTuple [] ]
+
+    _ ->
+      toDecoder tipe
 
 
 

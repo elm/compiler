@@ -75,9 +75,8 @@ data Expr
 
 
 data Main
-  = VDom
-  | NoFlags
-  | Flags Expr
+  = Static
+  | Dynamic Expr
 
 
 data Decider a
@@ -188,17 +187,15 @@ instance Binary Expr where
 instance Binary Main where
   put main =
     case main of
-      VDom       -> putWord8 0
-      NoFlags    -> putWord8 1
-      Flags expr -> putWord8 2 >> put expr
+      Static       -> putWord8 0
+      Dynamic expr -> putWord8 1 >> put expr
 
   get =
     do  word <- getWord8
         case word of
-          0 -> pure VDom
-          1 -> pure NoFlags
-          2 -> liftM Flags get
-          _ -> error "problem getting Can.Main binary"
+          0 -> pure Static
+          1 -> liftM Dynamic get
+          _ -> error "problem getting Opt.Main binary"
 
 
 instance (Binary a) => Binary (Decider a) where
