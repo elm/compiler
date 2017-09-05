@@ -29,7 +29,7 @@ Notice that to compile `Comment` we need to `import User`. And notice that to co
 
 Now this is *possible* if the compiler figures out any module cycles and puts them all in one big file to compile them together. That seems fine in our small example, but imagine we have a cycle of 20 modules. If you change *one* of them, you must now recompile *all* of them. In a large code base, this causes extremely long compile times. It is also very hard to disentangle them in practice, so you just end up with slow builds. That is your life now.
 
-The thing is that you can always write the code *without* cycles by shuffling declarations around, and the resulting code is ofter much clearer.
+The thing is that you can always write the code *without* cycles by shuffling declarations around, and the resulting code is often much clearer.
 
 
 # Breaking Cycles
@@ -55,7 +55,7 @@ type alias User =
   }
 ```
 
-Notice that the `Comment` type alias is defined in terms of the `User` type alias and vice versa. Having recursive type aliases like this does now work! That problem is described in depth [here](recursive-alias.md), but the quick takeaway is that one `type alias` needs to become a `type` to break the recursion. So let’s try again:
+Notice that the `Comment` type alias is defined in terms of the `User` type alias and vice versa. Having recursive type aliases like this does not work! That problem is described in depth [here](recursive-alias.md), but the quick takeaway is that one `type alias` needs to become a `type` to break the recursion. So let’s try again:
 
 ```elm
 module BadCombination2 exposing (..)

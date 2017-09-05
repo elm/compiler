@@ -18,7 +18,7 @@ Imagine you install a new package that claims to support `localStorage`. You get
 
 Okay, now you need to hook up some JavaScript code. Is that JS file in the Elm package? Or is it on `npm`? Wait, what version on `npm` though? And is this patch version going to work as well? Also, how does this file fit into my build process? And assuming we get through all that, maybe the `port` has the same name as one of the ports in your project. Or it clashes with a `port` name in another package.
 
-**Suddenly adding dependencies is much more complicated and risky!** An experienced developer would always check for ports up front, spending a bunch of time manually classifying unacceptable packages. Most people would not know to do that and learn all the pitfalls through personal experience, ultimately spending even *more* time than the person who defensively checks to avoid thes issues.
+**Suddenly adding dependencies is much more complicated and risky!** An experienced developer would always check for ports up front, spending a bunch of time manually classifying unacceptable packages. Most people would not know to do that and learn all the pitfalls through personal experience, ultimately spending even *more* time than the person who defensively checks to avoid these issues.
 
 So “ports in packages” would impose an enormous cost on application developers, and in the end, we would have a less reliable package ecosystem overall.
 
