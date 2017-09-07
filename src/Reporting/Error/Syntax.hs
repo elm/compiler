@@ -4,6 +4,7 @@ module Reporting.Error.Syntax
   ( Error(..)
   , ParseError(..)
   , Problem(..), Theory(..)
+  , EscapeProblem(..)
   , ContextStack, Context(..)
   , BadOp(..), Next(..)
   , toReport
@@ -18,7 +19,7 @@ import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Region as R
 import qualified Reporting.Report as Report
 import qualified Reporting.Helpers as Help
-import Reporting.Helpers ((<>), dullyellow, hsep, i2t, reflowParagraph, text)
+import Reporting.Helpers ((<>), dullyellow, green, hsep, i2t, reflowParagraph, text)
 
 
 
@@ -66,9 +67,11 @@ data Problem
   | EndOfFile_Shader
   | EndOfFile_String
   | EndOfFile_MultiString
+  | EndOfFile_Char
   | NewLineInString
-  | BadEscape
-  | BadChar
+  | NewLineInChar
+  | BadEscape Int EscapeProblem
+  | BadChar Int
   | BadNumberDot
   | BadNumberEnd
   | BadNumberExp
@@ -78,6 +81,13 @@ data Problem
   | BadUnderscore Char
   | BadOp BadOp ContextStack
   | Theories ContextStack [Theory]
+
+
+data EscapeProblem
+  = UnknownEscape
+  | UnicodeSyntax
+  | UnicodeRange
+  | UnicodeLength Int Text
 
 
 data BadOp = HasType | Equals | Arrow | Pipe | Dot
@@ -449,6 +459,14 @@ problemToReport subRegion problem =
           \ to be missing."
         )
 
+    EndOfFile_Char ->
+      parseReport
+        "I got to the end of the file while parsing a character."
+        (reflowParagraph $
+          "Characters look like 'x' with single quotes on each end.\
+          \ So the closing single quote seems to be missing."
+        )
+
     NewLineInString ->
       parseReport
         "This string is missing the closing quote."
@@ -461,16 +479,17 @@ problemToReport subRegion problem =
             ]
         )
 
-    BadEscape ->
+    NewLineInChar ->
       parseReport
-        "A backslash starts an escaped character, but I do not recognize this one:"
-        ( reflowParagraph
-            "Elm allows typical escape characters like \\\\ and \\n and \\t. You can\
-            \ also say \\u0040 to refer to unicode characters by their hex code.\
-            \ Maybe there is some typo?"
+        "This character is missing the closing quote."
+        ( reflowParagraph $
+            "Elm characters must start and end with a single quote, like 'a' and 'b'"
         )
 
-    BadChar ->
+    BadEscape _ escapeProblem ->
+      uncurry parseReport (escapeProblemToReport escapeProblem)
+
+    BadChar _ ->
       parseReport
         "Ran into a bad use of single quotes."
         ( Help.stack
@@ -479,7 +498,7 @@ problemToReport subRegion problem =
             , Help.indent 4 $
                 dullyellow (text "'this'")
                 <> text " => "
-                <> dullyellow (text "\"this\"")
+                <> green (text "\"this\"")
             , reflowParagraph $
                 "Unlike JavaScript, Elm distinguishes between strings like \"hello\"\
                 \ and individual characters like 'A' and '3'. If you really do want\
@@ -607,6 +626,73 @@ problemToReport subRegion problem =
                 , text ""
                 ]
                 ++ map (bullet . theoryToText stack) theories
+
+
+escapeProblemToReport :: EscapeProblem -> ( Text, Help.Doc )
+escapeProblemToReport escapeProblem =
+  case escapeProblem of
+    UnknownEscape ->
+      ( "A backslash starts an escaped character, but I do not recognize this one:"
+      , Help.stack
+          [ "Maybe there is some typo?"
+          , Help.toHint $ "Valid escape characters include:"
+          , Help.indent 4 $ Help.vcat $
+              [ "\\n"
+              , "\\t"
+              , "\\\""
+              , "\\\'"
+              , "\\\\"
+              , "\\u{03BB}"
+              ]
+          , reflowParagraph $
+              "The last one lets encode ANY character by its Unicode code\
+              \ point, so there are no other escape characters in Elm."
+          ]
+      )
+
+    UnicodeSyntax ->
+      ( "I ran into an invalid Unicode escape character:"
+      , Help.stack
+          [ "Here are some examples of valid Unicode escape characters:"
+          , Help.indent 4 $ Help.vcat $
+              [ "\\u{0041}"
+              , "\\u{03BB}"
+              , "\\u{6728}"
+              , "\\u{1F60A}"
+              ]
+          , reflowParagraph $
+              "Notice that the code point is always surrounded by curly\
+              \ braces. They are required!"
+          ]
+      )
+
+    UnicodeRange ->
+      ( "This is not a real Unicode code point:"
+      , "All valid Unicode code points are between 0 and 10FFFF."
+      )
+
+    UnicodeLength numDigits badCode ->
+      let
+        moreOrFewer =
+          if numDigits < 4 then "more" else "fewer"
+
+        goodCode =
+          Text.justifyRight 4 '0' $ Text.dropWhile (== '0') badCode
+
+        suggestion =
+          [ "Try"
+          , "using"
+          , dullyellow $ text $ "\\u{" <> goodCode <> "}"
+          , "instead."
+          ]
+      in
+      ( "This Unicode code point needs " <> moreOrFewer <> " digits:"
+      , hsep suggestion
+      )
+
+
+
+-- HELPERS
 
 
 bullet :: Text -> Help.Doc

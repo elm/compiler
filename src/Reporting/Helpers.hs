@@ -3,7 +3,7 @@
 module Reporting.Helpers
   ( (|>)
   -- re-exports
-  , Doc, (<+>), (<>), cat, dullyellow, fillSep, hang
+  , Doc, (<+>), (<>), cat, dullyellow, fillSep, green, hang
   , hsep, indent, parens, sep, text, underline, vcat
   -- custom helpers
   , i2t
