@@ -3,6 +3,7 @@
 module Reporting.Report
     ( Report
     , report
+    , reportDoc
     , toDoc
     , toJson
     )
@@ -23,7 +24,8 @@ import qualified Reporting.Render.Code as Code
 -- BUILD REPORTS
 
 
-data Report = Report
+data Report =
+  Report
     { _title :: Text
     , _highlight :: Maybe R.Region
     , _preHint :: Doc
@@ -34,6 +36,11 @@ data Report = Report
 report :: Text -> Maybe R.Region -> Text -> Doc -> Report
 report title highlight pre post =
   Report title highlight (Help.reflowParagraph pre) post
+
+
+reportDoc :: Text -> Maybe R.Region -> [Doc] -> Doc -> Report
+reportDoc title highlight pre post =
+  Report title highlight (Help.hsep pre) post
 
 
 

@@ -8,7 +8,8 @@ module Reporting.Helpers
   -- custom helpers
   , i2t
   , functionName, args, moreArgs
-  , toHint, hintLink, stack, reflowParagraph
+  , toSimpleHint, toFancyHint, hintLink
+  , stack, reflowParagraph
   , commaSep, capitalize, ordinalize, drawCycle
   , findPotentialTypos, findTypoPairs, vetTypos
   , nearbyNames, distance, maybeYouWant, maybeYouWant'
@@ -81,13 +82,14 @@ moreArgs n =
 -- HINTS
 
 
-toHint :: Text -> Doc
-toHint txt =
-  let
-    hint =
-      underline (text "Hint") <> ":"
-  in
-    fillSep (hint : map text (Text.words txt))
+toSimpleHint :: Text -> Doc
+toSimpleHint txt =
+  toFancyHint (map text (Text.words txt))
+
+
+toFancyHint :: [Doc] -> Doc
+toFancyHint chunks =
+  fillSep (underline (text "Hint") <> ":" : chunks)
 
 
 hintLink :: Text -> Text

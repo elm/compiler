@@ -19,7 +19,7 @@ import qualified Type.UnionFind as UF
 
 
 
--- KICK OFF UNIFICATION
+-- UNIFY
 
 
 unify :: Error.Hint -> R.Region -> Variable -> Variable -> TS.Solver ()
@@ -36,13 +36,9 @@ unify hint region expected actual =
               liftIO $ mergeHelp expected actual (Error "?") noRank
               TS.addError region $
                 case problem of
-                  Typical ->
+                  Reason hasDecoder maybeReason ->
                     Error.Mismatch $
-                      Error.MismatchInfo hint expectedSrcType actualSrcType Nothing
-
-                  Special reason ->
-                    Error.Mismatch $
-                      Error.MismatchInfo hint expectedSrcType actualSrcType (Just reason)
+                      Error.MismatchInfo hint expectedSrcType actualSrcType hasDecoder maybeReason
 
                   Infinite ->
                     Error.InfiniteType (Left hint) expectedSrcType
@@ -66,7 +62,9 @@ data Context =
     }
 
 
-data Orientation = ExpectedActual | ActualExpected
+data Orientation
+  = ExpectedActual
+  | ActualExpected
 
 
 reorient :: Context -> Context
@@ -85,8 +83,7 @@ reorient (Context orientation var1 desc1 var2 desc2) =
 
 
 data Problem
-  = Typical
-  | Special Error.Reason
+  = Reason Bool (Maybe Error.Reason)
   | Infinite
 
 
@@ -95,34 +92,49 @@ mismatch context@(Context orientation var1 _ var2 _) maybeReason =
   do  anyInfinite <- liftIO $ liftM2 (||) (Occurs.occurs var1) (Occurs.occurs var2)
       when anyInfinite $ throwError Infinite
 
-      args1 <- liftIO $ collectArgs var1
-      args2 <- liftIO $ collectArgs var2
+      args1 <- liftIO $ collectArgs [] var1
+      args2 <- liftIO $ collectArgs [] var2
 
-      let numArgs1 = length args1
-      let numArgs2 = length args2
+      hasDecoder <- liftIO $ or <$> traverse detectDecoder (args1 ++ args2)
 
-      if numArgs1 == numArgs2
+      if length args1 /= length args2
         then
-          throwError $ reasonToProblem orientation maybeReason
-        else
           do  lift $ zipWithM_ (\a1 a2 -> runExceptT $ subUnify context a1 a2) args1 args2
-              throwError $ reasonToProblem orientation $ Just $
-                Error.MissingArgs $ abs (numArgs2 - numArgs1)
+              throwError $ Reason hasDecoder $ Just $
+                Error.MissingArgs (abs (length args2 - length args1))
+        else
+          throwError $ Reason hasDecoder $
+            case orientation of
+              ExpectedActual ->
+                maybeReason
+
+              ActualExpected ->
+                fmap Error.flipReason maybeReason
 
 
-reasonToProblem :: Orientation -> Maybe Error.Reason -> Problem
-reasonToProblem orientation maybeReason =
-  case maybeReason of
-    Nothing ->
-      Typical
 
-    Just reason ->
-      case orientation of
-        ExpectedActual ->
-          Special reason
 
-        ActualExpected ->
-          Special (Error.flipReason reason)
+
+collectArgs :: [Variable] -> Variable -> IO [Variable]
+collectArgs revArgs variable =
+  do  (Descriptor content _ _ _) <- UF.descriptor variable
+      case content of
+        Structure (Fun1 arg returnType) ->
+          collectArgs (arg : revArgs) returnType
+
+        _ ->
+          return $ variable : revArgs
+
+
+detectDecoder :: Variable -> IO Bool
+detectDecoder variable =
+  do  (Descriptor content _ _ _) <- UF.descriptor variable
+      case content of
+        Structure (App1 name [_]) | Var.decoder == name ->
+          return True
+
+        _ ->
+          return False
 
 
 
@@ -445,22 +457,6 @@ unifyComparableRecursive orientation var =
       guardedUnify orientation compVar var
 
 
-collectArgs :: Variable -> IO [Variable]
-collectArgs variable =
-  collectArgsHelp [] variable
-
-
-collectArgsHelp :: [Variable] -> Variable -> IO [Variable]
-collectArgsHelp revArgs variable =
-  do  (Descriptor content _ _ _) <- UF.descriptor variable
-      case content of
-        Structure (Fun1 arg returnType) ->
-          collectArgsHelp (arg : revArgs) returnType
-
-        _ ->
-          return $ variable : revArgs
-
-
 
 -- UNIFY ALIASES
 
@@ -638,11 +634,8 @@ unifyField context (field, (expected, actual)) =
         Left problem ->
           return $ Just $ (,) field $
             case problem of
-              Typical ->
-                Nothing
-
-              Special reason ->
-                Just reason
+              Reason _ reason ->
+                reason
 
               Infinite ->
                 Nothing
@@ -652,7 +645,8 @@ unifyField context (field, (expected, actual)) =
 -- GATHER RECORD STRUCTURE
 
 
-data RecordStructure = RecordStructure
+data RecordStructure =
+  RecordStructure
     { _fields :: Map.Map Text Variable
     , _extVar :: Variable
     , _extStruct :: ExtensionStructure
@@ -660,8 +654,8 @@ data RecordStructure = RecordStructure
 
 
 data ExtensionStructure
-    = Empty
-    | Extension
+  = Empty
+  | Extension
 
 
 gatherFields :: Context -> Map.Map Text Variable -> Variable -> IO RecordStructure

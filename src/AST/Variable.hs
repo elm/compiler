@@ -9,7 +9,7 @@ module AST.Variable
   , int, float, char, string, tuple
   , list, cons, nil
   , bool, true, false
-  , never, task, cmd, sub, router, shader
+  , never, task, cmd, sub, router, shader, decoder
   , isLocalHome, isCons
   , is, isJson, isMaybe, isArray, isTask, isList
   , isKernel, isTuple, isPrim, isLocal
@@ -190,6 +190,11 @@ router =
 shader :: Canonical
 shader =
   fromModule (ModuleName.Canonical Pkg.webgl "WebGL") "Shader"
+
+
+decoder :: Canonical
+decoder =
+  inCore "Json.Decode" "Decoder"
 
 
 

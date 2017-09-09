@@ -1,6 +1,20 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Reporting.Error.Canonicalize where
+module Reporting.Error.Canonicalize
+  ( Error(..)
+  , variable
+  , VarKind(..)
+  , VarProblem(..)
+  , argMismatch
+  , moduleNotFound
+  , valueNotFound
+  , AliasError(..)
+  , alias
+  , port
+  , toReport
+  , extractSuggestions
+  )
+  where
 
 import Control.Arrow ((***))
 import qualified Data.Char as Char
@@ -9,6 +23,7 @@ import Data.Text (Text)
 
 import qualified AST.Declaration as Decl
 import qualified AST.Expression.Canonical as Canonical
+import qualified AST.Helpers as Help (isOp)
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Type as Type
@@ -18,9 +33,7 @@ import qualified Reporting.Region as Region
 import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Report as Report
 import qualified Reporting.Helpers as Help
-import Reporting.Helpers
-  ( Doc, (<>), dullyellow, fillSep, i2t, indent, reflowParagraph, text
-  )
+import Reporting.Helpers ( Doc, (<>), dullyellow, fillSep, green, i2t, indent, reflowParagraph, text )
 
 
 
@@ -46,23 +59,49 @@ data Error
 
 data VarError =
   VarError
-    { varKind :: Text
-    , varName :: Text
-    , varProblem :: VarProblem
-    , varSuggestions :: [Text]
+    { _kind :: VarKind
+    , _name :: Text
+    , _problem :: VarProblem
+    , _suggestions :: [Text]
     }
 
 
 data VarProblem
-    = Ambiguous
-    | UnknownQualifier Text Text
-    | QualifiedUnknown Text Text
-    | ExposedUnknown
+  = Ambiguous
+  | UnknownQualifier Text Text
+  | QualifiedUnknown Text Text
+  | ExposedUnknown
 
 
-variable :: Text -> Text -> VarProblem -> [Text] -> Error
+variable :: VarKind -> Text -> VarProblem -> [Text] -> Error
 variable kind name problem suggestions =
   Var (VarError kind name problem suggestions)
+
+
+
+-- KIND
+
+
+data VarKind
+  = BadValue
+  | BadPattern
+  | BadType
+
+
+toKindInfo :: VarKind -> Text -> ( Doc, Doc, Doc )
+toKindInfo kind name =
+  case kind of
+    BadValue ->
+      if Help.isOp name then
+        ( "an", "operator", text $ "(" <> name <> ")" )
+      else
+        ( "a", "value", text name )
+
+    BadPattern ->
+      ( "a", "pattern", text name )
+
+    BadType ->
+      ( "a", "type", text name )
 
 
 
@@ -118,9 +157,9 @@ alias name expected actual =
 
 data PortError =
   PortError
-    { portName :: Text
-    , portType :: Type.Canonical
-    , portMessage :: Maybe Text
+    { _portName :: Text
+    , _portType :: Type.Canonical
+    , _portMessage :: Maybe Text
     }
 
 
@@ -130,54 +169,57 @@ port name tipe maybeMessage =
 
 
 
+-- EXTRACT SUGGESTIONS
+
+
+extractSuggestions :: Error -> Maybe [Text]
+extractSuggestions err =
+  case err of
+    Var (VarError _ _ _ suggestions) ->
+        Just suggestions
+
+    BadRecursion _ _ _ ->
+        Nothing
+
+    BadInfix _ _ _ _ _ _ ->
+        Nothing
+
+    Pattern _ ->
+        Nothing
+
+    Alias _ ->
+        Nothing
+
+    Import _ importError ->
+        case importError of
+          ModuleNotFound suggestions ->
+              Just (map ModuleName.toText suggestions)
+
+          ValueNotFound _ suggestions ->
+              Just suggestions
+
+    Export _ suggestions ->
+        Just suggestions
+
+    DuplicateExport _ ->
+        Nothing
+
+    Port _ ->
+        Nothing
+
+    BadPort _ _ ->
+        Nothing
+
+
+
 -- TO REPORT
 
 
 toReport :: RenderType.Localizer -> Error -> Report.Report
 toReport localizer err =
   case err of
-    Var (VarError kind name problem suggestions) ->
-        let
-          variableName =
-            kind <> " `" <> name <> "`"
-
-          learnMore orMaybe =
-            Help.reflowParagraph $
-              orMaybe <> " `import` works different than you expect? Learn all about it here: "
-              <> Help.hintLink "imports"
-
-          namingError overview maybeStarter specializedSuggestions =
-            Report.report "NAMING ERROR" Nothing overview $
-              case Help.maybeYouWant' maybeStarter specializedSuggestions of
-                Nothing ->
-                  learnMore "Maybe"
-                Just doc ->
-                  Help.stack [ doc, learnMore "Or maybe" ]
-        in
-        case problem of
-          Ambiguous ->
-              namingError
-                ("This usage of " <> variableName <> " is ambiguous.")
-                Nothing
-                suggestions
-
-          UnknownQualifier qualifier localName ->
-              namingError
-                ("Cannot find " <> variableName)
-                (Just $ text $ "No module called `" <> qualifier <> "` has been imported.")
-                (map (\modul -> modul <> "." <> localName) suggestions)
-
-          QualifiedUnknown qualifier localName ->
-              namingError
-                ("Cannot find " <> variableName)
-                (Just $ text $ "`" <> qualifier <> "` does not expose `" <> localName <> "`.")
-                (map (\v -> qualifier <> "." <> v) suggestions)
-
-          ExposedUnknown ->
-              namingError
-                ("Cannot find " <> variableName)
-                Nothing
-                suggestions
+    Var varError ->
+      varErrorToReport varError
 
     BadRecursion region def defs ->
       case defs of
@@ -302,6 +344,95 @@ toReport localizer err =
         )
 
 
+
+-- VAR ERROR
+
+
+varErrorToReport :: VarError -> Report.Report
+varErrorToReport (VarError kind name problem suggestions) =
+  let
+    learnMore orMaybe =
+      Help.reflowParagraph $
+        orMaybe <> " `import` works different than you expect? Learn all about it here: "
+        <> Help.hintLink "imports"
+
+    namingError overview maybeStarter specializedSuggestions =
+      Report.reportDoc "NAMING ERROR" Nothing overview $
+        case Help.maybeYouWant' maybeStarter specializedSuggestions of
+          Nothing ->
+            learnMore "Maybe"
+          Just doc ->
+            Help.stack [ doc, learnMore "Or maybe" ]
+
+    specialNamingError specialHint =
+      Report.reportDoc "NAMING ERROR" Nothing (cannotFind kind name) (Help.hsep specialHint)
+  in
+  case problem of
+    Ambiguous ->
+      namingError (ambiguous kind name) Nothing suggestions
+
+    UnknownQualifier qualifier localName ->
+      namingError
+        (cannotFind kind name)
+        (Just $ text $ "No module called `" <> qualifier <> "` has been imported.")
+        (map (\modul -> modul <> "." <> localName) suggestions)
+
+    QualifiedUnknown qualifier localName ->
+      namingError
+        (cannotFind kind name)
+        (Just $ text $ "`" <> qualifier <> "` does not expose `" <> localName <> "`.")
+        (map (\v -> qualifier <> "." <> v) suggestions)
+
+    ExposedUnknown ->
+      case name of
+        "!="  -> specialNamingError (notEqualsHint name)
+        "!==" -> specialNamingError (notEqualsHint name)
+        "===" -> specialNamingError equalsHint
+        "%"   -> specialNamingError modHint
+        _     -> namingError (cannotFind kind name) Nothing suggestions
+
+
+cannotFind :: VarKind -> Text -> [Doc]
+cannotFind kind rawName =
+  let ( a, thing, name ) = toKindInfo kind rawName in
+  [ "Cannot", "find", a, thing, "named", dullyellow name <> ":" ]
+
+
+ambiguous :: VarKind -> Text -> [Doc]
+ambiguous kind rawName =
+  let ( _a, thing, name ) = toKindInfo kind rawName in
+  [ "This", "usage", "of", "the", dullyellow name, thing, "is", "ambiguous." ]
+
+
+notEqualsHint :: Text -> [Doc]
+notEqualsHint op =
+  [ "Looking", "for", "the", "“not", "equal”", "operator?", "The", "traditional"
+  , dullyellow $ text $ "(" <> op <> ")"
+  , "is", "replaced", "by", green "(/=)", "in", "Elm.", "It", "is", "meant"
+  , "to", "look", "like", "the", "“not", "equal”", "sign", "from", "math!", "(≠)"
+  ]
+
+
+equalsHint :: [Doc]
+equalsHint =
+  [ "A", "special", dullyellow "(===)", "operator", "is", "not", "needed"
+  , "in", "Elm.", "We", "use", green "(==)", "for", "everything!"
+  ]
+
+
+modHint :: [Doc]
+modHint =
+  [ "Rather", "than", "a", dullyellow "(%)", "operator,"
+  , "Elm", "has", "a", green "modBy", "function."
+  , "Learn", "more", "here:"
+  , "<https://package.elm-lang.org/packages/elm-lang/core/latest/Basics#modBy>"
+  ]
+
+
+
+-- ARG MISMATCH
+
+
 argMismatchReport :: Text -> Var.Canonical -> Int -> Int -> Report.Report
 argMismatchReport kind var expected actual =
   let
@@ -318,62 +449,6 @@ argMismatchReport kind var expected actual =
       ( text $
           "Expecting " <> i2t expected <> ", but got " <> i2t actual <> "."
       )
-
-
-
-extractSuggestions :: Error -> Maybe [Text]
-extractSuggestions err =
-  case err of
-    Var (VarError _ _ _ suggestions) ->
-        Just suggestions
-
-    BadRecursion _ _ _ ->
-        Nothing
-
-    BadInfix _ _ _ _ _ _ ->
-        Nothing
-
-    Pattern _ ->
-        Nothing
-
-    Alias _ ->
-        Nothing
-
-    Import _ importError ->
-        case importError of
-          ModuleNotFound suggestions ->
-              Just (map ModuleName.toText suggestions)
-
-          ValueNotFound _ suggestions ->
-              Just suggestions
-
-    Export _ suggestions ->
-        Just suggestions
-
-    DuplicateExport _ ->
-        Nothing
-
-    Port _ ->
-        Nothing
-
-    BadPort _ _ ->
-        Nothing
-
-
-unsafePromote :: Type.Raw -> Type.Canonical
-unsafePromote (A.A _ rawType) =
-  case rawType of
-    Type.RLambda arg result ->
-        Type.Lambda (unsafePromote arg) (unsafePromote result)
-
-    Type.RVar x ->
-        Type.Var x
-
-    Type.RType (A.A _ (Var.Raw name)) args ->
-        Type.Type (Var.local name) (map unsafePromote args)
-
-    Type.RRecord fields ext ->
-        Type.Record (map (A.drop *** unsafePromote) fields) (fmap unsafePromote ext)
 
 
 
@@ -429,3 +504,24 @@ badMutualRecursion region name names =
 defToText :: Canonical.Def -> Text
 defToText (Canonical.Def _ pattern _ _) =
   P.toText pattern
+
+
+
+-- TYPE COERCION
+
+
+unsafePromote :: Type.Raw -> Type.Canonical
+unsafePromote (A.A _ rawType) =
+  case rawType of
+    Type.RLambda arg result ->
+        Type.Lambda (unsafePromote arg) (unsafePromote result)
+
+    Type.RVar x ->
+        Type.Var x
+
+    Type.RType (A.A _ (Var.Raw name)) args ->
+        Type.Type (Var.local name) (map unsafePromote args)
+
+    Type.RRecord fields ext ->
+        Type.Record (map (A.drop *** unsafePromote) fields) (fmap unsafePromote ext)
+

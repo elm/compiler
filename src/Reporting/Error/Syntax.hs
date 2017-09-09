@@ -635,7 +635,7 @@ escapeProblemToReport escapeProblem =
       ( "A backslash starts an escaped character, but I do not recognize this one:"
       , Help.stack
           [ "Maybe there is some typo?"
-          , Help.toHint $ "Valid escape characters include:"
+          , Help.toSimpleHint "Valid escape characters include:"
           , Help.indent 4 $ Help.vcat $
               [ "\\n"
               , "\\t"

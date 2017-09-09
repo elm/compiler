@@ -68,18 +68,18 @@ variable region env var =
           logVar v
 
         Just vs ->
-          preferLocals region env "variable" vs var
+          preferLocals region env Error.BadValue vs var
 
         Nothing ->
-          notFound region "variable" (Map.keys (Env._values env)) var
+          notFound region Error.BadValue (Map.keys (Env._values env)) var
 
 
 tvar :: R.Region -> Env.Env -> Text -> Result (Either Var.Canonical (Var.Canonical, [Text], Type.Canonical))
 tvar region env var =
   case unions ++ aliases of
-    []  -> notFound region "type" (Map.keys (Env._unions env) ++ Map.keys (Env._aliases env)) var
+    []  -> notFound region Error.BadType (Map.keys (Env._unions env) ++ Map.keys (Env._aliases env)) var
     [v] -> logVarWith extract v
-    vs  -> preferLocals' region env extract "type" vs var
+    vs  -> preferLocals' region env extract Error.BadType vs var
   where
     unions =
         map Left (maybe [] Set.toList (Map.lookup var (Env._unions env)))
@@ -100,10 +100,10 @@ pvar region env var actualArgs =
         foundArgCheck value
 
     Just values ->
-        foundArgCheck =<< preferLocals' region env fst "pattern" values var
+        foundArgCheck =<< preferLocals' region env fst Error.BadPattern values var
 
     Nothing ->
-        notFound region "pattern" (Map.keys (Env._patterns env)) var
+        notFound region Error.BadPattern (Map.keys (Env._patterns env)) var
   where
     foundArgCheck (name, expectedArgs) =
         if actualArgs == expectedArgs then
@@ -117,7 +117,7 @@ pvar region env var actualArgs =
 -- FOUND
 
 
-preferLocals :: R.Region -> Env.Env -> Text -> [Var.Canonical] -> Text -> Result Var.Canonical
+preferLocals :: R.Region -> Env.Env -> Error.VarKind -> [Var.Canonical] -> Text -> Result Var.Canonical
 preferLocals region env =
   preferLocals' region env id
 
@@ -126,7 +126,7 @@ preferLocals'
     :: R.Region
     -> Env.Env
     -> (a -> Var.Canonical)
-    -> Text
+    -> Error.VarKind
     -> [a]
     -> Text
     -> Result a
@@ -217,7 +217,7 @@ isOp name =
 -- NOT FOUND
 
 
-notFound :: R.Region -> Text -> [Text] -> Text -> Result a
+notFound :: R.Region -> Error.VarKind -> [Text] -> Text -> Result a
 notFound region kind possibilities var =
   let name =
           toVarName var

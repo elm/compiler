@@ -10,11 +10,11 @@ module Reporting.Error.Type
   )
   where
 
-import Control.Arrow (first, second)
+import Control.Arrow (second)
 import qualified Data.Map as Map
-import qualified Data.Maybe as Maybe
 import qualified Data.Text as Text
 import Data.Text (Text)
+import Data.Monoid ((<>))
 
 import qualified AST.Helpers as Help
 import qualified AST.Type as Type
@@ -24,8 +24,8 @@ import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Report as Report
 import qualified Reporting.Helpers as Help
 import Reporting.Helpers
-  ( Doc, (<>), (<+>), capitalize, dullyellow, functionName
-  , i2t, indent, ordinalize, reflowParagraph, stack, text, toHint, vcat
+  ( Doc, (<+>), capitalize, dullyellow, functionName, i2t
+  , indent, ordinalize, reflowParagraph, stack, text
   )
 
 
@@ -34,30 +34,32 @@ import Reporting.Helpers
 
 
 data Error
-    = Mismatch Mismatch
-    | BadMain Type.Canonical
-    | BadFlags Type.Canonical (Maybe Text)
-    | InfiniteType (Either Hint Text) Type.Canonical
+  = Mismatch Mismatch
+  | BadMain Type.Canonical
+  | BadFlags Type.Canonical (Maybe Text)
+  | InfiniteType (Either Hint Text) Type.Canonical
 
 
-data Mismatch = MismatchInfo
+data Mismatch =
+  MismatchInfo
     { _hint :: Hint
     , _leftType :: Type.Canonical
     , _rightType :: Type.Canonical
+    , _decoders :: Bool
     , _reason :: Maybe Reason
     }
 
 
 data Reason
-    = BadFields [(Text, Maybe Reason)]
-    | MessyFields [Text] [Text] [Text]
-    | IntFloat
-    | TooLongComparableTuple Int
-    | MissingArgs Int
-    | RigidClash Text Text
-    | NotPartOfSuper Type.Super
-    | RigidVarTooGeneric Text SpecificThing
-    | RigidSuperTooGeneric Type.Super Text SpecificThing
+  = BadFields [(Text, Maybe Reason)]
+  | MessyFields [Text] [Text] [Text]
+  | IntFloat
+  | TooLongComparableTuple Int
+  | MissingArgs Int
+  | RigidClash Text Text
+  | NotPartOfSuper Type.Super
+  | RigidVarTooGeneric Text SpecificThing
+  | RigidSuperTooGeneric Type.Super Text SpecificThing
 
 
 data SpecificThing
@@ -68,39 +70,39 @@ data SpecificThing
 
 
 data Hint
-    = CaseBranch Int Region.Region
-    | Case
-    | IfCondition
-    | IfBranches
-    | MultiIfBranch Int Region.Region
-    | If
-    | List
-    | ListElement Int Region.Region
-    | BinopLeft Var.Canonical Region.Region
-    | BinopRight Var.Canonical Region.Region
-    | Binop Var.Canonical
-    | Function (Maybe Var.Canonical)
-    | UnexpectedArg (Maybe Var.Canonical) Int Int Region.Region
-    | FunctionArity (Maybe Var.Canonical) Int Int Region.Region
-    | ReturnType Text Int Int Region.Region
-    | Instance Text
-    | Literal Text
-    | Pattern Pattern
-    | Shader
-    | Lambda
-    | Access (Maybe Text) Text
-    | Record
-    -- effect manager problems
-    | Manager Text
-    | State Text
-    | SelfMsg
+  = CaseBranch Int Region.Region
+  | Case
+  | IfCondition
+  | IfBranches
+  | MultiIfBranch Int Region.Region
+  | If
+  | List
+  | ListElement Int Region.Region
+  | BinopLeft Var.Canonical Region.Region
+  | BinopRight Var.Canonical Region.Region
+  | Binop Var.Canonical
+  | Function (Maybe Var.Canonical)
+  | UnexpectedArg (Maybe Var.Canonical) Int Int Region.Region
+  | FunctionArity (Maybe Var.Canonical) Int Int Region.Region
+  | ReturnType Text Int Int Region.Region
+  | Instance Text
+  | Literal Text
+  | Pattern Pattern
+  | Shader
+  | Lambda
+  | Access (Maybe Text) Text
+  | Record
+  -- effect manager problems
+  | Manager Text
+  | State Text
+  | SelfMsg
 
 
 data Pattern
-    = PVar Text
-    | PAlias Text
-    | PCtor Var.Canonical
-    | PRecord
+  = PVar Text
+  | PAlias Text
+  | PCtor Var.Canonical
+  | PRecord
 
 
 
@@ -155,17 +157,18 @@ toReport localizer err =
 
 
 mismatchToReport :: RenderType.Localizer -> Mismatch -> Report.Report
-mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
+mismatchToReport localizer (MismatchInfo hint leftType rightType decoders maybeReason) =
   let
     report =
       Report.report "TYPE MISMATCH"
 
     typicalHints =
-      Maybe.maybeToList (reasonToString =<< maybeReason)
+      maybe id (:) (reasonToDoc <$> maybeReason) $
+        if decoders then [ jsonDecoderHint ] else []
 
     cmpHint leftWords rightWords extraHints =
       comparisonHint localizer leftType rightType leftWords rightWords
-        (typicalHints <> map toHint extraHints)
+        (typicalHints <> map Help.toSimpleHint extraHints)
   in
   case hint of
     CaseBranch branchNumber region ->
@@ -548,6 +551,8 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
 
 
 
+-- COMPARISON HINT
+
 
 comparisonHint
     :: RenderType.Localizer
@@ -570,6 +575,17 @@ comparisonHint localizer leftType rightType leftWords rightWords finalHints =
       ]
       ++
       finalHints
+
+
+
+-- JSON DECODER HINT
+
+
+jsonDecoderHint :: Doc
+jsonDecoderHint =
+  Help.toSimpleHint $
+    "New to JSON decoders? They are tough at first, so DEFINITELY learn more here: "
+    <> Help.hintLink "json-decoders"
 
 
 
@@ -709,62 +725,64 @@ flipReason reason =
         RigidSuperTooGeneric super name specific
 
 
-reasonToString :: Reason -> Maybe Doc
-reasonToString reason =
-  let
-    (fields, maybeDeepReason) =
-      collectFields reason
+reasonToDoc :: Reason -> Doc
+reasonToDoc reason =
+  case collectFields reason of
+    Nothing ->
+      let
+        (firstLine, details) =
+          reasonToDocHelp reason
+      in
+      Help.vcat $ Help.toSimpleHint firstLine : map (indent 4) details
 
-    maybeDocs =
-      reasonToStringHelp =<< maybeDeepReason
+    Just (fields, maybeDeepReason) ->
+      let
+        recordHint elaboration =
+          [ "Problem", "in", "the", dullyellow (text (Text.intercalate "." fields)) <> "field." ]
+          ++
+          map text (Text.words elaboration)
+      in
+      case reasonToDocHelp <$> maybeDeepReason of
+        Nothing ->
+          Help.toFancyHint (recordHint badFieldElaboration)
 
-    starter =
-      case fields of
-        [] ->
-          Nothing
-
-        [field] ->
-          Just $ "Problem in the `" <> field <> "` field. "
-
-        _ ->
-          Just $ "Problem at `" <> Text.intercalate "." fields <> "`. "
-  in
-    case (starter, maybeDocs) of
-      (Nothing, Nothing) ->
-        Nothing
-
-      (Just msg, Nothing) ->
-        Just $ toHint (msg <> badFieldElaboration)
-
-      (_, Just (firstLine, docs)) ->
-        Just $ vcat $
-          toHint (maybe firstLine (<> firstLine) starter)
-          : map (indent 4) docs
+        Just (firstLine, details) ->
+          Help.vcat $ Help.toFancyHint (recordHint firstLine) : map (indent 4) details
 
 
 
-collectFields :: Reason -> ([Text], Maybe Reason)
+-- COLLECT FIELDS
+
+
+collectFields :: Reason -> Maybe ([Text], Maybe Reason)
 collectFields reason =
   case reason of
-    BadFields [(field, Nothing)] ->
-      ([field], Nothing)
-
-    BadFields [(field, Just subReason)] ->
-      first (field:) (collectFields subReason)
+    BadFields [(field, maybeReason)] ->
+      Just (collectFieldsHelp [field] maybeReason)
 
     _ ->
-      ([], Just reason)
+      Nothing
 
 
-reasonToStringHelp :: Reason -> Maybe (Text, [Doc])
-reasonToStringHelp reason =
+collectFieldsHelp :: [Text] -> Maybe Reason -> ([Text], Maybe Reason)
+collectFieldsHelp revFields maybeReason =
+  case maybeReason of
+    Just (BadFields [(field, deeperReason)]) ->
+      collectFieldsHelp (field : revFields) deeperReason
+
+    _ ->
+      ( reverse revFields, maybeReason )
+
+
+reasonToDocHelp :: Reason -> (Text, [Doc])
+reasonToDocHelp reason =
   let
-    go msg =
-      Just (msg, [])
+    simpleDoc msg =
+      ( msg, [] )
   in
   case reason of
     BadFields fields ->
-      go $
+      simpleDoc $
         "I am seeing issues with the "
         <> Help.commaSep (map fst fields) <> " fields. "
         <> badFieldElaboration
@@ -773,22 +791,22 @@ reasonToStringHelp reason =
         messyFieldsHelp both leftOnly rightOnly
 
     IntFloat ->
-        go $
+        simpleDoc $
           "Elm does not automatically convert between Ints and Floats. Use\
           \ `toFloat` and `round` to do specific conversions.\
           \ <http://package.elm-lang.org/packages/elm-lang/core/latest/Basics#toFloat>"
 
     TooLongComparableTuple len ->
-        go $
+        simpleDoc $
           "Although tuples are comparable, this is currently only supported\
           \ for tuples with 6 or fewer entries, not " <> i2t len <> "."
 
     MissingArgs num ->
-        go $
+        simpleDoc $
           "It looks like a function needs " <> Help.moreArgs num <> "."
 
     RigidClash name1 name2 ->
-        go $
+        simpleDoc $
           "Your type annotation uses `" <> name1 <> "` and `" <> name2 <>
           "` as DIFFERENT type variables. By using separate names, you are\
           \ claiming the values can be different, but the code suggests that\
@@ -798,31 +816,31 @@ reasonToStringHelp reason =
           <> Help.hintLink "type-annotations"
 
     NotPartOfSuper Type.Number ->
-        go "Only ints and floats are numbers."
+        simpleDoc "Only ints and floats are numbers."
 
     NotPartOfSuper Type.Comparable ->
-        go "Only ints, floats, chars, strings, lists, and tuples are comparable."
+        simpleDoc "Only ints, floats, chars, strings, lists, and tuples are comparable."
 
     NotPartOfSuper Type.Appendable ->
-        go "Only strings and lists are appendable."
+        simpleDoc "Only strings and lists are appendable."
 
     NotPartOfSuper Type.CompAppend ->
-        go "Only strings and lists are both comparable and appendable."
+        simpleDoc "Only strings and lists are both comparable and appendable."
 
     RigidVarTooGeneric name specific ->
-        go $ rigidTooGenericHelp "ANY type of value" name specific
+        simpleDoc $ rigidTooGenericHelp "ANY type of value" name specific
 
     RigidSuperTooGeneric Type.Number name specific ->
-        go $ rigidTooGenericHelp "BOTH Ints and Floats" name specific
+        simpleDoc $ rigidTooGenericHelp "BOTH Ints and Floats" name specific
 
     RigidSuperTooGeneric Type.Comparable name specific ->
-        go $ rigidTooGenericHelp "ANY comparable value" name specific
+        simpleDoc $ rigidTooGenericHelp "ANY comparable value" name specific
 
     RigidSuperTooGeneric Type.Appendable name specific ->
-        go $ rigidTooGenericHelp "BOTH Strings and Lists" name specific
+        simpleDoc $ rigidTooGenericHelp "BOTH Strings and Lists" name specific
 
     RigidSuperTooGeneric Type.CompAppend name specific ->
-        go $ rigidTooGenericHelp "Strings and ANY comparable List" name specific
+        simpleDoc $ rigidTooGenericHelp "Strings and ANY comparable List" name specific
 
 
 rigidTooGenericHelp :: Text -> Text -> SpecificThing -> Text
@@ -869,11 +887,11 @@ specificThingToText specific =
 badFieldElaboration :: Text
 badFieldElaboration =
   "I always figure out field types in alphabetical order. If a field\
-  \ seems fine, I assume it is \"correct\" in subsequent checks.\
+  \ seems fine, I assume it is “correct” in subsequent checks.\
   \ So the problem may actually be a weird interaction with previous fields."
 
 
-messyFieldsHelp :: [Text] -> [Text] -> [Text] -> Maybe (Text, [Doc])
+messyFieldsHelp :: [Text] -> [Text] -> [Text] -> (Text, [Doc])
 messyFieldsHelp both leftOnly rightOnly =
   case (leftOnly, rightOnly) of
     ([], [missingField]) ->
@@ -899,62 +917,55 @@ messyFieldsHelp both leftOnly rightOnly =
               pairs
       in
         if null typoPairs then
-          Just
-            ( "The record fields do not match up. One has "
-              <> Help.commaSep leftOnly <> ". The other has "
-              <> Help.commaSep rightOnly <> "."
-            , []
-            )
+          ( "The record fields do not match up. One has "
+            <> Help.commaSep leftOnly <> ". The other has "
+            <> Help.commaSep rightOnly <> "."
+          , []
+          )
 
         else
-          Just
-            ( "The record fields do not match up. Maybe you made one of these typos?"
-            , typoDocs "<->" typoPairs
-            )
+          ( "The record fields do not match up. Maybe you made one of these typos?"
+          , typoDocs "<->" typoPairs
+          )
 
 
-oneMissingField :: [Text] -> Text -> Maybe (Text, [Doc])
+oneMissingField :: [Text] -> Text -> ( Text, [Doc] )
 oneMissingField knownFields missingField =
   case Help.findPotentialTypos knownFields missingField of
     [] ->
-      Just
-        ( "Looks like a record is missing the `" <> missingField <> "` field."
-        , []
-        )
+      ( "Looks like a record is missing the `" <> missingField <> "` field."
+      , []
+      )
 
     [typo] ->
-      Just
-        ( "Looks like a record is missing the `" <> missingField
-          <> "` field. Maybe it is a typo?"
-        , typoDocs "->" [(missingField, typo)]
-        )
+      ( "Looks like a record is missing the `" <> missingField
+        <> "` field. Maybe it is a typo?"
+      , typoDocs "->" [(missingField, typo)]
+      )
 
     typos ->
-      Just
-        ( "Looks like a record is missing the `" <> missingField
-          <> "` field. It is close to names like "
-          <> Help.commaSep typos <> " so maybe it is a typo?"
-        , []
-        )
+      ( "Looks like a record is missing the `" <> missingField
+        <> "` field. It is close to names like "
+        <> Help.commaSep typos <> " so maybe it is a typo?"
+      , []
+      )
 
 
-manyMissingFields :: [Text] -> [Text] -> Maybe (Text, [Doc])
+manyMissingFields :: [Text] -> [Text] -> (Text, [Doc])
 manyMissingFields knownFields missingFields =
   case Help.findTypoPairs missingFields knownFields of
     [] ->
-      Just
-        ( "Looks like a record is missing these fields: "
-          <> Help.commaSep missingFields
-        , []
-        )
+      ( "Looks like a record is missing these fields: "
+        <> Help.commaSep missingFields
+      , []
+      )
 
     typoPairs ->
-      Just
-        ( "Looks like a record is missing these fields: "
-          <> Help.commaSep missingFields
-          <> ". Potential typos include:"
-        , typoDocs "->" typoPairs
-        )
+      ( "Looks like a record is missing these fields: "
+        <> Help.commaSep missingFields
+        <> ". Potential typos include:"
+      , typoDocs "->" typoPairs
+      )
 
 
 typoDocs :: Text -> [(Text, Text)] -> [Doc]
