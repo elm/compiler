@@ -47,8 +47,8 @@ parserHelp imports enums fields chunks =
 
         Just tag ->
           case tag of
-            Parse.KernelProd isProd ->
-              parserHelp imports enums fields (Kernel.Prod isProd : Kernel.JS javascript : chunks)
+            Parse.KernelDebug isDebug ->
+              parserHelp imports enums fields (Kernel.Debug isDebug : Kernel.JS javascript : chunks)
 
             Parse.KernelImport var ->
               case Map.lookup var imports of

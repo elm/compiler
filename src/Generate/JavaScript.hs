@@ -28,11 +28,11 @@ import qualified Generate.JavaScript.Variable as JS
 -- GENERATE JAVASCRIPT
 
 
-generate :: Obj.Graph -> Obj.Roots -> BS.Builder
-generate graph roots =
+generate :: Bool -> Obj.Graph -> Obj.Roots -> BS.Builder
+generate debug graph roots =
   let
-    (State builders _ _ effects) =
-      List.foldl' (crawl graph) initialState (Obj.toGlobals roots)
+    (State builders _ _ effects _) =
+      List.foldl' (crawl graph) (initialState debug) (Obj.toGlobals roots)
 
     managers =
       JS.run (JsEffects.generate effects)
@@ -50,12 +50,13 @@ data State =
     , _seenDecls :: Set.Set Var.Global
     , _seenKernels :: Set.Set ModuleName.Raw
     , _effects :: Map.Map ModuleName.Canonical Effects.ManagerType
+    , _debug :: Bool
     }
 
 
-initialState :: State
-initialState =
-  State [] Set.empty Set.empty Map.empty
+initialState :: Bool -> State
+initialState debug =
+  State [] Set.empty Set.empty Map.empty debug
 
 
 
@@ -63,7 +64,7 @@ initialState =
 
 
 crawl :: Obj.Graph -> State -> Var.Global -> State
-crawl graph@(Obj.Graph decls kernels) state@(State _ seenDecls seenKernels _) name@(Var.Global home _) =
+crawl graph@(Obj.Graph decls kernels) state@(State _ seenDecls seenKernels _ _) name@(Var.Global home _) =
   if Set.member name seenDecls then
     state
 
@@ -101,7 +102,7 @@ crawlDecl graph var@(Var.Global home name) (Opt.Decl direct indirect fx body) st
     state2 =
       state1 { _seenDecls = Set.insert var (_seenDecls state1) }
 
-    (State builders seenDecls seenKernels effects) =
+    (State builders seenDecls seenKernels effects debug) =
       Set.foldl' (crawl graph) state2 direct
 
     stmt =
@@ -113,6 +114,7 @@ crawlDecl graph var@(Var.Global home name) (Opt.Decl direct indirect fx body) st
         , _seenDecls = seenDecls
         , _seenKernels = seenKernels
         , _effects = maybe id (Map.insert home) fx effects
+        , _debug = debug
         }
   in
     Set.foldl' (crawl graph) state4 indirect
@@ -128,17 +130,18 @@ crawlKernel graph name (Kernel.Info imports chunks) state1 =
     state2 =
       state1 { _seenKernels = Set.insert name (_seenKernels state1) }
 
-    (State builders seenDecls seenKernels effects) =
+    (State builders seenDecls seenKernels effects debug) =
       List.foldl' (crawl graph) state2 (map toCoreGlobal imports)
 
     builder =
-      JS.run (foldM chunkToBuilder mempty chunks)
+      JS.run (foldM (chunkToBuilder debug) mempty chunks)
   in
     State
       { _builders = builder : builders
       , _seenDecls = seenDecls
       , _seenKernels = seenKernels
       , _effects = effects
+      , _debug = debug
       }
 
 
@@ -147,8 +150,8 @@ toCoreGlobal (home, name) =
   Var.Global (ModuleName.inCore home) name
 
 
-chunkToBuilder :: BS.Builder -> Kernel.Chunk -> JS.Generator BS.Builder
-chunkToBuilder builder chunk =
+chunkToBuilder :: Bool -> BS.Builder -> Kernel.Chunk -> JS.Generator BS.Builder
+chunkToBuilder debug builder chunk =
   case chunk of
     Kernel.JS javascript ->
       return $ BS.byteString javascript <> builder
@@ -161,9 +164,9 @@ chunkToBuilder builder chunk =
       -- TODO generate a smaller field
       return $ Text.encodeUtf8Builder name <> builder
 
-    Kernel.Prod isProd ->
+    Kernel.Debug isDebug ->
       -- TODO pick based on what compile mode we are in
-      if isProd then
+      if isDebug && debug then
         return builder
       else
         return $ "_UNUSED" <> builder

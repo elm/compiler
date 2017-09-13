@@ -111,7 +111,7 @@ docsGen isExposed (Module.Module name info) =
 -- CODE GENERATION
 
 
-generate :: Obj.Graph -> Obj.Roots -> BS.Builder
+generate :: Bool -> Obj.Graph -> Obj.Roots -> BS.Builder
 generate =
   JS.generate
 
