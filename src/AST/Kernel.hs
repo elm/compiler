@@ -29,7 +29,8 @@ data Chunk
   = JS BS.ByteString
   | Var ModuleName.Raw Text.Text
   | Field Text.Text
-  | Debug Bool
+  | Debug
+  | Prod
 
 
 
@@ -56,10 +57,10 @@ instance Binary Chunk where
       Field field ->
         putWord8 2 >> put field
 
-      Debug True ->
+      Debug ->
         putWord8 3
 
-      Debug False ->
+      Prod ->
         putWord8 4
 
   get =
@@ -68,6 +69,6 @@ instance Binary Chunk where
           0 -> liftM JS get
           1 -> liftM2 Var get get
           2 -> liftM Field get
-          3 -> return (Debug True)
-          4 -> return (Debug False)
+          3 -> return Debug
+          4 -> return Prod
           _ -> error "problem deserializing Parse.Kernel.Chunk"

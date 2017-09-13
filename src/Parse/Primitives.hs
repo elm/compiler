@@ -1417,7 +1417,8 @@ eatShader array offset length row col =
 
 data ChunkTag
   = KernelEnum Word8 Text
-  | KernelDebug Bool
+  | KernelProd
+  | KernelDebug
   | KernelImport Text
   | KernelJsField Text
   | KernelElmField Text
@@ -1483,10 +1484,10 @@ chompChunkTag array jsOffset offset length row col =
           KernelJsField chunk
 
         else if chunk == "DEBUG" then
-          KernelDebug False
+          KernelDebug
 
         else if chunk == "PROD" then
-          KernelDebug True
+          KernelProd
 
         else
           KernelImport chunk

@@ -164,12 +164,11 @@ chunkToBuilder debug builder chunk =
       -- TODO generate a smaller field
       return $ Text.encodeUtf8Builder name <> builder
 
-    Kernel.Debug isDebug ->
-      -- TODO pick based on what compile mode we are in
-      if isDebug && debug then
-        return builder
-      else
-        return $ "_UNUSED" <> builder
+    Kernel.Debug ->
+      return $ if debug then builder else "_UNUSED" <> builder
+
+    Kernel.Prod ->
+      return $ if debug then "_UNUSED" <> builder else builder
 
 
 
