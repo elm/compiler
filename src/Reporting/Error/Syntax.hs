@@ -638,6 +638,7 @@ escapeProblemToReport escapeProblem =
           , Help.toSimpleHint "Valid escape characters include:"
           , Help.indent 4 $ Help.vcat $
               [ "\\n"
+              , "\\r"
               , "\\t"
               , "\\\""
               , "\\\'"

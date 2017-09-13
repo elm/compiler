@@ -1045,6 +1045,7 @@ eatEscape array offset length =
   else
     case Text.unsafeIndex array offset of
       0x006E {- n -} -> EscapeNormal
+      0x0072 {- r -} -> EscapeNormal
       0x0074 {- t -} -> EscapeNormal
       0x0022 {- " -} -> EscapeNormal
       0x0027 {- ' -} -> EscapeNormal
