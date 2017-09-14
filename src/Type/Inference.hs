@@ -4,6 +4,7 @@ module Type.Inference where
 import Control.Arrow (first, second)
 import Control.Monad.Except (Except, forM, liftIO, runExceptT, throwError)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.Monoid ((<>))
 import Data.Text (Text)
 
@@ -46,7 +47,7 @@ genConstraints
     :: Module.Interfaces
     -> Module.Canonical
     -> IO (Map.Map Text T.Type, T.Constraint)
-genConstraints interfaces modul =
+genConstraints interfaces modul@(Module.Module _ info) =
   do  let env = Env.initialize (canonicalizeUnions interfaces modul)
 
       ctors <-
@@ -57,7 +58,8 @@ genConstraints interfaces modul =
 
       importedVars <-
           {-# SCC elm_compiler_mk_value_types #-}
-          mapM (canonicalizeValues env) (Map.toList interfaces)
+          forM (Map.toList interfaces) $
+            canonicalizeValues env (Set.fromList (Module.imports info))
 
       let allTypes = concat (ctors : importedVars)
       let vars = concatMap (fst . snd) allTypes
@@ -68,24 +70,28 @@ genConstraints interfaces modul =
 
       constraint <-
           {-# SCC elm_compiler_constrain #-}
-          TcExpr.constrain env (Module.program (Module.info modul)) (T.VarN fvar)
+          TcExpr.constrain env (Module.program info) (T.VarN fvar)
 
       return (header, environ constraint)
 
 
 canonicalizeValues
     :: Env.Env
+    -> Set.Set ModuleName.Raw
     -> (ModuleName.Canonical, Module.Interface)
     -> IO [(Text, ([T.Variable], T.Type))]
-canonicalizeValues env (moduleName, iface) =
+canonicalizeValues env imports (moduleName@(ModuleName.Canonical _ rawName), iface) =
+  if Set.notMember rawName imports then
+    return []
+  else
     forM (Map.toList (Module.iTypes iface)) $ \(name, tipe) ->
-        do  (flexType, flexVars) <- Env.instantiateFlex env tipe
-            return
-              ( ModuleName.canonicalToText moduleName <> "." <> name
-              , ( Map.elems flexVars
-                , flexType
-                )
+      do  (flexType, flexVars) <- Env.instantiateFlex env tipe
+          return
+            ( ModuleName.canonicalToText moduleName <> "." <> name
+            , ( Map.elems flexVars
+              , flexType
               )
+            )
 
 
 canonicalizeUnions :: Module.Interfaces -> Module.Canonical -> [Module.CanonicalUnion]
