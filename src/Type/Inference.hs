@@ -47,8 +47,9 @@ genConstraints
     :: Module.Interfaces
     -> Module.Canonical
     -> IO (Map.Map Text T.Type, T.Constraint)
-genConstraints interfaces modul@(Module.Module _ info) =
-  do  let env = Env.initialize (canonicalizeUnions interfaces modul)
+genConstraints allInterfaces modul@(Module.Module _ info) =
+  do  let directDeps = toDirectDeps (Set.fromList (Module.imports info)) allInterfaces
+      let env = Env.initialize (canonicalizeUnions directDeps modul)
 
       ctors <-
           {-# SCC elm_compiler_mk_ctor_types #-}
@@ -56,10 +57,7 @@ genConstraints interfaces modul@(Module.Module _ info) =
             do  (_, vars, args, result) <- Env.freshDataScheme env name
                 return (name, (vars, foldr T.FunN result args))
 
-      importedVars <-
-          {-# SCC elm_compiler_mk_value_types #-}
-          forM (Map.toList interfaces) $
-            canonicalizeValues env (Set.fromList (Module.imports info))
+      importedVars <- mapM (canonicalizeValues env) directDeps
 
       let allTypes = concat (ctors : importedVars)
       let vars = concatMap (fst . snd) allTypes
@@ -75,27 +73,35 @@ genConstraints interfaces modul@(Module.Module _ info) =
       return (header, environ constraint)
 
 
+toDirectDeps :: Set.Set ModuleName.Raw -> Module.Interfaces -> [(ModuleName.Canonical, Module.Interface)]
+toDirectDeps imports interfaces =
+  let
+    isDirect (ModuleName.Canonical _ name, _) =
+      Set.member name imports
+  in
+  filter isDirect (Map.toList interfaces)
+
+
 canonicalizeValues
     :: Env.Env
-    -> Set.Set ModuleName.Raw
     -> (ModuleName.Canonical, Module.Interface)
     -> IO [(Text, ([T.Variable], T.Type))]
-canonicalizeValues env imports (moduleName@(ModuleName.Canonical _ rawName), iface) =
-  if Set.notMember rawName imports then
-    return []
-  else
-    forM (Map.toList (Module.iTypes iface)) $ \(name, tipe) ->
-      do  (flexType, flexVars) <- Env.instantiateFlex env tipe
-          return
-            ( ModuleName.canonicalToText moduleName <> "." <> name
-            , ( Map.elems flexVars
-              , flexType
-              )
+canonicalizeValues env (moduleName, iface) =
+  forM (Map.toList (Module.iTypes iface)) $ \(name, tipe) ->
+    do  (flexType, flexVars) <- Env.instantiateFlex env tipe
+        return
+          ( ModuleName.canonicalToText moduleName <> "." <> name
+          , ( Map.elems flexVars
+            , flexType
             )
+          )
 
 
-canonicalizeUnions :: Module.Interfaces -> Module.Canonical -> [Module.CanonicalUnion]
-canonicalizeUnions interfaces (Module.Module name info) =
+canonicalizeUnions
+  :: [(ModuleName.Canonical, Module.Interface)]
+  -> Module.Canonical
+  -> [Module.CanonicalUnion]
+canonicalizeUnions directDeps (Module.Module name info) =
     localUnions ++ importedUnions
   where
     localUnions :: [Module.CanonicalUnion]
@@ -104,7 +110,7 @@ canonicalizeUnions interfaces (Module.Module name info) =
 
     importedUnions :: [Module.CanonicalUnion]
     importedUnions =
-      concatMap (format . second Module.iUnions) (Map.toList interfaces)
+      concatMap (format . second Module.iUnions) directDeps
 
 
 format :: (ModuleName.Canonical, Module.Unions) -> [Module.CanonicalUnion]
