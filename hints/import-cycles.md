@@ -1,7 +1,7 @@
 
 # Import Cycles
 
-In practice, the simplest example of a import cycle will be two modules with types like this:
+What is an import cycle? In practice you may see it if you create two modules with interrelated `User` and `Comment` types like this:
 
 ```elm
 module Comment exposing (..)
@@ -32,12 +32,12 @@ Now this is *possible* if the compiler figures out any module cycles and puts th
 The thing is that you can always write the code *without* cycles by shuffling declarations around, and the resulting code is often much clearer.
 
 
-# Breaking Cycles
+# How to Break Cycles
 
-There are quite a few ways to break our `Comment` and `User` cycle from above. Let’s go through a couple strategies!
+There are quite a few ways to break our `Comment` and `User` cycle from above, so let’s go through four useful strategies. The first one is by far the most common solution!
 
 
-## Combine the Modules
+## 1. Combine the Modules
 
 One approach is to just combine the two modules. If we check out the resulting code, we have actually revealed a problem in how we are representing our data:
 
@@ -119,14 +119,14 @@ type alias Id = String
 So now we are back to the two modules we wanted, but we have data structures that are going to work much better in a functional language like Elm! **This is the common approach, and it is what you hope will happen!**
 
 
-## Make a New Module
+## 2. Make a New Module
 
 Now say there are actually a ton of functions and values in the `Comment` and `User` modules. Combining them into one does not seem like a good strategy. Instead you can create a *third* module that just has the shared types and functions. Let’s pretend we call that third module `GoodCombination`. So rather than having `Comment` and `User` depend on each other, they now both depend on `GoodCombination`. We broke our cycle!
 
 **This strategy is less common.** You generally want to keep the core `type` of a module with all the functions that act upon it directly, so separating a `type` from everything else is a bad sign. So maybe there is a `User` module that contains a bunch of helper functions, but you *use* all those helper functions in a bunch of other modules that interact with users in various ways. In that scenario, it is still more sophisticated than “just throw the types in a module together” and hope it turns out alright.
 
 
-## Use Type Variables
+## 3. Use Type Variables
 
 Another way to avoid module cycles is to be more generic in how you represent your data:
 
@@ -153,7 +153,7 @@ Notice that `Comment` and `User` no longer need to import each other! Instead, w
 So this strategy fails pretty badly with our particular example. The code is more complicated and it still does not work! So **this strategy is rarely useful**, but when it works, it can simplify things quite a lot.
 
 
-## Hiding Implementation Details in Packages
+## 4. Hiding Implementation Details in Packages
 
 This gets a little bit trickier when you are creating a package like `elm-lang/parser` which is built around the `Parser` type.
 
