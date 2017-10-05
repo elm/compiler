@@ -28,11 +28,23 @@ header =
 
 kernelHeader :: Parser [Module.UserImport]
 kernelHeader =
-  do  symbol "/*"
+  do  headerOpen
       freshLine
       imports <- chompImports []
-      symbol "*/"
+      headerClose
       return imports
+
+
+{-# NOINLINE headerOpen #-}
+headerOpen :: Parser ()
+headerOpen =
+  symbol "/*"
+
+
+{-# NOINLINE headerClose #-}
+headerClose :: Parser ()
+headerClose =
+  symbol "*/"
 
 
 

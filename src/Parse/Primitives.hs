@@ -302,8 +302,10 @@ instance Monad Parser where
 -- TEXT
 
 
+{-# INLINE symbol #-}
 symbol :: Text -> Parser ()
 symbol sym@(Text.Text tArray tOffset tLen) =
+  let !theory = Symbol sym in
   Parser $ \(State array offset length indent row col ctx) cok _ _ eerr ->
     if tLen <= length && Text.equal tArray tOffset array offset tLen then
       let
@@ -316,7 +318,7 @@ symbol sym@(Text.Text tArray tOffset tLen) =
         cok () newState noError
 
     else
-      eerr (expect row col ctx (Symbol sym))
+      eerr (expect row col ctx theory)
 
 
 moveCursor :: Text.Array -> Int -> Int -> Int -> Int -> (# Int, Int #)
@@ -738,7 +740,7 @@ eatMultiCommentHelp array offset length row col openComments =
 
 docComment :: Parser Text
 docComment =
-  do  symbol "{-|"
+  do  docCommentOpen
       Parser $ \(State array offset length indent row col ctx) cok cerr _ _ ->
         case eatMultiCommentHelp array offset length row col 1 of
           Left err ->
@@ -749,6 +751,12 @@ docComment =
               (copyText array offset (newOffset - offset - 2))
               (State array newOffset newLength indent newRow newCol ctx)
               noError
+
+
+{-# NOINLINE docCommentOpen #-}
+docCommentOpen :: Parser ()
+docCommentOpen =
+  symbol "{-|"
 
 
 chompUntilDocs :: Parser Bool
@@ -1375,7 +1383,7 @@ stepHex word hexNumber =
 
 shaderSource :: Parser Text
 shaderSource =
-  do  symbol "[glsl|"
+  do  shaderSourceOpen
       Parser $ \(State array offset length indent row col ctx) cok cerr _ _ ->
         case eatShader array offset length row col of
           Nothing ->
@@ -1388,6 +1396,12 @@ shaderSource =
                 State array (shaderEndOffset + 2) (length - size - 2) indent newRow newCol ctx
             in
               cok (copyText array offset size) newState noError
+
+
+{-# NOINLINE shaderSourceOpen #-}
+shaderSourceOpen :: Parser ()
+shaderSourceOpen =
+  symbol "[glsl|"
 
 
 eatShader :: Text.Array -> Int -> Int -> Int -> Int -> Maybe (Int, Int, Int)

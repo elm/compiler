@@ -71,55 +71,55 @@ qualifiedVarHelp altEnding vars =
 -- COMMON SYMBOLS
 
 
-{-# INLINE equals #-}
+{-# NOINLINE equals #-}
 equals :: Parser ()
 equals =
   symbol "="
 
 
-{-# INLINE rightArrow #-}
+{-# NOINLINE rightArrow #-}
 rightArrow :: Parser ()
 rightArrow =
   symbol "->"
 
 
-{-# INLINE hasType #-}
+{-# NOINLINE hasType #-}
 hasType :: Parser ()
 hasType =
   symbol ":"
 
 
-{-# INLINE comma #-}
+{-# NOINLINE comma #-}
 comma :: Parser ()
 comma =
   symbol ","
 
 
-{-# INLINE pipe #-}
+{-# NOINLINE pipe #-}
 pipe :: Parser ()
 pipe =
   symbol "|"
 
 
-{-# INLINE cons #-}
+{-# NOINLINE cons #-}
 cons :: Parser ()
 cons =
   symbol "::"
 
 
-{-# INLINE dot #-}
+{-# NOINLINE dot #-}
 dot :: Parser ()
 dot =
   symbol "."
 
 
-{-# INLINE minus #-}
+{-# NOINLINE minus #-}
 minus :: Parser ()
 minus =
   symbol "-"
 
 
-{-# INLINE lambda #-}
+{-# NOINLINE lambda #-}
 lambda :: Parser ()
 lambda =
   oneOf [ symbol "\\", symbol "\x03BB" ]
@@ -129,42 +129,40 @@ lambda =
 -- ENCLOSURES
 
 
-{-# INLINE leftParen #-}
+{-# NOINLINE leftParen #-}
 leftParen :: Parser ()
 leftParen =
   symbol "("
 
 
-{-# INLINE rightParen #-}
+{-# NOINLINE rightParen #-}
 rightParen :: Parser ()
 rightParen =
   symbol ")"
 
 
-{-# INLINE leftSquare #-}
+{-# NOINLINE leftSquare #-}
 leftSquare :: Parser ()
 leftSquare =
   symbol "["
 
 
-{-# INLINE rightSquare #-}
+{-# NOINLINE rightSquare #-}
 rightSquare :: Parser ()
 rightSquare =
   symbol "]"
 
 
-{-# INLINE leftCurly #-}
+{-# NOINLINE leftCurly #-}
 leftCurly :: Parser ()
 leftCurly =
   symbol "{"
 
 
-{-# INLINE rightCurly #-}
+{-# NOINLINE rightCurly #-}
 rightCurly :: Parser ()
 rightCurly =
   symbol "}"
-
-
 
 
 
