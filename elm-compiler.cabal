@@ -151,10 +151,10 @@ Library
 
     Build-depends:
         aeson >= 0.11,
-        ansi-terminal >= 0.6.2.1 && < 0.7,
+        ansi-terminal >= 0.7 && < 0.8,
         ansi-wl-pprint >= 0.6.7 && < 0.7,
-        base >=4.2 && <5,
-        binary >= 0.7.0.0 && < 0.8,
+        base >=4.8 && <5,
+        binary >= 0.8 && < 0.9,
         bytestring >= 0.9 && < 0.11,
         containers >= 0.5.8.2 && < 0.6,
         directory >= 1.0 && < 2.0,
