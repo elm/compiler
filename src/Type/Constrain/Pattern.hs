@@ -3,7 +3,7 @@ module Type.Constrain.Pattern (Info(..), joinInfos, infoToScheme, constrain) whe
 
 import Control.Arrow (second)
 import qualified Control.Monad as Monad
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import qualified Data.List as List
 import Data.Text (Text)
 

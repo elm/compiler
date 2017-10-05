@@ -4,7 +4,7 @@ module Type.Constrain.Expression where
 
 import Control.Arrow (second)
 import qualified Control.Monad as Monad
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Text (Text)
 

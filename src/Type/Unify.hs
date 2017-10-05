@@ -4,7 +4,7 @@ module Type.Unify (unify) where
 
 import Control.Monad (liftM2, when, zipWithM_)
 import Control.Monad.Except (ExceptT, lift, liftIO, throwError, runExceptT)
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import qualified Data.Maybe as Maybe
 import Data.Text (Text)
 

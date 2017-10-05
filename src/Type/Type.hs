@@ -25,7 +25,7 @@ module Type.Type
 import Control.Monad.State.Strict (StateT, liftIO)
 import qualified Control.Monad.State.Strict as State
 import qualified Data.Char as Char
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import Data.Monoid ((<>))
 import qualified Data.Text as Text
 import Data.Text (Text)

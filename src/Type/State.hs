@@ -19,8 +19,8 @@ module Type.State
 
 import Control.Monad (forM_, liftM, liftM2)
 import Control.Monad.Trans (MonadIO, liftIO)
-import qualified Data.Map as Map
-import Data.Map ((!))
+import qualified Data.Map.Strict as Map
+import Data.Map.Strict ((!))
 import Data.Text (Text)
 import qualified Data.Vector.Mutable as MVector
 

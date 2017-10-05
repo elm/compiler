@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Type.Constrain.Effects (constrain) where
 
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 
 import qualified AST.Effects as Effects
 import qualified AST.Module.Name as ModuleName

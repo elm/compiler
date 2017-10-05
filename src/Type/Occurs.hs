@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Type.Occurs (occurs) where
 
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 
 import Type.Type as Type
 import qualified Type.UnionFind as UF

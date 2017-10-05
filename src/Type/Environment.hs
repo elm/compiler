@@ -13,7 +13,7 @@ module Type.Environment
 
 import qualified Control.Monad.State.Strict as State
 import qualified Data.List as List
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
 

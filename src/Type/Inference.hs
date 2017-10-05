@@ -3,7 +3,7 @@ module Type.Inference where
 
 import Control.Arrow (first, second)
 import Control.Monad.Except (Except, forM, liftIO, runExceptT, throwError)
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Monoid ((<>))
 import Data.Text (Text)

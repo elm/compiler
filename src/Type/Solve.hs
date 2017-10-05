@@ -4,7 +4,7 @@ module Type.Solve (solve) where
 
 import Control.Monad
 import Control.Monad.Except (ExceptT, liftIO, throwError)
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Data.Vector.Mutable as MVector
