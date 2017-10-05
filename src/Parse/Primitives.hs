@@ -55,16 +55,15 @@ import Reporting.Error.Syntax
 
 
 newtype Parser a =
-  Parser
-    { _run
-        :: forall b.
-           State
-        -> (a -> State -> ParseError -> b)  -- consumed ok
-        -> (              ParseError -> b)  -- consumed err
-        -> (a -> State -> ParseError -> b)  -- empty ok
-        -> (              ParseError -> b)  -- empty err
-        -> b
-    }
+  Parser (
+    forall b.
+      State
+      -> (a -> State -> ParseError -> b)  -- consumed ok
+      -> (              ParseError -> b)  -- consumed err
+      -> (a -> State -> ParseError -> b)  -- empty ok
+      -> (              ParseError -> b)  -- empty err
+      -> b
+  )
 
 
 data State =
@@ -101,8 +100,8 @@ run parser text =
 
 
 runAt :: Int -> Int -> Parser a -> Text -> Either (A.Located E.Error) a
-runAt sRow sCol parser (Text.Text array offset length) =
-  case _run parser (State array offset length 0 sRow sCol []) Ok Err Ok Err of
+runAt sRow sCol (Parser parser) (Text.Text array offset length) =
+  case parser (State array offset length 0 sRow sCol []) Ok Err Ok Err of
     Ok value _ _ ->
       Right value
 
@@ -139,9 +138,9 @@ data Result a
 
 
 try :: Parser a -> Parser a
-try parser =
+try (Parser parser) =
   Parser $ \state cok _ eok eerr ->
-    _run parser state cok eerr eok eerr
+    parser state cok eerr eok eerr
 
 
 shaderFailure :: Int -> Int -> Text -> Parser a
@@ -157,7 +156,7 @@ deadend thrys =
 
 
 hint :: E.Next -> Parser a -> Parser a
-hint next parser =
+hint next (Parser parser) =
   Parser $ \state@(State _ _ _ _ row col ctx) cok cerr eok eerr ->
     let
       eok' x s _ =
@@ -166,7 +165,7 @@ hint next parser =
       eerr' _ =
         eerr (expect row col ctx (Expecting next))
     in
-      _run parser state cok cerr eok' eerr'
+      parser state cok cerr eok' eerr'
 
 
 endOfFile :: Parser ()
@@ -185,13 +184,13 @@ endOfFile =
 
 instance Functor Parser where
   {-# INLINE fmap #-}
-  fmap f parser =
+  fmap f (Parser parser) =
     Parser $ \state cok cerr eok eerr ->
       let
         cok' x s e = cok (f x) s e
         eok' x s e = eok (f x) s e
       in
-        _run parser state cok' cerr eok' eerr
+        parser state cok' cerr eok' eerr
 
 
 
@@ -226,7 +225,7 @@ allTheOptionsFailed =
 
 
 oneOfHelp :: Parser a -> Parser a -> Parser a
-oneOfHelp parser1 parser2 =
+oneOfHelp (Parser parser1) (Parser parser2) =
   Parser $ \state cok cerr eok eerr ->
     let
       eerr1 e1 =
@@ -234,9 +233,9 @@ oneOfHelp parser1 parser2 =
           eok2 y s e2 = eok y s (mergeErrors e1 e2)
           eerr2 e2 = eerr (mergeErrors e1 e2)
         in
-          _run parser2 state cok cerr eok2 eerr2
+          parser2 state cok cerr eok2 eerr2
     in
-      _run parser1 state cok cerr eok eerr1
+      parser1 state cok cerr eok eerr1
 
 
 mergeErrors :: ParseError -> ParseError -> ParseError
@@ -277,7 +276,7 @@ instance Monad Parser where
       eok value state noError
 
   {-# INLINE (>>=) #-}
-  parser >>= callback =
+  (Parser parser) >>= callback =
     Parser $ \state cok cerr eok eerr ->
       let
         cok1 x s1 e1 =
@@ -285,16 +284,18 @@ instance Monad Parser where
             eok2 y s2 e2 = cok y s2 (mergeErrors e1 e2)
             eerr2 e2 = cerr (mergeErrors e1 e2)
           in
-            _run (callback x) s1 cok cerr eok2 eerr2
+          case callback x of
+            Parser parser2 -> parser2 s1 cok cerr eok2 eerr2
 
         eok1 x s1 e1 =
           let
             eok2 y s2 e2 = eok y s2 (mergeErrors e1 e2)
             eerr2 e2 = eerr (mergeErrors e1 e2)
           in
-            _run (callback x) s1 cok cerr eok2 eerr2
+          case callback x of
+            Parser parser2 -> parser2 s1 cok cerr eok2 eerr2
       in
-        _run parser state cok1 cerr eok1 eerr
+        parser state cok1 cerr eok1 eerr
 
 
 
