@@ -30,12 +30,12 @@ import qualified Reporting.Annotation as A
 -- PARSER
 
 
-parser :: Parser Kernel.Info
+parser :: Parser Kernel.Content
 parser =
   do  header <- Parse.kernelHeader
       let imports = Map.unions (map headerToImport header)
       chunks <- parserHelp imports Map.empty Map.empty []
-      return (Kernel.Info (Map.elems imports) chunks)
+      return (Kernel.Content (Map.elems imports) chunks)
 
 
 parserHelp :: Imports -> Enums -> Fields -> [Kernel.Chunk] -> Parser [Kernel.Chunk]

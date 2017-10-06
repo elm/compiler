@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module AST.Kernel
-  ( Info(..)
+  ( Data(..)
+  , Content(..)
   , Chunk(..)
   )
   where
@@ -15,14 +16,29 @@ import qualified AST.Module.Name as ModuleName
 
 
 
--- INFO
+-- DATA
 
 
-data Info =
-  Info
+data Data =
+  Data
+    { _client :: Content
+    , _server :: Maybe Content
+    }
+
+
+
+-- CONTENT
+
+
+data Content =
+  Content
     { _imports :: [(ModuleName.Raw, Text.Text)]
     , _chunks :: [Chunk]
     }
+
+
+
+-- CHUNKS
 
 
 data Chunk
@@ -37,12 +53,20 @@ data Chunk
 -- BINARY
 
 
-instance Binary Info where
-  put (Info imports chunks) =
+instance Binary Data where
+  put (Data client server) =
+    put client >> put server
+
+  get =
+    liftM2 Data get get
+
+
+instance Binary Content where
+  put (Content imports chunks) =
     put imports >> put chunks
 
   get =
-    liftM2 Info get get
+    liftM2 Content get get
 
 
 instance Binary Chunk where

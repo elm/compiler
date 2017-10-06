@@ -2,12 +2,10 @@
 module Elm.Compiler
   ( version
   , compile, Context(..), Result(..)
-  , generate
+  , generate, JS.Target(..)
   , Localizer, dummyLocalizer
-  , Error, errorToDoc, errorToJson
-  , Warning, warningToDoc, warningToJson
-  , Tag(..), parseHeader
-  , KernelInfo(..), parseKernel
+  , I.Error, errorToDoc, errorToJson
+  , I.Warning, warningToDoc, warningToJson
   )
   where
 
@@ -17,21 +15,17 @@ import Data.Text (Text)
 import qualified Data.ByteString.Builder as BS
 import Text.PrettyPrint.ANSI.Leijen (Doc)
 
-import qualified AST.Kernel as Kernel (Info)
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified Compile
 import qualified Docs.Check as Docs
-import qualified Elm.Compiler.Imports as Imports
+import qualified Elm.Compiler.Internals as I
 import qualified Elm.Compiler.Module as M
 import qualified Elm.Compiler.Objects.Internal as Obj
 import qualified Elm.Compiler.Version
 import qualified Elm.Docs as Docs
 import qualified Elm.Package as Package
 import qualified Generate.JavaScript as JS
-import qualified Parse.Helpers as Parse (run)
-import qualified Parse.Kernel as Kernel (parser)
-import qualified Parse.Module as Parse (header)
 import qualified Reporting.Annotation as A
 import qualified Reporting.Bag as Bag
 import qualified Reporting.Error as Error
@@ -55,7 +49,7 @@ version =
 
 
 {-| Compiles Elm source code to JavaScript. -}
-compile :: Context -> Text -> (Localizer, [Warning], Either [Error] Result)
+compile :: Context -> Text -> (Localizer, [I.Warning], Either [I.Error] Result)
 compile (Context packageName exposed importDict interfaces) source =
   let
     (Result.Result oneLocalizer warnings answer) =
@@ -68,8 +62,8 @@ compile (Context packageName exposed importDict interfaces) source =
           return (Result docs iface objs)
   in
     ( Result.oneToValue dummyLocalizer Localizer oneLocalizer
-    , Bag.toList Warning warnings
-    , Result.answerToEither Error id answer
+    , Bag.toList I.Warning warnings
+    , Result.answerToEither I.Error id answer
     )
 
 
@@ -111,7 +105,7 @@ docsGen isExposed (Module.Module name info) =
 -- CODE GENERATION
 
 
-generate :: Bool -> Obj.Graph -> Obj.Roots -> BS.Builder
+generate :: Bool -> JS.Target -> Obj.Graph -> Obj.Roots -> BS.Builder
 generate =
   JS.generate
 
@@ -133,17 +127,13 @@ dummyLocalizer =
 -- ERRORS
 
 
-newtype Error =
-    Error (A.Located Error.Error)
-
-
-errorToDoc :: Localizer -> String -> Text -> Error -> Doc
-errorToDoc (Localizer localizer) location source (Error (A.A region err)) =
+errorToDoc :: Localizer -> String -> Text -> I.Error -> Doc
+errorToDoc (Localizer localizer) location source (I.Error (A.A region err)) =
     Report.toDoc location region (Error.toReport localizer err) source
 
 
-errorToJson :: Localizer -> String -> Error -> Json.Value
-errorToJson (Localizer localizer) location (Error err) =
+errorToJson :: Localizer -> String -> I.Error -> Json.Value
+errorToJson (Localizer localizer) location (I.Error err) =
     Error.toJson localizer location err
 
 
@@ -151,73 +141,11 @@ errorToJson (Localizer localizer) location (Error err) =
 -- WARNINGS
 
 
-newtype Warning =
-    Warning (A.Located Warning.Warning)
-
-
-warningToDoc :: Localizer -> String -> Text -> Warning -> Doc
-warningToDoc (Localizer localizer) location source (Warning (A.A region wrn)) =
+warningToDoc :: Localizer -> String -> Text -> I.Warning -> Doc
+warningToDoc (Localizer localizer) location source (I.Warning (A.A region wrn)) =
     Report.toDoc location region (Warning.toReport localizer wrn) source
 
 
-warningToJson :: Localizer -> String -> Warning -> Json.Value
-warningToJson (Localizer localizer) location (Warning wrn) =
+warningToJson :: Localizer -> String -> I.Warning -> Json.Value
+warningToJson (Localizer localizer) location (I.Warning wrn) =
     Warning.toJson localizer location wrn
-
-
-
--- PARSE HEADER
-
-
-data Tag = Normal | Effect | Port
-
-
-parseHeader :: Package.Name -> Text -> Either Error (Maybe (Tag, M.Raw), [M.Raw])
-parseHeader pkgName sourceCode =
-  case Parse.run Parse.header sourceCode of
-    Right header ->
-      Right $ toHeaderSummary pkgName header
-
-    Left err ->
-      Left (Error (A.map Error.Syntax err))
-
-
-toHeaderSummary :: Package.Name -> Module.Header [Module.UserImport] -> (Maybe (Tag, M.Raw), [M.Raw])
-toHeaderSummary pkgName (Module.Header maybeHeaderDecl imports) =
-  let
-    dependencies =
-      if pkgName == Package.core
-        then map (A.drop . fst . A.drop) imports
-        else map (A.drop . fst . A.drop) imports ++ map fst Imports.defaults
-  in
-    case maybeHeaderDecl of
-      Nothing ->
-        ( Nothing, dependencies )
-
-      Just (Module.HeaderDecl sourceTag name _ _ _) ->
-        let
-          tag =
-            case sourceTag of
-              Module.Normal -> Normal
-              Module.Port _ -> Port
-              Module.Effect _ -> Effect
-        in
-          ( Just (tag, name), dependencies )
-
-
-
--- PARSE KERNEL
-
-
-newtype KernelInfo =
-  KernelInfo Kernel.Info
-
-
-parseKernel :: Text -> Either Error KernelInfo
-parseKernel sourceCode =
-  case Parse.run Kernel.parser sourceCode of
-    Right info ->
-      Right (KernelInfo info)
-
-    Left err ->
-      Left (Error (A.map Error.Syntax err))

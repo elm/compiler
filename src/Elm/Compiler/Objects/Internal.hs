@@ -34,7 +34,7 @@ import qualified AST.Variable as Var
 data Graph =
   Graph
     { _decls :: Map.Map Var.Global Opt.Decl
-    , _kernels :: Map.Map ModuleName.Raw Kernel.Info
+    , _kernels :: Map.Map ModuleName.Raw Kernel.Data
     }
 
 

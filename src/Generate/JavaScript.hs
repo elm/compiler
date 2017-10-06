@@ -1,6 +1,10 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Generate.JavaScript (generate) where
+module Generate.JavaScript
+  ( generate
+  , Target(..)
+  )
+  where
 
 import Control.Monad (foldM)
 import Data.Monoid ((<>))
@@ -28,16 +32,30 @@ import qualified Generate.JavaScript.Variable as JS
 -- GENERATE JAVASCRIPT
 
 
-generate :: Bool -> Obj.Graph -> Obj.Roots -> BS.Builder
-generate debug graph roots =
+generate :: Bool -> Target -> Obj.Graph -> Obj.Roots -> BS.Builder
+generate debug target graph roots =
   let
-    (State builders _ _ effects _) =
-      List.foldl' (crawl graph) (initialState debug) (Obj.toGlobals roots)
+    (State builders _ _ effects) =
+      List.foldl' (crawl (Env debug target) graph) initialState (Obj.toGlobals roots)
 
     managers =
       JS.run (JsEffects.generate effects)
   in
     List.foldl' (\rest stmt -> stmt <> rest) managers builders
+
+
+
+-- CRAWL ENV
+
+
+data Env =
+  Env
+    { _debug :: Bool
+    , _target :: Target
+    }
+
+
+data Target = Client | Server
 
 
 
@@ -50,21 +68,20 @@ data State =
     , _seenDecls :: Set.Set Var.Global
     , _seenKernels :: Set.Set ModuleName.Raw
     , _effects :: Map.Map ModuleName.Canonical Effects.ManagerType
-    , _debug :: Bool
     }
 
 
-initialState :: Bool -> State
-initialState debug =
-  State [] Set.empty Set.empty Map.empty debug
+initialState :: State
+initialState =
+  State [] Set.empty Set.empty Map.empty
 
 
 
 -- CRAWL
 
 
-crawl :: Obj.Graph -> State -> Var.Global -> State
-crawl graph@(Obj.Graph decls kernels) state@(State _ seenDecls seenKernels _ _) name@(Var.Global home _) =
+crawl :: Env -> Obj.Graph -> State -> Var.Global -> State
+crawl env graph@(Obj.Graph decls kernels) state@(State _ seenDecls seenKernels _) name@(Var.Global home _) =
   if Set.member name seenDecls then
     state
 
@@ -74,7 +91,7 @@ crawl graph@(Obj.Graph decls kernels) state@(State _ seenDecls seenKernels _ _) 
   else
     case Map.lookup name decls of
       Just decl ->
-        crawlDecl graph name decl state
+        crawlDecl env graph name decl state
 
       Nothing ->
         let
@@ -86,7 +103,7 @@ crawl graph@(Obj.Graph decls kernels) state@(State _ seenDecls seenKernels _ _) 
           else
             case Map.lookup kernelModule kernels of
               Just info ->
-                crawlKernel graph kernelModule info state
+                crawlKernel env graph kernelModule info state
 
               Nothing ->
                 error (crawlError name)
@@ -96,14 +113,14 @@ crawl graph@(Obj.Graph decls kernels) state@(State _ seenDecls seenKernels _ _) 
 -- CRAWL DECL
 
 
-crawlDecl :: Obj.Graph -> Var.Global -> Opt.Decl -> State -> State
-crawlDecl graph var@(Var.Global home name) (Opt.Decl direct indirect fx body) state1 =
+crawlDecl :: Env -> Obj.Graph -> Var.Global -> Opt.Decl -> State -> State
+crawlDecl env graph var@(Var.Global home name) (Opt.Decl direct indirect fx body) state1 =
   let
     state2 =
       state1 { _seenDecls = Set.insert var (_seenDecls state1) }
 
-    (State builders seenDecls seenKernels effects debug) =
-      Set.foldl' (crawl graph) state2 direct
+    (State builders seenDecls seenKernels effects) =
+      Set.foldl' (crawl env graph) state2 direct
 
     stmt =
       JS.run (JsExpr.generateDecl home name body)
@@ -114,24 +131,37 @@ crawlDecl graph var@(Var.Global home name) (Opt.Decl direct indirect fx body) st
         , _seenDecls = seenDecls
         , _seenKernels = seenKernels
         , _effects = maybe id (Map.insert home) fx effects
-        , _debug = debug
         }
   in
-    Set.foldl' (crawl graph) state4 indirect
+    Set.foldl' (crawl env graph) state4 indirect
 
 
 
 -- CRAWL KERNEL
 
 
-crawlKernel :: Obj.Graph -> ModuleName.Raw -> Kernel.Info -> State -> State
-crawlKernel graph name (Kernel.Info imports chunks) state1 =
+crawlKernel :: Env -> Obj.Graph -> ModuleName.Raw -> Kernel.Data -> State -> State
+crawlKernel env@(Env _ target) graph name (Kernel.Data client maybeServer) state =
+  let
+    content =
+      case target of
+        Server ->
+          maybe client id maybeServer
+
+        Client ->
+          client
+  in
+  crawlKernelContent env graph name content state
+
+
+crawlKernelContent :: Env -> Obj.Graph -> ModuleName.Raw -> Kernel.Content -> State -> State
+crawlKernelContent env@(Env debug _) graph name (Kernel.Content imports chunks) state1 =
   let
     state2 =
       state1 { _seenKernels = Set.insert name (_seenKernels state1) }
 
-    (State builders seenDecls seenKernels effects debug) =
-      List.foldl' (crawl graph) state2 (map toCoreGlobal imports)
+    (State builders seenDecls seenKernels effects) =
+      List.foldl' (crawl env graph) state2 (map toCoreGlobal imports)
 
     builder =
       JS.run (foldM (chunkToBuilder debug) mempty chunks)
@@ -141,7 +171,6 @@ crawlKernel graph name (Kernel.Info imports chunks) state1 =
       , _seenDecls = seenDecls
       , _seenKernels = seenKernels
       , _effects = effects
-      , _debug = debug
       }
 
 
