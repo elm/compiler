@@ -6,7 +6,7 @@ module AST.Type
     , Super(..)
     , deepDealias, iteratedDealias, dealias
     , collectLambdas
-    , tuple, cmd, sub
+    , cmd, sub
     )
     where
 
@@ -16,7 +16,6 @@ import Data.Binary
 import qualified Data.Map as Map
 import Data.Text (Text)
 
-import qualified AST.Helpers as Help
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
@@ -34,8 +33,10 @@ type Raw =
 data Raw'
     = RLambda Raw Raw
     | RVar Text
-    | RType (A.Located Var.Raw) [Raw]
+    | RType R.Region (Maybe Text) Text [Raw]
     | RRecord [(A.Located Text, Raw)] (Maybe Raw)
+    | RUnit
+    | RTuple Raw Raw [Raw]
 
 
 data Canonical
@@ -43,6 +44,8 @@ data Canonical
     | Var Text
     | Type Var.Canonical [Canonical]
     | Record [(Text, Canonical)] (Maybe Canonical)
+    | Unit
+    | Tuple Canonical Canonical [Canonical]
     | Aliased Var.Canonical [(Text, Canonical)] (Aliased Canonical)
     deriving (Eq, Ord)
 
@@ -63,15 +66,6 @@ data Super
 
 
 -- CONSTRUCT USEFUL TYPES
-
-
-tuple :: R.Region -> [Raw] -> Raw
-tuple region types =
-  let
-    name =
-      Var.Raw (Help.makeTuple (length types))
-  in
-    A.A region (RType (A.A region name) types)
 
 
 cmd :: ModuleName.Canonical -> Text -> Canonical
@@ -112,6 +106,12 @@ deepDealias tipe =
 
     Type name args ->
       Type name (map deepDealias args)
+
+    Unit ->
+      Unit
+
+    Tuple a b cs ->
+      Tuple (deepDealias a) (deepDealias b) (map deepDealias cs)
 
 
 iteratedDealias :: Canonical -> Canonical
@@ -156,6 +156,12 @@ dealiasHelp typeTable tipe =
     Type name args ->
       Type name (map go args)
 
+    Unit ->
+      Unit
+
+    Tuple a b cs ->
+      Tuple (go a) (go b) (map go cs)
+
 
 
 -- COLLECT LAMBDAS
@@ -178,29 +184,23 @@ collectLambdas tipe =
 instance Binary Canonical where
   put tipe =
     case tipe of
-      Lambda t1 t2 ->
-        putWord8 0 >> put t1 >> put t2
-
-      Var x ->
-        putWord8 1 >> put x
-
-      Record fs ext ->
-        putWord8 2 >> put fs >> put ext
-
-      Aliased var args t ->
-        putWord8 3 >> put var >> put args >> put t
-
-      Type name ts ->
+      Lambda t1 t2       -> putWord8 0 >> put t1 >> put t2
+      Var x              -> putWord8 1 >> put x
+      Record fs ext      -> putWord8 2 >> put fs >> put ext
+      Unit               -> putWord8 3
+      Tuple a b cs       -> putWord8 4 >> put a >> put b >> put cs
+      Aliased var args t -> putWord8 5 >> put var >> put args >> put t
+      Type name ts       ->
         let
           potentialWord =
-            length ts + 5
+            length ts + 7
         in
           if potentialWord <= fromIntegral (maxBound :: Word8) then
             do  putWord8 (fromIntegral potentialWord)
                 put name
                 mapM_ put ts
           else
-            putWord8 4 >> put name >> put ts
+            putWord8 6 >> put name >> put ts
 
   get =
     do  word <- getWord8
@@ -208,9 +208,11 @@ instance Binary Canonical where
           0 -> liftM2 Lambda get get
           1 -> liftM  Var get
           2 -> liftM2 Record get get
-          3 -> liftM3 Aliased get get get
-          4 -> liftM2 Type get get
-          n -> liftM2 Type get (replicateM (fromIntegral (n - 5)) get)
+          3 -> return Unit
+          4 -> liftM3 Tuple get get get
+          5 -> liftM3 Aliased get get get
+          6 -> liftM2 Type get get
+          n -> liftM2 Type get (replicateM (fromIntegral (n - 7)) get)
 
 
 instance Binary t => Binary (Aliased t) where

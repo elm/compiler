@@ -3,17 +3,16 @@ module AST.Expression.Source
   ( RawExpr, RawExpr', RawDef, RawDef'(..)
   , ValidExpr, ValidExpr', ValidDef(..)
   , Expr, Expr'(..)
-  , var, tuple, zero, getPattern, collectLambdas
+  , zero, collectLambdas
   )
   where
 
+
 import Data.Text (Text)
 
-import qualified AST.Helpers as Help
 import qualified AST.Literal as Literal
 import qualified AST.Pattern as Ptrn
 import qualified AST.Type as Type
-import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
@@ -28,18 +27,21 @@ type Expr def =
 
 data Expr' def
     = Literal Literal.Literal
-    | Var Var.Raw
+    | Var (Maybe Text) Text
     | List [Expr def]
+    | Op Text
     | Binop [(Expr def, A.Located Text)] (Expr def)
     | Lambda Ptrn.Raw (Expr def)
     | App (Expr def) (Expr def)
     | If [(Expr def, Expr def)] (Expr def)
     | Let [def] (Expr def)
     | Case (Expr def) [(Ptrn.Raw, Expr def)]
-    | Ctor Text [Expr def]
+    | Accessor Text
     | Access (Expr def) Text
-    | Update (Expr def) [(A.Located Text, Expr def)]
+    | Update (A.Located Text) [(A.Located Text, Expr def)]
     | Record [(A.Located Text, Expr def)]
+    | Unit
+    | Tuple (Expr def) (Expr def) [Expr def]
     | GLShader Text Text Literal.Shader
 
 
@@ -61,36 +63,23 @@ type RawDef =
 
 
 data RawDef'
-    = Definition Ptrn.Raw RawExpr
-    | Annotation Text Type.Raw
+    = Annotation Text Type.Raw
+    | Definition Text [Ptrn.Raw] RawExpr
+    | Destructure Ptrn.Raw RawExpr
 
 
-data ValidDef =
-    Def R.Region Ptrn.Raw ValidExpr (Maybe Type.Raw)
+data ValidDef
+    = VDefinition R.Region Text [Ptrn.Raw] ValidExpr (Maybe Type.Raw)
+    | VDestructure R.Region Ptrn.Raw ValidExpr
 
 
 
 -- HELPERS
 
 
-var :: Text -> Expr' def
-var x =
-  Var (Var.Raw x)
-
-
-tuple :: [Expr def] -> Expr' def
-tuple expressions =
-  Ctor (Help.makeTuple (length expressions)) expressions
-
-
 zero :: Expr' def
 zero =
   Literal (Literal.IntNum 0)
-
-
-getPattern :: ValidDef -> Ptrn.Raw
-getPattern (Def _ pattern _ _) =
-  pattern
 
 
 collectLambdas :: Expr def -> ([Ptrn.Raw], Expr def)
