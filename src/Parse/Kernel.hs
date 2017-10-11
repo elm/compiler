@@ -20,8 +20,8 @@ import qualified AST.Module as Module
 import qualified AST.Module.Name as Module
 import Generate.JavaScript.Helpers as Help (toFieldName)
 import Generate.JavaScript.Variable as Var (intToAscii)
-import Parse.Helpers (Parser)
-import qualified Parse.Helpers as Parse
+import Parse.Primitives (Parser)
+import qualified Parse.Primitives.Kernel as K
 import qualified Parse.Module as Parse
 import qualified Reporting.Annotation as A
 
@@ -40,20 +40,20 @@ parser =
 
 parserHelp :: Imports -> Enums -> Fields -> [Kernel.Chunk] -> Parser [Kernel.Chunk]
 parserHelp imports enums fields chunks =
-  do  (javascript, maybeTag) <- Parse.kernelChunk
+  do  (javascript, maybeTag) <- K.chunk
       case maybeTag of
         Nothing ->
           return (Kernel.JS javascript : chunks)
 
         Just tag ->
           case tag of
-            Parse.KernelProd ->
+            K.Prod ->
               parserHelp imports enums fields (Kernel.Prod : Kernel.JS javascript : chunks)
 
-            Parse.KernelDebug ->
+            K.Debug ->
               parserHelp imports enums fields (Kernel.Debug : Kernel.JS javascript : chunks)
 
-            Parse.KernelImport var ->
+            K.Import var ->
               case Map.lookup var imports of
                 Nothing ->
                   error ("Bad kernel symbol: " ++ Text.unpack var)
@@ -61,17 +61,17 @@ parserHelp imports enums fields chunks =
                 Just (home, name) ->
                   parserHelp imports enums fields (Kernel.Var home name : Kernel.JS javascript : chunks)
 
-            Parse.KernelEnum n var ->
+            K.Enum n var ->
               let
                 (bytes, newEnums) =
                   lookupEnum n var enums
               in
                 parserHelp imports newEnums fields (Kernel.JS bytes : Kernel.JS javascript : chunks)
 
-            Parse.KernelElmField name ->
+            K.ElmField name ->
               parserHelp imports enums fields (Kernel.Field name : Kernel.JS javascript : chunks)
 
-            Parse.KernelJsField name ->
+            K.JsField name ->
               let
                 (bytes, newFields) =
                   lookupField name fields

@@ -6,11 +6,18 @@ module Parse.Module
   )
   where
 
+
+import qualified Data.ByteString as B
 import Data.Text (Text)
 
 import qualified AST.Exposing as Exposing
 import qualified AST.Module as Module
-import Parse.Helpers
+import Parse.Primitives (Parser, oneOf)
+import qualified Parse.Primitives as P
+import qualified Parse.Primitives.Keyword as Keyword
+import qualified Parse.Primitives.Symbol as Symbol
+import qualified Parse.Primitives.Variable as Var
+import qualified Parse.Primitives.Whitespace as W
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as E
 import qualified Reporting.Region as R
@@ -28,23 +35,11 @@ header =
 
 kernelHeader :: Parser [Module.UserImport]
 kernelHeader =
-  do  headerOpen
+  do  Symbol.jsMultiCommentOpen
       freshLine
       imports <- chompImports []
-      headerClose
+      Symbol.jsMultiCommentClose
       return imports
-
-
-{-# NOINLINE headerOpen #-}
-headerOpen :: Parser ()
-headerOpen =
-  symbol "/*"
-
-
-{-# NOINLINE headerClose #-}
-headerClose :: Parser ()
-headerClose =
-  symbol "*/"
 
 
 
@@ -61,17 +56,17 @@ maybeHeaderDecl =
 
 headerDecl :: Parser Module.HeaderDecl
 headerDecl =
-  do  start <- getPosition
-      pushContext start E.Module
+  do  start <- P.getPosition
+      P.pushContext start E.Module
       tag <- sourceTag
-      spaces
-      name <- qualifiedCapVar
-      spaces
+      P.spaces
+      name <- Var.moduleName
+      P.spaces
       settings <- effectSettings
-      hint E.Exposing $ keyword "exposing"
-      spaces
+      P.hint E.Exposing $ Keyword.exposing_
+      P.spaces
       exports <- exposing exposingEntry
-      popContext ()
+      P.popContext ()
       docs <- maybeDocComment
       return (Module.HeaderDecl tag name exports settings docs)
 
@@ -84,21 +79,21 @@ sourceTag :: Parser Module.SourceTag
 sourceTag =
   oneOf
     [
-      do  keyword "module"
+      do  Keyword.module_
           return Module.Normal
     ,
-      do  start <- getPosition
-          keyword "port"
-          spaces
-          keyword "module"
-          end <- getPosition
+      do  start <- P.getPosition
+          Keyword.port_
+          P.spaces
+          Keyword.module_
+          end <- P.getPosition
           return (Module.Port (R.Region start end))
     ,
-      do  start <- getPosition
-          keyword "effect"
-          spaces
-          keyword "module"
-          end <- getPosition
+      do  start <- P.getPosition
+          Keyword.effect_
+          P.spaces
+          Keyword.module_
+          end <- P.getPosition
           return (Module.Effect (R.Region start end))
     ]
 
@@ -110,13 +105,13 @@ sourceTag =
 effectSettings :: Parser Module.SourceSettings
 effectSettings =
   oneOf
-    [ do  keyword "where"
-          spaces
-          start <- getPosition
-          leftCurly
-          spaces
+    [ do  Keyword.where_
+          P.spaces
+          start <- P.getPosition
+          Symbol.leftCurly
+          P.spaces
           entry <- setting
-          spaces
+          P.spaces
           effectSettingsHelp start [entry]
     , return Module.emptySettings
     ]
@@ -125,25 +120,25 @@ effectSettings =
 effectSettingsHelp :: R.Position -> [(A.Located Text, A.Located Text)] -> Parser Module.SourceSettings
 effectSettingsHelp start entries =
   oneOf
-    [ do  comma
-          spaces
+    [ do  Symbol.comma
+          P.spaces
           entry <- setting
-          spaces
+          P.spaces
           effectSettingsHelp start (entry:entries)
-    , do  rightCurly
-          end <- getPosition
-          spaces
+    , do  Symbol.rightCurly
+          end <- P.getPosition
+          P.spaces
           return (A.at start end entries)
     ]
 
 
 setting :: Parser (A.Located Text, A.Located Text)
 setting =
-  do  name <- addLocation lowVar
-      spaces
-      equals
-      spaces
-      tipe <- addLocation capVar
+  do  name <- P.addLocation Var.lower
+      P.spaces
+      Symbol.equals
+      P.spaces
+      tipe <- P.addLocation Var.upper
       return (name, tipe)
 
 
@@ -151,14 +146,14 @@ setting =
 -- DOC COMMENTS
 
 
-maybeDocComment :: Parser (A.Located (Maybe Text))
+maybeDocComment :: Parser (A.Located (Maybe B.ByteString))
 maybeDocComment =
-  do  oldEnd <- getPosition
+  do  oldEnd <- P.getPosition
       freshLine
-      newStart <- getPosition
+      newStart <- P.getPosition
       oneOf
-        [ do  doc <- docComment
-              end <- getPosition
+        [ do  doc <- W.docComment
+              end <- P.getPosition
               freshLine
               return (A.at newStart end (Just doc))
         , return (A.at oldEnd newStart Nothing)
@@ -172,19 +167,19 @@ maybeDocComment =
 chompImports :: [Module.UserImport] -> Parser [Module.UserImport]
 chompImports imports =
   oneOf
-    [ do  start <- getPosition
-          keyword "import"
-          pushContext start E.Import
-          spaces
-          name <- addLocation qualifiedCapVar
-          end <- getPosition
-          pos <- whitespace
+    [ do  start <- P.getPosition
+          Keyword.import_
+          P.pushContext start E.Import
+          P.spaces
+          name <- P.addLocation Var.moduleName
+          end <- P.getPosition
+          pos <- W.whitespace
           oneOf
-            [ do  checkFreshLine pos
+            [ do  P.checkFreshLine pos
                   let userImport = method start end name Nothing Exposing.closed
-                  popContext ()
+                  P.popContext ()
                   chompImports (userImport:imports)
-            , do  checkSpace pos
+            , do  P.checkSpace pos
                   oneOf
                     [ chompAs start name imports
                     , chompExposing start name Nothing imports
@@ -196,30 +191,30 @@ chompImports imports =
 
 chompAs :: R.Position -> A.Located Text -> [Module.UserImport] -> Parser [Module.UserImport]
 chompAs start name imports =
-  do  keyword "as"
-      spaces
-      alias <- capVar
-      end <- getPosition
-      pos <- whitespace
+  do  Keyword.as_
+      P.spaces
+      alias <- Var.upper
+      end <- P.getPosition
+      pos <- W.whitespace
       oneOf
-        [ do  checkFreshLine pos
+        [ do  P.checkFreshLine pos
               let userImport = method start end name (Just alias) (Exposing.Explicit [])
-              popContext ()
+              P.popContext ()
               chompImports (userImport:imports)
-        , do  checkSpace pos
+        , do  P.checkSpace pos
               chompExposing start name (Just alias) imports
         ]
 
 
 chompExposing :: R.Position -> A.Located Text -> Maybe Text -> [Module.UserImport] -> Parser [Module.UserImport]
 chompExposing start name maybeAlias imports =
-  do  keyword "exposing"
-      spaces
+  do  Keyword.exposing_
+      P.spaces
       exposed <- exposing exposingEntry
-      end <- getPosition
+      end <- P.getPosition
       freshLine
       let userImport = method start end name maybeAlias exposed
-      popContext ()
+      P.popContext ()
       chompImports (userImport:imports)
 
 
@@ -234,17 +229,17 @@ method start end name maybeAlias exposed =
 
 exposing :: Parser a -> Parser (Exposing.Exposing a)
 exposing parser =
-  hint E.Listing $
-  do  leftParen
-      spaces
+  P.hint E.Listing $
+  do  Symbol.leftParen
+      P.spaces
       oneOf
-        [ do  dot
-              dot
-              spaces
-              rightParen
+        [ do  Symbol.dot
+              Symbol.dot
+              P.spaces
+              Symbol.rightParen
               return Exposing.Open
-        , do  value <- addLocation parser
-              spaces
+        , do  value <- P.addLocation parser
+              P.spaces
               exposingHelp parser [value]
         ]
 
@@ -252,12 +247,12 @@ exposing parser =
 exposingHelp :: Parser a -> [A.Located a] -> Parser (Exposing.Exposing a)
 exposingHelp parser values =
   oneOf
-    [ do  comma
-          spaces
-          value <- addLocation parser
-          spaces
+    [ do  Symbol.comma
+          P.spaces
+          value <- P.addLocation parser
+          P.spaces
           exposingHelp parser (value:values)
-    , do  rightParen
+    , do  Symbol.rightParen
           return (Exposing.Explicit (reverse values))
     ]
 
@@ -265,16 +260,16 @@ exposingHelp parser values =
 exposingEntry :: Parser Exposing.Entry
 exposingEntry =
   oneOf
-    [ Exposing.Lower <$> lowVar
-    , do  leftParen
-          op <- infixOp
-          rightParen
+    [ Exposing.Lower <$> Var.lower
+    , do  Symbol.leftParen
+          op <- Symbol.binop
+          Symbol.rightParen
           return (Exposing.Lower op)
-    , do  name <- capVar
-          spaces
+    , do  name <- Var.upper
+          P.spaces
           Exposing.Upper name <$>
             oneOf
-              [ Just <$> exposing capVar
+              [ Just <$> exposing Var.upper
               , return Nothing
               ]
     ]
@@ -286,5 +281,5 @@ exposingEntry =
 
 freshLine :: Parser ()
 freshLine =
-  checkFreshLine =<< whitespace
+  P.checkFreshLine =<< W.whitespace
 

@@ -7,10 +7,14 @@ module Parse.Repl
   where
 
 
+import qualified Data.ByteString.UTF8 as Utf8
 import qualified Data.Text as Text
 import Data.Text (Text)
 
-import Parse.Helpers
+import Parse.Primitives
+import qualified Parse.Primitives.Keyword as Keyword
+import qualified Parse.Primitives.Symbol as Symbol
+import qualified Parse.Primitives.Variable as Var
 import qualified Parse.Pattern as Pattern
 
 import qualified AST.Pattern as P
@@ -28,7 +32,6 @@ data Entry
   | Other Text
   | Annotation
   | Port
-  | Infix
 
 
 
@@ -41,7 +44,7 @@ parseEntry rawEntry =
     source =
       Text.pack rawEntry
   in
-    case run (entryParser source) source of
+    case run (entryParser source) (Utf8.fromString rawEntry) of
       Right entry ->
         entry
 
@@ -52,33 +55,30 @@ parseEntry rawEntry =
 entryParser :: Text -> Parser Entry
 entryParser source =
   oneOf
-    [ do  keyword "import"
+    [ do  Keyword.import_
           spaces
-          name <- qualifiedCapVar
+          name <- Var.moduleName
           return (Import (Text.unpack name) source)
 
-    , do  oneOf (map keyword ["infix","infixl","infixr"])
-          return Infix
-
-    , do  keyword "port"
+    , do  Keyword.port_
           return Port
 
-    , do  keyword "type"
+    , do  Keyword.type_
           spaces
           oneOf
-            [ do  keyword "alias"
+            [ do  Keyword.alias_
                   spaces
             , return ()
             ]
-          name <- capVar
+          name <- Var.upper
           return (Type (Text.unpack name) source)
 
     , do  root <- Pattern.term
           spaces
           case A.drop root of
-            P.Var name ->
+            P.RVar name ->
               oneOf
-                [ do  hasType
+                [ do  Symbol.hasType
                       return Annotation
                 , do  chompArgs
                       return (Def (Just (Text.unpack name)) source)
@@ -96,6 +96,6 @@ chompArgs =
     [ do  Pattern.term
           spaces
           chompArgs
-    , do  equals
+    , do  Symbol.equals
           return ()
     ]

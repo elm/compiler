@@ -3,11 +3,16 @@
 module Parse.Declaration where
 
 import Data.Text (Text)
+import qualified Data.Text.Encoding as Text
 
 import qualified AST.Declaration as Decl
 import qualified AST.Type as Type
 import qualified Parse.Expression as Expr
-import Parse.Helpers as Help
+import Parse.Primitives
+import qualified Parse.Primitives.Keyword as Keyword
+import qualified Parse.Primitives.Symbol as Symbol
+import qualified Parse.Primitives.Variable as Var
+import qualified Parse.Primitives.Whitespace as W
 import qualified Parse.Type as Type
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as E
@@ -37,10 +42,10 @@ declaration =
 
 docDecl :: R.Position -> SParser Decl.Source
 docDecl start =
-  do  comment <- docComment
+  do  doc <- W.docComment
       end <- getPosition
-      pos <- whitespace
-      return ( Decl.Comment (A.at start end comment), end, pos )
+      pos <- W.whitespace
+      return ( Decl.Comment (A.at start end (Text.decodeUtf8 doc)), end, pos )
 
 
 -- TYPE ANNOTATIONS and DEFINITIONS
@@ -48,7 +53,7 @@ docDecl start =
 
 defDecl :: R.Position -> SParser Decl.Source
 defDecl start =
-  do  (def, end, pos) <- Expr.topLevelDef
+  do  (def, end, pos) <- Expr.definition
       let decl = A.at start end (Decl.Def def)
       return ( Decl.Whatever decl, end, pos )
 
@@ -59,10 +64,10 @@ defDecl start =
 
 typeDecl :: R.Position -> SParser Decl.Source
 typeDecl start =
-  do  keyword "type"
+  do  Keyword.type_
       spaces
       oneOf
-        [ do  keyword "alias"
+        [ do  Keyword.alias_
               inContext start E.TypeAlias $
                 do  spaces
                     (name, args) <- nameArgsEquals
@@ -80,7 +85,7 @@ typeDecl start =
 
 nameArgsEquals :: Parser (Text, [Text])
 nameArgsEquals =
-  do  name <- capVar
+  do  name <- Var.upper
       spaces
       nameArgsEqualsHelp name []
 
@@ -88,10 +93,10 @@ nameArgsEquals =
 nameArgsEqualsHelp :: Text -> [Text] -> Parser (Text, [Text])
 nameArgsEqualsHelp name args =
   oneOf
-    [ do  arg <- lowVar
+    [ do  arg <- Var.lower
           spaces
           nameArgsEqualsHelp name (arg:args)
-    , do  equals
+    , do  Symbol.equals
           spaces
           return ( name, reverse args )
     ]
@@ -101,7 +106,7 @@ chompConstructors :: [(Text, [Type.Raw])] -> R.Position -> SPos -> SParser [(Tex
 chompConstructors ctors end pos =
   oneOf
     [ do  checkSpace pos
-          pipe
+          Symbol.pipe
           spaces
           (ctor, newEnd, newSpace) <- Type.unionConstructor
           chompConstructors (ctor:ctors) newEnd newSpace
@@ -116,11 +121,11 @@ chompConstructors ctors end pos =
 infixDecl :: R.Position -> SParser Decl.Source
 infixDecl start =
   oneOf
-    [ do  keyword "infixl"
+    [ do  Keyword.infixl_
           inContext start E.Infix $ infixDeclHelp start Decl.Left
-    , do  keyword "infixr"
+    , do  Keyword.infixr_
           inContext start E.Infix $ infixDeclHelp start Decl.Right
-    , do  keyword "infix"
+    , do  Keyword.infix_
           inContext start E.Infix $ infixDeclHelp start Decl.Non
     ]
 
@@ -130,9 +135,9 @@ infixDeclHelp start assoc =
   do  spaces
       n <- digit
       spaces
-      op <- infixOp
+      op <- Symbol.binop
       end <- getPosition
-      pos <- whitespace
+      pos <- W.whitespace
       let decl = A.at start end (Decl.Fixity (Decl.Infix op assoc n))
       return ( Decl.Whatever decl, end, pos )
 
@@ -143,12 +148,12 @@ infixDeclHelp start assoc =
 
 portDecl :: R.Position -> SParser Decl.Source
 portDecl start =
-  do  keyword "port"
+  do  Keyword.port_
       inContext start E.Port $
         do  spaces
-            name <- lowVar
+            name <- Var.lower
             spaces
-            hasType
+            Symbol.hasType
             spaces
             (tipe, end, pos) <- Type.expression
             let decl = A.at start end (Decl.Port name tipe)

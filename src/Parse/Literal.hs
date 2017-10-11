@@ -13,10 +13,10 @@ import qualified AST.Expression.Source as Src
 import qualified AST.Literal as L
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
-import Parse.Helpers
-  ( Parser, character, getPosition, number, oneOf
-  , shaderSource, shaderFailure, string
-  )
+import Parse.Primitives (Parser, getPosition, oneOf)
+import qualified Parse.Primitives.Number as Number
+import qualified Parse.Primitives.Shader as Shader
+import qualified Parse.Primitives.Utf8 as Utf8
 
 
 
@@ -26,9 +26,9 @@ import Parse.Helpers
 literal :: Parser L.Literal
 literal =
   oneOf
-    [ L.Str <$> string
-    , L.Chr <$> character
-    , number
+    [ L.Str <$> Utf8.string
+    , L.Chr <$> Utf8.character
+    , Number.number
     ]
 
 
@@ -38,7 +38,7 @@ literal =
 
 shader :: R.Position -> Parser Src.RawExpr
 shader start@(R.Position row col) =
-  do  src <- shaderSource
+  do  src <- Shader.block
       shdr <- parseSource row col (Text.unpack src)
       end@(R.Position row2 col2) <- getPosition
       let uid = List.intercalate ":" (map show [row, col, row2, col2])
@@ -66,9 +66,9 @@ parseSource startRow startCol src =
             (Parsec.errorMessages err)
       in
         if row == 1 then
-          shaderFailure startRow (startCol + 6 + col) (Text.pack msg)
+          Shader.failure startRow (startCol + 6 + col) (Text.pack msg)
         else
-          shaderFailure (startRow + row - 1) col (Text.pack msg)
+          Shader.failure (startRow + row - 1) col (Text.pack msg)
 
 
 emptyShader :: L.Shader
