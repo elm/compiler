@@ -61,8 +61,8 @@ data Expr_
 
 
 data Def
-  = Annotate Text Type.Raw
-  | Define Text [Ptrn.Raw] Expr
+  = Annotate N.Name Type.Raw
+  | Define N.Name [Ptrn.Raw] Expr
   | Destruct Ptrn.Raw Expr
 
 
@@ -74,7 +74,7 @@ type Decl = A.Located Decl_
 
 
 data Decl_
-  = Union (A.Located N.Name) [A.Located N.Name] [(A.Located Text, [Type.Raw])]
+  = Union (A.Located N.Name) [A.Located N.Name] [(A.Located N.Name, [Type.Raw])]
   | Alias (A.Located N.Name) [A.Located N.Name] Type.Raw
   | Binop (A.Located N.Name) Binop.Associativity Binop.Precedence N.Name
   | Port (A.Located N.Name) Type.Raw
@@ -141,9 +141,9 @@ data Exposing
 
 
 data Exposed
-  = Lower !Text
-  | Upper !Text !Privacy
-  | Operator !Text
+  = Lower !N.Name
+  | Upper !N.Name !Privacy
+  | Operator !N.Name
 
 
 data Privacy
