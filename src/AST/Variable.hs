@@ -1,19 +1,18 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module AST.Variable
-  ( Raw(..)
-  , Canonical(..), Home(..)
+  ( Canonical(..), Home(..)
   , Global(..)
   , local, topLevel, fromModule
   , inCore, inHtml
-  , int, float, char, string, tuple
+  , int, float, char, string
   , list, cons, nil
   , bool, true, false
-  , never, task, cmd, sub, router, shader, decoder
+  , never, task, router, shader, decoder
   , isLocalHome, isCons
   , is, isJson, isMaybe, isArray, isTask, isList
-  , isKernel, isTuple, isPrim, isLocal
-  , rawToText, toText
+  , isKernel, isPrim, isLocal
+  , toText
   )
   where
 
@@ -21,17 +20,8 @@ import Data.Binary
 import Data.Monoid ((<>))
 import Data.Text (Text)
 
-import qualified AST.Helpers as Help
 import qualified AST.Module.Name as ModuleName
 import qualified Elm.Package as Pkg
-
-
-
--- RAW NAMES
-
-
-newtype Raw = Raw Text
-  deriving (Eq, Ord)
 
 
 
@@ -115,11 +105,6 @@ string =
   Canonical BuiltIn "String"
 
 
-tuple :: Int -> Canonical
-tuple size =
-  Canonical BuiltIn (Help.makeTuple size)
-
-
 
 -- LIST
 
@@ -170,16 +155,6 @@ never =
 task :: Canonical
 task =
   inCore "Platform" "Task"
-
-
-cmd :: Canonical
-cmd =
-  inCore "Platform.Cmd" "Cmd"
-
-
-sub :: Canonical
-sub =
-  inCore "Platform.Sub" "Sub"
 
 
 router :: Canonical
@@ -266,16 +241,6 @@ isKernel var =
         False
 
 
-isTuple :: Canonical -> Bool
-isTuple var =
-    case var of
-      Canonical BuiltIn name ->
-        Help.isTuple name
-
-      _ ->
-        False
-
-
 isPrim :: Text -> Canonical -> Bool
 isPrim prim (Canonical home name) =
     case home of
@@ -298,11 +263,6 @@ isLocal check (Canonical home name) =
 
 
 -- VARIABLE TO TEXT
-
-
-rawToText :: Raw -> Text
-rawToText (Raw name) =
-  name
 
 
 toText :: Canonical -> Text

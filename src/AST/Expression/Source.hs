@@ -1,18 +1,29 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module AST.Expression.Source
-  ( RawExpr, RawExpr', RawDef, RawDef'(..)
-  , ValidExpr, ValidExpr', ValidDef(..)
-  , Expr, Expr'(..)
-  , zero, collectLambdas
+  ( Expr, Expr_(..)
+  , Decl, Decl_(..)
+  , Def(..)
+  , Module(..)
+  , Import(..)
+  , Effects(..)
+  , Manager(..)
+  , defaultModule
+  , Exposing(..)
+  , Exposed(..)
+  , Privacy(..)
   )
   where
 
 
+import qualified Data.ByteString as B
 import Data.Text (Text)
 
+import qualified AST.Binop as Binop
 import qualified AST.Literal as Literal
 import qualified AST.Pattern as Ptrn
 import qualified AST.Type as Type
+import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
@@ -21,75 +32,120 @@ import qualified Reporting.Region as R
 -- EXPRESSIONS
 
 
-type Expr def =
-    A.Located (Expr' def)
+type Expr = A.Located Expr_
 
 
-data Expr' def
-    = Literal Literal.Literal
-    | Var (Maybe Text) Text
-    | List [Expr def]
-    | Op Text
-    | Binop [(Expr def, A.Located Text)] (Expr def)
-    | Lambda Ptrn.Raw (Expr def)
-    | App (Expr def) (Expr def)
-    | If [(Expr def, Expr def)] (Expr def)
-    | Let [def] (Expr def)
-    | Case (Expr def) [(Ptrn.Raw, Expr def)]
-    | Accessor Text
-    | Access (Expr def) Text
-    | Update (A.Located Text) [(A.Located Text, Expr def)]
-    | Record [(A.Located Text, Expr def)]
-    | Unit
-    | Tuple (Expr def) (Expr def) [Expr def]
-    | GLShader Text Text Literal.Shader
-
-
-type RawExpr = Expr RawDef
-
-type RawExpr' = Expr' RawDef
-
-type ValidExpr = Expr ValidDef
-
-type ValidExpr' = Expr' ValidDef
+data Expr_
+  = Literal Literal.Literal
+  | Var (Maybe N.Name) N.Name
+  | List [Expr]
+  | Op N.Name
+  | Negate Expr
+  | Binops [(Expr, A.Located N.Name)] Expr
+  | Lambda Ptrn.Raw Expr
+  | Call Expr [Expr]
+  | If [(Expr, Expr)] Expr
+  | Let [A.Located Def] Expr
+  | Case Expr [(Ptrn.Raw, Expr)]
+  | Accessor N.Name
+  | Access Expr N.Name
+  | Update (A.Located N.Name) [(A.Located N.Name, Expr)]
+  | Record [(A.Located N.Name, Expr)]
+  | Unit
+  | Tuple Expr Expr [Expr]
+  | GLShader Text Text Literal.Shader
 
 
 
 -- DEFINITIONS
 
 
-type RawDef =
-    A.Located RawDef'
-
-
-data RawDef'
-    = Annotation Text Type.Raw
-    | Definition Text [Ptrn.Raw] RawExpr
-    | Destructure Ptrn.Raw RawExpr
-
-
-data ValidDef
-    = VDefinition R.Region Text [Ptrn.Raw] ValidExpr (Maybe Type.Raw)
-    | VDestructure R.Region Ptrn.Raw ValidExpr
+data Def
+  = Annotate Text Type.Raw
+  | Define Text [Ptrn.Raw] Expr
+  | Destruct Ptrn.Raw Expr
 
 
 
--- HELPERS
+-- DECLARATIONS
 
 
-zero :: Expr' def
-zero =
-  Literal (Literal.IntNum 0)
+type Decl = A.Located Decl_
 
 
-collectLambdas :: Expr def -> ([Ptrn.Raw], Expr def)
-collectLambdas lexpr@(A.A _ expr) =
-  case expr of
-    Lambda pattern body ->
-      let
-        (ps, body') = collectLambdas body
-      in
-        (pattern : ps, body')
+data Decl_
+  = Union (A.Located N.Name) [A.Located N.Name] [(A.Located Text, [Type.Raw])]
+  | Alias (A.Located N.Name) [A.Located N.Name] Type.Raw
+  | Binop (A.Located N.Name) Binop.Associativity Binop.Precedence N.Name
+  | Port (A.Located N.Name) Type.Raw
+  | Docs Text
+  | Annotation (A.Located N.Name) Type.Raw
+  | Definition (A.Located N.Name) [Ptrn.Raw] Expr
 
-    _ ->
-      ([], lexpr)
+
+
+-- MODULE
+
+
+data Module decls =
+  Module
+    { _name :: N.Name
+    , _effects :: Effects
+    , _docs :: A.Located (Maybe B.ByteString)
+    , _exports :: Exposing
+    , _imports :: [Import]
+    , _decls :: decls
+    }
+
+
+data Import =
+  Import
+    { _import :: A.Located N.Name
+    , _alias :: Maybe N.Name
+    , _exposing :: Exposing
+    }
+
+
+data Effects
+  = NoEffects
+  | Ports R.Region
+  | Effects R.Region Manager
+
+
+data Manager
+  = Cmd (A.Located N.Name)
+  | Sub (A.Located N.Name)
+  | Fx (A.Located N.Name) (A.Located N.Name)
+
+
+defaultModule :: [Import] -> decls -> Module decls
+defaultModule imports decls =
+  let zero = R.Position 1 1 in
+  Module
+    { _name = "Main"
+    , _effects = NoEffects
+    , _docs = A.at zero zero Nothing
+    , _exports = Open
+    , _imports = imports
+    , _decls = decls
+    }
+
+
+
+-- EXPOSING
+
+
+data Exposing
+  = Open
+  | Explicit ![A.Located Exposed]
+
+
+data Exposed
+  = Lower !Text
+  | Upper !Text !Privacy
+  | Operator !Text
+
+
+data Privacy
+  = Public
+  | Private

@@ -1,27 +1,35 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module AST.Expression.Canonical
-  ( Expr, Expr'(..)
-  , Main(..)
+  ( Expr
+  , Expr_(..)
   , Def(..)
-  , SortedDefs(..), toSortedDefs
-  , localVar
-  , collectApps, collectFields, collectLambdas
+  , Decl(..)
+  , Module(..)
+  , Alias(..)
+  , Union(..)
+  , Binop(..)
+  , Effects(..)
+  , Port(..)
+  , Docs(..)
   )
   where
 
 
-import Data.Monoid ((<>))
+import Control.Monad (liftM2, liftM3)
+import Data.Binary
+import qualified Data.Graph as Graph
+import qualified Data.Map as Map
 import Data.Text (Text)
-import qualified Data.Text.Lazy as LText
-import qualified Data.Text.Lazy.Builder as B
 
-import qualified AST.Effects as Effects
+import qualified AST.Binop as Binop
 import qualified AST.Literal as Literal
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as Ptrn
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
+import qualified Elm.Name as N
+import Elm.Name (Name)
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
@@ -31,36 +39,31 @@ import qualified Reporting.Region as R
 
 
 type Expr =
-    A.Annotated R.Region Expr'
+  A.Annotated R.Region Expr_
 
 
-data Expr'
-    = Literal Literal.Literal
-    | Var Var.Canonical
-    | List [Expr]
-    | Binop Var.Canonical Expr Expr
-    | Lambda Ptrn.Canonical Expr
-    | App Expr Expr
-    | If [(Expr, Expr)] Expr
-    | Let [Def] Expr
-    | Case Expr [(Ptrn.Canonical, Expr)]
-    | Ctor Var.Canonical [Expr]
-    | Access Expr Text
-    | Update Expr [(Text, Expr)]
-    | Record [(Text, Expr)]
-    -- for type checking and code gen only
-    | Cmd ModuleName.Canonical Effects.ManagerType
-    | Sub ModuleName.Canonical Effects.ManagerType
-    | OutgoingPort Text Type.Canonical
-    | IncomingPort Text Type.Canonical
-    | Program Main Expr
-    | SaveEnv ModuleName.Canonical Effects.Canonical
-    | GLShader Text Text Literal.Shader
-
-
-data Main
-  = Static
-  | Dynamic Type.Canonical
+data Expr_
+  = VarLocal Name
+  | VarTopLevel ModuleName.Canonical Name
+  | VarKernel Name Name
+  | VarForeign ModuleName.Canonical Name
+  | VarOperator ModuleName.Canonical Name Name
+  | Literal Literal.Literal
+  | List [Expr]
+  | Binop Name ModuleName.Canonical Name Expr Expr
+  | Lambda Ptrn.Canonical Expr
+  | Call Expr [Expr]
+  | If [(Expr, Expr)] Expr
+  | Let [Graph.SCC Def] Expr
+  | Case Expr [(Ptrn.Canonical, Expr)]
+  | CtorAccess Expr Int
+  | Accessor Name
+  | Access Expr Name
+  | Update Expr [(Name, Expr)]
+  | Record [(Name, Expr)]
+  | Unit
+  | Tuple Expr Expr [Expr]
+  | GLShader Name Name Literal.Shader
 
 
 
@@ -69,93 +72,84 @@ data Main
 
 data Def =
   Def
-    { _region :: R.Region
-    , _pattern :: Ptrn.Canonical
-    , _body :: Expr
-    , _type :: Maybe (A.Located Type.Canonical)
+    { _let_name :: Text
+    , _let_args :: [A.Located Ptrn.Canonical]
+    , _let_body :: Expr
+    , _let_type :: Maybe (A.Located Type.Canonical)
     }
 
 
 
--- SORTED DEFS
+-- DECLARATIONS
 
 
-data SortedDefs
-  = NoMain [Def]
-  | YesMain [Def] Def [Def]
-
-
-toSortedDefs :: Expr -> SortedDefs
-toSortedDefs (A.A _ expr) =
-  case expr of
-    Let defs body ->
-      foldr defCons (toSortedDefs body) defs
-
-    _ ->
-      NoMain []
-
-
-defCons :: Def -> SortedDefs -> SortedDefs
-defCons def@(Def _ (A.A _ pattern) _ _) sortedDefs =
-  case (pattern, sortedDefs) of
-    (Ptrn.Var "main", NoMain defs) ->
-      YesMain [] def defs
-
-    (_, NoMain defs) ->
-      NoMain (def : defs)
-
-    (_, YesMain defs main rest) ->
-      YesMain (def : defs) main rest
+data Decl =
+  Decl
+    { _top_name :: Text
+    , _top_args :: [A.Located Ptrn.Canonical]
+    , _top_body :: Expr
+    , _top_type :: Maybe (A.Located Type.Canonical)
+    , _top_deps :: [Var.Global]
+    }
 
 
 
--- HELPERS
+-- MODULES
 
 
-localVar :: Text -> Expr'
-localVar x =
-  Var (Var.Canonical Var.Local x)
+data Module phase =
+  Module
+    { _name    :: ModuleName.Canonical
+    , _docs    :: A.Located (Maybe Docs)
+    , _imports :: [N.Name]
+    , _decls   :: [Graph.SCC Decl]
+    , _unions  :: Map.Map N.Name Union
+    , _aliases :: Map.Map N.Name Alias
+    , _binops  :: Map.Map N.Name Binop
+    , _effects :: Effects
+    }
 
 
--- COLLECTORS
+data Alias = Alias [N.Name] Type.Canonical
+data Union = Union [N.Name] [(N.Name, [Type.Canonical])]
+data Binop = Binop_ Binop.Associativity Binop.Precedence N.Name
+
+data Effects
+  = NoEffects
+  | Ports [Port]
+  | Cmd
+  | Sub
+  | Fx
 
 
-collectApps :: Expr -> [Expr]
-collectApps annExpr@(A.A _ expr) =
-  case expr of
-    App a b ->
-      collectApps a ++ [b]
-
-    _ ->
-      [annExpr]
+data Port = Port R.Region N.Name Type.Canonical
 
 
-collectFields :: Expr -> Maybe Text
-collectFields expr =
-  fmap (LText.toStrict . B.toLazyText) (collectFieldsHelp expr mempty)
+
+-- DOCS
 
 
-collectFieldsHelp :: Expr -> B.Builder -> Maybe B.Builder
-collectFieldsHelp (A.A _ expr) builder =
-  case expr of
-    Var var ->
-      Just (B.fromText (Var.toText var) <> builder)
-
-    Access record field ->
-      collectFieldsHelp record ("." <> B.fromText field <> builder)
-
-    _ ->
-      Nothing
+data Docs =
+  Docs
+    { _overview :: Text
+    , _comments :: Map.Map N.Name Text
+    }
 
 
-collectLambdas :: Expr -> ([Ptrn.Canonical], Expr)
-collectLambdas lexpr@(A.A _ expr) =
-  case expr of
-    Lambda pattern body ->
-      let
-        (ps, body') = collectLambdas body
-      in
-        (pattern : ps, body')
 
-    _ ->
-      ([], lexpr)
+-- BINARY
+
+
+instance Binary Alias where
+  get = liftM2 Alias get get
+  put (Alias a b) = put a >> put b
+
+
+instance Binary Union where
+  get = liftM2 Union get get
+  put (Union a b) = put a >> put b
+
+
+instance Binary Binop where
+  get = liftM3 Binop_ get get get
+  put (Binop_ a b c) = put a >> put b >> put c
