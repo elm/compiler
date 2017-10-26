@@ -36,7 +36,7 @@ literal =
 -- SHADERS
 
 
-shader :: R.Position -> Parser Src.RawExpr
+shader :: R.Position -> Parser Src.Expr
 shader start@(R.Position row col) =
   do  src <- Shader.block
       shdr <- parseSource row col (Text.unpack src)

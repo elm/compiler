@@ -1,8 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Parse.Module
-  ( header
-  , kernelHeader
+  ( module_
+  , chompImports
   )
   where
 
@@ -10,8 +10,8 @@ module Parse.Module
 import qualified Data.ByteString as B
 import Data.Text (Text)
 
-import qualified AST.Exposing as Exposing
-import qualified AST.Module as Module
+import qualified AST.Expression.Source as Src
+import qualified Elm.Name as N
 import Parse.Primitives (Parser, oneOf)
 import qualified Parse.Primitives as P
 import qualified Parse.Primitives.Keyword as Keyword
@@ -24,122 +24,131 @@ import qualified Reporting.Region as R
 
 
 
--- MODULE HEADER
+-- HEADER
 
 
-header :: Parser (Module.Header [Module.UserImport])
-header =
+module_ :: Parser decls -> Parser (Src.Module decls)
+module_ chompDecls =
   do  freshLine
-      Module.Header <$> maybeHeaderDecl <*> chompImports []
-
-
-kernelHeader :: Parser [Module.UserImport]
-kernelHeader =
-  do  Symbol.jsMultiCommentOpen
-      freshLine
-      imports <- chompImports []
-      Symbol.jsMultiCommentClose
-      return imports
-
-
-
--- HEADER DECL
-
-
-maybeHeaderDecl :: Parser (Maybe Module.HeaderDecl)
-maybeHeaderDecl =
-  oneOf
-    [ Just <$> headerDecl
-    , return Nothing
-    ]
-
-
-headerDecl :: Parser Module.HeaderDecl
-headerDecl =
-  do  start <- P.getPosition
-      P.pushContext start E.Module
-      tag <- sourceTag
-      P.spaces
-      name <- Var.moduleName
-      P.spaces
-      settings <- effectSettings
-      P.hint E.Exposing $ Keyword.exposing_
-      P.spaces
-      exports <- exposing exposingEntry
-      P.popContext ()
-      docs <- maybeDocComment
-      return (Module.HeaderDecl tag name exports settings docs)
+      oneOf
+        [ do  start <- P.getPosition
+              P.pushContext start E.Module
+              (name, effects) <- chompNameAndEffects
+              P.hint E.Exposing $ Keyword.exposing_
+              P.spaces
+              exports <- exposing
+              P.popContext ()
+              docs <- maybeDocComment
+              imports <- chompImports []
+              decls <- chompDecls
+              return (Src.Module name effects docs exports imports decls)
+        , Src.defaultModule
+            <$> chompImports []
+            <*> chompDecls
+        ]
 
 
 
--- MODULE TAGS - module, effect module, port module
-
-
-sourceTag :: Parser Module.SourceTag
-sourceTag =
+-- MODULE NAME
+--
+-- module MyThing
+-- port module MyThing
+-- effect module MyThing where { command = MyCmd }
+--
+chompNameAndEffects :: Parser (N.Name, Src.Effects)
+chompNameAndEffects =
   oneOf
     [
       do  Keyword.module_
-          return Module.Normal
+          P.spaces
+          name <- Var.moduleName
+          P.spaces
+          return ( name, Src.NoEffects )
     ,
       do  start <- P.getPosition
           Keyword.port_
           P.spaces
           Keyword.module_
           end <- P.getPosition
-          return (Module.Port (R.Region start end))
+          P.spaces
+          name <- Var.moduleName
+          P.spaces
+          return ( name, Src.Ports (R.Region start end) )
     ,
       do  start <- P.getPosition
           Keyword.effect_
           P.spaces
           Keyword.module_
           end <- P.getPosition
-          return (Module.Effect (R.Region start end))
+          P.spaces
+          name <- Var.moduleName
+          P.spaces
+          manager <- chompManager
+          return ( name, Src.Effects (R.Region start end) manager )
     ]
 
 
 
--- EFFECTS - where { command = MyCmd }
+-- MANAGER
+--
+-- where { command = MyCmd }
+-- where { subscription = MySub }
+-- where { command = MyCmd, subscription = MySub }
+--
+chompManager :: Parser Src.Manager
+chompManager =
+  do  Keyword.where_
+      P.spaces
+      Symbol.leftCurly
+      P.spaces
+      oneOf
+        [ do  cmd <- chompCommand
+              P.spaces
+              oneOf
+                [ do  Symbol.rightCurly
+                      P.spaces
+                      return (Src.Cmd cmd)
+                , do  Symbol.comma
+                      P.spaces
+                      sub <- chompSubscription
+                      P.spaces
+                      Symbol.rightCurly
+                      P.spaces
+                      return (Src.Fx cmd sub)
+                ]
+        , do  sub <- chompSubscription
+              P.spaces
+              oneOf
+                [ do  Symbol.rightCurly
+                      P.spaces
+                      return (Src.Sub sub)
+                , do  Symbol.comma
+                      P.spaces
+                      cmd <- chompCommand
+                      P.spaces
+                      Symbol.rightCurly
+                      P.spaces
+                      return (Src.Fx cmd sub)
+                ]
+        ]
 
 
-effectSettings :: Parser Module.SourceSettings
-effectSettings =
-  oneOf
-    [ do  Keyword.where_
-          P.spaces
-          start <- P.getPosition
-          Symbol.leftCurly
-          P.spaces
-          entry <- setting
-          P.spaces
-          effectSettingsHelp start [entry]
-    , return Module.emptySettings
-    ]
-
-
-effectSettingsHelp :: R.Position -> [(A.Located Text, A.Located Text)] -> Parser Module.SourceSettings
-effectSettingsHelp start entries =
-  oneOf
-    [ do  Symbol.comma
-          P.spaces
-          entry <- setting
-          P.spaces
-          effectSettingsHelp start (entry:entries)
-    , do  Symbol.rightCurly
-          end <- P.getPosition
-          P.spaces
-          return (A.at start end entries)
-    ]
-
-
-setting :: Parser (A.Located Text, A.Located Text)
-setting =
-  do  name <- P.addLocation Var.lower
+chompCommand :: Parser (A.Located Text)
+chompCommand =
+  do  Keyword.command_
       P.spaces
       Symbol.equals
       P.spaces
-      tipe <- P.addLocation Var.upper
-      return (name, tipe)
+      P.addLocation Var.upper
+
+
+chompSubscription :: Parser (A.Located Text)
+chompSubscription =
+  do  Keyword.subscription_
+      P.spaces
+      Symbol.equals
+      P.spaces
+      P.addLocation Var.upper
 
 
 
@@ -164,7 +173,7 @@ maybeDocComment =
 -- IMPORTS
 
 
-chompImports :: [Module.UserImport] -> Parser [Module.UserImport]
+chompImports :: [Src.Import] -> Parser [Src.Import]
 chompImports imports =
   oneOf
     [ do  start <- P.getPosition
@@ -172,106 +181,106 @@ chompImports imports =
           P.pushContext start E.Import
           P.spaces
           name <- P.addLocation Var.moduleName
-          end <- P.getPosition
           pos <- W.whitespace
           oneOf
             [ do  P.checkFreshLine pos
-                  let userImport = method start end name Nothing Exposing.closed
                   P.popContext ()
-                  chompImports (userImport:imports)
+                  chompImports $
+                    Src.Import name Nothing (Src.Explicit []) : imports
             , do  P.checkSpace pos
                   oneOf
-                    [ chompAs start name imports
-                    , chompExposing start name Nothing imports
+                    [ chompAs name imports
+                    , chompExposing name Nothing imports
                     ]
             ]
     , return (reverse imports)
     ]
 
 
-chompAs :: R.Position -> A.Located Text -> [Module.UserImport] -> Parser [Module.UserImport]
-chompAs start name imports =
+chompAs :: A.Located Text -> [Src.Import] -> Parser [Src.Import]
+chompAs name imports =
   do  Keyword.as_
       P.spaces
       alias <- Var.upper
-      end <- P.getPosition
       pos <- W.whitespace
       oneOf
         [ do  P.checkFreshLine pos
-              let userImport = method start end name (Just alias) (Exposing.Explicit [])
               P.popContext ()
-              chompImports (userImport:imports)
+              chompImports $
+                Src.Import name (Just alias) (Src.Explicit []) : imports
         , do  P.checkSpace pos
-              chompExposing start name (Just alias) imports
+              chompExposing name (Just alias) imports
         ]
 
 
-chompExposing :: R.Position -> A.Located Text -> Maybe Text -> [Module.UserImport] -> Parser [Module.UserImport]
-chompExposing start name maybeAlias imports =
+chompExposing :: A.Located Text -> Maybe Text -> [Src.Import] -> Parser [Src.Import]
+chompExposing name maybeAlias imports =
   do  Keyword.exposing_
       P.spaces
-      exposed <- exposing exposingEntry
-      end <- P.getPosition
+      exposed <- exposing
       freshLine
-      let userImport = method start end name maybeAlias exposed
       P.popContext ()
-      chompImports (userImport:imports)
-
-
-method :: R.Position -> R.Position -> A.Located Text -> Maybe Text -> Exposing.Raw -> Module.UserImport
-method start end name maybeAlias exposed =
-  A.at start end ( name, Module.ImportMethod maybeAlias exposed )
+      chompImports $
+        Src.Import name maybeAlias exposed : imports
 
 
 
 -- LISTING
 
 
-exposing :: Parser a -> Parser (Exposing.Exposing a)
-exposing parser =
+exposing :: Parser Src.Exposing
+exposing =
   P.hint E.Listing $
   do  Symbol.leftParen
       P.spaces
       oneOf
-        [ do  Symbol.dot
-              Symbol.dot
+        [ do  Symbol.doubleDot
               P.spaces
               Symbol.rightParen
-              return Exposing.Open
-        , do  value <- P.addLocation parser
+              return Src.Open
+        , do  entry <- P.addLocation chompEntry
               P.spaces
-              exposingHelp parser [value]
+              exposingHelp [entry]
         ]
 
 
-exposingHelp :: Parser a -> [A.Located a] -> Parser (Exposing.Exposing a)
-exposingHelp parser values =
+exposingHelp :: [A.Located Src.Exposed] -> Parser Src.Exposing
+exposingHelp revEntries =
   oneOf
     [ do  Symbol.comma
           P.spaces
-          value <- P.addLocation parser
+          entry <- P.addLocation chompEntry
           P.spaces
-          exposingHelp parser (value:values)
+          exposingHelp (entry:revEntries)
     , do  Symbol.rightParen
-          return (Exposing.Explicit (reverse values))
+          return (Src.Explicit (reverse revEntries))
     ]
 
 
-exposingEntry :: Parser Exposing.Entry
-exposingEntry =
+chompEntry :: Parser Src.Exposed
+chompEntry =
   oneOf
-    [ Exposing.Lower <$> Var.lower
+    [ Src.Lower <$> Var.lower
     , do  Symbol.leftParen
           op <- Symbol.binop
           Symbol.rightParen
-          return (Exposing.Lower op)
+          return (Src.Lower op)
     , do  name <- Var.upper
           P.spaces
-          Exposing.Upper name <$>
-            oneOf
-              [ Just <$> exposing Var.upper
-              , return Nothing
-              ]
+          Src.Upper name <$> privacy
+    ]
+
+
+privacy :: Parser Src.Privacy
+privacy =
+  oneOf
+    [ do  Symbol.leftParen
+          P.spaces
+          Symbol.doubleDot
+          P.spaces
+          Symbol.rightParen
+          return Src.Public
+    , return Src.Private
     ]
 
 

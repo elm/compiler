@@ -1,13 +1,19 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Parse.Declaration where
+module Parse.Declaration
+  ( declaration
+  )
+  where
+
 
 import Data.Text (Text)
 import qualified Data.Text.Encoding as Text
 
-import qualified AST.Declaration as Decl
+import qualified AST.Expression.Source as Src
+import qualified AST.Pattern as Pattern
 import qualified AST.Type as Type
 import qualified Parse.Expression as Expr
+import qualified Parse.Pattern as Pattern
 import Parse.Primitives
 import qualified Parse.Primitives.Keyword as Keyword
 import qualified Parse.Primitives.Symbol as Symbol
@@ -23,16 +29,15 @@ import qualified Reporting.Region as R
 -- DECLARATION
 
 
-declaration :: SParser Decl.Source
+declaration :: SParser Src.Decl
 declaration =
   hint E.Decl $
   do  start <- getPosition
       oneOf
-        [ docDecl start
-        , typeDecl start
-        , infixDecl start
-        , portDecl start
-        , defDecl start
+        [ doc_ start
+        , type_ start
+        , port_ start
+        , def_ start
         ]
 
 
@@ -40,30 +45,58 @@ declaration =
 -- DOC COMMENTS
 
 
-docDecl :: R.Position -> SParser Decl.Source
-docDecl start =
+{-# INLINE doc_ #-}
+doc_ :: R.Position -> SParser Src.Decl
+doc_ start =
   do  doc <- W.docComment
       end <- getPosition
       pos <- W.whitespace
-      return ( Decl.Comment (A.at start end (Text.decodeUtf8 doc)), end, pos )
+      return ( A.at start end (Src.Docs (Text.decodeUtf8 doc)), end, pos )
 
 
--- TYPE ANNOTATIONS and DEFINITIONS
+
+-- DEFINITION and ANNOTATION
 
 
-defDecl :: R.Position -> SParser Decl.Source
-defDecl start =
-  do  (def, end, pos) <- Expr.definition
-      let decl = A.at start end (Decl.Def def)
-      return ( Decl.Whatever decl, end, pos )
+{-# INLINE def_ #-}
+def_ :: R.Position -> SParser Src.Decl
+def_ start =
+  do  name <- Var.lower
+      nameEnd <- getPosition
+      let locatedName = A.at start nameEnd name
+      spaces
+      oneOf
+        [ do  Symbol.hasType
+              inContext start (E.Annotation name) $
+                do  spaces
+                    (tipe, end, space) <- Type.expression
+                    return ( A.at start end (Src.Annotation locatedName tipe), end, space )
+        , inContext start (E.Definition name) $
+            definitionHelp start locatedName []
+        ]
+
+
+definitionHelp :: R.Position -> A.Located Text -> [Pattern.Raw] -> SParser Src.Decl
+definitionHelp start name revArgs =
+  oneOf
+    [ do  arg <- hint E.Arg Pattern.term
+          spaces
+          definitionHelp start name (arg : revArgs)
+    , do  Symbol.equals
+          spaces
+          (body, end, space) <- Expr.expression
+          let def = A.at start end (Src.Definition name (reverse revArgs) body)
+          return ( def, end, space )
+    ]
 
 
 
 -- TYPE ALIAS and UNION TYPES
 
 
-typeDecl :: R.Position -> SParser Decl.Source
-typeDecl start =
+{-# INLINE type_ #-}
+type_ :: R.Position -> SParser Src.Decl
+type_ start =
   do  Keyword.type_
       spaces
       oneOf
@@ -72,28 +105,26 @@ typeDecl start =
                 do  spaces
                     (name, args) <- nameArgsEquals
                     (tipe, end, pos) <- Type.expression
-                    let decl = A.at start end (Decl.Alias (Decl.Type name args tipe))
-                    return ( Decl.Whatever decl, end, pos )
+                    return ( A.at start end (Src.Alias name args tipe), end, pos )
         , inContext start E.TypeUnion $
             do  (name, args) <- nameArgsEquals
                 (firstCtor, firstEnd, firstSpace) <- Type.unionConstructor
                 (ctors, end, pos) <- chompConstructors [firstCtor] firstEnd firstSpace
-                let decl = A.at start end (Decl.Union (Decl.Type name args ctors))
-                return ( Decl.Whatever decl, end, pos )
+                return ( A.at start end (Src.Union name args ctors), end, pos )
         ]
 
 
-nameArgsEquals :: Parser (Text, [Text])
+nameArgsEquals :: Parser (A.Located Text, [A.Located Text])
 nameArgsEquals =
-  do  name <- Var.upper
+  do  name <- addLocation Var.upper
       spaces
       nameArgsEqualsHelp name []
 
 
-nameArgsEqualsHelp :: Text -> [Text] -> Parser (Text, [Text])
+nameArgsEqualsHelp :: A.Located Text -> [A.Located Text] -> Parser (A.Located Text, [A.Located Text])
 nameArgsEqualsHelp name args =
   oneOf
-    [ do  arg <- Var.lower
+    [ do  arg <- addLocation Var.lower
           spaces
           nameArgsEqualsHelp name (arg:args)
     , do  Symbol.equals
@@ -102,7 +133,7 @@ nameArgsEqualsHelp name args =
     ]
 
 
-chompConstructors :: [(Text, [Type.Raw])] -> R.Position -> SPos -> SParser [(Text, [Type.Raw])]
+chompConstructors :: [(A.Located Text, [Type.Raw])] -> R.Position -> SPos -> SParser [(A.Located Text, [Type.Raw])]
 chompConstructors ctors end pos =
   oneOf
     [ do  checkSpace pos
@@ -115,47 +146,18 @@ chompConstructors ctors end pos =
 
 
 
--- INFIX
+-- PORT
 
 
-infixDecl :: R.Position -> SParser Decl.Source
-infixDecl start =
-  oneOf
-    [ do  Keyword.infixl_
-          inContext start E.Infix $ infixDeclHelp start Decl.Left
-    , do  Keyword.infixr_
-          inContext start E.Infix $ infixDeclHelp start Decl.Right
-    , do  Keyword.infix_
-          inContext start E.Infix $ infixDeclHelp start Decl.Non
-    ]
-
-
-infixDeclHelp :: R.Position -> Decl.Assoc -> SParser Decl.Source
-infixDeclHelp start assoc =
-  do  spaces
-      n <- digit
-      spaces
-      op <- Symbol.binop
-      end <- getPosition
-      pos <- W.whitespace
-      let decl = A.at start end (Decl.Fixity (Decl.Infix op assoc n))
-      return ( Decl.Whatever decl, end, pos )
-
-
-
--- FOREIGN
-
-
-portDecl :: R.Position -> SParser Decl.Source
-portDecl start =
+{-# INLINE port_ #-}
+port_ :: R.Position -> SParser Src.Decl
+port_ start =
   do  Keyword.port_
       inContext start E.Port $
         do  spaces
-            name <- Var.lower
+            name <- addLocation Var.lower
             spaces
             Symbol.hasType
             spaces
             (tipe, end, pos) <- Type.expression
-            let decl = A.at start end (Decl.Port name tipe)
-            return ( Decl.Whatever decl, end, pos )
-
+            return ( A.at start end (Src.Port name tipe), end, pos )

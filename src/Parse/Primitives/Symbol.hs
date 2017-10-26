@@ -3,7 +3,7 @@
 module Parse.Primitives.Symbol
   ( underscore
   , binop, binopTable
-  , equals, rightArrow, hasType, comma, pipe, cons, dot, minus, lambda
+  , equals, rightArrow, hasType, comma, pipe, cons, dot, doubleDot, minus, lambda
   , leftParen, rightParen, leftSquare, rightSquare, leftCurly, rightCurly
   , elmDocCommentOpen, jsMultiCommentOpen, jsMultiCommentClose
   , shaderBlockOpen
@@ -176,6 +176,12 @@ cons =
 dot :: Parser ()
 dot =
   symbol "."
+
+
+{-# NOINLINE doubleDot #-}
+doubleDot :: Parser ()
+doubleDot =
+  symbol ".."
 
 
 {-# NOINLINE minus #-}

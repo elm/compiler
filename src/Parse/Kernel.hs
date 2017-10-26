@@ -22,7 +22,7 @@ import Generate.JavaScript.Helpers as Help (toFieldName)
 import Generate.JavaScript.Variable as Var (intToAscii)
 import Parse.Primitives (Parser)
 import qualified Parse.Primitives.Kernel as K
-import qualified Parse.Module as Parse
+import qualified Parse.Module as Module
 import qualified Reporting.Annotation as A
 
 
@@ -32,8 +32,11 @@ import qualified Reporting.Annotation as A
 
 parser :: Parser Kernel.Content
 parser =
-  do  header <- Parse.kernelHeader
-      let imports = Map.unions (map headerToImport header)
+  do  Symbol.jsMultiCommentOpen
+      freshLine
+      rawImports <- chompImports []
+      Symbol.jsMultiCommentClose
+      let imports = Map.unions (map destructImport rawImports)
       chunks <- parserHelp imports Map.empty Map.empty []
       return (Kernel.Content (Map.elems imports) chunks)
 
@@ -135,8 +138,8 @@ type Imports =
   Map.Map Text (Module.Raw, Text)
 
 
-headerToImport :: Module.UserImport -> Imports
-headerToImport (A.A _ ( A.A _ fullName, Module.ImportMethod maybeAlias exposed )) =
+destructImport :: Import.ByUser -> Imports
+destructImport (A.A _ ( A.A _ fullName, Module.ImportMethod maybeAlias exposed )) =
   let
     shortName =
       case maybeAlias of

@@ -6,7 +6,7 @@ module Parse.Primitives.Keyword
   , case_, of_
   , let_, in_
   , module_, import_, exposing_, as_, where_, effect_
-  , infix_, infixr_, infixl_
+  , command_, subscription_
   )
   where
 
@@ -168,24 +168,16 @@ effect_ =
 
 
 
--- INFIX
+-- EFFECTS
 
 
-{-# NOINLINE infix_ #-}
-infix_ :: Parser ()
-infix_ =
-  keyword "infix"
+{-# NOINLINE command_ #-}
+command_ :: Parser ()
+command_ =
+  keyword "command"
 
 
-{-# NOINLINE infixr_ #-}
-infixr_ :: Parser ()
-infixr_ =
-  keyword "infixr"
-
-
-{-# NOINLINE infixl_ #-}
-infixl_ :: Parser ()
-infixl_ =
-  keyword "infixl"
-
-
+{-# NOINLINE subscription_ #-}
+subscription_ :: Parser ()
+subscription_ =
+  keyword "subscription"

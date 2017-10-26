@@ -1,15 +1,17 @@
-{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
-module Parse.Parse (program) where
+{-# OPTIONS_GHC -Wall #-}
+module Parse.Parse
+  ( program
+  )
+  where
 
-import Data.Text (Text)
 
-import qualified AST.Declaration as Decl
-import qualified AST.Module as Module
-import qualified AST.Module.Name as ModuleName
-import qualified Elm.Package as Package
-import Parse.Helpers
-import qualified Parse.Module as Parse (header)
-import qualified Parse.Declaration as Parse (declaration)
+import qualified Data.ByteString as B
+
+import qualified AST.Expression.Source as Src
+import qualified AST.Expression.Valid as Valid
+import qualified Parse.Declaration as Decl
+import qualified Parse.Module as Module
+import qualified Parse.Primitives as P
 import qualified Reporting.Annotation as A
 import qualified Reporting.Result as Result
 import qualified Validate
@@ -19,9 +21,9 @@ import qualified Validate
 -- PROGRAM
 
 
-program :: Package.Name -> Text -> Validate.Result wrn Module.Valid
-program pkgName src =
-  case run (chompProgram pkgName) src of
+program :: B.ByteString -> Validate.Result wrn Valid.Module
+program src =
+  case P.run chompProgram src of
     Right modul ->
       Validate.validate modul
 
@@ -29,26 +31,18 @@ program pkgName src =
       Result.throw region syntaxError
 
 
-
-chompProgram :: Package.Name -> Parser Module.Source
-chompProgram pkgName =
-  do  (Module.Header maybeHeaderDecl imports) <- Parse.header
-      decls <- chompDeclarations []
-      endOfFile
-
-      let (Module.HeaderDecl tag name exports settings docs) =
-            maybe Module.defaultHeaderDecl id maybeHeaderDecl
-
-      let moduleName = ModuleName.Canonical pkgName name
-      let source = Module.Source tag settings docs exports imports decls
-      return (Module.Module moduleName source)
+chompProgram :: P.Parser (Src.Module [Src.Decl])
+chompProgram =
+  do  srcModule <- Module.module_ (chompDeclarations [])
+      P.endOfFile
+      return srcModule
 
 
-chompDeclarations :: [Decl.Source] -> Parser [Decl.Source]
+chompDeclarations :: [Src.Decl] -> P.Parser [Src.Decl]
 chompDeclarations decls =
-  do  (decl, _, pos) <- Parse.declaration
-      oneOf
-        [ do  checkFreshLine pos
+  do  (decl, _, pos) <- Decl.declaration
+      P.oneOf
+        [ do  P.checkFreshLine pos
               chompDeclarations (decl:decls)
         , return (reverse (decl:decls))
         ]

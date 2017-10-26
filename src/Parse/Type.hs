@@ -90,13 +90,14 @@ app start =
       return ( A.at start end tipe, end, pos )
 
 
-unionConstructor :: SParser (Text, [Type.Raw])
+unionConstructor :: SParser (A.Located Text, [Type.Raw])
 unionConstructor =
-  do  name <- Var.upper
+  do  start <- getPosition
+      name <- Var.upper
       nameEnd <- getPosition
       namePos <- whitespace
       (args, end, pos) <- eatArgs [] nameEnd namePos
-      return ( (name, args), end, pos )
+      return ( (A.at start nameEnd name, args), end, pos )
 
 
 eatArgs :: [Type.Raw] -> R.Position -> SPos -> SParser [Type.Raw]
