@@ -24,7 +24,6 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text (encodeUtf8)
 import Data.Word (Word8)
 
-import qualified AST.Helpers as Help
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
 import qualified Elm.Package as Pkg
@@ -125,17 +124,10 @@ globalToName (ModuleName.Canonical (Pkg.Name user project) moduleName) name =
     "_" <> ModuleName.getKernel moduleName <> "_" <> name
 
   else
-    let
-      revisedName =
-        if Help.isOp name then
-          "_op_" <> Help.desymbol name
-        else
-          name
-    in
-      Text.replace "-" "_" user
-      <> "$" <> Text.replace "-" "_" project
-      <> "$" <> Text.replace "." "_" moduleName
-      <> "$" <> revisedName
+    Text.replace "-" "_" user
+    <> "$" <> Text.replace "-" "_" project
+    <> "$" <> Text.replace "." "_" moduleName
+    <> "$" <> name
 
 
 

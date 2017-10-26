@@ -3,7 +3,7 @@
 module Generate.JavaScript.Builder
   ( stmtToBuilder
   , exprToBuilder
-  , Expr(..), Id(..), Prop(..), LValue(..)
+  , Expr(..), Id(..), LValue(..)
   , Stmt(..), Case(..), VarDecl(..)
   , InfixOp(..), PrefixOp(..)
   )
@@ -33,7 +33,7 @@ data Expr
   | Bool Bool
   | Null
   | Array [Expr]
-  | Object [(Prop, Expr)]
+  | Object [(Id, Expr)]
   | VarRef Id
   | DotRef Expr Id -- ^ @foo.bar@, spec 11.2.1
   | BracketRef Expr Expr -- ^ @foo[bar]@, spec 11.2.1
@@ -46,12 +46,6 @@ data Expr
 
 
 newtype Id = Id Text
-
-
-data Prop
-  = StringProp Text
-  | IntProp Int
-  | IdProp Id
 
 
 data LValue
@@ -335,7 +329,7 @@ fromExpr :: Builder -> Grouping -> Expr -> (Lines, Builder)
 fromExpr indent grouping expression =
   case expression of
     String string ->
-      (One, quoted string)
+      (One, "'" <> Text.encodeUtf8Builder string <> "'")
 
     Float n ->
       (One, doubleDec n)
@@ -465,37 +459,15 @@ fromExpr indent grouping expression =
 -- FIELDS
 
 
-fromField :: Builder -> (Prop, Expr) -> (Lines, Builder)
-fromField indent (prop, expr) =
+fromField :: Builder -> (Id, Expr) -> (Lines, Builder)
+fromField indent (field, expr) =
   let
     (lines, builder) =
       fromExpr indent Whatever expr
   in
     ( lines
-    , fromProp prop <> ": " <> builder
+    , fromId field <> ": " <> builder
     )
-
-
-fromProp :: Prop -> Builder
-fromProp prop =
-  case prop of
-    IdProp name ->
-      fromId name
-
-    StringProp string ->
-      quoted string
-
-    IntProp n ->
-      intDec n
-
-
-
--- STRINGS
-
-
-quoted :: Text -> Builder
-quoted str =
-  "'" <> Text.encodeUtf8Builder str <> "'"
 
 
 

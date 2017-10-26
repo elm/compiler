@@ -42,9 +42,9 @@ ref name =
     VarRef (Id name)
 
 
-(==>) :: Text -> Expr -> (Prop, Expr)
+(==>) :: Text -> Expr -> (Id, Expr)
 (==>) name expr =
-  ( IdProp (Id name), expr )
+  ( Id name, expr )
 
 
 obj :: [Text] -> Expr
