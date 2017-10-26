@@ -14,14 +14,15 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Word (Word8)
 
-import qualified AST.Exposing as Exposing
+import qualified AST.Expression.Source as Src
 import qualified AST.Kernel as Kernel
-import qualified AST.Module as Module
 import qualified AST.Module.Name as Module
+import qualified Elm.Name as N
 import Generate.JavaScript.Helpers as Help (toFieldName)
 import Generate.JavaScript.Variable as Var (intToAscii)
 import Parse.Primitives (Parser)
 import qualified Parse.Primitives.Kernel as K
+import qualified Parse.Primitives.Symbol as Symbol
 import qualified Parse.Module as Module
 import qualified Reporting.Annotation as A
 
@@ -33,10 +34,10 @@ import qualified Reporting.Annotation as A
 parser :: Parser Kernel.Content
 parser =
   do  Symbol.jsMultiCommentOpen
-      freshLine
-      rawImports <- chompImports []
+      Module.freshLine
+      srcImports <- Module.chompImports []
       Symbol.jsMultiCommentClose
-      let imports = Map.unions (map destructImport rawImports)
+      let imports = Map.unions (map destructImport srcImports)
       chunks <- parserHelp imports Map.empty Map.empty []
       return (Kernel.Content (Map.elems imports) chunks)
 
@@ -138,8 +139,8 @@ type Imports =
   Map.Map Text (Module.Raw, Text)
 
 
-destructImport :: Import.ByUser -> Imports
-destructImport (A.A _ ( A.A _ fullName, Module.ImportMethod maybeAlias exposed )) =
+destructImport :: Src.Import -> Imports
+destructImport (Src.Import (A.A _ moduleName) maybeAlias exposing) =
   let
     shortName =
       case maybeAlias of
@@ -147,35 +148,36 @@ destructImport (A.A _ ( A.A _ fullName, Module.ImportMethod maybeAlias exposed )
           alias
 
         Nothing ->
-          if Module.isKernel fullName then
-            Module.getKernel fullName
-          else if Text.isInfixOf "." fullName then
-            error ("modules with dots in kernel code need an alias: " ++ show fullName)
+          if Module.isKernel moduleName then
+            Module.getKernel moduleName
+          else if Text.isInfixOf "." moduleName then
+            error ("modules with dots in kernel code need an alias: " ++ show moduleName)
           else
-            fullName
+            moduleName
 
-    toEntry value =
-      ( shortName <> "_" <> value, ( fullName, value ) )
+    toEntry name =
+      ( shortName <> "_" <> name, ( moduleName, name ) )
   in
     Map.fromList $ map toEntry $
-      concatMap entryToValues $ getExplicits exposed
+      case exposing of
+        Src.Open ->
+          error "cannot have open imports in kernel code"
+
+        Src.Explicit exposed ->
+          map exposedToName exposed
 
 
-getExplicits :: Exposing.Exposing a -> [a]
-getExplicits exposed =
+exposedToName :: A.Located Src.Exposed -> N.Name
+exposedToName (A.A _ exposed) =
   case exposed of
-    Exposing.Open ->
-      error "cannot have open imports in kernel code"
+    Src.Lower name ->
+      name
 
-    Exposing.Explicit entries ->
-      map A.drop entries
+    Src.Upper name Src.Private ->
+      name
 
+    Src.Upper _ Src.Public ->
+      error "cannot have Maybe(..) syntax in kernel code header"
 
-entryToValues :: Exposing.Entry -> [Text]
-entryToValues entry =
-  case entry of
-    Exposing.Lower name ->
-      [name]
-
-    Exposing.Upper name ctors ->
-      maybe [name] getExplicits ctors
+    Src.Operator _ ->
+      error "cannot use binops in kernel code"

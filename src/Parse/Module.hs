@@ -3,6 +3,7 @@
 module Parse.Module
   ( module_
   , chompImports
+  , freshLine
   )
   where
 
