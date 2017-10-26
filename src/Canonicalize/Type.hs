@@ -1,16 +1,17 @@
 {-# OPTIONS_GHC -Wall #-}
-module Canonicalize.Type (tipe) where
+{-# LANGUAGE OverloadedStrings #-}
+module Canonicalize.Type
+  ( canonicalize
+  )
+  where
 
-import Data.Text (Text)
 
-import qualified AST.Type as T
-import qualified AST.Variable as Var
-import qualified Canonicalize.Environment as Env
-import qualified Canonicalize.Variable as Canonicalize
-import Canonicalize.Variable (Result)
+import qualified Data.Map as Map
+
+import qualified AST.Type as Type
+import qualified Canonicalize.Environment.Dups as Dups
+import qualified Canonicalize.Environment.Internals as Env
 import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
 
 
@@ -18,60 +19,39 @@ import qualified Reporting.Result as Result
 -- CANONICALIZE TYPES
 
 
-tipe :: Env.Env -> T.Raw -> Result T.Canonical
-tipe env (A.A _ typ) =
-  let
-    go =
-      tipe env
+canonicalize :: Env.Env -> Type.Raw -> Env.Result Type.Canonical
+canonicalize env (A.A _ tipe) =
+  case tipe of
+    Type.RVar x ->
+        Result.ok (Type.Var x)
 
-    goField (A.A _ name, t) =
-      (,) name <$> go t
-  in
-    case typ of
-      T.RVar x ->
-          Result.ok (T.Var x)
+    Type.RType region maybePrefix name args ->
+        do  info <- Env.findType region env maybePrefix name (length args)
+            cargs <- traverse (canonicalize env) args
+            return $
+              case info of
+                Env.Alias home argNames aliasedType ->
+                  Type.Aliased home name (zip argNames cargs) (Type.Holey aliasedType)
 
-      T.RType name args ->
-          canonicalizeApp env name args
+                Env.Union home ->
+                  Type.Type home name cargs
 
-      T.RLambda a b ->
-          T.Lambda <$> go a <*> go b
+    Type.RLambda a b ->
+        Type.Lambda
+          <$> canonicalize env a
+          <*> canonicalize env b
 
-      T.RRecord fields ext ->
-          T.Record <$> traverse goField fields <*> traverse go ext
+    Type.RRecord fields ext ->
+        do  fieldDict <- Dups.checkFields fields
+            Type.Record
+              <$> Map.traverseWithKey (\_ t -> canonicalize env t) fieldDict
+              <*> traverse (canonicalize env) ext
 
+    Type.RUnit ->
+        Result.ok Type.Unit
 
-canonicalizeApp :: Env.Env -> A.Located Var.Raw -> [T.Raw] -> Result T.Canonical
-canonicalizeApp env (A.A region (Var.Raw rawName)) args =
-  do  tvar <- Canonicalize.tvar region env rawName
-      case tvar of
-        Right alias ->
-          canonicalizeAlias region env alias args
-
-        Left name ->
-          T.Type name <$> traverse (tipe env) args
-
-
-canonicalizeAlias
-    :: R.Region
-    -> Env.Env
-    -> (Var.Canonical, [Text], T.Canonical)
-    -> [T.Raw]
-    -> Result T.Canonical
-canonicalizeAlias region env (name, tvars, dealiasedTipe) types =
-  let
-    typesLen =
-      length types
-
-    tvarsLen =
-      length tvars
-
-    toAlias canonicalTypes =
-      T.Aliased name (zip tvars canonicalTypes) (T.Holey dealiasedTipe)
-  in
-    if typesLen /= tvarsLen then
-      Result.throw region (Error.alias name tvarsLen typesLen)
-
-    else
-      toAlias <$> traverse (tipe env) types
-
+    Type.RTuple a b cs ->
+        Type.Tuple
+          <$> canonicalize env a
+          <*> canonicalize env b
+          <*> traverse (canonicalize env) cs

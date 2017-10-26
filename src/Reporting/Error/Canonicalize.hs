@@ -2,14 +2,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Reporting.Error.Canonicalize
   ( Error(..)
+  , CtorType(..)
   , variable
   , VarKind(..)
   , VarProblem(..)
   , argMismatch
-  , moduleNotFound
-  , valueNotFound
-  , AliasError(..)
-  , alias
   , port
   , toReport
   , extractSuggestions
@@ -18,16 +15,16 @@ module Reporting.Error.Canonicalize
 
 import Control.Arrow ((***))
 import qualified Data.Char as Char
+import qualified Data.Map as Map
 import qualified Data.Text as Text
 import Data.Text (Text)
 
-import qualified AST.Declaration as Decl
+import qualified AST.Binop as Binop
 import qualified AST.Expression.Canonical as Canonical
-import qualified AST.Helpers as Help (isOp)
 import qualified AST.Module.Name as ModuleName
-import qualified AST.Pattern as P
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
+import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as Region
 import qualified Reporting.Render.Type as RenderType
@@ -42,15 +39,33 @@ import Reporting.Helpers ( Doc, (<>), dullyellow, fillSep, green, i2t, indent, r
 
 data Error
     = Var VarError
+    | AliasArgMismatch Var.Canonical Int Int
+    | AliasRecursion N.Name [N.Name] Type.Raw [N.Name]
     | BadRecursion Region.Region Canonical.Def [Canonical.Def]
-    | BadInfix Region.Region Int Var.Canonical Decl.Assoc Var.Canonical Decl.Assoc
+    | BadInfix Region.Region Int Var.Canonical Binop.Associativity Var.Canonical Binop.Associativity
     | Pattern PatternError
-    | Alias AliasError
-    | Import ModuleName.Raw ImportError
+    | DuplicateDecl N.Name
+    | DuplicateType N.Name
+    | DuplicateCtor N.Name CtorType CtorType
+    | DuplicateBinop N.Name
+    | DuplicateField N.Name
+    | DuplicateAliasArg N.Name N.Name [N.Name]
+    | DuplicateUnionArg N.Name N.Name [N.Name]
+    | ImportNotFound ModuleName.Raw [ModuleName.Raw]
+    | ImportCtorNotFound N.Name N.Name
+    | ImportOpenAlias N.Name
+    | ImportExposingNotFound ModuleName.Raw N.Name [N.Name]
     | Export Text [Text]
     | DuplicateExport Text
     | Port PortError
     | BadPort Text Type.Canonical
+    | TypeVarsUnboundInUnion N.Name [N.Name] [A.Located N.Name]
+    | TypeVarsMessedUpInAlias N.Name [N.Name] [A.Located N.Name] [A.Located N.Name]
+
+
+data CtorType
+  = UnionCtor N.Name
+  | RecordCtor
 
 
 
@@ -83,7 +98,8 @@ variable kind name problem suggestions =
 
 
 data VarKind
-  = BadValue
+  = BadOp
+  | BadVar
   | BadPattern
   | BadType
 
@@ -91,11 +107,11 @@ data VarKind
 toKindInfo :: VarKind -> Text -> ( Doc, Doc, Doc )
 toKindInfo kind name =
   case kind of
-    BadValue ->
-      if Help.isOp name then
-        ( "an", "operator", text $ "(" <> name <> ")" )
-      else
-        ( "a", "value", text name )
+    BadOp ->
+      ( "an", "operator", text $ "(" <> name <> ")" )
+
+    BadVar ->
+      ( "a", "value", text name )
 
     BadPattern ->
       ( "a", "pattern", text name )
@@ -115,40 +131,6 @@ data PatternError
 argMismatch :: Var.Canonical -> Int -> Int -> Error
 argMismatch name expected actual =
   Pattern (PatternArgMismatch name expected actual)
-
-
-
--- IMPORTS
-
-
-data ImportError
-    = ModuleNotFound [ModuleName.Raw]
-    | ValueNotFound Text [Text]
-
-
-moduleNotFound :: ModuleName.Raw -> [ModuleName.Raw] -> Error
-moduleNotFound name possibilities =
-  Import name (ModuleNotFound possibilities)
-
-
-valueNotFound :: ModuleName.Raw -> Text -> [Text] -> Error
-valueNotFound name value possibilities =
-  Import name (ValueNotFound value possibilities)
-
-
-
--- ALIASES
-
-
-data AliasError
-    = ArgMismatch Var.Canonical Int Int
-    | SelfRecursive Text [Text] Type.Raw
-    | MutuallyRecursive [(Region.Region, Text, [Text], Type.Raw)]
-
-
-alias :: Var.Canonical -> Int -> Int -> Error
-alias name expected actual =
-  Alias (ArgMismatch name expected actual)
 
 
 
@@ -178,25 +160,53 @@ extractSuggestions err =
     Var (VarError _ _ _ suggestions) ->
         Just suggestions
 
+    AliasArgMismatch _ _ _ ->
+        Nothing
+
+    AliasRecursion _ _ _ _ ->
+        Nothing
+
     BadRecursion _ _ _ ->
         Nothing
 
     BadInfix _ _ _ _ _ _ ->
         Nothing
 
+    DuplicateDecl _ ->
+        Nothing
+
+    DuplicateType _ ->
+        Nothing
+
+    DuplicateCtor _ _ _ ->
+        Nothing
+
+    DuplicateBinop _ ->
+        Nothing
+
+    DuplicateField _ ->
+        Nothing
+
+    DuplicateAliasArg _ _ _ ->
+        Nothing
+
+    DuplicateUnionArg _ _ _ ->
+        Nothing
+
     Pattern _ ->
         Nothing
 
-    Alias _ ->
+    ImportNotFound _ suggestions ->
+        Just (map ModuleName.toText suggestions)
+
+    ImportExposingNotFound _ _ suggestions ->
+        Just suggestions
+
+    ImportCtorNotFound _ _ ->
         Nothing
 
-    Import _ importError ->
-        case importError of
-          ModuleNotFound suggestions ->
-              Just (map ModuleName.toText suggestions)
-
-          ValueNotFound _ suggestions ->
-              Just suggestions
+    ImportOpenAlias _ ->
+        Nothing
 
     Export _ suggestions ->
         Just suggestions
@@ -208,6 +218,12 @@ extractSuggestions err =
         Nothing
 
     BadPort _ _ ->
+        Nothing
+
+    TypeVarsUnboundInUnion _ _ _ ->
+        Nothing
+
+    TypeVarsMessedUpInAlias _ _ _ _ ->
         Nothing
 
 
@@ -241,61 +257,71 @@ toReport localizer err =
               ]
           )
 
+    DuplicateDecl _ ->
+        error "TODO DuplicateDecl"
+
+    DuplicateType _ ->
+        error "TODO DuplicateType"
+
+    DuplicateCtor _ _ _ ->
+        error "TODO DuplicateCtor"
+
+    DuplicateBinop _ ->
+        error "TODO DuplicateBinop"
+
+    DuplicateField _ ->
+        error "TODO DuplicateField"
+
+    DuplicateAliasArg _ _ _ ->
+        error "TODO DuplicateAliasArg"
+
+    DuplicateUnionArg _ _ _ ->
+        error "TODO DuplicateUnionArg"
+
     Pattern patternError ->
         case patternError of
           PatternArgMismatch var expected actual ->
               argMismatchReport "Pattern" var expected actual
 
-    Alias aliasError ->
-        case aliasError of
-          ArgMismatch var expected actual ->
-              argMismatchReport "Type" var expected actual
+    AliasArgMismatch var expected actual ->
+        argMismatchReport "Type" var expected actual
 
-          SelfRecursive name tvars tipe ->
-              Report.report
-                "ALIAS PROBLEM"
-                Nothing
-                "This type alias is recursive, forming an infinite type!"
-                (
-                  Help.stack
-                    [ reflowParagraph $
-                        "When I expand a recursive type alias, it just keeps getting bigger and bigger.\
-                        \ So dealiasing results in an infinitely large type! Try this instead:"
-                    , indent 4 $
-                        RenderType.decl localizer name tvars [(name, [unsafePromote tipe])]
-                    , text $
-                        "This is kind of a subtle distinction. I suggested the naive fix, but you can\n"
-                        <> "often do something a bit nicer. So I would recommend reading more at:\n"
-                        <> Help.hintLink "recursive-alias"
-                    ]
-                )
+    AliasRecursion name args tipe others ->
+        aliasRecursionReport localizer name args tipe others
 
-          MutuallyRecursive aliases ->
-              Report.report
-                "ALIAS PROBLEM"
-                Nothing
-                "This type alias is part of a mutually recursive set of type aliases."
-                ( Help.stack
-                    [ text "The following type aliases are mutually recursive:"
-                    , indent 4 (Help.drawCycle (map (\(_, name, _, _) -> name) aliases))
-                    , reflowParagraph $
-                        "You need to convert at least one `type alias` into a `type`. This is a kind of\
-                        \ subtle distinction, so definitely read up on this before you make a fix: "
-                        <> Help.hintLink "recursive-alias"
-                    ]
-                )
+    ImportNotFound name suggestions ->
+        Report.report "IMPORT ERROR" Nothing
+          ("Could not find a module named `" <> ModuleName.toText name <> "`")
+          (Help.maybeYouWant Nothing suggestions)
 
-    Import name importError ->
-        case importError of
-          ModuleNotFound suggestions ->
-              Report.report "IMPORT ERROR" Nothing
-                ("Could not find a module named `" <> ModuleName.toText name <> "`")
-                (Help.maybeYouWant Nothing suggestions)
+    ImportCtorNotFound ctor tipe ->
+        Report.report "IMPORT ERROR" Nothing
+          ("This is not the syntax for exposing a `" <> tipe <> "` type constructor:")
+          ( Help.stack
+              [ reflowParagraph $
+                  "Delete that. You can expose the `" <> ctor
+                  <> "` type constructors by saying:"
+              , indent 4 (green (text (tipe <> "(..)")))
+              , reflowParagraph $
+                  "This means that every type constructors of `" <> tipe
+                  <> "` is exposed. No need to list them separately."
+              ]
+          )
 
-          ValueNotFound value suggestions ->
-              Report.report "IMPORT ERROR" Nothing
-                ("Module `" <> ModuleName.toText name <> "` does not expose `" <> value <> "`")
-                (Help.maybeYouWant Nothing suggestions)
+    ImportOpenAlias name ->
+        Report.report "IMPORT ERROR" Nothing
+          ("Cannot expose `" <> name <> "` like this:")
+          ( reflowParagraph $
+              "The (..) syntax exposes type constructors, but a type alias like `"
+              <> name <> "` has no constructors! It is just an alternate name for\
+              \ an existing type. Remove the (..) part and it should work."
+          )
+          -- TODO add docs about the difference between types and type aliases
+
+    ImportExposingNotFound name value suggestions ->
+        Report.report "IMPORT ERROR" Nothing
+          ("Module `" <> ModuleName.toText name <> "` does not expose `" <> value <> "`")
+          (Help.maybeYouWant Nothing suggestions)
 
     Export name suggestions ->
         Report.report "EXPOSING ERROR" Nothing
@@ -342,6 +368,14 @@ toReport localizer err =
                 \ <http://guide.elm-lang.org/interop/javascript.html#ports>"
             ]
         )
+
+    TypeVarsUnboundInUnion _ _ _ ->
+        error "TODO TypeVarsUnboundInUnion"
+
+    TypeVarsMessedUpInAlias _ _ _ _ ->
+        error "TODO TypeVarsMessedUpInAlias"
+
+
 
 
 
@@ -503,11 +537,45 @@ badMutualRecursion region name names =
 
 defToText :: Canonical.Def -> Text
 defToText (Canonical.Def _ pattern _ _) =
-  P.toText pattern
+  error "TODO P.toText" pattern
 
 
 
--- TYPE COERCION
+-- BAD ALIAS RECURSION
+
+
+aliasRecursionReport :: RenderType.Localizer -> N.Name -> [N.Name] -> Type.Raw -> [N.Name] -> Report.Report
+aliasRecursionReport localizer name args tipe others =
+  case others of
+    [] ->
+      Report.report "ALIAS PROBLEM" Nothing
+        "This type alias is recursive, forming an infinite type!"
+        (
+          Help.stack
+            [ reflowParagraph $
+                "When I expand a recursive type alias, it just keeps getting bigger and bigger.\
+                \ So dealiasing results in an infinitely large type! Try this instead:"
+            , indent 4 $
+                RenderType.decl localizer name args [(name, [unsafePromote tipe])]
+            , text $
+                "This is kind of a subtle distinction. I suggested the naive fix, but you can\n"
+                <> "often do something a bit nicer. So I would recommend reading more at:\n"
+                <> Help.hintLink "recursive-alias"
+            ]
+        )
+
+    _ ->
+      Report.report "ALIAS PROBLEM" Nothing
+        "This type alias is part of a mutually recursive set of type aliases."
+        ( Help.stack
+            [ text "The following type aliases are mutually recursive:"
+            , indent 4 (Help.drawCycle (name:others))
+            , reflowParagraph $
+                "You need to convert at least one `type alias` into a `type`. This is a kind of\
+                \ subtle distinction, so definitely read up on this before you make a fix: "
+                <> Help.hintLink "recursive-alias"
+            ]
+        )
 
 
 unsafePromote :: Type.Raw -> Type.Canonical
@@ -519,9 +587,19 @@ unsafePromote (A.A _ rawType) =
     Type.RVar x ->
         Type.Var x
 
-    Type.RType (A.A _ (Var.Raw name)) args ->
-        Type.Type (Var.local name) (map unsafePromote args)
+    Type.RType _ _ name args ->
+        Type.Type (error "TODO unsafePromote better") name (map unsafePromote args)
 
     Type.RRecord fields ext ->
-        Type.Record (map (A.drop *** unsafePromote) fields) (fmap unsafePromote ext)
+        Type.Record
+          (Map.fromList (map (A.drop *** unsafePromote) fields))
+          (fmap unsafePromote ext)
 
+    Type.RUnit ->
+        Type.Unit
+
+    Type.RTuple a b cs ->
+        Type.Tuple
+          (unsafePromote a)
+          (unsafePromote b)
+          (map unsafePromote cs)
