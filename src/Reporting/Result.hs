@@ -1,10 +1,22 @@
 {-# OPTIONS_GHC -Wall #-}
-module Reporting.Result where
+module Reporting.Result
+  ( Result(..)
+  , ok
+  , throw
+  , accumulate
+  , warn
+  , from
+  , mapError
+  , format
+  , answerToEither
+  , oneToValue
+  )
+  where
 
 import Control.Monad.Except (Except, runExcept)
 
+import qualified Data.Bag as Bag
 import qualified Reporting.Annotation as A
-import qualified Reporting.Bag as Bag
 import qualified Reporting.Region as R
 
 
@@ -41,12 +53,7 @@ ok value =
 
 throw :: (Monoid i) => R.Region -> e -> Result i w e a
 throw region err =
-  Result mempty Bag.empty (Err (Bag.singleton (A.A region err)))
-
-
-throwMany :: (Monoid i) => [A.Located e] -> Result i w e a
-throwMany errors =
-  Result mempty Bag.empty (Err (Bag.fromList errors))
+  Result mempty Bag.empty (Err (Bag.one (A.A region err)))
 
 
 accumulate :: (Monoid i) => i -> a -> Result i w e a
@@ -56,7 +63,7 @@ accumulate info value =
 
 warn :: (Monoid i) => R.Region -> w -> a -> Result i w e a
 warn region warning a =
-  Result mempty (Bag.singleton (A.A region warning)) (Ok a)
+  Result mempty (Bag.one (A.A region warning)) (Ok a)
 
 
 
@@ -70,7 +77,7 @@ from f except =
         ok answer
 
     Left errors ->
-        throwMany (map (A.map f) errors)
+        Result mempty Bag.empty (Err (Bag.fromList (A.map f) errors))
 
 
 mapError :: (e -> e') -> Result i w e a -> Result i w e' a
@@ -96,7 +103,7 @@ answerToEither onErr onOk answer =
       Right (onOk value)
 
     Err errors ->
-      Left (Bag.toList onErr errors)
+      Left (map onErr (Bag.toList errors))
 
 
 oneToValue :: b -> (a -> b) -> One a -> b

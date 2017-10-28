@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Canonicalize.OneOrMore
+module Data.OneOrMore
   ( OneOrMore(..)
   , one
   , more
