@@ -5,20 +5,15 @@ module AST.Pattern
   , Raw_(..)
   , Canonical
   , Canonical_(..)
-  , boundVars
-  , member
-  , boundVarSet
-  , boundVarList
   )
   where
 
 
-import qualified Data.Set as Set
-import Data.Text (Text)
-
-import qualified AST.Literal as L
-import qualified AST.Variable as Var
+import qualified AST.Literal as Literal
+import qualified AST.Module.Name as ModuleName
+import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
+import qualified Reporting.Region as R
 
 
 
@@ -29,16 +24,16 @@ type Raw = A.Located Raw_
 
 
 data Raw_
-  = RCtor (Maybe Text) Text [Raw]
-  | RRecord [Text]
+  = RCtor R.Region (Maybe N.Name) N.Name [Raw]
+  | RRecord [A.Located N.Name]
   | RUnit
   | RTuple Raw Raw [Raw]
   | RList [Raw]
   | RCons Raw Raw
-  | RAlias Text Raw
-  | RVar Text
+  | RAlias Raw (A.Located N.Name)
+  | RVar N.Name
   | RAnything
-  | RLiteral L.Literal
+  | RLiteral Literal.Literal
 
 
 
@@ -49,64 +44,11 @@ type Canonical = A.Located Canonical_
 
 
 data Canonical_
-  = Ctor Var.Canonical [Canonical]
-  | Record [Text]
+  = Ctor ModuleName.Canonical N.Name [Canonical]
+  | Record [N.Name]
   | Unit
   | Tuple Canonical Canonical [Canonical]
-  | Alias Text Canonical
-  | Var Text
+  | Alias Canonical N.Name
+  | Var N.Name
   | Anything
-  | Literal L.Literal
-
-
-
--- FIND VARIABLES
-
-
-boundVars :: Raw -> [A.Located Text]
-boundVars (A.A region pattern) =
-  case pattern of
-    RVar name ->
-        [ A.A region name ]
-
-    RAlias name realPattern ->
-        A.A region name : boundVars realPattern
-
-    RCtor _ _ patterns ->
-        concatMap boundVars patterns
-
-    RRecord fields ->
-        map (A.A region) fields
-
-    RUnit ->
-        []
-
-    RTuple a b cs ->
-        concatMap boundVars (a:b:cs)
-
-    RList xs ->
-        concatMap boundVars xs
-
-    RCons a b ->
-        boundVars a ++ boundVars b
-
-    RAnything ->
-        []
-
-    RLiteral _ ->
-        []
-
-
-member :: Text -> Raw -> Bool
-member name pattern =
-  elem name (map A.drop (boundVars pattern))
-
-
-boundVarSet :: Raw -> Set.Set Text
-boundVarSet pattern =
-  Set.fromList (map A.drop (boundVars pattern))
-
-
-boundVarList :: Raw -> [Text]
-boundVarList pattern =
-  Set.toList (boundVarSet pattern)
+  | Literal Literal.Literal

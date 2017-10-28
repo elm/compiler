@@ -30,7 +30,6 @@ data Literal
   | Str Text
   | IntNum Int
   | FloatNum Double
-  | Boolean Bool
   deriving (Eq, Ord)
 
 
@@ -41,7 +40,6 @@ toBuilder literal =
     Str s -> fromText ("\"" <> s <> "\"")
     IntNum n -> decimal n
     FloatNum n -> realFloat n
-    Boolean bool -> if bool then "True" else "False"
 
 
 
@@ -104,12 +102,6 @@ instance Binary Literal where
       FloatNum n ->
         putWord8 3 >> put n
 
-      Boolean True ->
-        putWord8 4
-
-      Boolean False ->
-        putWord8 5
-
   get =
     do  word <- getWord8
         case word of
@@ -117,6 +109,4 @@ instance Binary Literal where
           1 -> Str <$> get
           2 -> IntNum <$> get
           3 -> FloatNum <$> get
-          4 -> pure $ Boolean True
-          5 -> pure $ Boolean False
           _ -> error "bad binary for AST.Literal"

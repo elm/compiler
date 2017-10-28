@@ -8,12 +8,11 @@ module Parse.Pattern
 
 
 import qualified Data.List as List
-import Data.Text (Text)
 
-import qualified AST.Literal as L
 import qualified AST.Pattern as P
+import qualified Elm.Name as N
 import qualified Parse.Literal as Literal
-import Parse.Primitives (Parser, SParser, SPos, checkSpace, getPosition, hint, inContext, spaces, oneOf)
+import Parse.Primitives (Parser, SParser, SPos, addLocation, checkSpace, getPosition, hint, inContext, spaces, oneOf)
 import qualified Parse.Primitives.Keyword as Keyword
 import qualified Parse.Primitives.Symbol as Symbol
 import qualified Parse.Primitives.Variable as Var
@@ -41,28 +40,28 @@ term =
 
 termHelp :: R.Position -> Parser P.Raw
 termHelp start =
-  do  pattern <-
-        oneOf
-          [ Symbol.underscore >> return P.RAnything
-          , P.RVar <$> Var.lower
-          , upperTerm <$> Var.foreignUpper
-          , P.RLiteral <$> Literal.literal
-          ]
-      end <- getPosition
-      return (A.at start end pattern)
+  oneOf
+    [
+      do  Symbol.underscore
+          end <- getPosition
+          return (A.at start end P.RAnything)
+    ,
+      do  name <- Var.lower
+          end <- getPosition
+          return (A.at start end (P.RVar name))
+    ,
+      do  (maybePrefix, name) <- Var.foreignUpper
+          end <- getPosition
+          let ctor = P.RCtor (R.Region start end) maybePrefix name []
+          return (A.at start end ctor)
+
+    ,
+      do  lit <- Literal.literal
+          end <- getPosition
+          return (A.at start end (P.RLiteral lit))
+    ]
 
 
-upperTerm :: (Maybe Text, Text) -> P.Raw_
-upperTerm pair =
-  case pair of
-    (Nothing, "True") ->
-      P.RLiteral (L.Boolean True)
-
-    (Nothing, "False") ->
-      P.RLiteral (L.Boolean False)
-
-    (maybePrefix, name) ->
-      P.RCtor maybePrefix name []
 
 
 
@@ -75,7 +74,7 @@ record start =
       inContext start E.ExprRecord $
         do  spaces
             oneOf
-              [ do  var <- Var.lower
+              [ do  var <- addLocation Var.lower
                     spaces
                     recordHelp start [var]
               , do  Symbol.rightCurly
@@ -84,12 +83,12 @@ record start =
               ]
 
 
-recordHelp :: R.Position -> [Text] -> Parser P.Raw
+recordHelp :: R.Position -> [A.Located N.Name] -> Parser P.Raw
 recordHelp start vars =
   oneOf
     [ do  Symbol.comma
           spaces
-          var <- Var.lower
+          var <- addLocation Var.lower
           spaces
           recordHelp start (var:vars)
     , do  Symbol.rightCurly
@@ -192,11 +191,13 @@ exprHelp start patterns (pattern, _end, sPos) =
     , do  checkSpace sPos
           Keyword.as_
           spaces
-          alias <- Var.lower
+          nameStart <- getPosition
+          name <- Var.lower
           newEnd <- getPosition
           newSpace <- whitespace
+          let alias = A.at nameStart newEnd name
           return
-            ( A.at start newEnd (P.RAlias alias (List.foldl' cons pattern patterns))
+            ( A.at start newEnd (P.RAlias (List.foldl' cons pattern patterns) alias)
             , newSpace
             )
     , return
@@ -226,8 +227,8 @@ exprTerm =
     ]
 
 
-exprTermHelp :: R.Position -> (Maybe Text, Text) -> [P.Raw] -> SParser P.Raw
-exprTermHelp start pair@(prefix, name) args =
+exprTermHelp :: R.Position -> (Maybe N.Name, N.Name) -> [P.Raw] -> SParser P.Raw
+exprTermHelp start pair@(maybePrefix, name) args =
   do  end <- getPosition
       sPos <- whitespace
       oneOf
@@ -235,7 +236,7 @@ exprTermHelp start pair@(prefix, name) args =
               arg <- term
               exprTermHelp start pair (arg:args)
         , return
-            ( A.at start end (P.RCtor prefix name (reverse args))
+            ( A.at start end (P.RCtor (R.Region start end) maybePrefix name (reverse args))
             , end
             , sPos
             )
