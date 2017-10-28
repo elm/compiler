@@ -51,7 +51,7 @@ data Expr_
   | Literal Literal.Literal
   | List [Expr]
   | Binop Name ModuleName.Canonical Name Expr Expr
-  | Lambda Ptrn.Canonical Expr
+  | Lambda [Ptrn.Canonical] Expr
   | Call Expr [Expr]
   | If [(Expr, Expr)] Expr
   | Let [Graph.SCC Def] Expr

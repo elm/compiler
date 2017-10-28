@@ -42,7 +42,7 @@ data Expr_
   | Op N.Name
   | Negate Expr
   | Binops [(Expr, A.Located N.Name)] Expr
-  | Lambda Ptrn.Raw Expr
+  | Lambda [Ptrn.Raw] Expr
   | Call Expr [Expr]
   | If [(Expr, Expr)] Expr
   | Let [A.Located Def] Expr

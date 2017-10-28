@@ -7,7 +7,6 @@ module Parse.Expression
 
 
 import Control.Monad (guard)
-import qualified Data.List as List
 import Data.Text (Text)
 
 import Parse.Primitives
@@ -384,7 +383,7 @@ function start =
             revArgs <- gatherArgs [arg]
             spaces
             (body, end, space) <- expression
-            let func = List.foldl' (\e x -> A.at start end (Src.Lambda x e)) body revArgs
+            let func = A.at start end (Src.Lambda (reverse revArgs) body)
             return ( func, end, space )
 
 
