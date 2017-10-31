@@ -1,6 +1,11 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Validate (Result, validate) where
+module Validate
+  ( Result
+  , validate
+  )
+  where
+
 
 import Control.Applicative (liftA2)
 import Control.Monad (forM_)
@@ -9,14 +14,12 @@ import Data.Text (Text)
 
 import qualified AST.Expression.Source as Src
 import qualified AST.Expression.Valid as Valid
-import qualified AST.Pattern as Pattern
 import qualified AST.Type as Type
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as Error
 import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
-
 
 
 
@@ -260,22 +263,23 @@ definitions sourceDefs =
 
     A.A annRegion (Src.Annotate annotationName tipe) : otherDefs ->
       case otherDefs of
-        A.A defRegion (Src.Define name args expr) : otherOtherDefs | name == annotationName ->
-          (:)
-            <$> validateDefinition (R.merge annRegion defRegion) name args expr (Just tipe)
-            <*> definitions otherOtherDefs
+        A.A defRegion (Src.Define name@(A.A _ definitionName) args expr) : otherOtherDefs
+          | definitionName == annotationName ->
+              (:)
+                <$> validateDefinition (R.merge annRegion defRegion) name args expr (Just tipe)
+                <*> definitions otherOtherDefs
 
         _ ->
           Result.throw annRegion (Error.TypeWithoutDefinition annotationName)
 
 
-validateDefinition :: R.Region -> Text -> [Pattern.Raw] -> Src.Expr -> Maybe Type.Raw -> Result w Valid.Def
+validateDefinition :: R.Region -> A.Located Text -> [Src.Pattern] -> Src.Expr -> Maybe Type.Raw -> Result w Valid.Def
 validateDefinition region name args expr maybeType =
   do  validExpr <- expression expr
       return $ Valid.Define region name args validExpr maybeType
 
 
-validateDestruct :: R.Region -> Pattern.Raw -> Src.Expr -> Result w Valid.Def
+validateDestruct :: R.Region -> Src.Pattern -> Src.Expr -> Result w Valid.Def
 validateDestruct region pattern expr =
   Valid.Destruct region pattern <$> expression expr
 
