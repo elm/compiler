@@ -9,7 +9,7 @@ module Parse.Pattern
 
 import qualified Data.List as List
 
-import qualified AST.Pattern as P
+import qualified AST.Expression.Source as Src
 import qualified Elm.Name as N
 import qualified Parse.Literal as Literal
 import Parse.Primitives (Parser, SParser, SPos, addLocation, checkSpace, getPosition, hint, inContext, spaces, oneOf)
@@ -26,7 +26,7 @@ import qualified Reporting.Region as R
 -- TERM
 
 
-term :: Parser P.Raw
+term :: Parser Src.Pattern
 term =
   hint E.Pattern $
     do  start <- getPosition
@@ -38,27 +38,26 @@ term =
           ]
 
 
-termHelp :: R.Position -> Parser P.Raw
+termHelp :: R.Position -> Parser Src.Pattern
 termHelp start =
   oneOf
     [
       do  Symbol.underscore
           end <- getPosition
-          return (A.at start end P.RAnything)
+          return (A.at start end Src.PAnything)
     ,
       do  name <- Var.lower
           end <- getPosition
-          return (A.at start end (P.RVar name))
+          return (A.at start end (Src.PVar name))
     ,
       do  (maybePrefix, name) <- Var.foreignUpper
           end <- getPosition
-          let ctor = P.RCtor (R.Region start end) maybePrefix name []
+          let ctor = Src.PCtor (R.Region start end) maybePrefix name []
           return (A.at start end ctor)
-
     ,
       do  lit <- Literal.literal
           end <- getPosition
-          return (A.at start end (P.RLiteral lit))
+          return (A.at start end (Src.PLiteral lit))
     ]
 
 
@@ -68,7 +67,7 @@ termHelp start =
 -- RECORDS
 
 
-record :: R.Position -> Parser P.Raw
+record :: R.Position -> Parser Src.Pattern
 record start =
   do  Symbol.leftCurly
       inContext start E.ExprRecord $
@@ -79,11 +78,11 @@ record start =
                     recordHelp start [var]
               , do  Symbol.rightCurly
                     end <- getPosition
-                    return (A.at start end (P.RRecord []))
+                    return (A.at start end (Src.PRecord []))
               ]
 
 
-recordHelp :: R.Position -> [A.Located N.Name] -> Parser P.Raw
+recordHelp :: R.Position -> [A.Located N.Name] -> Parser Src.Pattern
 recordHelp start vars =
   oneOf
     [ do  Symbol.comma
@@ -93,7 +92,7 @@ recordHelp start vars =
           recordHelp start (var:vars)
     , do  Symbol.rightCurly
           end <- getPosition
-          return (A.at start end (P.RRecord vars))
+          return (A.at start end (Src.PRecord vars))
     ]
 
 
@@ -101,7 +100,7 @@ recordHelp start vars =
 -- TUPLES
 
 
-tuple :: R.Position -> Parser P.Raw
+tuple :: R.Position -> Parser Src.Pattern
 tuple start =
   do  Symbol.leftParen
       inContext start E.ExprTuple $
@@ -112,11 +111,11 @@ tuple start =
                     tupleHelp start pattern []
               , do  Symbol.rightParen
                     end <- getPosition
-                    return (A.at start end P.RUnit)
+                    return (A.at start end Src.PUnit)
               ]
 
 
-tupleHelp :: R.Position -> P.Raw -> [P.Raw] -> Parser P.Raw
+tupleHelp :: R.Position -> Src.Pattern -> [Src.Pattern] -> Parser Src.Pattern
 tupleHelp start firstPattern revPatterns =
   oneOf
     [ do  Symbol.comma
@@ -131,7 +130,7 @@ tupleHelp start firstPattern revPatterns =
 
             secondPattern : otherPatterns ->
               do  end <- getPosition
-                  return (A.at start end (P.RTuple firstPattern secondPattern otherPatterns))
+                  return (A.at start end (Src.PTuple firstPattern secondPattern otherPatterns))
     ]
 
 
@@ -139,7 +138,7 @@ tupleHelp start firstPattern revPatterns =
 -- LIST
 
 
-list :: R.Position -> Parser P.Raw
+list :: R.Position -> Parser Src.Pattern
 list start =
   do  Symbol.leftSquare
       inContext start E.PatternList $
@@ -150,11 +149,11 @@ list start =
                     listHelp start [pattern]
               , do  Symbol.rightSquare
                     end <- getPosition
-                    return (A.at start end (P.RList []))
+                    return (A.at start end (Src.PList []))
               ]
 
 
-listHelp :: R.Position -> [P.Raw] -> Parser P.Raw
+listHelp :: R.Position -> [Src.Pattern] -> Parser Src.Pattern
 listHelp start patterns =
   oneOf
     [ do  Symbol.comma
@@ -164,7 +163,7 @@ listHelp start patterns =
           listHelp start (pattern:patterns)
     , do  Symbol.rightSquare
           end <- getPosition
-          return (A.at start end (P.RList (reverse patterns)))
+          return (A.at start end (Src.PList (reverse patterns)))
     ]
 
 
@@ -172,7 +171,7 @@ listHelp start patterns =
 -- EXPRESSION
 
 
-expression :: Parser (P.Raw, SPos)
+expression :: Parser (Src.Pattern, SPos)
 expression =
   hint E.Pattern $
     do  start <- getPosition
@@ -180,7 +179,7 @@ expression =
         exprHelp start [] cTerm
 
 
-exprHelp :: R.Position -> [P.Raw] -> (P.Raw, R.Position, SPos) -> Parser (P.Raw, SPos)
+exprHelp :: R.Position -> [Src.Pattern] -> (Src.Pattern, R.Position, SPos) -> Parser (Src.Pattern, SPos)
 exprHelp start patterns (pattern, _end, sPos) =
   oneOf
     [ do  checkSpace sPos
@@ -197,7 +196,7 @@ exprHelp start patterns (pattern, _end, sPos) =
           newSpace <- whitespace
           let alias = A.at nameStart newEnd name
           return
-            ( A.at start newEnd (P.RAlias (List.foldl' cons pattern patterns) alias)
+            ( A.at start newEnd (Src.PAlias (List.foldl' cons pattern patterns) alias)
             , newSpace
             )
     , return
@@ -207,16 +206,16 @@ exprHelp start patterns (pattern, _end, sPos) =
     ]
 
 
-cons :: P.Raw -> P.Raw -> P.Raw
+cons :: Src.Pattern -> Src.Pattern -> Src.Pattern
 cons tl@(A.A (R.Region _ end) _) hd@(A.A (R.Region start _) _) =
-  A.at start end (P.RCons hd tl)
+  A.at start end (Src.PCons hd tl)
 
 
 
 -- EXPRESSION TERM
 
 
-exprTerm :: SParser P.Raw
+exprTerm :: SParser Src.Pattern
 exprTerm =
   oneOf
     [ do  start <- getPosition
@@ -227,7 +226,7 @@ exprTerm =
     ]
 
 
-exprTermHelp :: R.Position -> (Maybe N.Name, N.Name) -> [P.Raw] -> SParser P.Raw
+exprTermHelp :: R.Position -> (Maybe N.Name, N.Name) -> [Src.Pattern] -> SParser Src.Pattern
 exprTermHelp start pair@(maybePrefix, name) args =
   do  end <- getPosition
       sPos <- whitespace
@@ -236,7 +235,7 @@ exprTermHelp start pair@(maybePrefix, name) args =
               arg <- term
               exprTermHelp start pair (arg:args)
         , return
-            ( A.at start end (P.RCtor (R.Region start end) maybePrefix name (reverse args))
+            ( A.at start end (Src.PCtor (R.Region start end) maybePrefix name (reverse args))
             , end
             , sPos
             )

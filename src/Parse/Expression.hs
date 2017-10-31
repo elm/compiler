@@ -7,8 +7,9 @@ module Parse.Expression
 
 
 import Control.Monad (guard)
-import Data.Text (Text)
 
+import qualified AST.Expression.Source as Src
+import qualified Elm.Name as N
 import Parse.Primitives
 import qualified Parse.Primitives.Keyword as Keyword
 import qualified Parse.Primitives.Symbol as Symbol
@@ -17,9 +18,6 @@ import qualified Parse.Primitives.Whitespace as W
 import qualified Parse.Literal as Literal
 import qualified Parse.Pattern as Pattern
 import qualified Parse.Type as Type
-
-import qualified AST.Expression.Source as Src
-import qualified AST.Pattern as P
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as E
 import qualified Reporting.Region as R
@@ -197,7 +195,7 @@ record start =
               ]
 
 
-type Field = ( A.Located Text, Src.Expr )
+type Field = ( A.Located N.Name, Src.Expr )
 
 
 chompFields :: [Field] -> Parser [Field]
@@ -249,7 +247,7 @@ expression =
 
 data State =
   State
-    { _ops  :: ![(Src.Expr, A.Located Text)]
+    { _ops  :: ![(Src.Expr, A.Located N.Name)]
     , _expr :: !Src.Expr
     , _args :: ![Src.Expr]
     , _end  :: !R.Position
@@ -387,7 +385,7 @@ function start =
             return ( func, end, space )
 
 
-gatherArgs :: [P.Raw] -> Parser [P.Raw]
+gatherArgs :: [Src.Pattern] -> Parser [Src.Pattern]
 gatherArgs args =
   oneOf
     [ do  arg <- Pattern.term
@@ -424,7 +422,7 @@ case_ start =
               )
 
 
-branchHelp :: SParser (P.Raw, Src.Expr)
+branchHelp :: SParser (Src.Pattern, Src.Expr)
 branchHelp =
   do  (pattern, patternPos) <- Pattern.expression
       checkSpace patternPos
@@ -434,7 +432,7 @@ branchHelp =
       return ( (pattern, branchExpr), end, pos )
 
 
-caseHelp :: [(P.Raw, Src.Expr)] -> R.Position -> SPos -> SParser [(P.Raw, Src.Expr)]
+caseHelp :: [(Src.Pattern, Src.Expr)] -> R.Position -> SPos -> SParser [(Src.Pattern, Src.Expr)]
 caseHelp branches end pos =
   oneOf
     [ do  checkAligned pos
@@ -500,6 +498,7 @@ definition :: SParser (A.Located Src.Def)
 definition =
   do  start <- getPosition
       name <- Var.lower
+      nameEnd <- getPosition
       spaces
       oneOf
         [ do  Symbol.hasType
@@ -508,11 +507,11 @@ definition =
                     (tipe, end, space) <- Type.expression
                     return ( A.at start end (Src.Annotate name tipe), end, space )
         , inContext start (E.Definition name) $
-            definitionHelp start name []
+            definitionHelp start (A.at start nameEnd name) []
         ]
 
 
-definitionHelp :: R.Position -> Text -> [P.Raw] -> SParser (A.Located Src.Def)
+definitionHelp :: R.Position -> A.Located N.Name -> [Src.Pattern] -> SParser (A.Located Src.Def)
 definitionHelp start name revArgs =
   oneOf
     [ do  arg <- hint E.Arg Pattern.term

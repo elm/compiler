@@ -11,13 +11,12 @@ import qualified Data.ByteString.UTF8 as Utf8
 import qualified Data.Text as Text
 import Data.Text (Text)
 
+import qualified AST.Expression.Source as Src
 import Parse.Primitives
 import qualified Parse.Primitives.Keyword as Keyword
 import qualified Parse.Primitives.Symbol as Symbol
 import qualified Parse.Primitives.Variable as Var
 import qualified Parse.Pattern as Pattern
-
-import qualified AST.Pattern as P
 import qualified Reporting.Annotation as A
 
 
@@ -76,7 +75,7 @@ entryParser source =
     , do  root <- Pattern.term
           spaces
           case A.drop root of
-            P.RVar name ->
+            Src.PVar name ->
               oneOf
                 [ do  Symbol.hasType
                       return Annotation
@@ -85,7 +84,7 @@ entryParser source =
                 ]
 
             _ ->
-              do  chompArgs
+              do  Symbol.equals
                   return (Def Nothing source)
     ]
 

@@ -10,7 +10,6 @@ import Data.Text (Text)
 import qualified Data.Text.Encoding as Text
 
 import qualified AST.Expression.Source as Src
-import qualified AST.Pattern as Pattern
 import qualified AST.Type as Type
 import qualified Parse.Expression as Expr
 import qualified Parse.Pattern as Pattern
@@ -76,7 +75,7 @@ def_ start =
         ]
 
 
-definitionHelp :: R.Position -> A.Located Text -> [Pattern.Raw] -> SParser Src.Decl
+definitionHelp :: R.Position -> A.Located Text -> [Src.Pattern] -> SParser Src.Decl
 definitionHelp start name revArgs =
   oneOf
     [ do  arg <- hint E.Arg Pattern.term
