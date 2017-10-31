@@ -29,20 +29,15 @@ type Result i a =
 -- CANONICALIZE TYPES
 
 
-canonicalize :: Env.Env -> Type.Raw -> Result () (A.Located Type.Canonical)
-canonicalize env tipe@(A.A region _) =
-  A.A region <$> canonicalizeHelp env tipe
-
-
-canonicalizeHelp :: Env.Env -> Type.Raw -> Result () Type.Canonical
-canonicalizeHelp env (A.A _ tipe) =
+canonicalize :: Env.Env -> Type.Raw -> Result () Type.Canonical
+canonicalize env (A.A _ tipe) =
   case tipe of
     Type.RVar x ->
         Result.ok (Type.Var x)
 
     Type.RType region maybePrefix name args ->
         do  info <- Env.findType region env maybePrefix name (length args)
-            cargs <- traverse (canonicalizeHelp env) args
+            cargs <- traverse (canonicalize env) args
             return $
               case info of
                 Env.Alias home argNames aliasedType ->
@@ -53,20 +48,20 @@ canonicalizeHelp env (A.A _ tipe) =
 
     Type.RLambda a b ->
         Type.Lambda
-          <$> canonicalizeHelp env a
-          <*> canonicalizeHelp env b
+          <$> canonicalize env a
+          <*> canonicalize env b
 
     Type.RRecord fields ext ->
         do  fieldDict <- Dups.checkFields fields
             Type.Record
-              <$> Map.traverseWithKey (\_ t -> canonicalizeHelp env t) fieldDict
-              <*> traverse (canonicalizeHelp env) ext
+              <$> Map.traverseWithKey (\_ t -> canonicalize env t) fieldDict
+              <*> traverse (canonicalize env) ext
 
     Type.RUnit ->
         Result.ok Type.Unit
 
     Type.RTuple a b cs ->
         Type.Tuple
-          <$> canonicalizeHelp env a
-          <*> canonicalizeHelp env b
-          <*> traverse (canonicalizeHelp env) cs
+          <$> canonicalize env a
+          <*> canonicalize env b
+          <*> traverse (canonicalize env) cs

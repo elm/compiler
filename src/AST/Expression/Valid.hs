@@ -74,7 +74,7 @@ data Module =
     , _docs     :: Map.Map N.Name Text
     , _exports  :: Src.Exposing
     , _imports  :: [Src.Import]
-    , _decls    :: [Decl]
+    , _decls    :: [A.Located Decl]
     , _unions   :: [Union]
     , _aliases  :: [Alias]
     , _binop    :: [Binop]

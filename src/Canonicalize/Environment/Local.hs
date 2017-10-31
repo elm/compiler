@@ -143,7 +143,7 @@ addVarsHelp localVars vars =
 collectLowerVars :: Valid.Module -> Result (Map.Map N.Name ())
 collectLowerVars (Valid.Module _ _ _ _ _ decls _ _ _ effects) =
   let
-    declToInfo (Valid.Decl (A.A region name) _ _ _) =
+    declToInfo (A.A _ (Valid.Decl (A.A region name) _ _ _)) =
       Dups.info name region () ()
 
     portToInfo (Valid.Port (A.A region name) _) =
@@ -266,7 +266,7 @@ addTypeAlias :: Env.Env -> Graph.SCC Alias -> Result Env.Env
 addTypeAlias env@(Env.Env home vars types patterns binops) scc =
   case scc of
     Graph.AcyclicSCC (Alias _ name args tipe) ->
-      do  (A.A _ ctype) <- Type.canonicalize env tipe
+      do  ctype <- Type.canonicalize env tipe
           let info = (Env.Alias home args ctype, length args)
           let newTypes = Map.alter (addAliasInfo info) name types
           return $ Env.Env home vars newTypes patterns binops
@@ -315,13 +315,17 @@ getEdges (A.A _ tipe) =
       foldr Bag.append Bag.empty (map getEdges args)
 
     Type.RRecord fields ext ->
-      foldr Bag.append (maybe Bag.empty getEdges ext) (map (getEdges . snd) fields)
+      foldr Bag.append
+        (maybe Bag.empty getEdges ext)
+        (map (getEdges . snd) fields)
 
     Type.RUnit ->
       Bag.empty
 
     Type.RTuple a b cs ->
-      foldr Bag.append (getEdges a) (getEdges b : map getEdges cs)
+      foldr Bag.append
+        (getEdges a)
+        (getEdges b : map getEdges cs)
 
 
 

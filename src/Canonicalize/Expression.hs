@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Canonicalize.Expression
   ( canonicalize
+  , removeLocals
   )
   where
 
@@ -358,7 +359,7 @@ detectCycles region sccs body =
         Graph.CyclicSCC nodes ->
           case unzip <$> traverse requireDefine nodes of
             Nothing ->
-              Result.throw region (Error.RecursiveValue (map toCycleNodes nodes))
+              Result.throw region (Error.RecursiveLet (map toCycleNodes nodes))
 
             Just (defs, freeLocals) ->
               Result.accumulate (Set.unions freeLocals) (Can.LetRec defs)

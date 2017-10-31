@@ -43,7 +43,7 @@ validate (Src.Module name srcEffects overview exports imports srcDecls) =
 
 data Stuff =
   Stuff
-    { _decls :: [Valid.Decl]
+    { _decls :: [A.Located Valid.Decl]
     , _unions :: [Valid.Union]
     , _aliases :: [Valid.Alias]
     , _binops :: [Valid.Binop]
@@ -63,7 +63,7 @@ vsdHelp decls stuff =
     [] ->
       Result.ok stuff
 
-    A.A _ decl : otherDecls ->
+    A.A region decl : otherDecls ->
       case decl of
         Src.Union name tvars ctors ->
           do  let union = Valid.Union name tvars ctors
@@ -85,11 +85,11 @@ vsdHelp decls stuff =
           validateDocs docs otherDecls stuff
 
         Src.Annotation (A.A _ name) tipe ->
-          validateAnnotation name tipe otherDecls stuff
+          validateAnnotation region name tipe otherDecls stuff
 
         Src.Definition name args body ->
           do  validBody <- expression body
-              let validDecl = Valid.Decl name args validBody Nothing
+              let validDecl = A.A region (Valid.Decl name args validBody Nothing)
               vsdHelp otherDecls $ stuff { _decls = validDecl : _decls stuff }
 
 
@@ -137,18 +137,19 @@ getNameForDocs decl =
 -- VALIDATE ANNOTATION
 
 
-validateAnnotation :: N.Name -> Type.Raw -> [Src.Decl] -> Stuff -> Result w Stuff
-validateAnnotation annotationName tipe decls stuff =
+validateAnnotation :: R.Region -> N.Name -> Type.Raw -> [Src.Decl] -> Stuff -> Result w Stuff
+validateAnnotation annRegion annotationName tipe decls stuff =
   case decls of
     [] ->
       error "TODO no attotations on nothing"
 
-    A.A _ decl : otherDecls ->
+    A.A defRegion decl : otherDecls ->
       case decl of
         Src.Definition name@(A.A _ definitionName) args body ->
           if annotationName == definitionName then
             do  validBody <- expression body
-                let validDecl = Valid.Decl name args validBody (Just tipe)
+                let region = R.merge annRegion defRegion
+                let validDecl = A.A region (Valid.Decl name args validBody (Just tipe))
                 vsdHelp otherDecls $ stuff { _decls = validDecl : _decls stuff }
 
           else

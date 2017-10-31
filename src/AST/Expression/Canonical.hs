@@ -10,6 +10,7 @@ module AST.Expression.Canonical
   , Destructors
   , Destructor(..)
   -- decls
+  , Decls(..)
   , Decl(..)
   , Module(..)
   , Alias(..)
@@ -24,7 +25,6 @@ module AST.Expression.Canonical
 
 import Control.Monad (liftM2, liftM3)
 import Data.Binary
-import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import Data.Text (Text)
 
@@ -32,7 +32,6 @@ import qualified AST.Binop as Binop
 import qualified AST.Literal as Literal
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
-import qualified AST.Variable as Var
 import qualified Elm.Name as N
 import Elm.Name (Name)
 import qualified Reporting.Annotation as A
@@ -83,7 +82,7 @@ data Def =
     { _def_name :: A.Located N.Name
     , _def_args :: Args
     , _def_body :: Expr
-    , _def_type :: Maybe (A.Located Type.Canonical)
+    , _def_type :: Maybe Type.Canonical
     }
 
 
@@ -124,26 +123,27 @@ data Destructor
 -- DECLARATIONS
 
 
-data Decl =
-  Decl
-    { _top_name :: N.Name
-    , _top_args :: Args
-    , _top_body :: Expr
-    , _top_type :: Maybe (A.Located Type.Canonical)
-    , _top_deps :: [Var.Global]
-    }
+data Decls
+  = Declare Decl Decls
+  | DeclareRec Decl [Decl] Decls
+  | SaveTheEnvironment
+
+
+data Decl
+  = Value N.Name Expr (Maybe Type.Canonical)
+  | Function N.Name Args Expr (Maybe Type.Canonical)
 
 
 
 -- MODULES
 
 
-data Module phase =
+data Module =
   Module
     { _name    :: ModuleName.Canonical
     , _docs    :: A.Located (Maybe Docs)
     , _imports :: [N.Name]
-    , _decls   :: [Graph.SCC Decl]
+    , _decls   :: Decls
     , _unions  :: Map.Map N.Name Union
     , _aliases :: Map.Map N.Name Alias
     , _binops  :: Map.Map N.Name Binop
