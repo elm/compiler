@@ -16,6 +16,7 @@ import Data.Binary
 
 
 newtype Precedence = Precedence Int
+  deriving (Eq, Ord)
 
 
 data Associativity

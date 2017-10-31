@@ -84,7 +84,8 @@ data Type
 
 data Binop =
   Binop
-    { _op_home :: ModuleName.Canonical
+    { _op_name :: N.Name
+    , _op_home :: ModuleName.Canonical
     , _op_func :: N.Name
     , _associativity :: Binop.Associativity
     , _precedence :: Binop.Precedence

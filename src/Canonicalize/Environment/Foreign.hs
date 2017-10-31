@@ -103,7 +103,7 @@ importToEnv (Import home (I.Interface _ types unions aliases binops) prefix expo
           (Map.map (toOpenHomes home prefix toAliasInfo) aliases)
         )
         (Map.map (toOpenHomes home prefix (,)) patterns)
-        (Map.map (toBinopHomes home) binops)
+        (Map.mapWithKey (toBinopHomes home) binops)
 
     Explicit explicits ->
       Env
@@ -113,12 +113,12 @@ importToEnv (Import home (I.Interface _ types unions aliases binops) prefix expo
           (Map.mapWithKey (toExplicitHomes home prefix explicits toAliasInfo toAliasBag) aliases)
         )
         (Map.mapWithKey (toExplicitHomes home prefix explicits (,) toPatternBag) patterns)
-        (Map.map (toBinopHomes home) binops)
+        (Map.mapWithKey (toBinopHomes home) binops)
 
 
-toBinopHomes :: ModuleName.Canonical -> Can.Binop -> OneOrMore.OneOrMore Env.Binop
-toBinopHomes home (Can.Binop_ associativity precedence name) =
-  OneOrMore.one (Env.Binop home name associativity precedence)
+toBinopHomes :: ModuleName.Canonical -> N.Name -> Can.Binop -> OneOrMore.OneOrMore Env.Binop
+toBinopHomes home op (Can.Binop_ associativity precedence name) =
+  OneOrMore.one (Env.Binop op home name associativity precedence)
 
 
 toOpenHomes

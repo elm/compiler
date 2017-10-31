@@ -102,7 +102,7 @@ addBinops :: Valid.Module -> Env.Env -> Result Env.Env
 addBinops (Valid.Module _ _ _ _ _ _ _ _ ops _) (Env.Env home vars types patterns binops) =
   let
     toInfo (Valid.Binop (A.A region op) assoc prec name) =
-      Dups.info op region () (OneOrMore.one (Env.Binop home name assoc prec))
+      Dups.info op region () (OneOrMore.one (Env.Binop op home name assoc prec))
 
     toError op () () =
       Error.DuplicateBinop op
