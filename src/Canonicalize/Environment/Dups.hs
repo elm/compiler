@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Canonicalize.Environment.Dups
-  ( Info
+  ( Info(Info)
   , info
   , detect
   , checkFields
@@ -45,12 +45,12 @@ type ToError c =
   N.Name -> c -> c -> Error.Error
 
 
-detect :: ToError c -> [(N.Name, [Info c v])] -> Result (Map.Map N.Name v)
+detect :: ToError c -> [(N.Name, [Info c v])] -> Result () (Map.Map N.Name v)
 detect toError pairs =
   Map.traverseWithKey (detectHelp toError) $ Map.fromListWith (++) pairs
 
 
-detectHelp :: ToError c -> N.Name -> [Info c v] -> Result v
+detectHelp :: ToError c -> N.Name -> [Info c v] -> Result () v
 detectHelp toError name values =
   case values of
     [Info _ _ value] ->
@@ -67,7 +67,7 @@ detectHelp toError name values =
 -- CHECK FIELDS
 
 
-checkFields :: [(A.Located N.Name, a)] -> Result (Map.Map N.Name a)
+checkFields :: [(A.Located N.Name, a)] -> Result () (Map.Map N.Name a)
 checkFields fields =
   let
     toInfo (A.A region name, value) =

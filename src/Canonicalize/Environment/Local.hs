@@ -14,23 +14,32 @@ import qualified Data.Map.Merge.Strict as Map
 
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Type as Type
-import qualified Canonicalize.Bag as Bag
 import qualified Canonicalize.Environment.Dups as Dups
 import qualified Canonicalize.Environment.Internals as Env
-import qualified Canonicalize.OneOrMore as OneOrMore
 import qualified Canonicalize.Type as Type
+import qualified Data.Bag as Bag
+import qualified Data.OneOrMore as OneOrMore
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
+import qualified Reporting.Warning as Warning
+
+
+
+-- RESULT
+
+
+type Result a =
+  Result.Result () Warning.Warning Error.Error a
 
 
 
 -- ADD DECLARATIONS
 
 
-addDeclarations :: Valid.Module -> Env.Env -> Env.Result Env.Env
+addDeclarations :: Valid.Module -> Env.Env -> Result Env.Env
 addDeclarations module_ env =
   addVars module_
   =<< addTypes module_
@@ -89,7 +98,7 @@ addPatterns (Valid.Module _ _ _ _ _ _ unions _ _ _) (Env.Env home vars types pat
 -- ADD BINOPS
 
 
-addBinops :: Valid.Module -> Env.Env -> Env.Result Env.Env
+addBinops :: Valid.Module -> Env.Env -> Result Env.Env
 addBinops (Valid.Module _ _ _ _ _ _ _ _ ops _) (Env.Env home vars types patterns binops) =
   let
     toInfo (Valid.Binop (A.A region op) assoc prec name) =
@@ -107,7 +116,7 @@ addBinops (Valid.Module _ _ _ _ _ _ _ _ ops _) (Env.Env home vars types patterns
 -- ADD VARS
 
 
-addVars :: Valid.Module -> Env.Env -> Env.Result Env.Env
+addVars :: Valid.Module -> Env.Env -> Result Env.Env
 addVars module_ (Env.Env home vars types patterns binops) =
   do  upperDict <- collectUpperVars module_
       lowerDict <- collectLowerVars module_
@@ -131,7 +140,7 @@ addVarsHelp localVars vars =
   merge addLeft addBoth localVars vars
 
 
-collectLowerVars :: Valid.Module -> Env.Result (Map.Map N.Name ())
+collectLowerVars :: Valid.Module -> Result (Map.Map N.Name ())
 collectLowerVars (Valid.Module _ _ _ _ _ decls _ _ _ effects) =
   let
     declToInfo (Valid.Decl (A.A region name) _ _ _) =
@@ -166,7 +175,7 @@ collectLowerVars (Valid.Module _ _ _ _ _ decls _ _ _ effects) =
     effectInfo ++ map declToInfo decls
 
 
-collectUpperVars :: Valid.Module -> Env.Result (Map.Map N.Name ())
+collectUpperVars :: Valid.Module -> Result (Map.Map N.Name ())
 collectUpperVars (Valid.Module _ _ _ _ _ _ unions aliases _ _) =
   let
     unionToInfos (Valid.Union (A.A _ name) _ ctors) =
@@ -191,7 +200,7 @@ collectUpperVars (Valid.Module _ _ _ _ _ _ unions aliases _ _) =
 -- ADD TYPES
 
 
-addTypes :: Valid.Module -> Env.Env -> Env.Result Env.Env
+addTypes :: Valid.Module -> Env.Env -> Result Env.Env
 addTypes (Valid.Module _ _ _ _ _ _ unions aliases _ _) env =
   let
     aliasToInfo alias@(Valid.Alias (A.A region name) _ tipe) =
@@ -246,18 +255,18 @@ data Alias =
     }
 
 
-addTypeAliases :: Map.Map N.Name Alias -> Env.Env -> Env.Result Env.Env
+addTypeAliases :: Map.Map N.Name Alias -> Env.Env -> Result Env.Env
 addTypeAliases aliases env =
   do  let nodes = map toNode (Map.elems aliases)
       let sccs = Graph.stronglyConnComp nodes
       foldM addTypeAlias env sccs
 
 
-addTypeAlias :: Env.Env -> Graph.SCC Alias -> Env.Result Env.Env
+addTypeAlias :: Env.Env -> Graph.SCC Alias -> Result Env.Env
 addTypeAlias env@(Env.Env home vars types patterns binops) scc =
   case scc of
     Graph.AcyclicSCC (Alias _ name args tipe) ->
-      do  ctype <- Type.canonicalize env tipe
+      do  (A.A _ ctype) <- Type.canonicalize env tipe
           let info = (Env.Alias home args ctype, length args)
           let newTypes = Map.alter (addAliasInfo info) name types
           return $ Env.Env home vars newTypes patterns binops
@@ -267,7 +276,7 @@ addTypeAlias env@(Env.Env home vars types patterns binops) scc =
 
     Graph.CyclicSCC (Alias region name1 args tipe : others) ->
       let toName (Alias _ name _ _) = name in
-      Result.throw region (Error.AliasRecursion name1 args tipe (map toName others))
+      Result.throw region (Error.RecursiveAlias name1 args tipe (map toName others))
 
 
 addAliasInfo :: a -> Maybe (Env.Homes a) -> Maybe (Env.Homes a)
@@ -319,7 +328,7 @@ getEdges (A.A _ tipe) =
 -- CHECK FREE VARIABLES
 
 
-checkUnionFreeVars :: Valid.Union -> Env.Result Int
+checkUnionFreeVars :: Valid.Union -> Result Int
 checkUnionFreeVars (Valid.Union (A.A unionRegion name) args ctors) =
   let
     toInfo (A.A region arg) =
@@ -344,7 +353,7 @@ checkUnionFreeVars (Valid.Union (A.A unionRegion name) args ctors) =
 
 
 
-checkAliasFreeVars :: Valid.Alias -> Env.Result [N.Name]
+checkAliasFreeVars :: Valid.Alias -> Result [N.Name]
 checkAliasFreeVars (Valid.Alias (A.A aliasRegion name) args tipe) =
   let
     toInfo (A.A region arg) =

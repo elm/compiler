@@ -12,9 +12,9 @@ import qualified Data.Set as Set
 import qualified AST.Expression.Canonical as Can
 import qualified AST.Expression.Source as Src
 import qualified AST.Module.Name as ModuleName
-import qualified Canonicalize.Bag as Bag
 import qualified Canonicalize.Environment.Internals as Env
-import qualified Canonicalize.OneOrMore as OneOrMore
+import qualified Data.Bag as Bag
+import qualified Data.OneOrMore as OneOrMore
 import qualified Elm.Interface as I
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
@@ -22,6 +22,15 @@ import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Helpers as Help (nearbyNames)
 import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
+import qualified Reporting.Warning as Warning
+
+
+
+-- RESULT
+
+
+type Result a =
+  Result.Result () Warning.Warning Error.Error a
 
 
 
@@ -70,7 +79,7 @@ type ImportDict =
   Map.Map ModuleName.Raw ModuleName.Canonical
 
 
-createInitialEnv :: ModuleName.Canonical -> ImportDict -> I.Interfaces -> [Src.Import] -> Env.Result Env.Env
+createInitialEnv :: ModuleName.Canonical -> ImportDict -> I.Interfaces -> [Src.Import] -> Result Env.Env
 createInitialEnv home importDict interfaces sourceImports =
   do  imports <- traverse (verifyImport importDict interfaces) sourceImports
       let (Env vars types patterns binops) = foldr merge emptyEnv (map importToEnv imports)
@@ -238,7 +247,7 @@ data Exposed
   | Alias
 
 
-verifyImport :: ImportDict -> I.Interfaces -> Src.Import -> Env.Result Import
+verifyImport :: ImportDict -> I.Interfaces -> Src.Import -> Result Import
 verifyImport importDict interfaces (Src.Import (A.A region name) alias exposing) =
   case Map.lookup name importDict of
     Nothing ->
@@ -260,14 +269,14 @@ verifyImport importDict interfaces (Src.Import (A.A region name) alias exposing)
                     Result.ok (Explicit (Map.fromList (concat pairLists)))
 
 
-throwImportNotFound :: R.Region -> ModuleName.Raw -> [ModuleName.Canonical] -> Env.Result a
+throwImportNotFound :: R.Region -> ModuleName.Raw -> [ModuleName.Canonical] -> Result a
 throwImportNotFound region name knownModules =
   Result.throw region $ Error.ImportNotFound name $
     Help.nearbyNames ModuleName.toString name $
       map ModuleName._module knownModules
 
 
-verifyExposed :: ModuleName.Raw -> I.Interface -> A.Located Src.Exposed -> Env.Result [(N.Name, Exposed)]
+verifyExposed :: ModuleName.Raw -> I.Interface -> A.Located Src.Exposed -> Result [(N.Name, Exposed)]
 verifyExposed moduleName interface@(I.Interface _ _ unions aliases _) (A.A region exposed) =
   case exposed of
     Src.Operator name ->
@@ -291,7 +300,7 @@ verifyExposed moduleName interface@(I.Interface _ _ unions aliases _) (A.A regio
               throwExposingNotFound moduleName region name interface
 
 
-verifyValue :: ModuleName.Raw -> R.Region -> N.Name -> I.Interface -> Env.Result [(N.Name, Exposed)]
+verifyValue :: ModuleName.Raw -> R.Region -> N.Name -> I.Interface -> Result [(N.Name, Exposed)]
 verifyValue moduleName region name interface@(I.Interface _ types _ _ _) =
   case Map.lookup name types of
     Nothing ->
@@ -301,7 +310,7 @@ verifyValue moduleName region name interface@(I.Interface _ types _ _ _) =
       Result.ok [(name, Value)]
 
 
-verifyAlias :: R.Region -> N.Name -> Src.Privacy -> Env.Result [(N.Name, Exposed)]
+verifyAlias :: R.Region -> N.Name -> Src.Privacy -> Result [(N.Name, Exposed)]
 verifyAlias region name privacy =
   case privacy of
     Src.Public ->
@@ -311,7 +320,7 @@ verifyAlias region name privacy =
       Result.ok [(name, Alias)]
 
 
-throwExposingNotFound :: ModuleName.Raw -> R.Region -> N.Name -> I.Interface -> Env.Result a
+throwExposingNotFound :: ModuleName.Raw -> R.Region -> N.Name -> I.Interface -> Result a
 throwExposingNotFound moduleName region name (I.Interface _ types unions aliases _) =
   let
     toCtorPairs (tipe, Can.Union _ ctors) =

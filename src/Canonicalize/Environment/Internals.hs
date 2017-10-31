@@ -7,6 +7,7 @@ module Canonicalize.Environment.Internals
   , UnqualifiedVarHome(..)
   , Type(..)
   , Homes(..)
+  , addLocals
   , findVar
   , findType
   , findPattern
@@ -17,14 +18,17 @@ module Canonicalize.Environment.Internals
 
 
 import qualified Data.Map.Strict as Map
+import qualified Data.Map.Merge.Strict as Map
+import qualified Data.Set as Set
 
 import qualified AST.Binop as Binop
 import qualified AST.Expression.Canonical as Can
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
-import qualified Canonicalize.Bag as Bag
-import qualified Canonicalize.OneOrMore as OneOrMore
+import qualified Data.Bag as Bag
+import qualified Data.OneOrMore as OneOrMore
 import qualified Elm.Name as N
+import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
@@ -35,8 +39,8 @@ import qualified Reporting.Warning as Warning
 -- RESULT HELPERS
 
 
-type Result a =
-  Result.Result () Warning.Warning Error.Error a
+type Result i a =
+  Result.Result i Warning.Warning Error.Error a
 
 
 
@@ -88,10 +92,45 @@ data Binop =
 
 
 
+-- ADD LOCALS
+
+
+addLocals :: Map.Map N.Name (A.Located a) -> Env -> Result () Env
+addLocals names (Env home vars types patterns binops) =
+  do  newVars <-
+        Map.mergeA
+          (Map.mapMissing (\_ _ -> localVarHomes))
+          (Map.mapMissing (\_ homes -> homes))
+          (Map.zipWithAMatched addLocalBoth)
+          names
+          vars
+      Result.ok $ Env home newVars types patterns binops
+
+
+{-# NOINLINE localVarHomes #-}
+localVarHomes :: VarHomes
+localVarHomes =
+  VarHomes Local Map.empty
+
+
+addLocalBoth :: N.Name -> A.Located a -> VarHomes -> Result () VarHomes
+addLocalBoth name (A.A region _) (VarHomes unqualified qualified) =
+  case unqualified of
+    Foreign _ ->
+      Result.ok (VarHomes Local qualified)
+
+    Local ->
+      Result.throw region (Error.Shadowing name)
+
+    TopLevel ->
+      Result.throw region (Error.Shadowing name)
+
+
+
 -- FIND VAR
 
 
-findVar :: R.Region -> Env -> Maybe N.Name -> N.Name -> Result Can.Expr_
+findVar :: R.Region -> Env -> Maybe N.Name -> N.Name -> Result (Set.Set N.Name) Can.Expr_
 findVar region (Env home vars _ _ _) maybePrefix name =
   case Map.lookup name vars of
     Nothing ->
@@ -102,10 +141,10 @@ findVar region (Env home vars _ _ _) maybePrefix name =
         Nothing ->
           case unqualified of
             Local ->
-              Result.ok (Can.VarLocal name)
+              Result.accumulate (Set.singleton name) (Can.VarLocal name)
 
             TopLevel ->
-              Result.ok (Can.VarTopLevel home name)
+              Result.accumulate (Set.singleton name) (Can.VarTopLevel home name)
 
             Foreign bag ->
               case bag of
@@ -134,12 +173,12 @@ findVar region (Env home vars _ _ _) maybePrefix name =
 -- FIND TYPE and PATTERN
 
 
-findType :: R.Region -> Env -> Maybe N.Name -> N.Name -> Int -> Result Type
+findType :: (Monoid i) => R.Region -> Env -> Maybe N.Name -> N.Name -> Int -> Result i Type
 findType region (Env _ _ types _ _) maybePrefix name arity =
   error "TODO findType" region types maybePrefix name arity
 
 
-findPattern :: R.Region -> Env -> Maybe N.Name -> N.Name -> Int -> Result ModuleName.Canonical
+findPattern :: (Monoid i) => R.Region -> Env -> Maybe N.Name -> N.Name -> Int -> Result i ModuleName.Canonical
 findPattern region (Env _ _ _ patterns _) maybePrefix name arity =
   error "TODO findPattern" region patterns maybePrefix name arity
 
@@ -148,7 +187,7 @@ findPattern region (Env _ _ _ patterns _) maybePrefix name arity =
 -- FIND BINOP
 
 
-findBinop :: R.Region -> Env -> N.Name -> Result Binop
+findBinop :: R.Region -> Env -> N.Name -> Result (Set.Set N.Name) Binop
 findBinop region (Env _ _ _ _ binops) name =
   case Map.lookup name binops of
     Just (OneOrMore.One binop) ->
