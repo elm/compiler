@@ -4,6 +4,7 @@ module AST.Expression.Source
   ( Expr, Expr_(..)
   , Decl, Decl_(..)
   , Def(..)
+  , Pattern, Pattern_(..)
   , Module(..)
   , Import(..)
   , Effects(..)
@@ -21,7 +22,6 @@ import Data.Text (Text)
 
 import qualified AST.Binop as Binop
 import qualified AST.Literal as Literal
-import qualified AST.Pattern as Ptrn
 import qualified AST.Type as Type
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
@@ -42,11 +42,11 @@ data Expr_
   | Op N.Name
   | Negate Expr
   | Binops [(Expr, A.Located N.Name)] Expr
-  | Lambda [Ptrn.Raw] Expr
+  | Lambda [Pattern] Expr
   | Call Expr [Expr]
   | If [(Expr, Expr)] Expr
   | Let [A.Located Def] Expr
-  | Case Expr [(Ptrn.Raw, Expr)]
+  | Case Expr [(Pattern, Expr)]
   | Accessor N.Name
   | Access Expr N.Name
   | Update (A.Located N.Name) [(A.Located N.Name, Expr)]
@@ -62,8 +62,28 @@ data Expr_
 
 data Def
   = Annotate N.Name Type.Raw
-  | Define N.Name [Ptrn.Raw] Expr
-  | Destruct Ptrn.Raw Expr
+  | Define (A.Located N.Name) [Pattern] Expr
+  | Destruct Pattern Expr
+
+
+
+-- PATTERN
+
+
+type Pattern = A.Located Pattern_
+
+
+data Pattern_
+  = PAnything
+  | PVar N.Name
+  | PRecord [A.Located N.Name]
+  | PAlias Pattern (A.Located N.Name)
+  | PUnit
+  | PTuple Pattern Pattern [Pattern]
+  | PCtor R.Region (Maybe N.Name) N.Name [Pattern]
+  | PList [Pattern]
+  | PCons Pattern Pattern
+  | PLiteral Literal.Literal
 
 
 
@@ -80,7 +100,7 @@ data Decl_
   | Port (A.Located N.Name) Type.Raw
   | Docs Text
   | Annotation (A.Located N.Name) Type.Raw
-  | Definition (A.Located N.Name) [Ptrn.Raw] Expr
+  | Definition (A.Located N.Name) [Pattern] Expr
 
 
 

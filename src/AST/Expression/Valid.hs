@@ -20,7 +20,6 @@ import Data.Text (Text)
 import qualified AST.Binop as Binop
 import qualified AST.Expression.Source as Src
 import qualified AST.Literal as Literal
-import qualified AST.Pattern as Pattern
 import qualified AST.Type as Type
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
@@ -41,11 +40,11 @@ data Expr_
     | Op N.Name
     | Negate Expr
     | Binops [(Expr, A.Located N.Name)] Expr
-    | Lambda [Pattern.Raw] Expr
+    | Lambda [Src.Pattern] Expr
     | Call Expr [Expr]
     | If [(Expr, Expr)] Expr
     | Let [Def] Expr
-    | Case Expr [(Pattern.Raw, Expr)]
+    | Case Expr [(Src.Pattern, Expr)]
     | Accessor N.Name
     | Access Expr N.Name
     | Update (A.Located N.Name) [(A.Located N.Name, Expr)]
@@ -60,8 +59,8 @@ data Expr_
 
 
 data Def
-    = Define R.Region N.Name [Pattern.Raw] Expr (Maybe Type.Raw)
-    | Destruct R.Region Pattern.Raw Expr
+    = Define R.Region (A.Located N.Name) [Src.Pattern] Expr (Maybe Type.Raw)
+    | Destruct R.Region Src.Pattern Expr
 
 
 
@@ -83,7 +82,7 @@ data Module =
     }
 
 
-data Decl = Decl (A.Located N.Name) [Pattern.Raw] Expr (Maybe Type.Raw)
+data Decl = Decl (A.Located N.Name) [Src.Pattern] Expr (Maybe Type.Raw)
 data Union = Union (A.Located N.Name) [A.Located N.Name] [(A.Located N.Name, [Type.Raw])]
 data Alias = Alias (A.Located N.Name) [A.Located N.Name] Type.Raw
 data Binop = Binop (A.Located N.Name) Binop.Associativity Binop.Precedence N.Name

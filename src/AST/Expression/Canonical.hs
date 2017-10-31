@@ -1,9 +1,15 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module AST.Expression.Canonical
-  ( Expr
-  , Expr_(..)
+  ( Expr, Expr_(..)
   , Def(..)
+  -- patterns
+  , Args(..), Arg(..)
+  , Match(..)
+  , Pattern, Pattern_(..)
+  , Destructors
+  , Destructor(..)
+  -- decls
   , Decl(..)
   , Module(..)
   , Alias(..)
@@ -25,7 +31,6 @@ import Data.Text (Text)
 import qualified AST.Binop as Binop
 import qualified AST.Literal as Literal
 import qualified AST.Module.Name as ModuleName
-import qualified AST.Pattern as Ptrn
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Elm.Name as N
@@ -39,7 +44,7 @@ import qualified Reporting.Region as R
 
 
 type Expr =
-  A.Annotated R.Region Expr_
+  A.Located Expr_
 
 
 data Expr_
@@ -47,22 +52,25 @@ data Expr_
   | VarTopLevel ModuleName.Canonical Name
   | VarKernel Name Name
   | VarForeign ModuleName.Canonical Name
-  | VarOperator ModuleName.Canonical Name Name
+  | VarOperator Name ModuleName.Canonical Name
   | Literal Literal.Literal
   | List [Expr]
+  | Negate Expr
   | Binop Name ModuleName.Canonical Name Expr Expr
-  | Lambda [Ptrn.Canonical] Expr
+  | Lambda Args Expr
   | Call Expr [Expr]
   | If [(Expr, Expr)] Expr
-  | Let [Graph.SCC Def] Expr
-  | Case Expr [(Ptrn.Canonical, Expr)]
+  | Let Def Expr
+  | LetRec [Def] Expr
+  | LetDestruct Match Expr Expr
+  | Case Expr [(Match, Expr)]
   | CtorAccess Expr Int
   | Accessor Name
   | Access Expr Name
-  | Update Expr [(Name, Expr)]
-  | Record [(Name, Expr)]
+  | Update Expr (Map.Map Name Expr)
+  | Record (Map.Map Name Expr)
   | Unit
-  | Tuple Expr Expr [Expr]
+  | Tuple Expr Expr (Maybe Expr)
   | GLShader Name Name Literal.Shader
 
 
@@ -72,11 +80,44 @@ data Expr_
 
 data Def =
   Def
-    { _let_name :: Text
-    , _let_args :: [A.Located Ptrn.Canonical]
-    , _let_body :: Expr
-    , _let_type :: Maybe (A.Located Type.Canonical)
+    { _def_name :: A.Located N.Name
+    , _def_args :: Args
+    , _def_body :: Expr
+    , _def_type :: Maybe (A.Located Type.Canonical)
     }
+
+
+
+-- PATTERNS
+
+
+data Args = Args [Arg] Destructors
+data Arg = Arg Int Pattern
+
+data Match = Match Pattern Destructors
+
+
+type Pattern = A.Located Pattern_
+
+data Pattern_
+  = PAnything
+  | PVar N.Name
+  | PRecord [N.Name]
+  | PAlias Pattern N.Name
+  | PUnit
+  | PTuple Pattern Pattern (Maybe Pattern)
+  | PCtor ModuleName.Canonical N.Name [Pattern]
+  | PList [Pattern]
+  | PCons Pattern Pattern
+  | PLiteral Literal.Literal
+
+
+type Destructors = Map.Map N.Name (A.Located Destructor)
+
+data Destructor
+  = DIndex Int Destructor
+  | DField N.Name Destructor
+  | DRoot Int
 
 
 
@@ -85,8 +126,8 @@ data Def =
 
 data Decl =
   Decl
-    { _top_name :: Text
-    , _top_args :: [A.Located Ptrn.Canonical]
+    { _top_name :: N.Name
+    , _top_args :: Args
     , _top_body :: Expr
     , _top_type :: Maybe (A.Located Type.Canonical)
     , _top_deps :: [Var.Global]
