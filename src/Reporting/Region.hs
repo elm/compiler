@@ -15,7 +15,7 @@ data Region =
     { _start :: !Position
     , _end :: !Position
     }
-    deriving (Eq, Show)
+    deriving (Eq, Ord)
 
 
 data Position =
@@ -23,7 +23,7 @@ data Position =
     { _line :: !Int
     , _column :: !Int
     }
-    deriving (Eq, Show)
+    deriving (Eq, Ord)
 
 
 merge :: Region -> Region -> Region

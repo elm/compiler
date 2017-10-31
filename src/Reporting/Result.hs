@@ -1,10 +1,12 @@
 {-# OPTIONS_GHC -Wall #-}
 module Reporting.Result
   ( Result(..)
+  , Answer(..)
   , ok
   , throw
   , accumulate
   , warn
+  , untracked
   , from
   , mapError
   , format
@@ -68,6 +70,11 @@ warn region warning a =
 
 
 -- EXTRACTION HELPERS
+
+
+untracked :: (Monoid i) => Result () w e a -> Result i w e a
+untracked (Result () warnings answer) =
+  Result mempty warnings answer
 
 
 from :: (Monoid i) => (e -> e') -> Except [A.Located e] a -> Result i w e' a
