@@ -5,13 +5,13 @@ module Canonicalize.Expression
   where
 
 
-import Control.Applicative (liftA2)
 import qualified Data.Graph as Graph
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
 import qualified AST.Binop as Binop
 import qualified AST.Expression.Canonical as Can
+import qualified AST.Expression.Source as Src
 import qualified AST.Expression.Valid as Valid
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
@@ -78,14 +78,16 @@ canonicalize env (A.A region expression) =
 
     Valid.If branches finally ->
       Can.If
-        <$> traverse (canonicalizeBranch env) branches
+        <$> traverse (canonicalizeIfBranch env) branches
         <*> canonicalize env finally
 
     Valid.Let defs expr ->
       A.drop <$> canonicalizeLet region env defs expr
 
     Valid.Case expr cases ->
-      error "TODO"
+      Can.Case
+        <$> canonicalize env expr
+        <*> traverse (canonicalizeCaseBranch env) cases
 
     Valid.Accessor field ->
       Result.ok $ Can.Accessor field
@@ -140,9 +142,24 @@ canonicalizeTupleExtras region env extras =
 -- CANONICALIZE IF BRANCH
 
 
-canonicalizeBranch :: Env.Env -> (Valid.Expr, Valid.Expr) -> Result FreeLocals (Can.Expr, Can.Expr)
-canonicalizeBranch env (condition, branch) =
-  liftA2 (,) (canonicalize env condition) (canonicalize env branch)
+canonicalizeIfBranch :: Env.Env -> (Valid.Expr, Valid.Expr) -> Result FreeLocals (Can.Expr, Can.Expr)
+canonicalizeIfBranch env (condition, branch) =
+  (,)
+    <$> canonicalize env condition
+    <*> canonicalize env branch
+
+
+
+-- CANONICALIZE CASE BRANCH
+
+
+canonicalizeCaseBranch :: Env.Env -> (Src.Pattern, Valid.Expr) -> Result FreeLocals (Can.Match, Can.Expr)
+canonicalizeCaseBranch env (pattern, expr) =
+  addLocals $
+  do  match@(Can.Match _ destructors) <- Pattern.canonicalizeMatch env pattern
+      newEnv <- Env.addLocals destructors env
+      removeLocals destructors $
+        (,) match <$> canonicalize newEnv expr
 
 
 
