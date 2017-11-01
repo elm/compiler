@@ -1,13 +1,19 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Reporting.Warning where
+module Reporting.Warning
+  ( Warning(..)
+  , Unused(..)
+  , toReport
+  , toJson
+  )
+  where
 
 import Data.Aeson ((.=))
 import qualified Data.Aeson as Json
 import Data.Text (Text)
 
-import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
+import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Report as Report
 import qualified Reporting.Render.Type as RenderType
@@ -20,8 +26,12 @@ import Reporting.Helpers ((<>), text)
 
 
 data Warning
-    = UnusedImport ModuleName.Raw
-    | MissingTypeAnnotation Text Type.Canonical
+  = UnusedImport N.Name
+  | UnusedVariable Unused N.Name
+  | MissingTypeAnnotation Text Type.Canonical
+
+
+data Unused = Argument | Binding
 
 
 
@@ -35,8 +45,28 @@ toReport localizer warning =
         Report.report
           "unused import"
           Nothing
-          ("Module `" <> ModuleName.toText moduleName <> "` is unused.")
-          (text "Best to remove it. Don't save code quality for later!")
+          ("Nothing from the `" <> moduleName <> "` module is used in this file.")
+          (text "I recommend removing unused imports.")
+
+    UnusedVariable Argument name ->
+        Report.report
+          "unused argument"
+          Nothing
+          ("The `" <> name <> "` argument is unused.")
+          ( Help.reflowParagraph $
+              "Maybe this indicates there is a mistake around here? Switching the\
+              \ argument to a _ will indicate that it is intentionally unused."
+          )
+
+    UnusedVariable Binding name ->
+        Report.report
+          "unused binding"
+          Nothing
+          ("The `" <> name <> "` binding is unused.")
+          ( Help.reflowParagraph $
+              "Maybe this indicates there is a mistake around here? Or maybe it\
+              \ just is not used anymore and should be removed?"
+          )
 
     MissingTypeAnnotation name inferredType ->
         Report.report
