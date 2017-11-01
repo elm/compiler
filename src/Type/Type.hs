@@ -19,6 +19,8 @@ module Type.Type
   , nameToFlex
   , nameToRigid
   , toSrcType
+  , fromFlexSrcType
+  , fromRigidSrcType
   )
   where
 
@@ -26,13 +28,15 @@ import Control.Monad.State.Strict (StateT, liftIO)
 import qualified Control.Monad.State.Strict as State
 import qualified Data.Char as Char
 import qualified Data.Map.Strict as Map
+import Data.Map.Strict ((!))
 import Data.Monoid ((<>))
 import qualified Data.Text as Text
 import Data.Text (Text)
 import Data.Word (Word32)
 
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as T
-import qualified AST.Variable as Var
+import qualified Elm.Name as N
 import qualified Type.UnionFind as UF
 
 
@@ -45,20 +49,24 @@ type Variable =
 
 
 data FlatType
-    = App1 Var.Canonical [Variable]
+    = App1 ModuleName.Canonical N.Name [Variable]
     | Fun1 Variable Variable
     | EmptyRecord1
     | Record1 (Map.Map Text Variable) Variable
+    | Unit1
+    | Tuple1 Variable Variable [Variable]
 
 
 data Type
     = PlaceHolder Text
-    | AliasN Var.Canonical [(Text, Type)] Type
+    | AliasN ModuleName.Canonical N.Name [(Text, Type)] Type
     | VarN Variable
-    | AppN Var.Canonical [Type]
+    | AppN ModuleName.Canonical N.Name [Type]
     | FunN Type Type
     | EmptyRecordN
     | RecordN (Map.Map Text Type) Type
+    | UnitN
+    | TupleN Type Type [Type]
 
 
 
@@ -80,7 +88,7 @@ data Content
     | RigidVar Text
     | RigidSuper T.Super Text
     | Structure FlatType
-    | Alias Var.Canonical [(Text,Variable)] Variable
+    | Alias ModuleName.Canonical N.Name [(Text,Variable)] Variable
     | Error Text
 
 
@@ -148,25 +156,25 @@ infixr 9 ==>
 {-# NOINLINE float #-}
 float :: Type
 float =
-  AppN Var.float []
+  AppN ModuleName.basics "Float" []
 
 
 {-# NOINLINE char #-}
 char :: Type
 char =
-  AppN Var.char []
+  AppN ModuleName.basics "Char" []
 
 
 {-# NOINLINE string #-}
 string :: Type
 string =
-  AppN Var.string []
+  AppN ModuleName.basics "String" []
 
 
 {-# NOINLINE bool #-}
 bool :: Type
 bool =
-  AppN Var.bool []
+  AppN ModuleName.basics "Bool" []
 
 
 
@@ -214,19 +222,19 @@ unnamedFlexSuper super =
 -- MAKE NAMED VARIABLES
 
 
-nameToFlex :: Text -> IO Variable
+nameToFlex :: N.Name -> IO Variable
 nameToFlex name =
   UF.fresh $ makeDescriptor $
     maybe FlexVar FlexSuper (toSuper name) (Just name)
 
 
-nameToRigid :: Text -> IO Variable
+nameToRigid :: N.Name -> IO Variable
 nameToRigid name =
   UF.fresh $ makeDescriptor $
     maybe RigidVar RigidSuper (toSuper name) name
 
 
-toSuper :: Text -> Maybe T.Super
+toSuper :: N.Name -> Maybe T.Super
 toSuper name =
   if Text.isPrefixOf "number" name then
       Just T.Number
@@ -245,7 +253,105 @@ toSuper name =
 
 
 
--- CONVERT TO SOURCE TYPES
+-- FROM SOURCE TYPES
+
+
+-- TODO should the freeFlexVars be ranked a certain way?
+-- How does this interact with `TS.flatten` exactly?
+fromFlexSrcType :: T.Canonical -> IO ( Type, Map.Map N.Name Variable )
+fromFlexSrcType srcType =
+  do  let freeVars = gatherFreeVars srcType Map.empty
+      freeFlexVars <- Map.traverseWithKey (\name () -> nameToFlex name) freeVars
+      tipe <- fromSrcType (Map.map VarN freeFlexVars) srcType
+      return ( tipe, freeFlexVars )
+
+
+fromRigidSrcType :: T.Canonical -> IO ( Type, Map.Map N.Name Variable )
+fromRigidSrcType srcType =
+  do  let freeVars = gatherFreeVars srcType Map.empty
+      freeRigidVars <- Map.traverseWithKey (\name () -> nameToRigid name) freeVars
+      tipe <- fromSrcType (Map.map VarN freeRigidVars) srcType
+      return ( tipe, freeRigidVars )
+
+
+gatherFreeVars :: T.Canonical -> Map.Map N.Name () -> Map.Map N.Name ()
+gatherFreeVars tipe dict =
+  case tipe of
+    T.Lambda arg result ->
+      gatherFreeVars result (gatherFreeVars arg dict)
+
+    T.Var name ->
+      Map.insert name () dict
+
+    T.Type _ _ args ->
+      foldr gatherFreeVars dict args
+
+    T.Aliased _ _ args _ ->
+      foldr gatherFreeVars dict (map snd args)
+
+    T.Tuple a b cs ->
+      gatherFreeVars a $ gatherFreeVars b $
+        foldr gatherFreeVars dict cs
+
+    T.Unit ->
+      dict
+
+    T.Record fields maybeExt ->
+      case maybeExt of
+        Nothing ->
+          Map.foldr gatherFreeVars dict fields
+
+        Just ext ->
+          Map.foldr gatherFreeVars (gatherFreeVars ext dict) fields
+
+
+fromSrcType :: Map.Map N.Name Type -> T.Canonical -> IO Type
+fromSrcType freeVars sourceType =
+  case sourceType of
+    T.Lambda arg result ->
+      FunN
+        <$> fromSrcType freeVars arg
+        <*> fromSrcType freeVars result
+
+    T.Var name ->
+      return (freeVars ! name)
+
+    T.Type home name args ->
+      AppN home name <$> traverse (fromSrcType freeVars) args
+
+    T.Aliased home name args aliasedType ->
+      do  targs <- traverse (traverse (fromSrcType freeVars)) args
+          AliasN home name targs <$>
+            case aliasedType of
+              T.Filled realType ->
+                fromSrcType freeVars realType
+
+              T.Holey realType ->
+                fromSrcType (Map.fromList targs) realType
+
+    T.Tuple a b cs ->
+      TupleN
+        <$> fromSrcType freeVars a
+        <*> fromSrcType freeVars b
+        <*> traverse (fromSrcType freeVars) cs
+
+    T.Unit ->
+      return UnitN
+
+    T.Record fields maybeExt ->
+      RecordN
+        <$> traverse (fromSrcType freeVars) fields
+        <*>
+          case maybeExt of
+            Nothing ->
+              return EmptyRecordN
+
+            Just ext ->
+              fromSrcType freeVars ext
+
+
+
+-- TO SOURCE TYPES
 
 
 -- TODO: Attach resulting type to the descriptor so that you
@@ -303,10 +409,10 @@ contentToSrcType variable content =
     RigidSuper _ name ->
         return (T.Var name)
 
-    Alias name args realVariable ->
+    Alias home name args realVariable ->
         do  srcArgs <- traverse (traverse variableToSrcType) args
             srcType <- variableToSrcType realVariable
-            return (T.Aliased name srcArgs (T.Filled srcType))
+            return (T.Aliased home name srcArgs (T.Filled srcType))
 
     Error name ->
         return (T.Var name)
@@ -315,8 +421,8 @@ contentToSrcType variable content =
 termToSrcType :: FlatType -> StateT NameState IO T.Canonical
 termToSrcType term =
   case term of
-    App1 name args ->
-      T.Type name <$> traverse variableToSrcType args
+    App1 home name args ->
+      T.Type home name <$> traverse variableToSrcType args
 
     Fun1 a b ->
       T.Lambda
@@ -324,21 +430,30 @@ termToSrcType term =
         <*> variableToSrcType b
 
     EmptyRecord1 ->
-      return $ T.Record [] Nothing
+      return $ T.Record Map.empty Nothing
 
     Record1 fields extension ->
-      do  srcFields <- Map.toList <$> traverse variableToSrcType fields
+      do  srcFields <- traverse variableToSrcType fields
           srcExt <- T.iteratedDealias <$> variableToSrcType extension
           return $
               case srcExt of
                 T.Record subFields subExt ->
-                    T.Record (subFields ++ srcFields) subExt
+                    T.Record (Map.union subFields srcFields) subExt
 
                 T.Var _ ->
                     T.Record srcFields (Just srcExt)
 
                 _ ->
                     error "Used toSrcType on a type that is not well-formed"
+
+    Unit1 ->
+      return T.Unit
+
+    Tuple1 a b cs ->
+      T.Tuple
+        <$> variableToSrcType a
+        <*> variableToSrcType b
+        <*> traverse variableToSrcType cs
 
 
 
@@ -470,23 +585,33 @@ getVarNames var =
               RigidSuper super name ->
                 registerName name var (RigidSuper super)
 
-              Alias _ args realVar ->
+              Alias _ _ args realVar ->
                 do  mapM_ (getVarNames . snd) args
                     getVarNames realVar
 
-              Structure (App1 _ args) ->
-                mapM_ getVarNames args
+              Structure flatType ->
+                case flatType of
+                  App1 _ _ args ->
+                    mapM_ getVarNames args
 
-              Structure (Fun1 arg body) ->
-                do  getVarNames arg
-                    getVarNames body
+                  Fun1 arg body ->
+                    do  getVarNames arg
+                        getVarNames body
 
-              Structure EmptyRecord1 ->
-                return ()
+                  EmptyRecord1 ->
+                    return ()
 
-              Structure (Record1 fields extension) ->
-                do  mapM_ getVarNames fields
-                    getVarNames extension
+                  Record1 fields extension ->
+                    do  mapM_ getVarNames fields
+                        getVarNames extension
+
+                  Unit1 ->
+                    return ()
+
+                  Tuple1 a b cs ->
+                    do  getVarNames a
+                        getVarNames b
+                        mapM_ getVarNames cs
 
 
 
