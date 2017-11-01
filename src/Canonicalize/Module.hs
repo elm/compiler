@@ -14,6 +14,7 @@ import qualified AST.Expression.Source as Src
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
+import qualified Canonicalize.Effects as Effects
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
 import qualified Canonicalize.Expression as Expr
@@ -43,7 +44,7 @@ type Result a =
 
 canonicalize
   :: Pkg.Name
-  -> Map.Map ModuleName.Raw ModuleName.Canonical
+  -> Map.Map N.Name ModuleName.Canonical
   -> I.Interfaces
   -> Valid.Module
   -> Result Can.Module
@@ -57,7 +58,7 @@ canonicalize pkg importDict interfaces module_ =
           <*> (Map.fromList <$> traverse (canonicalizeAlias env) aliases)
 
       let cbinops = Map.fromList (map canonicalizeBinop binops)
-      ceffects <- canonicalizeEffects env cunions effects
+      ceffects <- Effects.canonicalize env cunions effects
       cexports <- canonicalizeExports decls cunions caliases cbinops ceffects exports
 
       let home = ModuleName.Canonical pkg name
@@ -209,45 +210,6 @@ detectBadCyclesHelp decl =
 
     Function _ _ _ _ ->
       Nothing
-
-
-
--- CANONICALIZE EFFECTS
-
-
-canonicalizeEffects :: Env.Env -> Map.Map N.Name a -> Valid.Effects -> Result Can.Effects
-canonicalizeEffects env unions effects =
-  case effects of
-    Valid.NoEffects ->
-      Result.ok Can.NoEffects
-
-    Valid.Ports ports ->
-      do  pairs <- traverse (canonicalizePort env) ports
-          return $ Can.Ports (Map.fromList pairs)
-
-    Valid.Cmd cmdType ->
-      Can.Cmd <$> verifyEffectType cmdType unions
-
-    Valid.Sub subType ->
-      Can.Sub <$> verifyEffectType subType unions
-
-    Valid.Fx cmdType subType ->
-      Can.Fx
-        <$> verifyEffectType cmdType unions
-        <*> verifyEffectType subType unions
-
-
-canonicalizePort :: Env.Env -> Valid.Port -> Result (N.Name, Type.Canonical)
-canonicalizePort env (Valid.Port (A.A _ name) tipe) =
-  (,) name <$> Type.canonicalize env tipe
-
-
-verifyEffectType :: A.Located N.Name -> Map.Map N.Name a -> Result N.Name
-verifyEffectType (A.A region name) unions =
-  if Map.member name unions then
-    Result.ok name
-  else
-    Result.throw region (Error.EffectNotFound name)
 
 
 

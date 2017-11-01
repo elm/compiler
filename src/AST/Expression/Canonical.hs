@@ -17,6 +17,7 @@ module AST.Expression.Canonical
   , Union(..)
   , Binop(..)
   , Effects(..)
+  , Port(..)
   , Exports(..)
   , Export(..)
   , Docs(..)
@@ -158,10 +159,15 @@ data Binop = Binop_ Binop.Associativity Binop.Precedence N.Name
 
 data Effects
   = NoEffects
-  | Ports (Map.Map N.Name Type.Canonical)
+  | Ports (Map.Map N.Name Port)
   | Cmd N.Name
   | Sub N.Name
   | Fx N.Name N.Name
+
+
+data Port
+  = Incoming Type.Canonical
+  | Outgoing Type.Canonical
 
 
 data Exports

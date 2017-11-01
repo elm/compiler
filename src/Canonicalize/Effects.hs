@@ -2,155 +2,169 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Canonicalize.Effects
   ( canonicalize
-  , toExposedValues
-  , checkPortType
+  , checkPayload
   )
   where
 
 import qualified Data.Foldable as F
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
 
-import qualified AST.Effects as Effects
-import qualified AST.Type as T
-import qualified AST.Variable as Var
+import qualified AST.Expression.Canonical as Can
+import qualified AST.Expression.Valid as Valid
+import qualified AST.Module.Name as ModuleName
+import qualified AST.Type as Type
+import qualified Canonicalize.Environment as Env
+import qualified Canonicalize.Type as Type
+import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
-import qualified Canonicalize.Environment as Env
-import qualified Canonicalize.Type as Canonicalize
-import Canonicalize.Variable (Result)
+import qualified Reporting.Warning as Warning
 
 
 
--- TO EXPORT VALUES
+-- RESULT
 
 
-toExposedValues :: Effects.Raw -> [Text]
-toExposedValues effects =
-  case effects of
-    Effects.None ->
-      []
-
-    Effects.Manager _ _ ->
-      []
-
-    Effects.Port ports ->
-      map (Effects._rawName . A.drop) ports
+type Result a =
+  Result.Result () Warning.Warning Error.Error a
 
 
 
 -- CANONICALIZE
 
 
-canonicalize :: Env.Env -> Effects.Raw -> Result Effects.Canonical
-canonicalize env effects =
+canonicalize :: Env.Env -> Map.Map N.Name a -> Valid.Effects -> Result Can.Effects
+canonicalize env unions effects =
   case effects of
-    Effects.None ->
-      Result.ok Effects.None
+    Valid.NoEffects ->
+      Result.ok Can.NoEffects
 
-    Effects.Manager _ info ->
-      Result.ok (Effects.Manager (Env.getPackage env) info)
+    Valid.Ports ports ->
+      do  pairs <- traverse (canonicalizePort env) ports
+          return $ Can.Ports (Map.fromList pairs)
 
-    Effects.Port rawPorts ->
-      Effects.Port <$> traverse (canonicalizeRawPort env) rawPorts
+    Valid.Cmd cmdType ->
+      Can.Cmd <$> verifyEffectType cmdType unions
 
+    Valid.Sub subType ->
+      Can.Sub <$> verifyEffectType subType unions
 
-canonicalizeRawPort
-  :: Env.Env
-  -> A.Commented Effects.PortRaw
-  -> Result (A.Commented Effects.PortCanonical)
-canonicalizeRawPort env (A.A ann (Effects.PortRaw name rawType)) =
-  do  tipe <- Canonicalize.tipe env rawType
-      kind <- figureOutKind (fst ann) name tipe
-      Result.ok (A.A ann (Effects.PortCanonical name kind tipe))
-
-
-figureOutKind :: R.Region -> Text -> T.Canonical -> Result Effects.Kind
-figureOutKind region name rootType =
-  case T.deepDealias rootType of
-    T.Lambda outgoingType (T.Type effect [T.Var _])
-      | effect == Var.cmd ->
-          pure (Effects.Outgoing outgoingType)
-            <* checkPortType (makeError region name) outgoingType
-
-    T.Lambda (T.Lambda incomingType (T.Var msg1)) (T.Type effect [T.Var msg2])
-      | effect == Var.sub && msg1 == msg2 ->
-          pure (Effects.Incoming incomingType)
-            <* checkPortType (makeError region name) incomingType
-
-    _ ->
-      Result.throw region (Error.BadPort name rootType)
+    Valid.Fx cmdType subType ->
+      Can.Fx
+        <$> verifyEffectType cmdType unions
+        <*> verifyEffectType subType unions
 
 
-makeError :: R.Region -> Text -> T.Canonical -> Maybe Text -> A.Located Error.Error
-makeError region name tipe maybeMessage =
-  A.A region (Error.port name tipe maybeMessage)
+verifyEffectType :: A.Located N.Name -> Map.Map N.Name a -> Result N.Name
+verifyEffectType (A.A region name) unions =
+  if Map.member name unions then
+    Result.ok name
+  else
+    Result.throw region (Error.EffectNotFound name)
+
+
+canonicalizePort :: Env.Env -> Valid.Port -> Result (N.Name, Can.Port)
+canonicalizePort env (Valid.Port (A.A region portName) tipe) =
+  do  ctipe <- Type.canonicalize env tipe
+      case Type.deepDealias ctipe of
+        Type.Lambda outgoingType (Type.Type home name [Type.Var _])
+          | home == ModuleName.cmd && name == "Cmd" ->
+              case checkPayload outgoingType of
+                Left (badType, err) ->
+                  Result.throw region (Error.PortPayloadInvalid portName badType err)
+
+                Right () ->
+                  Result.ok (portName, Can.Outgoing ctipe)
+
+        Type.Lambda (Type.Lambda incomingType (Type.Var msg1)) (Type.Type home name [Type.Var msg2])
+          | home == ModuleName.sub && name == "Sub" && msg1 == msg2 ->
+              case checkPayload incomingType of
+                Left (badType, err) ->
+                  Result.throw region (Error.PortPayloadInvalid portName badType err)
+
+                Right () ->
+                  Result.ok (portName, Can.Incoming ctipe)
+
+        _ ->
+          Result.throw region (Error.PortTypeInvalid portName ctipe)
 
 
 
--- CHECK INCOMING AND OUTGOING TYPES
+-- CHECK PAYLOAD TYPES
 
 
-checkPortType
-  :: (Monoid i)
-  => (T.Canonical -> Maybe Text -> A.Located e)
-  -> T.Canonical
-  -> Result.Result i w e ()
-checkPortType mkError tipe =
-  let
-    check =
-      checkPortType mkError
+checkPayload :: Type.Canonical -> Either (Type.Canonical, Error.InvalidPayload) ()
+checkPayload tipe =
+  case tipe of
+    Type.Aliased _ _ args aliasedType ->
+      checkPayload (Type.dealias args aliasedType)
 
-    throw maybeMsg =
-      Result.throwMany [mkError tipe maybeMsg]
-  in
-    case tipe of
-      T.Aliased _ args aliasedType ->
-        check (T.dealias args aliasedType)
+    Type.Type home name args ->
+      case args of
+        []
+          | isPrim home name -> Right ()
+          | isJson home name -> Right ()
 
-      T.Type name [] ->
-        if Var.isJson name || isPrimitive name || Var.isTuple name then
-          return ()
+        [arg]
+          | isList  home name -> checkPayload arg
+          | isMaybe home name -> checkPayload arg
+          | isArray home name -> checkPayload arg
 
-        else
-          throw Nothing
+        _ ->
+          Left (tipe, Error.UnsupportedType name)
 
-      T.Type name [arg]
-          | Var.isMaybe name -> check arg
-          | Var.isArray name -> check arg
-          | Var.isList  name -> check arg
+    Type.Unit ->
+        Right ()
 
-      T.Type name args ->
-        if Var.isTuple name then
-          F.traverse_ check args
-        else
-          throw Nothing
+    Type.Tuple a b cs ->
+        F.traverse_ checkPayload (a:b:cs)
 
-      T.Var _ ->
-          throw (Just "free type variable")
+    Type.Var name ->
+        Left (tipe, Error.TypeVariable name)
 
-      T.Lambda _ _ ->
-          throw (Just "function")
+    Type.Lambda _ _ ->
+        Left (tipe, Error.Function)
 
-      T.Record _ (Just _) ->
-          throw (Just "extended record")
+    Type.Record _ (Just _) ->
+        Left (tipe, Error.ExtendedRecord)
 
-      T.Record fields Nothing ->
-          F.traverse_ (\(k,v) -> (,) k <$> check v) fields
+    Type.Record fields Nothing ->
+        F.traverse_ checkPayload fields
 
 
-isPrimitive :: Var.Canonical -> Bool
-isPrimitive var =
-  case var of
-    Var.Canonical Var.BuiltIn name ->
-      Set.member name primitiveSet
-
-    _ ->
-      False
+isPrim :: ModuleName.Canonical -> N.Name -> Bool
+isPrim home name =
+  home == ModuleName.basics
+  && Set.member name primitives
 
 
-primitiveSet :: Set.Set Text
-primitiveSet =
-  Set.fromList ["Int","Float","String","Bool"]
+primitives :: Set.Set Text
+primitives =
+  Set.fromList [ "Int", "Float", "String", "Bool" ]
+
+
+isJson :: ModuleName.Canonical -> N.Name -> Bool
+isJson home name =
+  home == ModuleName.jsonEncode
+  && name == "Value"
+
+
+isList :: ModuleName.Canonical -> N.Name -> Bool
+isList home name =
+  home == ModuleName.list
+  && name == "List"
+
+
+isMaybe :: ModuleName.Canonical -> N.Name -> Bool
+isMaybe home name =
+  home == ModuleName.maybe
+  && name == "Maybe"
+
+
+isArray :: ModuleName.Canonical -> N.Name -> Bool
+isArray home name =
+  home == ModuleName.array
+  && name == "Array"
