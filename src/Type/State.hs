@@ -17,7 +17,7 @@ module Type.State
   where
 
 
-import Control.Monad (forM_, liftM, liftM2)
+import Control.Monad (forM_, liftM, liftM2, liftM3)
 import Control.Monad.Trans (MonadIO, liftIO)
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict ((!))
@@ -143,17 +143,17 @@ flattenHelp maxRank pools aliasDict tipe =
     PlaceHolder name ->
         return (aliasDict ! name)
 
-    AliasN name args realType ->
+    AliasN home name args realType ->
         do  flatArgs <- mapM (traverse (flattenHelp maxRank pools aliasDict)) args
             flatVar <- flattenHelp maxRank pools (Map.fromList flatArgs) realType
-            registerFlatType maxRank pools (Alias name flatArgs flatVar)
+            registerFlatType maxRank pools (Alias home name flatArgs flatVar)
 
     VarN v ->
         return v
 
-    AppN name args ->
+    AppN home name args ->
         do  flatArgs <- traverse (flattenHelp maxRank pools aliasDict) args
-            registerFlatType maxRank pools (Structure (App1 name flatArgs))
+            registerFlatType maxRank pools (Structure (App1 home name flatArgs))
 
     FunN a b ->
         do  flatA <- flattenHelp maxRank pools aliasDict a
@@ -167,6 +167,15 @@ flattenHelp maxRank pools aliasDict tipe =
         do  flatFields <- traverse (flattenHelp maxRank pools aliasDict) fields
             flatExt <- flattenHelp maxRank pools aliasDict ext
             registerFlatType maxRank pools (Structure (Record1 flatFields flatExt))
+
+    UnitN ->
+        registerFlatType maxRank pools (Structure Unit1)
+
+    TupleN a b cs ->
+        do  flatA <- flattenHelp maxRank pools aliasDict a
+            flatB <- flattenHelp maxRank pools aliasDict b
+            flatCs <- traverse (flattenHelp maxRank pools aliasDict) cs
+            registerFlatType maxRank pools (Structure (Tuple1 flatA flatB flatCs))
 
 
 registerFlatType :: Int -> Pools -> Content -> IO Variable
@@ -233,10 +242,10 @@ copyHelp maxRank pools variable =
                   RigidSuper super name ->
                     UF.setDescriptor newVar $ mkCopyDesc $ FlexSuper super (Just name)
 
-                  Alias name args realType ->
+                  Alias home name args realType ->
                     do  newArgs <- mapM (traverse (copyHelp maxRank pools)) args
                         newRealType <- copyHelp maxRank pools realType
-                        UF.setDescriptor newVar $ mkCopyDesc (Alias name newArgs newRealType)
+                        UF.setDescriptor newVar $ mkCopyDesc (Alias home name newArgs newRealType)
 
                   Error _ ->
                     return ()
@@ -280,8 +289,8 @@ restoreContent content =
     Structure term ->
         Structure <$> traverseFlatType restore term
 
-    Alias name args var ->
-        Alias name
+    Alias home name args var ->
+        Alias home name
           <$> mapM (traverse restore) args
           <*> restore var
 
@@ -296,8 +305,8 @@ restoreContent content =
 traverseFlatType :: (Variable -> IO Variable) -> FlatType -> IO FlatType
 traverseFlatType f flatType =
   case flatType of
-    App1 name args ->
-        liftM (App1 name) (traverse f args)
+    App1 home name args ->
+        liftM (App1 home name) (traverse f args)
 
     Fun1 a b ->
         liftM2 Fun1 (f a) (f b)
@@ -307,6 +316,12 @@ traverseFlatType f flatType =
 
     Record1 fields ext ->
         liftM2 Record1 (traverse f fields) (f ext)
+
+    Unit1 ->
+        pure Unit1
+
+    Tuple1 a b cs ->
+        liftM3 Tuple1 (f a) (f b) (traverse f cs)
 
 
 
