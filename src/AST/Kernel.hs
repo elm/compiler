@@ -11,7 +11,6 @@ import Control.Monad (liftM, liftM2)
 import Data.Binary
 import qualified Data.ByteString as BS
 
-import qualified AST.Module.Name as ModuleName
 import qualified Elm.Name as N
 
 
