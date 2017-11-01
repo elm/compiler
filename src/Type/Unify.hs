@@ -8,8 +8,9 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Maybe as Maybe
 import Data.Text (Text)
 
+import qualified AST.Module.Name as ModuleName
 import AST.Type (Super(..))
-import qualified AST.Variable as Var
+import qualified Elm.Name as N
 import qualified Reporting.Region as R
 import qualified Reporting.Error.Type as Error
 import qualified Type.Occurs as Occurs
@@ -130,8 +131,8 @@ detectDecoder :: Variable -> IO Bool
 detectDecoder variable =
   do  (Descriptor content _ _ _) <- UF.descriptor variable
       case content of
-        Structure (App1 name [_]) | Var.decoder == name ->
-          return True
+        Structure (App1 home name [_]) ->
+          return (home == ModuleName.jsonDecode && name == "Decoder")
 
         _ ->
           return False
@@ -198,8 +199,8 @@ actuallyUnify context@(Context _ _ (Descriptor firstContent _ _ _) _ (Descriptor
     RigidSuper super name ->
         unifyRigid context (Just super) name firstContent secondContent
 
-    Alias name args realVar ->
-        unifyAlias context name args realVar secondContent
+    Alias home name args realVar ->
+        unifyAlias context home name args realVar secondContent
 
     Structure flatType ->
         unifyStructure context flatType firstContent secondContent
@@ -234,7 +235,7 @@ unifyFlex context otherContent =
     RigidSuper _ _ ->
         merge context otherContent
 
-    Alias _ _ _ ->
+    Alias _ _ _ _ ->
         merge context otherContent
 
     Structure _ ->
@@ -272,7 +273,7 @@ unifyRigid context maybeSuper name content otherContent =
         mismatch context $ Just $
           Error.RigidClash name otherName
 
-    Alias otherName _ _ ->
+    Alias _ otherName _ _ ->
         mismatch context $ Just $
           maybe Error.RigidVarTooGeneric Error.RigidSuperTooGeneric maybeSuper name $
             Error.SpecificType otherName
@@ -289,7 +290,7 @@ unifyRigid context maybeSuper name content otherContent =
 flatTypeToSpecificThing :: FlatType -> Error.SpecificThing
 flatTypeToSpecificThing flatType =
   case flatType of
-    App1 name _ ->
+    App1 _ name _ ->
       Error.SpecificType name
 
     Fun1 _ _ ->
@@ -300,6 +301,12 @@ flatTypeToSpecificThing flatType =
 
     Record1 _ _ ->
       Error.SpecificRecord
+
+    Unit1 ->
+      Error.SpecificUnit
+
+    Tuple1 _ _ _ ->
+      Error.SpecificTuple
 
 
 
@@ -355,7 +362,7 @@ unifyFlexSuper context super content otherContent =
             CompAppend -> merge context content
             Number     -> mismatch context Nothing -- Error.NumberAppendableClash
 
-    Alias _ _ realVar ->
+    Alias _ _ _ realVar ->
         subUnify context (_first context) realVar
 
     Error _ ->
@@ -369,32 +376,38 @@ combineRigidSupers rigid flex =
   || (rigid == CompAppend && (flex == Comparable || flex == Appendable))
 
 
-atomMatchesSuper :: Super -> Var.Canonical -> Bool
-atomMatchesSuper super name =
+atomMatchesSuper :: Super -> ModuleName.Canonical -> N.Name -> Bool
+atomMatchesSuper super home name =
+  home == ModuleName.basics
+  &&
   case super of
     Number ->
-        elem name [ Var.int, Var.float ]
+      name == N.int
+      || name == N.float
 
     Comparable ->
-        elem name [ Var.string, Var.int, Var.float, Var.char]
+      name == N.int
+      || name == N.float
+      || name == N.string
+      || name == N.char
 
     Appendable ->
-        name == Var.string
+      name == N.string
 
     CompAppend ->
-        name == Var.string
+      name == N.string
 
 
 unifyFlexSuperStructure :: Context -> Super -> FlatType -> Unify ()
 unifyFlexSuperStructure context super flatType =
   case flatType of
-    App1 name [] ->
-      if atomMatchesSuper super name then
+    App1 home name [] ->
+      if atomMatchesSuper super home name then
         merge context (Structure flatType)
       else
         mismatch context $ Just $ Error.NotPartOfSuper super
 
-    App1 name [variable] | name == Var.list ->
+    App1 home name [variable] | home == ModuleName.list && name == N.list ->
       case super of
         Number ->
             mismatch context $ Just $ Error.NotPartOfSuper super
@@ -412,7 +425,7 @@ unifyFlexSuperStructure context super flatType =
                 merge context (Structure flatType)
                 unifyComparableRecursive (_orientation context) variable
 
-    App1 name args | Var.isTuple name ->
+    Tuple1 a b cs ->
       case super of
         Number ->
             mismatch context $ Just $ Error.NotPartOfSuper super
@@ -421,13 +434,9 @@ unifyFlexSuperStructure context super flatType =
             mismatch context $ Just $ Error.NotPartOfSuper super
 
         Comparable ->
-            if length args > 6 then
-                mismatch context (Just (Error.TooLongComparableTuple (length args)))
-
-            else
-                do  comparableOccursCheck context
-                    merge context (Structure flatType)
-                    mapM_ (unifyComparableRecursive (_orientation context)) args
+            do  comparableOccursCheck context
+                merge context (Structure flatType)
+                mapM_ (unifyComparableRecursive (_orientation context)) (a:b:cs)
 
         CompAppend ->
             mismatch context $ Just $ Error.NotPartOfSuper super
@@ -461,11 +470,11 @@ unifyComparableRecursive orientation var =
 -- UNIFY ALIASES
 
 
-unifyAlias :: Context -> Var.Canonical -> [(Text, Variable)] -> Variable -> Content -> Unify ()
-unifyAlias context name args realVar otherContent =
+unifyAlias :: Context -> ModuleName.Canonical -> N.Name -> [(Text, Variable)] -> Variable -> Content -> Unify ()
+unifyAlias context home name args realVar otherContent =
   case otherContent of
     FlexVar _ ->
-        merge context (Alias name args realVar)
+        merge context (Alias home name args realVar)
 
     FlexSuper _ _ ->
         subUnify context realVar (_second context)
@@ -476,8 +485,8 @@ unifyAlias context name args realVar otherContent =
     RigidSuper _ _ ->
         subUnify context realVar (_second context)
 
-    Alias otherName otherArgs otherRealVar ->
-        if name == otherName then
+    Alias otherHome otherName otherArgs otherRealVar ->
+        if name == otherName && home == otherHome then
             do  zipWithM_ (subUnify context) (map snd args) (map snd otherArgs)
                 merge context otherContent
 
@@ -510,17 +519,17 @@ unifyStructure context flatType content otherContent =
     RigidSuper super name ->
         mismatch context $ Just $ Error.RigidSuperTooGeneric super name (flatTypeToSpecificThing flatType)
 
-    Alias _ _ realVar ->
+    Alias _ _ _ realVar ->
         subUnify context (_first context) realVar
 
     Structure otherTerm ->
         case (flatType, otherTerm) of
-          (App1 name args, App1 otherName otherArgs) ->
-              if name == otherName then
+          (App1 home name args, App1 otherHome otherName otherArgs) ->
+              if home == otherHome && name == otherName then
                 do  zipWithM_ (subUnify context) args otherArgs
                     merge context otherContent
 
-              else if isIntFloat name otherName || isIntFloat otherName name then
+              else if isIntFloat home name otherHome otherName then
                 mismatch context (Just Error.IntFloat)
 
               else
@@ -553,9 +562,15 @@ unifyStructure context flatType content otherContent =
 
 
 
-isIntFloat :: Var.Canonical -> Var.Canonical -> Bool
-isIntFloat name otherName =
-  Var.isPrim "Int" name && Var.isPrim "Float" otherName
+isIntFloat :: ModuleName.Canonical -> N.Name -> ModuleName.Canonical -> N.Name -> Bool
+isIntFloat home name otherHome otherName =
+  otherHome == ModuleName.basics
+  && home == ModuleName.basics
+  && (
+    (name == N.int && otherName == N.float)
+    ||
+    (name == N.float && otherName == N.int)
+  )
 
 
 
@@ -668,7 +683,7 @@ gatherFields context fields variable =
         Structure EmptyRecord1 ->
             return (RecordStructure fields variable Empty)
 
-        Alias _ _ var ->
+        Alias _ _ _ var ->
             -- TODO may be dropping useful alias info here
             gatherFields context fields var
 

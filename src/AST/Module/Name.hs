@@ -3,7 +3,8 @@
 module AST.Module.Name
   ( Canonical(..)
   , basics, maybe, list, array
-  , jsonEncode, cmd, sub
+  , jsonDecode, jsonEncode
+  , cmd, sub
   , canonicalToText
   , isKernel, getKernel, canonicalIsKernel
   )
@@ -53,6 +54,11 @@ list =
 array :: Canonical
 array =
   Canonical Pkg.core "Array"
+
+
+jsonDecode :: Canonical
+jsonDecode =
+  Canonical Pkg.core "Json.Decode"
 
 
 jsonEncode :: Canonical
