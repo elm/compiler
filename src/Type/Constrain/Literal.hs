@@ -29,9 +29,6 @@ constrain region literal tipe =
     Lit.Str _ ->
       return $ T.CEqual stringError region T.string tipe
 
-    Lit.Boolean _ ->
-      return $ T.CEqual boolError region T.bool tipe
-
 
 
 -- LITERAL ERRORS
@@ -59,9 +56,3 @@ charError =
 stringError :: Error.Hint
 stringError =
   Error.Literal "string"
-
-
-{-# NOINLINE boolError #-}
-boolError :: Error.Hint
-boolError =
-  Error.Literal "boolean"
