@@ -1,32 +1,32 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module AST.Module.Name
-  ( Raw
-  , Canonical(..)
-  , inVirtualDom, inCore, inHtml, inBrowser
-  , toString, toText, canonicalToText
+  ( Canonical(..)
+  , basics, maybe, list, array
+  , jsonEncode, cmd, sub
+  , canonicalToText
   , isKernel, getKernel, canonicalIsKernel
   )
   where
 
+
+import Prelude hiding (maybe)
 import Data.Binary
 import qualified Data.Text as Text
 import Data.Text (Text)
 
-import qualified Elm.Package as Package
+import qualified Elm.Name as N
+import qualified Elm.Package as Pkg
 
 
 
 -- NAMES
 
 
-type Raw = Text -- must be non-empty
-
-
 data Canonical =
   Canonical
-    { _package :: !Package.Name
-    , _module :: !Raw
+    { _package :: !Pkg.Name
+    , _module :: !N.Name
     }
     deriving (Eq, Ord)
 
@@ -35,56 +35,60 @@ data Canonical =
 -- HELPERS
 
 
-inVirtualDom :: Raw -> Canonical
-inVirtualDom raw =
-  Canonical Package.virtualDom raw
+basics :: Canonical
+basics =
+  Canonical Pkg.core "Basics"
 
 
-inCore :: Raw -> Canonical
-inCore raw =
-  Canonical Package.core raw
+maybe :: Canonical
+maybe =
+  Canonical Pkg.core "Maybe"
 
 
-inHtml :: Raw -> Canonical
-inHtml raw =
-  Canonical Package.html raw
+list :: Canonical
+list =
+  Canonical Pkg.core "List"
 
 
-inBrowser :: Raw -> Canonical
-inBrowser raw =
-  Canonical Package.browser raw
+array :: Canonical
+array =
+  Canonical Pkg.core "Array"
+
+
+jsonEncode :: Canonical
+jsonEncode =
+  Canonical Pkg.core "Json.Encode"
+
+
+cmd :: Canonical
+cmd =
+  Canonical Pkg.core "Platform.Cmd"
+
+
+sub :: Canonical
+sub =
+  Canonical Pkg.core "Platform.Sub"
 
 
 
 -- CONVERSIONS
 
 
-toString :: Raw -> String
-toString =
-  Text.unpack
-
-
-{-# INLINE toText #-}
-toText :: Raw -> Text
-toText name =
-  name
-
-
 canonicalToText :: Canonical -> Text
 canonicalToText (Canonical _ name) =
-  toText name
+  name
 
 
 
 -- IS KERNEL
 
 
-isKernel :: Raw -> Bool
+isKernel :: N.Name -> Bool
 isKernel name =
   Text.isPrefixOf "Elm.Kernel." name
 
 
-getKernel :: Raw -> Text
+getKernel :: N.Name -> Text
 getKernel name =
   Text.drop 11 name
 
@@ -99,8 +103,8 @@ canonicalIsKernel (Canonical _ name) =
 
 
 instance Binary Canonical where
-  put (Canonical home name) =
-    put home >> put name
+  put (Canonical a b) =
+    put a >> put b
 
   get =
     Canonical <$> get <*> get

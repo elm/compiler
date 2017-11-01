@@ -68,17 +68,17 @@ data Super
 
 
 cmd :: ModuleName.Canonical -> Name -> Canonical
-cmd moduleName tipe =
+cmd home tipe =
   Lambda
-    (Type moduleName tipe [Var "msg"])
-    (Type (ModuleName.inCore "Platform.Cmd") "Cmd" [Var "msg"])
+    (Type home tipe [Var "msg"])
+    (Type ModuleName.cmd "Cmd" [Var "msg"])
 
 
 sub :: ModuleName.Canonical -> Name -> Canonical
-sub moduleName tipe =
+sub home tipe =
   Lambda
-    (Type moduleName tipe [Var "msg"])
-    (Type (ModuleName.inCore "Platform.Sub") "Sub" [Var "msg"])
+    (Type home tipe [Var "msg"])
+    (Type ModuleName.sub "Sub" [Var "msg"])
 
 
 
