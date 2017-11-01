@@ -290,7 +290,7 @@ adjustRankContent youngMark visitMark groupRank content =
 
       Structure flatType ->
         case flatType of
-          App1 _ args ->
+          App1 _ _ args ->
             foldM (\rank arg -> max rank <$> go arg) outermostRank args
 
           Fun1 arg result ->
@@ -304,7 +304,14 @@ adjustRankContent youngMark visitMark groupRank content =
               do  extRank <- go extension
                   foldM (\rank field -> max rank <$> go field) extRank fields
 
-      Alias _ args _ ->
+          Unit1 ->
+              -- THEORY: a unit never needs to get generalized
+              return outermostRank
+
+          Tuple1 a b cs ->
+              foldM (\rank arg -> max rank <$> go arg) outermostRank (a:b:cs)
+
+      Alias _ _ args _ ->
           -- THEORY: anything in the realVar would be outermostRank
           foldM (\rank (_, argVar) -> max rank <$> go argVar) outermostRank args
 
