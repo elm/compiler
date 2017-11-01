@@ -38,11 +38,9 @@ occursHelp seen var =
               return False
 
           Structure term ->
-              let
-                go = occursHelp (var:seen)
-              in
+              let go = occursHelp (var:seen) in
               case term of
-                App1 _ args ->
+                App1 _ _ args ->
                     or <$> traverse go args
 
                 Fun1 a b ->
@@ -54,7 +52,13 @@ occursHelp seen var =
                 Record1 fields ext ->
                     or <$> traverse go (ext : Map.elems fields)
 
-          Alias _ args _ ->
+                Unit1 ->
+                    return False
+
+                Tuple1 a b cs ->
+                    or <$> traverse go (a:b:cs)
+
+          Alias _ _ args _ ->
               -- TODO is it okay to only check args?
               or <$> traverse (occursHelp (var:seen) . snd) args
 
