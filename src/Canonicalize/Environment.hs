@@ -23,6 +23,7 @@ import qualified Canonicalize.Environment.Foreign as Foreign
 import qualified Canonicalize.Environment.Internals as Env
 import qualified Canonicalize.Environment.Local as Local
 import qualified Elm.Interface as I
+import qualified Elm.Name as N
 import qualified Elm.Package as Package
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Result as Result
@@ -42,7 +43,7 @@ type Result a =
 
 
 type ImportDict =
-  Map.Map ModuleName.Raw ModuleName.Canonical
+  Map.Map N.Name ModuleName.Canonical
 
 
 create :: Package.Name -> ImportDict -> I.Interfaces -> Valid.Module -> Result Env.Env

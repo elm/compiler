@@ -76,7 +76,7 @@ emptyEnv =
 
 
 type ImportDict =
-  Map.Map ModuleName.Raw ModuleName.Canonical
+  Map.Map N.Name ModuleName.Canonical
 
 
 createInitialEnv :: ModuleName.Canonical -> ImportDict -> I.Interfaces -> [Src.Import] -> Result Env.Env
@@ -269,14 +269,14 @@ verifyImport importDict interfaces (Src.Import (A.A region name) alias exposing)
                     Result.ok (Explicit (Map.fromList (concat pairLists)))
 
 
-throwImportNotFound :: R.Region -> ModuleName.Raw -> [ModuleName.Canonical] -> Result a
+throwImportNotFound :: R.Region -> N.Name -> [ModuleName.Canonical] -> Result a
 throwImportNotFound region name knownModules =
   Result.throw region $ Error.ImportNotFound name $
-    Help.nearbyNames ModuleName.toString name $
+    Help.nearbyNames N.toString name $
       map ModuleName._module knownModules
 
 
-verifyExposed :: ModuleName.Raw -> I.Interface -> A.Located Src.Exposed -> Result [(N.Name, Exposed)]
+verifyExposed :: N.Name -> I.Interface -> A.Located Src.Exposed -> Result [(N.Name, Exposed)]
 verifyExposed moduleName interface@(I.Interface _ unions aliases _) (A.A region exposed) =
   case exposed of
     Src.Operator name ->
@@ -300,7 +300,7 @@ verifyExposed moduleName interface@(I.Interface _ unions aliases _) (A.A region 
               throwExposingNotFound moduleName region name interface
 
 
-verifyValue :: ModuleName.Raw -> R.Region -> N.Name -> I.Interface -> Result [(N.Name, Exposed)]
+verifyValue :: N.Name -> R.Region -> N.Name -> I.Interface -> Result [(N.Name, Exposed)]
 verifyValue moduleName region name interface@(I.Interface types _ _ _) =
   case Map.lookup name types of
     Nothing ->
@@ -320,7 +320,7 @@ verifyAlias region name privacy =
       Result.ok [(name, Alias)]
 
 
-throwExposingNotFound :: ModuleName.Raw -> R.Region -> N.Name -> I.Interface -> Result a
+throwExposingNotFound :: N.Name -> R.Region -> N.Name -> I.Interface -> Result a
 throwExposingNotFound moduleName region name (I.Interface types unions aliases _) =
   let
     toCtorPairs (tipe, Can.Union _ ctors) =
