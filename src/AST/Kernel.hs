@@ -54,16 +54,16 @@ data Chunk
 
 
 instance Binary Data where
-  put (Data client server) =
-    put client >> put server
+  put (Data a b) =
+    put a >> put b
 
   get =
     liftM2 Data get get
 
 
 instance Binary Content where
-  put (Content imports chunks) =
-    put imports >> put chunks
+  put (Content a b) =
+    put a >> put b
 
   get =
     liftM2 Content get get
@@ -72,20 +72,11 @@ instance Binary Content where
 instance Binary Chunk where
   put chunk =
     case chunk of
-      JS bytes ->
-        putWord8 0 >> put bytes
-
-      Var home name ->
-        putWord8 1 >> put home >> put name
-
-      Field field ->
-        putWord8 2 >> put field
-
-      Debug ->
-        putWord8 3
-
-      Prod ->
-        putWord8 4
+      JS a    -> putWord8 0 >> put a
+      Var a b -> putWord8 1 >> put a >> put b
+      Field a -> putWord8 2 >> put a
+      Debug   -> putWord8 3
+      Prod    -> putWord8 4
 
   get =
     do  word <- getWord8
