@@ -137,34 +137,29 @@ checkPayload tipe =
 
 isPrim :: ModuleName.Canonical -> N.Name -> Bool
 isPrim home name =
-  home == ModuleName.basics
-  && Set.member name primitives
+  home == ModuleName.basics && Set.member name primitives
 
 
 primitives :: Set.Set Text
 primitives =
-  Set.fromList [ "Int", "Float", "String", "Bool" ]
+  Set.fromList [ N.int, N.float, N.string, N.bool ]
 
 
 isJson :: ModuleName.Canonical -> N.Name -> Bool
 isJson home name =
-  home == ModuleName.jsonEncode
-  && name == "Value"
+  home == ModuleName.jsonEncode && name == "Value"
 
 
 isList :: ModuleName.Canonical -> N.Name -> Bool
 isList home name =
-  home == ModuleName.list
-  && name == "List"
+  home == ModuleName.list && name == N.list
 
 
 isMaybe :: ModuleName.Canonical -> N.Name -> Bool
 isMaybe home name =
-  home == ModuleName.maybe
-  && name == "Maybe"
+  home == ModuleName.maybe && name == N.maybe
 
 
 isArray :: ModuleName.Canonical -> N.Name -> Bool
 isArray home name =
-  home == ModuleName.array
-  && name == "Array"
+  home == ModuleName.array && name == N.array
