@@ -31,7 +31,7 @@ data Warning
   | MissingTypeAnnotation Text Type.Canonical
 
 
-data Unused = Argument | Binding
+data Unused = Pattern | Binding
 
 
 
@@ -48,14 +48,14 @@ toReport localizer warning =
           ("Nothing from the `" <> moduleName <> "` module is used in this file.")
           (text "I recommend removing unused imports.")
 
-    UnusedVariable Argument name ->
+    UnusedVariable Pattern name ->
         Report.report
-          "unused argument"
+          "unused variable"
           Nothing
-          ("The `" <> name <> "` argument is unused.")
+          ("The `" <> name <> "` variable is unused.")
           ( Help.reflowParagraph $
-              "Maybe this indicates there is a mistake around here? Switching the\
-              \ argument to a _ will indicate that it is intentionally unused."
+              "Maybe this indicates there is a mistake around here? Switching `"
+              <> name <> "` to _ will indicate that it is intentionally unused."
           )
 
     UnusedVariable Binding name ->

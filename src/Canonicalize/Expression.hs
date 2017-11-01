@@ -18,6 +18,7 @@ import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
 import qualified Canonicalize.Pattern as Pattern
 import qualified Canonicalize.Type as Type
+import qualified Data.Bag as Bag
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
@@ -69,7 +70,7 @@ canonicalize env (A.A region expression) =
       addLocals $
       do  cargs@(Can.Args _ destructors) <- Pattern.canonicalizeArgs env args
           newEnv <- Env.addLocals destructors env
-          removeLocals destructors $
+          removeLocals Warning.Pattern destructors $
             Can.Lambda cargs <$> canonicalize newEnv body
 
     Valid.Call func args ->
@@ -159,7 +160,7 @@ canonicalizeCaseBranch env (pattern, expr) =
   addLocals $
   do  match@(Can.Match _ destructors) <- Pattern.canonicalizeMatch env pattern
       newEnv <- Env.addLocals destructors env
-      removeLocals destructors $
+      removeLocals Warning.Pattern destructors $
         (,) match <$> canonicalize newEnv expr
 
 
@@ -257,7 +258,7 @@ canonicalizeLet region env defs body =
       newEnv <- Env.addLocals boundNames env
       let defKeys = Map.map A.drop boundNames
       nodes <- Result.untracked $ traverse (bindingToNode defKeys newEnv) bindings
-      removeLocals defKeys $
+      removeLocals Warning.Binding boundNames $
         do  cbody <- canonicalize env body
             detectCycles region (Graph.stronglyConnComp nodes) cbody
 
@@ -272,18 +273,32 @@ addLocals (Result.Result () warnings answer) =
       Result.Result Set.empty warnings (Result.Err err)
 
 
-removeLocals :: Map.Map N.Name a -> Result FreeLocals expr -> Result () (expr, FreeLocals)
-removeLocals boundNames (Result.Result freeLocals warnings answer) =
-  Result.Result () warnings $
-    case answer of
-      Result.Ok value ->
-        Result.Ok
-          ( value
-          , Set.difference freeLocals (Map.keysSet boundNames)
-          )
+removeLocals :: Warning.Unused -> Map.Map N.Name (A.Located a) -> Result FreeLocals expr -> Result () (expr, FreeLocals)
+removeLocals unused boundNames (Result.Result freeLocals warnings answer) =
+  case answer of
+    Result.Err err ->
+      Result.Result () warnings (Result.Err err)
 
-      Result.Err err ->
-        Result.Err err
+    Result.Ok value ->
+      let
+        newFreeLocals =
+          Set.difference freeLocals (Map.keysSet boundNames)
+
+        newWarnings =
+          -- NOTE: check for unused variables without any large allocations.
+          -- This relies on the fact that Map.size and Set.size are O(1)
+          if Set.size freeLocals - Map.size boundNames == Set.size newFreeLocals then
+            warnings
+          else
+            Bag.append warnings $ Bag.fromList (toUnusedWarning unused) $
+              Map.toList (Map.withoutKeys boundNames freeLocals)
+      in
+      Result.Result () newWarnings (Result.Ok (value, newFreeLocals))
+
+
+toUnusedWarning :: Warning.Unused -> (N.Name, A.Located a) -> A.Located Warning.Warning
+toUnusedWarning unused (name, A.A region _) =
+  A.A region (Warning.UnusedVariable unused name)
 
 
 

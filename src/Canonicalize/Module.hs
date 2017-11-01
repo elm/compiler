@@ -160,14 +160,16 @@ toNode env (A.A region (Valid.Decl name@(A.A _ key) args body tipe)) =
   case args of
     [] ->
       do  ctipe <- traverse (Type.canonicalize env) tipe
-          (cbody, freeLocals) <- Expr.removeLocals Map.empty $ Expr.canonicalize env body
+          (cbody, freeLocals) <- Expr.removeLocals Warning.Pattern Map.empty $
+            Expr.canonicalize env body
           return (Value region name cbody ctipe, key, Set.toList freeLocals)
 
     _ ->
       do  ctipe <- traverse (Type.canonicalize env) tipe
           cargs@(Can.Args _ destructors) <- Pattern.canonicalizeArgs env args
           newEnv <- Env.addLocals destructors env
-          (cbody, freeLocals) <- Expr.removeLocals destructors $ Expr.canonicalize newEnv body
+          (cbody, freeLocals) <- Expr.removeLocals Warning.Pattern destructors $
+            Expr.canonicalize newEnv body
           return (Function key cargs cbody ctipe, key, Set.toList freeLocals)
 
 
