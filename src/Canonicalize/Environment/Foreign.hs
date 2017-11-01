@@ -88,7 +88,7 @@ createInitialEnv home importDict interfaces sourceImports =
 
 
 importToEnv :: Import -> Env
-importToEnv (Import home (I.Interface _ types unions aliases binops) prefix exposing) =
+importToEnv (Import home (I.Interface types unions aliases binops) prefix exposing) =
   let
     patterns =
       let dector (Can.Union _ ctors) = map (fmap length) ctors in
@@ -160,7 +160,7 @@ toUnionInfo home (Can.Union args _) =
 
 
 toAliasInfo :: ModuleName.Canonical -> Can.Alias -> ( Env.Type, Int )
-toAliasInfo home (Can.Alias args tipe) =
+toAliasInfo home (Can.Alias args tipe _) =
   ( Env.Alias home args tipe, length args )
 
 
@@ -277,7 +277,7 @@ throwImportNotFound region name knownModules =
 
 
 verifyExposed :: ModuleName.Raw -> I.Interface -> A.Located Src.Exposed -> Result [(N.Name, Exposed)]
-verifyExposed moduleName interface@(I.Interface _ _ unions aliases _) (A.A region exposed) =
+verifyExposed moduleName interface@(I.Interface _ unions aliases _) (A.A region exposed) =
   case exposed of
     Src.Operator name ->
       verifyValue moduleName region name interface
@@ -301,7 +301,7 @@ verifyExposed moduleName interface@(I.Interface _ _ unions aliases _) (A.A regio
 
 
 verifyValue :: ModuleName.Raw -> R.Region -> N.Name -> I.Interface -> Result [(N.Name, Exposed)]
-verifyValue moduleName region name interface@(I.Interface _ types _ _ _) =
+verifyValue moduleName region name interface@(I.Interface types _ _ _) =
   case Map.lookup name types of
     Nothing ->
       throwExposingNotFound moduleName region name interface
@@ -321,7 +321,7 @@ verifyAlias region name privacy =
 
 
 throwExposingNotFound :: ModuleName.Raw -> R.Region -> N.Name -> I.Interface -> Result a
-throwExposingNotFound moduleName region name (I.Interface _ types unions aliases _) =
+throwExposingNotFound moduleName region name (I.Interface types unions aliases _) =
   let
     toCtorPairs (tipe, Can.Union _ ctors) =
       map (\(ctor, _) -> (ctor, tipe)) ctors

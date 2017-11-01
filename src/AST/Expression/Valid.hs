@@ -91,9 +91,9 @@ data Binop = Binop (A.Located N.Name) Binop.Associativity Binop.Precedence N.Nam
 data Effects
   = NoEffects
   | Ports [Port]
-  | Cmd (A.Located Text)
-  | Sub (A.Located Text)
-  | Fx (A.Located Text) (A.Located Text)
+  | Cmd (A.Located N.Name)
+  | Sub (A.Located N.Name)
+  | Fx (A.Located N.Name) (A.Located N.Name)
 
 
 data Port = Port (A.Located N.Name) Type.Raw

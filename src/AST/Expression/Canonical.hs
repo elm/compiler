@@ -17,7 +17,8 @@ module AST.Expression.Canonical
   , Union(..)
   , Binop(..)
   , Effects(..)
-  , Port(..)
+  , Exports(..)
+  , Export(..)
   , Docs(..)
   )
   where
@@ -25,6 +26,7 @@ module AST.Expression.Canonical
 
 import Control.Monad (liftM2, liftM3)
 import Data.Binary
+import qualified Data.ByteString as B
 import qualified Data.Map as Map
 import Data.Text (Text)
 
@@ -35,7 +37,6 @@ import qualified AST.Type as Type
 import qualified Elm.Name as N
 import Elm.Name (Name)
 import qualified Reporting.Annotation as A
-import qualified Reporting.Region as R
 
 
 
@@ -142,7 +143,7 @@ data Module =
   Module
     { _name    :: ModuleName.Canonical
     , _docs    :: A.Located (Maybe Docs)
-    , _imports :: [N.Name]
+    , _exports :: Exports
     , _decls   :: Decls
     , _unions  :: Map.Map N.Name Union
     , _aliases :: Map.Map N.Name Alias
@@ -151,19 +152,30 @@ data Module =
     }
 
 
-data Alias = Alias [N.Name] Type.Canonical
+data Alias = Alias [N.Name] Type.Canonical (Maybe [N.Name])
 data Union = Union [N.Name] [(N.Name, [Type.Canonical])]
 data Binop = Binop_ Binop.Associativity Binop.Precedence N.Name
 
 data Effects
   = NoEffects
-  | Ports [Port]
-  | Cmd
-  | Sub
-  | Fx
+  | Ports (Map.Map N.Name Type.Canonical)
+  | Cmd N.Name
+  | Sub N.Name
+  | Fx N.Name N.Name
 
 
-data Port = Port R.Region N.Name Type.Canonical
+data Exports
+  = ExportEverything
+  | Export (Map.Map N.Name Export)
+
+
+data Export
+  = ExportValue
+  | ExportBinop
+  | ExportAlias
+  | ExportUnionOpen
+  | ExportUnionClosed
+  | ExportPort
 
 
 
@@ -172,7 +184,7 @@ data Port = Port R.Region N.Name Type.Canonical
 
 data Docs =
   Docs
-    { _overview :: Text
+    { _overview :: B.ByteString
     , _comments :: Map.Map N.Name Text
     }
 
@@ -182,8 +194,8 @@ data Docs =
 
 
 instance Binary Alias where
-  get = liftM2 Alias get get
-  put (Alias a b) = put a >> put b
+  get = liftM3 Alias get get get
+  put (Alias a b c) = put a >> put b >> put c
 
 
 instance Binary Union where
