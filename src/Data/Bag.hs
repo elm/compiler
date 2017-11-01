@@ -66,7 +66,7 @@ map func bag =
       One (func a)
 
     Two left right ->
-      Two (map func left) (map func left)
+      Two (map func left) (map func right)
 
 
 
