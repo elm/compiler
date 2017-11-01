@@ -10,9 +10,9 @@ module AST.Kernel
 import Control.Monad (liftM, liftM2)
 import Data.Binary
 import qualified Data.ByteString as BS
-import qualified Data.Text as Text
 
 import qualified AST.Module.Name as ModuleName
+import qualified Elm.Name as N
 
 
 
@@ -32,7 +32,7 @@ data Data =
 
 data Content =
   Content
-    { _imports :: [(ModuleName.Raw, Text.Text)]
+    { _imports :: [(N.Name, N.Name)]
     , _chunks :: [Chunk]
     }
 
@@ -43,8 +43,8 @@ data Content =
 
 data Chunk
   = JS BS.ByteString
-  | Var ModuleName.Raw Text.Text
-  | Field Text.Text
+  | Var N.Name N.Name
+  | Field N.Name
   | Debug
   | Prod
 

@@ -16,7 +16,7 @@ import Data.Word (Word8)
 
 import qualified AST.Expression.Source as Src
 import qualified AST.Kernel as Kernel
-import qualified AST.Module.Name as Module
+import qualified AST.Module.Name as ModuleName
 import qualified Elm.Name as N
 import Generate.JavaScript.Helpers as Help (toFieldName)
 import Generate.JavaScript.Variable as Var (intToAscii)
@@ -136,7 +136,7 @@ lookupEnum word var allEnums =
 
 
 type Imports =
-  Map.Map Text (Module.Raw, Text)
+  Map.Map Text (N.Name, N.Name)
 
 
 destructImport :: Src.Import -> Imports
@@ -148,8 +148,8 @@ destructImport (Src.Import (A.A _ moduleName) maybeAlias exposing) =
           alias
 
         Nothing ->
-          if Module.isKernel moduleName then
-            Module.getKernel moduleName
+          if ModuleName.isKernel moduleName then
+            ModuleName.getKernel moduleName
           else if Text.isInfixOf "." moduleName then
             error ("modules with dots in kernel code need an alias: " ++ show moduleName)
           else
