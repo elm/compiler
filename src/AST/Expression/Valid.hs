@@ -9,6 +9,7 @@ module AST.Expression.Valid
   , Binop(..)
   , Effects(..)
   , Port(..)
+  , Manager(..)
   )
   where
 
@@ -91,7 +92,11 @@ data Binop = Binop (A.Located N.Name) Binop.Associativity Binop.Precedence N.Nam
 data Effects
   = NoEffects
   | Ports [Port]
-  | Cmd (A.Located N.Name)
+  | Manager R.Region Manager
+
+
+data Manager
+  = Cmd (A.Located N.Name)
   | Sub (A.Located N.Name)
   | Fx (A.Located N.Name) (A.Located N.Name)
 

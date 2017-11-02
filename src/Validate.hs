@@ -299,17 +299,18 @@ validateEffects effects ports =
     Src.Ports _ ->
       return (Valid.Ports ports)
 
-    Src.Effects _ manager ->
+    Src.Manager region manager ->
       do  noPorts ports
-          case manager of
-            Src.Cmd cmd ->
-              return (Valid.Cmd cmd)
+          return $ Valid.Manager region $
+            case manager of
+              Src.Cmd cmd ->
+                Valid.Cmd cmd
 
-            Src.Sub sub ->
-              return (Valid.Sub sub)
+              Src.Sub sub ->
+                Valid.Sub sub
 
-            Src.Fx cmd sub ->
-              return (Valid.Fx cmd sub)
+              Src.Fx cmd sub ->
+                Valid.Fx cmd sub
 
 
 noPorts :: [Valid.Port] -> Result w ()

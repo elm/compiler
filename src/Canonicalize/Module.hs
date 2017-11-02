@@ -58,7 +58,7 @@ canonicalize pkg importDict interfaces module_ =
           <*> (Map.fromList <$> traverse (canonicalizeAlias env) aliases)
 
       let cbinops = Map.fromList (map canonicalizeBinop binops)
-      ceffects <- Effects.canonicalize env cunions effects
+      ceffects <- Effects.canonicalize env decls cunions effects
       cexports <- canonicalizeExports decls cunions caliases cbinops ceffects exports
 
       let home = ModuleName.Canonical pkg name
@@ -238,9 +238,9 @@ canonicalizeExports decls unions aliases binops effects exposing =
           Can.Export <$> Dups.detect toError infos
 
 
-declToName :: A.Located Valid.Decl -> (N.Name, Can.Export)
+declToName :: A.Located Valid.Decl -> ( N.Name, () )
 declToName (A.A _ (Valid.Decl (A.A _ name) _ _ _)) =
-  (name, Can.ExportValue)
+  ( name, () )
 
 
 checkExposed
@@ -300,11 +300,5 @@ checkPorts effects name =
     Can.Ports ports ->
       if Map.member name ports then Nothing else Just (Map.keys ports)
 
-    Can.Cmd _ ->
-      Just []
-
-    Can.Sub _ ->
-      Just []
-
-    Can.Fx _ _ ->
+    Can.Manager _ _ _ _ ->
       Just []

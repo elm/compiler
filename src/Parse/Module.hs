@@ -85,7 +85,7 @@ chompNameAndEffects =
           name <- Var.moduleName
           P.spaces
           manager <- chompManager
-          return ( name, Src.Effects (R.Region start end) manager )
+          return ( name, Src.Manager (R.Region start end) manager )
     ]
 
 

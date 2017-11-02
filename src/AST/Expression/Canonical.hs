@@ -16,11 +16,12 @@ module AST.Expression.Canonical
   , Alias(..)
   , Union(..)
   , Binop(..)
-  , Effects(..)
-  , Port(..)
+  , Docs(..)
   , Exports(..)
   , Export(..)
-  , Docs(..)
+  , Effects(..)
+  , Port(..)
+  , Manager(..)
   )
   where
 
@@ -38,6 +39,7 @@ import qualified AST.Type as Type
 import qualified Elm.Name as N
 import Elm.Name (Name)
 import qualified Reporting.Annotation as A
+import qualified Reporting.Region as R
 
 
 
@@ -157,17 +159,20 @@ data Alias = Alias [N.Name] Type.Canonical (Maybe [N.Name])
 data Union = Union [N.Name] [(N.Name, [Type.Canonical])]
 data Binop = Binop_ Binop.Associativity Binop.Precedence N.Name
 
-data Effects
-  = NoEffects
-  | Ports (Map.Map N.Name Port)
-  | Cmd N.Name
-  | Sub N.Name
-  | Fx N.Name N.Name
 
 
-data Port
-  = Incoming Type.Canonical
-  | Outgoing Type.Canonical
+-- DOCS
+
+
+data Docs =
+  Docs
+    { _overview :: B.ByteString
+    , _comments :: Map.Map N.Name Text
+    }
+
+
+
+-- EXPORTS
 
 
 data Exports
@@ -185,14 +190,24 @@ data Export
 
 
 
--- DOCS
+-- EFFECTS
 
 
-data Docs =
-  Docs
-    { _overview :: B.ByteString
-    , _comments :: Map.Map N.Name Text
-    }
+data Effects
+  = NoEffects
+  | Ports (Map.Map N.Name Port)
+  | Manager R.Region R.Region R.Region Manager
+
+
+data Port
+  = Incoming Type.Canonical
+  | Outgoing Type.Canonical
+
+
+data Manager
+  = Cmd N.Name
+  | Sub N.Name
+  | Fx N.Name N.Name
 
 
 

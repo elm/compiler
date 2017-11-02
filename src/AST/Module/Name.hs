@@ -3,8 +3,8 @@
 module AST.Module.Name
   ( Canonical(..)
   , basics, maybe, list, array
+  , platform, cmd, sub
   , jsonDecode, jsonEncode
-  , cmd, sub
   , canonicalToText
   , isKernel, getKernel, canonicalIsKernel
   )
@@ -12,6 +12,7 @@ module AST.Module.Name
 
 
 import Prelude hiding (maybe)
+import Control.Monad (liftM2)
 import Data.Binary
 import qualified Data.Text as Text
 import Data.Text (Text)
@@ -36,44 +37,49 @@ data Canonical =
 -- HELPERS
 
 
+{-# NOINLINE basics #-}
 basics :: Canonical
-basics =
-  Canonical Pkg.core "Basics"
+basics = Canonical Pkg.core "Basics"
 
 
+{-# NOINLINE maybe #-}
 maybe :: Canonical
-maybe =
-  Canonical Pkg.core "Maybe"
+maybe = Canonical Pkg.core "Maybe"
 
 
+{-# NOINLINE list #-}
 list :: Canonical
-list =
-  Canonical Pkg.core "List"
+list = Canonical Pkg.core "List"
 
 
+{-# NOINLINE array #-}
 array :: Canonical
-array =
-  Canonical Pkg.core "Array"
+array = Canonical Pkg.core "Array"
 
 
-jsonDecode :: Canonical
-jsonDecode =
-  Canonical Pkg.core "Json.Decode"
+{-# NOINLINE platform #-}
+platform :: Canonical
+platform = Canonical Pkg.core "Platform"
 
 
-jsonEncode :: Canonical
-jsonEncode =
-  Canonical Pkg.core "Json.Encode"
-
-
+{-# NOINLINE cmd #-}
 cmd :: Canonical
-cmd =
-  Canonical Pkg.core "Platform.Cmd"
+cmd = Canonical Pkg.core "Platform.Cmd"
 
 
+{-# NOINLINE sub #-}
 sub :: Canonical
-sub =
-  Canonical Pkg.core "Platform.Sub"
+sub = Canonical Pkg.core "Platform.Sub"
+
+
+{-# NOINLINE jsonDecode #-}
+jsonDecode :: Canonical
+jsonDecode = Canonical Pkg.core "Json.Decode"
+
+
+{-# NOINLINE jsonEncode #-}
+jsonEncode :: Canonical
+jsonEncode = Canonical Pkg.core "Json.Encode"
 
 
 
@@ -113,4 +119,4 @@ instance Binary Canonical where
     put a >> put b
 
   get =
-    Canonical <$> get <*> get
+    liftM2 Canonical get get

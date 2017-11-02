@@ -5,6 +5,7 @@ module Elm.Name
   , toString
   , int, float, bool, char, string
   , maybe, list, array
+  , task, router, cmd, sub
   )
   where
 
@@ -63,3 +64,25 @@ list = "List"
 {-# NOINLINE array #-}
 array :: Name
 array = "Array"
+
+
+{-# NOINLINE task #-}
+task :: Name
+task = "Task"
+
+
+{-# NOINLINE router #-}
+router :: Name
+router = "Router"
+
+
+{-# NOINLINE cmd #-}
+cmd :: Name
+cmd = "Cmd"
+
+
+{-# NOINLINE sub #-}
+sub :: Name
+sub = "Sub"
+
+

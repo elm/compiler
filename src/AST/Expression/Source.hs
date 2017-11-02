@@ -129,7 +129,7 @@ data Import =
 data Effects
   = NoEffects
   | Ports R.Region
-  | Effects R.Region Manager
+  | Manager R.Region Manager
 
 
 data Manager

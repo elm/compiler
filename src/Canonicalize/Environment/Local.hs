@@ -157,16 +157,18 @@ collectLowerVars (Valid.Module _ _ _ _ _ decls _ _ _ effects) =
         Valid.Ports ports ->
           map portToInfo ports
 
-        Valid.Cmd (A.A region _) ->
-          [ Dups.info "command" region () () ]
+        Valid.Manager _ manager ->
+          case manager of
+            Valid.Cmd (A.A region _) ->
+              [ Dups.info "command" region () () ]
 
-        Valid.Sub (A.A region _) ->
-          [ Dups.info "subscription" region () () ]
+            Valid.Sub (A.A region _) ->
+              [ Dups.info "subscription" region () () ]
 
-        Valid.Fx (A.A regionCmd _) (A.A regionSub _) ->
-          [ Dups.info "command" regionCmd () ()
-          , Dups.info "subscription" regionSub () ()
-          ]
+            Valid.Fx (A.A regionCmd _) (A.A regionSub _) ->
+              [ Dups.info "command" regionCmd () ()
+              , Dups.info "subscription" regionSub () ()
+              ]
 
     toError name () () =
       Error.DuplicateDecl name
