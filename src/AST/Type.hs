@@ -44,7 +44,7 @@ data Canonical
   | Type ModuleName.Canonical Name [Canonical]
   | Record (Map.Map Name Canonical) (Maybe Canonical)
   | Unit
-  | Tuple Canonical Canonical [Canonical]
+  | Tuple Canonical Canonical (Maybe Canonical)
   | Aliased ModuleName.Canonical Name [(Name, Canonical)] (Aliased Canonical)
   deriving (Eq, Ord)
 
@@ -106,8 +106,8 @@ deepDealias tipe =
     Unit ->
       Unit
 
-    Tuple a b cs ->
-      Tuple (deepDealias a) (deepDealias b) (map deepDealias cs)
+    Tuple a b c ->
+      Tuple (deepDealias a) (deepDealias b) (fmap deepDealias c)
 
 
 iteratedDealias :: Canonical -> Canonical
@@ -155,8 +155,8 @@ dealiasHelp typeTable tipe =
     Unit ->
       Unit
 
-    Tuple a b cs ->
-      Tuple (go a) (go b) (map go cs)
+    Tuple a b c ->
+      Tuple (go a) (go b) (fmap go c)
 
 
 
