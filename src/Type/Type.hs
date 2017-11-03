@@ -27,6 +27,7 @@ module Type.Type
 import Control.Monad.State.Strict (StateT, liftIO)
 import qualified Control.Monad.State.Strict as State
 import qualified Data.Char as Char
+import Data.Foldable (foldrM)
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict ((!))
 import Data.Monoid ((<>))
@@ -54,7 +55,7 @@ data FlatType
     | EmptyRecord1
     | Record1 (Map.Map Text Variable) Variable
     | Unit1
-    | Tuple1 Variable Variable [Variable]
+    | Tuple1 Variable Variable (Maybe Variable)
 
 
 data Type
@@ -66,7 +67,7 @@ data Type
     | EmptyRecordN
     | RecordN (Map.Map Text Type) Type
     | UnitN
-    | TupleN Type Type [Type]
+    | TupleN Type Type (Maybe Type)
 
 
 
@@ -289,9 +290,14 @@ gatherFreeVars tipe dict =
     T.Aliased _ _ args _ ->
       foldr gatherFreeVars dict (map snd args)
 
-    T.Tuple a b cs ->
+    T.Tuple a b maybeC ->
       gatherFreeVars a $ gatherFreeVars b $
-        foldr gatherFreeVars dict cs
+        case maybeC of
+          Nothing ->
+             dict
+
+          Just c ->
+            gatherFreeVars c dict
 
     T.Unit ->
       dict
@@ -329,11 +335,11 @@ fromSrcType freeVars sourceType =
               T.Holey realType ->
                 fromSrcType (Map.fromList targs) realType
 
-    T.Tuple a b cs ->
+    T.Tuple a b maybeC ->
       TupleN
         <$> fromSrcType freeVars a
         <*> fromSrcType freeVars b
-        <*> traverse (fromSrcType freeVars) cs
+        <*> traverse (fromSrcType freeVars) maybeC
 
     T.Unit ->
       return UnitN
@@ -358,7 +364,7 @@ fromSrcType freeVars sourceType =
 -- never have to do extra work, particularly nice for aliased types
 toSrcType :: Variable -> IO T.Canonical
 toSrcType variable =
-  do  takenNames <- State.execStateT (getVarNames variable) Map.empty
+  do  takenNames <- getVarNames variable Map.empty
       State.evalStateT (variableToSrcType variable) (makeNameState takenNames)
 
 
@@ -449,11 +455,11 @@ termToSrcType term =
     Unit1 ->
       return T.Unit
 
-    Tuple1 a b cs ->
+    Tuple1 a b maybeC ->
       T.Tuple
         <$> variableToSrcType a
         <*> variableToSrcType b
-        <*> traverse variableToSrcType cs
+        <*> traverse variableToSrcType maybeC
 
 
 
@@ -554,81 +560,73 @@ getFreshSuperHelp name index taken =
 -- GET ALL VARIABLE NAMES
 
 
-getVarNames :: Variable -> StateT TakenNames IO ()
-getVarNames var =
-  do  (Descriptor content rank mark copy) <- liftIO $ UF.descriptor var
-      if mark == getVarNamesMark then return () else
-        do  liftIO $ UF.setDescriptor var (Descriptor content rank getVarNamesMark copy)
+getVarNames :: Variable -> TakenNames -> IO TakenNames
+getVarNames var takenNames =
+  do  (Descriptor content rank mark copy) <- UF.descriptor var
+      if mark == getVarNamesMark
+        then return takenNames
+        else
+        do  UF.setDescriptor var (Descriptor content rank getVarNamesMark copy)
             case content of
               Error _ ->
-                return ()
+                return takenNames
 
               FlexVar maybeName ->
                 case maybeName of
                   Nothing ->
-                    return ()
+                    return takenNames
 
                   Just name ->
-                    registerName name var (FlexVar . Just)
+                    addName 0 name var (FlexVar . Just) takenNames
 
               FlexSuper super maybeName ->
                 case maybeName of
                   Nothing ->
-                    return ()
+                    return takenNames
 
                   Just name ->
-                    registerName name var (FlexSuper super . Just)
+                    addName 0 name var (FlexSuper super . Just) takenNames
 
               RigidVar name ->
-                registerName name var RigidVar
+                addName 0 name var RigidVar takenNames
 
               RigidSuper super name ->
-                registerName name var (RigidSuper super)
+                addName 0 name var (RigidSuper super) takenNames
 
-              Alias _ _ args realVar ->
-                do  mapM_ (getVarNames . snd) args
-                    getVarNames realVar
+              Alias _ _ args _ ->
+                foldrM getVarNames takenNames (map snd args)
 
               Structure flatType ->
                 case flatType of
                   App1 _ _ args ->
-                    mapM_ getVarNames args
+                    foldrM getVarNames takenNames args
 
                   Fun1 arg body ->
-                    do  getVarNames arg
-                        getVarNames body
+                    getVarNames arg =<< getVarNames body takenNames
 
                   EmptyRecord1 ->
-                    return ()
+                    return takenNames
 
                   Record1 fields extension ->
-                    do  mapM_ getVarNames fields
-                        getVarNames extension
+                    getVarNames extension =<<
+                      foldrM getVarNames takenNames (Map.elems fields)
 
                   Unit1 ->
-                    return ()
+                    return takenNames
 
-                  Tuple1 a b cs ->
-                    do  getVarNames a
-                        getVarNames b
-                        mapM_ getVarNames cs
+                  Tuple1 a b Nothing ->
+                    getVarNames a =<< getVarNames b takenNames
+
+                  Tuple1 a b (Just c) ->
+                    getVarNames a =<< getVarNames b =<< getVarNames c takenNames
 
 
 
 -- REGISTER NAME / RENAME DUPLICATES
 
 
-registerName :: Text -> Variable -> (Text -> Content) -> StateT TakenNames IO ()
-registerName givenName var makeContent =
-  if Text.null givenName then
-    return ()
-  else
-    do  takenNames <- State.get
-        State.put =<< liftIO (checkName 0 givenName var makeContent takenNames)
-
-
-checkName :: Int -> Text -> Variable -> (Text -> Content) -> TakenNames -> IO TakenNames
-checkName index givenName var makeContent takenNames =
+addName :: Int -> N.Name -> Variable -> (N.Name -> Content) -> TakenNames -> IO TakenNames
+addName index givenName var makeContent takenNames =
   let
     indexedName =
       if index <= 0 then
@@ -649,4 +647,4 @@ checkName index givenName var makeContent takenNames =
         do  same <- UF.equivalent var otherVar
             if same
               then return takenNames
-              else checkName (index + 1) givenName var makeContent takenNames
+              else addName (index + 1) givenName var makeContent takenNames
