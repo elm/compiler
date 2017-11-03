@@ -9,9 +9,10 @@ module Type.Constraint
   )
   where
 
-import qualified Data.Map.Strict as Map
-import Data.Text (Text)
 
+import qualified Data.Map.Strict as Map
+
+import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Reporting.Region as R
@@ -35,7 +36,7 @@ data Constraint
 -- SCHEMES
 
 
-type SchemeName = Text
+type SchemeName = N.Name
 
 
 data Scheme =
@@ -43,7 +44,7 @@ data Scheme =
     { _rigidQuantifiers :: [Variable]
     , _flexibleQuantifiers :: [Variable]
     , _constraint :: Constraint
-    , _header :: Map.Map Text (A.Located Type)
+    , _header :: Map.Map N.Name (A.Located Type)
     }
 
 
@@ -51,7 +52,7 @@ data Scheme =
 -- SCHEME HELPERS
 
 
-monoscheme :: Map.Map Text (A.Located Type) -> Scheme
+monoscheme :: Map.Map N.Name (A.Located Type) -> Scheme
 monoscheme headers =
   Scheme [] [] CTrue headers
 
