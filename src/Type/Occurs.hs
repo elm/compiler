@@ -1,7 +1,12 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Type.Occurs (occurs) where
+module Type.Occurs
+  ( occurs
+  )
+  where
 
+
+import Data.Foldable (foldrM)
 import qualified Data.Map.Strict as Map
 
 import Type.Type as Type
@@ -14,11 +19,11 @@ import qualified Type.UnionFind as UF
 
 occurs :: Type.Variable -> IO Bool
 occurs var =
-  occursHelp [] var
+  occursHelp [] var False
 
 
-occursHelp :: [Type.Variable] -> Type.Variable -> IO Bool
-occursHelp seen var =
+occursHelp :: [Type.Variable] -> Type.Variable -> Bool -> IO Bool
+occursHelp seen var foundCycle =
   if elem var seen then
     return True
 
@@ -26,41 +31,50 @@ occursHelp seen var =
     do  (Descriptor content _ _ _) <- UF.descriptor var
         case content of
           FlexVar _ ->
-              return False
+              return foundCycle
 
           FlexSuper _ _ ->
-              return False
+              return foundCycle
 
           RigidVar _ ->
-              return False
+              return foundCycle
 
           RigidSuper _ _ ->
-              return False
+              return foundCycle
 
           Structure term ->
-              let go = occursHelp (var:seen) in
+              let newSeen = var : seen in
               case term of
                 App1 _ _ args ->
-                    or <$> traverse go args
+                    foldrM (occursHelp newSeen) foundCycle args
 
                 Fun1 a b ->
-                    (||) <$> go a <*> go b
+                    occursHelp newSeen a =<<
+                      occursHelp newSeen b foundCycle
 
                 EmptyRecord1 ->
-                    return False
+                    return foundCycle
 
                 Record1 fields ext ->
-                    or <$> traverse go (ext : Map.elems fields)
+                    occursHelp newSeen ext =<<
+                      foldrM (occursHelp newSeen) foundCycle (Map.elems fields)
 
                 Unit1 ->
-                    return False
+                    return foundCycle
 
-                Tuple1 a b cs ->
-                    or <$> traverse go (a:b:cs)
+                Tuple1 a b maybeC ->
+                    case maybeC of
+                      Nothing ->
+                        occursHelp newSeen a =<<
+                          occursHelp newSeen b foundCycle
+
+                      Just c ->
+                        occursHelp newSeen a =<<
+                          occursHelp newSeen b =<<
+                            occursHelp newSeen c foundCycle
 
           Alias _ _ args _ ->
-              -- TODO is it okay to only check args?
-              or <$> traverse (occursHelp (var:seen) . snd) args
+              foldrM (occursHelp (var:seen)) foundCycle (map snd args)
 
           Error _ ->
-              return False
+              return foundCycle
