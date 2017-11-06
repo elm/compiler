@@ -40,8 +40,8 @@ type Result a =
 data Env =
   Env
     { _vars :: Map.Map N.Name (Env.Homes ModuleName.Canonical)
-    , _types :: Map.Map N.Name (Env.Homes (Env.Type, Int))
-    , _patterns :: Map.Map N.Name (Env.Homes (ModuleName.Canonical, Int))
+    , _types :: Map.Map N.Name (Env.Homes Env.Type)
+    , _patterns :: Map.Map N.Name (Env.Homes Env.Pattern)
     , _binops :: Map.Map N.Name (OneOrMore.OneOrMore Env.Binop)
     }
 
@@ -91,8 +91,7 @@ importToEnv :: Import -> Env
 importToEnv (Import home (I.Interface types unions aliases binops) prefix exposing) =
   let
     patterns =
-      let dector (Can.Union _ ctors) = map (fmap length) ctors in
-      Map.fromList (concatMap dector (Map.elems unions))
+      Map.fromList (concatMap (toPatterns home) (Map.toList unions))
   in
   case exposing of
     Open ->
@@ -102,7 +101,7 @@ importToEnv (Import home (I.Interface types unions aliases binops) prefix exposi
           (Map.map (toOpenHomes home prefix toUnionInfo) unions)
           (Map.map (toOpenHomes home prefix toAliasInfo) aliases)
         )
-        (Map.map (toOpenHomes home prefix (,)) patterns)
+        (Map.map (toOpenHomes home prefix toPatternInfo) patterns)
         (Map.mapWithKey (toBinopHomes home) binops)
 
     Explicit explicits ->
@@ -112,13 +111,8 @@ importToEnv (Import home (I.Interface types unions aliases binops) prefix exposi
           (Map.mapWithKey (toExplicitHomes home prefix explicits toUnionInfo toUnionBag) unions)
           (Map.mapWithKey (toExplicitHomes home prefix explicits toAliasInfo toAliasBag) aliases)
         )
-        (Map.mapWithKey (toExplicitHomes home prefix explicits (,) toPatternBag) patterns)
+        (Map.mapWithKey (toExplicitHomes home prefix explicits toPatternInfo toPatternBag) patterns)
         (Map.mapWithKey (toBinopHomes home) binops)
-
-
-toBinopHomes :: ModuleName.Canonical -> N.Name -> Can.Binop -> OneOrMore.OneOrMore Env.Binop
-toBinopHomes home op (Can.Binop_ associativity precedence name) =
-  OneOrMore.one (Env.Binop op home name associativity precedence)
 
 
 toOpenHomes
@@ -150,18 +144,37 @@ toExplicitHomes home prefix explicits toInfo toBag name value =
     (Map.singleton prefix (OneOrMore.one info))
 
 
+toBinopHomes :: ModuleName.Canonical -> N.Name -> Can.Binop -> OneOrMore.OneOrMore Env.Binop
+toBinopHomes home op (Can.Binop_ associativity precedence name) =
+  OneOrMore.one (Env.Binop op home name associativity precedence)
+
+
 
 -- TO INFO
 
 
-toUnionInfo :: ModuleName.Canonical -> Can.Union -> ( Env.Type, Int )
+toUnionInfo :: ModuleName.Canonical -> Can.Union -> Env.Type
 toUnionInfo home (Can.Union args _) =
-  ( Env.Union home, length args )
+  Env.Union (length args) home
 
 
-toAliasInfo :: ModuleName.Canonical -> Can.Alias -> ( Env.Type, Int )
+toAliasInfo :: ModuleName.Canonical -> Can.Alias -> Env.Type
 toAliasInfo home (Can.Alias args tipe _) =
-  ( Env.Alias home args tipe, length args )
+  Env.Alias (length args) home args tipe
+
+
+toPatternInfo :: ModuleName.Canonical -> Env.Pattern -> Env.Pattern
+toPatternInfo _ pattern =
+  pattern
+
+
+toPatterns :: ModuleName.Canonical -> (N.Name, Can.Union) -> [(N.Name, Env.Pattern)]
+toPatterns home (tipe, Can.Union vars ctors) =
+  let
+    fromCtor (name, args) =
+      (name, Env.Pattern home tipe vars args)
+  in
+  map fromCtor ctors
 
 
 

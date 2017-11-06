@@ -156,8 +156,15 @@ checkPayload tipe =
     Type.Unit ->
         Right ()
 
-    Type.Tuple a b cs ->
-        F.traverse_ checkPayload (a:b:cs)
+    Type.Tuple a b maybeC ->
+        do  checkPayload a
+            checkPayload b
+            case maybeC of
+              Nothing ->
+                Right ()
+
+              Just c ->
+                checkPayload c
 
     Type.Var name ->
         Left (tipe, Error.TypeVariable name)

@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Canonicalize.Environment.Local
-  ( addDeclarations
+  ( addVarsTypesOps
+  , addPatterns
   )
   where
 
@@ -12,6 +13,7 @@ import qualified Data.Graph as Graph
 import qualified Data.Map.Strict as Map
 import qualified Data.Map.Merge.Strict as Map
 
+import qualified AST.Expression.Canonical as Can
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Type as Type
 import qualified Canonicalize.Environment.Dups as Dups
@@ -36,14 +38,18 @@ type Result a =
 
 
 
--- ADD DECLARATIONS
+-- ADD VARS, TYPES, AND OPS
+--
+-- We can add names for local definitions, unions, aliases, and operators.
+-- These are basically just names. We CANNOT add patterns though. Those must
+-- be added by `addPatterns` after some canonicalization has occurred.
+--
+-- This code checks for (1) duplicate names and (2) cycles in type aliases.
 
 
-addDeclarations :: Valid.Module -> Env.Env -> Result Env.Env
-addDeclarations module_ env =
-  addVars module_
-  =<< addTypes module_
-  =<< addBinops module_ (addPatterns module_ env)
+addVarsTypesOps :: Valid.Module -> Env.Env -> Result Env.Env
+addVarsTypesOps module_ env =
+  addVars module_ =<< addTypes module_ =<< addBinops module_ env
 
 
 merge
@@ -65,31 +71,36 @@ merge addLeft addBoth locals foreigns =
 
 -- ADD PATTERNS
 --
--- This does not return a Result because Dups.detect is already called in
--- collectUpperVars. This will detect all local pattern clashes. We skip it
+-- Local patterns are added to the environment later such that we can have
+-- canonical union types. This way we can avoid looking up the types during
+-- type constraint generation.
+--
+-- This function does not return a Result because Dups.detect is already called
+-- in collectUpperVars. This will detect all local pattern clashes. We skip it
 -- here to avoid a second version of the same error.
 
 
-addPatterns :: Valid.Module -> Env.Env -> Env.Env
-addPatterns (Valid.Module _ _ _ _ _ _ unions _ _ _) (Env.Env home vars types patterns binops) =
+addPatterns :: Map.Map N.Name Can.Union -> Env.Env -> Env.Env
+addPatterns unions (Env.Env home vars types patterns binops) =
   let
-    unionToInfos (Valid.Union _ _ ctors) =
-      map ctorToPair ctors
-
-    ctorToPair (A.A _ name, args) =
-      ( name, length args )
-
     localPatterns =
-      Map.fromList $ concatMap unionToInfos unions
+      Map.fromList $ concatMap toPatterns (Map.toList unions)
 
-    addLeft _ arity =
-      Env.Homes (Bag.one (home, arity)) Map.empty
+    toPatterns (tipe, Can.Union tvars ctors) =
+      map (ctorToPattern tipe tvars) ctors
 
-    addBoth _ arity (Env.Homes _ qualified) =
-      Env.Homes (Bag.one (home, arity)) qualified
-
+    ctorToPattern tipe tvars (name, args) =
+      ( name, Env.Pattern home tipe tvars args )
+  in
+  let
     newPatterns =
       merge addLeft addBoth localPatterns patterns
+
+    addLeft _ localPattern =
+      Env.Homes (Bag.one localPattern) Map.empty
+
+    addBoth _ localPattern (Env.Homes _ qualified) =
+      Env.Homes (Bag.one localPattern) qualified
   in
   Env.Env home vars types newPatterns binops
 
@@ -229,14 +240,11 @@ addTypes (Valid.Module _ _ _ _ _ _ unions aliases _ _) env =
 addUnionTypes :: Map.Map N.Name Int -> Env.Env -> Env.Env
 addUnionTypes unions (Env.Env home vars types patterns binops) =
   let
-    unionHome =
-      Env.Union home
-
     addLeft _ arity =
-      Env.Homes (Bag.one (unionHome, arity)) Map.empty
+      Env.Homes (Bag.one (Env.Union arity home)) Map.empty
 
     addBoth _ arity (Env.Homes _ qualified) =
-      Env.Homes (Bag.one (unionHome, arity)) qualified
+      Env.Homes (Bag.one (Env.Union arity home)) qualified
 
     newTypes =
       merge addLeft addBoth unions types
@@ -269,7 +277,7 @@ addTypeAlias env@(Env.Env home vars types patterns binops) scc =
   case scc of
     Graph.AcyclicSCC (Alias _ name args tipe) ->
       do  ctype <- Type.canonicalize env tipe
-          let info = (Env.Alias home args ctype, length args)
+          let info = Env.Alias (length args) home args ctype
           let newTypes = Map.alter (addAliasInfo info) name types
           return $ Env.Env home vars newTypes patterns binops
 

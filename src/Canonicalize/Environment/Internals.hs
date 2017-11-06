@@ -6,6 +6,7 @@ module Canonicalize.Environment.Internals
   , VarHomes(..)
   , UnqualifiedVarHome(..)
   , Type(..)
+  , Pattern(..)
   , Homes(..)
   , addLocals
   , findVar
@@ -51,8 +52,8 @@ data Env =
   Env
     { _home :: ModuleName.Canonical
     , _vars :: Map.Map N.Name VarHomes
-    , _types :: Map.Map N.Name (Homes (Type, Int))
-    , _patterns :: Map.Map N.Name (Homes (ModuleName.Canonical, Int))
+    , _types :: Map.Map N.Name (Homes Type)
+    , _patterns :: Map.Map N.Name (Homes Pattern)
     , _binops :: Map.Map N.Name (OneOrMore.OneOrMore Binop)
     }
 
@@ -78,8 +79,17 @@ data UnqualifiedVarHome
 
 
 data Type
-  = Alias ModuleName.Canonical [N.Name] Type.Canonical
-  | Union ModuleName.Canonical
+  = Alias Int ModuleName.Canonical [N.Name] Type.Canonical
+  | Union Int ModuleName.Canonical
+
+
+data Pattern =
+  Pattern
+    { _p_home :: ModuleName.Canonical
+    , _p_type :: N.Name
+    , _p_vars :: [N.Name]
+    , _p_args :: [Type.Canonical]
+    }
 
 
 data Binop =
@@ -87,8 +97,8 @@ data Binop =
     { _op_name :: N.Name
     , _op_home :: ModuleName.Canonical
     , _op_func :: N.Name
-    , _associativity :: Binop.Associativity
-    , _precedence :: Binop.Precedence
+    , _op_associativity :: Binop.Associativity
+    , _op_precedence :: Binop.Precedence
     }
 
 
@@ -174,14 +184,14 @@ findVar region (Env home vars _ _ _) maybePrefix name =
 -- FIND TYPE and PATTERN
 
 
-findType :: (Monoid i) => R.Region -> Env -> Maybe N.Name -> N.Name -> Int -> Result i Type
-findType region (Env _ _ types _ _) maybePrefix name arity =
-  error "TODO findType" region types maybePrefix name arity
+findType :: R.Region -> Env -> Maybe N.Name -> N.Name -> Result () Type
+findType region (Env _ _ types _ _) maybePrefix name =
+  error "TODO findType" region types maybePrefix name
 
 
-findPattern :: (Monoid i) => R.Region -> Env -> Maybe N.Name -> N.Name -> Int -> Result i ModuleName.Canonical
-findPattern region (Env _ _ _ patterns _) maybePrefix name arity =
-  error "TODO findPattern" region patterns maybePrefix name arity
+findPattern :: (Monoid i) => R.Region -> Env -> Maybe N.Name -> N.Name -> Result i Pattern
+findPattern region (Env _ _ _ patterns _) maybePrefix name =
+  error "TODO findPattern" region patterns maybePrefix name
 
 
 

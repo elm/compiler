@@ -109,10 +109,16 @@ data Pattern_
   | PAlias Pattern N.Name
   | PUnit
   | PTuple Pattern Pattern (Maybe Pattern)
-  | PCtor ModuleName.Canonical N.Name [Pattern]
   | PList [Pattern]
   | PCons Pattern Pattern
   | PLiteral Literal.Literal
+  | PCtor
+      { _p_home :: ModuleName.Canonical
+      , _p_type :: N.Name
+      , _p_vars :: [N.Name]
+      , _p_name :: N.Name
+      , _p_args :: [(Int, Type.Canonical, Pattern)] -- zero indexed
+      }
 
 
 type Destructors = Map.Map N.Name (A.Located Destructor)

@@ -17,6 +17,8 @@ import qualified AST.Type as Type
 import qualified Canonicalize.Effects as Effects
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
+import qualified Canonicalize.Environment.Foreign as Foreign
+import qualified Canonicalize.Environment.Local as Local
 import qualified Canonicalize.Expression as Expr
 import qualified Canonicalize.Pattern as Pattern
 import qualified Canonicalize.Type as Type
@@ -48,20 +50,27 @@ canonicalize
   -> I.Interfaces
   -> Valid.Module
   -> Result Can.Module
-canonicalize pkg importDict interfaces module_ =
-  do  env <- Env.create pkg importDict interfaces module_
-      let (Valid.Module name _ _ exports _ decls unions aliases binops effects) = module_
-      (cdecls, cunions, caliases) <-
-        (,,)
-          <$> canonicalizeDecls env decls
-          <*> (Map.fromList <$> traverse (canonicalizeUnion env) unions)
-          <*> (Map.fromList <$> traverse (canonicalizeAlias env) aliases)
+canonicalize pkg importDict interfaces module_@(Valid.Module name _ _ exports imports decls unions aliases binops effects) =
+  do  let home = ModuleName.Canonical pkg name
 
+      startEnv <- Local.addVarsTypesOps module_ =<<
+        Foreign.createInitialEnv home importDict interfaces imports
+
+      (cunions, caliases) <-
+        (,)
+          <$> (Map.fromList <$> traverse (canonicalizeUnion startEnv) unions)
+          <*> (Map.fromList <$> traverse (canonicalizeAlias startEnv) aliases)
+
+      let finalEnv = Local.addPatterns cunions startEnv
       let cbinops = Map.fromList (map canonicalizeBinop binops)
-      ceffects <- Effects.canonicalize env decls cunions effects
+
+      (cdecls, ceffects) <-
+        (,)
+          <$> canonicalizeDecls finalEnv decls
+          <*> Effects.canonicalize finalEnv decls cunions effects
+
       cexports <- canonicalizeExports decls cunions caliases cbinops ceffects exports
 
-      let home = ModuleName.Canonical pkg name
       let docs = toDocs module_
       return $ Can.Module home docs cexports cdecls cunions caliases cbinops ceffects
 
