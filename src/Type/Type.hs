@@ -19,8 +19,6 @@ module Type.Type
   , nameToFlex
   , nameToRigid
   , toSrcType
-  , fromFlexSrcType
-  , fromRigidSrcType
   )
   where
 
@@ -29,7 +27,6 @@ import qualified Control.Monad.State.Strict as State
 import qualified Data.Char as Char
 import Data.Foldable (foldrM)
 import qualified Data.Map.Strict as Map
-import Data.Map.Strict ((!))
 import Data.Monoid ((<>))
 import qualified Data.Text as Text
 import Data.Text (Text)
@@ -251,109 +248,6 @@ toSuper name =
 
   else
       Nothing
-
-
-
--- FROM SOURCE TYPES
-
-
--- TODO should the freeFlexVars be ranked a certain way?
--- How does this interact with `TS.flatten` exactly?
-fromFlexSrcType :: T.Canonical -> IO ( Type, Map.Map N.Name Variable )
-fromFlexSrcType srcType =
-  do  let freeVars = gatherFreeVars srcType Map.empty
-      freeFlexVars <- Map.traverseWithKey (\name () -> nameToFlex name) freeVars
-      tipe <- fromSrcType (Map.map VarN freeFlexVars) srcType
-      return ( tipe, freeFlexVars )
-
-
-fromRigidSrcType :: T.Canonical -> IO ( Type, Map.Map N.Name Variable )
-fromRigidSrcType srcType =
-  do  let freeVars = gatherFreeVars srcType Map.empty
-      freeRigidVars <- Map.traverseWithKey (\name () -> nameToRigid name) freeVars
-      tipe <- fromSrcType (Map.map VarN freeRigidVars) srcType
-      return ( tipe, freeRigidVars )
-
-
-gatherFreeVars :: T.Canonical -> Map.Map N.Name () -> Map.Map N.Name ()
-gatherFreeVars tipe dict =
-  case tipe of
-    T.Lambda arg result ->
-      gatherFreeVars result (gatherFreeVars arg dict)
-
-    T.Var name ->
-      Map.insert name () dict
-
-    T.Type _ _ args ->
-      foldr gatherFreeVars dict args
-
-    T.Aliased _ _ args _ ->
-      foldr gatherFreeVars dict (map snd args)
-
-    T.Tuple a b maybeC ->
-      gatherFreeVars a $ gatherFreeVars b $
-        case maybeC of
-          Nothing ->
-             dict
-
-          Just c ->
-            gatherFreeVars c dict
-
-    T.Unit ->
-      dict
-
-    T.Record fields maybeExt ->
-      case maybeExt of
-        Nothing ->
-          Map.foldr gatherFreeVars dict fields
-
-        Just ext ->
-          Map.foldr gatherFreeVars (gatherFreeVars ext dict) fields
-
-
-fromSrcType :: Map.Map N.Name Type -> T.Canonical -> IO Type
-fromSrcType freeVars sourceType =
-  case sourceType of
-    T.Lambda arg result ->
-      FunN
-        <$> fromSrcType freeVars arg
-        <*> fromSrcType freeVars result
-
-    T.Var name ->
-      return (freeVars ! name)
-
-    T.Type home name args ->
-      AppN home name <$> traverse (fromSrcType freeVars) args
-
-    T.Aliased home name args aliasedType ->
-      do  targs <- traverse (traverse (fromSrcType freeVars)) args
-          AliasN home name targs <$>
-            case aliasedType of
-              T.Filled realType ->
-                fromSrcType freeVars realType
-
-              T.Holey realType ->
-                fromSrcType (Map.fromList targs) realType
-
-    T.Tuple a b maybeC ->
-      TupleN
-        <$> fromSrcType freeVars a
-        <*> fromSrcType freeVars b
-        <*> traverse (fromSrcType freeVars) maybeC
-
-    T.Unit ->
-      return UnitN
-
-    T.Record fields maybeExt ->
-      RecordN
-        <$> traverse (fromSrcType freeVars) fields
-        <*>
-          case maybeExt of
-            Nothing ->
-              return EmptyRecordN
-
-            Just ext ->
-              fromSrcType freeVars ext
 
 
 

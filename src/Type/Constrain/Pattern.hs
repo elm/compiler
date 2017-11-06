@@ -1,126 +1,208 @@
 {-# OPTIONS_GHC -Wall #-}
-module Type.Constrain.Pattern (Info(..), joinInfos, infoToScheme, constrain) where
+module Type.Constrain.Pattern
+  ( Info(..)
+  , constrain
+  )
+  where
 
-import Control.Arrow (second)
-import qualified Control.Monad as Monad
+
+import Control.Monad (foldM)
 import qualified Data.Map.Strict as Map
-import qualified Data.List as List
-import Data.Text (Text)
 
-import qualified AST.Pattern as P
-import qualified AST.Variable as Var
+import qualified AST.Expression.Canonical as Can
+import qualified AST.Module.Name as ModuleName
+import qualified Data.Bag as Bag
+import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
+import qualified Reporting.Region as R
 import Type.Constraint
 import qualified Type.Constrain.Literal as Literal
-import qualified Type.Environment as Env
+import qualified Type.Instantiate as Instantiate
 import Type.Type
-
-
-
--- PATTERN INFO
-
-
-data Info =
-  Info
-    { _headers :: Map.Map Text (A.Located Type)
-    , _vars :: [Variable]
-    , _cons :: Constraint
-    }
-
-
-emptyInfo :: Info
-emptyInfo =
-    Info Map.empty [] CTrue
-
-
-joinInfo :: Info -> Info -> Info
-joinInfo (Info headers1 vars1 cons1) (Info headers2 vars2 cons2) =
-    Info
-      { _headers = Map.union headers1 headers2
-      , _vars = vars1 ++ vars2
-      , _cons = cons1 /\ cons2
-      }
-
-
-joinInfos :: [Info] -> Info
-joinInfos infos =
-    List.foldl' (flip joinInfo) emptyInfo infos
-
-
-infoToScheme :: Info -> Scheme
-infoToScheme (Info headers vars cons) =
-    Scheme [] vars cons headers
 
 
 
 -- CONSTRAIN PATTERN
 
 
-constrain :: Env.Env -> P.Canonical -> Type -> IO Info
-constrain env (A.A region pattern) tipe =
-  let
-    equal patternError leftType rightType =
-      CEqual (Error.Pattern patternError) region leftType rightType
+type Env = ()
 
-    rvar v =
-      A.A region (VarN v)
-  in
-    case pattern of
-      P.Anything ->
-        return emptyInfo
 
-      P.Literal lit ->
-        do  c <- Literal.constrain region lit tipe
-            return $ emptyInfo { _cons = c }
+constrain :: Env -> Can.Pattern -> Type -> IO (Map.Map N.Name (A.Located Type), [Variable], Constraint)
+constrain env pattern tipe =
+  do  (Info headers vars cons) <-
+        addConstraints env Error.PatternUnknown pattern tipe $
+          Info Map.empty Bag.empty []
 
-      P.Var name ->
-        do  variable <- mkFlexVar
-            return $ Info
-                { _headers = Map.singleton name (rvar variable)
-                , _vars = [variable]
-                , _cons = equal (Error.PVar name) (VarN variable) tipe
-                }
+      return ( headers, Bag.toList vars, CAnd (reverse cons) )
 
-      P.Alias name ptrn ->
-        do  variable <- mkFlexVar
-            info <- constrain env ptrn tipe
-            return $ info
-              { _headers = Map.insert name (rvar variable) (_headers info)
-              , _vars = variable : _vars info
+
+
+-- ADD CONSTRAINTS
+
+
+data Info =
+  Info
+    { _headers :: Map.Map N.Name (A.Located Type)
+    , _vars :: Bag.Bag Variable
+    , _cons :: [Constraint]
+    }
+
+
+addConstraints :: Env -> Error.PatternContext -> Can.Pattern -> Type -> Info -> IO Info
+addConstraints env context (A.A region pattern) tipe info =
+  case pattern of
+    Can.PAnything ->
+      return info
+
+    Can.PLiteral lit ->
+      do  let (Info headers vars revCons) = info
+          litCon <- Literal.constrain region lit tipe
+          return $ Info headers vars (litCon:revCons)
+
+    Can.PVar name ->
+      do  let (Info headers vars revCons) = info
+          let newHeaders = Map.insert name (A.A region tipe) headers
+          return $ Info newHeaders vars revCons
+
+    Can.PAlias realPattern name ->
+      do  let (Info headers vars revCons) = info
+          addConstraints env context realPattern tipe $
+            Info (Map.insert name (A.A region tipe) headers) vars revCons
+
+    Can.PUnit ->
+      do  let (Info headers vars revCons) = info
+          let unitCon = CEqual (Error.Pattern context Error.PUnit) region UnitN tipe
+          return $ Info headers vars (unitCon:revCons)
+
+    Can.PTuple a b maybeC ->
+      addTupleConstraint env context region a b maybeC tipe info
+
+    Can.PCtor home typeName vs ctorName args ->
+      do  (Instantiate.Ctor tvars targs ttype) <- Instantiate.pattern home typeName vs args
+
+          (Info headers vars revCons) <-
+            foldM (addCtorConstraint env ctorName) info targs
+
+          return $
+            Info
+              { _headers = headers
+              , _vars = Bag.append vars (Bag.fromList id tvars)
               , _cons =
-                  equal (Error.PAlias name) (VarN variable) tipe
-                  /\ _cons info
+                  CEqual (Error.Pattern context (Error.PCtor ctorName)) region ttype tipe
+                  : revCons
               }
 
-      P.Ctor name patterns ->
-        do  (_kind, cvars, args, result) <-
-                Env.freshDataScheme env (Var.toText name)
+    Can.PList patterns ->
+      do  entryVar <- mkFlexVar
+          let entryVarN = VarN entryVar
+          let listType = AppN ModuleName.list N.list [entryVarN]
 
-            fragList <- Monad.zipWithM (constrain env) patterns args
-            let info = joinInfos fragList
-            return $ info
-                { _vars = cvars ++ _vars info
-                , _cons =
-                    equal (Error.PCtor name) result tipe
-                    /\ _cons info
-                }
+          (Info headers vars revCons) <-
+            foldM
+              (addListConstraint env entryVarN)
+              info
+              (zip patterns [ 1 .. length patterns ])
 
-      P.Record fields ->
-        do  pairs <-
-                mapM (\name -> (,) name <$> mkFlexVar) fields
+          let listCon = CEqual (Error.Pattern context Error.PList) region listType tipe
+          return $ Info headers (Bag.insert entryVar vars) (listCon:revCons)
 
-            let tenv =
-                  Map.fromList (map (second rvar) pairs)
+    Can.PCons headPattern tailPattern ->
+      do  headVar <- mkFlexVar
+          tailVar <- mkFlexVar
+          let headVarN = VarN headVar
+          let tailVarN = VarN tailVar
+          let tailType = AppN ModuleName.list N.list [tailVarN]
 
-            let unannotatedTenv =
-                  Map.map A.drop tenv
+          (Info headers vars revCons) <-
+            addConstraints env Error.PatternTail tailPattern tailType =<<
+              addConstraints env Error.PatternUnknown headPattern headVarN info
 
-            con <- exists $ \t ->
-              return (equal Error.PRecord tipe (RecordN unannotatedTenv t))
+          return $
+            Info
+              { _headers = headers
+              , _vars = Bag.insert headVar (Bag.insert tailVar vars)
+              , _cons =
+                  CEqual (Error.Pattern context Error.PList) region tailType tipe
+                  : CEqual Error.PatternCons region headVarN tailVarN
+                  : revCons
+              }
 
-            return $ Info
-                { _headers = tenv
-                , _vars = map snd pairs
-                , _cons = con
-                }
+    Can.PRecord fields ->
+      do  extVar <- mkFlexVar
+
+          fieldVars <- traverse (\field -> (,) field <$> mkFlexVar) fields
+          let fieldVarN = Map.fromList (map (fmap VarN) fieldVars)
+
+          let (Info headers vars revCons) = info
+          return $
+            Info
+              { _headers = Map.union headers (Map.map (A.A region) fieldVarN)
+              , _vars = Bag.insert extVar (Bag.append vars (Bag.fromList snd fieldVars))
+              , _cons =
+                  CEqual
+                    (Error.Pattern context Error.PRecord)
+                    region
+                    (RecordN fieldVarN (VarN extVar))
+                    tipe
+                  : revCons
+              }
+
+
+
+-- CONSTRAIN TUPLE
+
+
+addTupleConstraint
+  :: Env
+  -> Error.PatternContext
+  -> R.Region
+  -> Can.Pattern
+  -> Can.Pattern
+  -> Maybe Can.Pattern
+  -> Type
+  -> Info
+  -> IO Info
+addTupleConstraint env context region a b maybeC tipe (Info headers vars revCons) =
+  do  let equal = CEqual (Error.Pattern context Error.PTuple) region
+      let addCon = addConstraints env Error.PatternUnknown
+
+      aVar <- mkFlexVar
+      bVar <- mkFlexVar
+      let aVarN = VarN aVar
+      let bVarN = VarN bVar
+
+      case maybeC of
+        Nothing ->
+          do  let tupleCon = equal (TupleN aVarN bVarN Nothing) tipe
+              let newVars = Bag.insert aVar (Bag.insert bVar vars)
+              addCon b bVarN =<<
+                addCon a aVarN (Info headers newVars (tupleCon:revCons))
+
+        Just c ->
+          do  cVar <- mkFlexVar
+              let cVarN = VarN cVar
+              let tupleCon = equal (TupleN aVarN bVarN (Just cVarN)) tipe
+              let newVars = Bag.insert aVar (Bag.insert bVar (Bag.insert cVar vars))
+              addCon c cVarN =<<
+                addCon b bVarN =<<
+                  addCon a aVarN (Info headers newVars (tupleCon:revCons))
+
+
+
+-- CONSTRAIN CONSTRUCTORS
+
+
+addCtorConstraint :: Env -> N.Name -> Info -> (Int, Type, Can.Pattern) -> IO Info
+addCtorConstraint env name info (index, argType, argPattern) =
+  addConstraints env (Error.PatternArg name index) argPattern argType info
+
+
+
+-- CONSTRAIN LIST
+
+
+addListConstraint :: Env -> Type -> Info -> (Can.Pattern, Int) -> IO Info
+addListConstraint env tipe info (pattern, index) =
+  addConstraints env (Error.PatternList index) pattern tipe info

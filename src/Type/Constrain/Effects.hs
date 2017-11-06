@@ -16,7 +16,8 @@ import qualified Elm.Name as N
 import qualified Reporting.Error.Type as Error
 import qualified Reporting.Region as R
 import Type.Constraint (Constraint(..), Scheme(Scheme))
-import Type.Type (Type(..), Variable, (==>), fromFlexSrcType, mkFlexVar)
+import qualified Type.Instantiate as Instantiate
+import Type.Type (Type(..), Variable, (==>), mkFlexVar)
 
 
 
@@ -72,7 +73,7 @@ deport port_ =
 
 fromSrcType :: T.Canonical -> IO Type
 fromSrcType tipe =
-  fst <$> fromFlexSrcType tipe
+  fst <$> Instantiate.flexible tipe
 
 
 command :: ModuleName.Canonical -> N.Name -> IO Type
