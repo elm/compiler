@@ -425,7 +425,7 @@ unifyFlexSuperStructure context super flatType =
                 merge context (Structure flatType)
                 unifyComparableRecursive (_orientation context) variable
 
-    Tuple1 a b cs ->
+    Tuple1 a b maybeC ->
       case super of
         Number ->
             mismatch context $ Just $ Error.NotPartOfSuper super
@@ -436,7 +436,15 @@ unifyFlexSuperStructure context super flatType =
         Comparable ->
             do  comparableOccursCheck context
                 merge context (Structure flatType)
-                mapM_ (unifyComparableRecursive (_orientation context)) (a:b:cs)
+                let orientation = _orientation context
+                unifyComparableRecursive orientation a
+                unifyComparableRecursive orientation b
+                case maybeC of
+                  Nothing ->
+                    return ()
+
+                  Just c ->
+                    unifyComparableRecursive orientation c
 
         CompAppend ->
             mismatch context $ Just $ Error.NotPartOfSuper super

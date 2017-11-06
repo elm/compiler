@@ -308,8 +308,15 @@ adjustRankContent youngMark visitMark groupRank content =
               -- THEORY: a unit never needs to get generalized
               return outermostRank
 
-          Tuple1 a b cs ->
-              foldM (\rank arg -> max rank <$> go arg) outermostRank (a:b:cs)
+          Tuple1 a b maybeC ->
+              do  ma <- go a
+                  mb <- go b
+                  case maybeC of
+                    Nothing ->
+                      return (max ma mb)
+
+                    Just c ->
+                      max (max ma mb) <$> go c
 
       Alias _ _ args _ ->
           -- THEORY: anything in the realVar would be outermostRank
