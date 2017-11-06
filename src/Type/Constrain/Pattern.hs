@@ -26,13 +26,10 @@ import Type.Type
 -- CONSTRAIN PATTERN
 
 
-type Env = ()
-
-
-constrain :: Env -> Can.Pattern -> Type -> IO (Map.Map N.Name (A.Located Type), [Variable], Constraint)
-constrain env pattern tipe =
+constrain :: Can.Pattern -> Type -> IO (Map.Map N.Name (A.Located Type), [Variable], Constraint)
+constrain pattern tipe =
   do  (Info headers vars cons) <-
-        addConstraints env Error.PatternUnknown pattern tipe $
+        addConstraints Error.PatternUnknown pattern tipe $
           Info Map.empty Bag.empty []
 
       return ( headers, Bag.toList vars, CAnd (reverse cons) )
@@ -50,8 +47,8 @@ data Info =
     }
 
 
-addConstraints :: Env -> Error.PatternContext -> Can.Pattern -> Type -> Info -> IO Info
-addConstraints env context (A.A region pattern) tipe info =
+addConstraints :: Error.PatternContext -> Can.Pattern -> Type -> Info -> IO Info
+addConstraints context (A.A region pattern) tipe info =
   case pattern of
     Can.PAnything ->
       return info
@@ -68,7 +65,7 @@ addConstraints env context (A.A region pattern) tipe info =
 
     Can.PAlias realPattern name ->
       do  let (Info headers vars revCons) = info
-          addConstraints env context realPattern tipe $
+          addConstraints context realPattern tipe $
             Info (Map.insert name (A.A region tipe) headers) vars revCons
 
     Can.PUnit ->
@@ -77,13 +74,13 @@ addConstraints env context (A.A region pattern) tipe info =
           return $ Info headers vars (unitCon:revCons)
 
     Can.PTuple a b maybeC ->
-      addTupleConstraint env context region a b maybeC tipe info
+      addTupleConstraint context region a b maybeC tipe info
 
     Can.PCtor home typeName vs ctorName args ->
       do  (Instantiate.Ctor tvars targs ttype) <- Instantiate.pattern home typeName vs args
 
           (Info headers vars revCons) <-
-            foldM (addCtorConstraint env ctorName) info targs
+            foldM (addCtorConstraint ctorName) info targs
 
           return $
             Info
@@ -101,7 +98,7 @@ addConstraints env context (A.A region pattern) tipe info =
 
           (Info headers vars revCons) <-
             foldM
-              (addListConstraint env entryVarN)
+              (addListConstraint entryVarN)
               info
               (zip patterns [ 1 .. length patterns ])
 
@@ -116,8 +113,8 @@ addConstraints env context (A.A region pattern) tipe info =
           let tailType = AppN ModuleName.list N.list [tailVarN]
 
           (Info headers vars revCons) <-
-            addConstraints env Error.PatternTail tailPattern tailType =<<
-              addConstraints env Error.PatternUnknown headPattern headVarN info
+            addConstraints Error.PatternTail tailPattern tailType =<<
+              addConstraints Error.PatternUnknown headPattern headVarN info
 
           return $
             Info
@@ -154,18 +151,18 @@ addConstraints env context (A.A region pattern) tipe info =
 -- CONSTRAIN CONSTRUCTORS
 
 
-addCtorConstraint :: Env -> N.Name -> Info -> (Int, Type, Can.Pattern) -> IO Info
-addCtorConstraint env name info (index, argType, argPattern) =
-  addConstraints env (Error.PatternArg name index) argPattern argType info
+addCtorConstraint :: N.Name -> Info -> (Int, Type, Can.Pattern) -> IO Info
+addCtorConstraint name info (index, argType, argPattern) =
+  addConstraints (Error.PatternArg name index) argPattern argType info
 
 
 
 -- CONSTRAIN LIST
 
 
-addListConstraint :: Env -> Type -> Info -> (Can.Pattern, Int) -> IO Info
-addListConstraint env tipe info (pattern, index) =
-  addConstraints env (Error.PatternList index) pattern tipe info
+addListConstraint :: Type -> Info -> (Can.Pattern, Int) -> IO Info
+addListConstraint tipe info (pattern, index) =
+  addConstraints (Error.PatternList index) pattern tipe info
 
 
 
@@ -173,8 +170,7 @@ addListConstraint env tipe info (pattern, index) =
 
 
 addTupleConstraint
-  :: Env
-  -> Error.PatternContext
+  :: Error.PatternContext
   -> R.Region
   -> Can.Pattern
   -> Can.Pattern
@@ -182,9 +178,9 @@ addTupleConstraint
   -> Type
   -> Info
   -> IO Info
-addTupleConstraint env context region a b maybeC tipe (Info headers vars revCons) =
+addTupleConstraint context region a b maybeC tipe (Info headers vars revCons) =
   do  let equal = CEqual (Error.Pattern context Error.PTuple) region
-      let addCon = addConstraints env Error.PatternUnknown
+      let addCon = addConstraints Error.PatternUnknown
 
       aVar <- mkFlexVar
       bVar <- mkFlexVar
