@@ -2,9 +2,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Reporting.Error.Type
   ( Error(..)
-  , Mismatch(..), Hint(..)
-  , Reason(..), SpecificThing(..)
-  , Pattern(..)
+  , Mismatch(..)
+  , Hint(..)
+  , Reason(..)
+  , SpecificThing(..)
+  , PatternContext(..)
+  , PatternCategory(..)
   , toReport
   , flipReason
   )
@@ -16,15 +19,16 @@ import qualified Data.Text as Text
 import Data.Text (Text)
 import Data.Monoid ((<>))
 
-import qualified AST.Helpers as Help
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
-import qualified Reporting.Region as Region
+import qualified Elm.Name as N
+import qualified Reporting.Region as R
 import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Report as Report
 import qualified Reporting.Helpers as Help
 import Reporting.Helpers
-  ( Doc, (<+>), capitalize, dullyellow, functionName, i2t
+  ( Doc, capitalize, dullyellow, functionName, i2t
   , indent, ordinalize, reflowParagraph, stack, text
   )
 
@@ -54,7 +58,6 @@ data Reason
   = BadFields [(Text, Maybe Reason)]
   | MessyFields [Text] [Text] [Text]
   | IntFloat
-  | TooLongComparableTuple Int
   | MissingArgs Int
   | RigidClash Text Text
   | NotPartOfSuper Type.Super
@@ -64,45 +67,59 @@ data Reason
 
 data SpecificThing
   = SpecificSuper Type.Super
-  | SpecificType Var.Canonical
+  | SpecificType N.Name
   | SpecificFunction
   | SpecificRecord
+  | SpecificUnit
+  | SpecificTuple
 
 
 data Hint
-  = CaseBranch Int Region.Region
+  = CaseBranch Int R.Region
   | Case
   | IfCondition
   | IfBranches
-  | MultiIfBranch Int Region.Region
+  | MultiIfBranch Int R.Region
   | If
   | List
-  | ListElement Int Region.Region
-  | BinopLeft Var.Canonical Region.Region
-  | BinopRight Var.Canonical Region.Region
-  | Binop Var.Canonical
+  | ListElement Int R.Region
+  | BinopLeft ModuleName.Canonical N.Name R.Region
+  | BinopRight ModuleName.Canonical N.Name R.Region
+  | Binop ModuleName.Canonical N.Name
   | Function (Maybe Var.Canonical)
-  | UnexpectedArg (Maybe Var.Canonical) Int Int Region.Region
-  | FunctionArity (Maybe Var.Canonical) Int Int Region.Region
-  | ReturnType Text Int Int Region.Region
+  | UnexpectedArg (Maybe Var.Canonical) Int Int R.Region
+  | FunctionArity (Maybe Var.Canonical) Int Int R.Region
+  | ReturnType Text Int Int R.Region
   | Instance Text
   | Literal Text
-  | Pattern Pattern
+  | Pattern PatternContext PatternCategory
+  | PatternCons
   | Shader
   | Lambda
+  | Accessor Text
   | Access (Maybe Text) Text
   | Record
+  | Unit
+  | Tuple
   -- effect manager problems
   | Manager Text
   | State Text
   | SelfMsg
 
 
-data Pattern
-  = PVar Text
-  | PAlias Text
-  | PCtor Var.Canonical
-  | PRecord
+data PatternContext
+  = PatternArg N.Name Int
+  | PatternTail
+  | PatternList Int
+  | PatternUnknown
+
+
+data PatternCategory
+  = PRecord
+  | PUnit
+  | PTuple
+  | PList
+  | PCtor N.Name
 
 
 
@@ -272,37 +289,37 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType decoders maybeR
               []
           )
 
-    BinopLeft op region ->
+    BinopLeft home op region ->
         report
           (Just region)
-          ("The left argument of " <> varName op <> " is causing a type mismatch.")
+          ("The left argument of (" <> op <> ") is causing a type mismatch.")
           ( cmpHint
-              (varName op <> " is expecting the left argument to be a:")
+              ("(" <> op <> ") is expecting the left argument to be a:")
               "But the left argument is:"
-              (binopHint op leftType rightType)
+              (binopHint home op leftType rightType)
           )
 
-    BinopRight op region ->
+    BinopRight home op region ->
         report
           (Just region)
-          ("The right side of " <> varName op <> " is causing a type mismatch.")
+          ("The right side of (" <> op <> ") is causing a type mismatch.")
           ( cmpHint
-              (varName op <> " is expecting the right side to be a:")
+              ("(" <> op <> ") is expecting the right side to be a:")
               "But the right side is:"
-              ( binopHint op leftType rightType
+              ( binopHint home op leftType rightType
                 ++
-                [ "With operators like " <> varName op <> " I always check the left\
+                [ "With operators like (" <> op <> ") I always check the left\
                   \ side first. If it seems fine, I assume it is correct and check the right\
                   \ side. So the problem may be in how the left and right arguments interact."
                 ]
               )
           )
 
-    Binop op ->
+    Binop _ op ->
         report
           Nothing
-          ( "The two arguments to " <> varName op <>
-            " are fine, but the overall type of this expression\
+          ( "The two arguments to (" <> op <>
+            ") are fine, but the overall type of this expression\
             \ does not match how it is used elsewhere."
           )
           ( cmpHint
@@ -329,7 +346,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType decoders maybeR
           ( cmpHint
               (capitalize (maybeFuncName maybeName) <> " is expecting the argument to be:")
               "But it is:"
-              (functionHint maybeName)
+              []
           )
 
     UnexpectedArg maybeName index _totalArgs region ->
@@ -343,9 +360,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType decoders maybeR
                 <> ordinalize index <> " argument to be:"
               )
               "But it is:"
-              ( functionHint maybeName
-                ++
-                if index == 1 then
+              ( if index == 1 then
                   []
                 else
                   [ "I always figure out the type of arguments from left to right. If an argument\
@@ -430,34 +445,16 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType decoders maybeR
               []
           )
 
-    Pattern patErr ->
-        let
-          thing =
-            case patErr of
-              PVar name ->
-                "variable `" <> name <> "`"
+    Pattern context category ->
+        let (overview, lineOne, lineTwo) = toPatternMessage context category in
+        report Nothing overview (cmpHint lineOne lineTwo [])
 
-              PAlias name ->
-                "alias `" <> name <> "`"
-
-              PRecord ->
-                "this record"
-
-              PCtor (Var.Canonical Var.BuiltIn name) | Help.isTuple name ->
-                "this tuple"
-
-              PCtor name ->
-                "tag `" <> Var.toText name <> "`"
-        in
-          report
-            Nothing
-            ( capitalize thing <> " is causing problems in this pattern match."
-            )
-            ( cmpHint
-                "The pattern matches things of type:"
-                "But the values it will actually be trying to match are:"
-                []
-            )
+    PatternCons ->
+        report Nothing "This list pattern is mixing types:" $
+          cmpHint
+            "The head of the list matches this type of value:"
+            "But the tail of the list matches:"
+            []
 
     Shader ->
         report
@@ -478,6 +475,15 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType decoders maybeR
               "But you are trying to use it as:"
               []
           )
+
+    Accessor field ->
+      report Nothing
+        ("The ." <> field <> " accessor is being used in an unexpected way.")
+        ( cmpHint
+            "It has type:"
+            "But you are trying to use it as:"
+            []
+        )
 
     Access (Just body) field ->
       let
@@ -507,6 +513,26 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType decoders maybeR
           "This record is being used in an unexpected way."
           ( cmpHint
               "The record has type:"
+              "But you are trying to use it as:"
+              []
+          )
+
+    Unit ->
+        report
+          Nothing
+          "This “unit” value is being used in an unexpected way."
+          ( cmpHint
+              "It has type:"
+              "But you are trying to use it as:"
+              []
+          )
+
+    Tuple ->
+        report
+          Nothing
+          "This tuple is being used in an unexpected way."
+          ( cmpHint
+              "The tuple has type:"
               "But you are trying to use it as:"
               []
           )
@@ -551,6 +577,67 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType decoders maybeR
 
 
 
+-- PATTERN REPORT
+
+
+toPatternMessage :: PatternContext -> PatternCategory -> (Text, Text, Text)
+toPatternMessage context category =
+  case context of
+    PatternArg name index ->
+      toPatternHelp category $
+        "But as the " <> ordinalize index
+        <> " value of a `" <> name <> "` pattern, it must be:"
+
+    PatternTail ->
+      toPatternHelp category $
+        "But as the pattern after a (::), it must be a list like: "
+
+    PatternList index ->
+      ( "The patterns in this list match different types of values:"
+      , "The " <> ordinalize index <> " pattern matches type:"
+      , "But all the previous patterns in the list match:"
+      )
+
+    PatternUnknown ->
+      toPatternHelp category $
+        "But the values flowing through here need to be:"
+
+
+toPatternHelp :: PatternCategory -> Text -> (Text, Text, Text)
+toPatternHelp category lineTwo =
+  case category of
+    PRecord ->
+      ( "This record pattern will cause problems:"
+      , "It matches record values with this type:"
+      , lineTwo
+      )
+
+    PUnit ->
+      ( "This “unit” pattern will cause problems:"
+      , "It matches unit values with this type:"
+      , lineTwo
+      )
+
+    PTuple ->
+      ( "This tuple pattern will cause problems:"
+      , "It matches tuples with this type:"
+      , lineTwo
+      )
+
+    PList ->
+      ( "This list pattern will cause problems:"
+      , "It matches lists with this type:"
+      , lineTwo
+      )
+
+    PCtor name ->
+      ( "This `" <> name <> "` value will cause problems:"
+      , "It matches `" <> name <> "` values with this type:"
+      , lineTwo
+      )
+
+
+
 -- COMPARISON HINT
 
 
@@ -592,47 +679,25 @@ jsonDecoderHint =
 -- BINOP HINTS
 
 
-binopHint :: Var.Canonical -> Type.Canonical -> Type.Canonical -> [Text]
-binopHint op leftType rightType =
+binopHint :: ModuleName.Canonical -> N.Name -> Type.Canonical -> Type.Canonical -> [Text]
+binopHint home op leftType rightType =
   let
-    leftString =
-      show (RenderType.toDoc Map.empty leftType)
-
-    rightString =
-      show (RenderType.toDoc Map.empty rightType)
+    leftString = show (RenderType.toDoc Map.empty leftType)
+    rightString = show (RenderType.toDoc Map.empty rightType)
   in
-    if Var.is "Basics" "+" op && elem "String" [leftString, rightString] then
-        [ "To append strings in Elm, you need to use the (++) operator, not (+).\
-          \ <http://package.elm-lang.org/packages/elm-lang/core/latest/Basics#++>"
-        ]
+  if home == ModuleName.basics && op == "+" && elem "String" [leftString, rightString] then
+      [ "To append strings in Elm, you need to use the (++) operator, not (+).\
+        \ <http://package.elm-lang.org/packages/elm-lang/core/latest/Basics#++>"
+      ]
 
-    else if Var.is "Basics" "/" op && elem "Int" [leftString, rightString] then
-        [ "The (/) operator is specifically for floating point division, and (//) is\
-          \ for integer division. You may need to do some conversions between ints and\
-          \ floats to get both arguments matching the division operator you want."
-        ]
+  else if home == ModuleName.basics && op == "/" && elem "Int" [leftString, rightString] then
+      [ "The (/) operator is specifically for floating point division, and (//) is\
+        \ for integer division. You may need to do some conversions between ints and\
+        \ floats to get both arguments matching the division operator you want."
+      ]
 
-    else
-        []
-
-
-
--- FUNCTION HINTS
-
-
-functionHint :: Maybe Var.Canonical -> [Text]
-functionHint maybeName =
-  case maybeName of
-    Nothing ->
+  else
       []
-
-    Just name ->
-      if Var.inHtml "Html" "program" == name then
-        [ "Does your program have flags? Maybe you want `programWithFlags` instead."
-        ]
-
-      else
-        []
 
 
 
@@ -705,9 +770,6 @@ flipReason reason =
 
     IntFloat ->
         IntFloat
-
-    TooLongComparableTuple len ->
-        TooLongComparableTuple len
 
     MissingArgs num ->
         MissingArgs num
@@ -796,11 +858,6 @@ reasonToDocHelp reason =
           \ `toFloat` and `round` to do specific conversions.\
           \ <http://package.elm-lang.org/packages/elm-lang/core/latest/Basics#toFloat>"
 
-    TooLongComparableTuple len ->
-        simpleDoc $
-          "Although tuples are comparable, this is currently only supported\
-          \ for tuples with 6 or fewer entries, not " <> i2t len <> "."
-
     MissingArgs num ->
         simpleDoc $
           "It looks like a function needs " <> Help.moreArgs num <> "."
@@ -867,11 +924,8 @@ specificThingToText specific =
     SpecificSuper Type.CompAppend ->
       "comparable AND appendable"
 
-    SpecificType var@(Var.Canonical _ name) ->
-      if Var.isTuple var then
-        "a tuple"
-
-      else if Text.isInfixOf (Text.take 1 name) "AEIOU" then
+    SpecificType name ->
+      if Text.isInfixOf (Text.take 1 name) "AEIOU" then
         "an " <> name
 
       else
@@ -883,6 +937,12 @@ specificThingToText specific =
     SpecificFunction ->
       "a function"
 
+    SpecificUnit ->
+      "a unit value"
+
+    SpecificTuple ->
+      "a tuple"
+
 
 badFieldElaboration :: Text
 badFieldElaboration =
@@ -893,6 +953,9 @@ badFieldElaboration =
 
 messyFieldsHelp :: [Text] -> [Text] -> [Text] -> (Text, [Doc])
 messyFieldsHelp both leftOnly rightOnly =
+  error "TODO messyFieldsHelp" both leftOnly rightOnly
+
+{-
   case (leftOnly, rightOnly) of
     ([], [missingField]) ->
       oneMissingField both missingField
@@ -983,7 +1046,7 @@ padTypo arrow maxLen (missingField, knownField) =
   <> dullyellow (text missingField)
   <+> text arrow
   <+> dullyellow (text knownField)
-
+-}
 
 
 -- INFINITE TYPES
@@ -1017,7 +1080,7 @@ infiniteTypeToReport localizer context overallType =
       )
 
 
-infiniteHint :: Hint -> (Maybe Region.Region, Text)
+infiniteHint :: Hint -> (Maybe R.Region, Text)
 infiniteHint hint =
   case hint of
     CaseBranch n region ->
@@ -1044,13 +1107,13 @@ infiniteHint hint =
     ListElement n region ->
       ( Just region, "the " <> ordinalize n <> " list entry" )
 
-    BinopLeft _ region ->
+    BinopLeft _ _ region ->
       ( Just region, "the left argument" )
 
-    BinopRight _ region ->
+    BinopRight _ _ region ->
       ( Just region, "the right argument" )
 
-    Binop _ ->
+    Binop _ _ ->
       ( Nothing, "this expression" )
 
     Function maybeName ->
@@ -1074,7 +1137,10 @@ infiniteHint hint =
     Literal name ->
       ( Nothing, name )
 
-    Pattern _ ->
+    Pattern _ _ ->
+      ( Nothing, "this pattern" )
+
+    PatternCons ->
       ( Nothing, "this pattern" )
 
     Shader ->
@@ -1083,11 +1149,20 @@ infiniteHint hint =
     Lambda ->
       ( Nothing, "this function" )
 
+    Accessor _ ->
+      ( Nothing, "this record accessor" )
+
     Access _ _ ->
       ( Nothing, "this field access" )
 
     Record ->
       ( Nothing, "this record" )
+
+    Unit ->
+      ( Nothing, "this “unit” value" )
+
+    Tuple ->
+      ( Nothing, "this tuple" )
 
     -- effect manager problems
     Manager name ->

@@ -2,31 +2,28 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Reporting.Error.Canonicalize
   ( Error(..)
+  , Args(..)
   , CtorType(..)
+  , CycleNode(..)
+  , InvalidPayload(..)
   , variable
   , VarKind(..)
   , VarProblem(..)
-  , argMismatch
-  , port
   , toReport
   , extractSuggestions
   )
   where
 
-import Control.Arrow ((***))
+
 import qualified Data.Char as Char
-import qualified Data.Map as Map
 import qualified Data.Text as Text
 import Data.Text (Text)
 
-import qualified AST.Binop as Binop
-import qualified AST.Expression.Canonical as Canonical
-import qualified AST.Module.Name as ModuleName
+import qualified AST.Expression.Canonical as Can
 import qualified AST.Type as Type
-import qualified AST.Variable as Var
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
-import qualified Reporting.Region as Region
+import qualified Reporting.Region as R
 import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Report as Report
 import qualified Reporting.Helpers as Help
@@ -38,34 +35,61 @@ import Reporting.Helpers ( Doc, (<>), dullyellow, fillSep, green, i2t, indent, r
 
 
 data Error
-    = Var VarError
-    | AliasArgMismatch Var.Canonical Int Int
-    | AliasRecursion N.Name [N.Name] Type.Raw [N.Name]
-    | BadRecursion Region.Region Canonical.Def [Canonical.Def]
-    | BadInfix Region.Region Int Var.Canonical Binop.Associativity Var.Canonical Binop.Associativity
-    | Pattern PatternError
-    | DuplicateDecl N.Name
-    | DuplicateType N.Name
-    | DuplicateCtor N.Name CtorType CtorType
-    | DuplicateBinop N.Name
-    | DuplicateField N.Name
-    | DuplicateAliasArg N.Name N.Name [N.Name]
-    | DuplicateUnionArg N.Name N.Name [N.Name]
-    | ImportNotFound ModuleName.Raw [ModuleName.Raw]
-    | ImportCtorNotFound N.Name N.Name
-    | ImportOpenAlias N.Name
-    | ImportExposingNotFound ModuleName.Raw N.Name [N.Name]
-    | Export Text [Text]
-    | DuplicateExport Text
-    | Port PortError
-    | BadPort Text Type.Canonical
-    | TypeVarsUnboundInUnion N.Name [N.Name] [A.Located N.Name]
-    | TypeVarsMessedUpInAlias N.Name [N.Name] [A.Located N.Name] [A.Located N.Name]
+  = Var VarError
+  | Binop N.Name N.Name
+  | DuplicateArg N.Name
+  | DuplicateDecl N.Name
+  | DuplicateType N.Name
+  | DuplicateCtor N.Name CtorType CtorType
+  | DuplicateBinop N.Name
+  | DuplicateField N.Name
+  | DuplicateAliasArg N.Name N.Name [N.Name]
+  | DuplicateUnionArg N.Name N.Name [N.Name]
+  | DuplicateBindingName N.Name
+  | EffectNotFound N.Name
+  | EffectFunctionNotFound N.Name
+  | ExportDuplicate N.Name
+  | ExportNotFound VarKind N.Name [N.Name]
+  | ExportOpenAlias N.Name
+  | ImportNotFound N.Name [N.Name]
+  | ImportCtorNotFound N.Name N.Name
+  | ImportOpenAlias N.Name
+  | ImportExposingNotFound N.Name N.Name [N.Name]
+  | PortPayloadInvalid N.Name Type.Canonical InvalidPayload
+  | PortTypeInvalid N.Name Type.Canonical
+  | RecursiveAlias N.Name [N.Name] Type.Raw [N.Name]
+  | RecursiveDecl R.Region N.Name [N.Name]
+  | RecursiveLet [CycleNode]
+  | Shadowing N.Name
+  | TooFew Args N.Name Int Int
+  | TooMany Args N.Name Int Int R.Region
+  | TupleLargerThanThree R.Region
+  | TypeVarsUnboundInUnion N.Name [N.Name] [A.Located N.Name]
+  | TypeVarsMessedUpInAlias N.Name [N.Name] [A.Located N.Name] [A.Located N.Name]
+
+
+data Args
+  = UnionArgs
+  | AliasArgs
+  | PatternArgs
 
 
 data CtorType
   = UnionCtor N.Name
   | RecordCtor
+
+
+data CycleNode
+  = CycleFunc (A.Located N.Name)
+  | CycleValue (A.Located N.Name)
+  | CyclePattern Can.Pattern
+
+
+data InvalidPayload
+  = ExtendedRecord
+  | Function
+  | TypeVariable N.Name
+  | UnsupportedType N.Name
 
 
 
@@ -121,36 +145,6 @@ toKindInfo kind name =
 
 
 
--- PATTERN
-
-
-data PatternError
-    = PatternArgMismatch Var.Canonical Int Int
-
-
-argMismatch :: Var.Canonical -> Int -> Int -> Error
-argMismatch name expected actual =
-  Pattern (PatternArgMismatch name expected actual)
-
-
-
--- PORTS
-
-
-data PortError =
-  PortError
-    { _portName :: Text
-    , _portType :: Type.Canonical
-    , _portMessage :: Maybe Text
-    }
-
-
-port :: Text -> Type.Canonical -> Maybe Text -> Error
-port name tipe maybeMessage =
-  Port (PortError name tipe maybeMessage)
-
-
-
 -- EXTRACT SUGGESTIONS
 
 
@@ -160,16 +154,10 @@ extractSuggestions err =
     Var (VarError _ _ _ suggestions) ->
         Just suggestions
 
-    AliasArgMismatch _ _ _ ->
+    Binop _ _ ->
         Nothing
 
-    AliasRecursion _ _ _ _ ->
-        Nothing
-
-    BadRecursion _ _ _ ->
-        Nothing
-
-    BadInfix _ _ _ _ _ _ ->
+    DuplicateArg _ ->
         Nothing
 
     DuplicateDecl _ ->
@@ -193,11 +181,26 @@ extractSuggestions err =
     DuplicateUnionArg _ _ _ ->
         Nothing
 
-    Pattern _ ->
+    DuplicateBindingName _ ->
+        Nothing
+
+    EffectNotFound _ ->
+        Nothing
+
+    EffectFunctionNotFound _ ->
+        Nothing
+
+    ExportDuplicate _ ->
+        Nothing
+
+    ExportNotFound _ _ suggestions ->
+        Just suggestions
+
+    ExportOpenAlias _ ->
         Nothing
 
     ImportNotFound _ suggestions ->
-        Just (map ModuleName.toText suggestions)
+        Just suggestions
 
     ImportExposingNotFound _ _ suggestions ->
         Just suggestions
@@ -208,16 +211,31 @@ extractSuggestions err =
     ImportOpenAlias _ ->
         Nothing
 
-    Export _ suggestions ->
-        Just suggestions
-
-    DuplicateExport _ ->
+    PortPayloadInvalid _ _ _ ->
         Nothing
 
-    Port _ ->
+    PortTypeInvalid _ _ ->
         Nothing
 
-    BadPort _ _ ->
+    RecursiveAlias _ _ _ _ ->
+        Nothing
+
+    RecursiveDecl _ _ _ ->
+        Nothing
+
+    RecursiveLet _ ->
+        Nothing
+
+    Shadowing _ ->
+        Nothing
+
+    TooFew _ _ _ _ ->
+        Nothing
+
+    TooMany _ _ _ _ _ ->
+        Nothing
+
+    TupleLargerThanThree _ ->
         Nothing
 
     TypeVarsUnboundInUnion _ _ _ ->
@@ -237,25 +255,20 @@ toReport localizer err =
     Var varError ->
       varErrorToReport varError
 
-    BadRecursion region def defs ->
-      case defs of
-        [] ->
-          badSelfRecursion region (defToText def)
-
-        _ ->
-          badMutualRecursion region (defToText def) (map (defToText) defs)
-
-    BadInfix region _prec (Var.Canonical _ name1) _assoc1 (Var.Canonical _ name2) _assoc2 ->
+    Binop op1 op2 ->
         Report.report
           "INFIX PROBLEM"
-          (Just region)
-          ("You cannot mix (" <> name1 <> ") and (" <> name2 <> ") without parentheses." )
+          Nothing
+          ("You cannot mix (" <> op1 <> ") and (" <> op2 <> ") without parentheses." )
           (
             Help.stack
               [ reflowParagraph $
                   "I do not know how to group these expressions. Add parentheses for me!"
               ]
           )
+
+    DuplicateArg _ ->
+        error "TODO DuplicateArg"
 
     DuplicateDecl _ ->
         error "TODO DuplicateDecl"
@@ -278,20 +291,34 @@ toReport localizer err =
     DuplicateUnionArg _ _ _ ->
         error "TODO DuplicateUnionArg"
 
-    Pattern patternError ->
-        case patternError of
-          PatternArgMismatch var expected actual ->
-              argMismatchReport "Pattern" var expected actual
+    DuplicateBindingName _ ->
+        error "TODO DuplicateBindingName"
 
-    AliasArgMismatch var expected actual ->
-        argMismatchReport "Type" var expected actual
+    EffectNotFound _ ->
+        error "TODO EffectNotFound"
 
-    AliasRecursion name args tipe others ->
-        aliasRecursionReport localizer name args tipe others
+    EffectFunctionNotFound _ ->
+        error "TODO EffectFunctionNotFound"
+
+    ExportDuplicate name ->
+        Report.report "EXPOSING ERROR" Nothing
+          ("You are trying to expose `" <> name <> "` multiple times!")
+          "Remove duplicates until there is only one listed."
+
+    ExportNotFound kind rawName suggestions ->
+        let (a, thing, name) = toKindInfo kind rawName in
+        Report.reportDoc "EXPOSING ERROR" Nothing
+          ["You","are","trying","to","expose",a,thing,"named"
+          ,name,"but","I","cannot","find","its","definition."
+          ]
+          (Help.maybeYouWant Nothing suggestions)
+
+    ExportOpenAlias name ->
+        error "TODO" name
 
     ImportNotFound name suggestions ->
         Report.report "IMPORT ERROR" Nothing
-          ("Could not find a module named `" <> ModuleName.toText name <> "`")
+          ("Could not find a module named `" <> name <> "`")
           (Help.maybeYouWant Nothing suggestions)
 
     ImportCtorNotFound ctor tipe ->
@@ -320,30 +347,33 @@ toReport localizer err =
 
     ImportExposingNotFound name value suggestions ->
         Report.report "IMPORT ERROR" Nothing
-          ("Module `" <> ModuleName.toText name <> "` does not expose `" <> value <> "`")
+          ("Module `" <> name <> "` does not expose `" <> value <> "`")
           (Help.maybeYouWant Nothing suggestions)
 
-    Export name suggestions ->
-        Report.report "EXPOSING ERROR" Nothing
-          ("Could not expose `" <> name <> "` which is not defined in this module.")
-          (Help.maybeYouWant Nothing suggestions)
-
-    DuplicateExport name ->
-        Report.report "EXPOSING ERROR" Nothing
-          ("You are trying to expose `" <> name <> "` multiple times!")
-          "Remove duplicates until there is only one listed."
-
-    Port (PortError name tipe maybeMessage) ->
+    PortPayloadInvalid portName tipe invalidPayload ->
       let
         context =
-          maybe "" (" the following " <> ) maybeMessage
+          case invalidPayload of
+            ExtendedRecord ->
+              "an extended record"
+
+            Function ->
+              "a function"
+
+            TypeVariable name ->
+              const "an unknown type" (error "TODO" name)
+              -- "Notice the `" <> name <> "` type variable. It must be a concrete type, like Int or Float."
+
+            UnsupportedType name ->
+              "a `" <> name <> "` value"
       in
         Report.report
           "PORT ERROR"
           Nothing
-          ("Port `" <> name <> "` is trying to communicate an unsupported type."
+          ("Port `" <> portName <> "` is trying to transmit " <> context <> ":"
           )
-          ( Help.stack
+          (error "TODO" tipe)
+          {- Help.stack
               [ text ("The specific unsupported type is" <> context <> ":")
               , indent 4 (RenderType.toDoc localizer tipe)
               , text "The types of values that can flow through in and out of Elm include:"
@@ -352,9 +382,9 @@ toReport localizer err =
                   \ Tuples, Json.Values, and concrete records."
               -- TODO add a note about custom decoders and encoders when they exist!
               ]
-          )
+          -}
 
-    BadPort name tipe ->
+    PortTypeInvalid name tipe ->
       Report.report
         "PORT ERROR"
         Nothing
@@ -369,13 +399,40 @@ toReport localizer err =
             ]
         )
 
+    RecursiveAlias name args tipe others ->
+        aliasRecursionReport localizer name args tipe others
+
+    RecursiveDecl region name names ->
+        error "TODO" region name names
+
+    RecursiveLet cycles ->
+      case cycles of
+        [] ->
+          error "TODO"
+
+        [_] ->
+          error "TODO" badSelfRecursion
+
+        _ ->
+          error "TODO" badMutualRecursion
+
+    Shadowing _ ->
+        error "TODO Shadowing"
+
+    TooFew _ _ _ _ ->
+        error "TODO TooFew"
+
+    TooMany _ _ _ _ _ ->
+        error "TODO TooMany"
+
+    TupleLargerThanThree _ ->
+        error "TODO TupleLargerThanThree"
+
     TypeVarsUnboundInUnion _ _ _ ->
         error "TODO TypeVarsUnboundInUnion"
 
     TypeVarsMessedUpInAlias _ _ _ _ ->
         error "TODO TypeVarsMessedUpInAlias"
-
-
 
 
 
@@ -467,8 +524,8 @@ modHint =
 -- ARG MISMATCH
 
 
-argMismatchReport :: Text -> Var.Canonical -> Int -> Int -> Report.Report
-argMismatchReport kind var expected actual =
+_argMismatchReport :: Text -> N.Name -> Int -> Int -> Report.Report
+_argMismatchReport kind name expected actual =
   let
     numArgs =
       "too "
@@ -478,7 +535,7 @@ argMismatchReport kind var expected actual =
     Report.report
       (Text.map Char.toUpper numArgs)
       Nothing
-      ( kind <> " " <> Var.toText var <> " has " <> numArgs <> "."
+      ( kind <> " " <> name <> " has " <> numArgs <> "."
       )
       ( text $
           "Expecting " <> i2t expected <> ", but got " <> i2t actual <> "."
@@ -489,7 +546,7 @@ argMismatchReport kind var expected actual =
 -- BAD RECURSION
 
 
-badSelfRecursion :: Region.Region -> Text -> Report.Report
+badSelfRecursion :: R.Region -> Text -> Report.Report
 badSelfRecursion region name =
   let
     header =
@@ -517,7 +574,7 @@ badSelfRecursionHelp intro body =
     ++ map text (Text.words body)
 
 
-badMutualRecursion :: Region.Region -> Text -> [Text] -> Report.Report
+badMutualRecursion :: R.Region -> Text -> [Text] -> Report.Report
 badMutualRecursion region name names =
   let
     header =
@@ -533,11 +590,6 @@ badMutualRecursion region name names =
             <> Help.hintLink "bad-recursion"
             <> " It will help you really understand the problem and how to fix it. Read it!"
         ]
-
-
-defToText :: Canonical.Def -> Text
-defToText (Canonical.Def _ pattern _ _) =
-  error "TODO P.toText" pattern
 
 
 
@@ -556,7 +608,7 @@ aliasRecursionReport localizer name args tipe others =
                 "When I expand a recursive type alias, it just keeps getting bigger and bigger.\
                 \ So dealiasing results in an infinitely large type! Try this instead:"
             , indent 4 $
-                RenderType.decl localizer name args [(name, [unsafePromote tipe])]
+                RenderType.decl localizer name args [(name, [error "TODO" tipe])]
             , text $
                 "This is kind of a subtle distinction. I suggested the naive fix, but you can\n"
                 <> "often do something a bit nicer. So I would recommend reading more at:\n"
@@ -576,30 +628,3 @@ aliasRecursionReport localizer name args tipe others =
                 <> Help.hintLink "recursive-alias"
             ]
         )
-
-
-unsafePromote :: Type.Raw -> Type.Canonical
-unsafePromote (A.A _ rawType) =
-  case rawType of
-    Type.RLambda arg result ->
-        Type.Lambda (unsafePromote arg) (unsafePromote result)
-
-    Type.RVar x ->
-        Type.Var x
-
-    Type.RType _ _ name args ->
-        Type.Type (error "TODO unsafePromote better") name (map unsafePromote args)
-
-    Type.RRecord fields ext ->
-        Type.Record
-          (Map.fromList (map (A.drop *** unsafePromote) fields))
-          (fmap unsafePromote ext)
-
-    Type.RUnit ->
-        Type.Unit
-
-    Type.RTuple a b cs ->
-        Type.Tuple
-          (unsafePromote a)
-          (unsafePromote b)
-          (map unsafePromote cs)
