@@ -151,6 +151,24 @@ addConstraints env context (A.A region pattern) tipe info =
 
 
 
+-- CONSTRAIN CONSTRUCTORS
+
+
+addCtorConstraint :: Env -> N.Name -> Info -> (Int, Type, Can.Pattern) -> IO Info
+addCtorConstraint env name info (index, argType, argPattern) =
+  addConstraints env (Error.PatternArg name index) argPattern argType info
+
+
+
+-- CONSTRAIN LIST
+
+
+addListConstraint :: Env -> Type -> Info -> (Can.Pattern, Int) -> IO Info
+addListConstraint env tipe info (pattern, index) =
+  addConstraints env (Error.PatternList index) pattern tipe info
+
+
+
 -- CONSTRAIN TUPLE
 
 
@@ -188,21 +206,3 @@ addTupleConstraint env context region a b maybeC tipe (Info headers vars revCons
               addCon c cVarN =<<
                 addCon b bVarN =<<
                   addCon a aVarN (Info headers newVars (tupleCon:revCons))
-
-
-
--- CONSTRAIN CONSTRUCTORS
-
-
-addCtorConstraint :: Env -> N.Name -> Info -> (Int, Type, Can.Pattern) -> IO Info
-addCtorConstraint env name info (index, argType, argPattern) =
-  addConstraints env (Error.PatternArg name index) argPattern argType info
-
-
-
--- CONSTRAIN LIST
-
-
-addListConstraint :: Env -> Type -> Info -> (Can.Pattern, Int) -> IO Info
-addListConstraint env tipe info (pattern, index) =
-  addConstraints env (Error.PatternList index) pattern tipe info
