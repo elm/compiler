@@ -21,9 +21,9 @@ import Control.Monad (forM_, liftM, liftM2, liftM3)
 import Control.Monad.Trans (MonadIO, liftIO)
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict ((!))
-import Data.Text (Text)
 import qualified Data.Vector.Mutable as MVector
 
+import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Reporting.Region as R
@@ -53,7 +53,7 @@ data State =
 type Pools = MVector.IOVector [Variable]
 
 
-type Env = Map.Map Text (A.Located Variable)
+type Env = Map.Map N.Name (A.Located Variable)
 
 
 
@@ -137,7 +137,7 @@ flatten tipe =
         return (var, state)
 
 
-flattenHelp :: Int -> Pools -> Map.Map Text Variable -> Type -> IO Variable
+flattenHelp :: Int -> Pools -> Map.Map N.Name Variable -> Type -> IO Variable
 flattenHelp maxRank pools aliasDict tipe =
   case tipe of
     PlaceHolder name ->

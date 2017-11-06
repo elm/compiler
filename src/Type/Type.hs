@@ -53,19 +53,19 @@ data FlatType
     = App1 ModuleName.Canonical N.Name [Variable]
     | Fun1 Variable Variable
     | EmptyRecord1
-    | Record1 (Map.Map Text Variable) Variable
+    | Record1 (Map.Map N.Name Variable) Variable
     | Unit1
     | Tuple1 Variable Variable (Maybe Variable)
 
 
 data Type
-    = PlaceHolder Text
-    | AliasN ModuleName.Canonical N.Name [(Text, Type)] Type
+    = PlaceHolder N.Name
+    | AliasN ModuleName.Canonical N.Name [(N.Name, Type)] Type
     | VarN Variable
     | AppN ModuleName.Canonical N.Name [Type]
     | FunN Type Type
     | EmptyRecordN
-    | RecordN (Map.Map Text Type) Type
+    | RecordN (Map.Map N.Name Type) Type
     | UnitN
     | TupleN Type Type (Maybe Type)
 
@@ -84,12 +84,12 @@ data Descriptor =
 
 
 data Content
-    = FlexVar (Maybe Text)
-    | FlexSuper T.Super (Maybe Text)
-    | RigidVar Text
-    | RigidSuper T.Super Text
+    = FlexVar (Maybe N.Name)
+    | FlexSuper T.Super (Maybe N.Name)
+    | RigidVar N.Name
+    | RigidSuper T.Super N.Name
     | Structure FlatType
-    | Alias ModuleName.Canonical N.Name [(Text,Variable)] Variable
+    | Alias ModuleName.Canonical N.Name [(N.Name,Variable)] Variable
     | Error Text
 
 
