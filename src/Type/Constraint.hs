@@ -2,9 +2,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Type.Constraint
   ( Constraint(..)
-  , (/\), ex, forall
-  , exists, existsNumber
-  , Scheme(..), SchemeName
+  , ex
+  , Scheme(..)
   , monoscheme
   )
   where
@@ -12,11 +11,12 @@ module Type.Constraint
 
 import qualified Data.Map.Strict as Map
 
+import qualified AST.Canonical as Can
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Reporting.Region as R
-import Type.Type (Type(VarN), Variable, mkFlexVar, mkFlexNumber)
+import Type.Type (Type, Variable)
 
 
 
@@ -25,26 +25,25 @@ import Type.Type (Type(VarN), Variable, mkFlexVar, mkFlexNumber)
 
 data Constraint
     = CTrue
-    | CSaveEnv
-    | CEqual Error.Hint R.Region Type Type
+    | CSaveHeaders
+    | CEqual R.Region Error.Context Error.Category R.Region Type Type
+    | CLookup R.Region Error.Context R.Region N.Name Type
+    | CInstance R.Region Error.Context R.Region Can.Type Type
+    | CPattern R.Region Error.PatternContext Error.PatternCategory R.Region Type Type
     | CAnd [Constraint]
     | CLet [Scheme] Constraint
-    | CInstance R.Region SchemeName Type
 
 
 
 -- SCHEMES
 
 
-type SchemeName = N.Name
-
-
 data Scheme =
   Scheme
-    { _rigidQuantifiers :: [Variable]
-    , _flexibleQuantifiers :: [Variable]
-    , _constraint :: Constraint
+    { _rigidVars :: [Variable]
+    , _flexVars :: [Variable]
     , _header :: Map.Map N.Name (A.Located Type)
+    , _constraint :: Constraint
     }
 
 
@@ -54,42 +53,17 @@ data Scheme =
 
 monoscheme :: Map.Map N.Name (A.Located Type) -> Scheme
 monoscheme headers =
-  Scheme [] [] CTrue headers
+  Scheme [] [] headers CTrue
 
 
 
 -- CONSTRAINT HELPERS
 
 
-infixl 8 /\
-
-
-(/\) :: Constraint -> Constraint -> Constraint
-(/\) c1 c2 =
-    case (c1, c2) of
-      (CTrue, _) -> c2
-      (_, CTrue) -> c1
-      _ -> CAnd [c1,c2]
-
-
 -- ex qs constraint == exists qs. constraint
 ex :: [Variable] -> Constraint -> Constraint
-ex fqs constraint =
-    CLet [Scheme [] fqs constraint Map.empty] CTrue
-
-
-forall :: [Variable] -> Constraint -> Constraint
-forall rqs constraint =
-    CLet [Scheme rqs [] constraint Map.empty] CTrue
-
-
-exists :: (Type -> IO Constraint) -> IO Constraint
-exists f =
-  do  v <- mkFlexVar
-      ex [v] <$> f (VarN v)
-
-
-existsNumber :: (Type -> IO Constraint) -> IO Constraint
-existsNumber f =
-  do  v <- mkFlexNumber
-      ex [v] <$> f (VarN v)
+ex flexVars constraint =
+    CLet
+      [ Scheme [] flexVars Map.empty constraint
+      ]
+      CTrue
