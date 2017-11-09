@@ -12,7 +12,7 @@ import Data.Aeson ((.=))
 import qualified Data.Aeson as Json
 import Data.Text (Text)
 
-import qualified AST.Type as Type
+import qualified AST.Canonical as Can
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Report as Report
@@ -28,7 +28,7 @@ import Reporting.Helpers ((<>), text)
 data Warning
   = UnusedImport N.Name
   | UnusedVariable Unused N.Name
-  | MissingTypeAnnotation Text Type.Canonical
+  | MissingTypeAnnotation Text Can.Type
 
 
 data Unused = Pattern | Binding
