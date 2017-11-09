@@ -10,7 +10,7 @@ import Control.Arrow (second)
 import Control.Monad (foldM)
 import qualified Data.Map.Strict as Map
 
-import qualified AST.Expression.Canonical as Can
+import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
 import qualified Data.Bag as Bag
 import qualified Data.Index as Index

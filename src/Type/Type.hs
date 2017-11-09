@@ -35,8 +35,9 @@ import qualified Data.Text as Text
 import Data.Text (Text)
 import Data.Word (Word32)
 
+import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
-import qualified AST.Type as T
+import qualified AST.Utils.Type as Type
 import qualified Elm.Name as N
 import qualified Type.UnionFind as UF
 
@@ -85,12 +86,19 @@ data Descriptor =
 
 data Content
     = FlexVar (Maybe N.Name)
-    | FlexSuper T.Super (Maybe N.Name)
+    | FlexSuper SuperType (Maybe N.Name)
     | RigidVar N.Name
-    | RigidSuper T.Super N.Name
+    | RigidSuper SuperType N.Name
     | Structure FlatType
     | Alias ModuleName.Canonical N.Name [(N.Name,Variable)] Variable
     | Error Text
+
+
+data SuperType
+  = Number
+  | Comparable
+  | Appendable
+  | CompAppend
 
 
 makeDescriptor :: Content -> Descriptor
@@ -245,10 +253,10 @@ mkFlexNumber =
 {-# NOINLINE flexNumberDescriptor #-}
 flexNumberDescriptor :: Descriptor
 flexNumberDescriptor =
-  makeDescriptor (unnamedFlexSuper T.Number)
+  makeDescriptor (unnamedFlexSuper Number)
 
 
-unnamedFlexSuper :: T.Super -> Content
+unnamedFlexSuper :: SuperType -> Content
 unnamedFlexSuper super =
   FlexSuper super Nothing
 
@@ -269,19 +277,19 @@ nameToRigid name =
     maybe RigidVar RigidSuper (toSuper name) name
 
 
-toSuper :: N.Name -> Maybe T.Super
+toSuper :: N.Name -> Maybe SuperType
 toSuper name =
   if Text.isPrefixOf "number" name then
-      Just T.Number
+      Just Number
 
   else if Text.isPrefixOf "comparable" name then
-      Just T.Comparable
+      Just Comparable
 
   else if Text.isPrefixOf "appendable" name then
-      Just T.Appendable
+      Just Appendable
 
   else if Text.isPrefixOf "compappend" name then
-      Just T.CompAppend
+      Just CompAppend
 
   else
       Nothing
@@ -293,19 +301,19 @@ toSuper name =
 
 -- TODO: Attach resulting type to the descriptor so that you
 -- never have to do extra work, particularly nice for aliased types
-toSrcType :: Variable -> IO T.Canonical
+toSrcType :: Variable -> IO Can.Type
 toSrcType variable =
   do  takenNames <- getVarNames variable Map.empty
       State.evalStateT (variableToSrcType variable) (makeNameState takenNames)
 
 
-variableToSrcType :: Variable -> StateT NameState IO T.Canonical
+variableToSrcType :: Variable -> StateT NameState IO Can.Type
 variableToSrcType variable =
   do  descriptor <- liftIO $ UF.descriptor variable
       let mark = _mark descriptor
       if mark == occursMark
         then
-          return (T.Var "∞")
+          return (Can.TVar "∞")
 
         else
           do  liftIO $ UF.modifyDescriptor variable (\desc -> desc { _mark = occursMark })
@@ -314,7 +322,7 @@ variableToSrcType variable =
               return srcType
 
 
-contentToSrcType :: Variable -> Content -> StateT NameState IO T.Canonical
+contentToSrcType :: Variable -> Content -> StateT NameState IO Can.Type
 contentToSrcType variable content =
   case content of
     Structure term ->
@@ -323,71 +331,71 @@ contentToSrcType variable content =
     FlexVar maybeName ->
       case maybeName of
         Just name ->
-          return (T.Var name)
+          return (Can.TVar name)
 
         Nothing ->
           do  name <- getFreshVarName
               liftIO $ UF.modifyDescriptor variable (\desc -> desc { _content = FlexVar (Just name) })
-              return (T.Var name)
+              return (Can.TVar name)
 
     FlexSuper super maybeName ->
       case maybeName of
         Just name ->
-          return (T.Var name)
+          return (Can.TVar name)
 
         Nothing ->
           do  name <- getFreshSuperName super
               liftIO $ UF.modifyDescriptor variable (\desc -> desc { _content = FlexSuper super (Just name) })
-              return (T.Var name)
+              return (Can.TVar name)
 
     RigidVar name ->
-        return (T.Var name)
+        return (Can.TVar name)
 
     RigidSuper _ name ->
-        return (T.Var name)
+        return (Can.TVar name)
 
     Alias home name args realVariable ->
         do  srcArgs <- traverse (traverse variableToSrcType) args
             srcType <- variableToSrcType realVariable
-            return (T.Aliased home name srcArgs (T.Filled srcType))
+            return (Can.TAlias home name srcArgs (Can.Filled srcType))
 
     Error name ->
-        return (T.Var name)
+        return (Can.TVar name)
 
 
-termToSrcType :: FlatType -> StateT NameState IO T.Canonical
+termToSrcType :: FlatType -> StateT NameState IO Can.Type
 termToSrcType term =
   case term of
     App1 home name args ->
-      T.Type home name <$> traverse variableToSrcType args
+      Can.TType home name <$> traverse variableToSrcType args
 
     Fun1 a b ->
-      T.Lambda
+      Can.TLambda
         <$> variableToSrcType a
         <*> variableToSrcType b
 
     EmptyRecord1 ->
-      return $ T.Record Map.empty Nothing
+      return $ Can.TRecord Map.empty Nothing
 
     Record1 fields extension ->
       do  srcFields <- traverse variableToSrcType fields
-          srcExt <- T.iteratedDealias <$> variableToSrcType extension
+          srcExt <- Type.iteratedDealias <$> variableToSrcType extension
           return $
               case srcExt of
-                T.Record subFields subExt ->
-                    T.Record (Map.union subFields srcFields) subExt
+                Can.TRecord subFields subExt ->
+                    Can.TRecord (Map.union subFields srcFields) subExt
 
-                T.Var _ ->
-                    T.Record srcFields (Just srcExt)
+                Can.TVar _ ->
+                    Can.TRecord srcFields (Just srcExt)
 
                 _ ->
                     error "Used toSrcType on a type that is not well-formed"
 
     Unit1 ->
-      return T.Unit
+      return Can.TUnit
 
     Tuple1 a b maybeC ->
-      T.Tuple
+      Can.TTuple
         <$> variableToSrcType a
         <*> variableToSrcType b
         <*> traverse variableToSrcType maybeC
@@ -425,19 +433,19 @@ getFreshVarName =
       return uniqueName
 
 
-getFreshSuperName :: (Monad m) => T.Super -> StateT NameState m Text
+getFreshSuperName :: (Monad m) => SuperType -> StateT NameState m Text
 getFreshSuperName super =
   case super of
-    T.Number ->
+    Number ->
       getFreshSuper "number" _numbers (\index state -> state { _numbers = index })
 
-    T.Comparable ->
+    Comparable ->
       getFreshSuper "comparable" _comparables (\index state -> state { _comparables = index })
 
-    T.Appendable ->
+    Appendable ->
       getFreshSuper "appendable" _appendables (\index state -> state { _appendables = index })
 
-    T.CompAppend ->
+    CompAppend ->
       getFreshSuper "compappend" _compAppends (\index state -> state { _compAppends = index })
 
 

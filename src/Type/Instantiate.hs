@@ -11,7 +11,7 @@ module Type.Instantiate
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict ((!))
 
-import qualified AST.Type as T
+import qualified AST.Canonical as Can
 import qualified Elm.Name as N
 import Type.Type
 
@@ -22,7 +22,7 @@ import Type.Type
 
 -- TODO should the freeFlexVars be ranked a certain way?
 -- How does this interact with `TS.flatten` exactly?
-flexible :: T.Canonical -> IO ( Type, Map.Map N.Name Variable )
+flexible :: Can.Type -> IO ( Type, Map.Map N.Name Variable )
 flexible srcType =
   do  let freeVars = gatherFreeVars srcType Map.empty
       freeFlexVars <- Map.traverseWithKey (\name () -> nameToFlex name) freeVars
@@ -30,7 +30,7 @@ flexible srcType =
       return ( tipe, freeFlexVars )
 
 
-rigid :: T.Canonical -> IO ( Type, Map.Map N.Name Variable )
+rigid :: Can.Type -> IO ( Type, Map.Map N.Name Variable )
 rigid srcType =
   do  let freeVars = gatherFreeVars srcType Map.empty
       freeRigidVars <- Map.traverseWithKey (\name () -> nameToRigid name) freeVars
@@ -42,22 +42,22 @@ rigid srcType =
 -- GATHER FREE VARS
 
 
-gatherFreeVars :: T.Canonical -> Map.Map N.Name () -> Map.Map N.Name ()
+gatherFreeVars :: Can.Type -> Map.Map N.Name () -> Map.Map N.Name ()
 gatherFreeVars tipe dict =
   case tipe of
-    T.Lambda arg result ->
+    Can.TLambda arg result ->
       gatherFreeVars result (gatherFreeVars arg dict)
 
-    T.Var name ->
+    Can.TVar name ->
       Map.insert name () dict
 
-    T.Type _ _ args ->
+    Can.TType _ _ args ->
       foldr gatherFreeVars dict args
 
-    T.Aliased _ _ args _ ->
+    Can.TAlias _ _ args _ ->
       foldr gatherFreeVars dict (map snd args)
 
-    T.Tuple a b maybeC ->
+    Can.TTuple a b maybeC ->
       gatherFreeVars a $ gatherFreeVars b $
         case maybeC of
           Nothing ->
@@ -66,10 +66,10 @@ gatherFreeVars tipe dict =
           Just c ->
             gatherFreeVars c dict
 
-    T.Unit ->
+    Can.TUnit ->
       dict
 
-    T.Record fields maybeExt ->
+    Can.TRecord fields maybeExt ->
       case maybeExt of
         Nothing ->
           Map.foldr gatherFreeVars dict fields
@@ -82,40 +82,40 @@ gatherFreeVars tipe dict =
 -- FROM SOURCE TYPE
 
 
-fromSrcType :: Map.Map N.Name Type -> T.Canonical -> IO Type
+fromSrcType :: Map.Map N.Name Type -> Can.Type -> IO Type
 fromSrcType freeVars sourceType =
   case sourceType of
-    T.Lambda arg result ->
+    Can.TLambda arg result ->
       FunN
         <$> fromSrcType freeVars arg
         <*> fromSrcType freeVars result
 
-    T.Var name ->
+    Can.TVar name ->
       return (freeVars ! name)
 
-    T.Type home name args ->
+    Can.TType home name args ->
       AppN home name <$> traverse (fromSrcType freeVars) args
 
-    T.Aliased home name args aliasedType ->
+    Can.TAlias home name args aliasedType ->
       do  targs <- traverse (traverse (fromSrcType freeVars)) args
           AliasN home name targs <$>
             case aliasedType of
-              T.Filled realType ->
+              Can.Filled realType ->
                 fromSrcType freeVars realType
 
-              T.Holey realType ->
+              Can.Holey realType ->
                 fromSrcType (Map.fromList targs) realType
 
-    T.Tuple a b maybeC ->
+    Can.TTuple a b maybeC ->
       TupleN
         <$> fromSrcType freeVars a
         <*> fromSrcType freeVars b
         <*> traverse (fromSrcType freeVars) maybeC
 
-    T.Unit ->
+    Can.TUnit ->
       return UnitN
 
-    T.Record fields maybeExt ->
+    Can.TRecord fields maybeExt ->
       RecordN
         <$> traverse (fromSrcType freeVars) fields
         <*>

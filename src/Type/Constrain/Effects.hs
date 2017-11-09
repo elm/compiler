@@ -9,7 +9,7 @@ module Type.Constrain.Effects
 import Control.Monad (replicateM)
 import qualified Data.Map.Strict as Map
 
-import qualified AST.Expression.Canonical as Can
+import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as T
 import qualified Elm.Name as N
@@ -122,7 +122,7 @@ constrainEffects r0 r1 r2 toFinalArgs =
           , CEqual Error.SelfMsg r2 (VarN selfMsg1) (VarN selfMsg2)
           ]
 
-      return $ CLet [ Scheme [] vars (CAnd constrains) Map.empty ] CSaveEnv
+      return $ CLet [ Scheme [] vars Map.empty (CAnd constrains) ] CSaveEnv
 
 
 {-# NOINLINE never #-}
