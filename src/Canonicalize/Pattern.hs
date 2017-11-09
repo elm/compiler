@@ -172,7 +172,8 @@ canonicalize env destructor (A.A region pattern) =
     Src.PCtor nameRegion maybePrefix name patterns ->
       let
         toCanonicalArg index ptrn tipe =
-          (,,) index tipe <$> canonicalize env (Can.DIndex index destructor) ptrn
+          Can.PatternCtorArg index tipe
+            <$> canonicalize env (Can.DIndex index destructor) ptrn
       in
       do  (Env.Pattern home tipe vars args) <- Env.findPattern nameRegion env maybePrefix name
           verifiedList <- Index.indexedZipWithA toCanonicalArg patterns args

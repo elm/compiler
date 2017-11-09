@@ -7,6 +7,7 @@ module AST.Expression.Canonical
   , Args(..), Arg(..)
   , Match(..)
   , Pattern, Pattern_(..)
+  , PatternCtorArg(..)
   , Destructors
   , Destructor(..)
   -- decls
@@ -122,8 +123,16 @@ data Pattern_
       , _p_type :: N.Name
       , _p_vars :: [N.Name]
       , _p_name :: N.Name
-      , _p_args :: [(Index.ZeroBased, Type.Canonical, Pattern)]
+      , _p_args :: [PatternCtorArg]
       }
+
+
+data PatternCtorArg =
+  PatternCtorArg
+    { _index :: Index.ZeroBased
+    , _type :: Type.Canonical
+    , _arg :: Pattern
+    }
 
 
 type Destructors = Map.Map N.Name (A.Located Destructor)
