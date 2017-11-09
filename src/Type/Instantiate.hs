@@ -1,56 +1,19 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Type.Instantiate
-  ( Ctor(..)
-  , pattern
-  , flexible
+  ( flexible
   , rigid
+  , fromSrcType
   )
   where
 
 
-import Control.Arrow (second)
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict ((!))
 
-import qualified AST.Expression.Canonical as Can
-import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as T
 import qualified Elm.Name as N
 import Type.Type
-
-
-
--- FROM PATTERN
-
-
-data Ctor =
-  Ctor
-    { _vars :: [Variable]
-    , _args :: [(Int, Type, Can.Pattern)]
-    , _type :: Type
-    }
-
-
-pattern :: ModuleName.Canonical -> N.Name -> [N.Name] -> [(Int, T.Canonical, Can.Pattern)] -> IO Ctor
-pattern home tipe tvars args =
-  do  varPairs <- traverse (\var -> (,) var <$> nameToFlex var) tvars
-      let typePairs = map (second VarN) varPairs
-
-      targs <- traverse (patternHelp (Map.fromList typePairs)) args
-
-      return $
-        Ctor
-          { _vars = map snd varPairs
-          , _args = targs
-          , _type = AppN home tipe (map snd typePairs)
-          }
-
-
-patternHelp :: Map.Map N.Name Type -> (i, T.Canonical, p) -> IO (i, Type, p)
-patternHelp freeVarDict (index, srcType, arg) =
-  do  tipe <- fromSrcType freeVarDict srcType
-      return (index, tipe, arg)
 
 
 
