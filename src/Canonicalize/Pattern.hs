@@ -18,6 +18,7 @@ import qualified AST.Type as Type
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
 import qualified Data.Bag as Bag
+import qualified Data.Index as Index
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
@@ -40,7 +41,7 @@ type Result i =
 
 canonicalizeArgs :: Env.Env -> [Src.Pattern] -> Result () Can.Args
 canonicalizeArgs env patterns =
-  case zipWithM (canonicalizeArg env) patterns [ 0 .. length patterns ] of
+  case Index.indexedTraverse (canonicalizeArg env) patterns of
     Result.Result bag warnings (Result.Ok args) ->
       do  let toError name () () = Error.DuplicateArg name
           destructors <- Dups.detect toError (Bag.toList bag)
@@ -51,8 +52,8 @@ canonicalizeArgs env patterns =
       Result.Result () warnings (Result.Err err)
 
 
-canonicalizeArg :: Env.Env -> Src.Pattern -> Int -> Result Bag Can.Arg
-canonicalizeArg env pattern index =
+canonicalizeArg :: Env.Env -> Index.ZeroBased -> Src.Pattern -> Result Bag Can.Arg
+canonicalizeArg env index pattern =
   Can.Arg index <$> canonicalize env (Can.DRoot index) pattern
 
 
@@ -62,7 +63,7 @@ canonicalizeArg env pattern index =
 
 canonicalizeMatch :: Env.Env -> Src.Pattern -> Result () Can.Match
 canonicalizeMatch env pattern =
-  case canonicalize env (Can.DRoot 0) pattern of
+  case canonicalize env (Can.DRoot Index.first) pattern of
     Result.Result bag warnings (Result.Ok cpattern) ->
       do  let toError name () () = Error.DuplicateArg name
           destructors <- Dups.detect toError (Bag.toList bag)
@@ -107,7 +108,7 @@ canonicalizeBinding env def index =
         Define region index aname args body maybeType
 
     Valid.Destruct region pattern body ->
-      case canonicalize env (Can.DRoot 0) pattern of
+      case canonicalize env (Can.DRoot Index.first) pattern of
         Result.Result bag warnings (Result.Ok cpattern) ->
           do  let toError name () () = Error.DuplicateBindingName name
               destructors <- Result.untracked (Dups.detect toError (Bag.toList bag))
@@ -164,34 +165,45 @@ canonicalize env destructor (A.A region pattern) =
 
     Src.PTuple a b cs ->
       Can.PTuple
-        <$> canonicalize env (Can.DIndex 0 destructor) a
-        <*> canonicalize env (Can.DIndex 1 destructor) b
+        <$> canonicalize env (Can.DIndex Index.first destructor) a
+        <*> canonicalize env (Can.DIndex Index.second destructor) b
         <*> canonicalizeTuple region env destructor cs
 
     Src.PCtor nameRegion maybePrefix name patterns ->
       let
-        canArgs ptrn tipe index =
+        toCanonicalArg index ptrn tipe =
           (,,) index tipe <$> canonicalize env (Can.DIndex index destructor) ptrn
       in
       do  (Env.Pattern home tipe vars args) <- Env.findPattern nameRegion env maybePrefix name
-          Can.PCtor home tipe vars name
-            <$> sequenceA (zipWith3 canArgs patterns args [ 0 .. length patterns ])
+          verifiedList <- Index.indexedZipWithA toCanonicalArg patterns args
+          case verifiedList of
+            Index.LengthMatch cargs ->
+              Result.ok $ Can.PCtor home tipe vars name cargs
+
+            Index.LengthMismatch actualLength expectedLength ->
+              Result.throw region (error "TODO" actualLength expectedLength)
 
     Src.PList patterns ->
       Can.PList <$> canonicalizeList env destructor patterns
 
     Src.PCons first rest ->
       Can.PCons
-        <$> canonicalize env (Can.DIndex 0 destructor) first
-        <*> canonicalize env (Can.DIndex 1 destructor) rest
+        <$> canonicalize env (Can.DIndex Index.first destructor) first
+        <*> canonicalize env (Can.DIndex Index.second destructor) rest
 
     Src.PAlias ptrn (A.A reg name) ->
       do  cpattern <- canonicalize env destructor ptrn
           let info = Dups.info name reg () (A.A reg destructor)
           Result.accumulate (Bag.one info) (Can.PAlias cpattern name)
 
-    Src.PLiteral lit ->
-      Result.ok (Can.PLiteral lit)
+    Src.PChr chr ->
+      Result.ok (Can.PChr chr)
+
+    Src.PStr str ->
+      Result.ok (Can.PStr str)
+
+    Src.PInt int ->
+      Result.ok (Can.PInt int)
 
 
 canonicalizeTuple :: R.Region -> Env.Env -> Can.Destructor -> [Src.Pattern] -> Result Bag (Maybe Can.Pattern)
@@ -201,7 +213,7 @@ canonicalizeTuple tupleRegion env destructor extras =
       Result.ok Nothing
 
     [three] ->
-      Just <$> canonicalize env (Can.DIndex 2 destructor) three
+      Just <$> canonicalize env (Can.DIndex Index.third destructor) three
 
     _ : others ->
       let (A.A r1 _, A.A r2 _) = (head others, last others) in
@@ -216,5 +228,5 @@ canonicalizeList env destructor list =
 
     pattern : otherPatterns ->
       (:)
-        <$> canonicalize env (Can.DIndex 0 destructor) pattern
-        <*> canonicalizeList env (Can.DIndex 1 destructor) otherPatterns
+        <$> canonicalize env (Can.DIndex Index.first destructor) pattern
+        <*> canonicalizeList env (Can.DIndex Index.second destructor) otherPatterns
