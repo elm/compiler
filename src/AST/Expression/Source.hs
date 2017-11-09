@@ -21,7 +21,7 @@ import qualified Data.ByteString as B
 import Data.Text (Text)
 
 import qualified AST.Binop as Binop
-import qualified AST.Literal as Literal
+import qualified AST.Shader as Shader
 import qualified AST.Type as Type
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
@@ -36,7 +36,10 @@ type Expr = A.Located Expr_
 
 
 data Expr_
-  = Literal Literal.Literal
+  = Chr Text
+  | Str Text
+  | Int Int
+  | Float Double
   | Var (Maybe N.Name) N.Name
   | List [Expr]
   | Op N.Name
@@ -53,7 +56,7 @@ data Expr_
   | Record [(A.Located N.Name, Expr)]
   | Unit
   | Tuple Expr Expr [Expr]
-  | GLShader Text Text Literal.Shader
+  | Shader Text Text Shader.Shader
 
 
 
@@ -83,7 +86,9 @@ data Pattern_
   | PCtor R.Region (Maybe N.Name) N.Name [Pattern]
   | PList [Pattern]
   | PCons Pattern Pattern
-  | PLiteral Literal.Literal
+  | PChr Text
+  | PStr Text
+  | PInt Int
 
 
 

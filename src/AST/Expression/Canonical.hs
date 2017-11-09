@@ -33,9 +33,10 @@ import qualified Data.Map as Map
 import Data.Text (Text)
 
 import qualified AST.Binop as Binop
-import qualified AST.Literal as Literal
 import qualified AST.Module.Name as ModuleName
+import qualified AST.Shader as Shader
 import qualified AST.Type as Type
+import qualified Data.Index as Index
 import qualified Elm.Name as N
 import Elm.Name (Name)
 import qualified Reporting.Annotation as A
@@ -56,7 +57,10 @@ data Expr_
   | VarKernel Name Name
   | VarForeign ModuleName.Canonical Name
   | VarOperator Name ModuleName.Canonical Name
-  | Literal Literal.Literal
+  | Chr Text
+  | Str Text
+  | Int Int
+  | Float Double
   | List [Expr]
   | Negate Expr
   | Binop Name ModuleName.Canonical Name Expr Expr
@@ -67,14 +71,13 @@ data Expr_
   | LetRec [Def] Expr
   | LetDestruct Match Expr Expr
   | Case Expr [(Match, Expr)]
-  | CtorAccess Expr Int
   | Accessor Name
   | Access Expr Name
   | Update Expr (Map.Map Name Expr)
   | Record (Map.Map Name Expr)
   | Unit
   | Tuple Expr Expr (Maybe Expr)
-  | GLShader Name Name Literal.Shader
+  | Shader Name Name Shader.Shader
 
 
 
@@ -95,7 +98,7 @@ data Def =
 
 
 data Args = Args [Arg] Destructors
-data Arg = Arg Int Pattern
+data Arg = Arg Index.ZeroBased Pattern
 
 data Match = Match Pattern Destructors
 
@@ -111,22 +114,24 @@ data Pattern_
   | PTuple Pattern Pattern (Maybe Pattern)
   | PList [Pattern]
   | PCons Pattern Pattern
-  | PLiteral Literal.Literal
+  | PChr Text
+  | PStr Text
+  | PInt Int
   | PCtor
       { _p_home :: ModuleName.Canonical
       , _p_type :: N.Name
       , _p_vars :: [N.Name]
       , _p_name :: N.Name
-      , _p_args :: [(Int, Type.Canonical, Pattern)] -- zero indexed
+      , _p_args :: [(Index.ZeroBased, Type.Canonical, Pattern)]
       }
 
 
 type Destructors = Map.Map N.Name (A.Located Destructor)
 
 data Destructor
-  = DIndex Int Destructor
+  = DIndex Index.ZeroBased Destructor
   | DField N.Name Destructor
-  | DRoot Int
+  | DRoot Index.ZeroBased
 
 
 
