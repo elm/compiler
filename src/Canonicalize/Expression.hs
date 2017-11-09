@@ -47,8 +47,17 @@ canonicalize :: Env.Env -> Valid.Expr -> Result FreeLocals Can.Expr
 canonicalize env (A.A region expression) =
   A.A region <$>
   case expression of
-    Valid.Literal lit ->
-      Result.ok (Can.Literal lit)
+    Valid.Str string ->
+      Result.ok (Can.Str string)
+
+    Valid.Chr char ->
+      Result.ok (Can.Chr char)
+
+    Valid.Int int ->
+      Result.ok (Can.Int int)
+
+    Valid.Float float ->
+      Result.ok (Can.Float float)
 
     Valid.Var maybePrefix name ->
       Env.findVar region env maybePrefix name
@@ -118,8 +127,8 @@ canonicalize env (A.A region expression) =
         <*> canonicalize env b
         <*> canonicalizeTupleExtras region env cs
 
-    Valid.GLShader uid src tipe ->
-        Result.ok (Can.GLShader uid src tipe)
+    Valid.Shader uid src tipe ->
+        Result.ok (Can.Shader uid src tipe)
 
 
 
