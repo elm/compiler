@@ -2,9 +2,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 module AST.Module.Name
   ( Canonical(..)
-  , basics, maybe, list, array
+  , basics, char, string
+  , maybe, list, array
   , platform, cmd, sub
   , jsonDecode, jsonEncode
+  , webgl, vector2, vector3, vector4, matrix4
   , canonicalToText
   , isKernel, getKernel, canonicalIsKernel
   )
@@ -34,12 +36,26 @@ data Canonical =
 
 
 
--- HELPERS
+-- PRIMITIVES
 
 
 {-# NOINLINE basics #-}
 basics :: Canonical
 basics = Canonical Pkg.core "Basics"
+
+
+{-# NOINLINE char #-}
+char :: Canonical
+char = Canonical Pkg.core "Char"
+
+
+{-# NOINLINE string #-}
+string :: Canonical
+string = Canonical Pkg.core "String"
+
+
+
+-- CONTAINERS
 
 
 {-# NOINLINE maybe #-}
@@ -57,6 +73,10 @@ array :: Canonical
 array = Canonical Pkg.core "Array"
 
 
+
+-- EFFECTS
+
+
 {-# NOINLINE platform #-}
 platform :: Canonical
 platform = Canonical Pkg.core "Platform"
@@ -72,6 +92,10 @@ sub :: Canonical
 sub = Canonical Pkg.core "Platform.Sub"
 
 
+
+-- JSON
+
+
 {-# NOINLINE jsonDecode #-}
 jsonDecode :: Canonical
 jsonDecode = Canonical Pkg.core "Json.Decode"
@@ -80,6 +104,35 @@ jsonDecode = Canonical Pkg.core "Json.Decode"
 {-# NOINLINE jsonEncode #-}
 jsonEncode :: Canonical
 jsonEncode = Canonical Pkg.core "Json.Encode"
+
+
+
+-- WEBGL
+
+
+{-# NOINLINE webgl #-}
+webgl :: Canonical
+webgl = Canonical Pkg.webgl "WebGL"
+
+
+{-# NOINLINE vector2 #-}
+vector2 :: Canonical
+vector2 = Canonical Pkg.linearAlgebra "Math.Vector2"
+
+
+{-# NOINLINE vector3 #-}
+vector3 :: Canonical
+vector3 = Canonical Pkg.linearAlgebra "Math.Vector3"
+
+
+{-# NOINLINE vector4 #-}
+vector4 :: Canonical
+vector4 = Canonical Pkg.linearAlgebra "Math.Vector4"
+
+
+{-# NOINLINE matrix4 #-}
+matrix4 :: Canonical
+matrix4 = Canonical Pkg.linearAlgebra "Math.Matrix4"
 
 
 

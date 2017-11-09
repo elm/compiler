@@ -11,7 +11,9 @@ module Type.Type
   , Mark
   , noMark
   , nextMark
-  , (==>), float, char, string, bool
+  , (==>)
+  , int, float, char, string, bool
+  , vec2, vec3, vec4, mat4, texture
   , mkFlexVar
   , mkFlexNumber
   , unnamedFlexVar
@@ -21,6 +23,7 @@ module Type.Type
   , toSrcType
   )
   where
+
 
 import Control.Monad.State.Strict (StateT, liftIO)
 import qualified Control.Monad.State.Strict as State
@@ -139,7 +142,7 @@ nextMark (Mark mark) =
 
 
 
--- TYPE HELPERS
+-- FUNCTION TYPES
 
 
 infixr 9 ==>
@@ -151,28 +154,62 @@ infixr 9 ==>
   FunN
 
 
+
+-- PRIMITIVE TYPES
+
+
+{-# NOINLINE int #-}
+int :: Type
+int = AppN ModuleName.basics "Int" []
+
+
 {-# NOINLINE float #-}
 float :: Type
-float =
-  AppN ModuleName.basics "Float" []
+float = AppN ModuleName.basics "Float" []
 
 
 {-# NOINLINE char #-}
 char :: Type
-char =
-  AppN ModuleName.basics "Char" []
+char = AppN ModuleName.char "Char" []
 
 
 {-# NOINLINE string #-}
 string :: Type
-string =
-  AppN ModuleName.basics "String" []
+string = AppN ModuleName.string "String" []
 
 
 {-# NOINLINE bool #-}
 bool :: Type
-bool =
-  AppN ModuleName.basics "Bool" []
+bool = AppN ModuleName.basics "Bool" []
+
+
+
+-- WEBGL TYPES
+
+
+{-# NOINLINE vec2 #-}
+vec2 :: Type
+vec2 = AppN ModuleName.vector2 "Vec2" []
+
+
+{-# NOINLINE vec3 #-}
+vec3 :: Type
+vec3 = AppN ModuleName.vector3 "Vec3" []
+
+
+{-# NOINLINE vec4 #-}
+vec4 :: Type
+vec4 = AppN ModuleName.vector4 "Vec4" []
+
+
+{-# NOINLINE mat4 #-}
+mat4 :: Type
+mat4 = AppN ModuleName.matrix4 "Mat4" []
+
+
+{-# NOINLINE texture #-}
+texture :: Type
+texture = AppN ModuleName.webgl "Texture" []
 
 
 

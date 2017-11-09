@@ -6,6 +6,7 @@ module Elm.Name
   , int, float, bool, char, string
   , maybe, list, array
   , task, router, cmd, sub
+  , shader
   )
   where
 
@@ -86,3 +87,6 @@ sub :: Name
 sub = "Sub"
 
 
+{-# NOINLINE shader #-}
+shader :: Name
+shader = "Shader"
