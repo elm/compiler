@@ -12,9 +12,8 @@ import Control.Monad (forM_)
 import qualified Data.Map as Map
 import Data.Text (Text)
 
-import qualified AST.Expression.Source as Src
-import qualified AST.Expression.Valid as Valid
-import qualified AST.Type as Type
+import qualified AST.Source as Src
+import qualified AST.Valid as Valid
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as Error
@@ -137,7 +136,7 @@ getNameForDocs decl =
 -- VALIDATE ANNOTATION
 
 
-validateAnnotation :: R.Region -> N.Name -> Type.Raw -> [Src.Decl] -> Stuff -> Result w Stuff
+validateAnnotation :: R.Region -> N.Name -> Src.Type -> [Src.Decl] -> Stuff -> Result w Stuff
 validateAnnotation annRegion annotationName tipe decls stuff =
   case decls of
     [] ->
@@ -283,7 +282,7 @@ definitions sourceDefs =
           Result.throw annRegion (Error.TypeWithoutDefinition annotationName)
 
 
-validateDefinition :: R.Region -> A.Located Text -> [Src.Pattern] -> Src.Expr -> Maybe Type.Raw -> Result w Valid.Def
+validateDefinition :: R.Region -> A.Located Text -> [Src.Pattern] -> Src.Expr -> Maybe Src.Type -> Result w Valid.Def
 validateDefinition region name args expr maybeType =
   do  validExpr <- expression expr
       return $ Valid.Define region name args validExpr maybeType
