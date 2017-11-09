@@ -11,10 +11,9 @@ module Canonicalize.Pattern
 import Control.Monad (zipWithM)
 import qualified Data.Map.Strict as Map
 
-import qualified AST.Expression.Canonical as Can
-import qualified AST.Expression.Source as Src
-import qualified AST.Expression.Valid as Valid
-import qualified AST.Type as Type
+import qualified AST.Canonical as Can
+import qualified AST.Source as Src
+import qualified AST.Valid as Valid
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
 import qualified Data.Bag as Bag
@@ -79,7 +78,7 @@ canonicalizeMatch env pattern =
 
 
 data Binding
-  = Define R.Region Int (A.Located N.Name) [Src.Pattern] Valid.Expr (Maybe Type.Raw)
+  = Define R.Region Int (A.Located N.Name) [Src.Pattern] Valid.Expr (Maybe Src.Type)
   | Destruct R.Region Int Can.Match Valid.Expr
 
 

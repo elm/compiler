@@ -9,11 +9,10 @@ import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-import qualified AST.Expression.Canonical as Can
-import qualified AST.Expression.Source as Src
-import qualified AST.Expression.Valid as Valid
+import qualified AST.Canonical as Can
+import qualified AST.Source as Src
+import qualified AST.Valid as Valid
 import qualified AST.Module.Name as ModuleName
-import qualified AST.Type as Type
 import qualified Canonicalize.Effects as Effects
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
@@ -99,10 +98,10 @@ canonicalizeAlias env (Valid.Alias (A.A _ name) args tipe) =
       return (name, Can.Alias (map A.drop args) ctipe (toRecordCtorInfo tipe))
 
 
-toRecordCtorInfo :: Type.Raw -> Maybe [N.Name]
+toRecordCtorInfo :: Src.Type -> Maybe [N.Name]
 toRecordCtorInfo (A.A _ tipe) =
   case tipe of
-    Type.RRecord fields Nothing ->
+    Src.TRecord fields Nothing ->
       Just (map (A.drop . fst) fields)
 
     _ ->
@@ -183,8 +182,8 @@ toNode env (A.A region (Valid.Decl name@(A.A _ key) args body tipe)) =
 
 
 data Decl
-  = Value R.Region (A.Located N.Name) Can.Expr (Maybe Type.Canonical)
-  | Function N.Name Can.Args Can.Expr (Maybe Type.Canonical)
+  = Value R.Region (A.Located N.Name) Can.Expr (Maybe Can.Type)
+  | Function N.Name Can.Args Can.Expr (Maybe Can.Type)
 
 
 toCanDecl :: Decl -> Can.Decl

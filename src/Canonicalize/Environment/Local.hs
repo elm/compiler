@@ -13,9 +13,9 @@ import qualified Data.Graph as Graph
 import qualified Data.Map.Strict as Map
 import qualified Data.Map.Merge.Strict as Map
 
-import qualified AST.Expression.Canonical as Can
-import qualified AST.Expression.Valid as Valid
-import qualified AST.Type as Type
+import qualified AST.Canonical as Can
+import qualified AST.Source as Src
+import qualified AST.Valid as Valid
 import qualified Canonicalize.Environment.Dups as Dups
 import qualified Canonicalize.Environment.Internals as Env
 import qualified Canonicalize.Type as Type
@@ -180,7 +180,7 @@ collectUpperVars (Valid.Module _ _ _ _ _ _ unions aliases _ _) =
 
     aliasToInfos (Valid.Alias (A.A region name) _ (A.A _ tipe)) =
       case tipe of
-        Type.RRecord _ Nothing ->
+        Src.TRecord _ Nothing ->
           [ Dups.info name region Error.RecordCtor () ]
 
         _ ->
@@ -242,7 +242,7 @@ data Alias =
     { _region :: R.Region
     , _name :: N.Name
     , _args :: [N.Name]
-    , _type :: Type.Raw
+    , _type :: Src.Type
     }
 
 
@@ -290,30 +290,30 @@ toNode alias@(Alias _ name _ tipe) =
   ( alias, name, Bag.toList (getEdges tipe) )
 
 
-getEdges :: Type.Raw -> Bag.Bag N.Name
+getEdges :: Src.Type -> Bag.Bag N.Name
 getEdges (A.A _ tipe) =
   case tipe of
-    Type.RLambda arg result ->
+    Src.TLambda arg result ->
       Bag.append (getEdges arg) (getEdges result)
 
-    Type.RVar _ ->
+    Src.TVar _ ->
       Bag.empty
 
-    Type.RType _ Nothing name args ->
+    Src.TType _ Nothing name args ->
       foldr Bag.append (Bag.one name) (map getEdges args)
 
-    Type.RType _ (Just _) _ args ->
+    Src.TType _ (Just _) _ args ->
       foldr Bag.append Bag.empty (map getEdges args)
 
-    Type.RRecord fields ext ->
+    Src.TRecord fields ext ->
       foldr Bag.append
         (maybe Bag.empty getEdges ext)
         (map (getEdges . snd) fields)
 
-    Type.RUnit ->
+    Src.TUnit ->
       Bag.empty
 
-    Type.RTuple a b cs ->
+    Src.TTuple a b cs ->
       foldr Bag.append
         (getEdges a)
         (getEdges b : map getEdges cs)
@@ -371,23 +371,23 @@ checkAliasFreeVars (Valid.Alias (A.A aliasRegion name) args tipe) =
               (map toLoc (Map.toList (Map.difference freeVars boundVars)))
 
 
-addFreeVars :: Type.Raw -> Map.Map N.Name R.Region -> Map.Map N.Name R.Region
+addFreeVars :: Src.Type -> Map.Map N.Name R.Region -> Map.Map N.Name R.Region
 addFreeVars (A.A region tipe) freeVars =
   case tipe of
-    Type.RLambda arg result ->
+    Src.TLambda arg result ->
       addFreeVars arg (addFreeVars result freeVars)
 
-    Type.RVar name ->
+    Src.TVar name ->
       Map.insert name region freeVars
 
-    Type.RType _ _ _ args ->
+    Src.TType _ _ _ args ->
       foldr addFreeVars freeVars args
 
-    Type.RRecord fields ext ->
+    Src.TRecord fields ext ->
       foldr addFreeVars (maybe id addFreeVars ext freeVars) (map snd fields)
 
-    Type.RUnit ->
+    Src.TUnit ->
       freeVars
 
-    Type.RTuple a b cs ->
+    Src.TTuple a b cs ->
       foldr addFreeVars freeVars (a:b:cs)

@@ -22,10 +22,9 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Map.Merge.Strict as Map
 import qualified Data.Set as Set
 
-import qualified AST.Binop as Binop
-import qualified AST.Expression.Canonical as Can
+import qualified AST.Utils.Binop as Binop
+import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
-import qualified AST.Type as Type
 import qualified Data.Bag as Bag
 import qualified Data.OneOrMore as OneOrMore
 import qualified Elm.Name as N
@@ -79,7 +78,7 @@ data UnqualifiedVarHome
 
 
 data Type
-  = Alias Int ModuleName.Canonical [N.Name] Type.Canonical
+  = Alias Int ModuleName.Canonical [N.Name] Can.Type
   | Union Int ModuleName.Canonical
 
 
@@ -88,7 +87,7 @@ data Pattern =
     { _p_home :: ModuleName.Canonical
     , _p_type :: N.Name
     , _p_vars :: [N.Name]
-    , _p_args :: [Type.Canonical]
+    , _p_args :: [Can.Type]
     }
 
 

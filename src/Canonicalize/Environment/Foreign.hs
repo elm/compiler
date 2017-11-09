@@ -9,8 +9,8 @@ module Canonicalize.Environment.Foreign
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
-import qualified AST.Expression.Canonical as Can
-import qualified AST.Expression.Source as Src
+import qualified AST.Canonical as Can
+import qualified AST.Source as Src
 import qualified AST.Module.Name as ModuleName
 import qualified Canonicalize.Environment.Internals as Env
 import qualified Data.Bag as Bag

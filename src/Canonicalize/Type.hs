@@ -8,7 +8,8 @@ module Canonicalize.Type
 
 import qualified Data.Map as Map
 
-import qualified AST.Type as Type
+import qualified AST.Canonical as Can
+import qualified AST.Source as Src
 import qualified Canonicalize.Environment.Dups as Dups
 import qualified Canonicalize.Environment.Internals as Env
 import qualified Elm.Name as N
@@ -31,40 +32,40 @@ type Result i a =
 -- CANONICALIZE TYPES
 
 
-canonicalize :: Env.Env -> Type.Raw -> Result () Type.Canonical
+canonicalize :: Env.Env -> Src.Type -> Result () Can.Type
 canonicalize env (A.A typeRegion tipe) =
   case tipe of
-    Type.RVar x ->
-        Result.ok (Type.Var x)
+    Src.TVar x ->
+        Result.ok (Can.TVar x)
 
-    Type.RType region maybePrefix name args ->
+    Src.TType region maybePrefix name args ->
         do  info <- Env.findType region env maybePrefix name
             cargs <- traverse (canonicalize env) args
             case info of
               Env.Alias arity home argNames aliasedType ->
                 checkArgs Error.AliasArgs arity typeRegion name args $
-                  Type.Aliased home name (zip argNames cargs) (Type.Holey aliasedType)
+                  Can.TAlias home name (zip argNames cargs) (Can.Holey aliasedType)
 
               Env.Union arity home ->
                 checkArgs Error.UnionArgs arity typeRegion name args $
-                  Type.Type home name cargs
+                  Can.TType home name cargs
 
-    Type.RLambda a b ->
-        Type.Lambda
+    Src.TLambda a b ->
+        Can.TLambda
           <$> canonicalize env a
           <*> canonicalize env b
 
-    Type.RRecord fields ext ->
+    Src.TRecord fields ext ->
         do  fieldDict <- Dups.checkFields fields
-            Type.Record
+            Can.TRecord
               <$> Map.traverseWithKey (\_ t -> canonicalize env t) fieldDict
               <*> traverse (canonicalize env) ext
 
-    Type.RUnit ->
-        Result.ok Type.Unit
+    Src.TUnit ->
+        Result.ok Can.TUnit
 
-    Type.RTuple a b cs ->
-        Type.Tuple
+    Src.TTuple a b cs ->
+        Can.TTuple
           <$> canonicalize env a
           <*> canonicalize env b
           <*>

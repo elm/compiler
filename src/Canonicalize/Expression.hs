@@ -10,10 +10,10 @@ import qualified Data.Graph as Graph
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
-import qualified AST.Binop as Binop
-import qualified AST.Expression.Canonical as Can
-import qualified AST.Expression.Source as Src
-import qualified AST.Expression.Valid as Valid
+import qualified AST.Utils.Binop as Binop
+import qualified AST.Canonical as Can
+import qualified AST.Source as Src
+import qualified AST.Valid as Valid
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
 import qualified Canonicalize.Pattern as Pattern

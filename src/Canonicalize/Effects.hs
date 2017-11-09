@@ -11,10 +11,10 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
 
-import qualified AST.Expression.Canonical as Can
-import qualified AST.Expression.Valid as Valid
+import qualified AST.Canonical as Can
+import qualified AST.Valid as Valid
 import qualified AST.Module.Name as ModuleName
-import qualified AST.Type as Type
+import qualified AST.Utils.Type as Type
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Type as Type
 import qualified Elm.Name as N
@@ -80,7 +80,7 @@ canonicalizePort :: Env.Env -> Valid.Port -> Result (N.Name, Can.Port)
 canonicalizePort env (Valid.Port (A.A region portName) tipe) =
   do  ctipe <- Type.canonicalize env tipe
       case Type.deepDealias ctipe of
-        Type.Lambda outgoingType (Type.Type home name [Type.Var _])
+        Can.TLambda outgoingType (Can.TType home name [Can.TVar _])
           | home == ModuleName.cmd && name == "Cmd" ->
               case checkPayload outgoingType of
                 Left (badType, err) ->
@@ -89,7 +89,7 @@ canonicalizePort env (Valid.Port (A.A region portName) tipe) =
                 Right () ->
                   Result.ok (portName, Can.Outgoing ctipe)
 
-        Type.Lambda (Type.Lambda incomingType (Type.Var msg1)) (Type.Type home name [Type.Var msg2])
+        Can.TLambda (Can.TLambda incomingType (Can.TVar msg1)) (Can.TType home name [Can.TVar msg2])
           | home == ModuleName.sub && name == "Sub" && msg1 == msg2 ->
               case checkPayload incomingType of
                 Left (badType, err) ->
@@ -133,13 +133,13 @@ verifyManager tagRegion decls name =
 -- CHECK PAYLOAD TYPES
 
 
-checkPayload :: Type.Canonical -> Either (Type.Canonical, Error.InvalidPayload) ()
+checkPayload :: Can.Type -> Either (Can.Type, Error.InvalidPayload) ()
 checkPayload tipe =
   case tipe of
-    Type.Aliased _ _ args aliasedType ->
+    Can.TAlias _ _ args aliasedType ->
       checkPayload (Type.dealias args aliasedType)
 
-    Type.Type home name args ->
+    Can.TType home name args ->
       case args of
         []
           | isPrim home name -> Right ()
@@ -153,10 +153,10 @@ checkPayload tipe =
         _ ->
           Left (tipe, Error.UnsupportedType name)
 
-    Type.Unit ->
+    Can.TUnit ->
         Right ()
 
-    Type.Tuple a b maybeC ->
+    Can.TTuple a b maybeC ->
         do  checkPayload a
             checkPayload b
             case maybeC of
@@ -166,16 +166,16 @@ checkPayload tipe =
               Just c ->
                 checkPayload c
 
-    Type.Var name ->
+    Can.TVar name ->
         Left (tipe, Error.TypeVariable name)
 
-    Type.Lambda _ _ ->
+    Can.TLambda _ _ ->
         Left (tipe, Error.Function)
 
-    Type.Record _ (Just _) ->
+    Can.TRecord _ (Just _) ->
         Left (tipe, Error.ExtendedRecord)
 
-    Type.Record fields Nothing ->
+    Can.TRecord fields Nothing ->
         F.traverse_ checkPayload fields
 
 
