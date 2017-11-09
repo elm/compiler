@@ -4,7 +4,7 @@ module Parse.Type (expression, unionConstructor) where
 
 import Data.Text (Text)
 
-import qualified AST.Type as Type
+import qualified AST.Source as Src
 import Parse.Primitives (Parser, SParser, addLocation, checkSpace, getPosition, hint, spaces, oneOf)
 import qualified Parse.Primitives as P
 import qualified Parse.Primitives.Symbol as Symbol
@@ -20,7 +20,7 @@ import qualified Reporting.Region as R
 -- TYPE TERMS
 
 
-term :: Parser Type.Raw
+term :: Parser Src.Type
 term =
   hint E.Type $
     do  start <- getPosition
@@ -36,18 +36,18 @@ term =
 -- TYPE VARIABLES
 
 
-variable :: R.Position -> Parser Type.Raw
+variable :: R.Position -> Parser Src.Type
 variable start =
   do  var <- Var.lower
       end <- getPosition
-      return (A.at start end (Type.RVar var))
+      return (A.at start end (Src.TVar var))
 
 
 
 -- TYPE EXPRESSIONS
 
 
-expression :: SParser Type.Raw
+expression :: SParser Src.Type
 expression =
   hint E.Type $
   do  start <- getPosition
@@ -61,7 +61,7 @@ expression =
               Symbol.rightArrow
               spaces
               (tipe2, end2, pos2) <- expression
-              let tipe = A.at start end2 (Type.RLambda tipe1 tipe2)
+              let tipe = A.at start end2 (Src.TLambda tipe1 tipe2)
               return ( tipe, end2, pos2 )
         , return ( tipe1, end1, pos1 )
         ]
@@ -71,26 +71,26 @@ expression =
 -- TYPE CONSTRUCTORS
 
 
-app0 :: Parser Type.Raw
+app0 :: Parser Src.Type
 app0 =
   do  start <- getPosition
       (maybeQualifier, name) <- Var.foreignUpper
       end <- getPosition
       return $ A.at start end $
-        Type.RType (R.Region start end) maybeQualifier name []
+        Src.TType (R.Region start end) maybeQualifier name []
 
 
-app :: R.Position -> SParser Type.Raw
+app :: R.Position -> SParser Src.Type
 app start =
   do  (maybeQualifier, name) <- Var.foreignUpper
       nameEnd <- getPosition
       namePos <- whitespace
       (args, end, pos) <- eatArgs [] nameEnd namePos
-      let tipe = Type.RType (R.Region start nameEnd) maybeQualifier name args
+      let tipe = Src.TType (R.Region start nameEnd) maybeQualifier name args
       return ( A.at start end tipe, end, pos )
 
 
-unionConstructor :: SParser (A.Located Text, [Type.Raw])
+unionConstructor :: SParser (A.Located Text, [Src.Type])
 unionConstructor =
   do  start <- getPosition
       name <- Var.upper
@@ -100,7 +100,7 @@ unionConstructor =
       return ( (A.at start nameEnd name, args), end, pos )
 
 
-eatArgs :: [Type.Raw] -> R.Position -> SPos -> SParser [Type.Raw]
+eatArgs :: [Src.Type] -> R.Position -> SPos -> SParser [Src.Type]
 eatArgs args end pos =
   oneOf
     [ do  checkSpace pos
@@ -116,14 +116,14 @@ eatArgs args end pos =
 -- TUPLES
 
 
-tuple :: R.Position -> Parser Type.Raw
+tuple :: R.Position -> Parser Src.Type
 tuple start =
   do  Symbol.leftParen
       P.inContext start E.TypeTuple $
         oneOf
           [ do  Symbol.rightParen
                 end <- getPosition
-                return (A.at start end Type.RUnit)
+                return (A.at start end Src.TUnit)
           , do  spaces
                 (tipe, _, pos) <- expression
                 checkSpace pos
@@ -131,7 +131,7 @@ tuple start =
           ]
 
 
-tupleEnding :: R.Position -> Type.Raw -> [Type.Raw] -> Parser Type.Raw
+tupleEnding :: R.Position -> Src.Type -> [Src.Type] -> Parser Src.Type
 tupleEnding start firstType revTypes =
   oneOf
     [ do  Symbol.comma
@@ -147,7 +147,7 @@ tupleEnding start firstType revTypes =
 
             secondType : otherTypes ->
               return $ A.at start end $
-                Type.RTuple firstType secondType otherTypes
+                Src.TTuple firstType secondType otherTypes
     ]
 
 
@@ -155,7 +155,7 @@ tupleEnding start firstType revTypes =
 -- RECORD
 
 
-record :: R.Position -> Parser Type.Raw
+record :: R.Position -> Parser Src.Type
 record start =
   do  Symbol.leftCurly
       P.inContext start E.TypeRecord $
@@ -163,7 +163,7 @@ record start =
             oneOf
               [ do  Symbol.rightCurly
                     end <- getPosition
-                    return (A.at start end (Type.RRecord [] Nothing))
+                    return (A.at start end (Src.TRecord [] Nothing))
               , do  var <- addLocation Var.lower
                     spaces
                     oneOf
@@ -172,19 +172,19 @@ record start =
                             firstField <- field
                             fields <- chompFields [firstField]
                             end <- getPosition
-                            return (A.at start end (Type.RRecord fields (Just (A.map Type.RVar var))))
+                            return (A.at start end (Src.TRecord fields (Just (A.map Src.TVar var))))
                       , do  Symbol.hasType
                             spaces
                             (tipe, _, nextPos) <- expression
                             checkSpace nextPos
                             fields <- chompFields [(var, tipe)]
                             end <- getPosition
-                            return (A.at start end (Type.RRecord fields Nothing))
+                            return (A.at start end (Src.TRecord fields Nothing))
                       ]
               ]
 
 
-type Field = ( A.Located Text, Type.Raw )
+type Field = ( A.Located Text, Src.Type )
 
 
 chompFields :: [Field] -> Parser [Field]

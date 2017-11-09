@@ -14,8 +14,8 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Word (Word8)
 
-import qualified AST.Expression.Source as Src
-import qualified AST.Kernel as Kernel
+import qualified AST.Source as Src
+import qualified AST.Utils.Kernel as Kernel
 import qualified AST.Module.Name as ModuleName
 import qualified Elm.Name as N
 import Generate.JavaScript.Helpers as Help (toFieldName)

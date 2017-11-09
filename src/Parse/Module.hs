@@ -11,7 +11,7 @@ module Parse.Module
 import qualified Data.ByteString as B
 import Data.Text (Text)
 
-import qualified AST.Expression.Source as Src
+import qualified AST.Source as Src
 import qualified Elm.Name as N
 import Parse.Primitives (Parser, oneOf)
 import qualified Parse.Primitives as P

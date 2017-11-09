@@ -11,7 +11,7 @@ import qualified Data.ByteString.UTF8 as Utf8
 import qualified Data.Text as Text
 import Data.Text (Text)
 
-import qualified AST.Expression.Source as Src
+import qualified AST.Source as Src
 import Parse.Primitives
 import qualified Parse.Primitives.Keyword as Keyword
 import qualified Parse.Primitives.Symbol as Symbol

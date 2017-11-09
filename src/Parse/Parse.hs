@@ -7,8 +7,8 @@ module Parse.Parse
 
 import qualified Data.ByteString as B
 
-import qualified AST.Expression.Source as Src
-import qualified AST.Expression.Valid as Valid
+import qualified AST.Source as Src
+import qualified AST.Valid as Valid
 import qualified Parse.Declaration as Decl
 import qualified Parse.Module as Module
 import qualified Parse.Primitives as P

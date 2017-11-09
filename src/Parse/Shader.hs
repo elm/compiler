@@ -13,8 +13,8 @@ import qualified Language.GLSL.Syntax as GLS
 import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Error as Parsec
 
-import qualified AST.Expression.Source as Src
-import qualified AST.Shader as Shader
+import qualified AST.Source as Src
+import qualified AST.Utils.Shader as Shader
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 import Parse.Primitives (Parser, getPosition)

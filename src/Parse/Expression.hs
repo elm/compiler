@@ -8,7 +8,7 @@ module Parse.Expression
 
 import Control.Monad (guard)
 
-import qualified AST.Expression.Source as Src
+import qualified AST.Source as Src
 import qualified Elm.Name as N
 import Parse.Primitives
 import qualified Parse.Primitives.Keyword as Keyword

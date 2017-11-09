@@ -9,7 +9,7 @@ module Parse.Pattern
 
 import qualified Data.List as List
 
-import qualified AST.Expression.Source as Src
+import qualified AST.Source as Src
 import qualified Elm.Name as N
 import Parse.Primitives (Parser, SParser, SPos, addLocation, checkSpace, getPosition, hint, inContext, spaces, oneOf)
 import qualified Parse.Primitives.Keyword as Keyword

@@ -9,8 +9,7 @@ module Parse.Declaration
 import Data.Text (Text)
 import qualified Data.Text.Encoding as Text
 
-import qualified AST.Expression.Source as Src
-import qualified AST.Type as Type
+import qualified AST.Source as Src
 import qualified Parse.Expression as Expr
 import qualified Parse.Pattern as Pattern
 import Parse.Primitives
@@ -132,7 +131,7 @@ nameArgsEqualsHelp name args =
     ]
 
 
-chompConstructors :: [(A.Located Text, [Type.Raw])] -> R.Position -> SPos -> SParser [(A.Located Text, [Type.Raw])]
+chompConstructors :: [(A.Located Text, [Src.Type])] -> R.Position -> SPos -> SParser [(A.Located Text, [Src.Type])]
 chompConstructors ctors end pos =
   oneOf
     [ do  checkSpace pos
