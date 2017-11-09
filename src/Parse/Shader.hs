@@ -1,5 +1,9 @@
-{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
-module Parse.Literal (literal, shader) where
+{-# OPTIONS_GHC -Wall #-}
+module Parse.Shader
+  ( shader
+  )
+  where
+
 
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -10,26 +14,11 @@ import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Error as Parsec
 
 import qualified AST.Expression.Source as Src
-import qualified AST.Literal as L
+import qualified AST.Shader as Shader
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
-import Parse.Primitives (Parser, getPosition, oneOf)
-import qualified Parse.Primitives.Number as Number
+import Parse.Primitives (Parser, getPosition)
 import qualified Parse.Primitives.Shader as Shader
-import qualified Parse.Primitives.Utf8 as Utf8
-
-
-
--- LITERALS
-
-
-literal :: Parser L.Literal
-literal =
-  oneOf
-    [ L.Str <$> Utf8.string
-    , L.Chr <$> Utf8.character
-    , Number.number
-    ]
 
 
 
@@ -42,10 +31,10 @@ shader start@(R.Position row col) =
       shdr <- parseSource row col (Text.unpack src)
       end@(R.Position row2 col2) <- getPosition
       let uid = List.intercalate ":" (map show [row, col, row2, col2])
-      return (A.at start end (Src.GLShader (Text.pack uid) src shdr))
+      return (A.at start end (Src.Shader (Text.pack uid) src shdr))
 
 
-parseSource :: Int -> Int -> String -> Parser L.Shader
+parseSource :: Int -> Int -> String -> Parser Shader.Shader
 parseSource startRow startCol src =
   case GLP.parse src of
     Right (GLS.TranslationUnit decls) ->
@@ -71,27 +60,27 @@ parseSource startRow startCol src =
           Shader.failure (startRow + row - 1) col (Text.pack msg)
 
 
-emptyShader :: L.Shader
+emptyShader :: Shader.Shader
 emptyShader =
-  L.Shader Map.empty Map.empty Map.empty
+  Shader.Shader Map.empty Map.empty Map.empty
 
 
-addInput :: (GLS.StorageQualifier, L.GLType, Text.Text) -> L.Shader -> L.Shader
+addInput :: (GLS.StorageQualifier, Shader.Type, Text.Text) -> Shader.Shader -> Shader.Shader
 addInput ( qual, tipe, name ) glDecls =
   case qual of
     GLS.Attribute ->
-      glDecls { L.attribute = Map.insert name tipe (L.attribute glDecls) }
+      glDecls { Shader._attribute = Map.insert name tipe (Shader._attribute glDecls) }
 
     GLS.Uniform ->
-      glDecls { L.uniform = Map.insert name tipe (L.uniform glDecls) }
+      glDecls { Shader._uniform = Map.insert name tipe (Shader._uniform glDecls) }
 
     GLS.Varying ->
-      glDecls { L.varying = Map.insert name tipe (L.varying glDecls) }
+      glDecls { Shader._varying = Map.insert name tipe (Shader._varying glDecls) }
 
     _ -> error "Should never happen due to below filter"
 
 
-extractInputs :: GLS.ExternalDeclaration -> [(GLS.StorageQualifier, L.GLType, Text.Text)]
+extractInputs :: GLS.ExternalDeclaration -> [(GLS.StorageQualifier, Shader.Type, Text.Text)]
 extractInputs decl =
   case decl of
     GLS.Declaration
@@ -106,12 +95,12 @@ extractInputs decl =
           False -> []
           True ->
               case tipe of
-                GLS.Vec2 -> [(qual, L.V2, Text.pack name)]
-                GLS.Vec3 -> [(qual, L.V3, Text.pack name)]
-                GLS.Vec4 -> [(qual, L.V4, Text.pack name)]
-                GLS.Mat4 -> [(qual, L.M4, Text.pack name)]
-                GLS.Int -> [(qual, L.Int, Text.pack name)]
-                GLS.Float -> [(qual, L.Float, Text.pack name)]
-                GLS.Sampler2D -> [(qual, L.Texture, Text.pack name)]
+                GLS.Vec2 -> [(qual, Shader.V2, Text.pack name)]
+                GLS.Vec3 -> [(qual, Shader.V3, Text.pack name)]
+                GLS.Vec4 -> [(qual, Shader.V4, Text.pack name)]
+                GLS.Mat4 -> [(qual, Shader.M4, Text.pack name)]
+                GLS.Int -> [(qual, Shader.Int, Text.pack name)]
+                GLS.Float -> [(qual, Shader.Float, Text.pack name)]
+                GLS.Sampler2D -> [(qual, Shader.Texture, Text.pack name)]
                 _ -> []
     _ -> []

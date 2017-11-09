@@ -11,10 +11,11 @@ import qualified Data.List as List
 
 import qualified AST.Expression.Source as Src
 import qualified Elm.Name as N
-import qualified Parse.Literal as Literal
 import Parse.Primitives (Parser, SParser, SPos, addLocation, checkSpace, getPosition, hint, inContext, spaces, oneOf)
 import qualified Parse.Primitives.Keyword as Keyword
+import qualified Parse.Primitives.Number as Number
 import qualified Parse.Primitives.Symbol as Symbol
+import qualified Parse.Primitives.Utf8 as Utf8
 import qualified Parse.Primitives.Variable as Var
 import Parse.Primitives.Whitespace (whitespace)
 import qualified Reporting.Annotation as A
@@ -55,9 +56,22 @@ termHelp start =
           let ctor = Src.PCtor (R.Region start end) maybePrefix name []
           return (A.at start end ctor)
     ,
-      do  lit <- Literal.literal
+      do  number <- Number.number
           end <- getPosition
-          return (A.at start end (Src.PLiteral lit))
+          case number of
+            Number.Int int ->
+              return (A.at start end (Src.PInt int))
+
+            Number.Float _ ->
+              error "TODO floats are not allowed in pattern matches"
+    ,
+      do  str <- Utf8.string
+          end <- getPosition
+          return (A.at start end (Src.PStr str))
+    ,
+      do  chr <- Utf8.character
+          end <- getPosition
+          return (A.at start end (Src.PChr chr))
     ]
 
 

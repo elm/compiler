@@ -12,11 +12,13 @@ import qualified AST.Expression.Source as Src
 import qualified Elm.Name as N
 import Parse.Primitives
 import qualified Parse.Primitives.Keyword as Keyword
+import qualified Parse.Primitives.Number as Number
 import qualified Parse.Primitives.Symbol as Symbol
+import qualified Parse.Primitives.Utf8 as Utf8
 import qualified Parse.Primitives.Variable as Var
 import qualified Parse.Primitives.Whitespace as W
-import qualified Parse.Literal as Literal
 import qualified Parse.Pattern as Pattern
+import qualified Parse.Shader as Shader
 import qualified Parse.Type as Type
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as E
@@ -33,20 +35,42 @@ term =
   do  start <- getPosition
       oneOf
         [ variable start >>= accessible start
-        , literal start
-        , Literal.shader start
+        , string start
+        , number start
+        , Shader.shader start
         , list start
         , record start >>= accessible start
         , tuple start >>= accessible start
         , accessor start
+        , character start
         ]
 
 
-literal :: R.Position -> Parser Src.Expr
-literal start =
-  do  value <- Literal.literal
+string :: R.Position -> Parser Src.Expr
+string start =
+  do  str <- Utf8.string
       end <- getPosition
-      return (A.at start end (Src.Literal value))
+      return (A.at start end (Src.Str str))
+
+
+character :: R.Position -> Parser Src.Expr
+character start =
+  do  chr <- Utf8.character
+      end <- getPosition
+      return (A.at start end (Src.Chr chr))
+
+
+number :: R.Position -> Parser Src.Expr
+number start =
+  do  nmbr <- Number.number
+      end <- getPosition
+      return $ A.at start end $
+        case nmbr of
+          Number.Int int ->
+            Src.Int int
+
+          Number.Float float ->
+            Src.Float float
 
 
 accessor :: R.Position -> Parser Src.Expr

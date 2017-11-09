@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE BangPatterns, UnboxedTuples #-}
 module Parse.Primitives.Number
-  ( number
+  ( Number(..)
+  , number
   , chompHex
   )
   where
@@ -13,7 +14,6 @@ import qualified Data.ByteString.Internal as B
 import Foreign.ForeignPtr (ForeignPtr)
 import GHC.Word (Word8)
 
-import qualified AST.Literal as L
 import Parse.Primitives.Internals (Parser(..), State(..), noError)
 import qualified Parse.Primitives.Internals as I
 import qualified Parse.Primitives.Variable as Var
@@ -39,7 +39,12 @@ isDecimalDigit word =
 -- NUMBERS
 
 
-number :: Parser L.Literal
+data Number
+  = Int Int
+  | Float Double
+
+
+number :: Parser Number
 number =
   Parser $ \(State fp offset terminal indent row col ctx) cok cerr _ eerr ->
     if offset >= terminal then
@@ -64,7 +69,7 @@ number =
 
             OkInt newOffset n ->
               let
-                !integer = L.IntNum n
+                !integer = Int n
                 !newState = State fp newOffset terminal indent row (col + (newOffset - offset)) ctx
               in
               cok integer newState noError
@@ -72,7 +77,7 @@ number =
             OkFloat newOffset ->
               let
                 !length = newOffset - offset
-                !float = L.FloatNum $ read $ Char8.unpack $ B.PS fp offset length
+                !float = Float $ read $ Char8.unpack $ B.PS fp offset length
                 !newState = State fp newOffset terminal indent row (col + length) ctx
               in
               cok float newState noError
