@@ -189,8 +189,17 @@ expression (A.A region sourceExpression) =
           <$> expression expr
           <*> traverse (traverse expression) branches
 
-    Src.Literal lit ->
-        pure (Valid.Literal lit)
+    Src.Str str ->
+        pure (Valid.Str str)
+
+    Src.Chr chr ->
+        pure (Valid.Chr chr)
+
+    Src.Int int ->
+        pure (Valid.Int int)
+
+    Src.Float float ->
+        pure (Valid.Float float)
 
     Src.List exprs ->
         Valid.List <$> traverse expression exprs
@@ -233,8 +242,8 @@ expression (A.A region sourceExpression) =
           <$> definitions defs
           <*> expression body
 
-    Src.GLShader uid src gltipe ->
-        pure (Valid.GLShader uid src gltipe)
+    Src.Shader uid src gltipe ->
+        pure (Valid.Shader uid src gltipe)
 
 
 both :: (Src.Expr, Src.Expr) -> Result w (Valid.Expr, Valid.Expr)
