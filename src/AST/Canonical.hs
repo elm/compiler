@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module AST.Expression.Canonical
+module AST.Canonical
   ( Expr, Expr_(..)
   , Def(..)
   -- patterns
@@ -10,6 +10,9 @@ module AST.Expression.Canonical
   , PatternCtorArg(..)
   , Destructors
   , Destructor(..)
+  -- types
+  , Type(..)
+  , AliasType(..)
   -- decls
   , Decls(..)
   , Decl(..)
@@ -27,16 +30,15 @@ module AST.Expression.Canonical
   where
 
 
-import Control.Monad (liftM2, liftM3)
+import Control.Monad (liftM, liftM2, liftM3, liftM4, replicateM)
 import Data.Binary
 import qualified Data.ByteString as B
 import qualified Data.Map as Map
 import Data.Text (Text)
 
-import qualified AST.Binop as Binop
+import qualified AST.Utils.Binop as Binop
 import qualified AST.Module.Name as ModuleName
-import qualified AST.Shader as Shader
-import qualified AST.Type as Type
+import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
 import qualified Elm.Name as N
 import Elm.Name (Name)
@@ -90,7 +92,7 @@ data Def =
     { _def_name :: A.Located N.Name
     , _def_args :: Args
     , _def_body :: Expr
-    , _def_type :: Maybe Type.Canonical
+    , _def_type :: Maybe Type
     }
 
 
@@ -130,7 +132,7 @@ data Pattern_
 data PatternCtorArg =
   PatternCtorArg
     { _index :: Index.ZeroBased
-    , _type :: Type.Canonical
+    , _type :: Type
     , _arg :: Pattern
     }
 
@@ -144,6 +146,25 @@ data Destructor
 
 
 
+-- TYPES
+
+
+data Type
+  = TLambda Type Type
+  | TVar Name
+  | TType ModuleName.Canonical Name [Type]
+  | TRecord (Map.Map Name Type) (Maybe Type)
+  | TUnit
+  | TTuple Type Type (Maybe Type)
+  | TAlias ModuleName.Canonical Name [(Name, Type)] AliasType
+
+
+data AliasType
+  = Holey Type
+  | Filled Type
+
+
+
 -- DECLARATIONS
 
 
@@ -154,8 +175,8 @@ data Decls
 
 
 data Decl
-  = Value N.Name Expr (Maybe Type.Canonical)
-  | Function N.Name Args Expr (Maybe Type.Canonical)
+  = Value N.Name Expr (Maybe Type)
+  | Function N.Name Args Expr (Maybe Type)
 
 
 
@@ -175,8 +196,8 @@ data Module =
     }
 
 
-data Alias = Alias [N.Name] Type.Canonical (Maybe [N.Name])
-data Union = Union [N.Name] [(N.Name, [Type.Canonical])]
+data Alias = Alias [N.Name] Type (Maybe [N.Name])
+data Union = Union [N.Name] [(N.Name, [Type])]
 data Binop = Binop_ Binop.Associativity Binop.Precedence N.Name
 
 
@@ -220,8 +241,8 @@ data Effects
 
 
 data Port
-  = Incoming Type.Canonical
-  | Outgoing Type.Canonical
+  = Incoming Type
+  | Outgoing Type
 
 
 data Manager
@@ -247,3 +268,49 @@ instance Binary Union where
 instance Binary Binop where
   get = liftM3 Binop_ get get get
   put (Binop_ a b c) = put a >> put b >> put c
+
+
+instance Binary Type where
+  put tipe =
+    case tipe of
+      TLambda a b        -> putWord8 0 >> put a >> put b
+      TVar a             -> putWord8 1 >> put a
+      TRecord a b        -> putWord8 2 >> put a >> put b
+      TUnit              -> putWord8 3
+      TTuple a b c       -> putWord8 4 >> put a >> put b >> put c
+      TAlias a b c d     -> putWord8 5 >> put a >> put b >> put c >> put d
+      TType home name ts ->
+        let potentialWord = length ts + 7 in
+        if potentialWord <= fromIntegral (maxBound :: Word8) then
+          do  putWord8 (fromIntegral potentialWord)
+              put home
+              put name
+              mapM_ put ts
+        else
+          putWord8 6 >> put home >> put name >> put ts
+
+  get =
+    do  word <- getWord8
+        case word of
+          0 -> liftM2 TLambda get get
+          1 -> liftM  TVar get
+          2 -> liftM2 TRecord get get
+          3 -> return TUnit
+          4 -> liftM3 TTuple get get get
+          5 -> liftM4 TAlias get get get get
+          6 -> liftM3 TType get get get
+          n -> liftM3 TType get get (replicateM (fromIntegral (n - 7)) get)
+
+
+instance Binary AliasType where
+  put aliasType =
+    case aliasType of
+      Holey tipe  -> putWord8 0 >> put tipe
+      Filled tipe -> putWord8 1 >> put tipe
+
+  get =
+    do  n <- getWord8
+        case n of
+          0 -> liftM Holey get
+          1 -> liftM Filled get
+          _ -> error "Error reading a valid type from serialized string"

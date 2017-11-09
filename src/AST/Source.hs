@@ -1,10 +1,11 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module AST.Expression.Source
+module AST.Source
   ( Expr, Expr_(..)
   , Decl, Decl_(..)
   , Def(..)
   , Pattern, Pattern_(..)
+  , Type, Type_(..)
   , Module(..)
   , Import(..)
   , Effects(..)
@@ -20,9 +21,8 @@ module AST.Expression.Source
 import qualified Data.ByteString as B
 import Data.Text (Text)
 
-import qualified AST.Binop as Binop
-import qualified AST.Shader as Shader
-import qualified AST.Type as Type
+import qualified AST.Utils.Binop as Binop
+import qualified AST.Utils.Shader as Shader
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
@@ -64,7 +64,7 @@ data Expr_
 
 
 data Def
-  = Annotate N.Name Type.Raw
+  = Annotate N.Name Type
   | Define (A.Located N.Name) [Pattern] Expr
   | Destruct Pattern Expr
 
@@ -92,6 +92,23 @@ data Pattern_
 
 
 
+-- TYPE
+
+
+type Type =
+    A.Located Type_
+
+
+data Type_
+  = TLambda Type Type
+  | TVar N.Name
+  | TType R.Region (Maybe N.Name) N.Name [Type]
+  | TRecord [(A.Located N.Name, Type)] (Maybe Type)
+  | TUnit
+  | TTuple Type Type [Type]
+
+
+
 -- DECLARATIONS
 
 
@@ -99,12 +116,12 @@ type Decl = A.Located Decl_
 
 
 data Decl_
-  = Union (A.Located N.Name) [A.Located N.Name] [(A.Located N.Name, [Type.Raw])]
-  | Alias (A.Located N.Name) [A.Located N.Name] Type.Raw
+  = Union (A.Located N.Name) [A.Located N.Name] [(A.Located N.Name, [Type])]
+  | Alias (A.Located N.Name) [A.Located N.Name] Type
   | Binop (A.Located N.Name) Binop.Associativity Binop.Precedence N.Name
-  | Port (A.Located N.Name) Type.Raw
+  | Port (A.Located N.Name) Type
   | Docs Text
-  | Annotation (A.Located N.Name) Type.Raw
+  | Annotation (A.Located N.Name) Type
   | Definition (A.Located N.Name) [Pattern] Expr
 
 

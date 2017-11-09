@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module AST.Expression.Valid
+module AST.Valid
   ( Expr, Expr_(..)
   , Def(..)
   , Module(..)
@@ -18,10 +18,9 @@ import qualified Data.ByteString as B
 import qualified Data.Map as Map
 import Data.Text (Text)
 
-import qualified AST.Binop as Binop
-import qualified AST.Expression.Source as Src
-import qualified AST.Shader as Shader
-import qualified AST.Type as Type
+import qualified AST.Utils.Binop as Binop
+import qualified AST.Source as Src
+import qualified AST.Utils.Shader as Shader
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
@@ -63,7 +62,7 @@ data Expr_
 
 
 data Def
-    = Define R.Region (A.Located N.Name) [Src.Pattern] Expr (Maybe Type.Raw)
+    = Define R.Region (A.Located N.Name) [Src.Pattern] Expr (Maybe Src.Type)
     | Destruct R.Region Src.Pattern Expr
 
 
@@ -86,9 +85,9 @@ data Module =
     }
 
 
-data Decl = Decl (A.Located N.Name) [Src.Pattern] Expr (Maybe Type.Raw)
-data Union = Union (A.Located N.Name) [A.Located N.Name] [(A.Located N.Name, [Type.Raw])]
-data Alias = Alias (A.Located N.Name) [A.Located N.Name] Type.Raw
+data Decl = Decl (A.Located N.Name) [Src.Pattern] Expr (Maybe Src.Type)
+data Union = Union (A.Located N.Name) [A.Located N.Name] [(A.Located N.Name, [Src.Type])]
+data Alias = Alias (A.Located N.Name) [A.Located N.Name] Src.Type
 data Binop = Binop (A.Located N.Name) Binop.Associativity Binop.Precedence N.Name
 
 
@@ -104,4 +103,4 @@ data Manager
   | Fx (A.Located N.Name) (A.Located N.Name)
 
 
-data Port = Port (A.Located N.Name) Type.Raw
+data Port = Port (A.Located N.Name) Src.Type

@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module AST.Kernel
+module AST.Utils.Kernel
   ( Data(..)
   , Content(..)
   , Chunk(..)

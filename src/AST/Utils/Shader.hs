@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module AST.Shader
+module AST.Utils.Shader
   ( Shader(..)
   , Type(..)
   )
