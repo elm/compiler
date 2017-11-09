@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Canonicalize.Environment.Local
-  ( addVarsTypesOps
+  ( addVarsAndTypes
   , addPatterns
   )
   where
@@ -20,7 +20,6 @@ import qualified Canonicalize.Environment.Dups as Dups
 import qualified Canonicalize.Environment.Internals as Env
 import qualified Canonicalize.Type as Type
 import qualified Data.Bag as Bag
-import qualified Data.OneOrMore as OneOrMore
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
@@ -47,9 +46,9 @@ type Result a =
 -- This code checks for (1) duplicate names and (2) cycles in type aliases.
 
 
-addVarsTypesOps :: Valid.Module -> Env.Env -> Result Env.Env
-addVarsTypesOps module_ env =
-  addVars module_ =<< addTypes module_ =<< addBinops module_ env
+addVarsAndTypes :: Valid.Module -> Env.Env -> Result Env.Env
+addVarsAndTypes module_ env =
+  addVars module_ =<< addTypes module_ env
 
 
 merge
@@ -103,24 +102,6 @@ addPatterns unions (Env.Env home vars types patterns binops) =
       Env.Homes (Bag.one localPattern) qualified
   in
   Env.Env home vars types newPatterns binops
-
-
-
--- ADD BINOPS
-
-
-addBinops :: Valid.Module -> Env.Env -> Result Env.Env
-addBinops (Valid.Module _ _ _ _ _ _ _ _ ops _) (Env.Env home vars types patterns binops) =
-  let
-    toInfo (Valid.Binop (A.A region op) assoc prec name) =
-      Dups.info op region () (OneOrMore.one (Env.Binop op home name assoc prec))
-
-    toError op () () =
-      Error.DuplicateBinop op
-  in
-  do  opDict <- Dups.detect toError $ map toInfo ops
-      let newBinops = Map.unionWith OneOrMore.more opDict binops
-      return $ Env.Env home vars types patterns newBinops
 
 
 

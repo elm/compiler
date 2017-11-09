@@ -53,7 +53,7 @@ canonicalize
 canonicalize pkg importDict interfaces module_@(Valid.Module name _ _ exports imports decls unions aliases binops effects) =
   do  let home = ModuleName.Canonical pkg name
 
-      startEnv <- Local.addVarsTypesOps module_ =<<
+      startEnv <- Local.addVarsAndTypes module_ =<<
         Foreign.createInitialEnv home importDict interfaces imports
 
       (cunions, caliases) <-
