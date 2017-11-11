@@ -39,7 +39,7 @@ type Result a =
 
 data Env =
   Env
-    { _vars :: Map.Map N.Name (Env.Homes ModuleName.Canonical)
+    { _vars :: Map.Map N.Name (Env.Homes Env.ForeignVarHome)
     , _types :: Map.Map N.Name (Env.Homes Env.Type)
     , _patterns :: Map.Map N.Name (Env.Homes Env.Pattern)
     , _binops :: Map.Map N.Name (OneOrMore.OneOrMore Env.Binop)
@@ -96,7 +96,7 @@ importToEnv (Import home (I.Interface types unions aliases binops) prefix exposi
   case exposing of
     Open ->
       Env
-        (Map.map (toOpenHomes home prefix const) types)
+        (Map.map (toOpenHomes home prefix toVarInfo) types)
         (Map.unionWith mergeHomes
           (Map.map (toOpenHomes home prefix toUnionInfo) unions)
           (Map.map (toOpenHomes home prefix toAliasInfo) aliases)
@@ -106,7 +106,7 @@ importToEnv (Import home (I.Interface types unions aliases binops) prefix exposi
 
     Explicit explicits ->
       Env
-        (Map.mapWithKey (toExplicitHomes home prefix explicits const toValueBag) types)
+        (Map.mapWithKey (toExplicitHomes home prefix explicits toVarInfo toVarBag) types)
         (Map.unionWith mergeHomes
           (Map.mapWithKey (toExplicitHomes home prefix explicits toUnionInfo toUnionBag) unions)
           (Map.mapWithKey (toExplicitHomes home prefix explicits toAliasInfo toAliasBag) aliases)
@@ -118,9 +118,9 @@ importToEnv (Import home (I.Interface types unions aliases binops) prefix exposi
 toOpenHomes
   :: ModuleName.Canonical
   -> N.Name
-  -> (ModuleName.Canonical -> a -> b)
-  -> a
-  -> Env.Homes b
+  -> (ModuleName.Canonical -> value -> info)
+  -> value
+  -> Env.Homes info
 toOpenHomes home prefix toInfo value =
   let info = toInfo home value in
   Env.Homes
@@ -132,11 +132,11 @@ toExplicitHomes
   :: ModuleName.Canonical
   -> N.Name
   -> Map.Map N.Name Exposed
-  -> (ModuleName.Canonical -> a -> b)
-  -> (b -> Maybe Exposed -> Bag.Bag b)
+  -> (ModuleName.Canonical -> value -> info)
+  -> (info -> Maybe Exposed -> Bag.Bag info)
   -> N.Name
-  -> a
-  -> Env.Homes b
+  -> value
+  -> Env.Homes info
 toExplicitHomes home prefix explicits toInfo toBag name value =
   let info = toInfo home value in
   Env.Homes
@@ -144,13 +144,19 @@ toExplicitHomes home prefix explicits toInfo toBag name value =
     (Map.singleton prefix (OneOrMore.one info))
 
 
-toBinopHomes :: ModuleName.Canonical -> N.Name -> Can.Binop -> OneOrMore.OneOrMore Env.Binop
-toBinopHomes home op (Can.Binop_ associativity precedence name) =
-  OneOrMore.one (Env.Binop op home name associativity precedence)
+toBinopHomes :: ModuleName.Canonical -> N.Name -> I.Op -> OneOrMore.OneOrMore Env.Binop
+toBinopHomes home op (I.Op name annotation associativity precedence) =
+  OneOrMore.one (Env.Binop op home name annotation associativity precedence)
 
 
 
 -- TO INFO
+
+
+{-# INLINE toVarInfo #-}
+toVarInfo :: ModuleName.Canonical -> Can.Annotation -> Env.ForeignVarHome
+toVarInfo =
+  Env.ForeignVarHome
 
 
 toUnionInfo :: ModuleName.Canonical -> Can.Union -> Env.Type
@@ -181,8 +187,8 @@ toPatterns home (tipe, Can.Union vars ctors) =
 -- TO BAG
 
 
-toValueBag :: a -> Maybe Exposed -> Bag.Bag a
-toValueBag info maybeExposed =
+toVarBag :: a -> Maybe Exposed -> Bag.Bag a
+toVarBag info maybeExposed =
   case maybeExposed of
     Nothing ->
       Bag.empty

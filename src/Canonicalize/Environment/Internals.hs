@@ -5,6 +5,7 @@ module Canonicalize.Environment.Internals
   , Env(..)
   , VarHomes(..)
   , UnqualifiedVarHome(..)
+  , ForeignVarHome(..)
   , Type(..)
   , Pattern(..)
   , Homes(..)
@@ -64,22 +65,38 @@ data Homes a =
     }
 
 
+
+-- VARIABLES
+
+
 data VarHomes =
   VarHomes
     { _var_unqualified :: UnqualifiedVarHome
-    , _var_qualified :: Map.Map N.Name (OneOrMore.OneOrMore ModuleName.Canonical)
+    , _var_qualified :: Map.Map N.Name (OneOrMore.OneOrMore ForeignVarHome)
     }
 
 
 data UnqualifiedVarHome
   = Local
   | TopLevel
-  | Foreign (Bag.Bag ModuleName.Canonical)
+  | Foreign (Bag.Bag ForeignVarHome)
+
+
+data ForeignVarHome =
+  ForeignVarHome ModuleName.Canonical Can.Annotation
+
+
+
+-- TYPES
 
 
 data Type
   = Alias Int ModuleName.Canonical [N.Name] Can.Type
   | Union Int ModuleName.Canonical
+
+
+
+-- PATTERNs
 
 
 data Pattern =
@@ -91,11 +108,16 @@ data Pattern =
     }
 
 
+
+-- BINOPS
+
+
 data Binop =
   Binop
-    { _op_name :: N.Name
+    { _op :: N.Name
     , _op_home :: ModuleName.Canonical
-    , _op_func :: N.Name
+    , _op_name :: N.Name
+    , _op_annotation :: Can.Annotation
     , _op_associativity :: Binop.Associativity
     , _op_precedence :: Binop.Precedence
     }
@@ -141,7 +163,7 @@ addLocalBoth name (A.A region _) (VarHomes unqualified qualified) =
 
 
 findVar :: R.Region -> Env -> Maybe N.Name -> N.Name -> Result (Set.Set N.Name) Can.Expr_
-findVar region (Env home vars _ _ _) maybePrefix name =
+findVar region (Env localHome vars _ _ _) maybePrefix name =
   case Map.lookup name vars of
     Nothing ->
       Result.throw region (error "TODO no name")
@@ -154,12 +176,12 @@ findVar region (Env home vars _ _ _) maybePrefix name =
               Result.accumulate (Set.singleton name) (Can.VarLocal name)
 
             TopLevel ->
-              Result.accumulate (Set.singleton name) (Can.VarTopLevel home name)
+              Result.accumulate (Set.singleton name) (Can.VarTopLevel localHome name)
 
             Foreign bag ->
               case bag of
-                Bag.One foreignHome ->
-                  Result.ok (Can.VarForeign foreignHome name)
+                Bag.One (ForeignVarHome home annotation) ->
+                  Result.ok (Can.VarForeign home name annotation)
 
                 Bag.Empty ->
                   Result.throw region (error "TODO no unqualified")
@@ -172,8 +194,8 @@ findVar region (Env home vars _ _ _) maybePrefix name =
             Nothing ->
               Result.throw region (error "TODO no qualified")
 
-            Just (OneOrMore.One foreignHome) ->
-              Result.ok (Can.VarForeign foreignHome name)
+            Just (OneOrMore.One (ForeignVarHome home annotation)) ->
+              Result.ok (Can.VarForeign home name annotation)
 
             Just _ ->
               Result.throw region (error "TODO ambiguous qualified")

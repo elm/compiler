@@ -167,23 +167,31 @@ toNode :: Env.Env -> A.Located Valid.Decl -> Result (Decl, N.Name, [N.Name])
 toNode env (A.A region (Valid.Decl name@(A.A _ key) args body tipe)) =
   case args of
     [] ->
-      do  ctipe <- traverse (Type.canonicalize env) tipe
+      do  annotation <- traverse (Type.toAnnotation env) tipe
           (cbody, freeLocals) <- Expr.removeLocals Warning.Pattern Map.empty $
             Expr.canonicalize env body
-          return (Value region name cbody ctipe, key, Set.toList freeLocals)
+          return
+            ( Value region name cbody annotation
+            , key
+            , Set.toList freeLocals
+            )
 
     _ ->
-      do  ctipe <- traverse (Type.canonicalize env) tipe
+      do  annotation <- traverse (Type.toAnnotation env) tipe
           cargs@(Can.Args _ destructors) <- Pattern.canonicalizeArgs env args
           newEnv <- Env.addLocals destructors env
           (cbody, freeLocals) <- Expr.removeLocals Warning.Pattern destructors $
             Expr.canonicalize newEnv body
-          return (Function key cargs cbody ctipe, key, Set.toList freeLocals)
+          return
+            ( Function key cargs cbody annotation
+            , key
+            , Set.toList freeLocals
+            )
 
 
 data Decl
-  = Value R.Region (A.Located N.Name) Can.Expr (Maybe Can.Type)
-  | Function N.Name Can.Args Can.Expr (Maybe Can.Type)
+  = Value R.Region (A.Located N.Name) Can.Expr (Maybe Can.Annotation)
+  | Function N.Name Can.Args Can.Expr (Maybe Can.Annotation)
 
 
 toCanDecl :: Decl -> Can.Decl

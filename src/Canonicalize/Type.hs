@@ -1,7 +1,9 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Canonicalize.Type
-  ( canonicalize
+  ( toAnnotation
+  , canonicalize
+  , addFreeVars
   )
   where
 
@@ -26,6 +28,16 @@ import qualified Reporting.Warning as Warning
 
 type Result i a =
   Result.Result i Warning.Warning Error.Error a
+
+
+
+-- TO ANNOTATION
+
+
+toAnnotation :: Env.Env -> Src.Type -> Result () Can.Annotation
+toAnnotation env srcType =
+  do  tipe <- canonicalize env srcType
+      return $ Can.Forall (addFreeVars tipe Map.empty) tipe
 
 
 
@@ -101,3 +113,41 @@ checkArgs argsType expected region name args answer =
           (A.A start _, A.A end _) = (head extras, last extras)
         in
         Error.TooMany argsType name expected actual (R.merge start end)
+
+
+
+-- ADD FREE VARS
+
+
+addFreeVars :: Can.Type -> Map.Map N.Name () -> Map.Map N.Name ()
+addFreeVars tipe freeVars =
+  case tipe of
+    Can.TLambda arg result ->
+      addFreeVars arg (addFreeVars result freeVars)
+
+    Can.TVar var ->
+      Map.insert var () freeVars
+
+    Can.TType _ _ args ->
+      foldr addFreeVars freeVars args
+
+    Can.TRecord fields Nothing ->
+      Map.foldr addFreeVars freeVars fields
+
+    Can.TRecord fields (Just ext) ->
+      addFreeVars ext (Map.foldr addFreeVars freeVars fields)
+
+    Can.TUnit ->
+      freeVars
+
+    Can.TTuple a b maybeC ->
+      addFreeVars a $ addFreeVars b $
+        case maybeC of
+          Nothing ->
+            freeVars
+
+          Just c ->
+            addFreeVars c freeVars
+
+    Can.TAlias _ _ args _ ->
+      foldr addFreeVars freeVars (map snd args)

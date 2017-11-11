@@ -19,6 +19,7 @@ import qualified Canonicalize.Environment.Dups as Dups
 import qualified Canonicalize.Pattern as Pattern
 import qualified Canonicalize.Type as Type
 import qualified Data.Bag as Bag
+import qualified Data.Index as Index
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
@@ -66,8 +67,8 @@ canonicalize env (A.A region expression) =
       Can.List <$> traverse (canonicalize env) exprs
 
     Valid.Op op ->
-      do  (Env.Binop _ home name _ _) <- Env.findBinop region env op
-          return (Can.VarOperator op home name)
+      do  (Env.Binop _ home name annotation _ _) <- Env.findBinop region env op
+          return (Can.VarOperator op home name annotation)
 
     Valid.Negate expr ->
       Can.Negate <$> canonicalize env expr
@@ -95,10 +96,10 @@ canonicalize env (A.A region expression) =
     Valid.Let defs expr ->
       A.drop <$> canonicalizeLet region env defs expr
 
-    Valid.Case expr cases ->
+    Valid.Case expr branches ->
       Can.Case
         <$> canonicalize env expr
-        <*> traverse (canonicalizeCaseBranch env) cases
+        <*> Index.indexedTraverse (canonicalizeCaseBranch env) branches
 
     Valid.Accessor field ->
       Result.ok $ Can.Accessor field
@@ -164,13 +165,13 @@ canonicalizeIfBranch env (condition, branch) =
 -- CANONICALIZE CASE BRANCH
 
 
-canonicalizeCaseBranch :: Env.Env -> (Src.Pattern, Valid.Expr) -> Result FreeLocals (Can.Match, Can.Expr)
-canonicalizeCaseBranch env (pattern, expr) =
+canonicalizeCaseBranch :: Env.Env -> Index.ZeroBased -> (Src.Pattern, Valid.Expr) -> Result FreeLocals Can.CaseBranch
+canonicalizeCaseBranch env index (pattern, expr) =
   addLocals $
-  do  match@(Can.Match _ destructors) <- Pattern.canonicalizeMatch env pattern
+  do  (cpattern, destructors) <- Pattern.canonicalize env index pattern
       newEnv <- Env.addLocals destructors env
       removeLocals Warning.Pattern destructors $
-        (,) match <$> canonicalize newEnv expr
+        Can.CaseBranch index cpattern destructors <$> canonicalize newEnv expr
 
 
 
@@ -211,17 +212,17 @@ runBinopStepper overallRegion step =
       runBinopStepper overallRegion $
         toBinopStep (toBinop op expr) op rest final
 
-    Error (Env.Binop op1 _ _ _ _) (Env.Binop op2 _ _ _ _) ->
+    Error (Env.Binop op1 _ _ _ _ _) (Env.Binop op2 _ _ _ _ _) ->
       Result.throw overallRegion (Error.Binop op1 op2)
 
 
 toBinopStep :: (Can.Expr -> Can.Expr) -> Env.Binop -> [(Can.Expr, Env.Binop)] -> Can.Expr -> Step
-toBinopStep makeBinop rootOp@(Env.Binop _ _ _ rootAssociativity rootPrecedence) middle final =
+toBinopStep makeBinop rootOp@(Env.Binop _ _ _ _ rootAssociativity rootPrecedence) middle final =
   case middle of
     [] ->
       Done (makeBinop final)
 
-    ( expr, op@(Env.Binop _ _ _ associativity precedence) ) : rest ->
+    ( expr, op@(Env.Binop _ _ _ _ associativity precedence) ) : rest ->
       if precedence < rootPrecedence then
 
         More ((makeBinop expr, op) : rest) final
@@ -252,8 +253,8 @@ toBinopStep makeBinop rootOp@(Env.Binop _ _ _ rootAssociativity rootPrecedence) 
 
 
 toBinop :: Env.Binop -> Can.Expr -> Can.Expr -> Can.Expr
-toBinop (Env.Binop op home name _ _) left right =
-  A.merge left right (Can.Binop op home name left right)
+toBinop (Env.Binop op home name annotation _ _) left right =
+  A.merge left right (Can.Binop op home name annotation left right)
 
 
 
@@ -316,7 +317,7 @@ toUnusedWarning unused (name, A.A region _) =
 
 data Binding
   = Define R.Region Can.Def
-  | Destruct R.Region Can.Match Can.Expr
+  | Destruct R.Region Can.Pattern Can.Destructors Can.Expr
 
 
 data Node = Node Binding FreeLocals
@@ -327,15 +328,15 @@ bindingToNode defKeys env binding =
   case binding of
     Pattern.Define region index name args body maybeType ->
       do  cargs@(Can.Args _ destructors) <- Pattern.canonicalizeArgs env args
-          ctype <- traverse (Type.canonicalize env) maybeType
+          maybeAnnotation <- traverse (Type.toAnnotation env) maybeType
           newEnv <- Env.addLocals destructors env
           toNode defKeys destructors index $
             do  cbody <- canonicalize newEnv body
-                return (Define region (Can.Def name cargs cbody ctype))
+                return $ Define region $ Can.Def name cargs cbody maybeAnnotation
 
-    Pattern.Destruct region index match body ->
+    Pattern.Destruct region index pattern destructors body ->
       toNode defKeys Map.empty index $
-        Destruct region match <$> canonicalize env body
+        Destruct region pattern destructors <$> canonicalize env body
 
 
 toNode :: Map.Map N.Name Int -> Map.Map N.Name a -> Int -> Result FreeLocals Binding -> Result () (Node, Int, [Int])
@@ -376,8 +377,8 @@ detectCycles region sccs body =
               Result.accumulate freeLocals (Can.Let def)
                 <*> detectCycles region subSccs body
 
-            Destruct _ match expr ->
-              Result.accumulate freeLocals (Can.LetDestruct match expr)
+            Destruct _ pattern destructors expr ->
+              Result.accumulate freeLocals (Can.LetDestruct pattern destructors expr)
                 <*> detectCycles region subSccs body
 
         Graph.CyclicSCC nodes ->
@@ -402,7 +403,7 @@ requireDefine (Node binding freeLocals) =
         _ ->
           Just (def, freeLocals)
 
-    Destruct _ _ _ ->
+    Destruct _ _ _ _ ->
       Nothing
 
 
@@ -417,5 +418,5 @@ toCycleNodes (Node binding _) =
         _ ->
           Error.CycleFunc name
 
-    Destruct _ (Can.Match pattern _) _ ->
+    Destruct _ pattern _ _ ->
       Error.CyclePattern pattern

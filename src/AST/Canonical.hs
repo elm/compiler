@@ -2,15 +2,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 module AST.Canonical
   ( Expr, Expr_(..)
+  , CaseBranch(..)
   , Def(..)
-  -- patterns
   , Args(..), Arg(..)
-  , Match(..)
+  -- patterns
   , Pattern, Pattern_(..)
   , PatternCtorArg(..)
   , Destructors
   , Destructor(..)
   -- types
+  , Annotation(..)
   , Type(..)
   , AliasType(..)
   -- decls
@@ -41,7 +42,6 @@ import qualified AST.Module.Name as ModuleName
 import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
 import qualified Elm.Name as N
-import Elm.Name (Name)
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
@@ -55,32 +55,41 @@ type Expr =
 
 
 data Expr_
-  = VarLocal Name
-  | VarTopLevel ModuleName.Canonical Name
-  | VarKernel Name Name
-  | VarForeign ModuleName.Canonical Name
-  | VarOperator Name ModuleName.Canonical Name
+  = VarLocal N.Name
+  | VarTopLevel ModuleName.Canonical N.Name
+  | VarKernel N.Name N.Name
+  | VarForeign ModuleName.Canonical N.Name Annotation
+  | VarOperator N.Name ModuleName.Canonical N.Name Annotation
   | Chr Text
   | Str Text
   | Int Int
   | Float Double
   | List [Expr]
   | Negate Expr
-  | Binop Name ModuleName.Canonical Name Expr Expr
+  | Binop N.Name ModuleName.Canonical N.Name Annotation Expr Expr
   | Lambda Args Expr
   | Call Expr [Expr]
   | If [(Expr, Expr)] Expr
   | Let Def Expr
   | LetRec [Def] Expr
-  | LetDestruct Match Expr Expr
-  | Case Expr [(Match, Expr)]
-  | Accessor Name
-  | Access Expr Name
-  | Update Expr (Map.Map Name Expr)
-  | Record (Map.Map Name Expr)
+  | LetDestruct Pattern Destructors Expr Expr
+  | Case Expr [CaseBranch]
+  | Accessor N.Name
+  | Access Expr N.Name
+  | Update Expr (Map.Map N.Name Expr)
+  | Record (Map.Map N.Name Expr)
   | Unit
   | Tuple Expr Expr (Maybe Expr)
-  | Shader Name Name Shader.Shader
+  | Shader N.Name N.Name Shader.Shader
+
+
+data CaseBranch =
+  CaseBranch
+    { _branch_index :: Index.ZeroBased
+    , _branch_pattern :: Pattern
+    , _branch_destructors :: Destructors
+    , _branch_expr :: Expr
+    }
 
 
 
@@ -88,22 +97,19 @@ data Expr_
 
 
 data Def =
-  Def
-    { _def_name :: A.Located N.Name
-    , _def_args :: Args
-    , _def_body :: Expr
-    , _def_type :: Maybe Type
-    }
+  Def (A.Located N.Name) Args Expr (Maybe Annotation)
+
+
+data Args =
+  Args [Arg] Destructors
+
+
+data Arg =
+  Arg Index.ZeroBased Pattern
 
 
 
 -- PATTERNS
-
-
-data Args = Args [Arg] Destructors
-data Arg = Arg Index.ZeroBased Pattern
-
-data Match = Match Pattern Destructors
 
 
 type Pattern = A.Located Pattern_
@@ -149,14 +155,17 @@ data Destructor
 -- TYPES
 
 
+data Annotation = Forall (Map.Map N.Name ()) Type
+
+
 data Type
   = TLambda Type Type
-  | TVar Name
-  | TType ModuleName.Canonical Name [Type]
-  | TRecord (Map.Map Name Type) (Maybe Type)
+  | TVar N.Name
+  | TType ModuleName.Canonical N.Name [Type]
+  | TRecord (Map.Map N.Name Type) (Maybe Type)
   | TUnit
   | TTuple Type Type (Maybe Type)
-  | TAlias ModuleName.Canonical Name [(Name, Type)] AliasType
+  | TAlias ModuleName.Canonical N.Name [(N.Name, Type)] AliasType
 
 
 data AliasType
@@ -175,8 +184,8 @@ data Decls
 
 
 data Decl
-  = Value N.Name Expr (Maybe Type)
-  | Function N.Name Args Expr (Maybe Type)
+  = Value N.Name Expr (Maybe Annotation)
+  | Function N.Name Args Expr (Maybe Annotation)
 
 
 
@@ -265,9 +274,9 @@ instance Binary Union where
   put (Union a b) = put a >> put b
 
 
-instance Binary Binop where
-  get = liftM3 Binop_ get get get
-  put (Binop_ a b c) = put a >> put b >> put c
+instance Binary Annotation where
+  get = liftM2 Forall get get
+  put (Forall a b) = put a >> put b
 
 
 instance Binary Type where
