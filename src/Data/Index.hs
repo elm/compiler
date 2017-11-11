@@ -3,6 +3,7 @@ module Data.Index
   , first
   , second
   , third
+  , next
   , toOneBased
   , indexedMap
   , indexedTraverse
@@ -35,6 +36,12 @@ second =
 third :: ZeroBased
 third =
   ZeroBased 2
+
+
+{-# INLINE next #-}
+next :: ZeroBased -> ZeroBased
+next (ZeroBased i) =
+  ZeroBased (i + 1)
 
 
 
