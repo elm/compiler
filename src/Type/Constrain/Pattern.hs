@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Type.Constrain.Pattern
   ( State(..)
+  , emptyState
   , addConstraints
   )
   where
@@ -36,6 +37,11 @@ data State =
     , _vars :: Bag.Bag Variable
     , _revCons :: [Constraint]
     }
+
+
+emptyState :: State
+emptyState =
+  State Map.empty Bag.empty []
 
 
 addConstraints :: R.Region -> Error.PatternContext -> Can.Pattern -> Type -> State -> IO State
