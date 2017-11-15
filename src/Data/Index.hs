@@ -7,6 +7,7 @@ module Data.Index
   , toOneBased
   , indexedMap
   , indexedTraverse
+  , indexedForA
   , VerifiedList(..)
   , indexedZipWith
   , indexedZipWithA
@@ -66,6 +67,12 @@ indexedMap func list =
 {-# INLINE indexedTraverse #-}
 indexedTraverse :: (Applicative f) => (ZeroBased -> a -> f b) -> [a] -> f [b]
 indexedTraverse func list =
+  sequenceA (indexedMap func list)
+
+
+{-# INLINE indexedForA #-}
+indexedForA :: (Applicative f) => [a] -> (ZeroBased -> a -> f b) -> f [b]
+indexedForA list func =
   sequenceA (indexedMap func list)
 
 
