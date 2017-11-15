@@ -4,7 +4,8 @@ module AST.Canonical
   ( Expr, Expr_(..)
   , CaseBranch(..)
   , Def(..)
-  , Args(..), Arg(..)
+  , Arg(..)
+  , TypedArg(..)
   -- patterns
   , Pattern, Pattern_(..)
   , PatternCtorArg(..)
@@ -16,7 +17,6 @@ module AST.Canonical
   , AliasType(..)
   -- decls
   , Decls(..)
-  , Decl(..)
   , Module(..)
   , Alias(..)
   , Union(..)
@@ -67,7 +67,7 @@ data Expr_
   | List [Expr]
   | Negate Expr
   | Binop N.Name ModuleName.Canonical N.Name Annotation Expr Expr
-  | Lambda Args Expr
+  | Lambda [Arg] Destructors Expr
   | Call Expr [Expr]
   | If [(Expr, Expr)] Expr
   | Let Def Expr
@@ -84,28 +84,24 @@ data Expr_
 
 
 data CaseBranch =
-  CaseBranch
-    { _branch_index :: Index.ZeroBased
-    , _branch_pattern :: Pattern
-    , _branch_destructors :: Destructors
-    , _branch_expr :: Expr
-    }
+  CaseBranch Pattern Destructors Expr
 
 
 
 -- DEFS
 
 
-data Def =
-  Def (A.Located N.Name) Args Expr (Maybe Annotation)
-
-
-data Args =
-  Args [Arg] Destructors
+data Def
+  = Def (A.Located N.Name) [Arg] Destructors Expr
+  | TypedDef (A.Located N.Name) FreeVars [TypedArg] Destructors Expr Type
 
 
 data Arg =
   Arg Index.ZeroBased Pattern
+
+
+data TypedArg =
+  TypedArg Index.ZeroBased Type Pattern
 
 
 
@@ -155,7 +151,10 @@ data Destructor
 -- TYPES
 
 
-data Annotation = Forall (Map.Map N.Name ()) Type
+data Annotation = Forall FreeVars Type
+
+
+type FreeVars = Map.Map N.Name ()
 
 
 data Type
@@ -178,14 +177,9 @@ data AliasType
 
 
 data Decls
-  = Declare Decl Decls
-  | DeclareRec Decl [Decl] Decls
+  = Declare Def Decls
+  | DeclareRec Def [Def] Decls
   | SaveTheEnvironment
-
-
-data Decl
-  = Value N.Name Expr (Maybe Annotation)
-  | Function N.Name Args Expr (Maybe Annotation)
 
 
 

@@ -21,12 +21,12 @@ import qualified Canonicalize.Environment.Local as Local
 import qualified Canonicalize.Expression as Expr
 import qualified Canonicalize.Pattern as Pattern
 import qualified Canonicalize.Type as Type
+import qualified Data.Index as Index
 import qualified Elm.Interface as I
 import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
 import qualified Reporting.Warning as Warning
 
@@ -142,7 +142,7 @@ canonicalizeDecls env decls =
       detectCycles (Graph.stronglyConnComp nodes)
 
 
-detectCycles :: [Graph.SCC Decl] -> Result Can.Decls
+detectCycles :: [Graph.SCC Can.Def] -> Result Can.Decls
 detectCycles sccs =
   case sccs of
     [] ->
@@ -150,83 +150,69 @@ detectCycles sccs =
 
     scc : otherSccs ->
       case scc of
-        Graph.AcyclicSCC decl ->
-          Can.Declare (toCanDecl decl)
-            <$> detectCycles otherSccs
+        Graph.AcyclicSCC def ->
+          Can.Declare def <$> detectCycles otherSccs
 
         Graph.CyclicSCC [] ->
           detectCycles otherSccs
 
-        Graph.CyclicSCC (decl:decls) ->
-          do  detectBadCycles decl decls
-              Can.DeclareRec (toCanDecl decl) (map toCanDecl decls)
-                <$> detectCycles otherSccs
+        Graph.CyclicSCC (def:defs) ->
+          do  detectBadCycles def defs
+              Can.DeclareRec def defs <$> detectCycles otherSccs
 
 
-toNode :: Env.Env -> A.Located Valid.Decl -> Result (Decl, N.Name, [N.Name])
-toNode env (A.A region (Valid.Decl name@(A.A _ key) args body tipe)) =
-  case args of
-    [] ->
-      do  annotation <- traverse (Type.toAnnotation env) tipe
-          (cbody, freeLocals) <- Expr.removeLocals Warning.Pattern Map.empty $
-            Expr.canonicalize env body
-          return
-            ( Value region name cbody annotation
-            , key
-            , Set.toList freeLocals
-            )
+toNode :: Env.Env -> A.Located Valid.Decl -> Result (Can.Def, N.Name, [N.Name])
+toNode env (A.A _ (Valid.Decl aname@(A.A _ name) srcArgs body maybeType)) =
+  case maybeType of
+    Nothing ->
+      do  (args, destructors) <-
+            Pattern.verify (Error.DPFuncArgs name) $
+              Index.indexedTraverse (Pattern.canonicalizeArg env) srcArgs
 
-    _ ->
-      do  annotation <- traverse (Type.toAnnotation env) tipe
-          cargs@(Can.Args _ destructors) <- Pattern.canonicalizeArgs env args
           newEnv <- Env.addLocals destructors env
-          (cbody, freeLocals) <- Expr.removeLocals Warning.Pattern destructors $
-            Expr.canonicalize newEnv body
-          return
-            ( Function key cargs cbody annotation
-            , key
-            , Set.toList freeLocals
-            )
+          (cbody, freeLocals) <-
+            Expr.removeLocals Warning.Pattern destructors $
+              Expr.canonicalize newEnv body
+
+          let def = Can.Def aname args destructors cbody
+          return (def, name, Set.toList freeLocals)
+
+    Just srcType ->
+      do  (Can.Forall freeVars tipe) <- Type.toAnnotation env srcType
+
+          ((args,resultType), destructors) <-
+            Pattern.verify (Error.DPFuncArgs name) $
+              Expr.gatherTypedArgs env name srcArgs tipe Index.first []
+
+          newEnv <- Env.addLocals destructors env
+          (cbody, freeLocals) <-
+            Expr.removeLocals Warning.Pattern destructors $
+              Expr.canonicalize newEnv body
+
+          let def = Can.TypedDef aname freeVars args destructors cbody resultType
+          return (def, name, Set.toList freeLocals)
 
 
-data Decl
-  = Value R.Region (A.Located N.Name) Can.Expr (Maybe Can.Annotation)
-  | Function N.Name Can.Args Can.Expr (Maybe Can.Annotation)
-
-
-toCanDecl :: Decl -> Can.Decl
-toCanDecl decl =
-  case decl of
-    Value _ (A.A _ name) body tipe ->
-      Can.Value name body tipe
-
-    Function name args body tipe ->
-      Can.Function name args body tipe
-
-
-detectBadCycles :: Decl -> [Decl] -> Result ()
-detectBadCycles decl decls =
-  case traverse detectBadCyclesHelp (decl:decls) of
+detectBadCycles :: Can.Def -> [Can.Def] -> Result ()
+detectBadCycles def defs =
+  case (,) <$> detectBadCyclesHelp def <*> traverse detectBadCyclesHelp defs of
     Nothing ->
       Result.ok ()
 
-    Just valueCycle ->
-      case valueCycle of
-        [] ->
-          Result.ok ()
-
-        (declRegion, A.A region name) : otherInfo ->
-          let otherNames = map (A.drop . snd) otherInfo in
-          Result.throw declRegion (Error.RecursiveDecl region name otherNames)
+    Just (name, otherNames) ->
+      Result.throw (error "TODO") (Error.RecursiveDecl name otherNames)
 
 
-detectBadCyclesHelp :: Decl -> Maybe (R.Region, A.Located N.Name)
-detectBadCyclesHelp decl =
-  case decl of
-    Value region name _ _ ->
-      Just (region, name)
+detectBadCyclesHelp :: Can.Def -> Maybe N.Name
+detectBadCyclesHelp def =
+  case def of
+    Can.Def (A.A _ name) [] _ _ ->
+      Just name
 
-    Function _ _ _ _ ->
+    Can.TypedDef (A.A _ name) _ [] _ _ _ ->
+      Just name
+
+    _ ->
       Nothing
 
 

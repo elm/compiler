@@ -1,19 +1,15 @@
 {-# OPTIONS_GHC -Wall #-}
 module Canonicalize.Pattern
-  ( canonicalize
-  , canonicalizeArgs
-  , canonicalizeBindings
-  , Binding(..)
+  ( verify
+  , Bag
+  , canonicalize
+  , canonicalizeArg
   )
   where
 
 
-import Control.Monad (zipWithM)
-import qualified Data.Map.Strict as Map
-
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
-import qualified AST.Valid as Valid
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
 import qualified Data.Bag as Bag
@@ -35,98 +31,28 @@ type Result i =
 
 
 
--- CANONICALIZE
+-- VERIFY NAMES
 
 
-canonicalize :: Env.Env -> Index.ZeroBased -> Src.Pattern -> Result () (Can.Pattern, Can.Destructors)
-canonicalize env index pattern =
-  case process env (Can.DRoot index) pattern of
-    Result.Result bag warnings (Result.Ok cpattern) ->
-      do  let toError name () () = Error.DuplicateArg name
+verify :: Error.DuplicatePatternContext -> Result Bag a -> Result () (a, Can.Destructors)
+verify context (Result.Result bag warnings answer) =
+  case answer of
+    Result.Ok value ->
+      do  let toError name () () = Error.DuplicatePattern context name
           destructors <- Dups.detect toError (Bag.toList bag)
-          Result.Result () warnings $ Result.Ok (cpattern, destructors)
+          Result.Result () warnings $ Result.Ok (value, destructors)
 
-    Result.Result _ warnings (Result.Err err) ->
+    Result.Err err ->
       Result.Result () warnings (Result.Err err)
 
 
 
--- CANONICALIZE ARGS
-
-
-canonicalizeArgs :: Env.Env -> [Src.Pattern] -> Result () Can.Args
-canonicalizeArgs env patterns =
-  case Index.indexedTraverse (canonicalizeArg env) patterns of
-    Result.Result bag warnings (Result.Ok args) ->
-      do  let toError name () () = Error.DuplicateArg name
-          destructors <- Dups.detect toError (Bag.toList bag)
-          Result.Result () warnings $ Result.Ok $
-            Can.Args args destructors
-
-    Result.Result _ warnings (Result.Err err) ->
-      Result.Result () warnings (Result.Err err)
+-- CANONICALIZE ARG
 
 
 canonicalizeArg :: Env.Env -> Index.ZeroBased -> Src.Pattern -> Result Bag Can.Arg
 canonicalizeArg env index pattern =
-  Can.Arg index <$> process env (Can.DRoot index) pattern
-
-
-
--- CANONICALIZE BINDINGS
-
-
-data Binding
-  = Define R.Region Int (A.Located N.Name) [Src.Pattern] Valid.Expr (Maybe Src.Type)
-  | Destruct R.Region Int Can.Pattern Can.Destructors Valid.Expr
-
-
-canonicalizeBindings :: Env.Env -> [Valid.Def] -> Result () ( [Binding], Map.Map N.Name (A.Located Int) )
-canonicalizeBindings env defs =
-  case zipWithM (canonicalizeBinding env) defs [ 0 .. length defs ] of
-    Result.Result bag warnings (Result.Ok cdefs) ->
-      do  let toError name () () = Error.DuplicateBindingName name
-          nodes <- Dups.detect toError (Bag.toList bag)
-          Result.Result () warnings (Result.Ok (cdefs, nodes))
-
-    Result.Result _ warnings (Result.Err err) ->
-      Result.Result () warnings (Result.Err err)
-
-
-type KeyBag =
-  Bag.Bag ( N.Name, [Dups.Info () (A.Located Int)] )
-
-
-canonicalizeBinding :: Env.Env -> Valid.Def -> Int -> Result KeyBag Binding
-canonicalizeBinding env def index =
-  case def of
-    Valid.Define region aname@(A.A reg name) args body maybeType ->
-      let info = Dups.info name reg () (A.A region index) in
-      Result.accumulate (Bag.one info) $
-        Define region index aname args body maybeType
-
-    Valid.Destruct region pattern body ->
-      case process env (Can.DRoot Index.first) pattern of
-        Result.Result bag warnings (Result.Ok cpattern) ->
-          do  let toError name () () = Error.DuplicateBindingName name
-              destructors <- Result.untracked (Dups.detect toError (Bag.toList bag))
-              Result.Result (toKeyBag index bag) warnings $ Result.Ok $
-                Destruct region index cpattern destructors body
-
-        Result.Result bag warnings (Result.Err err) ->
-          Result.Result (toKeyBag index bag) warnings (Result.Err err)
-
-
-toKeyBag :: Int -> Bag -> KeyBag
-toKeyBag index bag =
-  let
-    redoInfo (Dups.Info region () _) =
-      Dups.Info region () (A.A region index)
-
-    replaceWithIndex ( name, infos ) =
-      ( name, map redoInfo infos )
-  in
-  Bag.map replaceWithIndex bag
+  Can.Arg index <$> canonicalize env index pattern
 
 
 
@@ -135,6 +61,11 @@ toKeyBag index bag =
 
 type Bag =
   Bag.Bag (N.Name, [Dups.Info () (A.Located Can.Destructor)])
+
+
+canonicalize :: Env.Env -> Index.ZeroBased -> Src.Pattern -> Result Bag Can.Pattern
+canonicalize env index pattern =
+  process env (Can.DRoot index) pattern
 
 
 process :: Env.Env -> Can.Destructor -> Src.Pattern -> Result Bag Can.Pattern

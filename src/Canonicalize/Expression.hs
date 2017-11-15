@@ -2,6 +2,7 @@
 module Canonicalize.Expression
   ( canonicalize
   , removeLocals
+  , gatherTypedArgs
   )
   where
 
@@ -10,9 +11,10 @@ import qualified Data.Graph as Graph
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
-import qualified AST.Utils.Binop as Binop
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
+import qualified AST.Utils.Binop as Binop
+import qualified AST.Utils.Type as Type
 import qualified AST.Valid as Valid
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
@@ -76,12 +78,14 @@ canonicalize env (A.A region expression) =
     Valid.Binops ops final ->
       A.drop <$> canonicalizeBinops region env ops final
 
-    Valid.Lambda args body ->
+    Valid.Lambda srcArgs body ->
       addLocals $
-      do  cargs@(Can.Args _ destructors) <- Pattern.canonicalizeArgs env args
+      do  (args, destructors) <-
+            Pattern.verify Error.DPLambdaArgs $
+              Index.indexedTraverse (Pattern.canonicalizeArg env) srcArgs
           newEnv <- Env.addLocals destructors env
           removeLocals Warning.Pattern destructors $
-            Can.Lambda cargs <$> canonicalize newEnv body
+            Can.Lambda args destructors <$> canonicalize newEnv body
 
     Valid.Call func args ->
       Can.Call
@@ -99,7 +103,7 @@ canonicalize env (A.A region expression) =
     Valid.Case expr branches ->
       Can.Case
         <$> canonicalize env expr
-        <*> Index.indexedTraverse (canonicalizeCaseBranch env) branches
+        <*> traverse (canonicalizeCaseBranch env) branches
 
     Valid.Accessor field ->
       Result.ok $ Can.Accessor field
@@ -165,13 +169,15 @@ canonicalizeIfBranch env (condition, branch) =
 -- CANONICALIZE CASE BRANCH
 
 
-canonicalizeCaseBranch :: Env.Env -> Index.ZeroBased -> (Src.Pattern, Valid.Expr) -> Result FreeLocals Can.CaseBranch
-canonicalizeCaseBranch env index (pattern, expr) =
+canonicalizeCaseBranch :: Env.Env -> (Src.Pattern, Valid.Expr) -> Result FreeLocals Can.CaseBranch
+canonicalizeCaseBranch env (pattern, expr) =
   addLocals $
-  do  (cpattern, destructors) <- Pattern.canonicalize env index pattern
+  do  (cpattern, destructors) <-
+        Pattern.verify Error.DPCaseBranch $
+          Pattern.canonicalize env Index.first pattern
       newEnv <- Env.addLocals destructors env
       removeLocals Warning.Pattern destructors $
-        Can.CaseBranch index cpattern destructors <$> canonicalize newEnv expr
+        Can.CaseBranch cpattern destructors <$> canonicalize newEnv expr
 
 
 
@@ -262,15 +268,18 @@ toBinop (Env.Binop op home name annotation _ _) left right =
 
 
 canonicalizeLet :: R.Region -> Env.Env -> [Valid.Def] -> Valid.Expr -> Result FreeLocals Can.Expr
-canonicalizeLet region env defs body =
+canonicalizeLet letRegion env defs body =
   addLocals $
-  do  (bindings, boundNames) <- Pattern.canonicalizeBindings env defs
+  do  let keyedDefs = zip defs [ 0 .. length defs ]
+      let toError name () () = Error.DuplicatePattern Error.DPLetBinding name
+      let namesBag = foldr addBindings Bag.empty keyedDefs
+      boundNames <- Dups.detect toError (Bag.toList namesBag)
       newEnv <- Env.addLocals boundNames env
       let defKeys = Map.map A.drop boundNames
-      nodes <- Result.untracked $ traverse (bindingToNode defKeys newEnv) bindings
+      nodes <- traverse (defToNode defKeys newEnv) keyedDefs
       removeLocals Warning.Binding boundNames $
         do  cbody <- canonicalize env body
-            detectCycles region (Graph.stronglyConnComp nodes) cbody
+            detectCycles letRegion (Graph.stronglyConnComp nodes) cbody
 
 
 addLocals :: Result () (expr, FreeLocals) -> Result FreeLocals expr
@@ -312,7 +321,72 @@ toUnusedWarning unused (name, A.A region _) =
 
 
 
+-- ADD BINDINGS
+
+
+type KeyBag =
+  Bag.Bag ( N.Name, [Dups.Info () (A.Located Int)] )
+
+
+addBindings :: (Valid.Def, Int) -> KeyBag -> KeyBag
+addBindings (def, key) bag =
+  case def of
+    Valid.Define defRegion (A.A region name) _ _ _ ->
+      Bag.insert (Dups.info name region () (A.A defRegion key)) bag
+
+    Valid.Destruct defRegion pattern _ ->
+      addBindingsHelp (A.A defRegion key) pattern bag
+
+
+addBindingsHelp :: A.Located Int -> Src.Pattern -> KeyBag -> KeyBag
+addBindingsHelp key (A.A region pattern) bag =
+  case pattern of
+    Src.PAnything ->
+      bag
+
+    Src.PVar name ->
+      Bag.insert (Dups.info name region () key) bag
+
+    Src.PRecord fields ->
+      let
+        fieldToInfo (A.A fieldRegion name) =
+          Dups.info name fieldRegion () key
+      in
+      foldr (\f b -> Bag.insert (fieldToInfo f) b) bag fields
+
+    Src.PUnit ->
+      bag
+
+    Src.PTuple a b cs ->
+      foldr (addBindingsHelp key) bag (a:b:cs)
+
+    Src.PCtor _ _ _ patterns ->
+      foldr (addBindingsHelp key) bag patterns
+
+    Src.PList patterns ->
+      foldr (addBindingsHelp key) bag patterns
+
+    Src.PCons first rest ->
+      addBindingsHelp key rest (addBindingsHelp key first bag)
+
+    Src.PAlias ptrn (A.A reg name) ->
+      addBindingsHelp key ptrn (Bag.insert (Dups.info name reg () key) bag)
+
+    Src.PChr _ ->
+      bag
+
+    Src.PStr _ ->
+      bag
+
+    Src.PInt _ ->
+      bag
+
+
+
 -- BUILD BINDINGS GRAPH
+
+
+data Node = Node Binding FreeLocals
 
 
 data Binding
@@ -320,27 +394,41 @@ data Binding
   | Destruct R.Region Can.Pattern Can.Destructors Can.Expr
 
 
-data Node = Node Binding FreeLocals
-
-
-bindingToNode :: Map.Map N.Name Int -> Env.Env -> Pattern.Binding -> Result () (Node, Int, [Int])
-bindingToNode defKeys env binding =
-  case binding of
-    Pattern.Define region index name args body maybeType ->
-      do  cargs@(Can.Args _ destructors) <- Pattern.canonicalizeArgs env args
-          maybeAnnotation <- traverse (Type.toAnnotation env) maybeType
+defToNode :: Map.Map N.Name Int -> Env.Env -> (Valid.Def, Int) -> Result () (Node, Int, [Int])
+defToNode defKeys env (def, key) =
+  case def of
+    Valid.Define region aname@(A.A _ name) srcArgs body Nothing ->
+      do  (args, destructors) <-
+            Pattern.verify (Error.DPFuncArgs name) $
+              Index.indexedTraverse (Pattern.canonicalizeArg env) srcArgs
           newEnv <- Env.addLocals destructors env
-          toNode defKeys destructors index $
+          toNode defKeys key destructors $
             do  cbody <- canonicalize newEnv body
-                return $ Define region $ Can.Def name cargs cbody maybeAnnotation
+                return $ Define region $
+                  Can.Def aname args destructors cbody
 
-    Pattern.Destruct region index pattern destructors body ->
-      toNode defKeys Map.empty index $
-        Destruct region pattern destructors <$> canonicalize env body
+    Valid.Destruct region pattern body ->
+      do  (cpattern, destructors) <-
+            Pattern.verify Error.DPDestruct $
+              Pattern.canonicalize env Index.first pattern
+
+          toNode defKeys key destructors $
+            Destruct region cpattern destructors <$> canonicalize env body
+
+    Valid.Define region aname@(A.A _ name) srcArgs body (Just tipe) ->
+      do  (Can.Forall freeVars ctipe) <- Type.toAnnotation env tipe
+          ((args, resultType), destructors) <-
+            Pattern.verify (Error.DPFuncArgs name) $
+              gatherTypedArgs env name srcArgs ctipe Index.first []
+          newEnv <- Env.addLocals destructors env
+          toNode defKeys key destructors $
+            do  cbody <- canonicalize newEnv body
+                return $ Define region $
+                  Can.TypedDef aname freeVars args destructors cbody resultType
 
 
-toNode :: Map.Map N.Name Int -> Map.Map N.Name a -> Int -> Result FreeLocals Binding -> Result () (Node, Int, [Int])
-toNode defKeys args index (Result.Result freeLocals warnings answer) =
+toNode :: Map.Map N.Name Int -> Int -> Map.Map N.Name a -> Result FreeLocals Binding -> Result () (Node, Int, [Int])
+toNode defKeys key args (Result.Result freeLocals warnings answer) =
   Result.Result () warnings $
   case answer of
     Result.Err err ->
@@ -353,9 +441,33 @@ toNode defKeys args index (Result.Result freeLocals warnings answer) =
       in
       Result.Ok
         ( Node binding actuallyFreeLocals
-        , index
+        , key
         , Map.elems locallyDefinedLocals
         )
+
+
+
+-- GATHER TYPED ARGS
+
+
+gatherTypedArgs :: Env.Env -> N.Name -> [Src.Pattern] -> Can.Type -> Index.ZeroBased -> [Can.TypedArg] -> Result Pattern.Bag ([Can.TypedArg], Can.Type)
+gatherTypedArgs env name srcArgs tipe index revTypedArgs =
+  case srcArgs of
+    [] ->
+      return (reverse revTypedArgs, tipe)
+
+    srcArg : otherSrcArgs ->
+      case Type.iteratedDealias tipe of
+        Can.TLambda argType resultType ->
+          do  typedArg <- Can.TypedArg index argType
+                <$> Pattern.canonicalize env index srcArg
+              gatherTypedArgs env name otherSrcArgs resultType (Index.next index) $
+                typedArg : revTypedArgs
+
+        _ ->
+          let (A.A start _, A.A end _) = (head srcArgs, last srcArgs) in
+          Result.throw (R.merge start end) $
+            Error.AnnotationTooShort name index (length srcArgs)
 
 
 
@@ -363,60 +475,57 @@ toNode defKeys args index (Result.Result freeLocals warnings answer) =
 
 
 detectCycles :: R.Region -> [Graph.SCC Node] -> Can.Expr -> Result FreeLocals Can.Expr
-detectCycles region sccs body =
+detectCycles letRegion sccs body =
   case sccs of
     [] ->
       Result.ok body
 
     scc : subSccs ->
-      A.A region <$>
+      A.A letRegion <$>
       case scc of
         Graph.AcyclicSCC (Node binding freeLocals) ->
           case binding of
             Define _ def ->
               Result.accumulate freeLocals (Can.Let def)
-                <*> detectCycles region subSccs body
+                <*> detectCycles letRegion subSccs body
 
             Destruct _ pattern destructors expr ->
               Result.accumulate freeLocals (Can.LetDestruct pattern destructors expr)
-                <*> detectCycles region subSccs body
+                <*> detectCycles letRegion subSccs body
 
         Graph.CyclicSCC nodes ->
-          case unzip <$> traverse requireDefine nodes of
+          case unzip <$> traverse requireFunction nodes of
             Nothing ->
-              Result.throw region (Error.RecursiveLet (map toCycleNodes nodes))
+              Result.throw letRegion (Error.RecursiveLet (map toCycleNodes nodes))
 
             Just (defs, freeLocals) ->
               Result.accumulate (Set.unions freeLocals) (Can.LetRec defs)
-                <*> detectCycles region subSccs body
+                <*> detectCycles letRegion subSccs body
 
 
-
-requireDefine :: Node -> Maybe (Can.Def, FreeLocals)
-requireDefine (Node binding freeLocals) =
+requireFunction :: Node -> Maybe (Can.Def, FreeLocals)
+requireFunction (Node binding freeLocals) =
   case binding of
-    Define _ def@(Can.Def _ (Can.Args args _) _ _) ->
-      case args of
-        [] ->
-          Nothing
+    Define _ def@(Can.Def _ (_:_) _ _) ->
+      Just (def, freeLocals)
 
-        _ ->
-          Just (def, freeLocals)
+    Define _ def@(Can.TypedDef _ _ (_:_) _ _ _) ->
+      Just (def, freeLocals)
 
-    Destruct _ _ _ _ ->
+    _ ->
       Nothing
 
 
 toCycleNodes :: Node -> Error.CycleNode
 toCycleNodes (Node binding _) =
   case binding of
-    Define _ (Can.Def name (Can.Args args _) _ _) ->
-      case args of
-        [] ->
-          Error.CycleValue name
+    Define _ def ->
+      case def of
+        Can.Def name args _ _ ->
+          if null args then Error.CycleValue name else Error.CycleFunc name
 
-        _ ->
-          Error.CycleFunc name
+        Can.TypedDef name _ args _ _ _ ->
+          if null args then Error.CycleValue name else Error.CycleFunc name
 
     Destruct _ pattern _ _ ->
       Error.CyclePattern pattern
