@@ -1,8 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 module Type.Constrain.Pattern
-  ( State(..)
-  , emptyState
-  , addConstraints
+  ( constrain
+  , constrainArgs
+  , constrainTypedArgs
   )
   where
 
@@ -17,7 +17,6 @@ import qualified Data.Bag as Bag
 import qualified Data.Index as Index
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Type as Error
 import qualified Reporting.Region as R
 import Type.Constraint
 import qualified Type.Instantiate as Instantiate
@@ -25,7 +24,78 @@ import Type.Type as T
 
 
 
--- ADD CONSTRAINTS
+-- CONSTRAIN
+
+
+constrain :: Can.Pattern -> PatternExpectation -> IO Scheme
+constrain pattern expectation =
+  do  (State headers vars revCons) <- add pattern expectation emptyState
+      return $ Scheme [] (Bag.toList vars) headers (CAnd (reverse revCons))
+
+
+{-# NOINLINE emptyState #-}
+emptyState :: State
+emptyState =
+  State Map.empty Bag.empty []
+
+
+
+-- CONSTRAIN ARGS
+
+
+constrainArgs :: [Can.Arg] -> IO (Type, Type, Scheme)
+constrainArgs args =
+  do  resultVar <- mkFlexVar
+      let resultType = VarN resultVar
+      (toLambdaType, State headers varBag revCons) <-
+        foldM argHelp (id, emptyState) args
+
+      let vars = resultVar : Bag.toList varBag
+      let cons = CAnd (reverse revCons)
+      return
+        ( toLambdaType resultType
+        , resultType
+        , Scheme [] vars headers cons
+        )
+
+
+argHelp :: (Type -> Type, State) -> Can.Arg -> IO (Type -> Type, State)
+argHelp (toLambdaType, state) (Can.Arg _ pattern) =
+  do  argVar <- mkFlexVar
+      let argType = VarN argVar
+      newState <- add pattern (NoPatternExpectation argType) state
+      return (toLambdaType . FunN argType, addToVars argVar newState)
+
+
+
+-- CONSTRAIN TYPED ARGS
+
+
+constrainTypedArgs :: Map.Map N.Name Type -> [Can.TypedArg] -> Can.Type -> IO (Type, Type, Scheme)
+constrainTypedArgs rtv args srcResultType =
+  do  resultType <- Instantiate.fromSrcType rtv srcResultType
+
+      (toLambdaType, State headers varBag revCons) <-
+        foldM (typedArgHelp rtv) (id, emptyState) args
+
+      let vars = Bag.toList varBag
+      let cons = CAnd (reverse revCons)
+      return
+        ( toLambdaType resultType
+        , resultType
+        , Scheme [] vars headers cons
+        )
+
+
+typedArgHelp :: Map.Map N.Name Type -> (Type -> Type, State) -> Can.TypedArg -> IO (Type -> Type, State)
+typedArgHelp rtv (toLambdaType, state) (Can.TypedArg _ srcType pattern) =
+  do  argType <- Instantiate.fromSrcType rtv srcType
+      newState <- add pattern (NoPatternExpectation argType) state
+      return (toLambdaType . FunN argType, newState)
+
+
+
+-- ACTUALLY ADD CONSTRAINTS
 
 
 -- The constraints are stored in reverse order so that adding a new
@@ -33,53 +103,48 @@ import Type.Type as T
 --
 data State =
   State
-    { _headers :: Map.Map N.Name (A.Located Type)
+    { _headers :: Header
     , _vars :: Bag.Bag Variable
     , _revCons :: [Constraint]
     }
 
 
-emptyState :: State
-emptyState =
-  State Map.empty Bag.empty []
+type Header = Map.Map N.Name (A.Located Type)
 
 
-addConstraints :: R.Region -> Error.PatternContext -> Can.Pattern -> Type -> State -> IO State
-addConstraints outerRegion context (A.A region pattern) tipe state =
+add :: Can.Pattern -> PatternExpectation -> State -> IO State
+add (A.A region pattern) expectation state =
   case pattern of
     Can.PAnything ->
       return state
 
     Can.PVar name ->
-      do  let (State headers vars revCons) = state
-          let newHeaders = Map.insert name (A.A region tipe) headers
-          return $ State newHeaders vars revCons
+      return $ addToHeaders region name expectation state
 
     Can.PAlias realPattern name ->
-      do  let (State headers vars revCons) = state
-          addConstraints outerRegion context realPattern tipe $
-            State (Map.insert name (A.A region tipe) headers) vars revCons
+      add realPattern expectation $
+        addToHeaders region name expectation state
 
     Can.PUnit ->
       do  let (State headers vars revCons) = state
-          let unitCon = CPattern outerRegion context Error.PUnit region UnitN tipe
+          let unitCon = CPattern region PUnit UnitN expectation
           return $ State headers vars (unitCon:revCons)
 
     Can.PTuple a b maybeC ->
-      addTupleConstraint outerRegion context region a b maybeC tipe state
+      addTuple region a b maybeC expectation state
 
     Can.PCtor home typeName typeVars ctorName args ->
-      addCtorConstraint outerRegion context region home typeName typeVars ctorName args tipe state
+      addCtor region home typeName typeVars ctorName args expectation state
 
     Can.PList patterns ->
       do  entryVar <- mkFlexVar
-          let entryVarN = VarN entryVar
-          let listType = AppN ModuleName.list N.list [entryVarN]
+          let entryType = VarN entryVar
+          let listType = AppN ModuleName.list N.list [entryType]
 
           (State headers vars revCons) <-
-            foldM (addListConstraint region entryVarN) state (Index.indexedMap (,) patterns)
+            foldM (addEntry region entryType) state (Index.indexedMap (,) patterns)
 
-          let listCon = CPattern outerRegion context Error.PList region listType tipe
+          let listCon = CPattern region PList listType expectation
           return $ State headers (Bag.insert entryVar vars) (listCon:revCons)
 
     Can.PCons headPattern tailPattern ->
@@ -87,11 +152,14 @@ addConstraints outerRegion context (A.A region pattern) tipe state =
           let entryType = VarN entryVar
           let listType = AppN ModuleName.list N.list [entryType]
 
-          (State headers vars revCons) <-
-            addConstraints region Error.PatternHead headPattern entryType =<<
-              addConstraints region Error.PatternTail tailPattern listType state
+          let headExpectation = NoPatternExpectation entryType
+          let tailExpectation = PatternExpectation region PTail listType
 
-          let listCon = CPattern outerRegion context Error.PList region listType tipe
+          (State headers vars revCons) <-
+            add headPattern headExpectation =<<
+              add tailPattern tailExpectation state
+
+          let listCon = CPattern region PList listType expectation
           return $ State headers (Bag.insert entryVar vars) (listCon : revCons)
 
     Can.PRecord fields ->
@@ -103,7 +171,7 @@ addConstraints outerRegion context (A.A region pattern) tipe state =
           let recordType = RecordN fieldTypes extType
 
           let (State headers vars revCons) = state
-          let recordCon = CPattern outerRegion context Error.PRecord region recordType tipe
+          let recordCon = CPattern region PRecord recordType expectation
           return $
             State
               { _headers = Map.union headers (Map.map (A.A region) fieldTypes)
@@ -113,97 +181,115 @@ addConstraints outerRegion context (A.A region pattern) tipe state =
 
     Can.PInt _ ->
       do  let (State headers vars revCons) = state
-          let intCon = CPattern outerRegion context Error.PInt region T.int tipe
+          let intCon = CPattern region PInt T.int expectation
           return $ State headers vars (intCon:revCons)
 
     Can.PStr _ ->
       do  let (State headers vars revCons) = state
-          let strCon = CPattern outerRegion context Error.PStr region T.string tipe
+          let strCon = CPattern region PStr T.string expectation
           return $ State headers vars (strCon:revCons)
 
     Can.PChr _ ->
       do  let (State headers vars revCons) = state
-          let chrCon = CPattern outerRegion context Error.PChr region T.char tipe
+          let chrCon = CPattern region PChr T.char expectation
           return $ State headers vars (chrCon:revCons)
 
 
+
+-- STATE HELPERS
+
+
+addToVars :: Variable -> State -> State
+addToVars var (State headers vars revCons) =
+  State headers (Bag.insert var vars) revCons
+
+
+addToHeaders :: R.Region -> N.Name -> PatternExpectation -> State -> State
+addToHeaders region name expectation (State headers vars revCons) =
+  let
+    tipe = getType expectation
+    newHeaders = Map.insert name (A.A region tipe) headers
+  in
+  State newHeaders vars revCons
+
+
+getType :: PatternExpectation -> Type
+getType expectation =
+  case expectation of
+    NoPatternExpectation tipe -> tipe
+    PatternExpectation _ _ tipe -> tipe
 
 
 
 -- CONSTRAIN LIST
 
 
-addListConstraint :: R.Region -> Type -> State -> (Index.ZeroBased, Can.Pattern) -> IO State
-addListConstraint listRegion tipe state (index, pattern) =
-  addConstraints listRegion (Error.PatternList index) pattern tipe state
+addEntry :: R.Region -> Type -> State -> (Index.ZeroBased, Can.Pattern) -> IO State
+addEntry listRegion tipe state (index, pattern) =
+  let
+    expectation =
+      PatternExpectation listRegion (PListEntry index) tipe
+  in
+  add pattern expectation state
 
 
 
 -- CONSTRAIN TUPLE
 
 
-addTupleConstraint
-  :: R.Region
-  -> Error.PatternContext
-  -> R.Region
-  -> Can.Pattern
-  -> Can.Pattern
-  -> Maybe Can.Pattern
-  -> Type
-  -> State
-  -> IO State
-addTupleConstraint parentRegion context tupleRegion a b maybeC tipe (State headers vars revCons) =
+addTuple :: R.Region -> Can.Pattern -> Can.Pattern -> Maybe Can.Pattern -> PatternExpectation -> State -> IO State
+addTuple region a b maybeC expectation state =
   do  aVar <- mkFlexVar
       bVar <- mkFlexVar
-      let aVarN = VarN aVar
-      let bVarN = VarN bVar
-
-      let equal = CPattern parentRegion context Error.PTuple tupleRegion
-      let addCon = addConstraints tupleRegion Error.PatternUnknown
+      let aType = VarN aVar
+      let bType = VarN bVar
 
       case maybeC of
         Nothing ->
-          do  let tupleCon = equal (TupleN aVarN bVarN Nothing) tipe
+          do  (State headers vars revCons) <-
+                simpleAdd b bType =<<
+                  simpleAdd a aType state
+
               let newVars = Bag.insert aVar (Bag.insert bVar vars)
-              addCon b bVarN =<<
-                addCon a aVarN (State headers newVars (tupleCon:revCons))
+              let tupleCon = CPattern region PTuple (TupleN aType bType Nothing) expectation
+
+              return $ State headers newVars (tupleCon:revCons)
 
         Just c ->
           do  cVar <- mkFlexVar
-              let cVarN = VarN cVar
-              let tupleCon = equal (TupleN aVarN bVarN (Just cVarN)) tipe
+              let cType = VarN cVar
+
+              (State headers vars revCons) <-
+                simpleAdd c cType =<<
+                  simpleAdd b bType =<<
+                    simpleAdd a aType state
+
               let newVars = Bag.insert aVar (Bag.insert bVar (Bag.insert cVar vars))
-              addCon c cVarN =<<
-                addCon b bVarN =<<
-                  addCon a aVarN (State headers newVars (tupleCon:revCons))
+              let tupleCon = CPattern region PTuple (TupleN aType bType (Just cType)) expectation
+
+              return $ State headers newVars (tupleCon:revCons)
+
+
+simpleAdd :: Can.Pattern -> Type -> State -> IO State
+simpleAdd pattern patternType state =
+  add pattern (NoPatternExpectation patternType) state
 
 
 
 -- CONSTRAIN CONSTRUCTORS
 
 
-addCtorConstraint
-  :: R.Region
-  -> Error.PatternContext
-  -> R.Region
-  -> ModuleName.Canonical
-  -> N.Name
-  -> [N.Name]
-  -> N.Name
-  -> [Can.PatternCtorArg]
-  -> Type
-  -> State
-  -> IO State
-addCtorConstraint outerRegion context ctorRegion home typeName typeVarNames ctorName args tipe state =
+addCtor :: R.Region -> ModuleName.Canonical -> N.Name -> [N.Name] -> N.Name -> [Can.PatternCtorArg] -> PatternExpectation -> State -> IO State
+addCtor region home typeName typeVarNames ctorName args expectation state =
   do  varPairs <- traverse (\var -> (,) var <$> nameToFlex var) typeVarNames
       let typePairs = map (second VarN) varPairs
       let freeVarDict = Map.fromList typePairs
 
       (State headers vars revCons) <-
-        foldM (addCtorArgConstraint ctorRegion ctorName freeVarDict) state args
+        foldM (addCtorArg region ctorName freeVarDict) state args
 
       let ctorType = AppN home typeName (map snd typePairs)
-      let ctorCon = CPattern outerRegion context (Error.PCtor ctorName) ctorRegion ctorType tipe
+      let ctorCon = CPattern region (PCtor ctorName) ctorType expectation
 
       return $
         State
@@ -213,7 +299,8 @@ addCtorConstraint outerRegion context ctorRegion home typeName typeVarNames ctor
           }
 
 
-addCtorArgConstraint :: R.Region -> N.Name -> Map.Map N.Name Type -> State -> Can.PatternCtorArg -> IO State
-addCtorArgConstraint ctorRegion ctorName freeVarDict state (Can.PatternCtorArg index srcType pattern) =
+addCtorArg :: R.Region -> N.Name -> Map.Map N.Name Type -> State -> Can.PatternCtorArg -> IO State
+addCtorArg region ctorName freeVarDict state (Can.PatternCtorArg index srcType pattern) =
   do  tipe <- Instantiate.fromSrcType freeVarDict srcType
-      addConstraints ctorRegion (Error.PatternCtorArg ctorName index) pattern tipe state
+      let expectation = PatternExpectation region (PCtorArg ctorName index) tipe
+      add pattern expectation state

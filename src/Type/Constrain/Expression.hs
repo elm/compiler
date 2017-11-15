@@ -6,19 +6,14 @@ module Type.Constrain.Expression
   where
 
 
-import Control.Arrow (second)
-import qualified Control.Monad as Monad
 import qualified Data.Map.Strict as Map
-import Data.Text (Text)
 
 import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Utils.Shader as Shader
-import qualified Data.Bag as Bag
 import qualified Data.Index as Index
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Type as Error
 import qualified Reporting.Region as R
 import Type.Constraint
 import qualified Type.Constrain.Pattern as Pattern
@@ -29,73 +24,78 @@ import Type.Type as Type hiding (Descriptor(..))
 -- CONSTRAIN
 
 
--- The environment contains all known type variables.
+-- As we step past type annotations, the free type variables are added to
+-- the "rigid type variables" dict. Allowing sharing of rigid variables
+-- between nested type annotations.
 --
--- So if you have a top-level type annotation like (func : a -> b) then
--- the environment will hold variables for `a` and `b`
+-- So if you have a top-level type annotation like (func : a -> b) the RTV
+-- dictionary will hold variables for `a` and `b`
 --
-type Env = Map.Map N.Name Variable
+type RTV =
+  Map.Map N.Name Type
 
 
-constrain :: Env -> R.Region -> Error.Context -> Can.Expr -> Type -> IO Constraint
-constrain env parentRegion context (A.A region expression) tipe =
+constrain :: RTV -> Can.Expr -> Expectation -> IO Constraint
+constrain rtv (A.A region expression) expectation =
   case expression of
     Can.VarLocal name ->
-      return (CLookup parentRegion context region name tipe)
+      return (CLookup region name expectation)
 
     Can.VarTopLevel _ name ->
-      return (CLookup parentRegion context region name tipe)
+      return (CLookup region name expectation)
 
     Can.VarKernel _ _ ->
       return CTrue
 
     Can.VarForeign _ name annotation ->
-      error "TODO figure out foreign types"
+      return $ CInstance region (FuncName name) annotation expectation
 
     Can.VarOperator op _ _ annotation ->
-      error "TODO figure out foreign types"
+      return $ CInstance region (OpName op) annotation expectation
 
     Can.Str _ ->
-      return $ CEqual parentRegion context Error.String region Type.string tipe
+      return $ CEqual region String Type.string expectation
 
     Can.Chr _ ->
-      return $ CEqual parentRegion context Error.Char region Type.char tipe
+      return $ CEqual region Char Type.char expectation
 
     Can.Int _ ->
       do  var <- mkFlexNumber
-          return $ ex [var] $
-            CEqual parentRegion context Error.Number region (VarN var) tipe
+          return $ ex [var] $ CEqual region Number (VarN var) expectation
 
     Can.Float _ ->
-      return $ CEqual parentRegion context Error.Float region Type.float tipe
+      return $ CEqual region Float Type.float expectation
 
     Can.List elements ->
-      constrainList env parentRegion context region elements tipe
+      constrainList rtv region elements expectation
 
     Can.Negate expr ->
       do  numberVar <- mkFlexNumber
           let numberType = VarN numberVar
-          numberCon <- constrain env region Error.Negate expr numberType
-          let negateCon = CEqual parentRegion context Error.Number region numberType tipe
+          numberCon <- constrain rtv expr (FromContext region Negate numberType)
+          let negateCon = CEqual region Number numberType expectation
           return $ ex [numberVar] $ CAnd [ numberCon, negateCon ]
 
-    Can.Binop op home name annotation leftExpr rightExpr ->
-      constrainBinop env parentRegion context region op annotation leftExpr rightExpr tipe
+    Can.Binop op _ _ annotation leftExpr rightExpr ->
+      constrainBinop rtv region op annotation leftExpr rightExpr expectation
 
-    Can.Lambda args body ->
-      constrainLambda parentRegion context env region args body tipe
+    Can.Lambda args _ body ->
+      do  (lambdaType, resultType, scheme) <- Pattern.constrainArgs args
+          bodyCon <- constrain rtv body (NoExpectation resultType)
+          let lambdaCon = CEqual region Lambda lambdaType expectation
+          return $ CLet [scheme] $ CAnd [ bodyCon, lambdaCon ]
 
     Can.Call func args ->
-      constrainCall env parentRegion context region func args tipe
+      constrainCall rtv region func args expectation
 
     Can.If branches finally ->
-      constrainIf env parentRegion context region branches finally tipe
+      constrainIf rtv region branches finally expectation
 
     Can.Case expr branches ->
-      constrainCase env parentRegion context region expr branches tipe
+      constrainCase rtv region expr branches expectation
 
     Can.Let def body ->
-      constrainLet env parentRegion context region def body tipe
+      constrainDef rtv def =<< constrain rtv body expectation
 
     Can.LetRec defs body ->
       error "TODO let rec" defs body
@@ -110,7 +110,7 @@ constrain env parentRegion context (A.A region expression) tipe =
           let fieldType = VarN fieldVar
           let recordType = RecordN (Map.singleton field fieldType) extType
           return $ ex [ fieldVar, extVar ] $
-            CEqual parentRegion context (Error.Accessor field) region (FunN recordType fieldType) tipe
+            CEqual region (Accessor field) (FunN recordType fieldType) expectation
 
     Can.Access expr field ->
       do  extVar <- mkFlexVar
@@ -118,179 +118,134 @@ constrain env parentRegion context (A.A region expression) tipe =
           let extType = VarN extVar
           let fieldType = VarN fieldVar
           let recordType = RecordN (Map.singleton field fieldType) extType
-          recordCon <- constrain env region (Error.RecordAccess field) expr recordType
+
+          recordCon <-
+            constrain rtv expr (FromContext region (RecordAccess field) recordType)
+
           return $ ex [ fieldVar, extVar ] $
             CAnd
               [ recordCon
-              , CEqual parentRegion context (Error.Access field) region recordType tipe
+              , CEqual region (Access field) recordType expectation
               ]
 
     Can.Update expr fields ->
-      constrainUpdate env parentRegion context region expr fields tipe
+      constrainUpdate rtv region expr fields expectation
 
     Can.Record fields ->
-      constrainRecord env parentRegion context region fields tipe
+      constrainRecord rtv region fields expectation
 
     Can.Unit ->
-      return $ CEqual parentRegion context Error.Unit region UnitN tipe
+      return $ CEqual region Unit UnitN expectation
 
     Can.Tuple a b maybeC ->
-      constrainTuple env parentRegion context region a b maybeC tipe
+      constrainTuple rtv region a b maybeC expectation
 
     Can.Shader _uid _src glType ->
-      constrainShader env parentRegion context region glType tipe
-
-
-
--- CONSTRAIN LAMBDA
-
-
-constrainLambda :: R.Region -> Error.Context -> Env -> R.Region -> Can.Args -> Can.Expr -> Type -> IO Constraint
-constrainLambda parentRegion context env lambdaRegion (Can.Args args _) body tipe =
-  constrainLambdaHelp parentRegion context env lambdaRegion args body [] Pattern.emptyState tipe
-
-
-constrainLambdaHelp :: R.Region -> Error.Context -> Env -> R.Region -> [Can.Arg] -> Can.Expr -> [Type] -> Pattern.State -> Type -> IO Constraint
-constrainLambdaHelp parentRegion context env lambdaRegion args body revArgTypes state tipe =
-  case args of
-    (Can.Arg index pattern) : otherArgs ->
-      do  argVar <- mkFlexVar
-          let argType = VarN argVar
-          let newTypes = argType : revArgTypes
-          let lambdaContext = Error.PatternArg Error.UnknownCall index
-          newState <- Pattern.addConstraints lambdaRegion lambdaContext pattern argType state
-          constrainLambdaHelp parentRegion context env lambdaRegion otherArgs body newTypes newState tipe
-
-    [] ->
-      do  resultVar <- mkFlexVar
-          let resultType = VarN resultVar
-          let lambdaType = foldr (==>) resultType revArgTypes
-          let lambdaCon = CEqual parentRegion context Error.Lambda lambdaRegion lambdaType tipe
-          bodyCon <- constrain env lambdaRegion Error.LambdaBody body resultType
-
-          let (Pattern.State headers vars revCons) = state
-          let scheme = Scheme [] (resultVar : Bag.toList vars) headers (CAnd (reverse revCons))
-
-          return $ CLet [scheme] $ CAnd [ bodyCon, lambdaCon ]
+      constrainShader region glType expectation
 
 
 
 -- CONSTRAIN CALL
 
 
-constrainCall :: Env -> R.Region -> Error.Context -> R.Region -> Can.Expr -> [Can.Expr] -> Type -> IO Constraint
-constrainCall env parentRegion context callRegion func args tipe =
-  do  let callName = toCallName func
-      let (A.A lastArgRegion _) = last args
+constrainCall :: RTV -> R.Region -> Can.Expr -> [Can.Expr] -> Expectation -> IO Constraint
+constrainCall rtv region func args expectation =
+  do  let maybeFuncName = getFuncName func
 
       funcVar <- mkFlexVar
+      resultVar <- mkFlexVar
       let funcType = VarN funcVar
-      funcCon <- constrain env callRegion Error.Whatever func funcType
+      let resultType = VarN resultVar
 
-      (vars, revCons, resultType) <-
-        constrainCallHelp env callRegion callName lastArgRegion args Index.first [funcVar] funcType [funcCon]
+      funcCon <- constrain rtv func (NoExpectation funcType)
 
-      let callCon = CEqual parentRegion context (Error.CallResult callName) callRegion resultType tipe
+      (argVars, argTypes, argCons) <-
+        unzip3 <$> Index.indexedTraverse (constrainArg rtv region maybeFuncName) args
 
-      return $ ex vars $ CAnd (reverse (callCon:revCons))
+      let arityType = foldr FunN resultType argTypes
+      let resultCon = CEqual region (CallResult maybeFuncName) resultType expectation
 
-
-constrainCallHelp
-  :: Env
-  -> R.Region
-  -> Error.CallName
-  -> R.Region
-  -> [Can.Expr]
-  -> Index.ZeroBased
-  -> [Variable]
-  -> Type
-  -> [Constraint]
-  -> IO ([Variable], [Constraint], Type)
-constrainCallHelp env callRegion callName lastArgRegion args index vars funcType revCons =
-  case args of
-    [] ->
-      return (vars, revCons, funcType)
-
-    arg@(A.A argRegion _) : otherArgs ->
-      do  argVar <- mkFlexVar
-          resultVar <- mkFlexVar
-          let argType = VarN argVar
-          let resultType = VarN resultVar
-
-          -- check arity
-          let aRegion = R.merge argRegion lastArgRegion
-          let aContext = Error.CallArity callName index
-          let aCategory = Error.Call callName
-          let arityCon = CEqual callRegion aContext aCategory aRegion funcType (argType ==> resultType)
-
-          -- check arg type
-          argCon <- constrain env callRegion (Error.CallArg callName index) arg argType
-
-          let newIndex = Index.next index
-          let newVars = argVar : resultVar : vars
-          let newCons = argCon : arityCon : revCons
-          constrainCallHelp env callRegion callName lastArgRegion otherArgs newIndex newVars resultType newCons
+      return $ ex (funcVar:resultVar:argVars) $
+        CAnd
+          [ funcCon
+          , CBranch
+              { _a = funcType
+              , _b = arityType
+              , _eq = CAnd [ CAnd argCons, resultCon ]
+              , _neq = constrainCallBackup rtv region maybeFuncName func args
+              }
+          ]
 
 
-toCallName :: Can.Expr -> Error.CallName
-toCallName (A.A _ expr) =
+constrainArg :: RTV -> R.Region -> Maybe FuncName -> Index.ZeroBased -> Can.Expr -> IO (Variable, Type, Constraint)
+constrainArg rtv region maybeFuncName index arg =
+  do  argVar <- mkFlexVar
+      let argType = VarN argVar
+      argCon <- constrain rtv arg (FromContext region (CallArg maybeFuncName index) argType)
+      return (argVar, argType, argCon)
+
+
+constrainCallBackup :: RTV -> R.Region -> Maybe FuncName -> Can.Expr -> [Can.Expr] -> IO Constraint
+constrainCallBackup rtv region maybeFuncName func args =
+  do  (argVars, argTypes, argCons) <-
+        unzip3 <$> Index.indexedTraverse (constrainArg rtv region maybeFuncName) args
+
+      resultVar <- mkFlexVar
+      let resultType = VarN resultVar
+      let arityType = foldr FunN resultType argTypes
+
+      funcCon <- constrain rtv func (FromContext region BadArity arityType)
+
+      return $ ex (resultVar:argVars) $ CAnd [ CAnd argCons, funcCon ]
+
+
+getFuncName :: Can.Expr -> Maybe FuncName
+getFuncName (A.A _ expr) =
   case expr of
     Can.VarLocal name ->
-      Error.FuncCall name
+      Just (FuncName name)
 
     Can.VarTopLevel _ name ->
-      Error.FuncCall name
+      Just (FuncName name)
 
     Can.VarKernel _ name ->
-      Error.FuncCall name
+      Just (FuncName name)
 
     Can.VarForeign _ name _ ->
-      Error.FuncCall name
+      Just (FuncName name)
 
     Can.VarOperator op _ _ _ ->
-      Error.OpCall op
-
-    Can.Accessor field ->
-      Error.AccessCall field
+      Just (OpName op)
 
     _ ->
-      Error.UnknownCall
+      Nothing
 
 
 
 -- CONSTRAIN BINOP
 
 
-constrainBinop
-    :: Env
-    -> R.Region
-    -> Error.Context
-    -> R.Region
-    -> N.Name
-    -> Can.Annotation
-    -> Can.Expr
-    -> Can.Expr
-    -> Type
-    -> IO Constraint
-constrainBinop env parentRegion context opRegion op srcType leftExpr rightExpr tipe =
+constrainBinop :: RTV -> R.Region -> N.Name -> Can.Annotation -> Can.Expr -> Can.Expr -> Expectation -> IO Constraint
+constrainBinop rtv region op annotation leftExpr rightExpr expectation =
   do  leftVar <- mkFlexVar
       rightVar <- mkFlexVar
       answerVar <- mkFlexVar
       let leftType = VarN leftVar
       let rightType = VarN rightVar
       let answerType = VarN answerVar
+      let binopType = leftType ==> rightType ==> answerType
 
-      let opCon = error "TODO CInstance" srcType (leftType ==> rightType ==> answerType)
+      let opCon = CInstance region (OpName op) annotation (NoExpectation binopType)
 
-      leftCon <- constrain env opRegion (Error.OpLeft op) leftExpr leftType
-      rightCon <- constrain env opRegion (Error.OpRight op) rightExpr rightType
+      leftCon <- constrain rtv leftExpr (FromContext region (OpLeft op) leftType)
+      rightCon <- constrain rtv rightExpr (FromContext region (OpRight op) rightType)
 
       return $ ex [ leftVar, rightVar, answerVar ] $
         CAnd
           [ opCon
           , leftCon
           , rightCon
-          , CEqual parentRegion context (Error.Call (Error.OpCall op)) opRegion answerType tipe
+          , CEqual region (CallResult (Just (OpName op))) answerType expectation
           ]
 
 
@@ -298,96 +253,118 @@ constrainBinop env parentRegion context opRegion op srcType leftExpr rightExpr t
 -- CONSTRAIN LISTS
 
 
-constrainList :: Env -> R.Region -> Error.Context -> R.Region -> [Can.Expr] -> Type -> IO Constraint
-constrainList env parentRegion context listRegion entries tipe =
+constrainList :: RTV -> R.Region -> [Can.Expr] -> Expectation -> IO Constraint
+constrainList rtv region entries expectation =
   do  entryVar <- mkFlexVar
       let entryType = VarN entryVar
-      entryCons <- Index.indexedTraverse (constrainListEntry env listRegion entryType) entries
       let listType = AppN ModuleName.list N.list [entryType]
+
+      entryCons <-
+        Index.indexedTraverse (constrainListEntry rtv region entryType) entries
+
       return $ ex [entryVar] $
         CAnd
           [ CAnd entryCons
-          , CEqual parentRegion context Error.List listRegion listType tipe
+          , CEqual region List listType expectation
           ]
 
 
-constrainListEntry :: Env -> R.Region -> Type -> Index.ZeroBased -> Can.Expr -> IO Constraint
-constrainListEntry env listRegion tipe index expr =
-  constrain env listRegion (Error.ListEntry index) expr tipe
-
+constrainListEntry :: RTV -> R.Region -> Type -> Index.ZeroBased -> Can.Expr -> IO Constraint
+constrainListEntry rtv region tipe index expr =
+  constrain rtv expr (FromContext region (ListEntry index) tipe)
 
 
 
 -- CONSTRAIN IF EXPRESSIONS
 
 
-constrainIf :: Env -> R.Region -> Error.Context -> R.Region -> [(Can.Expr, Can.Expr)] -> Can.Expr -> Type -> IO Constraint
-constrainIf env parentRegion context ifRegion branches final tipe =
-  do  branchVar <- mkFlexVar
-      let branchType = VarN branchVar
+constrainIf :: RTV -> R.Region -> [(Can.Expr, Can.Expr)] -> Can.Expr -> Expectation -> IO Constraint
+constrainIf rtv region branches final expectation =
+  do  let boolExpect = FromContext region IfCondition Type.bool
+      let (conditions, exprs) = foldr (\(c,e) (cs,es) -> (c:cs,e:es)) ([],[final]) branches
 
-      branchCons <- Index.indexedTraverse (constrainIfBranch env ifRegion branchType) branches
-      finalCon <- constrain env ifRegion (Error.IfBranchFinal (length branches)) final branchType
+      condCons <-
+        traverse (\c -> constrain rtv c boolExpect) conditions
 
-      return $ ex [branchVar] $
-        CAnd
-          [ CAnd branchCons
-          , finalCon
-          , CEqual parentRegion context Error.If ifRegion branchType tipe
-          ]
+      case expectation of
+        FromAnnotation name arity _ tipe ->
+          do  branchCons <- Index.indexedForA exprs $ \index expr ->
+                constrain rtv expr (FromAnnotation name arity (TypedIfBranch index) tipe)
+              return $
+                CAnd
+                  [ CAnd condCons
+                  , CAnd branchCons
+                  ]
 
+        _ ->
+          do  branchVar <- mkFlexVar
+              let branchType = VarN branchVar
 
-constrainIfBranch :: Env -> R.Region -> Type -> Index.ZeroBased -> (Can.Expr, Can.Expr) -> IO Constraint
-constrainIfBranch env ifRegion branchType index (condition, branch) =
-  do  condCon <- constrain env ifRegion Error.IfCondition condition Type.bool
-      branchCon <- constrain env ifRegion (Error.IfBranch index) branch branchType
-      return $ CAnd [ condCon, branchCon ]
+              branchCons <- Index.indexedForA exprs $ \index expr ->
+                constrain rtv expr (FromContext region (IfBranch index) branchType)
+
+              return $ ex [branchVar] $
+                CAnd
+                  [ CAnd condCons
+                  , CAnd branchCons
+                  , CEqual region If branchType expectation
+                  ]
+
 
 
 -- CONSTRAIN CASE EXPRESSIONS
 
 
-constrainCase :: Env -> R.Region -> Error.Context -> R.Region -> Can.Expr -> [Can.CaseBranch] -> Type -> IO Constraint
-constrainCase env parentRegion context caseRegion expr branches tipe =
-  do  exprVar <- mkFlexVar
-      branchVar <- mkFlexVar
-      let exprType = VarN exprVar
-      let branchType = VarN branchVar
+constrainCase :: RTV -> R.Region -> Can.Expr -> [Can.CaseBranch] -> Expectation -> IO Constraint
+constrainCase rtv region expr branches expectation =
+  do  ptrnVar <- mkFlexVar
+      let ptrnType = VarN ptrnVar
+      exprCon <- constrain rtv expr (NoExpectation ptrnType)
 
-      exprCon <- constrain env caseRegion Error.CaseExpr expr exprType
-      revCons <- constrainCaseHelp env caseRegion branches exprType branchType [exprCon]
-      let caseCon = CEqual parentRegion context Error.Case caseRegion branchType tipe
+      case expectation of
+        FromAnnotation name arity _ tipe ->
+          do  branchCons <- Index.indexedForA branches $ \index branch ->
+                constrainCaseBranch rtv branch
+                  (PatternExpectation region (PCaseMatch index) ptrnType)
+                  (FromAnnotation name arity (TypedCaseBranch index) tipe)
 
-      return $ ex [ exprVar, branchVar ] $ CAnd (reverse (caseCon:revCons))
+              return $ ex [ptrnVar] $ CAnd (exprCon:branchCons)
+
+        _ ->
+          do  branchVar <- mkFlexVar
+              let branchType = VarN branchVar
+
+              branchCons <- Index.indexedForA branches $ \index branch ->
+                constrainCaseBranch rtv branch
+                  (PatternExpectation region (PCaseMatch index) ptrnType)
+                  (FromContext region (CaseBranch index) branchType)
+
+              return $ ex [ptrnVar,branchVar] $
+                CAnd
+                  [ exprCon
+                  , CAnd branchCons
+                  , CEqual region Case branchType expectation
+                  ]
 
 
-
-constrainCaseHelp :: Env -> R.Region -> [Can.CaseBranch] -> Type -> Type -> [Constraint] -> IO [Constraint]
-constrainCaseHelp env caseRegion branches patternType exprType revCons =
-  case branches of
-    [] ->
-      return revCons
-
-    (Can.CaseBranch index pattern destructors expr) : otherBranches ->
-      do  (Pattern.State headers vars revCons) <-
-            Pattern.addConstraints caseRegion (Error.PatternCaseMatch index) pattern patternType Pattern.emptyState
-
-          exprCon <- constrain env caseRegion (Error.CaseBranch index) expr exprType
-          let branchCon = CLet [ Scheme [] (Bag.toList vars) headers (CAnd (reverse revCons)) ] exprCon
-          constrainCaseHelp env caseRegion otherBranches patternType exprType (branchCon:revCons)
+constrainCaseBranch :: RTV -> Can.CaseBranch -> PatternExpectation -> Expectation -> IO Constraint
+constrainCaseBranch rtv (Can.CaseBranch pattern _ expr) pExpect bExpect =
+  do  scheme <- Pattern.constrain pattern pExpect
+      constraint <- constrain rtv expr bExpect
+      return $ CLet [scheme] constraint
 
 
 
 -- CONSTRAIN RECORD
 
 
-constrainRecord :: Env -> R.Region -> Error.Context -> R.Region -> Map.Map N.Name Can.Expr -> Type -> IO Constraint
-constrainRecord env parentRegion context recordRegion fields tipe =
-  do  dict <- Map.traverseWithKey (constrainField env recordRegion) fields
+constrainRecord :: RTV -> R.Region -> Map.Map N.Name Can.Expr -> Expectation -> IO Constraint
+constrainRecord rtv region fields expectation =
+  do  dict <- traverse (constrainField rtv) fields
 
       let getType (_, t, _) = t
       let recordType = RecordN (Map.map getType dict) EmptyRecordN
-      let recordCon = CEqual parentRegion context Error.Record recordRegion recordType tipe
+      let recordCon = CEqual region Record recordType expectation
 
       let vars = Map.foldr (\(v,_,_) vs -> v:vs) [] dict
       let cons = Map.foldr (\(_,_,c) cs -> c:cs) [recordCon] dict
@@ -395,11 +372,11 @@ constrainRecord env parentRegion context recordRegion fields tipe =
       return $ ex vars (CAnd cons)
 
 
-constrainField :: Env -> R.Region -> N.Name -> Can.Expr -> IO (Variable, Type, Constraint)
-constrainField env recordRegion name expr =
+constrainField :: RTV -> Can.Expr -> IO (Variable, Type, Constraint)
+constrainField rtv expr =
   do  var <- mkFlexVar
       let tipe = VarN var
-      con <- constrain env recordRegion (Error.RecordField name) expr tipe
+      con <- constrain rtv expr (NoExpectation tipe)
       return (var, tipe, con)
 
 
@@ -407,21 +384,21 @@ constrainField env recordRegion name expr =
 -- CONSTRAIN RECORD UPDATE
 
 
-constrainUpdate :: Env -> R.Region -> Error.Context -> R.Region -> Can.Expr -> Map.Map N.Name Can.Expr -> Type -> IO Constraint
-constrainUpdate env parentRegion context recordRegion expr fields tipe =
+constrainUpdate :: RTV -> R.Region -> Can.Expr -> Map.Map N.Name Can.Expr -> Expectation -> IO Constraint
+constrainUpdate rtv region expr fields expectation =
   do  sharedVar <- mkFlexVar
       let sharedType = VarN sharedVar
 
       oldVars <- traverse (\_ -> mkFlexVar) fields
       let oldTypes = Map.map VarN oldVars
       let oldRecordType = RecordN oldTypes sharedType
-      oldCon <- constrain env recordRegion Error.RecordUpdate expr oldRecordType
+      oldCon <- constrain rtv expr (FromContext region RecordUpdate oldRecordType)
 
-      newDict <- Map.traverseWithKey (constrainField env recordRegion) fields
+      newDict <- traverse (constrainField rtv) fields
 
       let getType (_, t, _) = t
       let newRecordType = RecordN (Map.map getType newDict) sharedType
-      let newCon = CEqual parentRegion context Error.Record recordRegion newRecordType tipe
+      let newCon = CEqual region Record newRecordType expectation
 
       let vars = Map.foldr (\(v,_,_) vs -> v:vs) (sharedVar : Map.elems oldVars) newDict
       let cons = Map.foldr (\(_,_,c) cs -> c:cs) [newCon] newDict
@@ -433,30 +410,30 @@ constrainUpdate env parentRegion context recordRegion expr fields tipe =
 -- CONSTRAIN TUPLE
 
 
-constrainTuple :: Env -> R.Region -> Error.Context -> R.Region -> Can.Expr -> Can.Expr -> Maybe Can.Expr -> Type -> IO Constraint
-constrainTuple env parentRegion context tupleRegion a b maybeC tipe =
+constrainTuple :: RTV -> R.Region -> Can.Expr -> Can.Expr -> Maybe Can.Expr -> Expectation -> IO Constraint
+constrainTuple rtv region a b maybeC expectation =
   do  aVar <- mkFlexVar
       bVar <- mkFlexVar
       let aType = VarN aVar
       let bType = VarN bVar
 
-      aCon <- constrain env tupleRegion Error.Whatever a aType
-      bCon <- constrain env tupleRegion Error.Whatever b bType
+      aCon <- constrain rtv a (NoExpectation aType)
+      bCon <- constrain rtv b (NoExpectation bType)
 
       case maybeC of
         Nothing ->
           do  let tupleType = TupleN aType bType Nothing
-              let tupleCon = CEqual parentRegion context Error.Tuple tupleRegion tupleType tipe
+              let tupleCon = CEqual region Tuple tupleType expectation
               return $ ex [ aVar, bVar ] $ CAnd [ aCon, bCon, tupleCon ]
 
         Just c ->
           do  cVar <- mkFlexVar
               let cType = VarN cVar
 
-              cCon <- constrain env tupleRegion Error.Whatever c cType
+              cCon <- constrain rtv c (NoExpectation cType)
 
               let tupleType = TupleN aType bType (Just cType)
-              let tupleCon = CEqual parentRegion context Error.Tuple tupleRegion tupleType tipe
+              let tupleCon = CEqual region Tuple tupleType expectation
 
               return $ ex [ aVar, bVar, cVar ] $ CAnd [ aCon, bCon, cCon, tupleCon ]
 
@@ -465,8 +442,8 @@ constrainTuple env parentRegion context tupleRegion a b maybeC tipe =
 -- CONSTRAIN SHADER
 
 
-constrainShader :: Env -> R.Region -> Error.Context -> R.Region -> Shader.Shader -> Type -> IO Constraint
-constrainShader env parentRegion context shaderRegion (Shader.Shader attributes uniforms varyings) tipe =
+constrainShader :: R.Region -> Shader.Shader -> Expectation -> IO Constraint
+constrainShader region (Shader.Shader attributes uniforms varyings) expectation =
   do  attrVar <- mkFlexVar
       unifVar <- mkFlexVar
       let attrType = VarN attrVar
@@ -480,7 +457,7 @@ constrainShader env parentRegion context shaderRegion (Shader.Shader attributes 
               ]
 
       return $ ex [ attrVar, unifVar ] $
-        CEqual parentRegion context Error.Shader shaderRegion shaderType tipe
+        CEqual region Shader shaderType expectation
 
 
 toShaderRecord :: Map.Map N.Name Shader.Type -> Type -> Type
@@ -507,11 +484,30 @@ glToType glType =
 -- CONSTRAIN LET
 
 
-constrainLet :: Env -> R.Region -> Error.Context -> R.Region -> Can.Def -> Can.Expr -> Type -> IO Constraint
-constrainLet env parentRegion context letRegion (Can.Def (A.A _ name) (Can.Args args _) expr maybeType) body tipe =
-  case maybeType of
-    Nothing ->
-      error "TODO"
+constrainDef :: RTV -> Can.Def -> Constraint -> IO Constraint
+constrainDef rtv def bodyCon =
+  case def of
+    Can.Def (A.A region name) args _ expr ->
+      do  (lambdaType, resultType, scheme) <-
+            Pattern.constrainArgs args
 
-    Just srcType ->
-      error "TODO"
+          defCon <-
+            CLet [scheme] <$> constrain rtv expr (NoExpectation resultType)
+
+          let headers = Map.singleton name (A.A region lambdaType)
+          return $ CLet [Scheme [] [] headers defCon] bodyCon
+
+    Can.TypedDef (A.A region name) freeVars typedArgs _ expr srcResultType ->
+      do  let newNames = Map.difference freeVars rtv
+          newRigids <- Map.traverseWithKey (\n _ -> nameToRigid n) newNames
+          let newRtv = Map.union rtv (Map.map VarN newRigids)
+
+          (lambdaType, resultType, scheme) <-
+            Pattern.constrainTypedArgs newRtv typedArgs srcResultType
+
+          let expectation = FromAnnotation name (length typedArgs) TypedBody resultType
+          defCon <-
+            CLet [scheme] <$> constrain newRtv expr expectation
+
+          let headers = Map.singleton name (A.A region lambdaType)
+          return $ CLet [ Scheme (Map.elems newRigids) [] headers defCon ] bodyCon
