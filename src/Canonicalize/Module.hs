@@ -237,7 +237,7 @@ canonicalizeExports decls unions aliases binops effects exposing =
       do  let names = Map.fromList (map declToName decls)
           infos <- traverse (checkExposed names unions aliases binops effects) exposeds
           let toError name () () = Error.ExportDuplicate name
-          Can.Export <$> Dups.detect toError infos
+          Can.Export <$> Dups.detect toError (Dups.unions infos)
 
 
 declToName :: A.Located Valid.Decl -> ( N.Name, () )
@@ -252,16 +252,16 @@ checkExposed
   -> Map.Map N.Name binop
   -> Can.Effects
   -> A.Located Src.Exposed
-  -> Result (N.Name, [Dups.Info () Can.Export])
+  -> Result (Dups.Dict () Can.Export)
 checkExposed decls unions aliases binops effects (A.A region exposed) =
   case exposed of
     Src.Lower name ->
       if Map.member name decls then
-        Result.ok (Dups.info name region () Can.ExportValue)
+        Result.ok (Dups.one name region () Can.ExportValue)
       else
         case checkPorts effects name of
           Nothing ->
-            Result.ok (Dups.info name region () Can.ExportPort)
+            Result.ok (Dups.one name region () Can.ExportPort)
 
           Just ports ->
             Result.throw region $ Error.ExportNotFound Error.BadVar name $
@@ -269,14 +269,14 @@ checkExposed decls unions aliases binops effects (A.A region exposed) =
 
     Src.Operator name ->
       if Map.member name binops then
-        Result.ok (Dups.info name region () Can.ExportBinop)
+        Result.ok (Dups.one name region () Can.ExportBinop)
       else
         Result.throw region $ Error.ExportNotFound Error.BadOp name $
           Map.keys binops
 
     Src.Upper name Src.Public ->
       if Map.member name unions then
-        Result.ok (Dups.info name region () Can.ExportUnionOpen)
+        Result.ok (Dups.one name region () Can.ExportUnionOpen)
       else if Map.member name aliases then
         Result.throw region $ Error.ExportOpenAlias name
       else
@@ -285,9 +285,9 @@ checkExposed decls unions aliases binops effects (A.A region exposed) =
 
     Src.Upper name Src.Private ->
       if Map.member name unions then
-        Result.ok (Dups.info name region () Can.ExportUnionClosed)
+        Result.ok (Dups.one name region () Can.ExportUnionClosed)
       else if Map.member name aliases then
-        Result.ok (Dups.info name region () Can.ExportAlias)
+        Result.ok (Dups.one name region () Can.ExportAlias)
       else
         Result.throw region $ Error.ExportNotFound Error.BadType name $
           Map.keys unions ++ Map.keys aliases

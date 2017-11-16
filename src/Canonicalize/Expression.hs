@@ -272,8 +272,8 @@ canonicalizeLet letRegion env defs body =
   addLocals $
   do  let keyedDefs = zip defs [ 0 .. length defs ]
       let toError name () () = Error.DuplicatePattern Error.DPLetBinding name
-      let namesBag = foldr addBindings Bag.empty keyedDefs
-      boundNames <- Dups.detect toError (Bag.toList namesBag)
+      let names = foldr addBindings Dups.none keyedDefs
+      boundNames <- Dups.detect toError names
       newEnv <- Env.addLocals boundNames env
       let defKeys = Map.map A.drop boundNames
       nodes <- traverse (defToNode defKeys newEnv) keyedDefs
@@ -324,62 +324,62 @@ toUnusedWarning unused (name, A.A region _) =
 -- ADD BINDINGS
 
 
-type KeyBag =
-  Bag.Bag ( N.Name, [Dups.Info () (A.Located Int)] )
+type Bindings =
+  Dups.Dict () (A.Located Int)
 
 
-addBindings :: (Valid.Def, Int) -> KeyBag -> KeyBag
-addBindings (def, key) bag =
+addBindings :: (Valid.Def, Int) -> Bindings -> Bindings
+addBindings (def, key) bindings =
   case def of
     Valid.Define defRegion (A.A region name) _ _ _ ->
-      Bag.insert (Dups.info name region () (A.A defRegion key)) bag
+      Dups.insert name region () (A.A defRegion key) bindings
 
     Valid.Destruct defRegion pattern _ ->
-      addBindingsHelp (A.A defRegion key) pattern bag
+      addBindingsHelp (A.A defRegion key) pattern bindings
 
 
-addBindingsHelp :: A.Located Int -> Src.Pattern -> KeyBag -> KeyBag
-addBindingsHelp key (A.A region pattern) bag =
+addBindingsHelp :: A.Located Int -> Src.Pattern -> Bindings -> Bindings
+addBindingsHelp key (A.A region pattern) bindings =
   case pattern of
     Src.PAnything ->
-      bag
+      bindings
 
     Src.PVar name ->
-      Bag.insert (Dups.info name region () key) bag
+      Dups.insert name region () key bindings
 
     Src.PRecord fields ->
       let
-        fieldToInfo (A.A fieldRegion name) =
-          Dups.info name fieldRegion () key
+        addField (A.A fieldRegion name) dict =
+          Dups.insert name fieldRegion () key dict
       in
-      foldr (\f b -> Bag.insert (fieldToInfo f) b) bag fields
+      foldr addField bindings fields
 
     Src.PUnit ->
-      bag
+      bindings
 
     Src.PTuple a b cs ->
-      foldr (addBindingsHelp key) bag (a:b:cs)
+      foldr (addBindingsHelp key) bindings (a:b:cs)
 
     Src.PCtor _ _ _ patterns ->
-      foldr (addBindingsHelp key) bag patterns
+      foldr (addBindingsHelp key) bindings patterns
 
     Src.PList patterns ->
-      foldr (addBindingsHelp key) bag patterns
+      foldr (addBindingsHelp key) bindings patterns
 
     Src.PCons first rest ->
-      addBindingsHelp key rest (addBindingsHelp key first bag)
+      addBindingsHelp key rest (addBindingsHelp key first bindings)
 
     Src.PAlias ptrn (A.A reg name) ->
-      addBindingsHelp key ptrn (Bag.insert (Dups.info name reg () key) bag)
+      addBindingsHelp key ptrn (Dups.insert name reg () key bindings)
 
     Src.PChr _ ->
-      bag
+      bindings
 
     Src.PStr _ ->
-      bag
+      bindings
 
     Src.PInt _ ->
-      bag
+      bindings
 
 
 
@@ -450,7 +450,7 @@ toNode defKeys key args (Result.Result freeLocals warnings answer) =
 -- GATHER TYPED ARGS
 
 
-gatherTypedArgs :: Env.Env -> N.Name -> [Src.Pattern] -> Can.Type -> Index.ZeroBased -> [Can.TypedArg] -> Result Pattern.Bag ([Can.TypedArg], Can.Type)
+gatherTypedArgs :: Env.Env -> N.Name -> [Src.Pattern] -> Can.Type -> Index.ZeroBased -> [Can.TypedArg] -> Result Pattern.Bindings ([Can.TypedArg], Can.Type)
 gatherTypedArgs env name srcArgs tipe index revTypedArgs =
   case srcArgs of
     [] ->

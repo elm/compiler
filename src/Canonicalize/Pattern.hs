@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Canonicalize.Pattern
   ( verify
-  , Bag
+  , Bindings
   , canonicalize
   , canonicalizeArg
   )
@@ -12,9 +12,7 @@ import qualified AST.Canonical as Can
 import qualified AST.Source as Src
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
-import qualified Data.Bag as Bag
 import qualified Data.Index as Index
-import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Region as R
@@ -34,12 +32,12 @@ type Result i =
 -- VERIFY NAMES
 
 
-verify :: Error.DuplicatePatternContext -> Result Bag a -> Result () (a, Can.Destructors)
-verify context (Result.Result bag warnings answer) =
+verify :: Error.DuplicatePatternContext -> Result Bindings a -> Result () (a, Can.Destructors)
+verify context (Result.Result bindings warnings answer) =
   case answer of
     Result.Ok value ->
       do  let toError name () () = Error.DuplicatePattern context name
-          destructors <- Dups.detect toError (Bag.toList bag)
+          destructors <- Dups.detect toError bindings
           Result.Result () warnings $ Result.Ok (value, destructors)
 
     Result.Err err ->
@@ -50,7 +48,7 @@ verify context (Result.Result bag warnings answer) =
 -- CANONICALIZE ARG
 
 
-canonicalizeArg :: Env.Env -> Index.ZeroBased -> Src.Pattern -> Result Bag Can.Arg
+canonicalizeArg :: Env.Env -> Index.ZeroBased -> Src.Pattern -> Result Bindings Can.Arg
 canonicalizeArg env index pattern =
   Can.Arg index <$> canonicalize env index pattern
 
@@ -59,16 +57,16 @@ canonicalizeArg env index pattern =
 -- CANONICALIZE
 
 
-type Bag =
-  Bag.Bag (N.Name, [Dups.Info () (A.Located Can.Destructor)])
+type Bindings =
+  Dups.Dict () (A.Located Can.Destructor)
 
 
-canonicalize :: Env.Env -> Index.ZeroBased -> Src.Pattern -> Result Bag Can.Pattern
+canonicalize :: Env.Env -> Index.ZeroBased -> Src.Pattern -> Result Bindings Can.Pattern
 canonicalize env index pattern =
   process env (Can.DRoot index) pattern
 
 
-process :: Env.Env -> Can.Destructor -> Src.Pattern -> Result Bag Can.Pattern
+process :: Env.Env -> Can.Destructor -> Src.Pattern -> Result Bindings Can.Pattern
 process env destructor (A.A region pattern) =
   A.A region <$>
   case pattern of
@@ -77,16 +75,16 @@ process env destructor (A.A region pattern) =
 
     Src.PVar name ->
       Result.accumulate
-        (Bag.one (Dups.info name region () (A.A region destructor)))
+        (Dups.one name region () (A.A region destructor))
         (Can.PVar name)
 
     Src.PRecord fields ->
       let
-        fieldToInfo (A.A reg name) =
-          Dups.info name reg () (A.A reg (Can.DField name destructor))
+        addField (A.A reg name) dict =
+          Dups.insert name reg () (A.A reg (Can.DField name destructor)) dict
       in
       Result.accumulate
-        (Bag.fromList fieldToInfo fields)
+        (foldr addField Dups.none fields)
         (Can.PRecord (map A.drop fields))
 
     Src.PUnit ->
@@ -123,8 +121,9 @@ process env destructor (A.A region pattern) =
 
     Src.PAlias ptrn (A.A reg name) ->
       do  cpattern <- process env destructor ptrn
-          let info = Dups.info name reg () (A.A reg destructor)
-          Result.accumulate (Bag.one info) (Can.PAlias cpattern name)
+          Result.accumulate
+            (Dups.one name reg () (A.A reg destructor))
+            (Can.PAlias cpattern name)
 
     Src.PChr chr ->
       Result.ok (Can.PChr chr)
@@ -136,7 +135,7 @@ process env destructor (A.A region pattern) =
       Result.ok (Can.PInt int)
 
 
-processTuple :: R.Region -> Env.Env -> Can.Destructor -> [Src.Pattern] -> Result Bag (Maybe Can.Pattern)
+processTuple :: R.Region -> Env.Env -> Can.Destructor -> [Src.Pattern] -> Result Bindings (Maybe Can.Pattern)
 processTuple tupleRegion env destructor extras =
   case extras of
     [] ->
@@ -150,7 +149,7 @@ processTuple tupleRegion env destructor extras =
       Result.throw tupleRegion (Error.TupleLargerThanThree (R.merge r1 r2))
 
 
-processList :: Env.Env -> Can.Destructor -> [Src.Pattern] -> Result Bag [Can.Pattern]
+processList :: Env.Env -> Can.Destructor -> [Src.Pattern] -> Result Bindings [Can.Pattern]
 processList env destructor list =
   case list of
     [] ->

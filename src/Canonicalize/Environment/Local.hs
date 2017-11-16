@@ -135,59 +135,58 @@ addVarsHelp localVars vars =
 collectLowerVars :: Valid.Module -> Result (Map.Map N.Name ())
 collectLowerVars (Valid.Module _ _ _ _ _ decls _ _ _ effects) =
   let
-    declToInfo (A.A _ (Valid.Decl (A.A region name) _ _ _)) =
-      Dups.info name region () ()
+    addDecl (A.A _ (Valid.Decl (A.A region name) _ _ _)) dict =
+      Dups.insert name region () () dict
 
-    portToInfo (Valid.Port (A.A region name) _) =
-      Dups.info name region () ()
+    addPort (Valid.Port (A.A region name) _) dict =
+      Dups.insert name region () () dict
 
-    effectInfo =
+    effectDict =
       case effects of
         Valid.NoEffects ->
-          []
+          Dups.none
 
         Valid.Ports ports ->
-          map portToInfo ports
+          foldr addPort Dups.none ports
 
         Valid.Manager _ manager ->
           case manager of
             Valid.Cmd (A.A region _) ->
-              [ Dups.info "command" region () () ]
+              Dups.one "command" region () ()
 
             Valid.Sub (A.A region _) ->
-              [ Dups.info "subscription" region () () ]
+              Dups.one "subscription" region () ()
 
             Valid.Fx (A.A regionCmd _) (A.A regionSub _) ->
-              [ Dups.info "command" regionCmd () ()
-              , Dups.info "subscription" regionSub () ()
-              ]
+              Dups.union
+                (Dups.one "command" regionCmd () ())
+                (Dups.one "subscription" regionSub () ())
 
     toError name () () =
       Error.DuplicateDecl name
   in
-  Dups.detect toError $
-    effectInfo ++ map declToInfo decls
+  Dups.detect toError $ foldr addDecl effectDict decls
 
 
 collectUpperVars :: Valid.Module -> Result (Map.Map N.Name ())
 collectUpperVars (Valid.Module _ _ _ _ _ _ unions aliases _ _) =
   let
-    unionToInfos (Valid.Union (A.A _ name) _ ctors) =
-      map (ctorToInfo name) ctors
+    addUnion (Valid.Union (A.A _ name) _ ctors) dict =
+      foldr (addCtor name) dict ctors
 
-    ctorToInfo tipe (A.A region name, _args) =
-      Dups.info name region (Error.UnionCtor tipe) ()
+    addCtor tipe (A.A region name, _args) dict =
+      Dups.insert name region (Error.UnionCtor tipe) () dict
 
-    aliasToInfos (Valid.Alias (A.A region name) _ (A.A _ tipe)) =
+    addAlias (Valid.Alias (A.A region name) _ (A.A _ tipe)) dict =
       case tipe of
         Src.TRecord _ Nothing ->
-          [ Dups.info name region Error.RecordCtor () ]
+          Dups.insert name region Error.RecordCtor () dict
 
         _ ->
-          []
+          dict
   in
   Dups.detect Error.DuplicateCtor $
-    concatMap aliasToInfos aliases ++ concatMap unionToInfos unions
+    foldr addAlias (foldr addUnion Dups.none unions) aliases
 
 
 
@@ -197,23 +196,25 @@ collectUpperVars (Valid.Module _ _ _ _ _ _ unions aliases _ _) =
 addTypes :: Valid.Module -> Env.Env -> Result Env.Env
 addTypes (Valid.Module _ _ _ _ _ _ unions aliases _ _) env =
   let
-    aliasToInfo alias@(Valid.Alias (A.A region name) _ tipe) =
+    aliasToDict alias@(Valid.Alias (A.A region name) _ tipe) =
       do  args <- checkAliasFreeVars alias
-          return $ Dups.info name region () (Left (Alias region name args tipe))
+          return $ Dups.one name region () (Left (Alias region name args tipe))
 
-    unionToInfo union@(Valid.Union (A.A region name) _ _) =
+    unionToDict union@(Valid.Union (A.A region name) _ _) =
       do  arity <- checkUnionFreeVars union
-          return $ Dups.info name region () (Right arity)
+          return $ Dups.one name region () (Right arity)
 
     toError name () () =
       Error.DuplicateType name
 
-    infos =
-      liftA2 (++)
-        (traverse aliasToInfo aliases)
-        (traverse unionToInfo unions)
+    combineDicts dicts1 dicts2 =
+      Dups.union (Dups.unions dicts1) (Dups.unions dicts2)
   in
-  do  types <- Dups.detect toError =<< infos
+  do  dict <-
+        liftA2 combineDicts
+          (traverse aliasToDict aliases)
+          (traverse unionToDict unions)
+      types <- Dups.detect toError dict
       let (aliasDict, unionDict) = Map.mapEither id types
       addTypeAliases aliasDict (addUnionTypes unionDict env)
 
@@ -326,8 +327,8 @@ getEdges (A.A _ tipe) =
 checkUnionFreeVars :: Valid.Union -> Result Int
 checkUnionFreeVars (Valid.Union (A.A unionRegion name) args ctors) =
   let
-    toInfo (A.A region arg) =
-      Dups.info arg region () region
+    addUnion (A.A region arg) dict =
+      Dups.insert arg region () region dict
 
     toError badArg () () =
       Error.DuplicateUnionArg name badArg (map A.drop args)
@@ -335,7 +336,7 @@ checkUnionFreeVars (Valid.Union (A.A unionRegion name) args ctors) =
     addCtorFreeVars (_, tipes) freeVars =
       foldr addFreeVars freeVars tipes
   in
-  do  boundVars <- Dups.detect toError (map toInfo args)
+  do  boundVars <- Dups.detect toError (foldr addUnion Dups.none args)
       let freeVars = foldr addCtorFreeVars Map.empty ctors
       case Map.toList (Map.difference freeVars boundVars) of
         [] ->
@@ -351,13 +352,13 @@ checkUnionFreeVars (Valid.Union (A.A unionRegion name) args ctors) =
 checkAliasFreeVars :: Valid.Alias -> Result [N.Name]
 checkAliasFreeVars (Valid.Alias (A.A aliasRegion name) args tipe) =
   let
-    toInfo (A.A region arg) =
-      Dups.info arg region () region
+    addAlias (A.A region arg) dict =
+      Dups.insert arg region () region dict
 
     toError badArg () () =
       Error.DuplicateAliasArg name badArg (map A.drop args)
   in
-  do  boundVars <- Dups.detect toError (map toInfo args)
+  do  boundVars <- Dups.detect toError (foldr addAlias Dups.none args)
       let freeVars = addFreeVars tipe Map.empty
       let overlap = Map.size (Map.intersection boundVars freeVars)
       if Map.size boundVars == overlap && Map.size freeVars == overlap

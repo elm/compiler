@@ -1,8 +1,12 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Canonicalize.Environment.Dups
-  ( Info(Info)
-  , info
+  ( Dict
+  , none
+  , one
+  , union
+  , unions
+  , insert
   , detect
   , checkFields
   )
@@ -12,6 +16,7 @@ module Canonicalize.Environment.Dups
 import qualified Data.Map as Map
 
 import Canonicalize.Environment.Internals (Result)
+import qualified Data.OneOrMore as OneOrMore
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
@@ -23,6 +28,10 @@ import qualified Reporting.Result as Result
 -- INFO
 
 
+type Dict category value =
+  Map.Map N.Name (OneOrMore.OneOrMore (Info category value))
+
+
 data Info category value =
   Info
     { _region :: R.Region
@@ -31,10 +40,29 @@ data Info category value =
     }
 
 
-{-# INLINE info #-}
-info :: N.Name -> R.Region -> category -> value -> ( N.Name, [Info category value] )
-info name region category value =
-  ( name, [Info region category value] )
+none :: Dict c v
+none =
+  Map.empty
+
+
+one :: N.Name -> R.Region -> category -> value -> Dict category value
+one name region category value =
+  Map.singleton name (OneOrMore.one (Info region category value))
+
+
+union :: Dict c v -> Dict c v -> Dict c v
+union a b =
+  Map.unionWith OneOrMore.more a b
+
+
+unions :: [Dict c v] -> Dict c v
+unions dicts =
+  Map.unionsWith OneOrMore.more dicts
+
+
+insert :: N.Name -> R.Region -> c -> v -> Dict c v -> Dict c v
+insert name region category value dict =
+  Map.insertWith OneOrMore.more name (OneOrMore.one (Info region category value)) dict
 
 
 
@@ -45,22 +73,23 @@ type ToError c =
   N.Name -> c -> c -> Error.Error
 
 
-detect :: ToError c -> [(N.Name, [Info c v])] -> Result () (Map.Map N.Name v)
-detect toError pairs =
-  Map.traverseWithKey (detectHelp toError) $ Map.fromListWith (++) pairs
+detect :: ToError c -> Dict c v -> Result () (Map.Map N.Name v)
+detect toError dict =
+  Map.traverseWithKey (detectHelp toError) dict
 
 
-detectHelp :: ToError c -> N.Name -> [Info c v] -> Result () v
+detectHelp :: ToError c -> N.Name -> OneOrMore.OneOrMore (Info c v) -> Result () v
 detectHelp toError name values =
   case values of
-    [Info _ _ value] ->
+    OneOrMore.One (Info _ _ value) ->
       Result.ok value
 
-    [] ->
-      error "impossible: use a non-empty data structure to rule this out"
-
-    Info region1 category1 _ : Info region2 category2 _ : _ ->
-      Result.throw (max region1 region2) (toError name category1 category2)
+    OneOrMore.More _ _ ->
+      let
+        (Info r1 c1 _ : Info r2 c2 _ : _) =
+          OneOrMore.toList values
+      in
+      Result.throw (max r1 r2) (toError name c1 c2)
 
 
 
@@ -71,9 +100,10 @@ checkFields :: [(A.Located N.Name, a)] -> Result () (Map.Map N.Name a)
 checkFields fields =
   let
     toInfo (A.A region name, value) =
-      info name region () value
+      Map.singleton name (OneOrMore.one (Info region () value))
 
     toError name () () =
       Error.DuplicateField name
   in
-  detect toError $ map toInfo fields
+  detect toError $
+    Map.unionsWith OneOrMore.more (map toInfo fields)
