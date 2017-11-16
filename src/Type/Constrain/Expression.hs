@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE OverloadedStrings #-}
 module Type.Constrain.Expression
   ( constrain
   )
@@ -17,6 +16,7 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 import Type.Constraint
 import qualified Type.Constrain.Pattern as Pattern
+import qualified Type.Instantiate as Instantiate
 import Type.Type as Type hiding (Descriptor(..))
 
 
@@ -61,7 +61,7 @@ constrain rtv (A.A region expression) expectation =
 
     Can.Int _ ->
       do  var <- mkFlexNumber
-          return $ ex [var] $ CEqual region Number (VarN var) expectation
+          return $ exists [var] $ CEqual region Number (VarN var) expectation
 
     Can.Float _ ->
       return $ CEqual region Float Type.float expectation
@@ -74,16 +74,13 @@ constrain rtv (A.A region expression) expectation =
           let numberType = VarN numberVar
           numberCon <- constrain rtv expr (FromContext region Negate numberType)
           let negateCon = CEqual region Number numberType expectation
-          return $ ex [numberVar] $ CAnd [ numberCon, negateCon ]
+          return $ exists [numberVar] $ CAnd [ numberCon, negateCon ]
 
     Can.Binop op _ _ annotation leftExpr rightExpr ->
       constrainBinop rtv region op annotation leftExpr rightExpr expectation
 
     Can.Lambda args _ body ->
-      do  (lambdaType, resultType, scheme) <- Pattern.constrainArgs args
-          bodyCon <- constrain rtv body (NoExpectation resultType)
-          let lambdaCon = CEqual region Lambda lambdaType expectation
-          return $ CLet [scheme] $ CAnd [ bodyCon, lambdaCon ]
+      constrainLambda rtv region args body expectation
 
     Can.Call func args ->
       constrainCall rtv region func args expectation
@@ -95,13 +92,16 @@ constrain rtv (A.A region expression) expectation =
       constrainCase rtv region expr branches expectation
 
     Can.Let def body ->
-      constrainDef rtv def =<< constrain rtv body expectation
+      constrainDef rtv def
+      =<< constrain rtv body expectation
 
     Can.LetRec defs body ->
-      error "TODO let rec" defs body
+      constrainRecursiveDefs rtv defs
+      =<< constrain rtv body expectation
 
-    Can.LetDestruct pattern destructors expr body ->
-      error "TODO let destruct" pattern destructors expr body
+    Can.LetDestruct pattern _ expr body ->
+      constrainDestruct rtv region pattern expr
+      =<< constrain rtv body expectation
 
     Can.Accessor field ->
       do  extVar <- mkFlexVar
@@ -109,7 +109,7 @@ constrain rtv (A.A region expression) expectation =
           let extType = VarN extVar
           let fieldType = VarN fieldVar
           let recordType = RecordN (Map.singleton field fieldType) extType
-          return $ ex [ fieldVar, extVar ] $
+          return $ exists [ fieldVar, extVar ] $
             CEqual region (Accessor field) (FunN recordType fieldType) expectation
 
     Can.Access expr field ->
@@ -122,7 +122,7 @@ constrain rtv (A.A region expression) expectation =
           recordCon <-
             constrain rtv expr (FromContext region (RecordAccess field) recordType)
 
-          return $ ex [ fieldVar, extVar ] $
+          return $ exists [ fieldVar, extVar ] $
             CAnd
               [ recordCon
               , CEqual region (Access field) recordType expectation
@@ -142,6 +142,31 @@ constrain rtv (A.A region expression) expectation =
 
     Can.Shader _uid _src glType ->
       constrainShader region glType expectation
+
+
+
+-- CONSTRAIN LAMBDA
+
+
+constrainLambda :: RTV -> R.Region -> [Can.Arg] -> Can.Expr -> Expectation -> IO Constraint
+constrainLambda rtv region args body expectation =
+  do  (Args vars tipe resultType (Pattern.State headers pvars revCons)) <-
+        constrainArgs args
+
+      bodyCon <-
+        constrain rtv body (NoExpectation resultType)
+
+      return $ exists vars $
+        CAnd
+          [ CLet
+              { _rigidVars = []
+              , _flexVars = pvars
+              , _header = headers
+              , _headerCon = CAnd (reverse revCons)
+              , _bodyCon = bodyCon
+              }
+          , CEqual region Lambda tipe expectation
+          ]
 
 
 
@@ -165,7 +190,7 @@ constrainCall rtv region func args expectation =
       let arityType = foldr FunN resultType argTypes
       let resultCon = CEqual region (CallResult maybeFuncName) resultType expectation
 
-      return $ ex (funcVar:resultVar:argVars) $
+      return $ exists (funcVar:resultVar:argVars) $
         CAnd
           [ funcCon
           , CBranch
@@ -196,7 +221,7 @@ constrainCallBackup rtv region maybeFuncName func args =
 
       funcCon <- constrain rtv func (FromContext region BadArity arityType)
 
-      return $ ex (resultVar:argVars) $ CAnd [ CAnd argCons, funcCon ]
+      return $ exists (resultVar:argVars) $ CAnd [ CAnd argCons, funcCon ]
 
 
 getFuncName :: Can.Expr -> Maybe FuncName
@@ -240,7 +265,7 @@ constrainBinop rtv region op annotation leftExpr rightExpr expectation =
       leftCon <- constrain rtv leftExpr (FromContext region (OpLeft op) leftType)
       rightCon <- constrain rtv rightExpr (FromContext region (OpRight op) rightType)
 
-      return $ ex [ leftVar, rightVar, answerVar ] $
+      return $ exists [ leftVar, rightVar, answerVar ] $
         CAnd
           [ opCon
           , leftCon
@@ -262,7 +287,7 @@ constrainList rtv region entries expectation =
       entryCons <-
         Index.indexedTraverse (constrainListEntry rtv region entryType) entries
 
-      return $ ex [entryVar] $
+      return $ exists [entryVar] $
         CAnd
           [ CAnd entryCons
           , CEqual region List listType expectation
@@ -303,7 +328,7 @@ constrainIf rtv region branches final expectation =
               branchCons <- Index.indexedForA exprs $ \index expr ->
                 constrain rtv expr (FromContext region (IfBranch index) branchType)
 
-              return $ ex [branchVar] $
+              return $ exists [branchVar] $
                 CAnd
                   [ CAnd condCons
                   , CAnd branchCons
@@ -328,7 +353,7 @@ constrainCase rtv region expr branches expectation =
                   (PatternExpectation region (PCaseMatch index) ptrnType)
                   (FromAnnotation name arity (TypedCaseBranch index) tipe)
 
-              return $ ex [ptrnVar] $ CAnd (exprCon:branchCons)
+              return $ exists [ptrnVar] $ CAnd (exprCon:branchCons)
 
         _ ->
           do  branchVar <- mkFlexVar
@@ -339,7 +364,7 @@ constrainCase rtv region expr branches expectation =
                   (PatternExpectation region (PCaseMatch index) ptrnType)
                   (FromContext region (CaseBranch index) branchType)
 
-              return $ ex [ptrnVar,branchVar] $
+              return $ exists [ptrnVar,branchVar] $
                 CAnd
                   [ exprCon
                   , CAnd branchCons
@@ -349,9 +374,11 @@ constrainCase rtv region expr branches expectation =
 
 constrainCaseBranch :: RTV -> Can.CaseBranch -> PatternExpectation -> Expectation -> IO Constraint
 constrainCaseBranch rtv (Can.CaseBranch pattern _ expr) pExpect bExpect =
-  do  scheme <- Pattern.constrain pattern pExpect
-      constraint <- constrain rtv expr bExpect
-      return $ CLet [scheme] constraint
+  do  (Pattern.State headers pvars revCons) <-
+        Pattern.add pattern pExpect Pattern.emptyState
+
+      CLet [] pvars headers (CAnd (reverse revCons))
+        <$> constrain rtv expr bExpect
 
 
 
@@ -369,7 +396,7 @@ constrainRecord rtv region fields expectation =
       let vars = Map.foldr (\(v,_,_) vs -> v:vs) [] dict
       let cons = Map.foldr (\(_,_,c) cs -> c:cs) [recordCon] dict
 
-      return $ ex vars (CAnd cons)
+      return $ exists vars (CAnd cons)
 
 
 constrainField :: RTV -> Can.Expr -> IO (Variable, Type, Constraint)
@@ -403,7 +430,7 @@ constrainUpdate rtv region expr fields expectation =
       let vars = Map.foldr (\(v,_,_) vs -> v:vs) (sharedVar : Map.elems oldVars) newDict
       let cons = Map.foldr (\(_,_,c) cs -> c:cs) [newCon] newDict
 
-      return $ ex vars (CAnd (oldCon:cons))
+      return $ exists vars (CAnd (oldCon:cons))
 
 
 
@@ -424,7 +451,7 @@ constrainTuple rtv region a b maybeC expectation =
         Nothing ->
           do  let tupleType = TupleN aType bType Nothing
               let tupleCon = CEqual region Tuple tupleType expectation
-              return $ ex [ aVar, bVar ] $ CAnd [ aCon, bCon, tupleCon ]
+              return $ exists [ aVar, bVar ] $ CAnd [ aCon, bCon, tupleCon ]
 
         Just c ->
           do  cVar <- mkFlexVar
@@ -435,7 +462,7 @@ constrainTuple rtv region a b maybeC expectation =
               let tupleType = TupleN aType bType (Just cType)
               let tupleCon = CEqual region Tuple tupleType expectation
 
-              return $ ex [ aVar, bVar, cVar ] $ CAnd [ aCon, bCon, cCon, tupleCon ]
+              return $ exists [ aVar, bVar, cVar ] $ CAnd [ aCon, bCon, cCon, tupleCon ]
 
 
 
@@ -456,7 +483,7 @@ constrainShader region (Shader.Shader attributes uniforms varyings) expectation 
               , toShaderRecord varyings EmptyRecordN
               ]
 
-      return $ ex [ attrVar, unifVar ] $
+      return $ exists [ attrVar, unifVar ] $
         CEqual region Shader shaderType expectation
 
 
@@ -481,33 +508,242 @@ glToType glType =
 
 
 
--- CONSTRAIN LET
+-- CONSTRAIN DESTRUCTURES
+
+
+constrainDestruct :: RTV -> R.Region -> Can.Pattern -> Can.Expr -> Constraint -> IO Constraint
+constrainDestruct rtv region pattern expr bodyCon =
+  do  patternVar <- mkFlexVar
+      let patternType = VarN patternVar
+
+      (Pattern.State headers pvars revCons) <-
+        Pattern.add pattern (NoPatternExpectation patternType) Pattern.emptyState
+
+      exprCon <-
+        constrain rtv expr (FromContext region Destructure patternType)
+
+      return $ CLet [] pvars headers (CAnd (reverse (exprCon:revCons))) bodyCon
+
+
+
+-- CONSTRAIN DEF
 
 
 constrainDef :: RTV -> Can.Def -> Constraint -> IO Constraint
 constrainDef rtv def bodyCon =
   case def of
     Can.Def (A.A region name) args _ expr ->
-      do  (lambdaType, resultType, scheme) <-
-            Pattern.constrainArgs args
+      do  (Args vars tipe resultType (Pattern.State headers pvars revCons)) <-
+            constrainArgs args
 
-          defCon <-
-            CLet [scheme] <$> constrain rtv expr (NoExpectation resultType)
+          exprCon <-
+            constrain rtv expr (NoExpectation resultType)
 
-          let headers = Map.singleton name (A.A region lambdaType)
-          return $ CLet [Scheme [] [] headers defCon] bodyCon
+          return $
+            CLet
+              { _rigidVars = []
+              , _flexVars = vars
+              , _header = Map.singleton name (A.A region tipe)
+              , _headerCon =
+                  CLet
+                    { _rigidVars = []
+                    , _flexVars = pvars
+                    , _header = headers
+                    , _headerCon = CAnd (reverse revCons)
+                    , _bodyCon = exprCon
+                    }
+              , _bodyCon = bodyCon
+              }
 
     Can.TypedDef (A.A region name) freeVars typedArgs _ expr srcResultType ->
       do  let newNames = Map.difference freeVars rtv
           newRigids <- Map.traverseWithKey (\n _ -> nameToRigid n) newNames
           let newRtv = Map.union rtv (Map.map VarN newRigids)
 
-          (lambdaType, resultType, scheme) <-
-            Pattern.constrainTypedArgs newRtv typedArgs srcResultType
+          (TypedArgs tipe resultType (Pattern.State headers pvars revCons)) <-
+            constrainTypedArgs newRtv name typedArgs srcResultType
 
           let expectation = FromAnnotation name (length typedArgs) TypedBody resultType
-          defCon <-
-            CLet [scheme] <$> constrain newRtv expr expectation
+          exprCon <-
+            constrain newRtv expr expectation
 
-          let headers = Map.singleton name (A.A region lambdaType)
-          return $ CLet [ Scheme (Map.elems newRigids) [] headers defCon ] bodyCon
+          return $
+            CLet
+              { _rigidVars = Map.elems newRigids
+              , _flexVars = []
+              , _header = Map.singleton name (A.A region tipe)
+              , _headerCon =
+                  CLet
+                    { _rigidVars = []
+                    , _flexVars = pvars
+                    , _header = headers
+                    , _headerCon = CAnd (reverse revCons)
+                    , _bodyCon = exprCon
+                    }
+              , _bodyCon = bodyCon
+              }
+
+
+
+-- CONSTRAIN RECURSIVE DEFS
+
+
+data Info =
+  Info
+    { _vars :: [Variable]
+    , _cons :: [Constraint]
+    , _headers :: Map.Map N.Name (A.Located Type)
+    }
+
+
+{-# NOINLINE emptyInfo #-}
+emptyInfo :: Info
+emptyInfo =
+  Info [] [] Map.empty
+
+
+constrainRecursiveDefs :: RTV -> [Can.Def] -> Constraint -> IO Constraint
+constrainRecursiveDefs rtv defs bodyCon =
+  recDefsHelp rtv defs bodyCon emptyInfo emptyInfo
+
+
+recDefsHelp :: RTV -> [Can.Def] -> Constraint -> Info -> Info -> IO Constraint
+recDefsHelp rtv defs bodyCon rigidInfo flexInfo =
+  case defs of
+    [] ->
+      do  let (Info rigidVars rigidCons rigidHeaders) = rigidInfo
+          let (Info flexVars  flexCons  flexHeaders ) = flexInfo
+          return $
+            CLet rigidVars [] rigidHeaders CTrue $
+              CLet [] flexVars flexHeaders (CLet [] [] flexHeaders CTrue (CAnd flexCons)) $
+                CAnd [ CAnd rigidCons, bodyCon ]
+
+    def : otherDefs ->
+      case def of
+        Can.Def (A.A region name) args _ expr ->
+          do  let (Info flexVars flexCons flexHeaders) = flexInfo
+
+              (Args newFlexVars tipe resultType (Pattern.State headers pvars revCons)) <-
+                argsHelp args (Pattern.State Map.empty flexVars [])
+
+              exprCon <-
+                constrain rtv expr (NoExpectation resultType)
+
+              let defCon =
+                    CLet
+                      { _rigidVars = []
+                      , _flexVars = pvars
+                      , _header = headers
+                      , _headerCon = CAnd (reverse revCons)
+                      , _bodyCon = exprCon
+                      }
+
+              recDefsHelp rtv otherDefs bodyCon rigidInfo $
+                Info
+                  { _vars = newFlexVars
+                  , _cons = defCon : flexCons
+                  , _headers = Map.insert name (A.A region tipe) flexHeaders
+                  }
+
+        Can.TypedDef (A.A region name) freeVars typedArgs _ expr srcResultType ->
+          do  let newNames = Map.difference freeVars rtv
+              newRigids <- Map.traverseWithKey (\n _ -> nameToRigid n) newNames
+              let newRtv = Map.union rtv (Map.map VarN newRigids)
+
+              (TypedArgs tipe resultType (Pattern.State headers pvars revCons)) <-
+                constrainTypedArgs newRtv name typedArgs srcResultType
+
+              exprCon <-
+                constrain newRtv expr $
+                  FromAnnotation name (length typedArgs) TypedBody resultType
+
+              let defCon =
+                    CLet
+                      { _rigidVars = []
+                      , _flexVars = pvars
+                      , _header = headers
+                      , _headerCon = CAnd (reverse revCons)
+                      , _bodyCon = exprCon
+                      }
+
+              let (Info rigidVars rigidCons rigidHeaders) = rigidInfo
+              recDefsHelp rtv otherDefs bodyCon
+                ( Info
+                    { _vars = Map.foldr (:) rigidVars newRigids
+                    , _cons = defCon : rigidCons
+                    , _headers = Map.insert name (A.A region tipe) rigidHeaders
+                    }
+                )
+                flexInfo
+
+
+
+-- CONSTRAIN ARGS
+
+
+data Args =
+  Args
+    { _a_vars :: [Variable]
+    , _a_type :: Type
+    , _a_result :: Type
+    , _a_state :: Pattern.State
+    }
+
+
+constrainArgs :: [Can.Arg] -> IO Args
+constrainArgs args =
+  argsHelp args Pattern.emptyState
+
+
+argsHelp :: [Can.Arg] -> Pattern.State -> IO Args
+argsHelp args state =
+  case args of
+    [] ->
+      do  resultVar <- mkFlexVar
+          let resultType = VarN resultVar
+          return $ Args [resultVar] resultType resultType state
+
+    (Can.Arg _ pattern) : otherArgs ->
+      do  argVar <- mkFlexVar
+          let argType = VarN argVar
+
+          (Args vars tipe result newState) <-
+            argsHelp otherArgs =<<
+              Pattern.add pattern (NoPatternExpectation argType) state
+
+          return (Args (argVar:vars) (FunN argType tipe) result newState)
+
+
+
+-- CONSTRAIN TYPED ARGS
+
+
+data TypedArgs =
+  TypedArgs
+    { _t_type :: Type
+    , _t_result :: Type
+    , _t_state :: Pattern.State
+    }
+
+
+constrainTypedArgs :: Map.Map N.Name Type -> N.Name -> [Can.TypedArg] -> Can.Type -> IO TypedArgs
+constrainTypedArgs rtv name args srcResultType =
+  do  resultType <- Instantiate.fromSrcType rtv srcResultType
+      typedArgsHelp rtv name args resultType Pattern.emptyState
+
+
+typedArgsHelp :: Map.Map N.Name Type -> N.Name -> [Can.TypedArg] -> Type -> Pattern.State -> IO TypedArgs
+typedArgsHelp rtv name args resultType state =
+  case args of
+    [] ->
+      return $ TypedArgs resultType resultType state
+
+    (Can.TypedArg index srcType pattern@(A.A region _)) : otherArgs ->
+      do  argType <- Instantiate.fromSrcType rtv srcType
+          let expect = PatternExpectation region (PTypedArg name index) argType
+
+          (TypedArgs tipe result newState) <-
+            typedArgsHelp rtv name otherArgs resultType =<<
+              Pattern.add pattern expect state
+
+          return (TypedArgs (FunN argType tipe) result newState)

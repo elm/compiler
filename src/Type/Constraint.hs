@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Type.Constraint
   ( Constraint(..)
+  , exists
   , Expectation(..)
   , Context(..)
   , SubContext(..)
@@ -10,9 +11,6 @@ module Type.Constraint
   , PatternExpectation(..)
   , PatternContext(..)
   , PatternCategory(..)
-  , Scheme(..)
-  , monoscheme
-  , ex
   )
   where
 
@@ -39,13 +37,24 @@ data Constraint
   | CInstance R.Region FuncName Can.Annotation Expectation
   | CPattern R.Region PatternCategory Type PatternExpectation
   | CAnd [Constraint]
-  | CLet [Scheme] Constraint
+  | CLet
+      { _rigidVars :: [Variable]
+      , _flexVars :: [Variable]
+      , _header :: Map.Map N.Name (A.Located Type)
+      , _headerCon :: Constraint
+      , _bodyCon :: Constraint
+      }
   | CBranch
       { _a :: Type
       , _b :: Type
       , _eq :: Constraint
       , _neq :: IO Constraint
       }
+
+
+exists :: [Variable] -> Constraint -> Constraint
+exists flexVars constraint =
+  CLet [] flexVars Map.empty constraint CTrue
 
 
 
@@ -70,11 +79,11 @@ data Context
   | BadArity
   | RecordAccess N.Name
   | RecordUpdate
+  | Destructure
 
 
 data SubContext
   = TypedIfBranch Index.ZeroBased
-  | TypedElseBranch
   | TypedCaseBranch Index.ZeroBased
   | TypedBody
 
@@ -129,30 +138,3 @@ data PatternCategory
   | PInt
   | PStr
   | PChr
-
-
-
--- SCHEMES
-
-
-data Scheme =
-  Scheme
-    { _rigidVars :: [Variable]
-    , _flexVars :: [Variable]
-    , _header :: Map.Map N.Name (A.Located Type)
-    , _constraint :: Constraint
-    }
-
-
-monoscheme :: Map.Map N.Name (A.Located Type) -> Scheme
-monoscheme headers =
-  Scheme [] [] headers CTrue
-
-
--- ex qs constraint == exists qs. constraint
-ex :: [Variable] -> Constraint -> Constraint
-ex flexVars constraint =
-  CLet
-    [ Scheme [] flexVars Map.empty constraint
-    ]
-    CTrue
