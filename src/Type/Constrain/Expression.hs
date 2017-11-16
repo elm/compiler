@@ -14,7 +14,7 @@ import qualified Data.Index as Index
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
-import Type.Constraint
+import Type.Constraint as C
 import qualified Type.Constrain.Pattern as Pattern
 import qualified Type.Instantiate as Instantiate
 import Type.Type as Type hiding (Descriptor(..))
@@ -61,7 +61,7 @@ constrain rtv (A.A region expression) expectation =
 
     Can.Int _ ->
       do  var <- mkFlexNumber
-          return $ exists [var] $ CEqual region Number (VarN var) expectation
+          return $ exists [var] $ CEqual region C.Number (VarN var) expectation
 
     Can.Float _ ->
       return $ CEqual region Float Type.float expectation
@@ -73,7 +73,7 @@ constrain rtv (A.A region expression) expectation =
       do  numberVar <- mkFlexNumber
           let numberType = VarN numberVar
           numberCon <- constrain rtv expr (FromContext region Negate numberType)
-          let negateCon = CEqual region Number numberType expectation
+          let negateCon = CEqual region C.Number numberType expectation
           return $ exists [numberVar] $ CAnd [ numberCon, negateCon ]
 
     Can.Binop op _ _ annotation leftExpr rightExpr ->

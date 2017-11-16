@@ -6,6 +6,7 @@ module Type.Type
   , Type(..)
   , Descriptor(Descriptor)
   , Content(..)
+  , SuperType(..)
   , noRank
   , outermostRank
   , Mark
@@ -99,6 +100,7 @@ data SuperType
   | Comparable
   | Appendable
   | CompAppend
+  deriving (Eq)
 
 
 makeDescriptor :: Content -> Descriptor
