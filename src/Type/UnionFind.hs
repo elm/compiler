@@ -3,13 +3,12 @@
 module Type.UnionFind
   ( Point
   , fresh
-  , repr
   , union
   , equivalent
   , redundant
-  , descriptor
-  , setDescriptor
-  , modifyDescriptor
+  , get
+  , set
+  , modify
   )
   where
 
@@ -75,8 +74,8 @@ repr point@(Pt ref) =
               return point2
 
 
-descriptor :: Point a -> IO a
-descriptor point@(Pt ref) =
+get :: Point a -> IO a
+get point@(Pt ref) =
   do  pInfo <- readIORef ref
       case pInfo of
         Info _ descRef ->
@@ -89,11 +88,11 @@ descriptor point@(Pt ref) =
                   readIORef descRef
 
                 Link _ ->
-                  descriptor =<< repr point
+                  get =<< repr point
 
 
-setDescriptor :: Point a -> a -> IO ()
-setDescriptor point@(Pt ref) newDesc =
+set :: Point a -> a -> IO ()
+set point@(Pt ref) newDesc =
   do  pInfo <- readIORef ref
       case pInfo of
         Info _ descRef ->
@@ -107,11 +106,11 @@ setDescriptor point@(Pt ref) newDesc =
 
                 Link _ ->
                   do  newPoint <- repr point
-                      setDescriptor newPoint newDesc
+                      set newPoint newDesc
 
 
-modifyDescriptor :: Point a -> (a -> a) -> IO ()
-modifyDescriptor point@(Pt ref) func =
+modify :: Point a -> (a -> a) -> IO ()
+modify point@(Pt ref) func =
   do  pInfo <- readIORef ref
       case pInfo of
         Info _ descRef ->
@@ -125,7 +124,7 @@ modifyDescriptor point@(Pt ref) func =
 
                 Link _ ->
                   do  newPoint <- repr point
-                      modifyDescriptor newPoint func
+                      modify newPoint func
 
 
 union :: Point a -> Point a -> a -> IO ()
