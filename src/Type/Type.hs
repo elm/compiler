@@ -311,16 +311,16 @@ toSrcType variable =
 
 variableToSrcType :: Variable -> StateT NameState IO Can.Type
 variableToSrcType variable =
-  do  descriptor <- liftIO $ UF.descriptor variable
+  do  descriptor <- liftIO $ UF.get variable
       let mark = _mark descriptor
       if mark == occursMark
         then
           return (Can.TVar "∞")
 
         else
-          do  liftIO $ UF.modifyDescriptor variable (\desc -> desc { _mark = occursMark })
+          do  liftIO $ UF.modify variable (\desc -> desc { _mark = occursMark })
               srcType <- contentToSrcType variable (_content descriptor)
-              liftIO $ UF.modifyDescriptor variable (\desc -> desc { _mark = mark })
+              liftIO $ UF.modify variable (\desc -> desc { _mark = mark })
               return srcType
 
 
@@ -337,7 +337,7 @@ contentToSrcType variable content =
 
         Nothing ->
           do  name <- getFreshVarName
-              liftIO $ UF.modifyDescriptor variable (\desc -> desc { _content = FlexVar (Just name) })
+              liftIO $ UF.modify variable (\desc -> desc { _content = FlexVar (Just name) })
               return (Can.TVar name)
 
     FlexSuper super maybeName ->
@@ -347,7 +347,7 @@ contentToSrcType variable content =
 
         Nothing ->
           do  name <- getFreshSuperName super
-              liftIO $ UF.modifyDescriptor variable (\desc -> desc { _content = FlexSuper super (Just name) })
+              liftIO $ UF.modify variable (\desc -> desc { _content = FlexSuper super (Just name) })
               return (Can.TVar name)
 
     RigidVar name ->
@@ -503,11 +503,11 @@ getFreshSuperHelp name index taken =
 
 getVarNames :: Variable -> TakenNames -> IO TakenNames
 getVarNames var takenNames =
-  do  (Descriptor content rank mark copy) <- UF.descriptor var
+  do  (Descriptor content rank mark copy) <- UF.get var
       if mark == getVarNamesMark
         then return takenNames
         else
-        do  UF.setDescriptor var (Descriptor content rank getVarNamesMark copy)
+        do  UF.set var (Descriptor content rank getVarNamesMark copy)
             case content of
               Error _ ->
                 return takenNames
@@ -580,7 +580,7 @@ addName index givenName var makeContent takenNames =
     case Map.lookup indexedName takenNames of
       Nothing ->
         do  if indexedName == givenName then return () else
-              UF.modifyDescriptor var $ \(Descriptor _ rank mark copy) ->
+              UF.modify var $ \(Descriptor _ rank mark copy) ->
                 Descriptor (makeContent indexedName) rank mark copy
             return $ Map.insert indexedName var takenNames
 

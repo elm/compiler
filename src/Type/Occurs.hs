@@ -28,7 +28,7 @@ occursHelp seen var foundCycle =
     return True
 
   else
-    do  (Descriptor content _ _ _) <- UF.descriptor var
+    do  (Descriptor content _ _ _) <- UF.get var
         case content of
           FlexVar _ ->
               return foundCycle
