@@ -41,7 +41,7 @@ type Header = Map.Map N.Name (A.Located Type)
 
 
 add :: Can.Pattern -> PatternExpectation -> State -> IO State
-add (A.A region pattern) expectation state =
+add (A.At region pattern) expectation state =
   case pattern of
     Can.PAnything ->
       return state
@@ -102,7 +102,7 @@ add (A.A region pattern) expectation state =
           let recordCon = CPattern region PRecord recordType expectation
           return $
             State
-              { _headers = Map.union headers (Map.map (A.A region) fieldTypes)
+              { _headers = Map.union headers (Map.map (A.At region) fieldTypes)
               , _vars = map snd fieldVars ++ extVar : vars
               , _revCons = recordCon : revCons
               }
@@ -137,7 +137,7 @@ addToHeaders :: R.Region -> N.Name -> PatternExpectation -> State -> State
 addToHeaders region name expectation (State headers vars revCons) =
   let
     tipe = getType expectation
-    newHeaders = Map.insert name (A.A region tipe) headers
+    newHeaders = Map.insert name (A.At region tipe) headers
   in
   State newHeaders vars revCons
 

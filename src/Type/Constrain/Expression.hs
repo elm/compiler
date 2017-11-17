@@ -36,7 +36,7 @@ type RTV =
 
 
 constrain :: RTV -> Can.Expr -> Expectation -> IO Constraint
-constrain rtv (A.A region expression) expectation =
+constrain rtv (A.At region expression) expectation =
   case expression of
     Can.VarLocal name ->
       return (CLookup region name expectation)
@@ -225,7 +225,7 @@ constrainCallBackup rtv region maybeFuncName func args =
 
 
 getFuncName :: Can.Expr -> Maybe FuncName
-getFuncName (A.A _ expr) =
+getFuncName (A.At _ expr) =
   case expr of
     Can.VarLocal name ->
       Just (FuncName name)
@@ -532,7 +532,7 @@ constrainDestruct rtv region pattern expr bodyCon =
 constrainDef :: RTV -> Can.Def -> Constraint -> IO Constraint
 constrainDef rtv def bodyCon =
   case def of
-    Can.Def (A.A region name) args _ expr ->
+    Can.Def (A.At region name) args _ expr ->
       do  (Args vars tipe resultType (Pattern.State headers pvars revCons)) <-
             constrainArgs args
 
@@ -543,7 +543,7 @@ constrainDef rtv def bodyCon =
             CLet
               { _rigidVars = []
               , _flexVars = vars
-              , _header = Map.singleton name (A.A region tipe)
+              , _header = Map.singleton name (A.At region tipe)
               , _headerCon =
                   CLet
                     { _rigidVars = []
@@ -555,7 +555,7 @@ constrainDef rtv def bodyCon =
               , _bodyCon = bodyCon
               }
 
-    Can.TypedDef (A.A region name) freeVars typedArgs _ expr srcResultType ->
+    Can.TypedDef (A.At region name) freeVars typedArgs _ expr srcResultType ->
       do  let newNames = Map.difference freeVars rtv
           newRigids <- Map.traverseWithKey (\n _ -> nameToRigid n) newNames
           let newRtv = Map.union rtv (Map.map VarN newRigids)
@@ -571,7 +571,7 @@ constrainDef rtv def bodyCon =
             CLet
               { _rigidVars = Map.elems newRigids
               , _flexVars = []
-              , _header = Map.singleton name (A.A region tipe)
+              , _header = Map.singleton name (A.At region tipe)
               , _headerCon =
                   CLet
                     { _rigidVars = []
@@ -620,7 +620,7 @@ recDefsHelp rtv defs bodyCon rigidInfo flexInfo =
 
     def : otherDefs ->
       case def of
-        Can.Def (A.A region name) args _ expr ->
+        Can.Def (A.At region name) args _ expr ->
           do  let (Info flexVars flexCons flexHeaders) = flexInfo
 
               (Args newFlexVars tipe resultType (Pattern.State headers pvars revCons)) <-
@@ -642,10 +642,10 @@ recDefsHelp rtv defs bodyCon rigidInfo flexInfo =
                 Info
                   { _vars = newFlexVars
                   , _cons = defCon : flexCons
-                  , _headers = Map.insert name (A.A region tipe) flexHeaders
+                  , _headers = Map.insert name (A.At region tipe) flexHeaders
                   }
 
-        Can.TypedDef (A.A region name) freeVars typedArgs _ expr srcResultType ->
+        Can.TypedDef (A.At region name) freeVars typedArgs _ expr srcResultType ->
           do  let newNames = Map.difference freeVars rtv
               newRigids <- Map.traverseWithKey (\n _ -> nameToRigid n) newNames
               let newRtv = Map.union rtv (Map.map VarN newRigids)
@@ -671,7 +671,7 @@ recDefsHelp rtv defs bodyCon rigidInfo flexInfo =
                 ( Info
                     { _vars = Map.foldr (:) rigidVars newRigids
                     , _cons = defCon : rigidCons
-                    , _headers = Map.insert name (A.A region tipe) rigidHeaders
+                    , _headers = Map.insert name (A.At region tipe) rigidHeaders
                     }
                 )
                 flexInfo
@@ -738,7 +738,7 @@ typedArgsHelp rtv name args resultType state =
     [] ->
       return $ TypedArgs resultType resultType state
 
-    (Can.TypedArg index srcType pattern@(A.A region _)) : otherArgs ->
+    (Can.TypedArg index srcType pattern@(A.At region _)) : otherArgs ->
       do  argType <- Instantiate.fromSrcType rtv srcType
           let expect = PatternExpectation region (PTypedArg name index) argType
 
