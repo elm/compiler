@@ -1,21 +1,14 @@
 {-# OPTIONS_GHC -Wall #-}
 module Reporting.Annotation
-  ( Annotated(..)
-  , Located
-  , Commented
-  , at, merge, sameAs
+  ( Located(..)
+  , at, merge
   , map, drop
-  , listToDict
+  , traverse
   )
   where
 
 
-import Prelude hiding (drop, map)
-import qualified Data.List as List
-import Data.List.NonEmpty (NonEmpty((:|)))
-import qualified Data.Map as Map
-import Data.Semigroup ((<>))
-import Data.Text (Text)
+import Prelude hiding (drop, map, traverse)
 import qualified Reporting.Region as R
 
 
@@ -23,16 +16,8 @@ import qualified Reporting.Region as R
 -- ANNOTATION
 
 
-data Annotated annotation a =
-  A annotation a
-
-
-type Located a =
-  Annotated R.Region a
-
-
-type Commented a =
-  Annotated (R.Region, Maybe Text) a
+data Located a =
+  At R.Region a
 
 
 
@@ -41,41 +26,28 @@ type Commented a =
 
 at :: R.Position -> R.Position -> a -> Located a
 at start end value =
-  A (R.Region start end) value
+  At (R.Region start end) value
 
 
 merge :: Located a -> Located b -> value -> Located value
-merge (A region1 _) (A region2 _) value =
-  A (R.merge region1 region2) value
-
-
-sameAs :: Annotated info a -> b -> Annotated info b
-sameAs (A annotation _) value =
-  A annotation value
+merge (At region1 _) (At region2 _) value =
+  At (R.merge region1 region2) value
 
 
 
 -- MANIPULATE
 
 
-map :: (a -> b) -> Annotated info a -> Annotated info b
-map f (A info value) =
-  A info (f value)
+map :: (a -> b) -> Located a -> Located b
+map f (At info value) =
+  At info (f value)
 
 
-drop :: Annotated info a -> a
-drop (A _ value) =
+drop :: Located a -> a
+drop (At _ value) =
   value
 
 
-
--- ANALYZE
-
-
-listToDict :: (Ord key) => (a -> key) -> [Annotated i a] -> Map.Map key (NonEmpty i)
-listToDict toKey list =
-  let
-    add dict (A info value) =
-      Map.insertWith (<>) (toKey value) (info :| []) dict
-  in
-    List.foldl' add Map.empty list
+traverse :: (Functor f) => (a -> f b) -> Located a -> f (Located b)
+traverse func (At region value) =
+  At region <$> func value
