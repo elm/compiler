@@ -221,7 +221,7 @@ exprHelp start patterns (pattern, _end, sPos) =
 
 
 cons :: Src.Pattern -> Src.Pattern -> Src.Pattern
-cons tl@(A.A (R.Region _ end) _) hd@(A.A (R.Region start _) _) =
+cons tl@(A.At (R.Region _ end) _) hd@(A.At (R.Region start _) _) =
   A.at start end (Src.PCons hd tl)
 
 

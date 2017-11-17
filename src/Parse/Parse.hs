@@ -27,7 +27,7 @@ program src =
     Right modul ->
       Validate.validate modul
 
-    Left (A.A region syntaxError) ->
+    Left (A.At region syntaxError) ->
       Result.throw region syntaxError
 
 

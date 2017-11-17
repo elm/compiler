@@ -140,7 +140,7 @@ type Imports =
 
 
 destructImport :: Src.Import -> Imports
-destructImport (Src.Import (A.A _ moduleName) maybeAlias exposing) =
+destructImport (Src.Import (A.At _ moduleName) maybeAlias exposing) =
   let
     shortName =
       case maybeAlias of
@@ -168,7 +168,7 @@ destructImport (Src.Import (A.A _ moduleName) maybeAlias exposing) =
 
 
 exposedToName :: A.Located Src.Exposed -> N.Name
-exposedToName (A.A _ exposed) =
+exposedToName (A.At _ exposed) =
   case exposed of
     Src.Lower name ->
       name

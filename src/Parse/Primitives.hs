@@ -46,7 +46,7 @@ runAt startRow startColumn (Parser parser) (B.PS fp offset length) =
       let
         pos = R.Position row col
         mkError overallRegion subRegion =
-          Left (A.A overallRegion (E.Parse subRegion problem))
+          Left (A.At overallRegion (E.Parse subRegion problem))
       in
         case problem of
           E.BadChar endCol ->
