@@ -267,7 +267,7 @@ data Exposed
 
 
 verifyImport :: ImportDict -> I.Interfaces -> Src.Import -> Result Import
-verifyImport importDict interfaces (Src.Import (A.A region name) alias exposing) =
+verifyImport importDict interfaces (Src.Import (A.At region name) alias exposing) =
   case Map.lookup name importDict of
     Nothing ->
       throwImportNotFound region name (Map.elems importDict)
@@ -296,7 +296,7 @@ throwImportNotFound region name knownModules =
 
 
 verifyExposed :: N.Name -> I.Interface -> A.Located Src.Exposed -> Result [(N.Name, Exposed)]
-verifyExposed moduleName interface@(I.Interface _ unions aliases _) (A.A region exposed) =
+verifyExposed moduleName interface@(I.Interface _ unions aliases _) (A.At region exposed) =
   case exposed of
     Src.Operator name ->
       verifyValue moduleName region name interface

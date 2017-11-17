@@ -77,7 +77,7 @@ canonicalize env decls unions effects =
 
 
 canonicalizePort :: Env.Env -> Valid.Port -> Result (N.Name, Can.Port)
-canonicalizePort env (Valid.Port (A.A region portName) tipe) =
+canonicalizePort env (Valid.Port (A.At region portName) tipe) =
   do  ctipe <- Type.canonicalize env tipe
       case Type.deepDealias ctipe of
         Can.TLambda outgoingType (Can.TType home name [Can.TVar _])
@@ -107,7 +107,7 @@ canonicalizePort env (Valid.Port (A.A region portName) tipe) =
 
 
 verifyEffectType :: A.Located N.Name -> Map.Map N.Name a -> Result N.Name
-verifyEffectType (A.A region name) unions =
+verifyEffectType (A.At region name) unions =
   if Map.member name unions then
     Result.ok name
   else
@@ -115,7 +115,7 @@ verifyEffectType (A.A region name) unions =
 
 
 toNameRegion :: A.Located Valid.Decl -> (N.Name, R.Region)
-toNameRegion (A.A _ (Valid.Decl (A.A region name) _ _ _)) =
+toNameRegion (A.At _ (Valid.Decl (A.At region name) _ _ _)) =
   (name, region)
 
 

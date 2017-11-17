@@ -135,10 +135,10 @@ addVarsHelp localVars vars =
 collectLowerVars :: Valid.Module -> Result (Map.Map N.Name ())
 collectLowerVars (Valid.Module _ _ _ _ _ decls _ _ _ effects) =
   let
-    addDecl (A.A _ (Valid.Decl (A.A region name) _ _ _)) dict =
+    addDecl (A.At _ (Valid.Decl (A.At region name) _ _ _)) dict =
       Dups.insert name region () () dict
 
-    addPort (Valid.Port (A.A region name) _) dict =
+    addPort (Valid.Port (A.At region name) _) dict =
       Dups.insert name region () () dict
 
     effectDict =
@@ -151,13 +151,13 @@ collectLowerVars (Valid.Module _ _ _ _ _ decls _ _ _ effects) =
 
         Valid.Manager _ manager ->
           case manager of
-            Valid.Cmd (A.A region _) ->
+            Valid.Cmd (A.At region _) ->
               Dups.one "command" region () ()
 
-            Valid.Sub (A.A region _) ->
+            Valid.Sub (A.At region _) ->
               Dups.one "subscription" region () ()
 
-            Valid.Fx (A.A regionCmd _) (A.A regionSub _) ->
+            Valid.Fx (A.At regionCmd _) (A.At regionSub _) ->
               Dups.union
                 (Dups.one "command" regionCmd () ())
                 (Dups.one "subscription" regionSub () ())
@@ -171,13 +171,13 @@ collectLowerVars (Valid.Module _ _ _ _ _ decls _ _ _ effects) =
 collectUpperVars :: Valid.Module -> Result (Map.Map N.Name ())
 collectUpperVars (Valid.Module _ _ _ _ _ _ unions aliases _ _) =
   let
-    addUnion (Valid.Union (A.A _ name) _ ctors) dict =
+    addUnion (Valid.Union (A.At _ name) _ ctors) dict =
       foldr (addCtor name) dict ctors
 
-    addCtor tipe (A.A region name, _args) dict =
+    addCtor tipe (A.At region name, _args) dict =
       Dups.insert name region (Error.UnionCtor tipe) () dict
 
-    addAlias (Valid.Alias (A.A region name) _ (A.A _ tipe)) dict =
+    addAlias (Valid.Alias (A.At region name) _ (A.At _ tipe)) dict =
       case tipe of
         Src.TRecord _ Nothing ->
           Dups.insert name region Error.RecordCtor () dict
@@ -196,11 +196,11 @@ collectUpperVars (Valid.Module _ _ _ _ _ _ unions aliases _ _) =
 addTypes :: Valid.Module -> Env.Env -> Result Env.Env
 addTypes (Valid.Module _ _ _ _ _ _ unions aliases _ _) env =
   let
-    aliasToDict alias@(Valid.Alias (A.A region name) _ tipe) =
+    aliasToDict alias@(Valid.Alias (A.At region name) _ tipe) =
       do  args <- checkAliasFreeVars alias
           return $ Dups.one name region () (Left (Alias region name args tipe))
 
-    unionToDict union@(Valid.Union (A.A region name) _ _) =
+    unionToDict union@(Valid.Union (A.At region name) _ _) =
       do  arity <- checkUnionFreeVars union
           return $ Dups.one name region () (Right arity)
 
@@ -292,7 +292,7 @@ toNode alias@(Alias _ name _ tipe) =
 
 
 getEdges :: Src.Type -> Bag.Bag N.Name
-getEdges (A.A _ tipe) =
+getEdges (A.At _ tipe) =
   case tipe of
     Src.TLambda arg result ->
       Bag.append (getEdges arg) (getEdges result)
@@ -325,9 +325,9 @@ getEdges (A.A _ tipe) =
 
 
 checkUnionFreeVars :: Valid.Union -> Result Int
-checkUnionFreeVars (Valid.Union (A.A unionRegion name) args ctors) =
+checkUnionFreeVars (Valid.Union (A.At unionRegion name) args ctors) =
   let
-    addUnion (A.A region arg) dict =
+    addUnion (A.At region arg) dict =
       Dups.insert arg region () region dict
 
     toError badArg () () =
@@ -343,16 +343,16 @@ checkUnionFreeVars (Valid.Union (A.A unionRegion name) args ctors) =
           Result.ok (length args)
 
         unbound ->
-          let toLoc (arg, region) = A.A region arg in
+          let toLoc (arg, region) = A.At region arg in
           Result.throw unionRegion $
             Error.TypeVarsUnboundInUnion name (map A.drop args) (map toLoc unbound)
 
 
 
 checkAliasFreeVars :: Valid.Alias -> Result [N.Name]
-checkAliasFreeVars (Valid.Alias (A.A aliasRegion name) args tipe) =
+checkAliasFreeVars (Valid.Alias (A.At aliasRegion name) args tipe) =
   let
-    addAlias (A.A region arg) dict =
+    addAlias (A.At region arg) dict =
       Dups.insert arg region () region dict
 
     toError badArg () () =
@@ -364,7 +364,7 @@ checkAliasFreeVars (Valid.Alias (A.A aliasRegion name) args tipe) =
       if Map.size boundVars == overlap && Map.size freeVars == overlap
         then Result.ok (map A.drop args)
         else
-          let toLoc (arg, region) = A.A region arg in
+          let toLoc (arg, region) = A.At region arg in
           Result.throw aliasRegion $
             Error.TypeVarsMessedUpInAlias name
               (map A.drop args)
@@ -373,7 +373,7 @@ checkAliasFreeVars (Valid.Alias (A.A aliasRegion name) args tipe) =
 
 
 addFreeVars :: Src.Type -> Map.Map N.Name R.Region -> Map.Map N.Name R.Region
-addFreeVars (A.A region tipe) freeVars =
+addFreeVars (A.At region tipe) freeVars =
   case tipe of
     Src.TLambda arg result ->
       addFreeVars arg (addFreeVars result freeVars)

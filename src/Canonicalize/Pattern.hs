@@ -67,21 +67,21 @@ canonicalize env index pattern =
 
 
 process :: Env.Env -> Can.Destructor -> Src.Pattern -> Result Bindings Can.Pattern
-process env destructor (A.A region pattern) =
-  A.A region <$>
+process env destructor (A.At region pattern) =
+  A.At region <$>
   case pattern of
     Src.PAnything ->
       Result.ok Can.PAnything
 
     Src.PVar name ->
       Result.accumulate
-        (Dups.one name region () (A.A region destructor))
+        (Dups.one name region () (A.At region destructor))
         (Can.PVar name)
 
     Src.PRecord fields ->
       let
-        addField (A.A reg name) dict =
-          Dups.insert name reg () (A.A reg (Can.DField name destructor)) dict
+        addField (A.At reg name) dict =
+          Dups.insert name reg () (A.At reg (Can.DField name destructor)) dict
       in
       Result.accumulate
         (foldr addField Dups.none fields)
@@ -119,10 +119,10 @@ process env destructor (A.A region pattern) =
         <$> process env (Can.DIndex Index.first destructor) first
         <*> process env (Can.DIndex Index.second destructor) rest
 
-    Src.PAlias ptrn (A.A reg name) ->
+    Src.PAlias ptrn (A.At reg name) ->
       do  cpattern <- process env destructor ptrn
           Result.accumulate
-            (Dups.one name reg () (A.A reg destructor))
+            (Dups.one name reg () (A.At reg destructor))
             (Can.PAlias cpattern name)
 
     Src.PChr chr ->
@@ -145,7 +145,7 @@ processTuple tupleRegion env destructor extras =
       Just <$> process env (Can.DIndex Index.third destructor) three
 
     _ : others ->
-      let (A.A r1 _, A.A r2 _) = (head others, last others) in
+      let (A.At r1 _, A.At r2 _) = (head others, last others) in
       Result.throw tupleRegion (Error.TupleLargerThanThree (R.merge r1 r2))
 
 

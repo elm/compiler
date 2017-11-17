@@ -146,7 +146,7 @@ localVarHomes =
 
 
 addLocalBoth :: N.Name -> A.Located a -> VarHomes -> Result () VarHomes
-addLocalBoth name (A.A region _) (VarHomes unqualified qualified) =
+addLocalBoth name (A.At region _) (VarHomes unqualified qualified) =
   case unqualified of
     Foreign _ ->
       Result.ok (VarHomes Local qualified)

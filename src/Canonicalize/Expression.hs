@@ -47,8 +47,8 @@ type FreeLocals =
 
 
 canonicalize :: Env.Env -> Valid.Expr -> Result FreeLocals Can.Expr
-canonicalize env (A.A region expression) =
-  A.A region <$>
+canonicalize env (A.At region expression) =
+  A.At region <$>
   case expression of
     Valid.Str string ->
       Result.ok (Can.Str string)
@@ -113,10 +113,10 @@ canonicalize env (A.A region expression) =
         <$> canonicalize env record
         <*> Result.ok field
 
-    Valid.Update (A.A reg name) fields ->
+    Valid.Update (A.At reg name) fields ->
       do  fieldDict <- Result.untracked $ Dups.checkFields fields
           name_ <- Env.findVar reg env Nothing name
-          Can.Update (A.A reg name_)
+          Can.Update (A.At reg name_)
             <$> traverse (canonicalize env) fieldDict
 
     Valid.Record fields ->
@@ -150,7 +150,7 @@ canonicalizeTupleExtras region env extras =
       Just <$> canonicalize env three
 
     _ : others ->
-      let (A.A r1 _, A.A r2 _) = (head others, last others) in
+      let (A.At r1 _, A.At r2 _) = (head others, last others) in
       Result.throw region (Error.TupleLargerThanThree (R.merge r1 r2))
 
 
@@ -187,7 +187,7 @@ canonicalizeCaseBranch env (pattern, expr) =
 canonicalizeBinops :: R.Region -> Env.Env -> [(Valid.Expr, A.Located N.Name)] -> Valid.Expr -> Result FreeLocals Can.Expr
 canonicalizeBinops overallRegion env ops final =
   let
-    canonicalizeHelp (expr, A.A region op) =
+    canonicalizeHelp (expr, A.At region op) =
       (,)
         <$> canonicalize env expr
         <*> Env.findBinop region env op
@@ -316,8 +316,8 @@ removeLocals unused boundNames (Result.Result freeLocals warnings answer) =
 
 
 toUnusedWarning :: Warning.Unused -> (N.Name, A.Located a) -> A.Located Warning.Warning
-toUnusedWarning unused (name, A.A region _) =
-  A.A region (Warning.UnusedVariable unused name)
+toUnusedWarning unused (name, A.At region _) =
+  A.At region (Warning.UnusedVariable unused name)
 
 
 
@@ -331,15 +331,15 @@ type Bindings =
 addBindings :: (Valid.Def, Int) -> Bindings -> Bindings
 addBindings (def, key) bindings =
   case def of
-    Valid.Define defRegion (A.A region name) _ _ _ ->
-      Dups.insert name region () (A.A defRegion key) bindings
+    Valid.Define defRegion (A.At region name) _ _ _ ->
+      Dups.insert name region () (A.At defRegion key) bindings
 
     Valid.Destruct defRegion pattern _ ->
-      addBindingsHelp (A.A defRegion key) pattern bindings
+      addBindingsHelp (A.At defRegion key) pattern bindings
 
 
 addBindingsHelp :: A.Located Int -> Src.Pattern -> Bindings -> Bindings
-addBindingsHelp key (A.A region pattern) bindings =
+addBindingsHelp key (A.At region pattern) bindings =
   case pattern of
     Src.PAnything ->
       bindings
@@ -349,7 +349,7 @@ addBindingsHelp key (A.A region pattern) bindings =
 
     Src.PRecord fields ->
       let
-        addField (A.A fieldRegion name) dict =
+        addField (A.At fieldRegion name) dict =
           Dups.insert name fieldRegion () key dict
       in
       foldr addField bindings fields
@@ -369,7 +369,7 @@ addBindingsHelp key (A.A region pattern) bindings =
     Src.PCons first rest ->
       addBindingsHelp key rest (addBindingsHelp key first bindings)
 
-    Src.PAlias ptrn (A.A reg name) ->
+    Src.PAlias ptrn (A.At reg name) ->
       addBindingsHelp key ptrn (Dups.insert name reg () key bindings)
 
     Src.PChr _ ->
@@ -397,7 +397,7 @@ data Binding
 defToNode :: Map.Map N.Name Int -> Env.Env -> (Valid.Def, Int) -> Result () (Node, Int, [Int])
 defToNode defKeys env (def, key) =
   case def of
-    Valid.Define region aname@(A.A _ name) srcArgs body Nothing ->
+    Valid.Define region aname@(A.At _ name) srcArgs body Nothing ->
       do  (args, destructors) <-
             Pattern.verify (Error.DPFuncArgs name) $
               Index.indexedTraverse (Pattern.canonicalizeArg env) srcArgs
@@ -415,7 +415,7 @@ defToNode defKeys env (def, key) =
           toNode defKeys key destructors $
             Destruct region cpattern destructors <$> canonicalize env body
 
-    Valid.Define region aname@(A.A _ name) srcArgs body (Just tipe) ->
+    Valid.Define region aname@(A.At _ name) srcArgs body (Just tipe) ->
       do  (Can.Forall freeVars ctipe) <- Type.toAnnotation env tipe
           ((args, resultType), destructors) <-
             Pattern.verify (Error.DPFuncArgs name) $
@@ -465,7 +465,7 @@ gatherTypedArgs env name srcArgs tipe index revTypedArgs =
                 typedArg : revTypedArgs
 
         _ ->
-          let (A.A start _, A.A end _) = (head srcArgs, last srcArgs) in
+          let (A.At start _, A.At end _) = (head srcArgs, last srcArgs) in
           Result.throw (R.merge start end) $
             Error.AnnotationTooShort name index (length srcArgs)
 
@@ -481,7 +481,7 @@ detectCycles letRegion sccs body =
       Result.ok body
 
     scc : subSccs ->
-      A.A letRegion <$>
+      A.At letRegion <$>
       case scc of
         Graph.AcyclicSCC (Node binding freeLocals) ->
           case binding of

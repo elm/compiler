@@ -99,7 +99,7 @@ detectHelp toError name values =
 checkFields :: [(A.Located N.Name, a)] -> Result () (Map.Map N.Name a)
 checkFields fields =
   let
-    toInfo (A.A region name, value) =
+    toInfo (A.At region name, value) =
       Map.singleton name (OneOrMore.one (Info region () value))
 
     toError name () () =

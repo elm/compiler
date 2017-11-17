@@ -45,7 +45,7 @@ toAnnotation env srcType =
 
 
 canonicalize :: Env.Env -> Src.Type -> Result () Can.Type
-canonicalize env (A.A typeRegion tipe) =
+canonicalize env (A.At typeRegion tipe) =
   case tipe of
     Src.TVar x ->
         Result.ok (Can.TVar x)
@@ -89,7 +89,7 @@ canonicalize env (A.A typeRegion tipe) =
                 Just <$> canonicalize env c
 
               _ ->
-                let (A.A start _, A.A end _) = (head cs, last cs) in
+                let (A.At start _, A.At end _) = (head cs, last cs) in
                 Result.throw typeRegion $
                   Error.TupleLargerThanThree (R.merge start end)
 
@@ -110,7 +110,7 @@ checkArgs argsType expected region name args answer =
       else
         let
           extras = drop expected args
-          (A.A start _, A.A end _) = (head extras, last extras)
+          (A.At start _, A.At end _) = (head extras, last extras)
         in
         Error.TooMany argsType name expected actual (R.merge start end)
 

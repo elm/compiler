@@ -79,13 +79,13 @@ canonicalize pkg importDict interfaces module_@(Valid.Module name _ _ exports im
 
 
 toDocs :: Valid.Module -> A.Located (Maybe Can.Docs)
-toDocs (Valid.Module _ (A.A region maybeOverview) comments _ _ _ _ _ _ _) =
+toDocs (Valid.Module _ (A.At region maybeOverview) comments _ _ _ _ _ _ _) =
   case maybeOverview of
     Nothing ->
-      A.A region Nothing
+      A.At region Nothing
 
     Just overview ->
-      A.A region (Just (Can.Docs overview comments))
+      A.At region (Just (Can.Docs overview comments))
 
 
 
@@ -93,13 +93,13 @@ toDocs (Valid.Module _ (A.A region maybeOverview) comments _ _ _ _ _ _ _) =
 
 
 canonicalizeAlias :: Env.Env -> Valid.Alias -> Result ( N.Name, Can.Alias )
-canonicalizeAlias env (Valid.Alias (A.A _ name) args tipe) =
+canonicalizeAlias env (Valid.Alias (A.At _ name) args tipe) =
   do  ctipe <- Type.canonicalize env tipe
       return (name, Can.Alias (map A.drop args) ctipe (toRecordCtorInfo tipe))
 
 
 toRecordCtorInfo :: Src.Type -> Maybe [N.Name]
-toRecordCtorInfo (A.A _ tipe) =
+toRecordCtorInfo (A.At _ tipe) =
   case tipe of
     Src.TRecord fields Nothing ->
       Just (map (A.drop . fst) fields)
@@ -113,9 +113,9 @@ toRecordCtorInfo (A.A _ tipe) =
 
 
 canonicalizeUnion :: Env.Env -> Valid.Union -> Result ( N.Name, Can.Union )
-canonicalizeUnion env (Valid.Union (A.A _ name) args ctors) =
+canonicalizeUnion env (Valid.Union (A.At _ name) args ctors) =
   let
-    canonicalizeCtor (A.A _ ctor, tipes) =
+    canonicalizeCtor (A.At _ ctor, tipes) =
       do  ctipes <- traverse (Type.canonicalize env) tipes
           return (ctor, ctipes)
   in
@@ -128,7 +128,7 @@ canonicalizeUnion env (Valid.Union (A.A _ name) args ctors) =
 
 
 canonicalizeBinop :: Valid.Binop -> ( N.Name, Can.Binop )
-canonicalizeBinop (Valid.Binop (A.A _ op) associativity precedence func) =
+canonicalizeBinop (Valid.Binop (A.At _ op) associativity precedence func) =
   ( op, Can.Binop_ associativity precedence func )
 
 
@@ -162,7 +162,7 @@ detectCycles sccs =
 
 
 toNode :: Env.Env -> A.Located Valid.Decl -> Result (Can.Def, N.Name, [N.Name])
-toNode env (A.A _ (Valid.Decl aname@(A.A _ name) srcArgs body maybeType)) =
+toNode env (A.At _ (Valid.Decl aname@(A.At _ name) srcArgs body maybeType)) =
   case maybeType of
     Nothing ->
       do  (args, destructors) <-
@@ -206,10 +206,10 @@ detectBadCycles def defs =
 detectBadCyclesHelp :: Can.Def -> Maybe N.Name
 detectBadCyclesHelp def =
   case def of
-    Can.Def (A.A _ name) [] _ _ ->
+    Can.Def (A.At _ name) [] _ _ ->
       Just name
 
-    Can.TypedDef (A.A _ name) _ [] _ _ _ ->
+    Can.TypedDef (A.At _ name) _ [] _ _ _ ->
       Just name
 
     _ ->
@@ -241,7 +241,7 @@ canonicalizeExports decls unions aliases binops effects exposing =
 
 
 declToName :: A.Located Valid.Decl -> ( N.Name, () )
-declToName (A.A _ (Valid.Decl (A.A _ name) _ _ _)) =
+declToName (A.At _ (Valid.Decl (A.At _ name) _ _ _)) =
   ( name, () )
 
 
@@ -253,7 +253,7 @@ checkExposed
   -> Can.Effects
   -> A.Located Src.Exposed
   -> Result (Dups.Dict () Can.Export)
-checkExposed decls unions aliases binops effects (A.A region exposed) =
+checkExposed decls unions aliases binops effects (A.At region exposed) =
   case exposed of
     Src.Lower name ->
       if Map.member name decls then
