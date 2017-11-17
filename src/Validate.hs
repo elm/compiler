@@ -62,7 +62,7 @@ vsdHelp decls stuff =
     [] ->
       Result.ok stuff
 
-    A.A region decl : otherDecls ->
+    A.At region decl : otherDecls ->
       case decl of
         Src.Union name tvars ctors ->
           do  let union = Valid.Union name tvars ctors
@@ -83,12 +83,12 @@ vsdHelp decls stuff =
         Src.Docs docs ->
           validateDocs docs otherDecls stuff
 
-        Src.Annotation (A.A _ name) tipe ->
+        Src.Annotation (A.At _ name) tipe ->
           validateAnnotation region name tipe otherDecls stuff
 
         Src.Definition name args body ->
           do  validBody <- expression body
-              let validDecl = A.A region (Valid.Decl name args validBody Nothing)
+              let validDecl = A.At region (Valid.Decl name args validBody Nothing)
               vsdHelp otherDecls $ stuff { _decls = validDecl : _decls stuff }
 
 
@@ -102,7 +102,7 @@ validateDocs docs decls stuff =
     [] ->
       error "TODO no docs on nothing"
 
-    A.A _ decl : _ ->
+    A.At _ decl : _ ->
       do  name <- getNameForDocs decl
           vsdHelp decls $ stuff { _docs = Map.insert name docs (_docs stuff) }
 
@@ -110,10 +110,10 @@ validateDocs docs decls stuff =
 getNameForDocs :: Src.Decl_ -> Result w N.Name
 getNameForDocs decl =
   case decl of
-    Src.Union (A.A _ name) _ _ ->
+    Src.Union (A.At _ name) _ _ ->
       return name
 
-    Src.Alias (A.A _ name) _ _ ->
+    Src.Alias (A.At _ name) _ _ ->
       return name
 
     Src.Binop _ _ _ _ ->
@@ -125,10 +125,10 @@ getNameForDocs decl =
     Src.Docs _ ->
       error "TODO no docs on docs"
 
-    Src.Annotation (A.A _ name) _ ->
+    Src.Annotation (A.At _ name) _ ->
       return name
 
-    Src.Definition (A.A _ name) _ _ ->
+    Src.Definition (A.At _ name) _ _ ->
       return name
 
 
@@ -142,13 +142,13 @@ validateAnnotation annRegion annotationName tipe decls stuff =
     [] ->
       error "TODO no attotations on nothing"
 
-    A.A defRegion decl : otherDecls ->
+    A.At defRegion decl : otherDecls ->
       case decl of
-        Src.Definition name@(A.A _ definitionName) args body ->
+        Src.Definition name@(A.At _ definitionName) args body ->
           if annotationName == definitionName then
             do  validBody <- expression body
                 let region = R.merge annRegion defRegion
-                let validDecl = A.A region (Valid.Decl name args validBody (Just tipe))
+                let validDecl = A.At region (Valid.Decl name args validBody (Just tipe))
                 vsdHelp otherDecls $ stuff { _decls = validDecl : _decls stuff }
 
           else
@@ -163,8 +163,8 @@ validateAnnotation annRegion annotationName tipe decls stuff =
 
 
 expression :: Src.Expr -> Result w Valid.Expr
-expression (A.A region sourceExpression) =
-  A.A region <$>
+expression (A.At region sourceExpression) =
+  A.At region <$>
   case sourceExpression of
     Src.Var prefix name ->
         pure (Valid.Var prefix name)
@@ -260,19 +260,19 @@ definitions sourceDefs =
     [] ->
       return []
 
-    A.A region (Src.Destruct pattern expr) : otherDefs ->
+    A.At region (Src.Destruct pattern expr) : otherDefs ->
       (:)
         <$> validateDestruct region pattern expr
         <*> definitions otherDefs
 
-    A.A region (Src.Define name args expr) : otherDefs ->
+    A.At region (Src.Define name args expr) : otherDefs ->
       (:)
         <$> validateDefinition region name args expr Nothing
         <*> definitions otherDefs
 
-    A.A annRegion (Src.Annotate annotationName tipe) : otherDefs ->
+    A.At annRegion (Src.Annotate annotationName tipe) : otherDefs ->
       case otherDefs of
-        A.A defRegion (Src.Define name@(A.A _ definitionName) args expr) : otherOtherDefs
+        A.At defRegion (Src.Define name@(A.At _ definitionName) args expr) : otherOtherDefs
           | definitionName == annotationName ->
               (:)
                 <$> validateDefinition (R.merge annRegion defRegion) name args expr (Just tipe)
@@ -323,5 +323,5 @@ validateEffects effects ports =
 
 noPorts :: [Valid.Port] -> Result w ()
 noPorts ports =
-  forM_ ports $ \(Valid.Port (A.A region name) _) ->
+  forM_ ports $ \(Valid.Port (A.At region name) _) ->
     Result.throw region (Error.UnexpectedPort name)
