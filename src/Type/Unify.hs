@@ -1,17 +1,20 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings, Rank2Types #-}
-module Type.Unify (unify) where
+module Type.Unify
+  ( Answer(..)
+  , unify
+  , Problem(..)
+  )
+  where
+
 
 import Control.Monad (foldM, liftM2, zipWithM_)
-import Control.Monad.Trans (liftIO)
 import qualified Data.Map.Strict as Map
 
+import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
 import qualified Elm.Name as N
-import qualified Reporting.Region as R
-import qualified Reporting.Error.Type as Error
 import qualified Type.Occurs as Occurs
-import qualified Type.State as TS
 import Type.Type as Type
 import qualified Type.UnionFind as UF
 
@@ -20,38 +23,84 @@ import qualified Type.UnionFind as UF
 -- UNIFY
 
 
-unify :: R.Region -> Variable -> Variable -> TS.Solver ()
-unify region actual expected =
-  do  answer <- run (guardedUnify ActualExpected actual expected)
-      case answer of
-        Ok ->
-          return ()
-
-        Err problem ->
-          do  actualSrcType <- liftIO $ Type.toSrcType actual
-              expectedSrcType <- liftIO $ Type.toSrcType expected
-              liftIO $ mergeHelp actual expected (Error "?") noRank
-              TS.addError region $
-                case problem of
-                  Reason hasDecoder maybeReason ->
-                    Error.MismatchExpr $
-                      Error.MismatchInfo actualSrcType expectedSrcType hasDecoder maybeReason
-
-                  Infinite ->
-                    Error.InfiniteType actualSrcType
+data Answer
+  = Ok [Variable]
+  | Err [Variable] Problem Can.Type Can.Type
 
 
-data Answer = Ok | Err Problem
+unify :: Variable -> Variable -> IO Answer
+unify v1 v2 =
+  case guardedUnify ActualExpected v1 v2 of
+    Unify k ->
+      k [] onSuccess $ \vars problem ->
+        do  t1 <- Type.toSrcType v1
+            t2 <- Type.toSrcType v2
+            UF.union v1 v2 errorDescriptor
+            return (Err vars problem t1 t2)
 
 
-run :: Unify () -> TS.Solver Answer
-run (Unify k) =
-  do  (vars, answer) <-
-        liftIO $ k []
-          (\vars () -> return (vars, Ok))
-          (\vars p  -> return (vars, Err p))
-      TS.introduce vars
-      return answer
+
+onSuccess :: [Variable] -> () -> IO Answer
+onSuccess vars () =
+  return (Ok vars)
+
+
+{-# NOINLINE errorDescriptor #-}
+errorDescriptor :: Descriptor
+errorDescriptor =
+  Descriptor (Error "?") noRank noMark Nothing
+
+
+
+-- PROBLEM
+
+
+data Reason
+  = BadFields [(N.Name, Maybe Reason)]
+  | MessyFields [N.Name] [N.Name] [N.Name]
+  | IntFloat
+  | MissingArgs Int
+  | RigidClash N.Name N.Name
+  | NotPartOfSuper Type.SuperType
+  | RigidVarTooGeneric N.Name SpecificThing
+  | RigidSuperTooGeneric Type.SuperType N.Name SpecificThing
+
+
+data SpecificThing
+  = SpecificSuper Type.SuperType
+  | SpecificType N.Name
+  | SpecificFunction
+  | SpecificRecord
+  | SpecificUnit
+  | SpecificTuple
+
+
+flipReason :: Reason -> Reason
+flipReason reason =
+  case reason of
+    BadFields fields ->
+        BadFields (map (fmap (fmap flipReason)) fields)
+
+    MessyFields both left right ->
+        MessyFields both right left
+
+    IntFloat ->
+        IntFloat
+
+    MissingArgs num ->
+        MissingArgs num
+
+    RigidClash a b ->
+        RigidClash b a
+
+    NotPartOfSuper super ->
+        NotPartOfSuper super
+
+    RigidVarTooGeneric name specific ->
+        RigidVarTooGeneric name specific
+
+    RigidSuperTooGeneric super name specific ->
+        RigidSuperTooGeneric super name specific
 
 
 
@@ -66,6 +115,8 @@ newtype Unify a =
     -> IO r
   )
 
+
+-- TODO experiment with INLINE on the Unify instances
 
 instance Functor Unify where
   fmap func (Unify kv) =
@@ -152,11 +203,11 @@ reorient (Context orientation var1 desc1 var2 desc2) =
 
 
 data Problem
-  = Reason Bool (Maybe Error.Reason)
+  = Reason Bool (Maybe Reason)
   | Infinite
 
 
-mismatch :: Context -> Maybe Error.Reason -> Unify a
+mismatch :: Context -> Maybe Reason -> Unify a
 mismatch context@(Context orientation var1 _ var2 _) maybeReason =
   Unify $ \vars _ err ->
     do  anyInfinite <- liftM2 (||) (Occurs.occurs var1) (Occurs.occurs var2)
@@ -173,7 +224,7 @@ mismatch context@(Context orientation var1 _ var2 _) maybeReason =
                   then
                     do  newVars <- foldM (subUnifyAnyway context) vars (zip args1 args2)
                         err newVars $ Reason hasDecoder $ Just $
-                          Error.MissingArgs (abs (length args2 - length args1))
+                          MissingArgs (abs (length args2 - length args1))
                   else
                     err vars $ Reason hasDecoder $
                       case orientation of
@@ -181,7 +232,7 @@ mismatch context@(Context orientation var1 _ var2 _) maybeReason =
                           maybeReason
 
                         ActualExpected ->
-                          fmap Error.flipReason maybeReason
+                          fmap flipReason maybeReason
 
 
 subUnifyAnyway :: Context -> [Variable] -> (Variable, Variable) -> IO [Variable]
@@ -193,7 +244,7 @@ subUnifyAnyway context vars (arg1, arg2) =
 
 collectArgs :: [Variable] -> Variable -> IO [Variable]
 collectArgs revArgs variable =
-  do  (Descriptor content _ _ _) <- UF.descriptor variable
+  do  (Descriptor content _ _ _) <- UF.get variable
       case content of
         Structure (Fun1 arg returnType) ->
           collectArgs (arg : revArgs) returnType
@@ -204,7 +255,7 @@ collectArgs revArgs variable =
 
 detectDecoder :: Variable -> IO Bool
 detectDecoder variable =
-  do  (Descriptor content _ _ _) <- UF.descriptor variable
+  do  (Descriptor content _ _ _) <- UF.get variable
       case content of
         Structure (App1 home name [_]) ->
           return (home == ModuleName.jsonDecode && name == "Decoder")
@@ -220,13 +271,8 @@ detectDecoder variable =
 merge :: Context -> Content -> Unify ()
 merge (Context _ var1 (Descriptor _ rank1 _ _) var2 (Descriptor _ rank2 _ _)) content =
   Unify $ \vars ok _ ->
-    ok vars =<< mergeHelp var1 var2 content (min rank1 rank2)
-
-
-mergeHelp :: Variable -> Variable -> Content -> Int -> IO ()
-mergeHelp var1 var2 newContent newRank =
-  UF.union var1 var2 $
-    Descriptor newContent newRank noMark Nothing
+    ok vars =<<
+      UF.union var1 var2 (Descriptor content (min rank1 rank2) noMark Nothing)
 
 
 fresh :: Context -> Content -> Unify Variable
@@ -246,8 +292,8 @@ guardedUnify orientation left right =
         if equivalent
           then ok vars ()
           else
-            do  leftDesc <- UF.descriptor left
-                rightDesc <- UF.descriptor right
+            do  leftDesc <- UF.get left
+                rightDesc <- UF.get right
                 case actuallyUnify (Context orientation left leftDesc right rightDesc) of
                   Unify k ->
                     k vars ok err
@@ -262,7 +308,7 @@ actuallyUnify :: Context -> Unify ()
 actuallyUnify context@(Context _ _ (Descriptor firstContent _ _ _) _ (Descriptor secondContent _ _ _)) =
   case firstContent of
     FlexVar _ ->
-        unifyFlex context secondContent
+        unifyFlex context firstContent secondContent
 
     FlexSuper super _ ->
         unifyFlexSuper context super firstContent secondContent
@@ -289,16 +335,22 @@ actuallyUnify context@(Context _ _ (Descriptor firstContent _ _ _) _ (Descriptor
 -- UNIFY FLEXIBLE VARIABLES
 
 
-unifyFlex :: Context -> Content -> Unify ()
-unifyFlex context otherContent =
+unifyFlex :: Context -> Content -> Content -> Unify ()
+unifyFlex context content otherContent =
   case otherContent of
     Error _ ->
         return ()
 
     -- TODO see if wildcarding makes a noticable perf difference
 
-    FlexVar _ ->
-        merge context otherContent
+    FlexVar maybeName ->
+        merge context $
+          case maybeName of
+            Nothing ->
+              content
+
+            Just _ ->
+              otherContent
 
     FlexSuper _ _ ->
         merge context otherContent
@@ -333,54 +385,54 @@ unifyRigid context maybeSuper name content otherContent =
               merge context content
             else
               mismatch context $ Just $
-                Error.RigidSuperTooGeneric super name $ Error.SpecificSuper otherSuper
+                RigidSuperTooGeneric super name $ SpecificSuper otherSuper
 
           Nothing ->
             mismatch context $ Just $
-              Error.RigidVarTooGeneric name $ Error.SpecificSuper otherSuper
+              RigidVarTooGeneric name $ SpecificSuper otherSuper
 
     RigidVar otherName ->
         mismatch context $ Just $
-          Error.RigidClash name otherName
+          RigidClash name otherName
 
     RigidSuper _ otherName ->
         mismatch context $ Just $
-          Error.RigidClash name otherName
+          RigidClash name otherName
 
     Alias _ otherName _ _ ->
         mismatch context $ Just $
-          maybe Error.RigidVarTooGeneric Error.RigidSuperTooGeneric maybeSuper name $
-            Error.SpecificType otherName
+          maybe RigidVarTooGeneric RigidSuperTooGeneric maybeSuper name $
+            SpecificType otherName
 
     Structure flatType ->
         mismatch context $ Just $
-          maybe Error.RigidVarTooGeneric Error.RigidSuperTooGeneric maybeSuper name $
+          maybe RigidVarTooGeneric RigidSuperTooGeneric maybeSuper name $
             flatTypeToSpecificThing flatType
 
     Error _ ->
         return ()
 
 
-flatTypeToSpecificThing :: FlatType -> Error.SpecificThing
+flatTypeToSpecificThing :: FlatType -> SpecificThing
 flatTypeToSpecificThing flatType =
   case flatType of
     App1 _ name _ ->
-      Error.SpecificType name
+      SpecificType name
 
     Fun1 _ _ ->
-      Error.SpecificFunction
+      SpecificFunction
 
     EmptyRecord1 ->
-      Error.SpecificRecord
+      SpecificRecord
 
     Record1 _ _ ->
-      Error.SpecificRecord
+      SpecificRecord
 
     Unit1 ->
-      Error.SpecificUnit
+      SpecificUnit
 
     Tuple1 _ _ _ ->
-      Error.SpecificTuple
+      SpecificTuple
 
 
 
@@ -395,14 +447,14 @@ unifyFlexSuper context super content otherContent =
 
     RigidVar name ->
         mismatch context $ Just $
-          Error.RigidVarTooGeneric name (Error.SpecificSuper super)
+          RigidVarTooGeneric name (SpecificSuper super)
 
     RigidSuper otherSuper name ->
         if combineRigidSupers otherSuper super then
             merge context otherContent
         else
             mismatch context $ Just $
-              Error.RigidSuperTooGeneric otherSuper name (Error.SpecificSuper super)
+              RigidSuperTooGeneric otherSuper name (SpecificSuper super)
 
     FlexVar _ ->
         merge context content
@@ -413,7 +465,7 @@ unifyFlexSuper context super content otherContent =
           case otherSuper of
             Number     -> merge context content
             Comparable -> merge context content
-            _          -> mismatch context Nothing -- Error.NumberAppendableClash
+            _          -> mismatch context Nothing -- NumberAppendableClash
 
         Comparable ->
           case otherSuper of
@@ -427,14 +479,14 @@ unifyFlexSuper context super content otherContent =
             Appendable -> merge context otherContent
             Comparable -> merge context (Type.unnamedFlexSuper CompAppend)
             CompAppend -> merge context otherContent
-            Number     -> mismatch context Nothing -- Error.NumberAppendableClash
+            Number     -> mismatch context Nothing -- NumberAppendableClash
 
         CompAppend ->
           case otherSuper of
             Comparable -> merge context content
             Appendable -> merge context content
             CompAppend -> merge context content
-            Number     -> mismatch context Nothing -- Error.NumberAppendableClash
+            Number     -> mismatch context Nothing -- NumberAppendableClash
 
     Alias _ _ _ realVar ->
         subUnify context (_first context) realVar
@@ -479,12 +531,12 @@ unifyFlexSuperStructure context super flatType =
       if atomMatchesSuper super home name then
         merge context (Structure flatType)
       else
-        mismatch context $ Just $ Error.NotPartOfSuper super
+        mismatch context $ Just $ NotPartOfSuper super
 
     App1 home name [variable] | home == ModuleName.list && name == N.list ->
       case super of
         Number ->
-            mismatch context $ Just $ Error.NotPartOfSuper super
+            mismatch context $ Just $ NotPartOfSuper super
 
         Appendable ->
             merge context (Structure flatType)
@@ -502,10 +554,10 @@ unifyFlexSuperStructure context super flatType =
     Tuple1 a b maybeC ->
       case super of
         Number ->
-            mismatch context $ Just $ Error.NotPartOfSuper super
+            mismatch context $ Just $ NotPartOfSuper super
 
         Appendable ->
-            mismatch context $ Just $ Error.NotPartOfSuper super
+            mismatch context $ Just $ NotPartOfSuper super
 
         Comparable ->
             do  comparableOccursCheck context
@@ -521,10 +573,10 @@ unifyFlexSuperStructure context super flatType =
                     unifyComparableRecursive orientation c
 
         CompAppend ->
-            mismatch context $ Just $ Error.NotPartOfSuper super
+            mismatch context $ Just $ NotPartOfSuper super
 
     _ ->
-      mismatch context $ Just $ Error.NotPartOfSuper super
+      mismatch context $ Just $ NotPartOfSuper super
 
 
 -- TODO: is there some way to avoid doing this?
@@ -541,7 +593,7 @@ comparableOccursCheck (Context _ _ _ var _) =
 unifyComparableRecursive :: Orientation -> Variable -> Unify ()
 unifyComparableRecursive orientation var =
   do  compVar <- register $
-        do  (Descriptor _ rank _ _) <- UF.descriptor var
+        do  (Descriptor _ rank _ _) <- UF.get var
             UF.fresh $ Descriptor (Type.unnamedFlexSuper Comparable) rank noMark Nothing
       guardedUnify orientation compVar var
 
@@ -594,10 +646,10 @@ unifyStructure context flatType content otherContent =
         unifyFlexSuperStructure (reorient context) super flatType
 
     RigidVar name ->
-        mismatch context $ Just $ Error.RigidVarTooGeneric name (flatTypeToSpecificThing flatType)
+        mismatch context $ Just $ RigidVarTooGeneric name (flatTypeToSpecificThing flatType)
 
     RigidSuper super name ->
-        mismatch context $ Just $ Error.RigidSuperTooGeneric super name (flatTypeToSpecificThing flatType)
+        mismatch context $ Just $ RigidSuperTooGeneric super name (flatTypeToSpecificThing flatType)
 
     Alias _ _ _ realVar ->
         subUnify context (_first context) realVar
@@ -610,7 +662,7 @@ unifyStructure context flatType content otherContent =
                     merge context otherContent
 
               else if isIntFloat home name otherHome otherName then
-                mismatch context (Just Error.IntFloat)
+                mismatch context (Just IntFloat)
 
               else
                 mismatch context Nothing
@@ -684,11 +736,11 @@ unifyRecord context firstStructure secondStructure =
 
         (Empty, _, _, False) ->
             mismatch context $ Just $
-              Error.MessyFields (Map.keys sharedFields) (Map.keys uniqueExpFields) (Map.keys uniqueActFields)
+              MessyFields (Map.keys sharedFields) (Map.keys uniqueExpFields) (Map.keys uniqueActFields)
 
         (_, False, Empty, _) ->
             mismatch context $ Just $
-              Error.MessyFields (Map.keys sharedFields) (Map.keys uniqueExpFields) (Map.keys uniqueActFields)
+              MessyFields (Map.keys sharedFields) (Map.keys uniqueExpFields) (Map.keys uniqueActFields)
 
         (_, False, _, True) ->
             do  subRecord <- fresh context (Structure (Record1 uniqueExpFields expVar))
@@ -719,10 +771,10 @@ unifySharedFieldsHelp context sharedFields =
           return ()
 
         badFieldPairs ->
-          mismatch context (Just (Error.BadFields badFieldPairs))
+          mismatch context (Just (BadFields badFieldPairs))
 
 
-unifyField :: Context -> N.Name -> (Variable, Variable) -> Unify (Maybe (Maybe Error.Reason))
+unifyField :: Context -> N.Name -> (Variable, Variable) -> Unify (Maybe (Maybe Reason))
 unifyField context _ (actual, expected) =
   Unify $ \vars ok _ ->
     case subUnify context actual expected of
@@ -759,7 +811,7 @@ data ExtensionStructure
 
 gatherFields :: Context -> Map.Map N.Name Variable -> Variable -> IO RecordStructure
 gatherFields context fields variable =
-  do  (Descriptor content _ _ _) <- UF.descriptor variable
+  do  (Descriptor content _ _ _) <- UF.get variable
       case content of
         Structure (Record1 subFields subExt) ->
             gatherFields context (Map.union fields subFields) subExt

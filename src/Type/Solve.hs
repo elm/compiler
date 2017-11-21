@@ -1,155 +1,221 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Type.Solve (solve) where
+module Type.Solve
+  ( run
+  )
+  where
+
 
 import Control.Monad
-import Control.Monad.Except (ExceptT, liftIO, throwError)
 import qualified Data.Map.Strict as Map
-import qualified Data.Text as Text
+import Data.Map.Strict ((!))
 import qualified Data.Vector as Vector
 import qualified Data.Vector.Mutable as MVector
 
-import qualified AST.Module.Name as ModuleName
+import qualified AST.Canonical as Can
+import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Type.Occurs as Occurs
-import qualified Type.State as TS
-import Type.Constraint (Constraint(..), Scheme(..))
+import Type.Constraint as Con
 import Type.Type as Type
-import Type.Unify
+import qualified Type.Unify as Unify
 import qualified Type.UnionFind as UF
+
+
+
+-- RUN
+
+
+run :: Constraint -> IO (Either [Error.Error] Env)
+run constraint =
+  do  pools <- MVector.replicate 16 []
+
+      (State env _ errors) <-
+        solve Map.empty outermostRank pools emptyState constraint
+
+      case errors of
+        [] ->
+          return $ Right env
+
+        _ ->
+          return $ Left errors
+
+
+
+{-# NOINLINE emptyState #-}
+emptyState :: State
+emptyState =
+  State Map.empty (nextMark noMark) []
 
 
 
 -- SOLVER
 
 
-solve :: Constraint -> ExceptT [A.Located Error.Error] IO TS.State
-solve constraint =
-  {-# SCC elm_compiler_type_solve #-}
-  do  state <- liftIO (TS.run (actuallySolve constraint))
-      case TS._errors state of
-        [] ->
-            return state
-
-        errors ->
-            throwError errors
+type Env =
+  Map.Map N.Name Variable
 
 
-actuallySolve :: Constraint -> TS.Solver ()
-actuallySolve constraint =
+type Pools =
+  MVector.IOVector [Variable]
+
+
+data State =
+  State
+    { _env :: Env
+    , _mark :: Mark
+    , _errors :: [Error.Error]
+    }
+
+
+solve :: Env -> Int -> Pools -> State -> Constraint -> IO State
+solve env rank pools state constraint =
   case constraint of
     CTrue ->
-        return ()
+      return state
 
-    CSaveEnv ->
-        TS.saveLocalEnv
+    CSaveTheEnvironment ->
+      return (state { _env = env })
 
-    CEqual hint region term1 term2 ->
-        do  t1 <- TS.flatten term1
-            t2 <- TS.flatten term2
-            unify hint region t1 t2
+    CEqual region category tipe expectation ->
+      do  actual <- typeToVariable rank pools tipe
+          expected <- expectedToVariable rank pools expectation
+          answer <- Unify.unify actual expected
+          case answer of
+            Unify.Ok vars ->
+              do  introduce rank pools vars
+                  return state
 
-    CAnd cs ->
-        mapM_ actuallySolve cs
+            Unify.Err vars problem actualType expectedType ->
+              do  introduce rank pools vars
+                  return $ addError state $
+                    Error.Mismatch
+                      (Error.BadExpr region category actualType)
+                      (Con.typeReplace expectation expectedType)
+                      problem
 
-    CLet [Scheme [] fqs constraint' _] CTrue ->
-        do  oldEnv <- TS.getEnv
-            TS.introduce fqs
-            actuallySolve constraint'
-            TS.modifyEnv (\_ -> oldEnv)
+    CLookup region name expectation ->
+      do  actual <- makeCopy rank pools (env ! name)
+          expected <- expectedToVariable rank pools expectation
+          answer <- Unify.unify actual expected
+          case answer of
+            Unify.Ok vars ->
+              do  introduce rank pools vars
+                  return state
 
-    CLet schemes constraint' ->
-        do  oldEnv <- TS.getEnv
-            headers <- Map.unions <$> mapM solveScheme schemes
-            TS.modifyEnv $ \env -> Map.union headers env
-            actuallySolve constraint'
-            mapM_ occurs $ Map.toList headers
-            TS.modifyEnv (\_ -> oldEnv)
+            Unify.Err vars problem actualType expectedType ->
+              do  introduce rank pools vars
+                  return $ addError state $
+                    Error.Mismatch
+                      (Error.BadLocal region name actualType)
+                      (Con.typeReplace expectation expectedType)
+                      problem
 
-    CInstance region name term ->
-        do  env <- TS.getEnv
-            freshCopy <-
-                case Map.lookup name env of
-                  Just (A.A _ tipe) ->
-                      TS.copy tipe
+    CInstance region funcName (Can.Forall freeVars srcType) expectation ->
+      do  actual <- srcTypeToVariable rank pools freeVars srcType
+          expected <- expectedToVariable rank pools expectation
+          answer <- Unify.unify actual expected
+          case answer of
+            Unify.Ok vars ->
+              do  introduce rank pools vars
+                  return state
 
-                  Nothing ->
-                      if ModuleName.isKernel name then
-                          liftIO mkFlexVar
+            Unify.Err vars problem actualType expectedType ->
+              do  introduce rank pools vars
+                  return $ addError state $
+                    Error.Mismatch
+                      (Error.BadForeign region funcName actualType)
+                      (Con.typeReplace expectation expectedType)
+                      problem
 
-                      else
-                          error ("Could not find `" ++ Text.unpack name ++ "` when solving type constraints.")
+    CPattern region category tipe expectation ->
+      do  actual <- typeToVariable rank pools tipe
+          expected <- patternExpectationToVariable rank pools expectation
+          answer <- Unify.unify actual expected
+          case answer of
+            Unify.Ok vars ->
+              do  introduce rank pools vars
+                  return state
 
-            t <- TS.flatten term
-            unify (Error.Instance name) region freshCopy t
+            Unify.Err vars problem actualType expectedType ->
+              do  introduce rank pools vars
+                  return $ addError state $
+                    Error.BadPattern region category actualType
+                      (Con.ptypeReplace expectation expectedType)
+                      problem
 
+    CAnd constraints ->
+      foldM (solve env rank pools) state constraints
 
+    CBranch a b eqCon makeNotEqCon ->
+      do  aVar <- typeToVariable rank pools a
+          bVar <- typeToVariable rank pools b
+          answer <- Unify.unify aVar bVar
+          case answer of
+            Unify.Ok vars ->
+              do  introduce rank pools vars
+                  solve env rank pools state eqCon
 
--- SOLVE SCHEMES
+            Unify.Err vars _ _ _ ->
+              do  introduce rank pools vars
+                  solve env rank pools state =<< makeNotEqCon
 
+    CLet [] flexs _ headerCon CTrue ->
+      do  introduce rank pools flexs
+          solve env rank pools state headerCon
 
-solveScheme :: Scheme -> TS.Solver TS.Env
-solveScheme scheme =
-  let
-    flatten (A.A region term) =
-      A.A region <$> TS.flatten term
-  in
-  case scheme of
-    Scheme [] [] constraint header ->
-        do  actuallySolve constraint
-            traverse flatten header
+    CLet [] [] header headerCon subCon ->
+      do  state1 <- solve env rank pools state headerCon
+          locals <- traverse (A.traverse (typeToVariable rank pools)) header
+          let newEnv = Map.union env (Map.map A.drop locals)
+          state2 <- solve newEnv rank pools state1 subCon
+          foldM occurs state2 $ Map.toList locals
 
-    Scheme rigidQuantifiers flexQuantifiers constraint header ->
-        -- work in the next pool for this scheme's constraints
-        solveSchemeHelp rigidQuantifiers flexQuantifiers $
-          do  flatHeader <- traverse flatten header
-              actuallySolve constraint
-              return flatHeader
+    CLet rigids flexs header headerCon subCon ->
+      do
+          -- work in the next pool to localize header
+          let nextRank = rank + 1
+          let poolsLength = MVector.length pools
+          nextPools <-
+            if nextRank < poolsLength
+              then return pools
+              else MVector.grow pools poolsLength
 
+          -- introduce variables
+          let vars = rigids ++ flexs
+          forM_ vars $ \var ->
+            UF.modify var $ \(Descriptor content _ mark copy) ->
+              Descriptor content nextRank mark copy
+          MVector.write nextPools nextRank vars
 
+          -- run solver in next pool
+          locals <- traverse (A.traverse (typeToVariable rank nextPools)) header
+          (State savedEnv mark errors) <-
+            solve env nextRank nextPools state headerCon
 
-solveSchemeHelp :: [Variable] -> [Variable] -> TS.Solver a -> TS.Solver a
-solveSchemeHelp rigidQuantifiers flexQuantifiers (TS.Solver stepState) =
-  TS.Solver $ \state@(TS.SS _ _ rank oldPools _ _) ->
-    do
-        -- push pool
-        let nextRank = rank + 1
-        let poolsLength = MVector.length oldPools
+          let youngMark = mark
+          let visitMark = nextMark youngMark
+          let finalMark = nextMark visitMark
 
-        pools <-
-          if nextRank < poolsLength
-            then return oldPools
-            else MVector.grow oldPools poolsLength
+          -- pop pool
+          generalize youngMark visitMark nextRank nextPools
+          MVector.write nextPools nextRank []
 
-        -- introduce quantifiers
-        let allQuantifiers = rigidQuantifiers ++ flexQuantifiers
-        forM_ allQuantifiers $ \var ->
-          UF.modifyDescriptor var $ \(Descriptor content _ mark copy) ->
-            Descriptor content nextRank mark copy
-        MVector.write pools nextRank allQuantifiers
+          -- check that things went well
+          mapM_ isGeneric rigids
 
-        -- run solver in next pool
-        (value, TS.SS env savedEnv _ _ mark errors) <- stepState (state { TS._rank = nextRank })
+          let newEnv = Map.union env (Map.map A.drop locals)
+          let tempState = State savedEnv finalMark errors
+          newState <- solve newEnv nextRank nextPools tempState subCon
 
-        -- pop pool
-        let youngMark = mark
-        let visitMark = nextMark mark
-        let finalMark = nextMark visitMark
-        generalize youngMark visitMark nextRank pools
-        MVector.write pools nextRank []
-
-        -- check that things went well
-        mapM_ isGeneric rigidQuantifiers
-
-        -- return result with pool popped
-        return ( value, TS.SS env savedEnv rank pools finalMark errors )
+          foldM occurs newState (Map.toList locals)
 
 
 -- Check that a variable has rank == noRank, meaning that it can be generalized.
 isGeneric :: Variable -> IO ()
 isGeneric var =
-  do  (Descriptor _ rank _ _) <- UF.descriptor var
+  do  (Descriptor _ rank _ _) <- UF.get var
       if rank == noRank
         then return ()
         else crash "Unable to generalize a type variable. It is not unranked."
@@ -165,22 +231,58 @@ crash msg =
 
 
 
+-- EXPECTATIONS TO VARIABLE
+
+
+expectedToVariable :: Int -> Pools -> Expected Type -> IO Variable
+expectedToVariable rank pools expectation =
+  typeToVariable rank pools $
+    case expectation of
+      NoExpectation tipe ->
+        tipe
+
+      FromContext _ _ tipe ->
+        tipe
+
+      FromAnnotation _ _ _ tipe ->
+        tipe
+
+
+patternExpectationToVariable :: Int -> Pools -> PExpected Type -> IO Variable
+patternExpectationToVariable rank pools expectation =
+  typeToVariable rank pools $
+    case expectation of
+      PNoExpectation tipe ->
+        tipe
+
+      PFromContext _ _ tipe ->
+        tipe
+
+
+
+-- ERROR HELPERS
+
+
+addError :: State -> Error.Error -> State
+addError (State savedEnv rank errors) err =
+  State savedEnv rank (err:errors)
+
+
+
 -- OCCURS CHECK
 
 
-occurs :: (Text.Text, A.Located Variable) -> TS.Solver ()
-occurs (name, A.A region variable) =
-  {-# SCC elm_compiler_type_occurs #-}
-  do  hasOccurred <- liftIO $ Occurs.occurs variable
-      case hasOccurred of
-        False ->
-          return ()
-
-        True ->
-          do  overallType <- liftIO $ Type.toSrcType variable
-              (Descriptor _ rank mark copy) <- liftIO $ UF.descriptor variable
-              liftIO $ UF.setDescriptor variable (Descriptor (Error "∞") rank mark copy)
-              TS.addError region (Error.InfiniteType (Right name) overallType)
+occurs :: State -> (N.Name, A.Located Variable) -> IO State
+occurs state (_name, A.At _region variable) =
+  do  hasOccurred <- Occurs.occurs variable
+      if hasOccurred
+        then
+          do  overallType <- Type.toSrcType variable
+              (Descriptor _ rank mark copy) <- UF.get variable
+              UF.set variable (Descriptor (Error "∞") rank mark copy)
+              return $ state { _errors = Error.InfiniteType overallType : _errors state }
+        else
+          return state
 
 
 
@@ -190,11 +292,9 @@ occurs (name, A.A region variable) =
 {-| Every variable has rank less than or equal to the maxRank of the pool.
 This sorts variables into the young and old pools accordingly.
 -}
-generalize :: Mark -> Mark -> Int -> TS.Pools -> IO ()
+generalize :: Mark -> Mark -> Int -> Pools -> IO ()
 generalize youngMark visitMark youngRank pools =
-  {-# SCC elm_compiler_type_generalize #-}
-  do
-      youngVars <- MVector.read pools youngRank
+  do  youngVars <- MVector.read pools youngRank
       rankTable <- poolToRankTable youngMark youngRank youngVars
 
       -- get the ranks right for each entry.
@@ -210,7 +310,7 @@ generalize youngMark visitMark youngRank pools =
               if isRedundant
                 then return ()
                 else
-                  do  (Descriptor _ rank _ _) <- UF.descriptor var
+                  do  (Descriptor _ rank _ _) <- UF.get var
                       MVector.modify pools (var:) rank
 
       -- For variables with rank youngRank
@@ -221,12 +321,10 @@ generalize youngMark visitMark youngRank pools =
             if isRedundant
               then return ()
               else
-                do  (Descriptor content rank mark copy) <- liftIO $ UF.descriptor var
+                do  (Descriptor content rank mark copy) <- UF.get var
                     if rank < youngRank
-                      then
-                        MVector.modify pools (var:) rank
-                      else
-                        UF.setDescriptor var $ Descriptor content noRank mark copy
+                      then MVector.modify pools (var:) rank
+                      else UF.set var $ Descriptor content noRank mark copy
 
 
 poolToRankTable :: Mark -> Int -> [Variable] -> IO (Vector.Vector [Variable])
@@ -235,8 +333,8 @@ poolToRankTable youngMark youngRank youngInhabitants =
 
       -- Sort the youngPool variables into buckets by rank.
       forM_ youngInhabitants $ \var ->
-        do  (Descriptor content rank _ copy) <- UF.descriptor var
-            UF.setDescriptor var (Descriptor content rank youngMark copy)
+        do  (Descriptor content rank _ copy) <- UF.get var
+            UF.set var (Descriptor content rank youngMark copy)
             MVector.modify mutableTable (var:) rank
 
       Vector.unsafeFreeze mutableTable
@@ -252,12 +350,12 @@ poolToRankTable youngMark youngRank youngInhabitants =
 adjustRank :: Mark -> Mark -> Int -> Variable -> IO Int
 adjustRank youngMark visitMark groupRank var =
   {-# SCC elm_compiler_type_adjust #-}
-  do  (Descriptor content rank mark copy) <- UF.descriptor var
+  do  (Descriptor content rank mark copy) <- UF.get var
       if mark == youngMark then
           do  -- Set the variable as marked first because it may be cyclic.
-              UF.setDescriptor var $ Descriptor content rank visitMark copy
+              UF.set var $ Descriptor content rank visitMark copy
               maxRank <- adjustRankContent youngMark visitMark groupRank content
-              UF.setDescriptor var $ Descriptor content maxRank visitMark copy
+              UF.set var $ Descriptor content maxRank visitMark copy
               return maxRank
 
         else if mark == visitMark then
@@ -266,7 +364,7 @@ adjustRank youngMark visitMark groupRank var =
         else
           do  let minRank = min groupRank rank
               -- TODO how can minRank ever be groupRank?
-              UF.setDescriptor var $ Descriptor content minRank visitMark copy
+              UF.set var $ Descriptor content minRank visitMark copy
               return minRank
 
 
@@ -325,3 +423,282 @@ adjustRankContent youngMark visitMark groupRank content =
       Error _ ->
           return groupRank
 
+
+
+-- REGISTER VARIABLES
+
+
+introduce :: Int -> Pools -> [Variable] -> IO ()
+introduce rank pools variables =
+  do  MVector.modify pools (variables++) rank
+      forM_ variables $ \var ->
+        UF.modify var $ \(Descriptor content _ mark copy) ->
+          Descriptor content rank mark copy
+
+
+
+-- TYPE TO VARIABLE
+
+
+typeToVariable :: Int -> Pools -> Type -> IO Variable
+typeToVariable rank pools tipe =
+  typeToVar rank pools Map.empty tipe
+
+
+typeToVar :: Int -> Pools -> Map.Map N.Name Variable -> Type -> IO Variable
+typeToVar rank pools aliasDict tipe =
+  let go = typeToVar rank pools aliasDict in
+  case tipe of
+    VarN v ->
+      return v
+
+    AppN home name args ->
+      do  argVars <- traverse go args
+          register rank pools (Structure (App1 home name argVars))
+
+    FunN a b ->
+      do  aVar <- go a
+          bVar <- go b
+          register rank pools (Structure (Fun1 aVar bVar))
+
+    AliasN home name args aliasType ->
+      do  argVars <- traverse (traverse go) args
+          aliasVar <- typeToVar rank pools (Map.fromList argVars) aliasType
+          register rank pools (Alias home name argVars aliasVar)
+
+    PlaceHolder name ->
+      return (aliasDict ! name)
+
+    RecordN fields ext ->
+      do  fieldVars <- traverse go fields
+          extVar <- go ext
+          register rank pools (Structure (Record1 fieldVars extVar))
+
+    EmptyRecordN ->
+      register rank pools emptyRecord1
+
+    UnitN ->
+      register rank pools unit1
+
+    TupleN a b c ->
+      do  aVar <- go a
+          bVar <- go b
+          cVar <- traverse go c
+          register rank pools (Structure (Tuple1 aVar bVar cVar))
+
+
+register :: Int -> Pools -> Content -> IO Variable
+register rank pools content =
+  do  var <- UF.fresh (Descriptor content rank noMark Nothing)
+      MVector.modify pools (var:) rank
+      return var
+
+
+{-# NOINLINE emptyRecord1 #-}
+emptyRecord1 :: Content
+emptyRecord1 =
+  Structure EmptyRecord1
+
+
+{-# NOINLINE unit1 #-}
+unit1 :: Content
+unit1 =
+  Structure Unit1
+
+
+
+-- SOURCE TYPE TO VARIABLE
+
+
+srcTypeToVariable :: Int -> Pools -> Map.Map N.Name () -> Can.Type -> IO Variable
+srcTypeToVariable rank pools freeVars srcType =
+  let
+    makeVar name _ =
+      UF.fresh (Descriptor (FlexVar (Just name)) rank noMark Nothing)
+  in
+  do  flexVars <- Map.traverseWithKey makeVar freeVars
+      MVector.modify pools (Map.elems flexVars ++) rank
+      srcTypeToVar rank pools flexVars srcType
+
+
+srcTypeToVar :: Int -> Pools -> Map.Map N.Name Variable -> Can.Type -> IO Variable
+srcTypeToVar rank pools flexVars srcType =
+  let go = srcTypeToVar rank pools flexVars in
+  case srcType of
+    Can.TLambda argument result ->
+      do  argVar <- go argument
+          resultVar <- go result
+          register rank pools (Structure (Fun1 argVar resultVar))
+
+    Can.TVar name ->
+      return (flexVars ! name)
+
+    Can.TType home name args ->
+      do  argVars <- traverse go args
+          register rank pools (Structure (App1 home name argVars))
+
+    Can.TRecord fields maybeExt ->
+      do  fieldVars <- traverse go fields
+          extVar <- maybe (register rank pools emptyRecord1) go maybeExt
+          register rank pools (Structure (Record1 fieldVars extVar))
+
+    Can.TUnit ->
+      register rank pools unit1
+
+    Can.TTuple a b c ->
+      do  aVar <- go a
+          bVar <- go b
+          cVar <- traverse go c
+          register rank pools (Structure (Tuple1 aVar bVar cVar))
+
+    Can.TAlias home name args aliasType ->
+      do  argVars <- traverse (traverse go) args
+          aliasVar <-
+            case aliasType of
+              Can.Holey tipe ->
+                srcTypeToVar rank pools (Map.fromList argVars) tipe
+
+              Can.Filled tipe ->
+                go tipe
+
+          register rank pools (Alias home name argVars aliasVar)
+
+
+
+-- COPY
+
+
+makeCopy :: Int -> Pools -> Variable -> IO Variable
+makeCopy rank pools var =
+  do  copy <- makeCopyHelp rank pools var
+      _ <- restore var
+      return copy
+
+
+makeCopyHelp :: Int -> Pools -> Variable -> IO Variable
+makeCopyHelp maxRank pools variable =
+  do  (Descriptor content rank _ maybeCopy) <-
+        UF.get variable
+
+      case maybeCopy of
+        Just copy ->
+          return copy
+
+        Nothing ->
+          if rank /= noRank then
+            return variable
+
+          else
+            do  let makeDescriptor c = Descriptor c maxRank noMark Nothing
+                copy <- UF.fresh $ makeDescriptor content
+                MVector.modify pools (copy:) maxRank
+
+                -- Link the original variable to the new variable. This lets us
+                -- avoid making multiple copies of the variable we are instantiating.
+                --
+                -- Need to do this before recursively copying to avoid looping.
+                UF.set variable $
+                  Descriptor content rank noMark (Just copy)
+
+                -- Now we recursively copy the content of the variable.
+                -- We have already marked the variable as copied, so we
+                -- will not repeat this work or crawl this variable again.
+                case content of
+                  Structure term ->
+                    do  newTerm <- traverseFlatType (makeCopyHelp maxRank pools) term
+                        UF.set copy $ makeDescriptor (Structure newTerm)
+                        return copy
+
+                  FlexVar _ ->
+                    return copy
+
+                  FlexSuper _ _ ->
+                    return copy
+
+                  RigidVar name ->
+                    do  UF.set copy $ makeDescriptor $ FlexVar (Just name)
+                        return copy
+
+                  RigidSuper super name ->
+                    do  UF.set copy $ makeDescriptor $ FlexSuper super (Just name)
+                        return copy
+
+                  Alias home name args realType ->
+                    do  newArgs <- mapM (traverse (makeCopyHelp maxRank pools)) args
+                        newRealType <- makeCopyHelp maxRank pools realType
+                        UF.set copy $ makeDescriptor (Alias home name newArgs newRealType)
+                        return copy
+
+                  Error _ ->
+                    return copy
+
+
+
+-- RESTORE
+
+
+restore :: Variable -> IO Variable
+restore variable =
+  do  (Descriptor content _rank _mark maybeCopy) <- UF.get variable
+      case maybeCopy of
+        Nothing ->
+          return variable
+
+        Just _ ->
+          do  restoredContent <- restoreContent content
+              UF.set variable $
+                Descriptor restoredContent noRank noMark Nothing
+              return variable
+
+
+restoreContent :: Content -> IO Content
+restoreContent content =
+  case content of
+    FlexVar _ ->
+        return content
+
+    FlexSuper _ _ ->
+        return content
+
+    RigidVar _ ->
+        return content
+
+    RigidSuper _ _ ->
+        return content
+
+    Structure term ->
+        Structure <$> traverseFlatType restore term
+
+    Alias home name args var ->
+        Alias home name
+          <$> mapM (traverse restore) args
+          <*> restore var
+
+    Error _ ->
+        return content
+
+
+
+-- TRAVERSE FLAT TYPE
+
+
+traverseFlatType :: (Variable -> IO Variable) -> FlatType -> IO FlatType
+traverseFlatType f flatType =
+  case flatType of
+    App1 home name args ->
+        liftM (App1 home name) (traverse f args)
+
+    Fun1 a b ->
+        liftM2 Fun1 (f a) (f b)
+
+    EmptyRecord1 ->
+        pure EmptyRecord1
+
+    Record1 fields ext ->
+        liftM2 Record1 (traverse f fields) (f ext)
+
+    Unit1 ->
+        pure Unit1
+
+    Tuple1 a b cs ->
+        liftM3 Tuple1 (f a) (f b) (traverse f cs)

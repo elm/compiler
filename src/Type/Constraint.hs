@@ -3,14 +3,16 @@
 module Type.Constraint
   ( Constraint(..)
   , exists
-  , Expectation(..)
+  , Expected(..)
   , Context(..)
   , SubContext(..)
   , FuncName(..)
   , Category(..)
-  , PatternExpectation(..)
-  , PatternContext(..)
-  , PatternCategory(..)
+  , PExpected(..)
+  , PContext(..)
+  , PCategory(..)
+  , typeReplace
+  , ptypeReplace
   )
   where
 
@@ -31,24 +33,24 @@ import Type.Type (Type, Variable)
 
 data Constraint
   = CTrue
-  | CSaveHeaders
-  | CEqual R.Region Category Type Expectation
-  | CLookup R.Region N.Name Expectation
-  | CInstance R.Region FuncName Can.Annotation Expectation
-  | CPattern R.Region PatternCategory Type PatternExpectation
+  | CSaveTheEnvironment
+  | CEqual R.Region Category Type (Expected Type)
+  | CLookup R.Region N.Name (Expected Type)
+  | CInstance R.Region FuncName Can.Annotation (Expected Type)
+  | CPattern R.Region PCategory Type (PExpected Type)
   | CAnd [Constraint]
+  | CBranch
+      { _a :: Type
+      , _b :: Type
+      , _eq :: Constraint
+      , _neq :: IO Constraint
+      }
   | CLet
       { _rigidVars :: [Variable]
       , _flexVars :: [Variable]
       , _header :: Map.Map N.Name (A.Located Type)
       , _headerCon :: Constraint
       , _bodyCon :: Constraint
-      }
-  | CBranch
-      { _a :: Type
-      , _b :: Type
-      , _eq :: Constraint
-      , _neq :: IO Constraint
       }
 
 
@@ -61,10 +63,10 @@ exists flexVars constraint =
 -- EXPRESSION EXPECTATIONS
 
 
-data Expectation
-  = NoExpectation Type
-  | FromContext R.Region Context Type
-  | FromAnnotation N.Name Int SubContext Type
+data Expected tipe
+  = NoExpectation tipe
+  | FromContext R.Region Context tipe
+  | FromAnnotation N.Name Int SubContext tipe
 
 
 data Context
@@ -116,12 +118,12 @@ data Category
 -- PATTERN EXPECTATIONS
 
 
-data PatternExpectation
-  = NoPatternExpectation Type
-  | PatternExpectation R.Region PatternContext Type
+data PExpected tipe
+  = PNoExpectation tipe
+  | PFromContext R.Region PContext tipe
 
 
-data PatternContext
+data PContext
   = PTypedArg N.Name Index.ZeroBased
   | PCaseMatch Index.ZeroBased
   | PCtorArg N.Name Index.ZeroBased
@@ -129,7 +131,7 @@ data PatternContext
   | PTail
 
 
-data PatternCategory
+data PCategory
   = PRecord
   | PUnit
   | PTuple
@@ -138,3 +140,30 @@ data PatternCategory
   | PInt
   | PStr
   | PChr
+
+
+
+-- HELPERS
+
+
+typeReplace :: Expected Type -> Can.Type -> Expected Can.Type
+typeReplace expectation tipe =
+  case expectation of
+    NoExpectation _ ->
+      NoExpectation tipe
+
+    FromContext region context _ ->
+      FromContext region context tipe
+
+    FromAnnotation name arity context _ ->
+      FromAnnotation name arity context tipe
+
+
+ptypeReplace :: PExpected Type -> Can.Type -> PExpected Can.Type
+ptypeReplace expectation tipe =
+  case expectation of
+    PNoExpectation _ ->
+      PNoExpectation tipe
+
+    PFromContext region context _ ->
+      PFromContext region context tipe
