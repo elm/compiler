@@ -178,7 +178,7 @@ data AliasType
 
 data Decls
   = Declare Def Decls
-  | DeclareRec Def [Def] Decls
+  | DeclareRec [Def] Decls
   | SaveTheEnvironment
 
 
@@ -244,8 +244,8 @@ data Effects
 
 
 data Port
-  = Incoming Type
-  | Outgoing Type
+  = Incoming FreeVars Type
+  | Outgoing FreeVars Type
 
 
 data Manager

@@ -156,9 +156,9 @@ detectCycles sccs =
         Graph.CyclicSCC [] ->
           detectCycles otherSccs
 
-        Graph.CyclicSCC (def:defs) ->
+        Graph.CyclicSCC cyclicDefs@(def:defs) ->
           do  detectBadCycles def defs
-              Can.DeclareRec def defs <$> detectCycles otherSccs
+              Can.DeclareRec cyclicDefs <$> detectCycles otherSccs
 
 
 toNode :: Env.Env -> A.Located Valid.Decl -> Result (Can.Def, N.Name, [N.Name])

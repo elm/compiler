@@ -13,7 +13,7 @@ module Type.Type
   , noMark
   , nextMark
   , (==>)
-  , int, float, char, string, bool
+  , int, float, char, string, bool, never
   , vec2, vec3, vec4, mat4, texture
   , mkFlexVar
   , mkFlexNumber
@@ -191,6 +191,11 @@ string = AppN ModuleName.string "String" []
 {-# NOINLINE bool #-}
 bool :: Type
 bool = AppN ModuleName.basics "Bool" []
+
+
+{-# NOINLINE never #-}
+never :: Type
+never = AppN ModuleName.basics "Never" []
 
 
 

@@ -78,7 +78,7 @@ canonicalize env decls unions effects =
 
 canonicalizePort :: Env.Env -> Valid.Port -> Result (N.Name, Can.Port)
 canonicalizePort env (Valid.Port (A.At region portName) tipe) =
-  do  ctipe <- Type.canonicalize env tipe
+  do  (Can.Forall freeVars ctipe) <- Type.toAnnotation env tipe
       case Type.deepDealias ctipe of
         Can.TLambda outgoingType (Can.TType home name [Can.TVar _])
           | home == ModuleName.cmd && name == "Cmd" ->
@@ -87,7 +87,7 @@ canonicalizePort env (Valid.Port (A.At region portName) tipe) =
                   Result.throw region (Error.PortPayloadInvalid portName badType err)
 
                 Right () ->
-                  Result.ok (portName, Can.Outgoing ctipe)
+                  Result.ok (portName, Can.Outgoing freeVars ctipe)
 
         Can.TLambda (Can.TLambda incomingType (Can.TVar msg1)) (Can.TType home name [Can.TVar msg2])
           | home == ModuleName.sub && name == "Sub" && msg1 == msg2 ->
@@ -96,7 +96,7 @@ canonicalizePort env (Valid.Port (A.At region portName) tipe) =
                   Result.throw region (Error.PortPayloadInvalid portName badType err)
 
                 Right () ->
-                  Result.ok (portName, Can.Incoming ctipe)
+                  Result.ok (portName, Can.Incoming freeVars ctipe)
 
         _ ->
           Result.throw region (Error.PortTypeInvalid portName ctipe)

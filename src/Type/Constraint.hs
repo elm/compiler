@@ -112,6 +112,7 @@ data Category
   | Tuple
   | Unit
   | Shader
+  | Effects
 
 
 
