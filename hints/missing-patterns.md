@@ -138,3 +138,5 @@ last list =
 ```
 
 This is nice because it lets users know that there might be a failure, so they can recover from it however they want.
+
+> An alternative would be to represent a non-empty list explicitly. For example, the type `(a, List a)` guarantees that there is at least one `a` value, so you could alternatively create a function `last : (a, List a) -> a` or `last : a -> List a -> a` to demand at least one item.
