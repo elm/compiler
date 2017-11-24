@@ -8,6 +8,10 @@ module AST.Canonical
   , TypedArg(..)
   -- patterns
   , Pattern, Pattern_(..)
+  , CtorAlts(..)
+  , CtorAlt(..)
+  , toAlts
+  , ctorsToAlts
   , PatternCtorArg(..)
   , Destructors
   , Destructor(..)
@@ -126,9 +130,45 @@ data Pattern_
       { _p_home :: ModuleName.Canonical
       , _p_type :: N.Name
       , _p_vars :: [N.Name]
+      , _p_alts :: CtorAlts
       , _p_name :: N.Name
       , _p_args :: [PatternCtorArg]
       }
+
+
+
+-- PATTERN CTORS
+
+
+data CtorAlts =
+  CtorAlts
+    { _num :: Int -- result of (length _alts) to amortize O(n) cost
+    , _alts :: [CtorAlt]
+    }
+  deriving (Eq)
+
+
+data CtorAlt =
+  CtorAlt
+    { _ctor :: N.Name
+    , _arity :: Int
+    }
+  deriving (Eq)
+
+
+toAlts :: [CtorAlt] -> CtorAlts
+toAlts alts =
+  CtorAlts (length alts) alts
+
+
+ctorsToAlts :: [(N.Name, [Type])] -> CtorAlts
+ctorsToAlts ctors =
+  CtorAlts (length ctors) (map toAlt ctors)
+
+
+toAlt :: (N.Name, [Type]) -> CtorAlt
+toAlt (ctor, argTypes) =
+  CtorAlt ctor (length argTypes)
 
 
 data PatternCtorArg =
@@ -139,7 +179,13 @@ data PatternCtorArg =
     }
 
 
-type Destructors = Map.Map N.Name (A.Located Destructor)
+
+-- DESTRUCTORS
+
+
+type Destructors =
+  Map.Map N.Name (A.Located Destructor)
+
 
 data Destructor
   = DIndex Index.ZeroBased Destructor

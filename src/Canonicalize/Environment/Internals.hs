@@ -104,6 +104,7 @@ data Pattern =
     { _p_home :: ModuleName.Canonical
     , _p_type :: N.Name
     , _p_vars :: [N.Name]
+    , _p_alts :: Can.CtorAlts
     , _p_args :: [Can.Type]
     }
 

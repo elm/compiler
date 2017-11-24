@@ -177,8 +177,11 @@ toPatternInfo _ pattern =
 toPatterns :: ModuleName.Canonical -> (N.Name, Can.Union) -> [(N.Name, Env.Pattern)]
 toPatterns home (tipe, Can.Union vars ctors) =
   let
+    alts =
+      Can.ctorsToAlts ctors
+
     fromCtor (name, args) =
-      (name, Env.Pattern home tipe vars args)
+      (name, Env.Pattern home tipe vars alts args)
   in
   map fromCtor ctors
 

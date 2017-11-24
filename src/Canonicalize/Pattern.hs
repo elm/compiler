@@ -102,11 +102,11 @@ process env destructor (A.At region pattern) =
           Can.PatternCtorArg index tipe
             <$> process env (Can.DIndex index destructor) ptrn
       in
-      do  (Env.Pattern home tipe vars args) <- Env.findPattern nameRegion env maybePrefix name
+      do  (Env.Pattern home tipe vars alts args) <- Env.findPattern nameRegion env maybePrefix name
           verifiedList <- Index.indexedZipWithA toCanonicalArg patterns args
           case verifiedList of
             Index.LengthMatch cargs ->
-              Result.ok $ Can.PCtor home tipe vars name cargs
+              Result.ok $ Can.PCtor home tipe vars alts name cargs
 
             Index.LengthMismatch actualLength expectedLength ->
               Result.throw region (error "TODO" actualLength expectedLength)

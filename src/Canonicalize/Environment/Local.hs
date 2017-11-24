@@ -86,10 +86,10 @@ addPatterns unions (Env.Env home vars types patterns binops) =
       Map.fromList $ concatMap toPatterns (Map.toList unions)
 
     toPatterns (tipe, Can.Union tvars ctors) =
-      map (ctorToPattern tipe tvars) ctors
+      map (ctorToPattern tipe tvars (Can.ctorsToAlts ctors)) ctors
 
-    ctorToPattern tipe tvars (name, args) =
-      ( name, Env.Pattern home tipe tvars args )
+    ctorToPattern tipe tvars alts (name, args) =
+      ( name, Env.Pattern home tipe tvars alts args )
   in
   let
     newPatterns =
