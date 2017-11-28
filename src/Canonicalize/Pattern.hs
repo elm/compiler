@@ -2,71 +2,82 @@
 module Canonicalize.Pattern
   ( verify
   , Bindings
+  , DupsDict
   , canonicalize
   , canonicalizeArg
   )
   where
 
 
+import qualified Data.Map.Strict as Map
+
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
+import qualified Canonicalize.Result as Result
 import qualified Data.Index as Index
+import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Region as R
-import qualified Reporting.Result as Result
-import qualified Reporting.Warning as Warning
 
 
 
 -- RESULTS
 
 
-type Result i =
-  Result.Result i Warning.Warning Error.Error
+type Result i w a =
+  Result.Result i w Error.Error a
+
+
+type Bindings =
+  Map.Map N.Name (A.Located Can.Destructor)
 
 
 
 -- VERIFY NAMES
 
 
-verify :: Error.DuplicatePatternContext -> Result Bindings a -> Result () (a, Can.Destructors)
-verify context (Result.Result bindings warnings answer) =
-  case answer of
-    Result.Ok value ->
-      do  let toError name () () = Error.DuplicatePattern context name
-          destructors <- Dups.detect toError bindings
-          Result.Result () warnings $ Result.Ok (value, destructors)
-
-    Result.Err err ->
-      Result.Result () warnings (Result.Err err)
-
-
-
--- CANONICALIZE ARG
-
-
-canonicalizeArg :: Env.Env -> Index.ZeroBased -> Src.Pattern -> Result Bindings Can.Arg
-canonicalizeArg env index pattern =
-  Can.Arg index <$> canonicalize env index pattern
+verify :: Error.DuplicatePatternContext -> Result DupsDict w a -> Result i w (a, Bindings)
+verify context (Result.Result k) =
+  Result.Result $ \info warnings bad good ->
+    k Dups.none warnings
+      (\_ warnings1 errors ->
+          bad info warnings1 errors
+      )
+      (\bindings warnings1 value ->
+          case Dups.detect (Error.DuplicatePattern context) bindings of
+            Result.Result k1 ->
+              k1 () ()
+                (\() () errs -> bad info warnings1 errs)
+                (\() () dict -> good info warnings1 (value, dict))
+      )
 
 
 
 -- CANONICALIZE
 
 
-type Bindings =
+type DupsDict =
   Dups.Dict () (A.Located Can.Destructor)
 
 
-canonicalize :: Env.Env -> Index.ZeroBased -> Src.Pattern -> Result Bindings Can.Pattern
+canonicalizeArg :: Env.Env -> Index.ZeroBased -> Src.Pattern -> Result DupsDict w Can.Arg
+canonicalizeArg env index pattern =
+  Can.Arg index <$> canonicalize env index pattern
+
+
+canonicalize :: Env.Env -> Index.ZeroBased -> Src.Pattern -> Result DupsDict w Can.Pattern
 canonicalize env index pattern =
   process env (Can.DRoot index) pattern
 
 
-process :: Env.Env -> Can.Destructor -> Src.Pattern -> Result Bindings Can.Pattern
+
+-- PROCESS PATTERNS
+
+
+process :: Env.Env -> Can.Destructor -> Src.Pattern -> Result DupsDict w Can.Pattern
 process env destructor (A.At region pattern) =
   A.At region <$>
   case pattern of
@@ -74,18 +85,10 @@ process env destructor (A.At region pattern) =
       Result.ok Can.PAnything
 
     Src.PVar name ->
-      Result.accumulate
-        (Dups.one name region () (A.At region destructor))
-        (Can.PVar name)
+      logVar name region destructor (Can.PVar name)
 
     Src.PRecord fields ->
-      let
-        addField (A.At reg name) dict =
-          Dups.insert name reg () (A.At reg (Can.DField name destructor)) dict
-      in
-      Result.accumulate
-        (foldr addField Dups.none fields)
-        (Can.PRecord (map A.drop fields))
+      logFields fields destructor (Can.PRecord (map A.drop fields))
 
     Src.PUnit ->
       Result.ok Can.PUnit
@@ -106,10 +109,10 @@ process env destructor (A.At region pattern) =
           verifiedList <- Index.indexedZipWithA toCanonicalArg patterns args
           case verifiedList of
             Index.LengthMatch cargs ->
-              Result.ok $ Can.PCtor home tipe vars alts name cargs
+              Result.ok (Can.PCtor home tipe vars alts name cargs)
 
             Index.LengthMismatch actualLength expectedLength ->
-              Result.throw region (error "TODO" actualLength expectedLength)
+              Result.throw (error "TODO" region actualLength expectedLength)
 
     Src.PList patterns ->
       Can.PList <$> processList env destructor patterns
@@ -121,9 +124,7 @@ process env destructor (A.At region pattern) =
 
     Src.PAlias ptrn (A.At reg name) ->
       do  cpattern <- process env destructor ptrn
-          Result.accumulate
-            (Dups.one name reg () (A.At reg destructor))
-            (Can.PAlias cpattern name)
+          logVar name reg destructor (Can.PAlias cpattern name)
 
     Src.PChr chr ->
       Result.ok (Can.PChr chr)
@@ -135,7 +136,7 @@ process env destructor (A.At region pattern) =
       Result.ok (Can.PInt int)
 
 
-processTuple :: R.Region -> Env.Env -> Can.Destructor -> [Src.Pattern] -> Result Bindings (Maybe Can.Pattern)
+processTuple :: R.Region -> Env.Env -> Can.Destructor -> [Src.Pattern] -> Result DupsDict w (Maybe Can.Pattern)
 processTuple tupleRegion env destructor extras =
   case extras of
     [] ->
@@ -146,10 +147,10 @@ processTuple tupleRegion env destructor extras =
 
     _ : others ->
       let (A.At r1 _, A.At r2 _) = (head others, last others) in
-      Result.throw tupleRegion (Error.TupleLargerThanThree (R.merge r1 r2))
+      Result.throw (Error.TupleLargerThanThree tupleRegion (R.merge r1 r2))
 
 
-processList :: Env.Env -> Can.Destructor -> [Src.Pattern] -> Result Bindings [Can.Pattern]
+processList :: Env.Env -> Can.Destructor -> [Src.Pattern] -> Result DupsDict w [Can.Pattern]
 processList env destructor list =
   case list of
     [] ->
@@ -159,3 +160,26 @@ processList env destructor list =
       (:)
         <$> process env (Can.DIndex Index.first destructor) pattern
         <*> processList env (Can.DIndex Index.second destructor) otherPatterns
+
+
+
+-- LOG BINDINGS
+
+
+logVar :: N.Name -> R.Region -> Can.Destructor -> a -> Result DupsDict w a
+logVar name region destructor value =
+  Result.Result $ \bindings warnings _ ok ->
+    ok
+      (Dups.insert name region () (A.At region destructor) bindings)
+      warnings
+      value
+
+
+logFields :: [A.Located N.Name] -> Can.Destructor -> a -> Result DupsDict w a
+logFields fields destructor value =
+  let
+    addField (A.At region name) dict =
+      Dups.insert name region () (A.At region (Can.DField name destructor)) dict
+  in
+  Result.Result $ \bindings warnings _ ok ->
+    ok (foldr addField bindings fields) warnings value

@@ -12,7 +12,8 @@ import qualified Data.Set as Set
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
 import qualified AST.Module.Name as ModuleName
-import qualified Canonicalize.Environment.Internals as Env
+import qualified Canonicalize.Environment as Env
+import qualified Canonicalize.Result as Result
 import qualified Data.Bag as Bag
 import qualified Data.OneOrMore as OneOrMore
 import qualified Elm.Interface as I
@@ -21,16 +22,14 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Helpers as Help (nearbyNames)
 import qualified Reporting.Region as R
-import qualified Reporting.Result as Result
-import qualified Reporting.Warning as Warning
 
 
 
 -- RESULT
 
 
-type Result a =
-  Result.Result () Warning.Warning Error.Error a
+type Result i w a =
+  Result.Result i w Error.Error a
 
 
 
@@ -79,7 +78,7 @@ type ImportDict =
   Map.Map N.Name ModuleName.Canonical
 
 
-createInitialEnv :: ModuleName.Canonical -> ImportDict -> I.Interfaces -> [Src.Import] -> Result Env.Env
+createInitialEnv :: ModuleName.Canonical -> ImportDict -> I.Interfaces -> [Src.Import] -> Result i w Env.Env
 createInitialEnv home importDict interfaces sourceImports =
   do  imports <- traverse (verifyImport importDict interfaces) sourceImports
       let (Env vars types patterns binops) = foldr merge emptyEnv (map importToEnv imports)
@@ -269,7 +268,7 @@ data Exposed
   | Alias
 
 
-verifyImport :: ImportDict -> I.Interfaces -> Src.Import -> Result Import
+verifyImport :: ImportDict -> I.Interfaces -> Src.Import -> Result i w Import
 verifyImport importDict interfaces (Src.Import (A.At region name) alias exposing) =
   case Map.lookup name importDict of
     Nothing ->
@@ -291,14 +290,14 @@ verifyImport importDict interfaces (Src.Import (A.At region name) alias exposing
                     Result.ok (Explicit (Map.fromList (concat pairLists)))
 
 
-throwImportNotFound :: R.Region -> N.Name -> [ModuleName.Canonical] -> Result a
+throwImportNotFound :: R.Region -> N.Name -> [ModuleName.Canonical] -> Result i w a
 throwImportNotFound region name knownModules =
-  Result.throw region $ Error.ImportNotFound name $
+  Result.throw $ Error.ImportNotFound region name $
     Help.nearbyNames N.toString name $
       map ModuleName._module knownModules
 
 
-verifyExposed :: N.Name -> I.Interface -> A.Located Src.Exposed -> Result [(N.Name, Exposed)]
+verifyExposed :: N.Name -> I.Interface -> A.Located Src.Exposed -> Result i w [(N.Name, Exposed)]
 verifyExposed moduleName interface@(I.Interface _ unions aliases _) (A.At region exposed) =
   case exposed of
     Src.Operator name ->
@@ -322,7 +321,7 @@ verifyExposed moduleName interface@(I.Interface _ unions aliases _) (A.At region
               throwExposingNotFound moduleName region name interface
 
 
-verifyValue :: N.Name -> R.Region -> N.Name -> I.Interface -> Result [(N.Name, Exposed)]
+verifyValue :: N.Name -> R.Region -> N.Name -> I.Interface -> Result i w [(N.Name, Exposed)]
 verifyValue moduleName region name interface@(I.Interface types _ _ _) =
   case Map.lookup name types of
     Nothing ->
@@ -332,17 +331,17 @@ verifyValue moduleName region name interface@(I.Interface types _ _ _) =
       Result.ok [(name, Value)]
 
 
-verifyAlias :: R.Region -> N.Name -> Src.Privacy -> Result [(N.Name, Exposed)]
+verifyAlias :: R.Region -> N.Name -> Src.Privacy -> Result i w [(N.Name, Exposed)]
 verifyAlias region name privacy =
   case privacy of
     Src.Public ->
-      Result.throw region (error "TODO cannot have (..) on type alias")
+      Result.throw (error "TODO cannot have (..) on type alias" region)
 
     Src.Private ->
       Result.ok [(name, Alias)]
 
 
-throwExposingNotFound :: N.Name -> R.Region -> N.Name -> I.Interface -> Result a
+throwExposingNotFound :: N.Name -> R.Region -> N.Name -> I.Interface -> Result i w a
 throwExposingNotFound moduleName region name (I.Interface types unions aliases _) =
   let
     toCtorPairs (tipe, Can.Union _ ctors) =
@@ -353,9 +352,9 @@ throwExposingNotFound moduleName region name (I.Interface types unions aliases _
   in
   case Map.lookup name ctorDict of
     Just tipe ->
-      Result.throw region $ Error.ImportCtorNotFound name tipe
+      Result.throw $ Error.ImportCtorNotFound region name tipe
 
     Nothing ->
-      Result.throw region $ Error.ImportExposingNotFound moduleName name $
+      Result.throw $ Error.ImportExposingNotFound region moduleName name $
         Help.nearbyNames N.toString name $ Set.toList $
           Set.unions [ Map.keysSet types, Map.keysSet unions, Map.keysSet aliases ]

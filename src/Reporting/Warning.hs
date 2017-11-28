@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Reporting.Warning
   ( Warning(..)
-  , Unused(..)
+  , Context(..)
   , toReport
   , toJson
   )
@@ -15,6 +15,7 @@ import Data.Text (Text)
 import qualified AST.Canonical as Can
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
+import qualified Reporting.Region as R
 import qualified Reporting.Report as Report
 import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Helpers as Help
@@ -27,11 +28,11 @@ import Reporting.Helpers ((<>), text)
 
 data Warning
   = UnusedImport N.Name
-  | UnusedVariable Unused N.Name
+  | UnusedVariable R.Region Context N.Name
   | MissingTypeAnnotation Text Can.Type
 
 
-data Unused = Pattern | Binding
+data Context = Def | Pattern
 
 
 
@@ -42,31 +43,31 @@ toReport :: RenderType.Localizer -> Warning -> Report.Report
 toReport localizer warning =
   case warning of
     UnusedImport moduleName ->
-        Report.report
-          "unused import"
-          Nothing
-          ("Nothing from the `" <> moduleName <> "` module is used in this file.")
-          (text "I recommend removing unused imports.")
+      Report.report
+        "unused import"
+        Nothing
+        ("Nothing from the `" <> moduleName <> "` module is used in this file.")
+        (text "I recommend removing unused imports.")
 
-    UnusedVariable Pattern name ->
-        Report.report
-          "unused variable"
-          Nothing
-          ("The `" <> name <> "` variable is unused.")
-          ( Help.reflowParagraph $
-              "Maybe this indicates there is a mistake around here? Switching `"
-              <> name <> "` to _ will indicate that it is intentionally unused."
-          )
-
-    UnusedVariable Binding name ->
-        Report.report
-          "unused binding"
-          Nothing
-          ("The `" <> name <> "` binding is unused.")
-          ( Help.reflowParagraph $
-              "Maybe this indicates there is a mistake around here? Or maybe it\
-              \ just is not used anymore and should be removed?"
-          )
+    UnusedVariable _ context name ->
+      Report.report
+        (defOrPat context "unused definition" "unused variable")
+        Nothing
+        ("You are not using `" <> name <> "` anywhere.")
+        ( Help.stack
+            [ Help.reflowParagraph $
+                "Is there a typo? Maybe you intended to use `" <> name
+                <> "` but typed a similar name instead?"
+            , Help.reflowParagraph $
+                defOrPat context
+                  ( "If you are sure there is no typo, remove the definition.\
+                    \ This way future readers will not have to wonder!"
+                  )
+                  ( "If you are sure there is no typo, replace `" <> name
+                    <> "` with _ so future readers will not have to wonder!"
+                  )
+            ]
+        )
 
     MissingTypeAnnotation name inferredType ->
         Report.report
@@ -80,12 +81,19 @@ toReport localizer warning =
           )
 
 
+defOrPat :: Context -> a -> a -> a
+defOrPat context def pat =
+  case context of
+    Def -> def
+    Pattern -> pat
+
+
 
 -- TO JSON
 
 
 toJson :: RenderType.Localizer -> FilePath -> A.Located Warning -> Json.Value
-toJson localizer filePath (A.A region warning) =
+toJson localizer filePath (A.At region warning) =
   let
     (maybeRegion, additionalFields) =
         Report.toJson [] (toReport localizer warning)

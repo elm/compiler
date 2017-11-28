@@ -16,21 +16,20 @@ import qualified AST.Valid as Valid
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Utils.Type as Type
 import qualified Canonicalize.Environment as Env
+import qualified Canonicalize.Result as Result
 import qualified Canonicalize.Type as Type
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Region as R
-import qualified Reporting.Result as Result
-import qualified Reporting.Warning as Warning
 
 
 
 -- RESULT
 
 
-type Result a =
-  Result.Result () Warning.Warning Error.Error a
+type Result i w a =
+  Result.Result i w Error.Error a
 
 
 
@@ -42,7 +41,7 @@ canonicalize
   -> [A.Located Valid.Decl]
   -> Map.Map N.Name union
   -> Valid.Effects
-  -> Result Can.Effects
+  -> Result i w Can.Effects
 canonicalize env decls unions effects =
   case effects of
     Valid.NoEffects ->
@@ -76,7 +75,7 @@ canonicalize env decls unions effects =
 -- CANONICALIZE PORT
 
 
-canonicalizePort :: Env.Env -> Valid.Port -> Result (N.Name, Can.Port)
+canonicalizePort :: Env.Env -> Valid.Port -> Result i w (N.Name, Can.Port)
 canonicalizePort env (Valid.Port (A.At region portName) tipe) =
   do  (Can.Forall freeVars ctipe) <- Type.toAnnotation env tipe
       case Type.deepDealias ctipe of
@@ -84,7 +83,7 @@ canonicalizePort env (Valid.Port (A.At region portName) tipe) =
           | home == ModuleName.cmd && name == "Cmd" ->
               case checkPayload outgoingType of
                 Left (badType, err) ->
-                  Result.throw region (Error.PortPayloadInvalid portName badType err)
+                  Result.throw (Error.PortPayloadInvalid region portName badType err)
 
                 Right () ->
                   Result.ok (portName, Can.Outgoing freeVars ctipe)
@@ -93,25 +92,25 @@ canonicalizePort env (Valid.Port (A.At region portName) tipe) =
           | home == ModuleName.sub && name == "Sub" && msg1 == msg2 ->
               case checkPayload incomingType of
                 Left (badType, err) ->
-                  Result.throw region (Error.PortPayloadInvalid portName badType err)
+                  Result.throw (Error.PortPayloadInvalid region portName badType err)
 
                 Right () ->
                   Result.ok (portName, Can.Incoming freeVars ctipe)
 
         _ ->
-          Result.throw region (Error.PortTypeInvalid portName ctipe)
+          Result.throw (Error.PortTypeInvalid region portName ctipe)
 
 
 
 -- VERIFY MANAGER
 
 
-verifyEffectType :: A.Located N.Name -> Map.Map N.Name a -> Result N.Name
+verifyEffectType :: A.Located N.Name -> Map.Map N.Name a -> Result i w N.Name
 verifyEffectType (A.At region name) unions =
   if Map.member name unions then
     Result.ok name
   else
-    Result.throw region (Error.EffectNotFound name)
+    Result.throw (Error.EffectNotFound region name)
 
 
 toNameRegion :: A.Located Valid.Decl -> (N.Name, R.Region)
@@ -119,14 +118,14 @@ toNameRegion (A.At _ (Valid.Decl (A.At region name) _ _ _)) =
   (name, region)
 
 
-verifyManager :: R.Region -> Map.Map N.Name R.Region -> N.Name -> Result R.Region
+verifyManager :: R.Region -> Map.Map N.Name R.Region -> N.Name -> Result i w R.Region
 verifyManager tagRegion decls name =
   case Map.lookup name decls of
     Just region ->
       Result.ok region
 
     Nothing ->
-      Result.throw tagRegion (Error.EffectFunctionNotFound name)
+      Result.throw (Error.EffectFunctionNotFound tagRegion name)
 
 
 

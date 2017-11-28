@@ -3,9 +3,11 @@
 module AST.Canonical
   ( Expr, Expr_(..)
   , CaseBranch(..)
+  -- definitions
   , Def(..)
   , Arg(..)
   , TypedArg(..)
+  , Decls(..)
   -- patterns
   , Pattern, Pattern_(..)
   , CtorAlts(..)
@@ -13,14 +15,15 @@ module AST.Canonical
   , toAlts
   , ctorsToAlts
   , PatternCtorArg(..)
+  -- destructors
   , Destructors
+  , DestructorInfo(..)
   , Destructor(..)
   -- types
   , Annotation(..)
   , Type(..)
   , AliasType(..)
-  -- decls
-  , Decls(..)
+  -- modules
   , Module(..)
   , Alias(..)
   , Union(..)
@@ -34,6 +37,24 @@ module AST.Canonical
   )
   where
 
+{- Creating a canonical AST means finding the home module for all variables.
+So if you have L.map, you need to figure out that it is from the elm-lang/core
+package in the List module.
+
+In later phases (e.g. type inference, exhaustiveness checking, optimization)
+you need to look up additional info from these modules. What is the type?
+What are the alternative type constructors? These lookups can be quite costly,
+especially in type inference. To reduce costs the canonicalization phase
+caches info needed in later phases. This means we no longer build large
+dictionaries of metadata with O(log(n)) lookups in those phases. Instead
+there is an O(1) read of an existing field! I have tried to mark all
+cached data with comments like:
+
+-- CACHE for exhaustiveness
+-- CACHE for inference
+
+So it is clear why the data is kept around.
+-}
 
 import Control.Monad (liftM, liftM2, liftM3, liftM4, replicateM)
 import Data.Binary
@@ -63,7 +84,10 @@ data Expr_
   | VarTopLevel ModuleName.Canonical N.Name
   | VarKernel N.Name N.Name
   | VarForeign ModuleName.Canonical N.Name Annotation
+  -- CACHE Annotation for inference
   | VarOperator N.Name ModuleName.Canonical N.Name Annotation
+  -- CACHE real name for optimization
+  -- CACHE Annotation for inference
   | Chr Text
   | Str Text
   | Int Int
@@ -71,6 +95,8 @@ data Expr_
   | List [Expr]
   | Negate Expr
   | Binop N.Name ModuleName.Canonical N.Name Annotation Expr Expr
+  -- CACHE real name for optimization
+  -- CACHE Annotation for inference
   | Lambda [Arg] Destructors Expr
   | Call Expr [Expr]
   | If [(Expr, Expr)] Expr
@@ -109,10 +135,22 @@ data TypedArg =
 
 
 
+-- DECLARATIONS
+
+
+data Decls
+  = Declare Def Decls
+  | DeclareRec [Def] Decls
+  | SaveTheEnvironment
+
+
+
 -- PATTERNS
 
 
-type Pattern = A.Located Pattern_
+type Pattern =
+  A.Located Pattern_
+
 
 data Pattern_
   = PAnything
@@ -134,15 +172,21 @@ data Pattern_
       , _p_name :: N.Name
       , _p_args :: [PatternCtorArg]
       }
+      -- CACHE _p_home, _p_type, and _p_vars for type inference
+      -- CACHE _p_alts for exhaustiveness checker
 
 
-
--- PATTERN CTORS
+data PatternCtorArg =
+  PatternCtorArg
+    { _index :: Index.ZeroBased -- CACHE for destructors/errors
+    , _type :: Type             -- CACHE for type inference
+    , _arg :: Pattern
+    }
 
 
 data CtorAlts =
   CtorAlts
-    { _num :: Int -- result of (length _alts) to amortize O(n) cost
+    { _num :: Int -- CACHE (length _alts) for exhaustiveness
     , _alts :: [CtorAlt]
     }
   deriving (Eq)
@@ -154,6 +198,10 @@ data CtorAlt =
     , _arity :: Int
     }
   deriving (Eq)
+
+
+
+-- PATTERN CTOR HELPERS
 
 
 toAlts :: [CtorAlt] -> CtorAlts
@@ -171,20 +219,20 @@ toAlt (ctor, argTypes) =
   CtorAlt ctor (length argTypes)
 
 
-data PatternCtorArg =
-  PatternCtorArg
-    { _index :: Index.ZeroBased
-    , _type :: Type
-    , _arg :: Pattern
-    }
-
-
 
 -- DESTRUCTORS
 
 
 type Destructors =
-  Map.Map N.Name (A.Located Destructor)
+  Map.Map N.Name DestructorInfo
+
+
+data DestructorInfo =
+  DestructorInfo
+    { _destructor :: Destructor
+    , _direct_uses :: Int  -- CACHE for inlining
+    , _delayed_uses :: Int -- CACHE for inlining
+    }
 
 
 data Destructor
@@ -216,16 +264,6 @@ data Type
 data AliasType
   = Holey Type
   | Filled Type
-
-
-
--- DECLARATIONS
-
-
-data Decls
-  = Declare Def Decls
-  | DeclareRec [Def] Decls
-  | SaveTheEnvironment
 
 
 

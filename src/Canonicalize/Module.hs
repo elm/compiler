@@ -7,7 +7,6 @@ module Canonicalize.Module
 
 import qualified Data.Graph as Graph
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
@@ -20,6 +19,7 @@ import qualified Canonicalize.Environment.Foreign as Foreign
 import qualified Canonicalize.Environment.Local as Local
 import qualified Canonicalize.Expression as Expr
 import qualified Canonicalize.Pattern as Pattern
+import qualified Canonicalize.Result as Result
 import qualified Canonicalize.Type as Type
 import qualified Data.Index as Index
 import qualified Elm.Interface as I
@@ -27,16 +27,15 @@ import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Result as Result
-import qualified Reporting.Warning as Warning
+import qualified Reporting.Warning as W
 
 
 
 -- RESULT
 
 
-type Result a =
-  Result.Result () Warning.Warning Error.Error a
+type Result i w a =
+  Result.Result i w Error.Error a
 
 
 
@@ -48,7 +47,7 @@ canonicalize
   -> Map.Map N.Name ModuleName.Canonical
   -> I.Interfaces
   -> Valid.Module
-  -> Result Can.Module
+  -> Result i [W.Warning] Can.Module
 canonicalize pkg importDict interfaces module_@(Valid.Module name _ _ exports imports decls unions aliases binops effects) =
   do  let home = ModuleName.Canonical pkg name
 
@@ -92,7 +91,7 @@ toDocs (Valid.Module _ (A.At region maybeOverview) comments _ _ _ _ _ _ _) =
 -- CANONICALIZE ALIAS
 
 
-canonicalizeAlias :: Env.Env -> Valid.Alias -> Result ( N.Name, Can.Alias )
+canonicalizeAlias :: Env.Env -> Valid.Alias -> Result i w ( N.Name, Can.Alias )
 canonicalizeAlias env (Valid.Alias (A.At _ name) args tipe) =
   do  ctipe <- Type.canonicalize env tipe
       return (name, Can.Alias (map A.drop args) ctipe (toRecordCtorInfo tipe))
@@ -112,7 +111,7 @@ toRecordCtorInfo (A.At _ tipe) =
 -- CANONICALIZE UNION
 
 
-canonicalizeUnion :: Env.Env -> Valid.Union -> Result ( N.Name, Can.Union )
+canonicalizeUnion :: Env.Env -> Valid.Union -> Result i w ( N.Name, Can.Union )
 canonicalizeUnion env (Valid.Union (A.At _ name) args ctors) =
   let
     canonicalizeCtor (A.At _ ctor, tipes) =
@@ -133,16 +132,22 @@ canonicalizeBinop (Valid.Binop (A.At _ op) associativity precedence func) =
 
 
 
--- CANONICALIZE DECLARATIONS
+-- DECLARATIONS / CYCLE DETECTION
+--
+-- There are two phases of cycle detection:
+--
+-- 1. Detect cycles using ALL dependencies => needed for type inference
+-- 2. Detect cycles using DIRECT dependencies => nonterminating recursion
+--
 
 
-canonicalizeDecls :: Env.Env -> [A.Located Valid.Decl] -> Result Can.Decls
+canonicalizeDecls :: Env.Env -> [A.Located Valid.Decl] -> Result i [W.Warning] Can.Decls
 canonicalizeDecls env decls =
-  do  nodes <- traverse (toNode env) decls
+  do  nodes <- traverse (toNodeOne env) decls
       detectCycles (Graph.stronglyConnComp nodes)
 
 
-detectCycles :: [Graph.SCC Can.Def] -> Result Can.Decls
+detectCycles :: [Graph.SCC NodeTwo] -> Result i w Can.Decls
 detectCycles sccs =
   case sccs of
     [] ->
@@ -150,70 +155,104 @@ detectCycles sccs =
 
     scc : otherSccs ->
       case scc of
-        Graph.AcyclicSCC def ->
+        Graph.AcyclicSCC (def, _, _) ->
           Can.Declare def <$> detectCycles otherSccs
 
         Graph.CyclicSCC [] ->
           detectCycles otherSccs
 
-        Graph.CyclicSCC cyclicDefs@(def:defs) ->
-          do  detectBadCycles def defs
-              Can.DeclareRec cyclicDefs <$> detectCycles otherSccs
+        Graph.CyclicSCC subNodes ->
+          Can.DeclareRec
+            <$> traverse detectBadCycles (Graph.stronglyConnComp subNodes)
+            <*> detectCycles otherSccs
 
 
-toNode :: Env.Env -> A.Located Valid.Decl -> Result (Can.Def, N.Name, [N.Name])
-toNode env (A.At _ (Valid.Decl aname@(A.At _ name) srcArgs body maybeType)) =
+detectBadCycles :: Graph.SCC Can.Def -> Result i w Can.Def
+detectBadCycles scc =
+  case scc of
+    Graph.AcyclicSCC def ->
+      Result.ok def
+
+    Graph.CyclicSCC cyclicValueDefs ->
+      Result.throw (Error.RecursiveDecl cyclicValueDefs)
+
+
+
+-- DECLARATIONS / CYCLE DETECTION SETUP
+--
+-- toNodeOne and toNodeTwo set up nodes for the two cycle detection phases.
+--
+
+-- Phase one nodes track ALL dependencies.
+-- This allows us to find cyclic values for type inference.
+type NodeOne =
+  (NodeTwo, N.Name, [N.Name])
+
+
+-- Phase two nodes track DIRECT dependencies.
+-- This allows us to detect cycles that definitely do not terminate.
+type NodeTwo =
+  (Can.Def, N.Name, [N.Name])
+
+
+toNodeOne :: Env.Env -> A.Located Valid.Decl -> Result i [W.Warning] NodeOne
+toNodeOne env (A.At _ (Valid.Decl aname@(A.At _ name) srcArgs body maybeType)) =
   case maybeType of
     Nothing ->
-      do  (args, destructors) <-
+      do  (args, argBindings) <-
             Pattern.verify (Error.DPFuncArgs name) $
               Index.indexedTraverse (Pattern.canonicalizeArg env) srcArgs
 
-          newEnv <- Env.addLocals destructors env
-          (cbody, freeLocals) <-
-            Expr.removeLocals Warning.Pattern destructors $
-              Expr.canonicalize newEnv body
+          newEnv <-
+            Env.addLocals argBindings env
+
+          (cbody, destructors, freeLocals) <-
+            Expr.verifyBindings W.Pattern argBindings (Expr.canonicalize newEnv body)
 
           let def = Can.Def aname args destructors cbody
-          return (def, name, Set.toList freeLocals)
+          return
+            ( toNodeTwo name srcArgs def freeLocals
+            , name
+            , Map.keys freeLocals
+            )
 
     Just srcType ->
       do  (Can.Forall freeVars tipe) <- Type.toAnnotation env srcType
 
-          ((args,resultType), destructors) <-
+          ((args,resultType), argBindings) <-
             Pattern.verify (Error.DPFuncArgs name) $
               Expr.gatherTypedArgs env name srcArgs tipe Index.first []
 
-          newEnv <- Env.addLocals destructors env
-          (cbody, freeLocals) <-
-            Expr.removeLocals Warning.Pattern destructors $
-              Expr.canonicalize newEnv body
+          newEnv <-
+            Env.addLocals argBindings env
+
+          (cbody, destructors, freeLocals) <-
+            Expr.verifyBindings W.Pattern argBindings (Expr.canonicalize newEnv body)
 
           let def = Can.TypedDef aname freeVars args destructors cbody resultType
-          return (def, name, Set.toList freeLocals)
+          return
+            ( toNodeTwo name srcArgs def freeLocals
+            , name
+            , Map.keys freeLocals
+            )
 
 
-detectBadCycles :: Can.Def -> [Can.Def] -> Result ()
-detectBadCycles def defs =
-  case (,) <$> detectBadCyclesHelp def <*> traverse detectBadCyclesHelp defs of
-    Nothing ->
-      Result.ok ()
-
-    Just (name, otherNames) ->
-      Result.throw (error "TODO") (Error.RecursiveDecl name otherNames)
-
-
-detectBadCyclesHelp :: Can.Def -> Maybe N.Name
-detectBadCyclesHelp def =
-  case def of
-    Can.Def (A.At _ name) [] _ _ ->
-      Just name
-
-    Can.TypedDef (A.At _ name) _ [] _ _ _ ->
-      Just name
+toNodeTwo :: N.Name -> [arg] -> Can.Def -> Expr.FreeLocals -> NodeTwo
+toNodeTwo name args def freeLocals =
+  case args of
+    [] ->
+      (def, name, Map.foldrWithKey addDirects [] freeLocals)
 
     _ ->
-      Nothing
+      (def, name, [])
+
+
+addDirects :: N.Name -> Expr.Uses -> [N.Name] -> [N.Name]
+addDirects name (Expr.Uses directUses _) directDeps =
+  if directUses > 0 then
+    name:directDeps
+  else
+    directDeps
 
 
 
@@ -227,7 +266,7 @@ canonicalizeExports
   -> Map.Map N.Name binop
   -> Can.Effects
   -> Src.Exposing
-  -> Result Can.Exports
+  -> Result i w Can.Exports
 canonicalizeExports decls unions aliases binops effects exposing =
   case exposing of
     Src.Open ->
@@ -236,8 +275,7 @@ canonicalizeExports decls unions aliases binops effects exposing =
     Src.Explicit exposeds ->
       do  let names = Map.fromList (map declToName decls)
           infos <- traverse (checkExposed names unions aliases binops effects) exposeds
-          let toError name () () = Error.ExportDuplicate name
-          Can.Export <$> Dups.detect toError (Dups.unions infos)
+          Can.Export <$> Dups.detect Error.ExportDuplicate (Dups.unions infos)
 
 
 declToName :: A.Located Valid.Decl -> ( N.Name, () )
@@ -252,7 +290,7 @@ checkExposed
   -> Map.Map N.Name binop
   -> Can.Effects
   -> A.Located Src.Exposed
-  -> Result (Dups.Dict () Can.Export)
+  -> Result i w (Dups.Dict () Can.Export)
 checkExposed decls unions aliases binops effects (A.At region exposed) =
   case exposed of
     Src.Lower name ->
@@ -264,23 +302,23 @@ checkExposed decls unions aliases binops effects (A.At region exposed) =
             Result.ok (Dups.one name region () Can.ExportPort)
 
           Just ports ->
-            Result.throw region $ Error.ExportNotFound Error.BadVar name $
+            Result.throw $ Error.ExportNotFound region Error.BadVar name $
               ports ++ Map.keys decls
 
     Src.Operator name ->
       if Map.member name binops then
         Result.ok (Dups.one name region () Can.ExportBinop)
       else
-        Result.throw region $ Error.ExportNotFound Error.BadOp name $
+        Result.throw $ Error.ExportNotFound region Error.BadOp name $
           Map.keys binops
 
     Src.Upper name Src.Public ->
       if Map.member name unions then
         Result.ok (Dups.one name region () Can.ExportUnionOpen)
       else if Map.member name aliases then
-        Result.throw region $ Error.ExportOpenAlias name
+        Result.throw $ Error.ExportOpenAlias region name
       else
-        Result.throw region $ Error.ExportNotFound Error.BadType name $
+        Result.throw $ Error.ExportNotFound region Error.BadType name $
           Map.keys unions ++ Map.keys aliases
 
     Src.Upper name Src.Private ->
@@ -289,7 +327,7 @@ checkExposed decls unions aliases binops effects (A.At region exposed) =
       else if Map.member name aliases then
         Result.ok (Dups.one name region () Can.ExportAlias)
       else
-        Result.throw region $ Error.ExportNotFound Error.BadType name $
+        Result.throw $ Error.ExportNotFound region Error.BadType name $
           Map.keys unions ++ Map.keys aliases
 
 

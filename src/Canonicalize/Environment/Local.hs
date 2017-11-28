@@ -16,15 +16,15 @@ import qualified Data.Map.Merge.Strict as Map
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
 import qualified AST.Valid as Valid
+import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
-import qualified Canonicalize.Environment.Internals as Env
+import qualified Canonicalize.Result as Result
 import qualified Canonicalize.Type as Type
 import qualified Data.Bag as Bag
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Region as R
-import qualified Reporting.Result as Result
 import qualified Reporting.Warning as Warning
 
 
@@ -32,8 +32,8 @@ import qualified Reporting.Warning as Warning
 -- RESULT
 
 
-type Result a =
-  Result.Result () Warning.Warning Error.Error a
+type Result i a =
+  Result.Result i [Warning.Warning] Error.Error a
 
 
 
@@ -46,7 +46,7 @@ type Result a =
 -- This code checks for (1) duplicate names and (2) cycles in type aliases.
 
 
-addVarsAndTypes :: Valid.Module -> Env.Env -> Result Env.Env
+addVarsAndTypes :: Valid.Module -> Env.Env -> Result i Env.Env
 addVarsAndTypes module_ env =
   addVars module_ =<< addTypes module_ env
 
@@ -108,7 +108,7 @@ addPatterns unions (Env.Env home vars types patterns binops) =
 -- ADD VARS
 
 
-addVars :: Valid.Module -> Env.Env -> Result Env.Env
+addVars :: Valid.Module -> Env.Env -> Result i Env.Env
 addVars module_ (Env.Env home vars types patterns binops) =
   do  upperDict <- collectUpperVars module_
       lowerDict <- collectLowerVars module_
@@ -132,7 +132,7 @@ addVarsHelp localVars vars =
   merge addLeft addBoth localVars vars
 
 
-collectLowerVars :: Valid.Module -> Result (Map.Map N.Name ())
+collectLowerVars :: Valid.Module -> Result i (Map.Map N.Name ())
 collectLowerVars (Valid.Module _ _ _ _ _ decls _ _ _ effects) =
   let
     addDecl (A.At _ (Valid.Decl (A.At region name) _ _ _)) dict =
@@ -161,14 +161,11 @@ collectLowerVars (Valid.Module _ _ _ _ _ decls _ _ _ effects) =
               Dups.union
                 (Dups.one "command" regionCmd () ())
                 (Dups.one "subscription" regionSub () ())
-
-    toError name () () =
-      Error.DuplicateDecl name
   in
-  Dups.detect toError $ foldr addDecl effectDict decls
+  Dups.detect Error.DuplicateDecl $ foldr addDecl effectDict decls
 
 
-collectUpperVars :: Valid.Module -> Result (Map.Map N.Name ())
+collectUpperVars :: Valid.Module -> Result i (Map.Map N.Name ())
 collectUpperVars (Valid.Module _ _ _ _ _ _ unions aliases _ _) =
   let
     addUnion (Valid.Union (A.At _ name) _ ctors) dict =
@@ -193,7 +190,7 @@ collectUpperVars (Valid.Module _ _ _ _ _ _ unions aliases _ _) =
 -- ADD TYPES
 
 
-addTypes :: Valid.Module -> Env.Env -> Result Env.Env
+addTypes :: Valid.Module -> Env.Env -> Result i Env.Env
 addTypes (Valid.Module _ _ _ _ _ _ unions aliases _ _) env =
   let
     aliasToDict alias@(Valid.Alias (A.At region name) _ tipe) =
@@ -204,9 +201,6 @@ addTypes (Valid.Module _ _ _ _ _ _ unions aliases _ _) env =
       do  arity <- checkUnionFreeVars union
           return $ Dups.one name region () (Right arity)
 
-    toError name () () =
-      Error.DuplicateType name
-
     combineDicts dicts1 dicts2 =
       Dups.union (Dups.unions dicts1) (Dups.unions dicts2)
   in
@@ -214,7 +208,7 @@ addTypes (Valid.Module _ _ _ _ _ _ unions aliases _ _) env =
         liftA2 combineDicts
           (traverse aliasToDict aliases)
           (traverse unionToDict unions)
-      types <- Dups.detect toError dict
+      types <- Dups.detect Error.DuplicateType dict
       let (aliasDict, unionDict) = Map.mapEither id types
       addTypeAliases aliasDict (addUnionTypes unionDict env)
 
@@ -247,14 +241,14 @@ data Alias =
     }
 
 
-addTypeAliases :: Map.Map N.Name Alias -> Env.Env -> Result Env.Env
+addTypeAliases :: Map.Map N.Name Alias -> Env.Env -> Result i Env.Env
 addTypeAliases aliases env =
   do  let nodes = map toNode (Map.elems aliases)
       let sccs = Graph.stronglyConnComp nodes
       foldM addTypeAlias env sccs
 
 
-addTypeAlias :: Env.Env -> Graph.SCC Alias -> Result Env.Env
+addTypeAlias :: Env.Env -> Graph.SCC Alias -> Result i Env.Env
 addTypeAlias env@(Env.Env home vars types patterns binops) scc =
   case scc of
     Graph.AcyclicSCC (Alias _ name args tipe) ->
@@ -268,7 +262,7 @@ addTypeAlias env@(Env.Env home vars types patterns binops) scc =
 
     Graph.CyclicSCC (Alias region name1 args tipe : others) ->
       let toName (Alias _ name _ _) = name in
-      Result.throw region (Error.RecursiveAlias name1 args tipe (map toName others))
+      Result.throw (Error.RecursiveAlias region name1 args tipe (map toName others))
 
 
 addAliasInfo :: a -> Maybe (Env.Homes a) -> Maybe (Env.Homes a)
@@ -324,14 +318,14 @@ getEdges (A.At _ tipe) =
 -- CHECK FREE VARIABLES
 
 
-checkUnionFreeVars :: Valid.Union -> Result Int
+checkUnionFreeVars :: Valid.Union -> Result i Int
 checkUnionFreeVars (Valid.Union (A.At unionRegion name) args ctors) =
   let
     addUnion (A.At region arg) dict =
       Dups.insert arg region () region dict
 
-    toError badArg () () =
-      Error.DuplicateUnionArg name badArg (map A.drop args)
+    toError =
+      Error.DuplicateUnionArg name (map A.drop args)
 
     addCtorFreeVars (_, tipes) freeVars =
       foldr addFreeVars freeVars tipes
@@ -344,19 +338,19 @@ checkUnionFreeVars (Valid.Union (A.At unionRegion name) args ctors) =
 
         unbound ->
           let toLoc (arg, region) = A.At region arg in
-          Result.throw unionRegion $
-            Error.TypeVarsUnboundInUnion name (map A.drop args) (map toLoc unbound)
+          Result.throw $
+            Error.TypeVarsUnboundInUnion unionRegion name (map A.drop args) (map toLoc unbound)
 
 
 
-checkAliasFreeVars :: Valid.Alias -> Result [N.Name]
+checkAliasFreeVars :: Valid.Alias -> Result i [N.Name]
 checkAliasFreeVars (Valid.Alias (A.At aliasRegion name) args tipe) =
   let
     addAlias (A.At region arg) dict =
       Dups.insert arg region () region dict
 
-    toError badArg () () =
-      Error.DuplicateAliasArg name badArg (map A.drop args)
+    toError =
+      Error.DuplicateAliasArg name (map A.drop args)
   in
   do  boundVars <- Dups.detect toError (foldr addAlias Dups.none args)
       let freeVars = addFreeVars tipe Map.empty
@@ -365,8 +359,8 @@ checkAliasFreeVars (Valid.Alias (A.At aliasRegion name) args tipe) =
         then Result.ok (map A.drop args)
         else
           let toLoc (arg, region) = A.At region arg in
-          Result.throw aliasRegion $
-            Error.TypeVarsMessedUpInAlias name
+          Result.throw $
+            Error.TypeVarsMessedUpInAlias aliasRegion name
               (map A.drop args)
               (map toLoc (Map.toList (Map.difference boundVars freeVars)))
               (map toLoc (Map.toList (Map.difference freeVars boundVars)))

@@ -3,7 +3,6 @@
 module Canonicalize.Type
   ( toAnnotation
   , canonicalize
-  , addFreeVars
   )
   where
 
@@ -12,39 +11,38 @@ import qualified Data.Map as Map
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
+import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
-import qualified Canonicalize.Environment.Internals as Env
+import qualified Canonicalize.Result as Result
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Region as R
-import qualified Reporting.Result as Result
-import qualified Reporting.Warning as Warning
 
 
 
 -- RESULT
 
 
-type Result i a =
-  Result.Result i Warning.Warning Error.Error a
+type Result i w a =
+  Result.Result i w Error.Error a
 
 
 
 -- TO ANNOTATION
 
 
-toAnnotation :: Env.Env -> Src.Type -> Result () Can.Annotation
+toAnnotation :: Env.Env -> Src.Type -> Result i w Can.Annotation
 toAnnotation env srcType =
   do  tipe <- canonicalize env srcType
-      return $ Can.Forall (addFreeVars tipe Map.empty) tipe
+      Result.ok $ Can.Forall (addFreeVars tipe Map.empty) tipe
 
 
 
 -- CANONICALIZE TYPES
 
 
-canonicalize :: Env.Env -> Src.Type -> Result () Can.Type
+canonicalize :: Env.Env -> Src.Type -> Result i w Can.Type
 canonicalize env (A.At typeRegion tipe) =
   case tipe of
     Src.TVar x ->
@@ -83,36 +81,36 @@ canonicalize env (A.At typeRegion tipe) =
           <*>
             case cs of
               [] ->
-                return Nothing
+                Result.ok Nothing
 
               [c] ->
                 Just <$> canonicalize env c
 
               _ ->
                 let (A.At start _, A.At end _) = (head cs, last cs) in
-                Result.throw typeRegion $
-                  Error.TupleLargerThanThree (R.merge start end)
+                Result.throw $
+                  Error.TupleLargerThanThree typeRegion (R.merge start end)
 
 
 
 -- CHECK ARGS
 
 
-checkArgs :: Error.Args -> Int -> R.Region -> N.Name -> [A.Located arg] -> answer -> Result () answer
+checkArgs :: Error.Args -> Int -> R.Region -> N.Name -> [A.Located arg] -> answer -> Result i w answer
 checkArgs argsType expected region name args answer =
   let actual = length args in
   if expected == actual then
     Result.ok answer
   else
-    Result.throw region $
+    Result.throw $
       if actual < expected then
-        Error.TooFew argsType name expected actual
+        Error.TooFew region argsType name expected actual
       else
         let
           extras = drop expected args
           (A.At start _, A.At end _) = (head extras, last extras)
         in
-        Error.TooMany argsType name expected actual (R.merge start end)
+        Error.TooMany region argsType name expected actual (R.merge start end)
 
 
 
