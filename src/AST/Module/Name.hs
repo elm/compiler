@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module AST.Module.Name
   ( Canonical(..)
-  , basics, char, string
+  , basics, char, string, debug
   , maybe, list, array
   , platform, cmd, sub
   , jsonDecode, jsonEncode
@@ -32,7 +32,12 @@ data Canonical =
     { _package :: !Pkg.Name
     , _module :: !N.Name
     }
-    deriving (Eq, Ord)
+    deriving (Ord)
+
+
+instance Eq Canonical where
+  (==) (Canonical pkg home) (Canonical pkg' home') =
+    home == home' && pkg == pkg'
 
 
 
@@ -46,12 +51,17 @@ basics = Canonical Pkg.core "Basics"
 
 {-# NOINLINE char #-}
 char :: Canonical
-char = Canonical Pkg.core "Char"
+char = Canonical Pkg.core N.char
 
 
 {-# NOINLINE string #-}
 string :: Canonical
-string = Canonical Pkg.core "String"
+string = Canonical Pkg.core N.string
+
+
+{-# NOINLINE debug #-}
+debug :: Canonical
+debug = Canonical Pkg.core N.debug
 
 
 
@@ -60,17 +70,17 @@ string = Canonical Pkg.core "String"
 
 {-# NOINLINE maybe #-}
 maybe :: Canonical
-maybe = Canonical Pkg.core "Maybe"
+maybe = Canonical Pkg.core N.maybe
 
 
 {-# NOINLINE list #-}
 list :: Canonical
-list = Canonical Pkg.core "List"
+list = Canonical Pkg.core N.list
 
 
 {-# NOINLINE array #-}
 array :: Canonical
-array = Canonical Pkg.core "Array"
+array = Canonical Pkg.core N.array
 
 
 

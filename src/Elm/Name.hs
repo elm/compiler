@@ -6,12 +6,12 @@ module Elm.Name
   , int, float, bool, char, string
   , maybe, list, array
   , task, router, cmd, sub
-  , shader
+  , shader, debug, utils, negate
   )
   where
 
 
-import Prelude hiding (maybe)
+import Prelude hiding (maybe, negate)
 import qualified Data.Text as Text
 
 
@@ -90,3 +90,18 @@ sub = "Sub"
 {-# NOINLINE shader #-}
 shader :: Name
 shader = "Shader"
+
+
+{-# NOINLINE debug #-}
+debug :: Name
+debug = "Debug"
+
+
+{-# NOINLINE utils #-}
+utils :: Name
+utils = "Utils"
+
+
+{-# NOINLINE negate #-}
+negate :: Name
+negate = "negate"
