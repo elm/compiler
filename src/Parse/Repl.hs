@@ -74,7 +74,7 @@ entryParser source =
 
     , do  root <- Pattern.term
           spaces
-          case A.drop root of
+          case A.toValue root of
             Src.PVar name ->
               oneOf
                 [ do  Symbol.hasType

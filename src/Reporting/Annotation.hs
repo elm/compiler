@@ -2,13 +2,15 @@
 module Reporting.Annotation
   ( Located(..)
   , at, merge
-  , map, drop
+  , map
+  , toValue
+  , toRegion
   , traverse
   )
   where
 
 
-import Prelude hiding (drop, map, traverse)
+import Prelude hiding (map, traverse)
 import qualified Reporting.Region as R
 
 
@@ -43,9 +45,14 @@ map f (At info value) =
   At info (f value)
 
 
-drop :: Located a -> a
-drop (At _ value) =
+toValue :: Located a -> a
+toValue (At _ value) =
   value
+
+
+toRegion :: Located a -> R.Region
+toRegion (At region _) =
+  region
 
 
 traverse :: (Functor f) => (a -> f b) -> Located a -> f (Located b)
