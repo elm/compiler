@@ -14,6 +14,7 @@ import qualified Data.Map.Strict as Map
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Utils.Binop as Binop
 import qualified AST.Utils.Type as Type
 import qualified AST.Valid as Valid
@@ -85,21 +86,21 @@ canonicalize env (A.At region expression) =
       Can.Negate <$> canonicalize env expr
 
     Valid.Binops ops final ->
-      A.drop <$> canonicalizeBinops region env ops final
+      A.toValue <$> canonicalizeBinops region env ops final
 
     Valid.Lambda srcArgs body ->
       delayedUsage $
       do  (args, bindings) <-
             Pattern.verify Error.DPLambdaArgs $
-              Index.indexedTraverse (Pattern.canonicalizeArg env) srcArgs
+              traverse (Pattern.canonicalize env) srcArgs
 
           newEnv <-
             Env.addLocals bindings env
 
-          (cbody, destructors, freeLocals) <-
+          (cbody, freeLocals) <-
             verifyBindings W.Pattern bindings (canonicalize newEnv body)
 
-          return (Can.Lambda args destructors cbody, freeLocals)
+          return (Can.Lambda args cbody, freeLocals)
 
     Valid.Call func args ->
       Can.Call
@@ -112,7 +113,7 @@ canonicalize env (A.At region expression) =
         <*> canonicalize env finally
 
     Valid.Let defs expr ->
-      A.drop <$> canonicalizeLet region env defs expr
+      A.toValue <$> canonicalizeLet region env defs expr
 
     Valid.Case expr branches ->
       Can.Case
@@ -188,13 +189,13 @@ canonicalizeCaseBranch env (pattern, expr) =
   directUsage $
   do  (cpattern, bindings) <-
         Pattern.verify Error.DPCaseBranch $
-          Pattern.canonicalize env Index.first pattern
+          Pattern.canonicalize env pattern
       newEnv <- Env.addLocals bindings env
 
-      (cexpr, destructors, freeLocals) <-
+      (cexpr, freeLocals) <-
         verifyBindings W.Pattern bindings (canonicalize newEnv expr)
 
-      return (Can.CaseBranch cpattern destructors cexpr, freeLocals)
+      return (Can.CaseBranch cpattern cexpr, freeLocals)
 
 
 
@@ -289,42 +290,22 @@ canonicalizeLet letRegion env defs body =
   directUsage $
   do  let keyedDefs = zip defs [ 0 .. length defs ]
       let names = foldr addBindings Dups.none keyedDefs
-      boundNames <- Dups.detect (Error.DuplicatePattern Error.DPLetBinding) names
+      nameDict <- Dups.detect (Error.DuplicatePattern Error.DPLetBinding) names
 
-      newEnv <- Env.addLocals boundNames env
-      let defKeys = Map.map A.drop boundNames
+      let bindings = Map.map A.toRegion nameDict
+      let defKeys = Map.map A.toValue nameDict
+      newEnv <- Env.addLocals bindings env
 
-      (nodes, cbody, bindingUses, freeLocals) <-
-        verifyLetBindings boundNames $
+      ((nodes, cbody), freeLocals) <-
+        verifyBindings W.Def bindings $
           (,)
             <$> traverse (defToNode defKeys newEnv) keyedDefs
             <*> canonicalize newEnv body
 
       letExpr <-
-        detectCycles letRegion bindingUses (Graph.stronglyConnComp nodes) cbody
+        detectCycles letRegion (Graph.stronglyConnComp nodes) cbody
 
       return (letExpr, freeLocals)
-
-
-verifyLetBindings
-  :: Map.Map N.Name (A.Located Int)
-  -> Result FreeLocals [W.Warning] ([Node], Can.Expr)
-  -> Result info [W.Warning] ([Node], Can.Expr, FreeLocals, FreeLocals)
-verifyLetBindings bindings (Result.Result k) =
-  Result.Result $ \info warnings bad good ->
-    k Map.empty warnings
-      (\_ warnings1 err ->
-          bad info warnings1 err
-      )
-      (\freeLocals warnings1 (nodes, body) ->
-          let
-            newFreeLocals = Map.difference freeLocals bindings
-            bindingUses = Map.intersection freeLocals bindings
-          in
-          good info
-            (addUnusedWarnings W.Def bindings bindingUses warnings1)
-            (nodes, body, bindingUses, newFreeLocals)
-      )
 
 
 
@@ -399,7 +380,7 @@ type Node =
 
 data Binding
   = Define R.Region Can.Def
-  | Destruct R.Region Can.Pattern Pattern.Bindings Can.Expr
+  | Destruct R.Region Can.Pattern Can.Expr
 
 
 defToNode :: Map.Map N.Name Int -> Env.Env -> (Valid.Def, Int) -> Result FreeLocals [W.Warning] Node
@@ -408,24 +389,24 @@ defToNode defKeys env (def, key) =
     Valid.Define region aname@(A.At _ name) srcArgs body Nothing ->
       do  (args, argBindings) <-
             Pattern.verify (Error.DPFuncArgs name) $
-              Index.indexedTraverse (Pattern.canonicalizeArg env) srcArgs
+              traverse (Pattern.canonicalize env) srcArgs
 
           newEnv <-
             Env.addLocals argBindings env
 
-          (cbody, destructors, freeLocals) <-
+          (cbody, freeLocals) <-
             verifyBindings W.Pattern argBindings (canonicalize newEnv body)
 
           logLetLocals args freeLocals
-            ( Define region (Can.Def aname args destructors cbody)
+            ( Define region (Can.Def aname args cbody)
             , key
             , Map.elems (Map.intersection defKeys freeLocals)
             )
 
     Valid.Destruct region pattern body ->
-      do  (cpattern, bindings) <-
+      do  (cpattern, _bindings) <-
             Pattern.verify Error.DPDestruct $
-              Pattern.canonicalize env Index.first pattern
+              Pattern.canonicalize env pattern
 
           Result.Result $ \freeLocals warnings bad good ->
             case canonicalize env body of
@@ -436,7 +417,7 @@ defToNode defKeys env (def, key) =
                       good
                         (Map.unionWith combineUses freeLocals newFreeLocals)
                         warnings1
-                        ( Destruct region cpattern bindings cbody
+                        ( Destruct region cpattern cbody
                         , key
                         , Map.elems (Map.intersection defKeys freeLocals)
                         )
@@ -451,11 +432,11 @@ defToNode defKeys env (def, key) =
           newEnv <-
             Env.addLocals argBindings env
 
-          (cbody, destructors, freeLocals) <-
+          (cbody, freeLocals) <-
             verifyBindings W.Pattern argBindings (canonicalize newEnv body)
 
           logLetLocals args freeLocals
-            ( Define region (Can.TypedDef aname freeVars args destructors cbody resultType)
+            ( Define region (Can.TypedDef aname freeVars args cbody resultType)
             , key
             , Map.elems (Map.intersection defKeys freeLocals)
             )
@@ -478,7 +459,14 @@ logLetLocals args letLocals value =
 -- GATHER TYPED ARGS
 
 
-gatherTypedArgs :: Env.Env -> N.Name -> [Src.Pattern] -> Can.Type -> Index.ZeroBased -> [Can.TypedArg] -> Result Pattern.DupsDict w ([Can.TypedArg], Can.Type)
+gatherTypedArgs
+  :: Env.Env
+  -> N.Name
+  -> [Src.Pattern]
+  -> Can.Type
+  -> Index.ZeroBased
+  -> [(Can.Pattern, Can.Type)]
+  -> Result Pattern.DupsDict w ([(Can.Pattern, Can.Type)], Can.Type)
 gatherTypedArgs env name srcArgs tipe index revTypedArgs =
   case srcArgs of
     [] ->
@@ -487,10 +475,9 @@ gatherTypedArgs env name srcArgs tipe index revTypedArgs =
     srcArg : otherSrcArgs ->
       case Type.iteratedDealias tipe of
         Can.TLambda argType resultType ->
-          do  typedArg <- Can.TypedArg index argType
-                <$> Pattern.canonicalize env index srcArg
+          do  arg <- Pattern.canonicalize env srcArg
               gatherTypedArgs env name otherSrcArgs resultType (Index.next index) $
-                typedArg : revTypedArgs
+                (arg, argType) : revTypedArgs
 
         _ ->
           let (A.At start _, A.At end _) = (head srcArgs, last srcArgs) in
@@ -502,8 +489,8 @@ gatherTypedArgs env name srcArgs tipe index revTypedArgs =
 -- DETECT CYCLES
 
 
-detectCycles :: R.Region -> FreeLocals -> [Graph.SCC Binding] -> Can.Expr -> Result i w Can.Expr
-detectCycles letRegion bindingUses sccs body =
+detectCycles :: R.Region -> [Graph.SCC Binding] -> Can.Expr -> Result i w Can.Expr
+detectCycles letRegion sccs body =
   case sccs of
     [] ->
       Result.ok body
@@ -515,21 +502,17 @@ detectCycles letRegion bindingUses sccs body =
           case binding of
             Define _ def ->
               Can.Let def
-                <$> detectCycles letRegion bindingUses subSccs body
+                <$> detectCycles letRegion subSccs body
 
-            Destruct _ pattern bindings expr ->
-              let
-                destructors =
-                  Map.intersectionWith toDestructorInfo bindings bindingUses
-              in
-              Can.LetDestruct pattern destructors expr
-                <$> detectCycles letRegion bindingUses subSccs body
+            Destruct _ pattern expr ->
+              Can.LetDestruct pattern expr
+                <$> detectCycles letRegion subSccs body
 
         Graph.CyclicSCC bindings ->
           case traverse requireFunction bindings of
             Just defs ->
               Can.LetRec defs
-                <$> detectCycles letRegion bindingUses subSccs body
+                <$> detectCycles letRegion subSccs body
 
             Nothing ->
               Result.throw (Error.RecursiveLet letRegion (map toCycleNodes bindings))
@@ -538,10 +521,10 @@ detectCycles letRegion bindingUses sccs body =
 requireFunction :: Binding -> Maybe Can.Def
 requireFunction binding =
   case binding of
-    Define _ def@(Can.Def _ (_:_) _ _) ->
+    Define _ def@(Can.Def _ (_:_) _) ->
       Just def
 
-    Define _ def@(Can.TypedDef _ _ (_:_) _ _ _) ->
+    Define _ def@(Can.TypedDef _ _ (_:_) _ _) ->
       Just def
 
     _ ->
@@ -553,13 +536,13 @@ toCycleNodes binding =
   case binding of
     Define _ def ->
       case def of
-        Can.Def name args _ _ ->
+        Can.Def name args _ ->
           if null args then Error.CycleValue name else Error.CycleFunc name
 
-        Can.TypedDef name _ args _ _ _ ->
+        Can.TypedDef name _ args _ _ ->
           if null args then Error.CycleValue name else Error.CycleFunc name
 
-    Destruct _ pattern _ _ ->
+    Destruct _ pattern _ ->
       Error.CyclePattern pattern
 
 
@@ -596,43 +579,34 @@ delayUse (Uses direct delayed) =
 verifyBindings
   :: W.Context
   -> Pattern.Bindings
-  -> Result FreeLocals [W.Warning] Can.Expr
-  -> Result info [W.Warning] (Can.Expr, Can.Destructors, FreeLocals)
+  -> Result FreeLocals [W.Warning] value
+  -> Result info [W.Warning] (value, FreeLocals)
 verifyBindings context bindings (Result.Result k) =
   Result.Result $ \info warnings bad good ->
     k Map.empty warnings
       (\_ warnings1 err ->
           bad info warnings1 err
       )
-      (\freeLocals warnings1 body ->
+      (\freeLocals warnings1 value ->
           let
-            destructors =
-              Map.intersectionWith toDestructorInfo bindings freeLocals
+            outerFreeLocals =
+              Map.difference freeLocals bindings
+
+            warnings2 =
+              -- NOTE: Uses Map.size for O(1) lookup. This means there is
+              -- no dictionary allocation unless a problem is detected.
+              if Map.size bindings + Map.size outerFreeLocals == Map.size freeLocals then
+                warnings1
+              else
+                Map.foldlWithKey (addUnusedWarning context) warnings1 $
+                  Map.difference bindings freeLocals
           in
-          good info
-            (addUnusedWarnings context bindings destructors warnings1)
-            (body, destructors, Map.difference freeLocals bindings)
+          good info warnings2 (value, outerFreeLocals)
       )
 
 
-toDestructorInfo :: A.Located Can.Destructor -> Uses -> Can.DestructorInfo
-toDestructorInfo (A.At _ destructor) (Uses direct delayed) =
-  Can.DestructorInfo destructor direct delayed
-
-
--- NOTE: Uses Map.size for O(1) lookup. This means there is
--- no dictionary allocation unless a problem is detected.
-addUnusedWarnings :: W.Context -> Map.Map N.Name (A.Located a) -> Map.Map N.Name b -> [W.Warning] -> [W.Warning]
-addUnusedWarnings context bindings uses warnings =
-  if Map.size bindings == Map.size uses then
-    warnings
-  else
-    Map.foldlWithKey (addUnusedWarning context) warnings $
-      Map.difference bindings uses
-
-
-addUnusedWarning :: W.Context -> [W.Warning] -> N.Name -> A.Located a -> [W.Warning]
-addUnusedWarning context warnings name (A.At region _) =
+addUnusedWarning :: W.Context -> [W.Warning] -> N.Name -> R.Region -> [W.Warning]
+addUnusedWarning context warnings name region =
   W.UnusedVariable region context name : warnings
 
 
@@ -680,7 +654,11 @@ findVar region (Env.Env localHome vars _ _ _) maybePrefix name =
             Env.Foreign bag ->
               case bag of
                 Bag.One (Env.ForeignVarHome home annotation) ->
-                  Result.ok (Can.VarForeign home name annotation)
+                  Result.ok $
+                    if home == ModuleName.debug then
+                      Can.VarDebug localHome name annotation
+                    else
+                      Can.VarForeign home name annotation
 
                 Bag.Empty ->
                   Result.throw (error "TODO no unqualified" region)
@@ -694,7 +672,11 @@ findVar region (Env.Env localHome vars _ _ _) maybePrefix name =
               Result.throw (error "TODO no qualified" region)
 
             Just (OneOrMore.One (Env.ForeignVarHome home annotation)) ->
-              Result.ok (Can.VarForeign home name annotation)
+              Result.ok $
+                if home == ModuleName.debug then
+                  Can.VarDebug localHome name annotation
+                else
+                  Can.VarForeign home name annotation
 
             Just _ ->
               Result.throw (error "TODO ambiguous qualified" region)

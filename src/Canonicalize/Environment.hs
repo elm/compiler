@@ -27,7 +27,6 @@ import qualified Canonicalize.Result as Result
 import qualified Data.Bag as Bag
 import qualified Data.OneOrMore as OneOrMore
 import qualified Elm.Name as N
-import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Region as R
 
@@ -124,7 +123,7 @@ data Binop =
 -- VARIABLE -- ADD LOCALS
 
 
-addLocals :: Map.Map N.Name (A.Located a) -> Env -> Result i w Env
+addLocals :: Map.Map N.Name R.Region -> Env -> Result i w Env
 addLocals names (Env home vars types patterns binops) =
   do  newVars <-
         Map.mergeA
@@ -142,8 +141,8 @@ localVarHomes =
   VarHomes Local Map.empty
 
 
-addLocalBoth :: N.Name -> A.Located a -> VarHomes -> Result i w VarHomes
-addLocalBoth name (A.At region _) (VarHomes unqualified qualified) =
+addLocalBoth :: N.Name -> R.Region -> VarHomes -> Result i w VarHomes
+addLocalBoth name region (VarHomes unqualified qualified) =
   case unqualified of
     Foreign _ ->
       Result.ok (VarHomes Local qualified)

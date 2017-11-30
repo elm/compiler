@@ -325,7 +325,7 @@ checkUnionFreeVars (Valid.Union (A.At unionRegion name) args ctors) =
       Dups.insert arg region () region dict
 
     toError =
-      Error.DuplicateUnionArg name (map A.drop args)
+      Error.DuplicateUnionArg name (map A.toValue args)
 
     addCtorFreeVars (_, tipes) freeVars =
       foldr addFreeVars freeVars tipes
@@ -339,7 +339,7 @@ checkUnionFreeVars (Valid.Union (A.At unionRegion name) args ctors) =
         unbound ->
           let toLoc (arg, region) = A.At region arg in
           Result.throw $
-            Error.TypeVarsUnboundInUnion unionRegion name (map A.drop args) (map toLoc unbound)
+            Error.TypeVarsUnboundInUnion unionRegion name (map A.toValue args) (map toLoc unbound)
 
 
 
@@ -350,18 +350,18 @@ checkAliasFreeVars (Valid.Alias (A.At aliasRegion name) args tipe) =
       Dups.insert arg region () region dict
 
     toError =
-      Error.DuplicateAliasArg name (map A.drop args)
+      Error.DuplicateAliasArg name (map A.toValue args)
   in
   do  boundVars <- Dups.detect toError (foldr addAlias Dups.none args)
       let freeVars = addFreeVars tipe Map.empty
       let overlap = Map.size (Map.intersection boundVars freeVars)
       if Map.size boundVars == overlap && Map.size freeVars == overlap
-        then Result.ok (map A.drop args)
+        then Result.ok (map A.toValue args)
         else
           let toLoc (arg, region) = A.At region arg in
           Result.throw $
             Error.TypeVarsMessedUpInAlias aliasRegion name
-              (map A.drop args)
+              (map A.toValue args)
               (map toLoc (Map.toList (Map.difference boundVars freeVars)))
               (map toLoc (Map.toList (Map.difference freeVars boundVars)))
 

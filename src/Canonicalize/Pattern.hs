@@ -4,7 +4,6 @@ module Canonicalize.Pattern
   , Bindings
   , DupsDict
   , canonicalize
-  , canonicalizeArg
   )
   where
 
@@ -32,11 +31,11 @@ type Result i w a =
 
 
 type Bindings =
-  Map.Map N.Name (A.Located Can.Destructor)
+  Map.Map N.Name R.Region
 
 
 
--- VERIFY NAMES
+-- VERIFY
 
 
 verify :: Error.DuplicatePatternContext -> Result DupsDict w a -> Result i w (a, Bindings)
@@ -60,50 +59,36 @@ verify context (Result.Result k) =
 
 
 type DupsDict =
-  Dups.Dict () (A.Located Can.Destructor)
+  Dups.Dict () R.Region
 
 
-canonicalizeArg :: Env.Env -> Index.ZeroBased -> Src.Pattern -> Result DupsDict w Can.Arg
-canonicalizeArg env index pattern =
-  Can.Arg index <$> canonicalize env index pattern
-
-
-canonicalize :: Env.Env -> Index.ZeroBased -> Src.Pattern -> Result DupsDict w Can.Pattern
-canonicalize env index pattern =
-  process env (Can.DRoot index) pattern
-
-
-
--- PROCESS PATTERNS
-
-
-process :: Env.Env -> Can.Destructor -> Src.Pattern -> Result DupsDict w Can.Pattern
-process env destructor (A.At region pattern) =
+canonicalize :: Env.Env -> Src.Pattern -> Result DupsDict w Can.Pattern
+canonicalize env (A.At region pattern) =
   A.At region <$>
   case pattern of
     Src.PAnything ->
       Result.ok Can.PAnything
 
     Src.PVar name ->
-      logVar name region destructor (Can.PVar name)
+      logVar name region (Can.PVar name)
 
     Src.PRecord fields ->
-      logFields fields destructor (Can.PRecord (map A.drop fields))
+      logFields fields (Can.PRecord (map A.toValue fields))
 
     Src.PUnit ->
       Result.ok Can.PUnit
 
     Src.PTuple a b cs ->
       Can.PTuple
-        <$> process env (Can.DIndex Index.first destructor) a
-        <*> process env (Can.DIndex Index.second destructor) b
-        <*> processTuple region env destructor cs
+        <$> canonicalize env a
+        <*> canonicalize env b
+        <*> canonicalizeTuple region env cs
 
     Src.PCtor nameRegion maybePrefix name patterns ->
       let
         toCanonicalArg index ptrn tipe =
           Can.PatternCtorArg index tipe
-            <$> process env (Can.DIndex index destructor) ptrn
+            <$> canonicalize env ptrn
       in
       do  (Env.Pattern home tipe vars alts args) <- Env.findPattern nameRegion env maybePrefix name
           verifiedList <- Index.indexedZipWithA toCanonicalArg patterns args
@@ -115,16 +100,16 @@ process env destructor (A.At region pattern) =
               Result.throw (error "TODO" region actualLength expectedLength)
 
     Src.PList patterns ->
-      Can.PList <$> processList env destructor patterns
+      Can.PList <$> canonicalizeList env patterns
 
     Src.PCons first rest ->
       Can.PCons
-        <$> process env (Can.DIndex Index.first destructor) first
-        <*> process env (Can.DIndex Index.second destructor) rest
+        <$> canonicalize env first
+        <*> canonicalize env rest
 
     Src.PAlias ptrn (A.At reg name) ->
-      do  cpattern <- process env destructor ptrn
-          logVar name reg destructor (Can.PAlias cpattern name)
+      do  cpattern <- canonicalize env ptrn
+          logVar name reg (Can.PAlias cpattern name)
 
     Src.PChr chr ->
       Result.ok (Can.PChr chr)
@@ -136,50 +121,47 @@ process env destructor (A.At region pattern) =
       Result.ok (Can.PInt int)
 
 
-processTuple :: R.Region -> Env.Env -> Can.Destructor -> [Src.Pattern] -> Result DupsDict w (Maybe Can.Pattern)
-processTuple tupleRegion env destructor extras =
+canonicalizeTuple :: R.Region -> Env.Env -> [Src.Pattern] -> Result DupsDict w (Maybe Can.Pattern)
+canonicalizeTuple tupleRegion env extras =
   case extras of
     [] ->
       Result.ok Nothing
 
     [three] ->
-      Just <$> process env (Can.DIndex Index.third destructor) three
+      Just <$> canonicalize env three
 
     _ : others ->
       let (A.At r1 _, A.At r2 _) = (head others, last others) in
       Result.throw (Error.TupleLargerThanThree tupleRegion (R.merge r1 r2))
 
 
-processList :: Env.Env -> Can.Destructor -> [Src.Pattern] -> Result DupsDict w [Can.Pattern]
-processList env destructor list =
+canonicalizeList :: Env.Env -> [Src.Pattern] -> Result DupsDict w [Can.Pattern]
+canonicalizeList env list =
   case list of
     [] ->
       Result.ok []
 
     pattern : otherPatterns ->
       (:)
-        <$> process env (Can.DIndex Index.first destructor) pattern
-        <*> processList env (Can.DIndex Index.second destructor) otherPatterns
+        <$> canonicalize env pattern
+        <*> canonicalizeList env otherPatterns
 
 
 
 -- LOG BINDINGS
 
 
-logVar :: N.Name -> R.Region -> Can.Destructor -> a -> Result DupsDict w a
-logVar name region destructor value =
+logVar :: N.Name -> R.Region -> a -> Result DupsDict w a
+logVar name region value =
   Result.Result $ \bindings warnings _ ok ->
-    ok
-      (Dups.insert name region () (A.At region destructor) bindings)
-      warnings
-      value
+    ok (Dups.insert name region () region bindings) warnings value
 
 
-logFields :: [A.Located N.Name] -> Can.Destructor -> a -> Result DupsDict w a
-logFields fields destructor value =
+logFields :: [A.Located N.Name] -> a -> Result DupsDict w a
+logFields fields value =
   let
     addField (A.At region name) dict =
-      Dups.insert name region () (A.At region (Can.DField name destructor)) dict
+      Dups.insert name region () region dict
   in
   Result.Result $ \bindings warnings _ ok ->
     ok (foldr addField bindings fields) warnings value

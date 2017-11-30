@@ -5,8 +5,6 @@ module AST.Canonical
   , CaseBranch(..)
   -- definitions
   , Def(..)
-  , Arg(..)
-  , TypedArg(..)
   , Decls(..)
   -- patterns
   , Pattern, Pattern_(..)
@@ -15,10 +13,6 @@ module AST.Canonical
   , toAlts
   , ctorsToAlts
   , PatternCtorArg(..)
-  -- destructors
-  , Destructors
-  , DestructorInfo(..)
-  , Destructor(..)
   -- types
   , Annotation(..)
   , Type(..)
@@ -79,30 +73,27 @@ type Expr =
   A.Located Expr_
 
 
+-- CACHE Annotations for type inference
 data Expr_
   = VarLocal N.Name
   | VarTopLevel ModuleName.Canonical N.Name
   | VarKernel N.Name N.Name
   | VarForeign ModuleName.Canonical N.Name Annotation
-  -- CACHE Annotation for inference
-  | VarOperator N.Name ModuleName.Canonical N.Name Annotation
-  -- CACHE real name for optimization
-  -- CACHE Annotation for inference
+  | VarDebug ModuleName.Canonical N.Name Annotation
+  | VarOperator N.Name ModuleName.Canonical N.Name Annotation -- CACHE real name for optimization
   | Chr Text
   | Str Text
   | Int Int
   | Float Double
   | List [Expr]
   | Negate Expr
-  | Binop N.Name ModuleName.Canonical N.Name Annotation Expr Expr
-  -- CACHE real name for optimization
-  -- CACHE Annotation for inference
-  | Lambda [Arg] Destructors Expr
+  | Binop N.Name ModuleName.Canonical N.Name Annotation Expr Expr -- CACHE real name for optimization
+  | Lambda [Pattern] Expr
   | Call Expr [Expr]
   | If [(Expr, Expr)] Expr
   | Let Def Expr
   | LetRec [Def] Expr
-  | LetDestruct Pattern Destructors Expr Expr
+  | LetDestruct Pattern Expr Expr
   | Case Expr [CaseBranch]
   | Accessor N.Name
   | Access Expr N.Name
@@ -110,11 +101,11 @@ data Expr_
   | Record (Map.Map N.Name Expr)
   | Unit
   | Tuple Expr Expr (Maybe Expr)
-  | Shader N.Name N.Name Shader.Shader
+  | Shader Text Text Shader.Shader
 
 
 data CaseBranch =
-  CaseBranch Pattern Destructors Expr
+  CaseBranch Pattern Expr
 
 
 
@@ -122,16 +113,8 @@ data CaseBranch =
 
 
 data Def
-  = Def (A.Located N.Name) [Arg] Destructors Expr
-  | TypedDef (A.Located N.Name) FreeVars [TypedArg] Destructors Expr Type
-
-
-data Arg =
-  Arg Index.ZeroBased Pattern
-
-
-data TypedArg =
-  TypedArg Index.ZeroBased Type Pattern
+  = Def (A.Located N.Name) [Pattern] Expr
+  | TypedDef (A.Located N.Name) FreeVars [(Pattern, Type)] Expr Type
 
 
 
@@ -217,28 +200,6 @@ ctorsToAlts ctors =
 toAlt :: (N.Name, [Type]) -> CtorAlt
 toAlt (ctor, argTypes) =
   CtorAlt ctor (length argTypes)
-
-
-
--- DESTRUCTORS
-
-
-type Destructors =
-  Map.Map N.Name DestructorInfo
-
-
-data DestructorInfo =
-  DestructorInfo
-    { _destructor :: Destructor
-    , _direct_uses :: Int  -- CACHE for inlining
-    , _delayed_uses :: Int -- CACHE for inlining
-    }
-
-
-data Destructor
-  = DIndex Index.ZeroBased Destructor
-  | DField N.Name Destructor
-  | DRoot Index.ZeroBased
 
 
 

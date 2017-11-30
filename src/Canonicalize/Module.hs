@@ -94,14 +94,14 @@ toDocs (Valid.Module _ (A.At region maybeOverview) comments _ _ _ _ _ _ _) =
 canonicalizeAlias :: Env.Env -> Valid.Alias -> Result i w ( N.Name, Can.Alias )
 canonicalizeAlias env (Valid.Alias (A.At _ name) args tipe) =
   do  ctipe <- Type.canonicalize env tipe
-      return (name, Can.Alias (map A.drop args) ctipe (toRecordCtorInfo tipe))
+      return (name, Can.Alias (map A.toValue args) ctipe (toRecordCtorInfo tipe))
 
 
 toRecordCtorInfo :: Src.Type -> Maybe [N.Name]
 toRecordCtorInfo (A.At _ tipe) =
   case tipe of
     Src.TRecord fields Nothing ->
-      Just (map (A.drop . fst) fields)
+      Just (map (A.toValue . fst) fields)
 
     _ ->
       Nothing
@@ -119,7 +119,7 @@ canonicalizeUnion env (Valid.Union (A.At _ name) args ctors) =
           return (ctor, ctipes)
   in
   do  cctors <- traverse canonicalizeCtor ctors
-      return ( name, Can.Union (map A.drop args) cctors )
+      return ( name, Can.Union (map A.toValue args) cctors )
 
 
 
@@ -201,15 +201,15 @@ toNodeOne env (A.At _ (Valid.Decl aname@(A.At _ name) srcArgs body maybeType)) =
     Nothing ->
       do  (args, argBindings) <-
             Pattern.verify (Error.DPFuncArgs name) $
-              Index.indexedTraverse (Pattern.canonicalizeArg env) srcArgs
+              traverse (Pattern.canonicalize env) srcArgs
 
           newEnv <-
             Env.addLocals argBindings env
 
-          (cbody, destructors, freeLocals) <-
+          (cbody, freeLocals) <-
             Expr.verifyBindings W.Pattern argBindings (Expr.canonicalize newEnv body)
 
-          let def = Can.Def aname args destructors cbody
+          let def = Can.Def aname args cbody
           return
             ( toNodeTwo name srcArgs def freeLocals
             , name
@@ -226,10 +226,10 @@ toNodeOne env (A.At _ (Valid.Decl aname@(A.At _ name) srcArgs body maybeType)) =
           newEnv <-
             Env.addLocals argBindings env
 
-          (cbody, destructors, freeLocals) <-
+          (cbody, freeLocals) <-
             Expr.verifyBindings W.Pattern argBindings (Expr.canonicalize newEnv body)
 
-          let def = Can.TypedDef aname freeVars args destructors cbody resultType
+          let def = Can.TypedDef aname freeVars args cbody resultType
           return
             ( toNodeTwo name srcArgs def freeLocals
             , name
