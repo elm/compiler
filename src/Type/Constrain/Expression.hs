@@ -52,6 +52,9 @@ constrain rtv (A.At region expression) expected =
     Can.VarForeign _ name annotation ->
       return $ CInstance region (FuncName name) annotation expected
 
+    Can.VarDebug _ name annotation ->
+      return $ CInstance region (FuncName name) annotation expected
+
     Can.VarOperator op _ _ annotation ->
       return $ CInstance region (OpName op) annotation expected
 
@@ -81,7 +84,7 @@ constrain rtv (A.At region expression) expected =
     Can.Binop op _ _ annotation leftExpr rightExpr ->
       constrainBinop rtv region op annotation leftExpr rightExpr expected
 
-    Can.Lambda args _ body ->
+    Can.Lambda args body ->
       constrainLambda rtv region args body expected
 
     Can.Call func args ->
@@ -101,7 +104,7 @@ constrain rtv (A.At region expression) expected =
       constrainRecursiveDefs rtv defs
       =<< constrain rtv body expected
 
-    Can.LetDestruct pattern _ expr body ->
+    Can.LetDestruct pattern expr body ->
       constrainDestruct rtv region pattern expr
       =<< constrain rtv body expected
 
@@ -150,7 +153,7 @@ constrain rtv (A.At region expression) expected =
 -- CONSTRAIN LAMBDA
 
 
-constrainLambda :: RTV -> R.Region -> [Can.Arg] -> Can.Expr -> Expected Type -> IO Constraint
+constrainLambda :: RTV -> R.Region -> [Can.Pattern] -> Can.Expr -> Expected Type -> IO Constraint
 constrainLambda rtv region args body expected =
   do  (Args vars tipe resultType (Pattern.State headers pvars revCons)) <-
         constrainArgs args
@@ -375,7 +378,7 @@ constrainCase rtv region expr branches expected =
 
 
 constrainCaseBranch :: RTV -> Can.CaseBranch -> PExpected Type -> Expected Type -> IO Constraint
-constrainCaseBranch rtv (Can.CaseBranch pattern _ expr) pExpect bExpect =
+constrainCaseBranch rtv (Can.CaseBranch pattern expr) pExpect bExpect =
   do  (Pattern.State headers pvars revCons) <-
         Pattern.add pattern pExpect Pattern.emptyState
 
@@ -534,7 +537,7 @@ constrainDestruct rtv region pattern expr bodyCon =
 constrainDef :: RTV -> Can.Def -> Constraint -> IO Constraint
 constrainDef rtv def bodyCon =
   case def of
-    Can.Def (A.At region name) args _ expr ->
+    Can.Def (A.At region name) args expr ->
       do  (Args vars tipe resultType (Pattern.State headers pvars revCons)) <-
             constrainArgs args
 
@@ -557,7 +560,7 @@ constrainDef rtv def bodyCon =
               , _bodyCon = bodyCon
               }
 
-    Can.TypedDef (A.At region name) freeVars typedArgs _ expr srcResultType ->
+    Can.TypedDef (A.At region name) freeVars typedArgs expr srcResultType ->
       do  let newNames = Map.difference freeVars rtv
           newRigids <- Map.traverseWithKey (\n _ -> nameToRigid n) newNames
           let newRtv = Map.union rtv (Map.map VarN newRigids)
@@ -622,7 +625,7 @@ recDefsHelp rtv defs bodyCon rigidInfo flexInfo =
 
     def : otherDefs ->
       case def of
-        Can.Def (A.At region name) args _ expr ->
+        Can.Def (A.At region name) args expr ->
           do  let (Info flexVars flexCons flexHeaders) = flexInfo
 
               (Args newFlexVars tipe resultType (Pattern.State headers pvars revCons)) <-
@@ -647,7 +650,7 @@ recDefsHelp rtv defs bodyCon rigidInfo flexInfo =
                   , _headers = Map.insert name (A.At region tipe) flexHeaders
                   }
 
-        Can.TypedDef (A.At region name) freeVars typedArgs _ expr srcResultType ->
+        Can.TypedDef (A.At region name) freeVars typedArgs expr srcResultType ->
           do  let newNames = Map.difference freeVars rtv
               newRigids <- Map.traverseWithKey (\n _ -> nameToRigid n) newNames
               let newRtv = Map.union rtv (Map.map VarN newRigids)
@@ -692,12 +695,12 @@ data Args =
     }
 
 
-constrainArgs :: [Can.Arg] -> IO Args
+constrainArgs :: [Can.Pattern] -> IO Args
 constrainArgs args =
   argsHelp args Pattern.emptyState
 
 
-argsHelp :: [Can.Arg] -> Pattern.State -> IO Args
+argsHelp :: [Can.Pattern] -> Pattern.State -> IO Args
 argsHelp args state =
   case args of
     [] ->
@@ -705,7 +708,7 @@ argsHelp args state =
           let resultType = VarN resultVar
           return $ Args [resultVar] resultType resultType state
 
-    (Can.Arg _ pattern) : otherArgs ->
+    pattern : otherArgs ->
       do  argVar <- mkFlexVar
           let argType = VarN argVar
 
@@ -728,24 +731,24 @@ data TypedArgs =
     }
 
 
-constrainTypedArgs :: Map.Map N.Name Type -> N.Name -> [Can.TypedArg] -> Can.Type -> IO TypedArgs
+constrainTypedArgs :: Map.Map N.Name Type -> N.Name -> [(Can.Pattern, Can.Type)] -> Can.Type -> IO TypedArgs
 constrainTypedArgs rtv name args srcResultType =
   do  resultType <- Instantiate.fromSrcType rtv srcResultType
-      typedArgsHelp rtv name args resultType Pattern.emptyState
+      typedArgsHelp rtv name Index.first args resultType Pattern.emptyState
 
 
-typedArgsHelp :: Map.Map N.Name Type -> N.Name -> [Can.TypedArg] -> Type -> Pattern.State -> IO TypedArgs
-typedArgsHelp rtv name args resultType state =
+typedArgsHelp :: Map.Map N.Name Type -> N.Name -> Index.ZeroBased -> [(Can.Pattern, Can.Type)] -> Type -> Pattern.State -> IO TypedArgs
+typedArgsHelp rtv name index args resultType state =
   case args of
     [] ->
       return $ TypedArgs resultType resultType state
 
-    (Can.TypedArg index srcType pattern@(A.At region _)) : otherArgs ->
+    (pattern@(A.At region _), srcType) : otherArgs ->
       do  argType <- Instantiate.fromSrcType rtv srcType
           let expected = PFromContext region (PTypedArg name index) argType
 
           (TypedArgs tipe result newState) <-
-            typedArgsHelp rtv name otherArgs resultType =<<
+            typedArgsHelp rtv name (Index.next index) otherArgs resultType =<<
               Pattern.add pattern expected state
 
           return (TypedArgs (FunN argType tipe) result newState)

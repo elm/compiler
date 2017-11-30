@@ -210,20 +210,20 @@ checkDecls decls errors =
 checkDef :: Can.Def -> [Error] -> [Error]
 checkDef def errors =
   case def of
-    Can.Def _ args _ body ->
+    Can.Def _ args body ->
       foldr checkArg (checkExpr body errors) args
 
-    Can.TypedDef _ _ args _ body _ ->
+    Can.TypedDef _ _ args body _ ->
       foldr checkTypedArg (checkExpr body errors) args
 
 
-checkArg :: Can.Arg -> [Error] -> [Error]
-checkArg (Can.Arg _ pattern@(A.At region _)) errors =
+checkArg :: Can.Pattern -> [Error] -> [Error]
+checkArg pattern@(A.At region _) errors =
   checkPatterns region BadArg [pattern] errors
 
 
-checkTypedArg :: Can.TypedArg -> [Error] -> [Error]
-checkTypedArg (Can.TypedArg _ _ pattern@(A.At region _)) errors =
+checkTypedArg :: (Can.Pattern, tipe) -> [Error] -> [Error]
+checkTypedArg (pattern@(A.At region _), _) errors =
   checkPatterns region BadArg [pattern] errors
 
 
@@ -244,6 +244,9 @@ checkExpr (A.At region expression) errors =
       errors
 
     Can.VarForeign _ _ _ ->
+      errors
+
+    Can.VarDebug _ _ _ ->
       errors
 
     Can.VarOperator _ _ _ _ ->
@@ -271,7 +274,7 @@ checkExpr (A.At region expression) errors =
       checkExpr left $
         checkExpr right errors
 
-    Can.Lambda args _ body ->
+    Can.Lambda args body ->
       foldr checkArg (checkExpr body errors) args
 
     Can.Call func args ->
@@ -286,7 +289,7 @@ checkExpr (A.At region expression) errors =
     Can.LetRec defs body ->
       foldr checkDef (checkExpr body errors) defs
 
-    Can.LetDestruct pattern@(A.At reg _) _ expr body ->
+    Can.LetDestruct pattern@(A.At reg _) expr body ->
       checkPatterns reg BadDestruct [pattern] $
         checkExpr expr $ checkExpr body errors
 
@@ -345,7 +348,7 @@ checkCases region branches errors =
 
 
 checkCaseBranch :: Can.CaseBranch -> ([Can.Pattern], [Error]) -> ([Can.Pattern], [Error])
-checkCaseBranch (Can.CaseBranch pattern _ expr) (patterns, errors) =
+checkCaseBranch (Can.CaseBranch pattern expr) (patterns, errors) =
   ( pattern:patterns
   , checkExpr expr errors
   )

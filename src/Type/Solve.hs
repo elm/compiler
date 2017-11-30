@@ -168,7 +168,7 @@ solve env rank pools state constraint =
     CLet [] [] header headerCon subCon ->
       do  state1 <- solve env rank pools state headerCon
           locals <- traverse (A.traverse (typeToVariable rank pools)) header
-          let newEnv = Map.union env (Map.map A.drop locals)
+          let newEnv = Map.union env (Map.map A.toValue locals)
           state2 <- solve newEnv rank pools state1 subCon
           foldM occurs state2 $ Map.toList locals
 
@@ -205,7 +205,7 @@ solve env rank pools state constraint =
           -- check that things went well
           mapM_ isGeneric rigids
 
-          let newEnv = Map.union env (Map.map A.drop locals)
+          let newEnv = Map.union env (Map.map A.toValue locals)
           let tempState = State savedEnv finalMark errors
           newState <- solve newEnv nextRank nextPools tempState subCon
 
