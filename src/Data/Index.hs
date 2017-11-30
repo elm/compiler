@@ -15,13 +15,16 @@ module Data.Index
   where
 
 
+import Control.Monad (liftM)
+import Data.Binary
+
 
 
 -- ZERO BASED
 
 
-newtype ZeroBased =
-  ZeroBased Int
+newtype ZeroBased = ZeroBased Int
+  deriving (Eq, Ord)
 
 
 first :: ZeroBased
@@ -112,3 +115,12 @@ indexedZipWithA func listX listY =
 
     LengthMismatch x y ->
       pure (LengthMismatch x y)
+
+
+
+-- BINARY
+
+
+instance Binary ZeroBased where
+  get = liftM ZeroBased get
+  put (ZeroBased n) = put n

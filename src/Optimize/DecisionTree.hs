@@ -1,5 +1,13 @@
 {-# OPTIONS_GHC -Wall #-}
-module Optimize.DecisionTree where
+{-# LANGUAGE OverloadedStrings #-}
+module Optimize.DecisionTree
+  ( compile
+  , Path(..)
+  , Test(..)
+  )
+  where
+
+
 {- To learn more about how this works, definitely read through:
 
     "When Do Match-Compilation Heuristics Matter?"
@@ -12,22 +20,16 @@ as SML/NJ to get nice trees.
 -}
 
 import Control.Arrow (second)
+import Control.Monad (liftM, liftM2)
 import Data.Binary
 import qualified Data.List as List
-import qualified Data.Map as Map
-import qualified Data.Set as Set
 import qualified Data.Maybe as Maybe
-import qualified Data.Text as Text
+import qualified Data.Set as Set
 import Data.Text (Text)
 
-import qualified AST.Helpers as Help
-import qualified AST.Literal as L
-import qualified AST.Pattern as P
-import qualified AST.Variable as Var
+import qualified AST.Canonical as Can
+import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
-
-
-type CPattern = P.Canonical
 
 
 
@@ -43,30 +45,13 @@ If 2 or more leaves point to the same label, we need to do some tricks in JS to
 make that work nicely. When is JS getting goto?! ;) That is outside the scope
 of this module though.
 -}
-compile :: VariantDict -> [(CPattern, Int)] -> DecisionTree
-compile variantDict rawBranches =
+compile :: [(Can.Pattern, Int)] -> DecisionTree
+compile rawBranches =
   let
     format (pattern, index) =
         Branch index [(Empty, pattern)]
   in
-    toDecisionTree variantDict (map format rawBranches)
-
-
-{-| When a certain union type is defined, you specify a certain number of tags.
-This helps us do a few optimizations:
-
-  * If there is only one possible tag, we can always skip checking what it is.
-    Tuples are a common example of this.
-  * If we use all possible tags, we can skip doing the last test. If we have
-    checked N-1 of N tags, there is no need to test the Nth, we know its the
-    one we want
-
-So this dictionary maps tags to the number of variants that exist, so it'll
-contain things like [ ("Just", 2), ("Nothing", 2), ("#2", 1), ... ] which
-we can use for these optimizations.
--}
-type VariantDict =
-    Map.Map Var.Home (Map.Map Text Int)
+    toDecisionTree (map format rawBranches)
 
 
 
@@ -74,27 +59,29 @@ type VariantDict =
 
 
 data DecisionTree
-    = Match Int
-    | Decision
-        { _test :: Path
-        , _edges :: [(Test, DecisionTree)]
-        , _default :: Maybe DecisionTree
-        }
-    deriving (Eq)
+  = Match Int
+  | Decision
+      { _path :: Path
+      , _edges :: [(Test, DecisionTree)]
+      , _default :: Maybe DecisionTree
+      }
+  deriving (Eq)
 
 
 data Test
-    = Constructor Var.Canonical
-    | Literal L.Literal
-    deriving (Eq, Ord)
+  = IsCtor Int N.Name
+  | IsInt Int
+  | IsChr Text
+  | IsStr Text
+  deriving (Eq, Ord)
 
 
 data Path
-    = Position Int Path
-    | Field Text Path
-    | Empty
-    | Alias
-    deriving (Eq)
+  = Index Int Path
+  | Field N.Name Path
+  | Empty
+  | Alias
+  deriving (Eq)
 
 
 
@@ -110,17 +97,17 @@ add path finalLink =
     Alias ->
         error "nothing should be added to an alias path"
 
-    Position index subpath ->
-        Position index (add subpath finalLink)
+    Index index subpath ->
+        Index index (add subpath finalLink)
 
     Field name subpath ->
         Field name (add subpath finalLink)
 
 
-subPositions :: Path -> [CPattern] -> [(Path, CPattern)]
+subPositions :: Path -> [Can.Pattern] -> [(Path, Can.Pattern)]
 subPositions path patterns =
     zipWith
-      (\index pattern -> (add path (Position index Empty), pattern))
+      (\index pattern -> (add path (Index index Empty), pattern))
       [0..]
       patterns
 
@@ -132,15 +119,15 @@ subPositions path patterns =
 data Branch =
   Branch
     { _goal :: Int
-    , _patterns :: [(Path, CPattern)]
+    , _patterns :: [(Path, Can.Pattern)]
     }
 
 
-toDecisionTree :: VariantDict -> [Branch] -> DecisionTree
-toDecisionTree variantDict rawBranches =
+toDecisionTree :: [Branch] -> DecisionTree
+toDecisionTree rawBranches =
   let
     branches =
-        map (flattenPatterns variantDict) rawBranches
+        map flattenPatterns rawBranches
   in
   case checkForMatch branches of
     Just goal ->
@@ -149,13 +136,13 @@ toDecisionTree variantDict rawBranches =
     Nothing ->
         let
           path =
-              pickPath variantDict branches
+              pickPath branches
 
           (edges, fallback) =
-              gatherEdges variantDict branches path
+              gatherEdges branches path
 
           decisionEdges =
-              map (second (toDecisionTree variantDict)) edges
+              map (second toDecisionTree) edges
         in
           case (decisionEdges, fallback) of
             ([(_tag, decisionTree)], []) ->
@@ -165,39 +152,20 @@ toDecisionTree variantDict rawBranches =
                 Decision path decisionEdges Nothing
 
             ([], _ : _) ->
-                toDecisionTree variantDict fallback
+                toDecisionTree fallback
 
             (_, _) ->
-                Decision path decisionEdges (Just (toDecisionTree variantDict fallback))
+                Decision path decisionEdges (Just (toDecisionTree fallback))
 
 
-isComplete :: VariantDict -> [Test] -> Bool
-isComplete variantDict tests =
+isComplete :: [Test] -> Bool
+isComplete tests =
   case head tests of
-    Constructor var ->
-        getArity variantDict var == length tests
-
-    Literal (L.Boolean _) ->
-        length tests == 2
+    IsCtor alts _ ->
+        alts == length tests
 
     _ ->
         False
-
-
-getArity :: VariantDict -> Var.Canonical -> Int
-getArity variantDict (Var.Canonical home name) =
-  case Map.lookup name =<< Map.lookup home variantDict of
-    Just arity ->
-        arity
-
-    Nothing ->
-        if Help.isTuple name then
-          read (drop 6 (Text.unpack name))
-
-        else
-          error
-            "Since the Optimize phase happens after canonicalization and type \
-            \inference, it is impossible that a pattern cannot be found."
 
 
 
@@ -207,37 +175,62 @@ getArity variantDict (Var.Canonical home name) =
 {-| Flatten type aliases and use the VariantDict to figure out when a tag is
 the only variant so we can skip doing any tests on it.
 -}
-flattenPatterns :: VariantDict -> Branch -> Branch
-flattenPatterns variantDict (Branch goal pathPatterns) =
-  Branch goal (concatMap (flatten variantDict) pathPatterns)
+flattenPatterns :: Branch -> Branch
+flattenPatterns (Branch goal pathPatterns) =
+  Branch goal (concatMap flatten pathPatterns)
 
 
-flatten :: VariantDict -> (Path, CPattern) -> [(Path, CPattern)]
-flatten variantDict pathPattern@(path, A.A ann pattern) =
+flatten :: (Path, Can.Pattern) -> [(Path, Can.Pattern)]
+flatten pathPattern@(path, A.At region pattern) =
   case pattern of
-    P.Var _ ->
+    Can.PVar _ ->
         [pathPattern]
 
-    P.Anything ->
+    Can.PAnything ->
         [pathPattern]
 
-    P.Alias alias realPattern ->
-        (add path Alias, A.A ann (P.Var alias))
+    Can.PAlias realPattern alias ->
+        (add path Alias, A.At region (Can.PVar alias))
         :
-        flatten variantDict (path, realPattern)
+        flatten (path, realPattern)
 
-    P.Record _ ->
+    Can.PRecord _ ->
         [pathPattern]
 
-    P.Ctor tag patterns ->
-        if getArity variantDict tag == 1 then
-            concatMap (flatten variantDict) (subPositions path patterns)
+    Can.PUnit ->
+        [pathPattern]
 
+    Can.PTuple a b Nothing ->
+        concatMap flatten (subPositions path [a,b])
+
+    Can.PTuple a b (Just c) ->
+        concatMap flatten (subPositions path [a,b,c])
+
+    Can.PCtor _ _ _ (Can.CtorAlts numAlts _) _ args ->
+        if numAlts == 1 then
+          concatMap flatten (subPositions path (map dearg args))
         else
-            [pathPattern]
+          [pathPattern]
 
-    P.Literal _ ->
+    Can.PList _ ->
         [pathPattern]
+
+    Can.PCons _ _ ->
+        [pathPattern]
+
+    Can.PChr _ ->
+        [pathPattern]
+
+    Can.PStr _ ->
+        [pathPattern]
+
+    Can.PInt _ ->
+        [pathPattern]
+
+
+dearg :: Can.PatternCtorArg -> Can.Pattern
+dearg (Can.PatternCtorArg _ _ pattern) =
+  pattern
 
 
 
@@ -263,8 +256,8 @@ checkForMatch branches =
 -- GATHER OUTGOING EDGES
 
 
-gatherEdges :: VariantDict -> [Branch] -> Path -> ([(Test, [Branch])], [Branch])
-gatherEdges variantDict branches path =
+gatherEdges :: [Branch] -> Path -> ([(Test, [Branch])], [Branch])
+gatherEdges branches path =
   let
     relevantTests =
         testsAtPath path branches
@@ -273,7 +266,7 @@ gatherEdges variantDict branches path =
         map (edgesFor path branches) relevantTests
 
     fallbacks =
-        if isComplete variantDict relevantTests then
+        if isComplete relevantTests then
           []
         else
           filter (isIrrelevantTo path) branches
@@ -308,25 +301,56 @@ testAtPath selectedPath (Branch _ pathPatterns) =
     Nothing ->
         Nothing
 
-    Just (A.A _ pattern) ->
+    Just (A.At _ pattern) ->
         case pattern of
-          P.Ctor name _ ->
-              Just (Constructor name)
+          Can.PCtor _ _ _ (Can.CtorAlts numAlts _) name _ ->
+              Just (IsCtor numAlts name)
 
-          P.Literal lit ->
-              Just (Literal lit)
+          Can.PInt int ->
+              Just (IsInt int)
 
-          P.Var _ ->
+          Can.PStr str ->
+              Just (IsStr str)
+
+          Can.PChr chr ->
+              Just (IsChr chr)
+
+          Can.PList [] ->
+              Just nilTest
+
+          Can.PList _ ->
+              Just consTest
+
+          Can.PCons _ _ ->
+              Just consTest
+
+          Can.PVar _ ->
               Nothing
 
-          P.Alias _ _ ->
+          Can.PAlias _ _ ->
               error "aliases should never reach 'testAtPath' function"
 
-          P.Anything ->
+          Can.PAnything ->
               Nothing
 
-          P.Record _ ->
+          Can.PUnit ->
               Nothing
+
+          Can.PTuple _ _ _ ->
+              Nothing
+
+          Can.PRecord _ ->
+              Nothing
+
+
+{-# NOINLINE nilTest #-}
+nilTest :: Test
+nilTest = IsCtor 2 "[]"
+
+
+{-# NOINLINE consTest #-}
+consTest :: Test
+consTest = IsCtor 2 "::"
 
 
 
@@ -343,19 +367,48 @@ edgesFor path branches test =
 toRelevantBranch :: Test -> Path -> Branch -> Maybe Branch
 toRelevantBranch test path branch@(Branch goal pathPatterns) =
   case extract path pathPatterns of
-    Just (start, A.A _ pattern, end) ->
+    Just (start, A.At region pattern, end) ->
         case pattern of
-          P.Ctor name patterns ->
-              if test == Constructor name then
-                  Just (Branch goal (start ++ subPositions path patterns ++ end))
-
+          Can.PCtor _ _ _ (Can.CtorAlts numAlts _) name args ->
+              if test == IsCtor numAlts name then
+                  Just (Branch goal (start ++ subPositions path (map dearg args) ++ end))
               else
                   Nothing
 
-          P.Literal lit ->
-              if test == Literal lit then
+          Can.PList [] ->
+              if test == IsCtor 2 "[]" then
                   Just (Branch goal (start ++ end))
+              else
+                  Nothing
 
+          Can.PList (hd:tl) ->
+              if test == IsCtor 2 "::" then
+                  let tl' = A.At region (Can.PList tl) in
+                  Just (Branch goal (start ++ subPositions path [ hd, tl' ] ++ end))
+              else
+                  Nothing
+
+          Can.PCons hd tl ->
+              if test == IsCtor 2 "::" then
+                  Just (Branch goal (start ++ subPositions path [hd,tl] ++ end))
+              else
+                  Nothing
+
+          Can.PChr chr ->
+              if test == IsChr chr then
+                  Just (Branch goal (start ++ end))
+              else
+                  Nothing
+
+          Can.PStr str ->
+              if test == IsStr str then
+                  Just (Branch goal (start ++ end))
+              else
+                  Nothing
+
+          Can.PInt int ->
+              if test == IsInt int then
+                  Just (Branch goal (start ++ end))
               else
                   Nothing
 
@@ -368,8 +421,8 @@ toRelevantBranch test path branch@(Branch goal pathPatterns) =
 
 extract
     :: Path
-    -> [(Path, CPattern)]
-    -> Maybe ([(Path, CPattern)], CPattern, [(Path, CPattern)])
+    -> [(Path, Can.Pattern)]
+    -> Maybe ([(Path, Can.Pattern)], Can.Pattern, [(Path, Can.Pattern)])
 extract selectedPath pathPatterns =
   case pathPatterns of
     [] ->
@@ -402,25 +455,43 @@ isIrrelevantTo selectedPath (Branch _ pathPatterns) =
         not (needsTests pattern)
 
 
-needsTests :: CPattern -> Bool
-needsTests (A.A _ pattern) =
+needsTests :: Can.Pattern -> Bool
+needsTests (A.At _ pattern) =
   case pattern of
-    P.Var _ ->
+    Can.PVar _ ->
         False
 
-    P.Anything ->
+    Can.PAnything ->
         False
 
-    P.Alias _ _ ->
+    Can.PAlias _ _ ->
         error "aliases should never reach 'isIrrelevantTo' function"
 
-    P.Record _ ->
+    Can.PRecord _ ->
         False
 
-    P.Ctor _ _ ->
+    Can.PCtor _ _ _ _ _ _ ->
         True
 
-    P.Literal _ ->
+    Can.PList _ ->
+        True
+
+    Can.PCons _ _ ->
+        True
+
+    Can.PUnit ->
+        False
+
+    Can.PTuple _ _ _ ->
+        False
+
+    Can.PChr _ ->
+        True
+
+    Can.PStr _ ->
+        True
+
+    Can.PInt _ ->
         True
 
 
@@ -428,8 +499,8 @@ needsTests (A.A _ pattern) =
 -- PICK A PATH
 
 
-pickPath :: VariantDict -> [Branch] -> Path
-pickPath variantDict branches =
+pickPath :: [Branch] -> Path
+pickPath branches =
   let
     allPaths =
       Maybe.mapMaybe isChoicePath (concatMap _patterns branches)
@@ -439,10 +510,10 @@ pickPath variantDict branches =
           path
 
       tiedPaths ->
-          head (bests (addWeights (smallBranchingFactor variantDict branches) tiedPaths))
+          head (bests (addWeights (smallBranchingFactor branches) tiedPaths))
 
 
-isChoicePath :: (Path, CPattern) -> Maybe Path
+isChoicePath :: (Path, Can.Pattern) -> Maybe Path
 isChoicePath (path, pattern) =
   if needsTests pattern then
       Just path
@@ -485,11 +556,11 @@ smallDefaults branches path =
   length (filter (isIrrelevantTo path) branches)
 
 
-smallBranchingFactor :: VariantDict -> [Branch] -> Path -> Int
-smallBranchingFactor variantDict branches path =
+smallBranchingFactor :: [Branch] -> Path -> Int
+smallBranchingFactor branches path =
   let
     (edges, fallback) =
-      gatherEdges variantDict branches path
+      gatherEdges branches path
   in
     length edges + (if null fallback then 0 else 1)
 
@@ -499,42 +570,36 @@ smallBranchingFactor variantDict branches path =
 
 
 instance Binary Test where
+  put test =
+    case test of
+      IsCtor a b -> putWord8 0 >> put a >> put b
+      IsChr a    -> putWord8 1 >> put a
+      IsStr a    -> putWord8 2 >> put a
+      IsInt a    -> putWord8 3 >> put a
+
   get =
     do  word <- getWord8
         case word of
-          0 -> Constructor <$> get
-          1 -> Literal <$> get
+          0 -> liftM2 IsCtor get get
+          1 -> liftM  IsChr get
+          2 -> liftM  IsStr get
+          3 -> liftM  IsInt get
           _ -> error "problem getting DecisionTree.Test binary"
-
-  put test =
-    case test of
-      Constructor var ->
-        putWord8 0 >> put var
-
-      Literal literal ->
-        putWord8 1 >> put literal
 
 
 instance Binary Path where
+  put path =
+    case path of
+      Index a b -> putWord8 0 >> put a >> put b
+      Field a b -> putWord8 1 >> put a >> put b
+      Empty     -> putWord8 2
+      Alias     -> putWord8 3
+
   get =
     do  word <- getWord8
         case word of
-          0 -> Position <$> get <*> get
-          1 -> Field <$> get <*> get
+          0 -> liftM2 Index get get
+          1 -> liftM2 Field get get
           2 -> pure Empty
           3 -> pure Alias
           _ -> error "problem getting DecisionTree.Path binary"
-
-  put path =
-    case path of
-      Position index rest ->
-        putWord8 0 >> put index >> put rest
-
-      Field field rest ->
-        putWord8 1 >> put field >> put rest
-
-      Empty ->
-        putWord8 2
-
-      Alias ->
-        putWord8 3
