@@ -9,134 +9,139 @@ module Optimize.Port
 
 
 import Prelude hiding (maybe, null)
-import Control.Monad (foldM, zipWithM)
+import Control.Monad (foldM)
+import qualified Data.Map as Map
 import qualified Data.Text as Text
-import Data.Text (Text)
 
-import qualified AST.Expression.Optimized as Opt
-import qualified AST.Helpers as Help
-import qualified AST.Literal as Literal
+import qualified AST.Canonical as Can
+import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
-import qualified AST.Type as T
-import qualified AST.Variable as Var
+import qualified AST.Utils.Type as Type
+import qualified Data.Index as Index
+import qualified Elm.Name as N
 import qualified Optimize.DecisionTree as DT
-import qualified Optimize.Environment as Env
+import qualified Optimize.Names as Names
 
 
 
 -- ENCODE
 
 
-toEncoder :: T.Canonical -> Env.Optimizer Opt.Expr
+toEncoder :: Can.Type -> Names.Tracker Opt.Expr
 toEncoder tipe =
   case tipe of
-    T.Aliased _ args t ->
-      toEncoder (T.dealias args t)
+    Can.TAlias _ _ args alias ->
+      toEncoder (Type.dealias args alias)
 
-    T.Lambda _ _ ->
+    Can.TLambda _ _ ->
       error "toEncoder: function"
 
-    T.Var _ ->
+    Can.TVar _ ->
       error "toEncoder: type variable"
 
-    T.Type name []
-      | Var.isPrim "Float"  name -> encode "float"
-      | Var.isPrim "Int"    name -> encode "int"
-      | Var.isPrim "Bool"   name -> encode "bool"
-      | Var.isPrim "String" name -> encode "string"
-      | Var.isJson name          -> encode "value"
-      | Var.isTuple name         -> encode "null"
-      | otherwise                -> error "toEncoder: bad type"
+    Can.TUnit ->
+      encode "null"
 
-    T.Type name [arg]
-      | Var.isMaybe name -> encodeMaybe arg
-      | Var.isList  name -> encodeList arg
-      | Var.isArray name -> encodeArray arg
-      | otherwise        -> error "toEncoder: bad union type"
+    Can.TTuple a b c ->
+      encodeTuple a b c
 
-    T.Type name args
-      | Var.isTuple name -> encodeTuple args
+    Can.TType _ name args ->
+      case args of
+        []
+          | name == N.float  -> encode "float"
+          | name == N.int    -> encode "int"
+          | name == N.bool   -> encode "bool"
+          | name == N.string -> encode "string"
+          | name == N.value  -> encode "value"
 
-    T.Type _ _ ->
-      error "toEncoder: bad union type"
+        [arg]
+          | name == N.maybe -> encodeMaybe arg
+          | name == N.list  -> encodeList arg
+          | name == N.array -> encodeArray arg
 
-    T.Record _ (Just _) ->
+        _ ->
+          error "toEncoder: bad union type"
+
+    Can.TRecord _ (Just _) ->
       error "toEncoder: bad record"
 
-    T.Record fields Nothing ->
+    Can.TRecord fields Nothing ->
       let
-        convert (field, typ) =
-          do  encoder <- toEncoder typ
-              return
-                ( field
-                , Opt.Call encoder [ Opt.Access (Opt.VarLocal "r") field ]
-                )
+        encodeField field fieldType =
+          do  encoder <- toEncoder fieldType
+              return $ Opt.Call encoder [Opt.Access (Opt.VarLocal "r") field]
       in
-        do  record <- traverse convert fields
-            return $ Opt.Function ["r"] (Opt.Record record)
+      do  record <- Map.traverseWithKey encodeField fields
+          return $ Opt.Function ["r"] (Opt.Record record)
 
 
 
 -- ENCODE HELPERS
 
 
-encodeMaybe :: T.Canonical -> Env.Optimizer Opt.Expr
+encodeMaybe :: Can.Type -> Names.Tracker Opt.Expr
 encodeMaybe tipe =
   do  null <- encode "null"
       encoder <- toEncoder tipe
 
-      let nothing = Var.inCore "Maybe" "Nothing"
-      let test = (DT.Empty, DT.Constructor nothing)
-      let just = Opt.Call encoder [ Opt.CtorAccess (Opt.VarLocal "m") 0 ]
+      let test = (DT.Empty, DT.IsCtor 2 "Nothing")
+      let just = Opt.Call encoder [ Opt.CtorAccess (Opt.VarLocal "m") Index.first ]
       let leaf expr = Opt.Leaf (Opt.Inline expr)
 
       return $ Opt.Function ["m"] $
         Opt.Case "m" (Opt.Chain [test] (leaf null) (leaf just)) []
 
 
-encodeList :: T.Canonical -> Env.Optimizer Opt.Expr
+encodeList :: Can.Type -> Names.Tracker Opt.Expr
 encodeList tipe =
   do  list <- encode "list"
-      map_ <- core "List" "map"
+      map_ <- Names.registerGlobal ModuleName.list "map"
       encoder <- toEncoder tipe
       return $
         Opt.Function ["xs"] $
           Opt.Call list [ Opt.Call map_ [ encoder, Opt.VarLocal "xs" ] ]
 
 
-encodeArray :: T.Canonical -> Env.Optimizer Opt.Expr
+encodeArray :: Can.Type -> Names.Tracker Opt.Expr
 encodeArray tipe =
   do  array <- encode "array"
-      map_ <- core "Array" "map"
+      map_ <- Names.registerGlobal ModuleName.array "map"
       encoder <- toEncoder tipe
       return $
         Opt.Function ["xs"] $
           Opt.Call array [ Opt.Call map_ [ encoder, Opt.VarLocal "xs" ] ]
 
 
-encodeTuple :: [T.Canonical] -> Env.Optimizer Opt.Expr
-encodeTuple tipes =
+encodeTuple :: Can.Type -> Can.Type -> Maybe Can.Type -> Names.Tracker Opt.Expr
+encodeTuple a b maybeC =
   let
-    convert tipe index =
+    convert index tipe =
       do  encoder <- toEncoder tipe
-          return $
-            Opt.Call encoder [ Opt.CtorAccess (Opt.VarLocal "t") index ]
+          return $ Opt.Call encoder [ Opt.CtorAccess (Opt.VarLocal "t") index ]
   in
-    do  list <- encode "list"
-        entries <- zipWithM convert tipes [ 0 .. length tipes ]
-        return $ Opt.Function ["t"] $ Opt.Call list entries
+  Opt.Function ["t"] <$> (
+    Opt.Call
+      <$> encode "list"
+      <*>
+        case maybeC of
+          Nothing ->
+            Index.indexedTraverse convert [a,b]
+
+          Just c ->
+            Index.indexedTraverse convert [a,b,c]
+  )
 
 
 
 -- FLAGS DECODER
 
 
-toFlagsDecoder :: T.Canonical -> Env.Optimizer Opt.Expr
+toFlagsDecoder :: Can.Type -> Names.Tracker Opt.Expr
 toFlagsDecoder tipe =
   case tipe of
-    T.Type name [] | Var.isTuple name ->
+    Can.TUnit ->
       do  succeed <- decode "succeed"
-          return $ Opt.Call succeed [ Opt.Ctor Help.zeroTuple [] ]
+          return $ Opt.Call succeed [ Opt.Unit ]
 
     _ ->
       toDecoder tipe
@@ -146,43 +151,45 @@ toFlagsDecoder tipe =
 -- DECODE
 
 
-toDecoder :: T.Canonical -> Env.Optimizer Opt.Expr
+toDecoder :: Can.Type -> Names.Tracker Opt.Expr
 toDecoder tipe =
   case tipe of
-    T.Lambda _ _ ->
+    Can.TLambda _ _ ->
       error "functions should not be allowed through input ports"
 
-    T.Var _ ->
+    Can.TVar _ ->
       error "type variables should not be allowed through input ports"
 
-    T.Aliased _ args t ->
-      toDecoder (T.dealias args t)
+    Can.TAlias _ _ args alias ->
+      toDecoder (Type.dealias args alias)
 
-    T.Type name []
-      | Var.isPrim "Float"  name -> decode "float"
-      | Var.isPrim "Int"    name -> decode "int"
-      | Var.isPrim "Bool"   name -> decode "bool"
-      | Var.isPrim "String" name -> decode "string"
-      | Var.isJson name          -> decode "value"
-      | Var.isTuple name         -> decodeTuple0
-      | otherwise                -> error "toDecoder: bad type"
+    Can.TUnit ->
+      decodeTuple0
 
-    T.Type name [arg]
-      | Var.isMaybe name -> decodeMaybe arg
-      | Var.isList  name -> decodeList arg
-      | Var.isArray name -> decodeArray arg
-      | otherwise        -> error "toDecoder: bad union type"
+    Can.TTuple a b c ->
+      decodeTuple a b c
 
-    T.Type name args
-      | Var.isTuple name -> decodeTuple args
+    Can.TType _ name args ->
+      case args of
+        []
+          | name == N.float  -> decode "float"
+          | name == N.int    -> decode "int"
+          | name == N.bool   -> decode "bool"
+          | name == N.string -> decode "string"
+          | name == N.value  -> decode "value"
 
-    T.Type _ _ ->
-      error "toDecoder: bad union type"
+        [arg]
+          | name == N.maybe -> decodeMaybe arg
+          | name == N.list  -> decodeList arg
+          | name == N.array -> decodeArray arg
 
-    T.Record _ (Just _) ->
+        _ ->
+          error "toDecoder: bad type"
+
+    Can.TRecord _ (Just _) ->
       error "toDecoder: bad record"
 
-    T.Record fields Nothing ->
+    Can.TRecord fields Nothing ->
       decodeRecord fields
 
 
@@ -190,13 +197,10 @@ toDecoder tipe =
 -- DECODE MAYBE
 
 
-decodeMaybe :: T.Canonical -> Env.Optimizer Opt.Expr
+decodeMaybe :: Can.Type -> Names.Tracker Opt.Expr
 decodeMaybe tipe =
-  do  let nothing = Var.Global (ModuleName.inCore "Maybe") "Nothing"
-      let just    = Var.Global (ModuleName.inCore "Maybe") "Just"
-
-      Env.register nothing
-      Env.register just
+  do  nothing <- Names.registerGlobal ModuleName.maybe "Nothing"
+      just    <- Names.registerGlobal ModuleName.maybe "Just"
 
       oneOf <- decode "oneOf"
       null  <- decode "null"
@@ -207,8 +211,8 @@ decodeMaybe tipe =
       return $
         Opt.Call oneOf
           [ Opt.List
-              [ Opt.Call null [ Opt.VarGlobal nothing ]
-              , Opt.Call map_ [ Opt.VarGlobal just, subDecoder ]
+              [ Opt.Call null [ nothing ]
+              , Opt.Call map_ [ just, subDecoder ]
               ]
           ]
 
@@ -216,7 +220,7 @@ decodeMaybe tipe =
 -- DECODE LIST
 
 
-decodeList :: T.Canonical -> Env.Optimizer Opt.Expr
+decodeList :: Can.Type -> Names.Tracker Opt.Expr
 decodeList tipe =
   do  list <- decode "list"
       decoder <- toDecoder tipe
@@ -227,7 +231,7 @@ decodeList tipe =
 -- DECODE ARRAY
 
 
-decodeArray :: T.Canonical -> Env.Optimizer Opt.Expr
+decodeArray :: Can.Type -> Names.Tracker Opt.Expr
 decodeArray tipe =
   do  array <- decode "array"
       decoder <- toDecoder tipe
@@ -238,44 +242,47 @@ decodeArray tipe =
 -- DECODE TUPLES
 
 
-decodeTuple0 :: Env.Optimizer Opt.Expr
+decodeTuple0 :: Names.Tracker Opt.Expr
 decodeTuple0 =
   do  null <- decode "null"
-      return (Opt.Call null [ Opt.Ctor Help.zeroTuple [] ])
+      return (Opt.Call null [ Opt.Unit ])
 
 
-decodeTuple :: [T.Canonical] -> Env.Optimizer Opt.Expr
-decodeTuple types =
-  let
-    size =
-      length types
+decodeTuple :: Can.Type -> Can.Type -> Maybe Can.Type -> Names.Tracker Opt.Expr
+decodeTuple a b maybeC =
+  do  succeed <- decode "succeed"
+      case maybeC of
+        Nothing ->
+          let tuple = Opt.Tuple (toLocal 0) (toLocal 1) Nothing in
+          indexAndThen 0 a =<<
+            indexAndThen 1 b (Opt.Call succeed [tuple])
 
-    entries =
-      zip [ 0 .. size - 1] types
-
-    tuple =
-      Opt.Ctor
-        (Help.makeTuple size)
-        (map (Opt.VarLocal . indexToName . fst) entries)
-  in
-    do  succeed <- decode "succeed"
-        foldM indexAndThen (Opt.Call succeed [tuple]) entries
+        Just c ->
+          let tuple = Opt.Tuple (toLocal 0) (toLocal 1) (Just (toLocal 2)) in
+          indexAndThen 0 a =<<
+            indexAndThen 1 b =<<
+              indexAndThen 2 c (Opt.Call succeed [tuple])
 
 
-indexToName :: Int -> Text
+toLocal :: Int -> Opt.Expr
+toLocal index =
+  Opt.VarLocal (indexToName index)
+
+
+indexToName :: Int -> N.Name
 indexToName index =
   Text.pack ('x' : show index)
 
 
-indexAndThen :: Opt.Expr -> (Int, T.Canonical) -> Env.Optimizer Opt.Expr
-indexAndThen decoder (i, tipe) =
+indexAndThen :: Int -> Can.Type -> Opt.Expr -> Names.Tracker Opt.Expr
+indexAndThen i tipe decoder =
   do  andThen <- decode "andThen"
       index <- decode "index"
       typeDecoder <- toDecoder tipe
       return $
         Opt.Call andThen
           [ Opt.Function [indexToName i] decoder
-          , Opt.Call index [ Opt.Literal (Literal.IntNum i), typeDecoder ]
+          , Opt.Call index [ Opt.Int i, typeDecoder ]
           ]
 
 
@@ -283,20 +290,20 @@ indexAndThen decoder (i, tipe) =
 -- DECODE RECORDS
 
 
-decodeRecord :: [(Text, T.Canonical)] -> Env.Optimizer Opt.Expr
+decodeRecord :: Map.Map N.Name Can.Type -> Names.Tracker Opt.Expr
 decodeRecord fields =
   let
-    toFieldExpr (key, _) =
-      (key, Opt.VarLocal key)
+    toFieldExpr name _ =
+      Opt.VarLocal name
 
     record =
-      Opt.Record (map toFieldExpr fields)
+      Opt.Record (Map.mapWithKey toFieldExpr fields)
   in
     do  succeed <- decode "succeed"
-        foldM fieldAndThen (Opt.Call succeed [record]) fields
+        foldM fieldAndThen (Opt.Call succeed [record]) (Map.toList fields)
 
 
-fieldAndThen :: Opt.Expr -> (Text, T.Canonical) -> Env.Optimizer Opt.Expr
+fieldAndThen :: Opt.Expr -> (N.Name, Can.Type) -> Names.Tracker Opt.Expr
 fieldAndThen decoder (key, tipe) =
   do  andThen <- decode "andThen"
       field <- decode "field"
@@ -304,7 +311,7 @@ fieldAndThen decoder (key, tipe) =
       return $
         Opt.Call andThen
           [ Opt.Function [key] decoder
-          , Opt.Call field [ Opt.Literal (Literal.Str key), typeDecoder ]
+          , Opt.Call field [ Opt.Str key, typeDecoder ]
           ]
 
 
@@ -312,18 +319,11 @@ fieldAndThen decoder (key, tipe) =
 -- GLOBALS HELPERS
 
 
-core :: Text -> Text -> Env.Optimizer Opt.Expr
-core home name =
-  do  let var = Var.Global (ModuleName.inCore home) name
-      Env.register var
-      return (Opt.VarGlobal var)
-
-
-encode :: Text -> Env.Optimizer Opt.Expr
+encode :: N.Name -> Names.Tracker Opt.Expr
 encode name =
-  core "Json.Encode" name
+  Names.registerGlobal ModuleName.jsonEncode name
 
 
-decode :: Text -> Env.Optimizer Opt.Expr
+decode :: N.Name -> Names.Tracker Opt.Expr
 decode name =
-  core "Json.Decode" name
+  Names.registerGlobal ModuleName.jsonDecode name
