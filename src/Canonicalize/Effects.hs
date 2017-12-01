@@ -190,7 +190,7 @@ primitives =
 
 isJson :: ModuleName.Canonical -> N.Name -> Bool
 isJson home name =
-  home == ModuleName.jsonEncode && name == "Value"
+  home == ModuleName.jsonEncode && name == N.value
 
 
 isList :: ModuleName.Canonical -> N.Name -> Bool
