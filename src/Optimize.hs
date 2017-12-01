@@ -13,13 +13,9 @@ import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
 import qualified Elm.Name as N
---import qualified Optimize.Case as Case
-import qualified Optimize.DecisionTree as DT
+import qualified Optimize.Case as Case
 import qualified Optimize.Names as Names
---import qualified Optimize.Inline as Inline
---import qualified Optimize.Port as Port
 import qualified Reporting.Annotation as A
-import qualified Reporting.Region as R
 
 
 
@@ -80,8 +76,7 @@ optimizeExpr (A.At region expression) =
     Can.Lambda args body ->
       do  (argNames, defss) <- destructArgs args
           obody <- optimizeExpr body
-          pure $
-            Opt.Function argNames (foldr Opt.Let obody (concat defss))
+          pure $ Opt.Function argNames (foldr Opt.Let obody (concat defss))
 
     Can.Call func args ->
       Opt.Call
@@ -121,7 +116,20 @@ optimizeExpr (A.At region expression) =
             Opt.Let (Opt.Def name oexpr) (foldr Opt.Let obody defs)
 
     Can.Case expr branches ->
-      error "TODO"
+      let
+        optimizeBranch root (Can.CaseBranch pattern branch) =
+          do  defs <- destructHelp (Opt.VarLocal root) pattern []
+              obranch <- optimizeExpr branch
+              pure (pattern, foldr Opt.Let obranch defs)
+      in
+      do  oexpr <- optimizeExpr expr
+          case oexpr of
+            Opt.VarLocal root ->
+              Case.optimize root <$> traverse (optimizeBranch root) branches
+
+            _ ->
+              do  root <- Names.generate
+                  Case.optimize root <$> traverse (optimizeBranch root) branches
 
     Can.Accessor field ->
       pure (Opt.Accessor field)
@@ -340,7 +348,20 @@ optimizeTailExpr name argNames locExpr@(A.At _ expression) =
             Opt.Let (Opt.Def dname oexpr) (foldr Opt.Let obody defs)
 
     Can.Case expr branches ->
-      error "TODO"
+      let
+        optimizeBranch root (Can.CaseBranch pattern branch) =
+          do  defs <- destructHelp (Opt.VarLocal root) pattern []
+              obranch <- optimizeTailExpr name argNames branch
+              pure (pattern, foldr Opt.Let obranch defs)
+      in
+      do  oexpr <- optimizeExpr expr
+          case oexpr of
+            Opt.VarLocal root ->
+              Case.optimize root <$> traverse (optimizeBranch root) branches
+
+            _ ->
+              do  root <- Names.generate
+                  Case.optimize root <$> traverse (optimizeBranch root) branches
 
     _ ->
       optimizeExpr locExpr
@@ -375,4 +396,3 @@ hasTailCall expression =
 
     _ ->
       False
-

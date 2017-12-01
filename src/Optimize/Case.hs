@@ -1,14 +1,18 @@
 {-# OPTIONS_GHC -Wall #-}
-module Optimize.Case (optimize) where
+module Optimize.Case
+  ( optimize
+  )
+  where
+
 
 import Control.Arrow (second)
 import qualified Data.Map as Map
 import Data.Map ((!))
 import qualified Data.Maybe as Maybe
-import Data.Text (Text)
 
-import qualified AST.Expression.Optimized as Opt
-import qualified AST.Pattern as P
+import qualified AST.Canonical as Can
+import qualified AST.Optimized as Opt
+import qualified Elm.Name as N
 import qualified Optimize.DecisionTree as DT
 
 
@@ -16,16 +20,13 @@ import qualified Optimize.DecisionTree as DT
 -- OPTIMIZE A CASE EXPRESSION
 
 
-optimize :: DT.VariantDict -> Text -> [(P.Canonical, Opt.Expr)] -> Opt.Expr
-optimize variantDict exprName optBranches =
+optimize :: N.Name -> [(Can.Pattern, Opt.Expr)] -> Opt.Expr
+optimize exprName optBranches =
   let
     (patterns, indexedBranches) =
       unzip (zipWith indexify [0..] optBranches)
-
-    decisionTree =
-      DT.compile variantDict patterns
   in
-    treeToExpr exprName decisionTree indexedBranches
+    treeToExpr exprName (DT.compile patterns) indexedBranches
 
 
 indexify :: Int -> (a,b) -> ((a,Int), (Int,b))
@@ -39,7 +40,7 @@ indexify index (pattern, branch) =
 -- CONVERT A TREE TO AN EXPRESSION
 
 
-treeToExpr :: Text -> DT.DecisionTree -> [(Int, Opt.Expr)] -> Opt.Expr
+treeToExpr :: N.Name -> DT.DecisionTree -> [(Int, Opt.Expr)] -> Opt.Expr
 treeToExpr name decisionTree allJumps =
   let
     decider =

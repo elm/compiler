@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Optimize.DecisionTree
-  ( compile
+  ( DecisionTree(..)
+  , compile
   , Path(..)
   , Test(..)
   )
