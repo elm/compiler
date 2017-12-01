@@ -132,19 +132,20 @@ optimizeExpr (A.At region expression) =
                   Case.optimize root <$> traverse (optimizeBranch root) branches
 
     Can.Accessor field ->
-      pure (Opt.Accessor field)
+      Names.registerField field (Opt.Accessor field)
 
     Can.Access record field ->
       do  optRecord <- optimizeExpr record
-          pure (Opt.Access optRecord field)
+          Names.registerField field (Opt.Access optRecord field)
 
     Can.Update record updates ->
-      Opt.Update
-        <$> optimizeExpr record
+      Names.registerFields updates Opt.Update
+        <*> optimizeExpr record
         <*> traverse optimizeExpr updates
 
     Can.Record fields ->
-      Opt.Record <$> traverse optimizeExpr fields
+      Names.registerFields fields Opt.Record
+        <*> traverse optimizeExpr fields
 
     Can.Unit ->
       Names.registerKernel N.utils Opt.Unit
@@ -223,10 +224,11 @@ destructHelp root (A.At region pattern) revDefs =
 
     Can.PRecord fields ->
       let
-        toDef field =
-          Opt.Def field (Opt.Access root field)
+        addFieldDef defs name =
+          Names.registerField name $
+            Opt.Def name (Opt.Access root name) : defs
       in
-      pure (map toDef fields ++ revDefs)
+      foldM addFieldDef revDefs fields
 
     Can.PAlias subPattern name ->
       destructHelp (Opt.VarLocal name) subPattern $
