@@ -11,7 +11,6 @@ module Optimize.Port
 import Prelude hiding (maybe, null)
 import Control.Monad (foldM)
 import qualified Data.Map as Map
-import qualified Data.Text as Text
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
@@ -67,12 +66,15 @@ toEncoder tipe =
 
     Can.TRecord fields Nothing ->
       let
-        encodeField field fieldType =
+        encodeField (name, fieldType) =
           do  encoder <- toEncoder fieldType
-              return $ Opt.Call encoder [Opt.Access (Opt.VarLocal "r") field]
+              let value = Opt.Call encoder [Opt.Access (Opt.VarLocal "r") name]
+              return $ Opt.Tuple (Opt.Str name) value Nothing
       in
-      do  record <- Map.traverseWithKey encodeField fields
-          return $ Opt.Function ["r"] (Opt.Record record)
+      do  object <- encode "object"
+          keyValuePairs <- traverse encodeField (Map.toList fields)
+          Names.registerFieldDict fields $
+            Opt.Function ["r"] (Opt.Call object [Opt.List keyValuePairs])
 
 
 
@@ -266,12 +268,7 @@ decodeTuple a b maybeC =
 
 toLocal :: Int -> Opt.Expr
 toLocal index =
-  Opt.VarLocal (indexToName index)
-
-
-indexToName :: Int -> N.Name
-indexToName index =
-  Text.pack ('x' : show index)
+  Opt.VarLocal (N.localFromInt index)
 
 
 indexAndThen :: Int -> Can.Type -> Opt.Expr -> Names.Tracker Opt.Expr
@@ -281,7 +278,7 @@ indexAndThen i tipe decoder =
       typeDecoder <- toDecoder tipe
       return $
         Opt.Call andThen
-          [ Opt.Function [indexToName i] decoder
+          [ Opt.Function [N.localFromInt i] decoder
           , Opt.Call index [ Opt.Int i, typeDecoder ]
           ]
 
@@ -300,7 +297,8 @@ decodeRecord fields =
       Opt.Record (Map.mapWithKey toFieldExpr fields)
   in
     do  succeed <- decode "succeed"
-        foldM fieldAndThen (Opt.Call succeed [record]) (Map.toList fields)
+        foldM fieldAndThen (Opt.Call succeed [record]) =<<
+          Names.registerFieldDict fields (Map.toList fields)
 
 
 fieldAndThen :: Opt.Expr -> (N.Name, Can.Type) -> Names.Tracker Opt.Expr

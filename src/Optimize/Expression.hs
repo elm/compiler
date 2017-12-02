@@ -1,12 +1,17 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Optimize
-  ( optimizeExpr
+module Optimize.Expression
+  ( Cycle
+  , optimize
+  , destructArgs
+  , optimizePotentialTailCall
   )
   where
 
 
+import Prelude hiding (cycle)
 import Control.Monad (foldM)
+import qualified Data.Set as Set
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
@@ -22,18 +27,21 @@ import qualified Reporting.Annotation as A
 -- OPTIMIZE
 
 
+type Cycle =
+  Set.Set N.Name
 
--- EXPRESSIONS
 
-
-optimizeExpr :: Can.Expr -> Names.Tracker Opt.Expr
-optimizeExpr (A.At region expression) =
+optimize :: Cycle -> Can.Expr -> Names.Tracker Opt.Expr
+optimize cycle (A.At region expression) =
   case expression of
     Can.VarLocal name ->
       pure (Opt.VarLocal name)
 
     Can.VarTopLevel home name ->
-      Names.registerGlobal home name
+      if Set.member name cycle then
+        pure (Opt.VarCycle home name)
+      else
+        Names.registerGlobal home name
 
     Can.VarKernel home name ->
       Names.registerKernel home (Opt.VarKernel home name)
@@ -60,58 +68,58 @@ optimizeExpr (A.At region expression) =
       pure (Opt.Float float)
 
     Can.List entries ->
-      Opt.List <$> traverse optimizeExpr entries
+      Opt.List <$> traverse (optimize cycle) entries
 
     Can.Negate expr ->
       do  func <- Names.registerGlobal ModuleName.basics N.negate
-          arg <- optimizeExpr expr
+          arg <- optimize cycle expr
           pure $ Opt.Call func [arg]
 
     Can.Binop _ home name _ left right ->
       do  optFunc <- Names.registerGlobal home name
-          optLeft <- optimizeExpr left
-          optRight <- optimizeExpr right
+          optLeft <- optimize cycle left
+          optRight <- optimize cycle right
           return (Opt.Call optFunc [optLeft, optRight])
 
     Can.Lambda args body ->
       do  (argNames, defss) <- destructArgs args
-          obody <- optimizeExpr body
+          obody <- optimize cycle body
           pure $ Opt.Function argNames (foldr Opt.Let obody (concat defss))
 
     Can.Call func args ->
       Opt.Call
-        <$> optimizeExpr func
-        <*> traverse optimizeExpr args
+        <$> optimize cycle func
+        <*> traverse (optimize cycle) args
 
     Can.If branches finally ->
       let
         optimizeBranch (condition, branch) =
           (,)
-            <$> optimizeExpr condition
-            <*> optimizeExpr branch
+            <$> optimize cycle condition
+            <*> optimize cycle branch
       in
       Opt.If
         <$> traverse optimizeBranch branches
-        <*> optimizeExpr finally
+        <*> optimize cycle finally
 
     Can.Let def body ->
-      optimizeDef def =<< optimizeExpr body
+      optimizeDef cycle def =<< optimize cycle body
 
     Can.LetRec defs body ->
       case defs of
         [def] ->
           Opt.Let
-            <$> optimizePotentialTailCall def
-            <*> optimizeExpr body
+            <$> optimizePotentialTailCall cycle def
+            <*> optimize cycle body
 
         _ ->
-          do  obody <- optimizeExpr body
-              foldM (\bod def -> optimizeDef def bod) obody defs
+          do  obody <- optimize cycle body
+              foldM (\bod def -> optimizeDef cycle def bod) obody defs
 
     Can.LetDestruct pattern expr body ->
       do  (name, defs) <- destruct pattern
-          oexpr <- optimizeExpr expr
-          obody <- optimizeExpr body
+          oexpr <- optimize cycle expr
+          obody <- optimize cycle body
           pure $
             Opt.Let (Opt.Def name oexpr) (foldr Opt.Let obody defs)
 
@@ -119,10 +127,10 @@ optimizeExpr (A.At region expression) =
       let
         optimizeBranch root (Can.CaseBranch pattern branch) =
           do  defs <- destructHelp (Opt.VarLocal root) pattern []
-              obranch <- optimizeExpr branch
+              obranch <- optimize cycle branch
               pure (pattern, foldr Opt.Let obranch defs)
       in
-      do  oexpr <- optimizeExpr expr
+      do  oexpr <- optimize cycle expr
           case oexpr of
             Opt.VarLocal root ->
               Case.optimize root <$> traverse (optimizeBranch root) branches
@@ -135,26 +143,26 @@ optimizeExpr (A.At region expression) =
       Names.registerField field (Opt.Accessor field)
 
     Can.Access record field ->
-      do  optRecord <- optimizeExpr record
+      do  optRecord <- optimize cycle record
           Names.registerField field (Opt.Access optRecord field)
 
     Can.Update record updates ->
-      Names.registerFields updates Opt.Update
-        <*> optimizeExpr record
-        <*> traverse optimizeExpr updates
+      Names.registerFieldDict updates Opt.Update
+        <*> optimize cycle record
+        <*> traverse (optimize cycle) updates
 
     Can.Record fields ->
-      Names.registerFields fields Opt.Record
-        <*> traverse optimizeExpr fields
+      Names.registerFieldDict fields Opt.Record
+        <*> traverse (optimize cycle) fields
 
     Can.Unit ->
       Names.registerKernel N.utils Opt.Unit
 
     Can.Tuple a b maybeC ->
       Names.registerKernel N.utils Opt.Tuple
-        <*> optimizeExpr a
-        <*> optimizeExpr b
-        <*> traverse optimizeExpr maybeC
+        <*> optimize cycle a
+        <*> optimize cycle b
+        <*> traverse (optimize cycle) maybeC
 
     Can.Shader _ src _ ->
       pure (Opt.Shader src)
@@ -164,28 +172,27 @@ optimizeExpr (A.At region expression) =
 -- DEFINITION
 
 
-optimizeDef :: Can.Def -> Opt.Expr -> Names.Tracker Opt.Expr
-optimizeDef def body =
+optimizeDef :: Cycle -> Can.Def -> Opt.Expr -> Names.Tracker Opt.Expr
+optimizeDef cycle def body =
   case def of
     Can.Def (A.At _ name) args expr ->
-      optimizeDefHelp name args expr body
+      optimizeDefHelp cycle name args expr body
 
     Can.TypedDef (A.At _ name) _ typedArgs expr _ ->
-      optimizeDefHelp name (map fst typedArgs) expr body
+      optimizeDefHelp cycle name (map fst typedArgs) expr body
 
 
-optimizeDefHelp :: N.Name -> [Can.Pattern] -> Can.Expr -> Opt.Expr -> Names.Tracker Opt.Expr
-optimizeDefHelp name args expr body =
+optimizeDefHelp :: Cycle -> N.Name -> [Can.Pattern] -> Can.Expr -> Opt.Expr -> Names.Tracker Opt.Expr
+optimizeDefHelp cycle name args expr body =
   case args of
     [] ->
-      do  oexpr <- optimizeExpr expr
+      do  oexpr <- optimize cycle expr
           pure $ Opt.Let (Opt.Def name oexpr) body
 
     _ ->
       do  (argNames, defss) <- destructArgs args
-          let func = Opt.Function argNames (foldr Opt.Let body (concat defss))
-          pure $
-            Opt.Let (Opt.Def name func) body
+          let oexpr = Opt.Function argNames (foldr Opt.Let body (concat defss))
+          pure $ Opt.Let (Opt.Def name oexpr) body
 
 
 
@@ -223,12 +230,8 @@ destructHelp root (A.At region pattern) revDefs =
       pure (Opt.Def name root : revDefs)
 
     Can.PRecord fields ->
-      let
-        addFieldDef defs name =
-          Names.registerField name $
-            Opt.Def name (Opt.Access root name) : defs
-      in
-      foldM addFieldDef revDefs fields
+      let toDef name = Opt.Def name (Opt.Access root name) in
+      Names.registerFieldList fields (map toDef fields ++ revDefs)
 
     Can.PAlias subPattern name ->
       destructHelp (Opt.VarLocal name) subPattern $
@@ -294,58 +297,58 @@ destructCtorArg root revDefs (Can.PatternCtorArg index _ arg) =
 -- TAIL CALL
 
 
-optimizePotentialTailCall :: Can.Def -> Names.Tracker Opt.Def
-optimizePotentialTailCall def =
+optimizePotentialTailCall :: Cycle -> Can.Def -> Names.Tracker Opt.Def
+optimizePotentialTailCall cycle def =
   case def of
     Can.Def (A.At _ name) args expr ->
       do  (argNames, defss) <- destructArgs args
           toTailDef name argNames defss <$>
-            optimizeTailExpr name argNames expr
+            optimizeTail cycle name argNames expr
 
     Can.TypedDef (A.At _ name) _ typedArgs expr _ ->
       do  (argNames, defss) <- destructArgs (map fst typedArgs)
           toTailDef name argNames defss <$>
-            optimizeTailExpr name argNames expr
+            optimizeTail cycle name argNames expr
 
 
-optimizeTailExpr :: N.Name -> [N.Name] -> Can.Expr -> Names.Tracker Opt.Expr
-optimizeTailExpr name argNames locExpr@(A.At _ expression) =
+optimizeTail :: Cycle -> N.Name -> [N.Name] -> Can.Expr -> Names.Tracker Opt.Expr
+optimizeTail cycle name argNames locExpr@(A.At _ expression) =
   case expression of
     Can.Call (A.At _ (Can.VarTopLevel _ funcName)) args ->
       if funcName == name && length args == length argNames then
-        Opt.TailCall name argNames <$> traverse optimizeExpr args
+        Opt.TailCall name argNames <$> traverse (optimize cycle) args
       else
-        optimizeExpr locExpr
+        optimize cycle locExpr
 
     Can.If branches finally ->
       let
         optimizeBranch (condition, branch) =
           (,)
-            <$> optimizeExpr condition
-            <*> optimizeTailExpr name argNames branch
+            <$> optimize cycle condition
+            <*> optimizeTail cycle name argNames branch
       in
       Opt.If
         <$> traverse optimizeBranch branches
-        <*> optimizeTailExpr name argNames finally
+        <*> optimizeTail cycle name argNames finally
 
     Can.Let def body ->
-      optimizeDef def =<< optimizeTailExpr name argNames body
+      optimizeDef cycle def =<< optimizeTail cycle name argNames body
 
     Can.LetRec defs body ->
       case defs of
         [def] ->
           Opt.Let
-            <$> optimizePotentialTailCall def
-            <*> optimizeTailExpr name argNames body
+            <$> optimizePotentialTailCall cycle def
+            <*> optimizeTail cycle name argNames body
 
         _ ->
-          do  obody <- optimizeTailExpr name argNames body
-              foldM (\bod def -> optimizeDef def bod) obody defs
+          do  obody <- optimizeTail cycle name argNames body
+              foldM (\bod def -> optimizeDef cycle def bod) obody defs
 
     Can.LetDestruct pattern expr body ->
       do  (dname, defs) <- destruct pattern
-          oexpr <- optimizeExpr expr
-          obody <- optimizeTailExpr dname argNames body
+          oexpr <- optimize cycle expr
+          obody <- optimizeTail cycle dname argNames body
           pure $
             Opt.Let (Opt.Def dname oexpr) (foldr Opt.Let obody defs)
 
@@ -353,10 +356,10 @@ optimizeTailExpr name argNames locExpr@(A.At _ expression) =
       let
         optimizeBranch root (Can.CaseBranch pattern branch) =
           do  defs <- destructHelp (Opt.VarLocal root) pattern []
-              obranch <- optimizeTailExpr name argNames branch
+              obranch <- optimizeTail cycle name argNames branch
               pure (pattern, foldr Opt.Let obranch defs)
       in
-      do  oexpr <- optimizeExpr expr
+      do  oexpr <- optimize cycle expr
           case oexpr of
             Opt.VarLocal root ->
               Case.optimize root <$> traverse (optimizeBranch root) branches
@@ -366,7 +369,7 @@ optimizeTailExpr name argNames locExpr@(A.At _ expression) =
                   Case.optimize root <$> traverse (optimizeBranch root) branches
 
     _ ->
-      optimizeExpr locExpr
+      optimize cycle locExpr
 
 
 

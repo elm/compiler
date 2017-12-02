@@ -7,8 +7,9 @@ module Optimize.Names
   , generate
   , registerKernel
   , registerGlobal
-  , registerFields
   , registerField
+  , registerFieldDict
+  , registerFieldList
   )
   where
 
@@ -70,14 +71,25 @@ registerField name value =
     ok n k g (Map.insertWith (+) name 1 fields) value
 
 
-registerFields :: Map.Map N.Name v -> a -> Tracker a
-registerFields newFields value =
+registerFieldDict :: Map.Map N.Name v -> a -> Tracker a
+registerFieldDict newFields value =
   Tracker $ \n k g fields ok ->
     ok n k g (Map.unionWith (+) fields (Map.map toOne newFields)) value
 
 
 toOne :: a -> Int
 toOne _ = 1
+
+
+registerFieldList :: [N.Name] -> a -> Tracker a
+registerFieldList names value =
+  Tracker $ \n k g fields ok ->
+    ok n k g (foldr addOne fields names) value
+
+
+addOne :: N.Name -> Map.Map N.Name Int -> Map.Map N.Name Int
+addOne name fields =
+  Map.insertWith (+) name 1 fields
 
 
 

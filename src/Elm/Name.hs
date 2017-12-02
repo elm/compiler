@@ -3,6 +3,8 @@
 module Elm.Name
   ( Name
   , toString
+  , localFromInt
+  , toCompositeName
   , int, float, bool, char, string
   , maybe, list, array
   , task, router, cmd, sub
@@ -12,6 +14,7 @@ module Elm.Name
 
 
 import Prelude hiding (maybe, negate)
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 
 
@@ -25,6 +28,16 @@ type Name = Text.Text
 toString :: Name -> String
 toString =
   Text.unpack
+
+
+localFromInt :: Int -> Name
+localFromInt n =
+  Text.pack ('x' : show n)
+
+
+toCompositeName :: Set.Set Name -> Name
+toCompositeName names =
+  Text.cons '$' (Text.intercalate "$" (Set.toList names))
 
 
 
