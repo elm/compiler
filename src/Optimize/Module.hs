@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Optimize.Module
-  ( optimize
+  ( Graph(..)
+  , optimize
   )
   where
 
@@ -25,27 +26,34 @@ import qualified Reporting.Annotation as A
 -- OPTIMIZE
 
 
-optimize :: Can.Module -> Opt.Graph
+data Graph =
+  Graph
+    { _fields :: Map.Map N.Name Int
+    , _nodes :: Nodes
+    }
+
+
+type Nodes =
+  Map.Map Opt.Global Opt.Node
+
+
+optimize :: Can.Module -> Graph
 optimize (Can.Module home _ _ decls unions aliases _ effects) =
   addEffects home effects $
     addUnions home unions $
       addAliases home aliases $
         addDecls home decls $
-          Opt.Graph Map.empty Map.empty
+          Graph Map.empty Map.empty
 
 
 
 -- UNION
 
 
-addUnions :: ModuleName.Canonical -> Map.Map N.Name Can.Union -> Opt.Graph -> Opt.Graph
-addUnions home unions (Opt.Graph fields nodes) =
-  Opt.Graph fields $
+addUnions :: ModuleName.Canonical -> Map.Map N.Name Can.Union -> Graph -> Graph
+addUnions home unions (Graph fields nodes) =
+  Graph fields $
     Map.foldr (addUnion home) nodes unions
-
-
-type Nodes =
-  Map.Map Opt.Global Opt.Node
 
 
 addUnion :: ModuleName.Canonical -> Can.Union -> Nodes -> Nodes
@@ -73,13 +81,13 @@ addCtor home (ctor, args) nodes =
 -- ALIAS
 
 
-addAliases :: ModuleName.Canonical -> Map.Map N.Name Can.Alias -> Opt.Graph -> Opt.Graph
+addAliases :: ModuleName.Canonical -> Map.Map N.Name Can.Alias -> Graph -> Graph
 addAliases home aliases graph =
   Map.foldrWithKey (addAlias home) graph aliases
 
 
-addAlias :: ModuleName.Canonical -> N.Name -> Can.Alias -> Opt.Graph -> Opt.Graph
-addAlias home name (Can.Alias _ _ maybeFields) graph@(Opt.Graph fieldCounts nodes) =
+addAlias :: ModuleName.Canonical -> N.Name -> Can.Alias -> Graph -> Graph
+addAlias home name (Can.Alias _ _ maybeFields) graph@(Graph fieldCounts nodes) =
   case maybeFields of
     Nothing ->
       graph
@@ -93,7 +101,7 @@ addAlias home name (Can.Alias _ _ maybeFields) graph@(Opt.Graph fieldCounts node
         node =
           Opt.Define function Set.empty Set.empty
       in
-      Opt.Graph
+      Graph
         (foldr addOne fieldCounts fields)
         (Map.insert (Opt.Global home name) node nodes)
 
@@ -112,8 +120,8 @@ addOne name fields =
 -- ADD EFFECTS
 
 
-addEffects :: ModuleName.Canonical -> Can.Effects -> Opt.Graph -> Opt.Graph
-addEffects home effects graph@(Opt.Graph fields nodes) =
+addEffects :: ModuleName.Canonical -> Can.Effects -> Graph -> Graph
+addEffects home effects graph@(Graph fields nodes) =
   case effects of
     Can.NoEffects ->
       graph
@@ -122,7 +130,7 @@ addEffects home effects graph@(Opt.Graph fields nodes) =
       Map.foldrWithKey (addPort home) graph ports
 
     Can.Manager _ _ _ manager ->
-      Opt.Graph fields $
+      Graph fields $
         let
           fx = Opt.Global home "$fx$"
           cmd = Opt.Global home "command"
@@ -145,7 +153,7 @@ addEffects home effects graph@(Opt.Graph fields nodes) =
 
 
 
-addPort :: ModuleName.Canonical -> N.Name -> Can.Port -> Opt.Graph -> Opt.Graph
+addPort :: ModuleName.Canonical -> N.Name -> Can.Port -> Graph -> Graph
 addPort home name port_ graph =
   case port_ of
     Can.Incoming _ tipe ->
@@ -167,7 +175,7 @@ addPort home name port_ graph =
 -- ADD DECLS
 
 
-addDecls :: ModuleName.Canonical -> Can.Decls -> Opt.Graph -> Opt.Graph
+addDecls :: ModuleName.Canonical -> Can.Decls -> Graph -> Graph
 addDecls home decls graph =
   case decls of
     Can.Declare def subDecls ->
@@ -184,7 +192,7 @@ addDecls home decls graph =
 -- ADD DEFS
 
 
-addDef :: ModuleName.Canonical -> Can.Def -> Opt.Graph -> Opt.Graph
+addDef :: ModuleName.Canonical -> Can.Def -> Graph -> Graph
 addDef home def graph =
   case def of
     Can.Def (A.At _ name) args body ->
@@ -194,7 +202,7 @@ addDef home def graph =
       addDefHelp (Opt.Global home name) (map fst typedArgs) body graph
 
 
-addDefHelp :: Opt.Global -> [Can.Pattern] -> Can.Expr -> Opt.Graph -> Opt.Graph
+addDefHelp :: Opt.Global -> [Can.Pattern] -> Can.Expr -> Graph -> Graph
 addDefHelp name args body graph =
   case args of
     [] ->
@@ -216,9 +224,9 @@ addDefHelp name args body graph =
       addToGraph name (Opt.Define function kernels globals) fields graph
 
 
-addToGraph :: Opt.Global -> Opt.Node -> Map.Map N.Name Int -> Opt.Graph -> Opt.Graph
-addToGraph name node fields (Opt.Graph fieldCounts nodes) =
-  Opt.Graph
+addToGraph :: Opt.Global -> Opt.Node -> Map.Map N.Name Int -> Graph -> Graph
+addToGraph name node fields (Graph fieldCounts nodes) =
+  Graph
     (Map.unionWith (+) fields fieldCounts)
     (Map.insert name node nodes)
 
@@ -227,7 +235,7 @@ addToGraph name node fields (Opt.Graph fieldCounts nodes) =
 -- ADD RECURSIVE DEFS
 
 
-addRecDefs :: ModuleName.Canonical -> [Can.Def] -> Opt.Graph -> Opt.Graph
+addRecDefs :: ModuleName.Canonical -> [Can.Def] -> Graph -> Graph
 addRecDefs home defs graph =
   let
     cycleValues =
@@ -266,7 +274,7 @@ addValueName def valueNames =
 data State =
   State
     { _values :: [(N.Name, Opt.Expr)]
-    , _graph :: Opt.Graph
+    , _graph :: Graph
     }
 
 
@@ -296,11 +304,11 @@ addRecDef home dummyName cycle state@(State values graph) def =
 
 
 addRecValue :: ModuleName.Canonical -> Opt.Global -> Expr.Cycle -> N.Name -> Can.Expr -> State -> Names.Tracker State
-addRecValue home dummyName cycle name body (State values (Opt.Graph fields nodes)) =
+addRecValue home dummyName cycle name body (State values (Graph fields nodes)) =
   do  obody <- Expr.optimize cycle body
       pure $
         State
           { _values = (name, obody) : values
-          , _graph = Opt.Graph fields $
+          , _graph = Graph fields $
               Map.insert (Opt.Global home name) (Opt.Link dummyName) nodes
           }

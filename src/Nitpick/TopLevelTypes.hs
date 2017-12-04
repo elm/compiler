@@ -1,119 +1,107 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Nitpick.TopLevelTypes (topLevelTypes) where
+module Nitpick.TopLevelTypes
+  ( check
+  )
+  where
 
-import qualified Data.Foldable as F
-import Data.Map ((!))
+
+import Control.Monad (foldM)
 import qualified Data.Map as Map
-import Data.Text (Text)
+import Data.Map ((!))
 
-import qualified AST.Expression.Canonical as Can
+import qualified AST.Canonical as Can
+import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
-import qualified AST.Pattern as P
-import qualified AST.Type as Type
-import qualified AST.Variable as Var
+import qualified AST.Utils.Type as Type
 import qualified Canonicalize.Effects as Effects
-import qualified Elm.Package as Pkg
+import qualified Canonicalize.Result as Result
+import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Type as Error
-import qualified Reporting.Result as Result
-import qualified Reporting.Warning as Warning
+import qualified Reporting.Error.Canonicalize as Error
+import qualified Reporting.Region as R
+import qualified Reporting.Warning as W
 
 
 
-type Result =
-  Result.Result () Warning.Warning Error.Error
+-- CHECK TOP-LEVEL TYPES
 
 
-type TypeDict =
-  Map.Map Text Type.Canonical
+type Result i w a =
+  Result.Result i w Error.Error a
 
 
+type Types =
+  Map.Map N.Name Can.Type
 
--- CHECK TOP LEVEL TYPES
+
+type Mains =
+  Map.Map ModuleName.Canonical Opt.Main
 
 
-topLevelTypes :: TypeDict -> Can.SortedDefs -> Result [Can.Def]
-topLevelTypes typeEnv sortedDefs =
-  let
-    check =
-      checkAnnotation typeEnv
-  in
-    case sortedDefs of
-      Can.NoMain defs ->
-        pure defs
-          <* F.traverse_ check defs
+check :: Types -> Can.Module -> Result i [W.Warning] Mains
+check types (Can.Module home _ _ decls _ _ _ _) =
+  checkDecls home types decls Map.empty
 
-      Can.YesMain before main after ->
-        do  check main
-              <* F.traverse_ check before
-              <* F.traverse_ check after
 
-            mainDef <- checkMain typeEnv main
+checkDecls :: ModuleName.Canonical -> Types -> Can.Decls -> Mains -> Result i [W.Warning] Mains
+checkDecls home types decls mains =
+  case decls of
+    Can.Declare def subDecls ->
+      checkDecls home types subDecls =<<
+        checkDef home types mains def
 
-            return (before ++ mainDef : after)
+    Can.DeclareRec defs subDecls ->
+      checkDecls home types subDecls =<<
+        foldM (checkDef home types) mains defs
+
+    Can.SaveTheEnvironment ->
+      Result.ok mains
 
 
 
 -- MISSING ANNOTATIONS
 
 
-checkAnnotation :: TypeDict -> Can.Def -> Result ()
-checkAnnotation typeEnv (Can.Def _ (A.A region pattern) _ maybeType) =
-  case (pattern, maybeType) of
-    (P.Var name, Nothing) ->
-      let
-        warning =
-          Warning.MissingTypeAnnotation name (typeEnv ! name)
-      in
-        Result.warn region warning ()
+checkDef :: ModuleName.Canonical -> Types -> Mains -> Can.Def -> Result i [W.Warning] Mains
+checkDef home types mains def =
+  case def of
+    Can.Def (A.At region name) _ _ ->
+      do  Result.warn $ W.MissingTypeAnnotation region name (types ! name)
+          checkMain region types home name mains
 
-    _ ->
-      return ()
+    Can.TypedDef (A.At region name) _ _ _ _ ->
+      checkMain region types home name mains
 
 
 
 -- CHECK MAIN TYPE
 
 
-checkMain :: TypeDict -> Can.Def -> Result Can.Def
-checkMain typeEnv (Can.Def facts pattern@(A.A region _) body maybeType) =
-  let
-    mainType =
-      typeEnv ! "main"
-
-    makeError tipe maybeMsg =
-      A.A region (Error.BadFlags tipe maybeMsg)
-
-    getMainKind =
-      case Type.deepDealias mainType of
-        Type.Type name [_]
-          | name == vdomNode ->
-              return Can.Static
-
-        Type.Type name [flags, _, _]
-          | name == program ->
-              return (Can.Dynamic flags)
-                <* Effects.checkPortType makeError flags
-
-        _ ->
-          Result.throw region (Error.BadMain mainType)
-  in
-    do  kind <- getMainKind
-        let newBody = A.A undefined (Can.Program kind body)
-        return (Can.Def facts pattern newBody maybeType)
+checkMain :: R.Region -> Types -> ModuleName.Canonical -> N.Name -> Mains -> Result i w Mains
+checkMain region types home name mains =
+  if name == N.main then
+    do  mainType <- checkMainType region (types ! name)
+        Result.ok $ Map.insert home mainType mains
+  else
+    Result.ok mains
 
 
-program :: Var.Canonical
-program =
-  Var.inCore "Platform" "Program"
+checkMainType :: R.Region -> Can.Type -> Result i w Opt.Main
+checkMainType region tipe =
+  case Type.deepDealias tipe of
+    Can.TType home name [_]
+      | home == ModuleName.virtualDom && name == N.node ->
+          Result.ok Opt.Static
 
+    Can.TType home name [flags, _, _]
+      | home == ModuleName.platform && name == N.program ->
+          case Effects.checkPayload flags of
+            Left (subType, invalidPayload) ->
+              Result.throw (Error.MainFlags region subType invalidPayload)
 
-vdomNode :: Var.Canonical
-vdomNode =
-  let
-    vdom =
-      ModuleName.Canonical Pkg.virtualDom "VirtualDom"
-  in
-    Var.fromModule vdom "Node"
+            Right () ->
+              Result.ok (Opt.Dynamic flags)
 
+    _ ->
+      Result.throw (Error.MainType region tipe)

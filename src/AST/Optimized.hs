@@ -6,6 +6,7 @@ module AST.Optimized
   , Decider(..)
   , Choice(..)
   , Graph(..)
+  , Main(..)
   , Node(..)
   , EffectsType(..)
   )
@@ -18,6 +19,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
 
+import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
 import qualified Elm.Name as N
@@ -100,9 +102,15 @@ data Choice
 
 data Graph =
   Graph
-    { _fields :: Map.Map N.Name Int
+    { _mains :: Map.Map ModuleName.Canonical Main
     , _nodes :: Map.Map Global Node
+    , _fields :: Map.Map N.Name Int
     }
+
+
+data Main
+  = Static
+  | Dynamic Can.Type
 
 
 data Node

@@ -4,7 +4,7 @@ module AST.Module.Name
   ( Canonical(..)
   , basics, char, string, debug
   , maybe, list, array
-  , platform, cmd, sub
+  , platform, cmd, sub, virtualDom
   , jsonDecode, jsonEncode
   , webgl, vector2, vector3, vector4, matrix4
   , canonicalToText
@@ -100,6 +100,11 @@ cmd = Canonical Pkg.core "Platform.Cmd"
 {-# NOINLINE sub #-}
 sub :: Canonical
 sub = Canonical Pkg.core "Platform.Sub"
+
+
+{-# NOINLINE virtualDom #-}
+virtualDom :: Canonical
+virtualDom = Canonical Pkg.virtualDom "VirtualDom"
 
 
 
