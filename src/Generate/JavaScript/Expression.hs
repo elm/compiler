@@ -403,6 +403,7 @@ generateBasicsCall mode home name args =
       case name of
         "composeL" -> decomposeL mode elmLeft [elmRight]
         "composeR" -> decomposeR mode [elmLeft] elmRight
+        "append"   -> append mode elmLeft elmRight
         "apL"      -> generateJsExpr mode $ apply elmLeft elmRight
         "apR"      -> generateJsExpr mode $ apply elmRight elmLeft
         _ ->
@@ -512,6 +513,41 @@ apply func value =
 
     _ ->
       Opt.Call func [value]
+
+
+append :: Mode -> Opt.Expr -> Opt.Expr -> JS.Expr
+append mode left right =
+  let seqs = generateJsExpr mode left : toSeqs mode right in
+  if any isStringLiteral seqs then
+    foldr1 (JS.Infix JS.OpAdd) seqs
+  else
+    foldr1 jsAppend seqs
+
+
+jsAppend :: JS.Expr -> JS.Expr -> JS.Expr
+jsAppend a b =
+  JS.Call (JS.Ref (Name.fromKernel N.utils "ap")) [a, b]
+
+
+toSeqs :: Mode -> Opt.Expr -> [JS.Expr]
+toSeqs mode expr =
+  case expr of
+    Opt.Call (Opt.VarGlobal (Opt.Global home "append")) [left, right]
+      | home == ModuleName.basics ->
+          generateJsExpr mode left : toSeqs mode right
+
+    _ ->
+      [generateJsExpr mode expr]
+
+
+isStringLiteral :: JS.Expr -> Bool
+isStringLiteral expr =
+  case expr of
+    JS.String _ ->
+      True
+
+    _ ->
+      False
 
 
 
