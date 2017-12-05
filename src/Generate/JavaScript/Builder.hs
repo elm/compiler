@@ -3,8 +3,8 @@
 module Generate.JavaScript.Builder
   ( stmtToBuilder
   , exprToBuilder
-  , Expr(..), Id(..), LValue(..)
-  , Stmt(..), Case(..), VarDecl(..)
+  , Expr(..), LValue(..)
+  , Stmt(..), Case(..)
   , InfixOp(..), PrefixOp(..)
   )
   where
@@ -16,10 +16,10 @@ module Generate.JavaScript.Builder
 
 import Prelude hiding (lines)
 import qualified Data.List as List
-import Data.ByteString.Builder
+import Data.ByteString.Builder as B
 import Data.Monoid ((<>))
-import Data.Text (Text)
-import qualified Data.Text.Encoding as Text
+import qualified Generate.JavaScript.Name as Name
+import Generate.JavaScript.Name (Name)
 
 
 
@@ -27,30 +27,27 @@ import qualified Data.Text.Encoding as Text
 
 
 data Expr
-  = String Text
+  = String Builder
   | Float Double
   | Int Int
   | Bool Bool
   | Null
   | Array [Expr]
-  | Object [(Id, Expr)]
-  | VarRef Id
-  | DotRef Expr Id -- ^ @foo.bar@, spec 11.2.1
-  | BracketRef Expr Expr -- ^ @foo[bar]@, spec 11.2.1
+  | Object [(Name, Expr)]
+  | Ref Name
+  | Access Expr Name -- ^ @foo.bar@, spec 11.2.1
+  | Index Expr Expr -- ^ @foo[bar]@, spec 11.2.1
   | Prefix PrefixOp Expr
   | Infix InfixOp Expr Expr
   | If Expr Expr Expr
   | Assign LValue Expr
   | Call Expr [Expr] -- ^ @f(x,y,z)@, spec 11.2.3
-  | Function (Maybe Id) [Id] [Stmt]
-
-
-newtype Id = Id Text
+  | Function (Maybe Name) [Name] [Stmt]
 
 
 data LValue
-  = LVar Text
-  | LDot Expr Text
+  = LVar Name
+  | LDot Expr Name
   | LBracket Expr Expr
 
 
@@ -63,24 +60,20 @@ data Stmt
   | EmptyStmt -- ;
   | ExprStmt Expr -- expr;
   | IfStmt Expr Stmt Stmt -- if (e) stmt1 else stmt2
-  | IfSingleStmt Expr Stmt -- if (e) stmt
   | Switch Expr [Case] -- switch (e) clauses
   | While Expr Stmt -- while (e) do stmt
   | DoWhile Stmt Expr -- do stmt while (e);
-  | Break (Maybe Id) -- break lab;
-  | Continue (Maybe Id) -- continue lab;
-  | Labelled Id Stmt -- lab: stmt
+  | Break (Maybe Name) -- break lab;
+  | Continue (Maybe Name) -- continue lab;
+  | Labelled Name Stmt -- lab: stmt
   | Return (Maybe Expr) -- return expr;
-  | VarDeclStmt [VarDecl] -- var x, y=42;
-  | FunctionStmt Id [Id] [Stmt] -- function f(x, y, z) {...}
+  | Var [(Name, Maybe Expr)] -- var x, y=42;
+  | FunctionStmt Name [Name] [Stmt] -- function f(x, y, z) {...}
 
 
 data Case
   = Case Expr [Stmt]
   | Default [Stmt]
-
-
-data VarDecl = VarDecl Id (Maybe Expr)
 
 
 
@@ -184,13 +177,6 @@ fromStmt indent statement =
         , indent, "}\n"
         ]
 
-    IfSingleStmt condition thenStmt ->
-      mconcat
-        [ indent, "if (", snd (fromExpr indent Whatever condition), ") {\n"
-        , fromStmt (deeper indent) thenStmt
-        , indent, "}\n"
-        ]
-
     Switch expr clauses ->
       mconcat
         [ indent, "switch (", snd (fromExpr indent Whatever expr), ") {\n"
@@ -216,17 +202,17 @@ fromStmt indent statement =
       indent <> "break;\n"
 
     Break (Just label) ->
-      indent <> "break " <> fromId label <> ";\n"
+      indent <> "break " <> Name.toBuilder label <> ";\n"
 
     Continue Nothing ->
       indent <> "continue;\n"
 
     Continue (Just label) ->
-      indent <> "continue " <> fromId label <> ";\n"
+      indent <> "continue " <> Name.toBuilder label <> ";\n"
 
     Labelled label stmt ->
       mconcat
-        [ indent, fromId label, ":\n"
+        [ indent, Name.toBuilder label, ":\n"
         , fromStmt indent stmt
         ]
 
@@ -236,14 +222,14 @@ fromStmt indent statement =
     Return (Just expr) ->
       indent <> "return " <> snd (fromExpr indent Whatever expr) <> ";\n"
 
-    VarDeclStmt [] ->
+    Var [] ->
       mempty
 
-    VarDeclStmt decls ->
-      indent <> "var " <> commaNewlineSep indent (map (fromVarDecl indent) decls) <> ";\n"
+    Var vars ->
+      indent <> "var " <> commaNewlineSep indent (map (varToBuilder indent) vars) <> ";\n"
 
     FunctionStmt name args stmts ->
-      indent <> "function " <> fromId name <> "(" <> commaSep (map fromId args) <> ") {\n"
+      indent <> "function " <> Name.toBuilder name <> "(" <> commaSep (map Name.toBuilder args) <> ") {\n"
       <>
           fromStmtBlock (deeper indent) stmts
       <>
@@ -267,26 +253,17 @@ fromClause indent clause =
 
 
 
--- ID
-
-
-fromId :: Id -> Builder
-fromId (Id name) =
-  Text.encodeUtf8Builder name
-
-
-
 -- VAR DECLS
 
 
-fromVarDecl :: Builder -> VarDecl -> Builder
-fromVarDecl indent (VarDecl (Id name) maybeExpr) =
+varToBuilder :: Builder -> (Name, Maybe Expr) -> Builder
+varToBuilder indent (name, maybeExpr) =
   case maybeExpr of
     Nothing ->
-      Text.encodeUtf8Builder name
+      Name.toBuilder name
 
     Just expr ->
-      Text.encodeUtf8Builder name <> " = " <> snd (fromExpr indent Whatever expr)
+      Name.toBuilder name <> " = " <> snd (fromExpr indent Whatever expr)
 
 
 
@@ -329,13 +306,13 @@ fromExpr :: Builder -> Grouping -> Expr -> (Lines, Builder)
 fromExpr indent grouping expression =
   case expression of
     String string ->
-      (One, "'" <> Text.encodeUtf8Builder string <> "'")
+      (One, "'" <> string <> "'")
 
     Float n ->
-      (One, doubleDec n)
+      (One, B.doubleDec n)
 
     Int n ->
-      (One, intDec n)
+      (One, B.intDec n)
 
     Bool bool ->
       (One, if bool then "true" else "false")
@@ -376,13 +353,13 @@ fromExpr indent grouping expression =
           else
             "{" <> commaSep builders <> "}"
 
-    VarRef name ->
-      (One, fromId name)
+    Ref name ->
+      (One, Name.toBuilder name)
 
-    DotRef expr (Id name) ->
-      makeDot indent expr name
+    Access expr field ->
+      makeDot indent expr field
 
-    BracketRef expr bracketedExpr ->
+    Index expr bracketedExpr ->
       makeBracketed indent expr bracketedExpr
 
     Prefix op expr ->
@@ -448,7 +425,7 @@ fromExpr indent grouping expression =
 
     Function maybeName args stmts ->
       (,) Many $
-        "function " <> maybe mempty fromId maybeName <> "(" <> commaSep (map fromId args) <> ") {\n"
+        "function " <> maybe mempty Name.toBuilder maybeName <> "(" <> commaSep (map Name.toBuilder args) <> ") {\n"
         <>
             fromStmtBlock (deeper indent) stmts
         <>
@@ -459,14 +436,14 @@ fromExpr indent grouping expression =
 -- FIELDS
 
 
-fromField :: Builder -> (Id, Expr) -> (Lines, Builder)
+fromField :: Builder -> (Name, Expr) -> (Lines, Builder)
 fromField indent (field, expr) =
   let
     (lines, builder) =
       fromExpr indent Whatever expr
   in
     ( lines
-    , fromId field <> ": " <> builder
+    , Name.toBuilder field <> ": " <> builder
     )
 
 
@@ -478,7 +455,7 @@ fromLValue :: Builder -> LValue -> (Lines, Builder)
 fromLValue indent lValue =
   case lValue of
     LVar name ->
-      (One, Text.encodeUtf8Builder name)
+      (One, Name.toBuilder name)
 
     LDot expr field ->
       makeDot indent expr field
@@ -487,13 +464,13 @@ fromLValue indent lValue =
       makeBracketed indent expr bracketedExpr
 
 
-makeDot :: Builder -> Expr -> Text -> (Lines, Builder)
+makeDot :: Builder -> Expr -> Name -> (Lines, Builder)
 makeDot indent expr field =
   let
     (lines, builder) =
       fromExpr indent Atomic expr
   in
-    (lines, builder <> "." <> Text.encodeUtf8Builder field)
+    (lines, builder <> "." <> Name.toBuilder field)
 
 
 makeBracketed :: Builder -> Expr -> Expr -> (Lines, Builder)

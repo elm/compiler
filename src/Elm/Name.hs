@@ -2,20 +2,28 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Elm.Name
   ( Name
+  , length
   , toString
+  , toBuilder
+  , toShort
   , localFromInt
   , toCompositeName
   , int, float, bool, char, string
-  , maybe, list, array
+  , maybe, list, array, tuple
   , task, router, cmd, sub
-  , shader, debug, utils, negate, value
+  , shader, debug, bitwise, basics
+  , utils, negate, value
+  , node, program, main, dollar
   )
   where
 
 
-import Prelude hiding (maybe, negate)
+import Prelude hiding (length, maybe, negate)
+import qualified Data.ByteString.Builder as B
+import qualified Data.ByteString.Short as S
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 
 
 
@@ -25,9 +33,24 @@ import qualified Data.Text as Text
 type Name = Text.Text
 
 
+length :: Name -> Int
+length =
+  Text.length
+
+
 toString :: Name -> String
 toString =
   Text.unpack
+
+
+toBuilder :: Name -> B.Builder
+toBuilder =
+  Text.encodeUtf8Builder
+
+
+toShort :: Name -> S.ShortByteString
+toShort =
+  error "TODO"
 
 
 localFromInt :: Int -> Name
@@ -84,6 +107,11 @@ array :: Name
 array = "Array"
 
 
+{-# NOINLINE tuple #-}
+tuple :: Name
+tuple = "Tuple"
+
+
 {-# NOINLINE task #-}
 task :: Name
 task = "Task"
@@ -114,6 +142,16 @@ debug :: Name
 debug = "Debug"
 
 
+{-# NOINLINE bitwise #-}
+bitwise :: Name
+bitwise = "Bitwise"
+
+
+{-# NOINLINE basics #-}
+basics :: Name
+basics = "Basics"
+
+
 {-# NOINLINE utils #-}
 utils :: Name
 utils = "Utils"
@@ -127,3 +165,23 @@ negate = "negate"
 {-# NOINLINE value #-}
 value :: Name
 value = "Value"
+
+
+{-# NOINLINE node #-}
+node :: Name
+node = "Node"
+
+
+{-# NOINLINE program #-}
+program :: Name
+program = "Program"
+
+
+{-# NOINLINE main #-}
+main :: Name
+main = "main"
+
+
+{-# NOINLINE dollar #-}
+dollar :: Name
+dollar = "$"

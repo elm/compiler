@@ -2,9 +2,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 module AST.Module.Name
   ( Canonical(..)
-  , basics, char, string, debug
+  , basics, char, string
   , maybe, list, array
-  , platform, cmd, sub, virtualDom
+  , platform, cmd, sub
+  , virtualDom, debug, bitwise
   , jsonDecode, jsonEncode
   , webgl, vector2, vector3, vector4, matrix4
   , canonicalToText
@@ -59,11 +60,6 @@ string :: Canonical
 string = Canonical Pkg.core N.string
 
 
-{-# NOINLINE debug #-}
-debug :: Canonical
-debug = Canonical Pkg.core N.debug
-
-
 
 -- CONTAINERS
 
@@ -102,9 +98,23 @@ sub :: Canonical
 sub = Canonical Pkg.core "Platform.Sub"
 
 
+
+-- MISC
+
+
 {-# NOINLINE virtualDom #-}
 virtualDom :: Canonical
 virtualDom = Canonical Pkg.virtualDom "VirtualDom"
+
+
+{-# NOINLINE debug #-}
+debug :: Canonical
+debug = Canonical Pkg.core N.debug
+
+
+{-# NOINLINE bitwise #-}
+bitwise :: Canonical
+bitwise = Canonical Pkg.core N.bitwise
 
 
 
