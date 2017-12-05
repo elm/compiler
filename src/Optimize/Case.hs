@@ -20,13 +20,21 @@ import qualified Optimize.DecisionTree as DT
 -- OPTIMIZE A CASE EXPRESSION
 
 
-optimize :: N.Name -> [(Can.Pattern, Opt.Expr)] -> Opt.Expr
-optimize exprName optBranches =
+optimize :: N.Name -> N.Name -> [(Can.Pattern, Opt.Expr)] -> Opt.Expr
+optimize temp root optBranches =
   let
     (patterns, indexedBranches) =
       unzip (zipWith indexify [0..] optBranches)
+
+    decider = treeToDecider (DT.compile patterns)
+    targetCounts = countTargets decider
+
+    (choices, maybeJumps) =
+        unzip (map (createChoices targetCounts) indexedBranches)
   in
-    treeToExpr exprName (DT.compile patterns) indexedBranches
+  Opt.Case temp root
+    (insertChoices (Map.fromList choices) decider)
+    (Maybe.catMaybes maybeJumps)
 
 
 indexify :: Int -> (a,b) -> ((a,Int), (Int,b))
@@ -34,28 +42,6 @@ indexify index (pattern, branch) =
     ( (pattern, index)
     , (index, branch)
     )
-
-
-
--- CONVERT A TREE TO AN EXPRESSION
-
-
-treeToExpr :: N.Name -> DT.DecisionTree -> [(Int, Opt.Expr)] -> Opt.Expr
-treeToExpr name decisionTree allJumps =
-  let
-    decider =
-        treeToDecider decisionTree
-
-    targetCounts =
-        countTargets decider
-
-    (choices, maybeJumps) =
-        unzip (map (createChoices targetCounts) allJumps)
-  in
-      Opt.Case
-        name
-        (insertChoices (Map.fromList choices) decider)
-        (Maybe.catMaybes maybeJumps)
 
 
 

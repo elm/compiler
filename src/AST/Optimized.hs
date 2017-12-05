@@ -39,17 +39,16 @@ data Expr
   | VarLocal N.Name
   | VarGlobal Global
   | VarCycle ModuleName.Canonical N.Name
-  | VarDebug N.Name ModuleName.Canonical R.Region (Maybe Expr)
+  | VarDebug N.Name ModuleName.Canonical R.Region (Maybe N.Name)
   | VarKernel N.Name N.Name
   | List [Expr]
   | Function [N.Name] Expr
   | Call Expr [Expr]
-  | TailCall N.Name [N.Name] [Expr]
+  | TailCall N.Name [(N.Name, Expr)]
   | If [(Expr, Expr)] Expr
   | Let Def Expr
-  | Case N.Name (Decider Choice) [(Int, Expr)]
-  | Ctor N.Name [Expr]
-  | CtorAccess Expr Index.ZeroBased
+  | Case N.Name N.Name (Decider Choice) [(Int, Expr)]
+  | Index Expr Int
   | Accessor N.Name
   | Access Expr N.Name
   | Update Expr (Map.Map N.Name Expr)
@@ -116,6 +115,7 @@ data Main
 data Node
   = Define Expr (Set.Set N.Name) (Set.Set Global)
   | DefineTailFunc [N.Name] Expr (Set.Set N.Name) (Set.Set Global)
+  | Ctor N.Name Index.ZeroBased Int
   | Link Global
   | Cycle [(N.Name, Expr)] (Set.Set N.Name) (Set.Set Global)
   | PortIncoming Expr (Set.Set N.Name) (Set.Set Global)
@@ -150,19 +150,18 @@ instance Binary Expr where
       List a           -> putWord8  9 >> put a
       Function a b     -> putWord8 10 >> put a >> put b
       Call a b         -> putWord8 11 >> put a >> put b
-      TailCall a b c   -> putWord8 12 >> put a >> put b >> put c
+      TailCall a b     -> putWord8 12 >> put a >> put b
       If a b           -> putWord8 13 >> put a >> put b
       Let a b          -> putWord8 14 >> put a >> put b
-      Case a b c       -> putWord8 15 >> put a >> put b >> put c
-      Ctor a b         -> putWord8 16 >> put a >> put b
-      CtorAccess a b   -> putWord8 17 >> put a >> put b
-      Accessor a       -> putWord8 18 >> put a
-      Access a b       -> putWord8 19 >> put a >> put b
-      Update a b       -> putWord8 20 >> put a >> put b
-      Record a         -> putWord8 21 >> put a
-      Unit             -> putWord8 22
-      Tuple a b c      -> putWord8 23 >> put a >> put b >> put c
-      Shader a         -> putWord8 24 >> put a
+      Case a b c d     -> putWord8 15 >> put a >> put b >> put c >> put d
+      Index a b        -> putWord8 16 >> put a >> put b
+      Accessor a       -> putWord8 17 >> put a
+      Access a b       -> putWord8 18 >> put a >> put b
+      Update a b       -> putWord8 19 >> put a >> put b
+      Record a         -> putWord8 20 >> put a
+      Unit             -> putWord8 21
+      Tuple a b c      -> putWord8 22 >> put a >> put b >> put c
+      Shader a         -> putWord8 23 >> put a
 
   get =
     do  word <- getWord8
@@ -179,19 +178,18 @@ instance Binary Expr where
           9  -> liftM  List get
           10 -> liftM2 Function get get
           11 -> liftM2 Call get get
-          12 -> liftM3 TailCall get get get
+          12 -> liftM2 TailCall get get
           13 -> liftM2 If get get
           14 -> liftM2 Let get get
-          15 -> liftM3 Case get get get
-          16 -> liftM2 Ctor get get
-          17 -> liftM2 CtorAccess get get
-          18 -> liftM  Accessor get
-          19 -> liftM2 Access get get
-          20 -> liftM2 Update get get
-          21 -> liftM  Record get
-          22 -> pure   Unit
-          23 -> liftM3 Tuple get get get
-          24 -> liftM  Shader get
+          15 -> liftM4 Case get get get get
+          16 -> liftM2 Index get get
+          17 -> liftM  Accessor get
+          18 -> liftM2 Access get get
+          19 -> liftM2 Update get get
+          20 -> liftM  Record get
+          21 -> pure   Unit
+          22 -> liftM3 Tuple get get get
+          23 -> liftM  Shader get
           _  -> error "problem getting Opt.Expr binary"
 
 

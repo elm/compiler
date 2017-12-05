@@ -130,14 +130,14 @@ optimize cycle (A.At region expression) =
               obranch <- optimize cycle branch
               pure (pattern, foldr Opt.Let obranch defs)
       in
-      do  oexpr <- optimize cycle expr
+      do  temp <- Names.generate
+          oexpr <- optimize cycle expr
           case oexpr of
             Opt.VarLocal root ->
-              Case.optimize root <$> traverse (optimizeBranch root) branches
+              Case.optimize temp root <$> traverse (optimizeBranch root) branches
 
             _ ->
-              do  root <- Names.generate
-                  Case.optimize root <$> traverse (optimizeBranch root) branches
+              Case.optimize temp temp <$> traverse (optimizeBranch temp) branches
 
     Can.Accessor field ->
       Names.registerField field (Opt.Accessor field)
@@ -246,13 +246,13 @@ destructHelp root (A.At region pattern) revDefs =
           let newRevDefs = Opt.Def name root : revDefs
           case maybeC of
             Nothing ->
-              destructHelp (Opt.CtorAccess tuple Index.second) b =<<
-                destructHelp (Opt.CtorAccess tuple Index.first) a newRevDefs
+              destructHelp (Opt.Index tuple 1) b =<<
+                destructHelp (Opt.Index tuple 0) a newRevDefs
 
             Just c ->
-              destructHelp (Opt.CtorAccess tuple Index.third) c =<<
-                destructHelp (Opt.CtorAccess tuple Index.second) b =<<
-                  destructHelp (Opt.CtorAccess tuple Index.first) a newRevDefs
+              destructHelp (Opt.Index tuple 2) c =<<
+                destructHelp (Opt.Index tuple 1) b =<<
+                  destructHelp (Opt.Index tuple 0) a newRevDefs
 
     Can.PList [] ->
       pure revDefs
@@ -272,7 +272,7 @@ destructHelp root (A.At region pattern) revDefs =
     Can.PInt _ ->
       pure revDefs
 
-    Can.PCtor _ _ _ _ _ args ->
+    Can.PCtor _ _ _ _ _ _ args ->
       do  name <- Names.generate
           foldM
             (destructCtorArg (Opt.VarLocal name))
@@ -284,13 +284,13 @@ destructCons :: Opt.Expr -> Can.Pattern -> Can.Pattern -> [Opt.Def] -> Names.Tra
 destructCons root hd tl revDefs =
   do  name <- Names.generate
       let list = Opt.VarLocal name
-      destructHelp (Opt.CtorAccess list Index.first) hd =<<
-        destructHelp (Opt.CtorAccess list Index.second) tl (Opt.Def name root : revDefs)
+      destructHelp (Opt.Index list 0) hd =<<
+        destructHelp (Opt.Index list 1) tl (Opt.Def name root : revDefs)
 
 
 destructCtorArg :: Opt.Expr -> [Opt.Def] -> Can.PatternCtorArg -> Names.Tracker [Opt.Def]
 destructCtorArg root revDefs (Can.PatternCtorArg index _ arg) =
-  destructHelp (Opt.CtorAccess root index) arg revDefs
+  destructHelp (Opt.Index root (Index.toZeroBased index)) arg revDefs
 
 
 
@@ -312,37 +312,46 @@ optimizePotentialTailCall cycle def =
 
 
 optimizeTail :: Cycle -> N.Name -> [N.Name] -> Can.Expr -> Names.Tracker Opt.Expr
-optimizeTail cycle name argNames locExpr@(A.At _ expression) =
+optimizeTail cycle rootName argNames locExpr@(A.At _ expression) =
   case expression of
-    Can.Call (A.At _ (Can.VarTopLevel _ funcName)) args ->
-      if funcName == name && length args == length argNames then
-        Opt.TailCall name argNames <$> traverse (optimize cycle) args
-      else
-        optimize cycle locExpr
+    Can.Call func@(A.At _ (Can.VarTopLevel _ name)) args ->
+      do  oargs <- traverse (optimize cycle) args
+          if name == rootName
+            then
+              case Index.indexedZipWith (\_ a b -> (a,b)) argNames oargs of
+                Index.LengthMatch pairs ->
+                  pure $ Opt.TailCall name pairs
+
+                Index.LengthMismatch _ _ ->
+                  do  ofunc <- optimize cycle func
+                      pure $ Opt.Call ofunc oargs
+            else
+              do  ofunc <- optimize cycle func
+                  pure $ Opt.Call ofunc oargs
 
     Can.If branches finally ->
       let
         optimizeBranch (condition, branch) =
           (,)
             <$> optimize cycle condition
-            <*> optimizeTail cycle name argNames branch
+            <*> optimizeTail cycle rootName argNames branch
       in
       Opt.If
         <$> traverse optimizeBranch branches
-        <*> optimizeTail cycle name argNames finally
+        <*> optimizeTail cycle rootName argNames finally
 
     Can.Let def body ->
-      optimizeDef cycle def =<< optimizeTail cycle name argNames body
+      optimizeDef cycle def =<< optimizeTail cycle rootName argNames body
 
     Can.LetRec defs body ->
       case defs of
         [def] ->
           Opt.Let
             <$> optimizePotentialTailCall cycle def
-            <*> optimizeTail cycle name argNames body
+            <*> optimizeTail cycle rootName argNames body
 
         _ ->
-          do  obody <- optimizeTail cycle name argNames body
+          do  obody <- optimizeTail cycle rootName argNames body
               foldM (\bod def -> optimizeDef cycle def bod) obody defs
 
     Can.LetDestruct pattern expr body ->
@@ -356,17 +365,17 @@ optimizeTail cycle name argNames locExpr@(A.At _ expression) =
       let
         optimizeBranch root (Can.CaseBranch pattern branch) =
           do  defs <- destructHelp (Opt.VarLocal root) pattern []
-              obranch <- optimizeTail cycle name argNames branch
+              obranch <- optimizeTail cycle rootName argNames branch
               pure (pattern, foldr Opt.Let obranch defs)
       in
-      do  oexpr <- optimize cycle expr
+      do  temp <- Names.generate
+          oexpr <- optimize cycle expr
           case oexpr of
             Opt.VarLocal root ->
-              Case.optimize root <$> traverse (optimizeBranch root) branches
+              Case.optimize temp root <$> traverse (optimizeBranch root) branches
 
             _ ->
-              do  root <- Names.generate
-                  Case.optimize root <$> traverse (optimizeBranch root) branches
+              Case.optimize temp temp <$> traverse (optimizeBranch temp) branches
 
     _ ->
       optimize cycle locExpr
@@ -387,7 +396,7 @@ toTailDef name argNames defss body =
 hasTailCall :: Opt.Expr -> Bool
 hasTailCall expression =
   case expression of
-    Opt.TailCall _ _ _ ->
+    Opt.TailCall _ _ ->
       True
 
     Opt.If branches finally ->
@@ -396,7 +405,7 @@ hasTailCall expression =
     Opt.Let _ body ->
       hasTailCall body
 
-    Opt.Case _ _ branches ->
+    Opt.Case _ _ _ branches ->
       any (hasTailCall . snd) branches
 
     _ ->

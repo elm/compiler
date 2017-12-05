@@ -21,7 +21,7 @@ as SML/NJ to get nice trees.
 -}
 
 import Control.Arrow (second)
-import Control.Monad (liftM, liftM2)
+import Control.Monad (liftM, liftM2, liftM3)
 import Data.Binary
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
@@ -29,6 +29,7 @@ import qualified Data.Set as Set
 import Data.Text (Text)
 
 import qualified AST.Canonical as Can
+import qualified Data.Index as Index
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 
@@ -70,7 +71,7 @@ data DecisionTree
 
 
 data Test
-  = IsCtor Int N.Name
+  = IsCtor Int N.Name Index.ZeroBased
   | IsInt Int
   | IsChr Text
   | IsStr Text
@@ -162,7 +163,7 @@ toDecisionTree rawBranches =
 isComplete :: [Test] -> Bool
 isComplete tests =
   case head tests of
-    IsCtor alts _ ->
+    IsCtor alts _ _ ->
         alts == length tests
 
     _ ->
@@ -207,7 +208,7 @@ flatten pathPattern@(path, A.At region pattern) =
     Can.PTuple a b (Just c) ->
         concatMap flatten (subPositions path [a,b,c])
 
-    Can.PCtor _ _ _ (Can.CtorAlts numAlts _) _ args ->
+    Can.PCtor _ _ _ (Can.CtorAlts numAlts _) _ _ args ->
         if numAlts == 1 then
           concatMap flatten (subPositions path (map dearg args))
         else
@@ -304,8 +305,8 @@ testAtPath selectedPath (Branch _ pathPatterns) =
 
     Just (A.At _ pattern) ->
         case pattern of
-          Can.PCtor _ _ _ (Can.CtorAlts numAlts _) name _ ->
-              Just (IsCtor numAlts name)
+          Can.PCtor _ _ _ (Can.CtorAlts numAlts _) name index _ ->
+              Just (IsCtor numAlts name index)
 
           Can.PInt int ->
               Just (IsInt int)
@@ -346,12 +347,12 @@ testAtPath selectedPath (Branch _ pathPatterns) =
 
 {-# NOINLINE nilTest #-}
 nilTest :: Test
-nilTest = IsCtor 2 "[]"
+nilTest = IsCtor 2 "[]" (Index.unsafe (-1))
 
 
 {-# NOINLINE consTest #-}
 consTest :: Test
-consTest = IsCtor 2 "::"
+consTest = IsCtor 2 "::" (Index.unsafe (-2))
 
 
 
@@ -370,27 +371,27 @@ toRelevantBranch test path branch@(Branch goal pathPatterns) =
   case extract path pathPatterns of
     Just (start, A.At region pattern, end) ->
         case pattern of
-          Can.PCtor _ _ _ (Can.CtorAlts numAlts _) name args ->
-              if test == IsCtor numAlts name then
+          Can.PCtor _ _ _ (Can.CtorAlts numAlts _) name index args ->
+              if test == IsCtor numAlts name index then
                   Just (Branch goal (start ++ subPositions path (map dearg args) ++ end))
               else
                   Nothing
 
           Can.PList [] ->
-              if test == IsCtor 2 "[]" then
+              if test == nilTest then
                   Just (Branch goal (start ++ end))
               else
                   Nothing
 
           Can.PList (hd:tl) ->
-              if test == IsCtor 2 "::" then
+              if test == consTest then
                   let tl' = A.At region (Can.PList tl) in
                   Just (Branch goal (start ++ subPositions path [ hd, tl' ] ++ end))
               else
                   Nothing
 
           Can.PCons hd tl ->
-              if test == IsCtor 2 "::" then
+              if test == consTest then
                   Just (Branch goal (start ++ subPositions path [hd,tl] ++ end))
               else
                   Nothing
@@ -471,7 +472,7 @@ needsTests (A.At _ pattern) =
     Can.PRecord _ ->
         False
 
-    Can.PCtor _ _ _ _ _ _ ->
+    Can.PCtor _ _ _ _ _ _ _ ->
         True
 
     Can.PList _ ->
@@ -573,15 +574,15 @@ smallBranchingFactor branches path =
 instance Binary Test where
   put test =
     case test of
-      IsCtor a b -> putWord8 0 >> put a >> put b
-      IsChr a    -> putWord8 1 >> put a
-      IsStr a    -> putWord8 2 >> put a
-      IsInt a    -> putWord8 3 >> put a
+      IsCtor a b c -> putWord8 0 >> put a >> put b >> put c
+      IsChr a      -> putWord8 1 >> put a
+      IsStr a      -> putWord8 2 >> put a
+      IsInt a      -> putWord8 3 >> put a
 
   get =
     do  word <- getWord8
         case word of
-          0 -> liftM2 IsCtor get get
+          0 -> liftM3 IsCtor get get get
           1 -> liftM  IsChr get
           2 -> liftM  IsStr get
           3 -> liftM  IsInt get

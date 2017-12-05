@@ -15,6 +15,7 @@ import qualified Data.Set as Set
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
+import qualified Data.Index as Index
 import qualified Elm.Name as N
 import qualified Optimize.Expression as Expr
 import qualified Optimize.Names as Names
@@ -58,23 +59,13 @@ addUnions home unions (Graph fields nodes) =
 
 addUnion :: ModuleName.Canonical -> Can.Union -> Nodes -> Nodes
 addUnion home (Can.Union _ ctors) nodes =
-  foldr (addCtor home) nodes ctors
+  Map.union nodes $
+    Map.fromList (Index.indexedMap (ctorToNode home) ctors)
 
 
-addCtor :: ModuleName.Canonical -> (N.Name, [t]) -> Nodes -> Nodes
-addCtor home (ctor, args) nodes =
-  let
-    argNames =
-      map N.localFromInt [ 1 .. length args ]
-
-    function =
-      Opt.Function argNames $
-        Opt.Ctor ctor (map Opt.VarLocal argNames)
-
-    node =
-      Opt.Define function Set.empty Set.empty
-  in
-  Map.insert (Opt.Global home ctor) node nodes
+ctorToNode :: ModuleName.Canonical -> Index.ZeroBased -> (N.Name, [t]) -> (Opt.Global, Opt.Node)
+ctorToNode home index (name, args) =
+  ( Opt.Global home name, Opt.Ctor name index (length args) )
 
 
 

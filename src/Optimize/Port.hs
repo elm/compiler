@@ -68,13 +68,13 @@ toEncoder tipe =
       let
         encodeField (name, fieldType) =
           do  encoder <- toEncoder fieldType
-              let value = Opt.Call encoder [Opt.Access (Opt.VarLocal "r") name]
+              let value = Opt.Call encoder [Opt.Access (Opt.VarLocal N.dollar) name]
               return $ Opt.Tuple (Opt.Str name) value Nothing
       in
       do  object <- encode "object"
           keyValuePairs <- traverse encodeField (Map.toList fields)
           Names.registerFieldDict fields $
-            Opt.Function ["r"] (Opt.Call object [Opt.List keyValuePairs])
+            Opt.Function [N.dollar] (Opt.Call object [Opt.List keyValuePairs])
 
 
 
@@ -86,12 +86,12 @@ encodeMaybe tipe =
   do  null <- encode "null"
       encoder <- toEncoder tipe
 
-      let test = (DT.Empty, DT.IsCtor 2 "Nothing")
-      let just = Opt.Call encoder [ Opt.CtorAccess (Opt.VarLocal "m") Index.first ]
+      let test = (DT.Empty, DT.IsCtor 2 "Just" Index.first)
+      let just = Opt.Call encoder [ Opt.Index (Opt.VarLocal N.dollar) 0 ]
       let leaf expr = Opt.Leaf (Opt.Inline expr)
 
-      return $ Opt.Function ["m"] $
-        Opt.Case "m" (Opt.Chain [test] (leaf null) (leaf just)) []
+      return $ Opt.Function [N.dollar] $
+        Opt.Case N.dollar N.dollar (Opt.Chain [test] (leaf just) (leaf null)) []
 
 
 encodeList :: Can.Type -> Names.Tracker Opt.Expr
@@ -100,8 +100,8 @@ encodeList tipe =
       map_ <- Names.registerGlobal ModuleName.list "map"
       encoder <- toEncoder tipe
       return $
-        Opt.Function ["xs"] $
-          Opt.Call list [ Opt.Call map_ [ encoder, Opt.VarLocal "xs" ] ]
+        Opt.Function [N.dollar] $
+          Opt.Call list [ Opt.Call map_ [ encoder, Opt.VarLocal N.dollar ] ]
 
 
 encodeArray :: Can.Type -> Names.Tracker Opt.Expr
@@ -110,8 +110,8 @@ encodeArray tipe =
       map_ <- Names.registerGlobal ModuleName.array "map"
       encoder <- toEncoder tipe
       return $
-        Opt.Function ["xs"] $
-          Opt.Call array [ Opt.Call map_ [ encoder, Opt.VarLocal "xs" ] ]
+        Opt.Function [N.dollar] $
+          Opt.Call array [ Opt.Call map_ [ encoder, Opt.VarLocal N.dollar ] ]
 
 
 encodeTuple :: Can.Type -> Can.Type -> Maybe Can.Type -> Names.Tracker Opt.Expr
@@ -119,18 +119,18 @@ encodeTuple a b maybeC =
   let
     convert index tipe =
       do  encoder <- toEncoder tipe
-          return $ Opt.Call encoder [ Opt.CtorAccess (Opt.VarLocal "t") index ]
+          return $ Opt.Call encoder [ Opt.Index (Opt.VarLocal N.dollar) index ]
   in
-  Opt.Function ["t"] <$> (
+  Opt.Function [N.dollar] <$> (
     Opt.Call
       <$> encode "list"
       <*>
         case maybeC of
           Nothing ->
-            Index.indexedTraverse convert [a,b]
+            sequence [ convert 0 a, convert 1 b ]
 
           Just c ->
-            Index.indexedTraverse convert [a,b,c]
+            sequence [ convert 0 a, convert 1 b, convert 2 c ]
   )
 
 
