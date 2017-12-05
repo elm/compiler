@@ -1,9 +1,9 @@
 module Data.Index
   ( ZeroBased
   , first
-  , second
-  , third
+  , unsafe
   , next
+  , toZeroBased
   , toOneBased
   , indexedMap
   , indexedTraverse
@@ -32,14 +32,12 @@ first =
   ZeroBased 0
 
 
-second :: ZeroBased
-second =
-  ZeroBased 1
-
-
-third :: ZeroBased
-third =
-  ZeroBased 2
+unsafe :: Int -> ZeroBased
+unsafe n =
+  if n < 0 then
+    ZeroBased n
+  else
+    error "Compiler error, unacceptable call of Index.unsafe"
 
 
 {-# INLINE next #-}
@@ -49,7 +47,12 @@ next (ZeroBased i) =
 
 
 
--- ONE BASED
+-- DESTRUCT
+
+
+toZeroBased :: ZeroBased -> Int
+toZeroBased (ZeroBased index) =
+  index
 
 
 toOneBased :: ZeroBased -> Int
@@ -124,3 +127,4 @@ indexedZipWithA func listX listY =
 instance Binary ZeroBased where
   get = liftM ZeroBased get
   put (ZeroBased n) = put n
+
