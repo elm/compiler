@@ -6,20 +6,16 @@ module Parse.Kernel
   where
 
 
-import qualified Data.ByteString as BS
 import qualified Data.Map as Map
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
 import Data.Word (Word8)
 
 import qualified AST.Source as Src
 import qualified AST.Utils.Kernel as Kernel
 import qualified AST.Module.Name as ModuleName
 import qualified Elm.Name as N
-import Generate.JavaScript.Helpers as Help (toFieldName)
-import Generate.JavaScript.Variable as Var (intToAscii)
 import Parse.Primitives (Parser)
 import qualified Parse.Primitives.Kernel as K
 import qualified Parse.Primitives.Symbol as Symbol
@@ -52,10 +48,12 @@ parserHelp imports enums fields chunks =
         Just tag ->
           case tag of
             K.Prod ->
-              parserHelp imports enums fields (Kernel.Prod : Kernel.JS javascript : chunks)
+              parserHelp imports enums fields $
+                Kernel.Prod : Kernel.JS javascript : chunks
 
             K.Debug ->
-              parserHelp imports enums fields (Kernel.Debug : Kernel.JS javascript : chunks)
+              parserHelp imports enums fields $
+                Kernel.Debug : Kernel.JS javascript : chunks
 
             K.Import var ->
               case Map.lookup var imports of
@@ -63,24 +61,22 @@ parserHelp imports enums fields chunks =
                   error ("Bad kernel symbol: " ++ Text.unpack var)
 
                 Just (home, name) ->
-                  parserHelp imports enums fields (Kernel.Var home name : Kernel.JS javascript : chunks)
+                  parserHelp imports enums fields $
+                    Kernel.Var home name : Kernel.JS javascript : chunks
 
             K.Enum n var ->
-              let
-                (bytes, newEnums) =
-                  lookupEnum n var enums
-              in
-                parserHelp imports newEnums fields (Kernel.JS bytes : Kernel.JS javascript : chunks)
+              let (enum, newEnums) = lookupEnum n var enums in
+              parserHelp imports newEnums fields $
+                Kernel.Enum enum : Kernel.JS javascript : chunks
 
             K.ElmField name ->
-              parserHelp imports enums fields (Kernel.Field name : Kernel.JS javascript : chunks)
+              parserHelp imports enums fields $
+                Kernel.ElmField name : Kernel.JS javascript : chunks
 
             K.JsField name ->
-              let
-                (bytes, newFields) =
-                  lookupField name fields
-              in
-                parserHelp imports enums newFields (Kernel.JS bytes : Kernel.JS javascript : chunks)
+              let (field, newFields) = lookupField name fields in
+              parserHelp imports enums newFields $
+                Kernel.JsField field : Kernel.JS javascript : chunks
 
 
 
@@ -88,21 +84,18 @@ parserHelp imports enums fields chunks =
 
 
 type Fields =
-  Map.Map Text BS.ByteString
+  Map.Map Text Int
 
 
-lookupField :: Text -> Fields -> (BS.ByteString, Fields)
-lookupField longName fields =
-  case Map.lookup longName fields of
-    Just bytes ->
-      ( bytes, fields )
+lookupField :: Text -> Fields -> (Int, Fields)
+lookupField name fields =
+  case Map.lookup name fields of
+    Just n ->
+      ( n, fields )
 
     Nothing ->
-      let
-        shortName =
-          Var.intToAscii (Map.size fields)
-      in
-        ( shortName, Map.insert longName shortName fields )
+      let n = Map.size fields in
+      ( n, Map.insert name n fields )
 
 
 
@@ -110,25 +103,22 @@ lookupField longName fields =
 
 
 type Enums =
-  Map.Map Word8 (Map.Map Text BS.ByteString)
+  Map.Map Word8 (Map.Map N.Name Int)
 
 
-lookupEnum :: Word8 -> Text -> Enums -> (BS.ByteString, Enums)
+lookupEnum :: Word8 -> N.Name -> Enums -> (Int, Enums)
 lookupEnum word var allEnums =
   let
     enums =
       Map.findWithDefault Map.empty word allEnums
   in
     case Map.lookup var enums of
-      Just bytes ->
-        ( bytes, allEnums )
+      Just n ->
+        ( n, allEnums )
 
       Nothing ->
-        let
-          identifier =
-            Text.encodeUtf8 ("'" <> Help.toFieldName (Map.size enums) <> "'")
-        in
-          ( identifier, Map.insert word (Map.insert var identifier enums) allEnums )
+        let n = Map.size enums in
+        ( n, Map.insert word (Map.insert var n enums) allEnums )
 
 
 

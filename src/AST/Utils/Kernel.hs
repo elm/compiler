@@ -43,7 +43,9 @@ data Content =
 data Chunk
   = JS BS.ByteString
   | Var N.Name N.Name
-  | Field N.Name
+  | ElmField N.Name
+  | JsField Int
+  | Enum Int
   | Debug
   | Prod
 
@@ -71,18 +73,22 @@ instance Binary Content where
 instance Binary Chunk where
   put chunk =
     case chunk of
-      JS a    -> putWord8 0 >> put a
-      Var a b -> putWord8 1 >> put a >> put b
-      Field a -> putWord8 2 >> put a
-      Debug   -> putWord8 3
-      Prod    -> putWord8 4
+      JS a       -> putWord8 0 >> put a
+      Var a b    -> putWord8 1 >> put a >> put b
+      ElmField a -> putWord8 2 >> put a
+      JsField a  -> putWord8 3 >> put a
+      Enum a     -> putWord8 4 >> put a
+      Debug      -> putWord8 5
+      Prod       -> putWord8 6
 
   get =
     do  word <- getWord8
         case word of
-          0 -> liftM JS get
+          0 -> liftM  JS get
           1 -> liftM2 Var get get
-          2 -> liftM Field get
-          3 -> return Debug
-          4 -> return Prod
+          2 -> liftM  ElmField get
+          3 -> liftM  JsField get
+          4 -> liftM  Enum get
+          5 -> return Debug
+          6 -> return Prod
           _ -> error "problem deserializing Parse.Kernel.Chunk"

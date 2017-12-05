@@ -14,6 +14,7 @@ import Data.Text (Text)
 import Data.Word (Word8)
 import Foreign.ForeignPtr (ForeignPtr)
 
+import qualified Elm.Name as N
 import Parse.Primitives.Internals (Parser(..), State(..), noError)
 import qualified Parse.Primitives.Internals as I
 import qualified Parse.Primitives.Variable as Var
@@ -29,7 +30,7 @@ data Special
   | Debug
   | Import Text
   | JsField Text
-  | ElmField Text
+  | ElmField N.Name
 
 
 
