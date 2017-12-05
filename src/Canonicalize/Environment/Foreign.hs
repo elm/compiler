@@ -15,6 +15,7 @@ import qualified AST.Module.Name as ModuleName
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Result as Result
 import qualified Data.Bag as Bag
+import qualified Data.Index as Index
 import qualified Data.OneOrMore as OneOrMore
 import qualified Elm.Interface as I
 import qualified Elm.Name as N
@@ -179,10 +180,10 @@ toPatterns home (tipe, Can.Union vars ctors) =
     alts =
       Can.ctorsToAlts ctors
 
-    fromCtor (name, args) =
-      (name, Env.Pattern home tipe vars alts args)
+    fromCtor index (name, args) =
+      (name, Env.Pattern home tipe vars alts index args)
   in
-  map fromCtor ctors
+  Index.indexedMap fromCtor ctors
 
 
 

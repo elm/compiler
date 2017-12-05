@@ -90,11 +90,11 @@ canonicalize env (A.At region pattern) =
           Can.PatternCtorArg index tipe
             <$> canonicalize env ptrn
       in
-      do  (Env.Pattern home tipe vars alts args) <- Env.findPattern nameRegion env maybePrefix name
+      do  (Env.Pattern home tipe vars alts index args) <- Env.findPattern nameRegion env maybePrefix name
           verifiedList <- Index.indexedZipWithA toCanonicalArg patterns args
           case verifiedList of
             Index.LengthMatch cargs ->
-              Result.ok (Can.PCtor home tipe vars alts name cargs)
+              Result.ok (Can.PCtor home tipe vars alts name index cargs)
 
             Index.LengthMismatch actualLength expectedLength ->
               Result.throw (error "TODO" region actualLength expectedLength)

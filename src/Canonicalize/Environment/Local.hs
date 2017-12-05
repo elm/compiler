@@ -21,6 +21,7 @@ import qualified Canonicalize.Environment.Dups as Dups
 import qualified Canonicalize.Result as Result
 import qualified Canonicalize.Type as Type
 import qualified Data.Bag as Bag
+import qualified Data.Index as Index
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
@@ -86,10 +87,10 @@ addPatterns unions (Env.Env home vars types patterns binops) =
       Map.fromList $ concatMap toPatterns (Map.toList unions)
 
     toPatterns (tipe, Can.Union tvars ctors) =
-      map (ctorToPattern tipe tvars (Can.ctorsToAlts ctors)) ctors
+      Index.indexedMap (ctorToPattern tipe tvars (Can.ctorsToAlts ctors)) ctors
 
-    ctorToPattern tipe tvars alts (name, args) =
-      ( name, Env.Pattern home tipe tvars alts args )
+    ctorToPattern tipe tvars alts index (name, args) =
+      ( name, Env.Pattern home tipe tvars alts index args )
   in
   let
     newPatterns =
@@ -378,8 +379,11 @@ addFreeVars (A.At region tipe) freeVars =
     Src.TType _ _ _ args ->
       foldr addFreeVars freeVars args
 
-    Src.TRecord fields ext ->
-      foldr addFreeVars (maybe id addFreeVars ext freeVars) (map snd fields)
+    Src.TRecord fields Nothing ->
+      foldr addFreeVars freeVars (map snd fields)
+
+    Src.TRecord fields (Just ext) ->
+      foldr addFreeVars (addFreeVars ext freeVars) (map snd fields)
 
     Src.TUnit ->
       freeVars

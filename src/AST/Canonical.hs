@@ -153,10 +153,12 @@ data Pattern_
       , _p_vars :: [N.Name]
       , _p_alts :: CtorAlts
       , _p_name :: N.Name
+      , _p_index :: Index.ZeroBased
       , _p_args :: [PatternCtorArg]
       }
       -- CACHE _p_home, _p_type, and _p_vars for type inference
       -- CACHE _p_alts for exhaustiveness checker
+      -- CACHE _p_id for production code gen
 
 
 data PatternCtorArg =

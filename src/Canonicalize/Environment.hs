@@ -25,6 +25,7 @@ import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
 import qualified Canonicalize.Result as Result
 import qualified Data.Bag as Bag
+import qualified Data.Index as Index
 import qualified Data.OneOrMore as OneOrMore
 import qualified Elm.Name as N
 import qualified Reporting.Error.Canonicalize as Error
@@ -100,6 +101,7 @@ data Pattern =
     , _p_type :: N.Name
     , _p_vars :: [N.Name]
     , _p_alts :: Can.CtorAlts
+    , _p_index :: Index.ZeroBased
     , _p_args :: [Can.Type]
     }
 

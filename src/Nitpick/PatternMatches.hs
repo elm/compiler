@@ -70,7 +70,7 @@ simplify (A.At _ pattern) =
     Can.PTuple a b (Just c) ->
       Ctor tripleAlts tripleName [ simplify a, simplify b, simplify c ]
 
-    Can.PCtor _ _ _ alts name args ->
+    Can.PCtor _ _ _ alts name _ args ->
       Ctor alts name $
         map (\(Can.PatternCtorArg _ _ arg) -> simplify arg) args
 
@@ -607,8 +607,8 @@ collectCtors matrix =
 collectCtorsHelp :: Map.Map N.Name Can.CtorAlts -> [Pattern] -> Map.Map N.Name Can.CtorAlts
 collectCtorsHelp ctors row =
   case row of
-    Ctor info name _ : _ ->
-      Map.insert name info ctors
+    Ctor alts name _ : _ ->
+      Map.insert name alts ctors
 
     _ ->
       ctors
