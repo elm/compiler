@@ -3,6 +3,8 @@
 module Generate.JavaScript.Name
   ( Name
   , Mode(..)
+  , Target(..)
+  , isServer
   , toBuilder
   , fromInt
   , fromLocal
@@ -13,12 +15,14 @@ module Generate.JavaScript.Name
   , makeLabel
   , makeTemp
   , dollar
+  , shortenFieldNames
   )
   where
 
 
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Short as S
+import qualified Data.List as List
 import Data.Monoid ((<>))
 import Data.Map ((!))
 import qualified Data.Map as Map
@@ -45,8 +49,27 @@ newtype Name =
 
 
 data Mode
-  = Debug
-  | Prod (Map.Map N.Name B.Builder)
+  = Debug Target
+  | Prod Target ShortFieldNames
+
+
+data Target = Client | Server
+
+
+type ShortFieldNames =
+  Map.Map N.Name Name
+
+
+isServer :: Mode -> Bool
+isServer mode =
+  case mode of
+    Debug target -> isServerHelp target
+    Prod target _ -> isServerHelp target
+
+
+isServerHelp :: Target -> Bool
+isServerHelp target =
+  case target of { Client -> False ; Server -> True }
 
 
 
@@ -92,11 +115,11 @@ fromKernel home name =
 fromField :: Mode -> N.Name -> Name
 fromField mode name =
   case mode of
-    Debug ->
+    Debug _ ->
       Name (N.toBuilder name)
 
-    Prod fields ->
-      Name (fields ! name)
+    Prod _ fields ->
+      fields ! name
 
 
 
@@ -116,6 +139,33 @@ makeTemp name =
 dollar :: Name
 dollar =
   Name (N.toBuilder N.dollar)
+
+
+
+-- SHORTEN FIELD NAMES
+
+
+shortenFieldNames :: Map.Map N.Name Int -> ShortFieldNames
+shortenFieldNames frequencies =
+  Map.foldr addToShortNames Map.empty $
+    Map.foldrWithKey addToBuckets Map.empty frequencies
+
+
+addToBuckets :: N.Name -> Int -> Map.Map Int [N.Name] -> Map.Map Int [N.Name]
+addToBuckets field frequency buckets =
+  -- TODO try using an IntMap for buckets
+  Map.insertWith (++) frequency [field] buckets
+
+
+addToShortNames :: [N.Name] -> ShortFieldNames -> ShortFieldNames
+addToShortNames fields shortNames =
+  List.foldl' addField shortNames fields
+
+
+addField :: ShortFieldNames -> N.Name -> ShortFieldNames
+addField shortNames field =
+  let rename = fromInt (Map.size shortNames) in
+  Map.insert field rename shortNames
 
 
 
