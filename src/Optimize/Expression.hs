@@ -56,7 +56,7 @@ optimize cycle (A.At region expression) =
       Names.registerGlobal home name
 
     Can.Chr chr ->
-      pure (Opt.Chr chr)
+      Names.registerKernel N.utils (Opt.Chr chr)
 
     Can.Str str ->
       pure (Opt.Str str)
