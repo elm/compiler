@@ -22,6 +22,7 @@ import qualified Data.Text as Text
 import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
 import qualified Elm.Name as N
+import qualified Elm.Package as Pkg
 
 
 
@@ -32,49 +33,53 @@ newtype Tracker a =
   Tracker (
     forall r.
       Int
-      -> Set.Set N.Name
       -> Set.Set Opt.Global
       -> Map.Map N.Name Int
-      -> (Int -> Set.Set N.Name -> Set.Set Opt.Global -> Map.Map N.Name Int -> a -> r)
+      -> (Int -> Set.Set Opt.Global -> Map.Map N.Name Int -> a -> r)
       -> r
   )
 
 
-run :: Tracker a -> (Set.Set N.Name, Set.Set Opt.Global, Map.Map N.Name Int, a)
+run :: Tracker a -> (Set.Set Opt.Global, Map.Map N.Name Int, a)
 run (Tracker k) =
-  k 0 Set.empty Set.empty Map.empty
-    (\_uid kernels globals fields value -> (kernels, globals, fields, value))
+  k 0 Set.empty Map.empty
+    (\_uid deps fields value -> (deps, fields, value))
 
 
 generate :: Tracker N.Name
 generate =
-  Tracker $ \n k g f ok ->
-    ok (n + 1) k g f ("_n" <> Text.pack (show n))
+  Tracker $ \uid deps fields ok ->
+    ok (uid + 1) deps fields ("_n" <> Text.pack (show uid))
 
 
 registerKernel :: N.Name -> a -> Tracker a
-registerKernel name value =
-  Tracker $ \n k g f ok ->
-    ok n (Set.insert name k) g f value
+registerKernel home value =
+  Tracker $ \uid deps fields ok ->
+    ok uid (Set.insert (toKernelGlobal home) deps) fields value
+
+
+toKernelGlobal :: N.Name -> Opt.Global
+toKernelGlobal home =
+  Opt.Global (ModuleName.Canonical Pkg.kernel home) N.dollar
 
 
 registerGlobal :: ModuleName.Canonical -> N.Name -> Tracker Opt.Expr
 registerGlobal home name =
-  Tracker $ \n k g f ok ->
+  Tracker $ \uid deps fields ok ->
     let global = Opt.Global home name in
-    ok n k (Set.insert global g) f (Opt.VarGlobal global)
+    ok uid (Set.insert global deps) fields (Opt.VarGlobal global)
 
 
 registerField :: N.Name -> a -> Tracker a
 registerField name value =
-  Tracker $ \n k g fields ok ->
-    ok n k g (Map.insertWith (+) name 1 fields) value
+  Tracker $ \uid d fields ok ->
+    ok uid d (Map.insertWith (+) name 1 fields) value
 
 
 registerFieldDict :: Map.Map N.Name v -> a -> Tracker a
 registerFieldDict newFields value =
-  Tracker $ \n k g fields ok ->
-    ok n k g (Map.unionWith (+) fields (Map.map toOne newFields)) value
+  Tracker $ \uid d fields ok ->
+    ok uid d (Map.unionWith (+) fields (Map.map toOne newFields)) value
 
 
 toOne :: a -> Int
@@ -83,8 +88,8 @@ toOne _ = 1
 
 registerFieldList :: [N.Name] -> a -> Tracker a
 registerFieldList names value =
-  Tracker $ \n k g fields ok ->
-    ok n k g (foldr addOne fields names) value
+  Tracker $ \uid deps fields ok ->
+    ok uid deps (foldr addOne fields names) value
 
 
 addOne :: N.Name -> Map.Map N.Name Int -> Map.Map N.Name Int
@@ -98,40 +103,40 @@ addOne name fields =
 
 instance Functor Tracker where
   fmap func (Tracker kv) =
-    Tracker $ \n k g f ok ->
+    Tracker $ \n d f ok ->
       let
-        ok1 n1 k1 g1 f1 value =
-          ok n1 k1 g1 f1 (func value)
+        ok1 n1 d1 f1 value =
+          ok n1 d1 f1 (func value)
       in
-      kv n k g f ok1
+      kv n d f ok1
 
 
 instance Applicative Tracker where
   {-# INLINE pure #-}
   pure value =
-    Tracker $ \n k g f ok -> ok n k g f value
+    Tracker $ \n d f ok -> ok n d f value
 
   (<*>) (Tracker kf) (Tracker kv) =
-    Tracker $ \n0 k0 g0 f0 ok ->
+    Tracker $ \n d f ok ->
       let
-        ok1 n1 k1 g1 f1 func =
+        ok1 n1 d1 f1 func =
           let
-            ok2 n2 k2 g2 f2 value =
-              ok n2 k2 g2 f2 (func value)
+            ok2 n2 d2 f2 value =
+              ok n2 d2 f2 (func value)
           in
-          kv n1 k1 g1 f1 ok2
+          kv n1 d1 f1 ok2
       in
-      kf n0 k0 g0 f0 ok1
+      kf n d f ok1
 
 
 instance Monad Tracker where
   return = pure
 
-  (>>=) (Tracker ka) callback =
-    Tracker $ \n k g f ok ->
+  (>>=) (Tracker k) callback =
+    Tracker $ \n d f ok ->
       let
-        ok1 n1 k1 g1 f1 a =
+        ok1 n1 d1 f1 a =
           case callback a of
-            Tracker kb -> kb n1 k1 g1 f1 ok
+            Tracker kb -> kb n1 d1 f1 ok
       in
-      ka n k g f ok1
+      k n d f ok1

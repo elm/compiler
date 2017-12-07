@@ -90,7 +90,7 @@ addAlias home name (Can.Alias _ _ maybeFields) graph@(Graph fieldCounts nodes) =
             Map.fromList $ map toPair fields
 
         node =
-          Opt.Define function Set.empty Set.empty
+          Opt.Define function Set.empty
       in
       Graph
         (foldr addOne fieldCounts fields)
@@ -149,15 +149,15 @@ addPort home name port_ graph =
   case port_ of
     Can.Incoming _ tipe ->
       let
-        (kernels, globals, fields, decoder) = Names.run (Port.toDecoder tipe)
-        node = Opt.PortIncoming decoder kernels globals
+        (deps, fields, decoder) = Names.run (Port.toDecoder tipe)
+        node = Opt.PortIncoming decoder deps
       in
       addToGraph (Opt.Global home name) node fields graph
 
     Can.Outgoing _ tipe ->
       let
-        (kernels, globals, fields, encoder) = Names.run (Port.toEncoder tipe)
-        node = Opt.PortOutgoing encoder kernels globals
+        (deps, fields, encoder) = Names.run (Port.toEncoder tipe)
+        node = Opt.PortOutgoing encoder deps
       in
       addToGraph (Opt.Global home name) node fields graph
 
@@ -198,21 +198,21 @@ addDefHelp name args body graph =
   case args of
     [] ->
       let
-        (kernels, globals, fields, value) =
+        (deps, fields, value) =
           Names.run (Expr.optimize Set.empty body)
       in
-      addToGraph name (Opt.Define value kernels globals) fields graph
+      addToGraph name (Opt.Define value deps) fields graph
 
     _ ->
       let
-        (kernels, globals, fields, function) =
+        (deps, fields, function) =
           Names.run $
             do  (argNames, defss) <- Expr.destructArgs args
                 obody <- Expr.optimize Set.empty body
                 pure $ Opt.Function argNames $
                   foldr Opt.Let obody (concat defss)
       in
-      addToGraph name (Opt.Define function kernels globals) fields graph
+      addToGraph name (Opt.Define function deps) fields graph
 
 
 addToGraph :: Opt.Global -> Opt.Node -> Map.Map N.Name Int -> Graph -> Graph
@@ -235,12 +235,12 @@ addRecDefs home defs graph =
     dummyName =
       Opt.Global home (N.toCompositeName cycleValues)
 
-    (kernels, globals, fields, State cyclicValuePairs newGraph) =
+    (deps, fields, State cyclicValuePairs newGraph) =
       Names.run $
         foldM (addRecDef home dummyName cycleValues) (State [] graph) defs
 
     node =
-      Opt.Cycle cyclicValuePairs kernels globals
+      Opt.Cycle cyclicValuePairs deps
   in
   addToGraph dummyName node fields newGraph
 
@@ -280,17 +280,17 @@ addRecDef home dummyName cycle state@(State values graph) def =
 
     _ ->
       let
-        (kernels, globals, fields, odef) =
+        (deps, fields, odef) =
           Names.run (Expr.optimizePotentialTailCall Set.empty def)
       in
       pure $ State values $
         case odef of
           Opt.Def name body ->
-            let node = Opt.Define body kernels globals in
+            let node = Opt.Define body deps in
             addToGraph (Opt.Global home name) node fields graph
 
           Opt.TailDef name args body ->
-            let node = Opt.DefineTailFunc args body kernels globals in
+            let node = Opt.DefineTailFunc args body deps in
             addToGraph (Opt.Global home name) node fields graph
 
 
