@@ -85,7 +85,7 @@ array = Canonical Pkg.core N.array
 
 {-# NOINLINE platform #-}
 platform :: Canonical
-platform = Canonical Pkg.core "Platform"
+platform = Canonical Pkg.core N.platform
 
 
 {-# NOINLINE cmd #-}
