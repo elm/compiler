@@ -9,12 +9,14 @@ module AST.Optimized
   , Main(..)
   , Node(..)
   , EffectsType(..)
+  , KChunk(..)
   )
   where
 
 
 import Control.Monad (liftM, liftM2, liftM3, liftM4)
 import Data.Binary
+import qualified Data.ByteString as BS
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -113,17 +115,28 @@ data Main
 
 
 data Node
-  = Define Expr (Set.Set N.Name) (Set.Set Global)
-  | DefineTailFunc [N.Name] Expr (Set.Set N.Name) (Set.Set Global)
+  = Define Expr (Set.Set Global)
+  | DefineTailFunc [N.Name] Expr (Set.Set Global)
   | Ctor N.Name Index.ZeroBased Int
   | Link Global
-  | Cycle [(N.Name, Expr)] (Set.Set N.Name) (Set.Set Global)
-  | PortIncoming Expr (Set.Set N.Name) (Set.Set Global)
-  | PortOutgoing Expr (Set.Set N.Name) (Set.Set Global)
+  | Cycle [(N.Name, Expr)] (Set.Set Global)
   | Manager EffectsType
+  | Kernel [KChunk] (Set.Set Global) (Maybe ([KChunk], Set.Set Global))
+  | PortIncoming Expr (Set.Set Global)
+  | PortOutgoing Expr (Set.Set Global)
 
 
 data EffectsType = Cmd | Sub | Fx
+
+
+data KChunk
+  = JS BS.ByteString
+  | Var N.Name N.Name
+  | ElmField N.Name
+  | JsField Int
+  | Enum Int
+  | Debug
+  | Prod
 
 
 
@@ -235,3 +248,27 @@ instance Binary Choice where
           0 -> liftM Inline get
           1 -> liftM Jump get
           _ -> error "problem getting Opt.Choice binary"
+
+
+instance Binary KChunk where
+  put chunk =
+    case chunk of
+      JS a       -> putWord8 0 >> put a
+      Var a b    -> putWord8 1 >> put a >> put b
+      ElmField a -> putWord8 2 >> put a
+      JsField a  -> putWord8 3 >> put a
+      Enum a     -> putWord8 4 >> put a
+      Debug      -> putWord8 5
+      Prod       -> putWord8 6
+
+  get =
+    do  word <- getWord8
+        case word of
+          0 -> liftM  JS get
+          1 -> liftM2 Var get get
+          2 -> liftM  ElmField get
+          3 -> liftM  JsField get
+          4 -> liftM  Enum get
+          5 -> return Debug
+          6 -> return Prod
+          _ -> error "problem deserializing AST.Optimized.KChunk"

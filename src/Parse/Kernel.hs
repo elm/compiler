@@ -12,8 +12,8 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Word (Word8)
 
+import qualified AST.Optimized as Opt
 import qualified AST.Source as Src
-import qualified AST.Utils.Kernel as Kernel
 import qualified AST.Module.Name as ModuleName
 import qualified Elm.Name as N
 import Parse.Primitives (Parser)
@@ -27,7 +27,7 @@ import qualified Reporting.Annotation as A
 -- PARSER
 
 
-parser :: Parser Kernel.Content
+parser :: Parser ( [(N.Name, N.Name)], [Opt.KChunk] )
 parser =
   do  Symbol.jsMultiCommentOpen
       Module.freshLine
@@ -35,25 +35,25 @@ parser =
       Symbol.jsMultiCommentClose
       let imports = Map.unions (map destructImport srcImports)
       chunks <- parserHelp imports Map.empty Map.empty []
-      return (Kernel.Content (Map.elems imports) chunks)
+      return ( Map.elems imports, chunks )
 
 
-parserHelp :: Imports -> Enums -> Fields -> [Kernel.Chunk] -> Parser [Kernel.Chunk]
+parserHelp :: Imports -> Enums -> Fields -> [Opt.KChunk] -> Parser [Opt.KChunk]
 parserHelp imports enums fields chunks =
   do  (javascript, maybeTag) <- K.chunk
       case maybeTag of
         Nothing ->
-          return (Kernel.JS javascript : chunks)
+          return (Opt.JS javascript : chunks)
 
         Just tag ->
           case tag of
             K.Prod ->
               parserHelp imports enums fields $
-                Kernel.Prod : Kernel.JS javascript : chunks
+                Opt.Prod : Opt.JS javascript : chunks
 
             K.Debug ->
               parserHelp imports enums fields $
-                Kernel.Debug : Kernel.JS javascript : chunks
+                Opt.Debug : Opt.JS javascript : chunks
 
             K.Import var ->
               case Map.lookup var imports of
@@ -62,21 +62,21 @@ parserHelp imports enums fields chunks =
 
                 Just (home, name) ->
                   parserHelp imports enums fields $
-                    Kernel.Var home name : Kernel.JS javascript : chunks
+                    Opt.Var home name : Opt.JS javascript : chunks
 
             K.Enum n var ->
               let (enum, newEnums) = lookupEnum n var enums in
               parserHelp imports newEnums fields $
-                Kernel.Enum enum : Kernel.JS javascript : chunks
+                Opt.Enum enum : Opt.JS javascript : chunks
 
             K.ElmField name ->
               parserHelp imports enums fields $
-                Kernel.ElmField name : Kernel.JS javascript : chunks
+                Opt.ElmField name : Opt.JS javascript : chunks
 
             K.JsField name ->
               let (field, newFields) = lookupField name fields in
               parserHelp imports enums newFields $
-                Kernel.JsField field : Kernel.JS javascript : chunks
+                Opt.JsField field : Opt.JS javascript : chunks
 
 
 
