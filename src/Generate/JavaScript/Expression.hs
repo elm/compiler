@@ -1,6 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Generate.JavaScript.Expression
-  ( generateJsExpr
+  ( generate
+  , generateCtor
+  , generateFunction
+  , Code
+  , codeToExpr
+  , codeToStmtList
   )
   where
 
@@ -34,19 +39,19 @@ type Mode = Name.Mode
 
 generateJsExpr :: Mode -> Opt.Expr -> JS.Expr
 generateJsExpr mode expression =
-  codeToJsExpr (generateCode mode expression)
+  codeToExpr (generate mode expression)
 
 
-generateCode :: Mode -> Opt.Expr -> Code
-generateCode mode expression =
+generate :: Mode -> Opt.Expr -> Code
+generate mode expression =
   case expression of
     Opt.Chr char ->
       JsExpr $
         case mode of
-          Name.Debug ->
+          Name.Debug _ ->
             JS.Call toChar [ JS.String (Text.encodeUtf8Builder char) ]
 
-          Name.Prod _ ->
+          Name.Prod _ _ ->
             JS.String (Text.encodeUtf8Builder char)
 
     Opt.Str string ->
@@ -65,7 +70,7 @@ generateCode mode expression =
       JsExpr $ JS.Ref (Name.fromGlobal home name)
 
     Opt.VarCycle home name ->
-      JsExpr $ JS.Ref (Name.fromCycle home name)
+      JsExpr $ JS.Call (JS.Ref (Name.fromCycle home name)) []
 
     Opt.VarDebug name home region unhandledValueName ->
       JsExpr $ generateDebug name home region unhandledValueName
@@ -81,7 +86,7 @@ generateCode mode expression =
           ]
 
     Opt.Function args body ->
-      generateFunction args (generateCode mode body)
+      generateFunction (map Name.fromLocal args) (generate mode body)
 
     Opt.Call func args ->
       JsExpr $ generateCall mode func args
@@ -94,7 +99,7 @@ generateCode mode expression =
 
     Opt.Let def body ->
       JsBlock $
-        generateDef mode def : codeToStatementList (generateCode mode body)
+        generateDef mode def : codeToStmtList (generate mode body)
 
     Opt.Case label root decider jumps ->
       JsBlock $ generateCase mode label root decider jumps
@@ -154,8 +159,8 @@ data Code
     | JsBlock [JS.Stmt]
 
 
-codeToJsExpr :: Code -> JS.Expr
-codeToJsExpr code =
+codeToExpr :: Code -> JS.Expr
+codeToExpr code =
   case code of
     JsExpr expr ->
       expr
@@ -164,8 +169,8 @@ codeToJsExpr code =
       JS.Call (JS.Function Nothing [] stmts) []
 
 
-codeToStatementList :: Code -> [JS.Stmt]
-codeToStatementList code =
+codeToStmtList :: Code -> [JS.Stmt]
+codeToStmtList code =
   case code of
     JsExpr expr ->
         [ JS.Return (Just expr) ]
@@ -174,8 +179,8 @@ codeToStatementList code =
         stmts
 
 
-codeToStatement :: Code -> JS.Stmt
-codeToStatement code =
+codeToStmt :: Code -> JS.Stmt
+codeToStmt code =
   case code of
     JsExpr expr ->
         JS.Return (Just expr)
@@ -195,6 +200,27 @@ codeToStatement code =
 toChar :: JS.Expr
 toChar =
   JS.Ref (Name.fromKernel N.utils "chr")
+
+
+
+-- CTOR
+
+
+generateCtor :: Mode -> N.Name -> Index.ZeroBased -> Int -> ([Name.Name], Code)
+generateCtor mode name index arity =
+  let
+    argNames  = map Name.fromInt [1 .. arity]
+    argFields = map (\n -> (n, JS.Ref n)) argNames
+
+    tag =
+      case mode of
+        Name.Debug _ ->
+          ( Name.dollar, JS.String (N.toBuilder name) )
+
+        Name.Prod _ _ ->
+          ( Name.dollar, JS.Int (Index.toZeroBased index) )
+  in
+    ( argNames, JsExpr (JS.Object (tag:argFields)) )
 
 
 
@@ -254,21 +280,21 @@ positionToJsExpr (R.Position line column) =
 -- FUNCTION
 
 
-generateFunction :: [N.Name] -> Code -> Code
+generateFunction :: [Name.Name] -> Code -> Code
 generateFunction args body =
   case IntMap.lookup (length args) funcHelpers of
     Just helper ->
       JsExpr $
         JS.Call helper
-          [ JS.Function Nothing (map Name.fromLocal args) $
-              codeToStatementList body
+          [ JS.Function Nothing args $
+              codeToStmtList body
           ]
 
     Nothing ->
       let
         addArg arg code =
-          JsExpr $ JS.Function Nothing [Name.fromLocal arg] $
-            codeToStatementList code
+          JsExpr $ JS.Function Nothing [arg] $
+            codeToStmtList code
       in
       foldr addArg body args
 
@@ -610,7 +636,7 @@ generateTailCall mode name args =
 
     toRealVars (argName, _) =
       JS.ExprStmt $
-        JS.Assign (JS.LVar (Name.fromLocal argName)) (JS.Ref (Name.makeTemp argName))
+        JS.Assign (JS.LRef (Name.fromLocal argName)) (JS.Ref (Name.makeTemp argName))
   in
   JS.Var (map toTempVars args)
   : map toRealVars args
@@ -633,7 +659,7 @@ generateDef mode def =
           JS.Function Nothing (map Name.fromLocal argNames)
             [ JS.Labelled (Name.fromLocal name) $
                 JS.While (JS.Bool True) $
-                  codeToStatement $ generateCode mode body
+                  codeToStmt $ generate mode body
             ]
       in
       JS.Var [ (Name.fromLocal name, Just function) ]
@@ -651,26 +677,26 @@ generateIf mode givenBranches givenFinal =
 
     convertBranch (condition, expr) =
       ( generateJsExpr mode condition
-      , generateCode mode expr
+      , generate mode expr
       )
 
     branchExprs = map convertBranch branches
-    finalCode = generateCode mode final
+    finalCode = generate mode final
   in
   if isBlock finalCode || any (isBlock . snd) branchExprs then
-    JsBlock [ foldr addStmtIf (codeToStatement finalCode) branchExprs ]
+    JsBlock [ foldr addStmtIf (codeToStmt finalCode) branchExprs ]
   else
-    JsExpr $ foldr addExprIf (codeToJsExpr finalCode) branchExprs
+    JsExpr $ foldr addExprIf (codeToExpr finalCode) branchExprs
 
 
 addExprIf :: (JS.Expr, Code) -> JS.Expr -> JS.Expr
 addExprIf (condition, branch) final =
-  JS.If condition (codeToJsExpr branch) final
+  JS.If condition (codeToExpr branch) final
 
 
 addStmtIf :: (JS.Expr, Code) -> JS.Stmt -> JS.Stmt
 addStmtIf (condition, branch) final =
-  JS.IfStmt condition (codeToStatement branch) final
+  JS.IfStmt condition (codeToStmt branch) final
 
 
 isBlock :: Code -> Bool
@@ -721,14 +747,14 @@ goto mode label (index, branch) stmts =
         (Name.makeLabel label index)
         (JS.While (JS.Bool True) (JS.Block stmts))
   in
-  labeledDeciderStmt : codeToStatementList (generateCode mode branch)
+  labeledDeciderStmt : codeToStmtList (generate mode branch)
 
 
 generateDecider :: Mode -> N.Name -> N.Name -> Opt.Decider Opt.Choice -> [JS.Stmt]
 generateDecider mode label root decisionTree =
   case decisionTree of
     Opt.Leaf (Opt.Inline branch) ->
-      codeToStatementList (generateCode mode branch)
+      codeToStmtList (generate mode branch)
 
     Opt.Leaf (Opt.Jump index) ->
       [ JS.Break (Just (Name.makeLabel label index)) ]
@@ -768,10 +794,10 @@ testToExpr mode test =
   case test of
     DT.IsCtor _ tag index ->
       case mode of
-        Name.Debug ->
+        Name.Debug _ ->
           JS.String (N.toBuilder tag)
 
-        Name.Prod _ ->
+        Name.Prod _ _ ->
           JS.Int (Index.toZeroBased index)
 
     DT.IsInt int ->
@@ -802,10 +828,10 @@ pathToTestableExpr mode root path exampleTest =
 
     DT.IsChr _ ->
       case mode of
-        Name.Debug ->
+        Name.Debug _ ->
           JS.Call (JS.Access expr (Name.fromLocal "valueOf")) []
 
-        Name.Prod _ ->
+        Name.Prod _ _ ->
           expr
 
 

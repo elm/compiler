@@ -2,217 +2,357 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Generate.JavaScript
   ( generate
-  , Target(..)
+  , Roots(..)
   )
   where
 
-import Control.Monad (foldM)
+
+import Prelude hiding (cycle)
+import qualified Data.ByteString.Builder as B
 import Data.Monoid ((<>))
 import qualified Data.List as List
+import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.ByteString.Builder as BS
 
-import qualified AST.Effects as Effects
-import qualified AST.Expression.Optimized as Opt
-import qualified AST.Kernel as Kernel
+import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
-import qualified AST.Variable as Var
+import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
-import qualified Elm.Compiler.Objects.Internal as Obj
-import qualified Generate.JavaScript.Builder as JsBuilder
-import qualified Generate.JavaScript.Effects as JsEffects
-import qualified Generate.JavaScript.Expression as JsExpr
-import qualified Generate.JavaScript.Variable as JS
+import qualified Generate.JavaScript.Builder as JS
+import qualified Generate.JavaScript.Expression as Expr
+import qualified Generate.JavaScript.Name as Name
 
 
 
--- GENERATE JAVASCRIPT
+-- GENERATE
 
 
-generate :: Bool -> Target -> Obj.Graph -> Obj.Roots -> BS.Builder
-generate debug target graph roots =
-  let
-    (State builders _ _ effects) =
-      List.foldl' (crawl (Env debug target) graph) initialState (Obj.toGlobals roots)
-
-    managers =
-      JS.run (JsEffects.generate effects)
-  in
-    List.foldl' (\rest stmt -> stmt <> rest) managers builders
+data Roots
+  = Mains [ModuleName.Canonical]
+  | Value ModuleName.Canonical N.Name
 
 
+generate :: Bool -> Name.Target -> Opt.Graph -> Roots -> Either [ModuleName.Canonical] B.Builder
+generate debug target (Opt.Graph mains nodes fields) roots =
+  case roots of
+    Value home name ->
+      Right $ stateToBuilder $
+        addGlobal (toMode debug target fields) nodes emptyState (Opt.Global home name)
 
--- CRAWL ENV
-
-
-data Env =
-  Env
-    { _debug :: Bool
-    , _target :: Target
-    }
-
-
-data Target = Client | Server
+    Mains modules ->
+      generateMain (toMode debug target fields) nodes
+        <$> verifyMains mains modules
 
 
+toMode :: Bool -> Name.Target -> Map.Map N.Name Int -> Name.Mode
+toMode debug target fields =
+  if debug then
+    Name.Debug target
+  else
+    Name.Prod target (Name.shortenFieldNames fields)
 
--- CRAWL STATE
+
+
+-- GRAPH TRAVERSAL STATE
 
 
 data State =
   State
-    { _builders :: [BS.Builder]
-    , _seenDecls :: Set.Set Var.Global
-    , _seenKernels :: Set.Set ModuleName.Raw
-    , _effects :: Map.Map ModuleName.Canonical Effects.ManagerType
+    { _revBuilders :: [B.Builder]
+    , _seenGlobals :: Set.Set Opt.Global
     }
 
 
-initialState :: State
-initialState =
-  State [] Set.empty Set.empty Map.empty
+emptyState :: State
+emptyState =
+  State [] Set.empty
+
+
+stateToBuilder :: State -> B.Builder
+stateToBuilder (State revBuilders _) =
+  List.foldl1' (\builder b -> b <> builder) revBuilders
 
 
 
--- CRAWL
+-- ADD DEPENDENCIES
 
 
-crawl :: Env -> Obj.Graph -> State -> Var.Global -> State
-crawl env graph@(Obj.Graph decls kernels) state@(State _ seenDecls seenKernels _) name@(Var.Global home _) =
-  if Set.member name seenDecls then
+type Mode = Name.Mode
+type Graph = Map.Map Opt.Global Opt.Node
+
+
+addGlobal :: Mode -> Graph -> State -> Opt.Global -> State
+addGlobal mode graph state@(State builders seen) global =
+  if Set.member global seen then
     state
-
-  else if home == virtualDomDebug then
-    state
-
   else
-    case Map.lookup name decls of
-      Just decl ->
-        crawlDecl env graph name decl state
-
-      Nothing ->
-        let
-          kernelModule =
-            ModuleName._module home
-        in
-          if Set.member kernelModule seenKernels then
-            state
-          else
-            case Map.lookup kernelModule kernels of
-              Just info ->
-                crawlKernel env graph kernelModule info state
-
-              Nothing ->
-                error (crawlError name)
+    addGlobalHelp mode graph global $
+      State builders (Set.insert global seen)
 
 
-
--- CRAWL DECL
-
-
-crawlDecl :: Env -> Obj.Graph -> Var.Global -> Opt.Decl -> State -> State
-crawlDecl env graph var@(Var.Global home name) (Opt.Decl direct indirect fx body) state1 =
+addGlobalHelp :: Mode -> Graph -> Opt.Global -> State -> State
+addGlobalHelp mode graph global state =
   let
-    state2 =
-      state1 { _seenDecls = Set.insert var (_seenDecls state1) }
-
-    (State builders seenDecls seenKernels effects) =
-      Set.foldl' (crawl env graph) state2 direct
-
-    stmt =
-      JS.run (JsExpr.generateDecl home name body)
-
-    state4 =
-      State
-        { _builders = JsBuilder.stmtToBuilder stmt : builders
-        , _seenDecls = seenDecls
-        , _seenKernels = seenKernels
-        , _effects = maybe id (Map.insert home) fx effects
-        }
+    addDeps deps someState =
+      Set.foldl' (addGlobal mode graph) someState deps
   in
-    Set.foldl' (crawl env graph) state4 indirect
+  case graph ! global of
+    Opt.Define expr deps ->
+      addStmt (addDeps deps state) (
+        var global (Expr.generate mode expr)
+      )
+
+    Opt.DefineTailFunc argNames body deps ->
+      addStmt (addDeps deps state) (
+        var global (Expr.generateFunction (map Name.fromLocal argNames) (Expr.generate mode body))
+      )
+
+    Opt.Ctor name index arity ->
+      let (args, ctor) = Expr.generateCtor mode name index arity in
+      addStmt state (
+        var global (Expr.generateFunction args ctor)
+      )
+
+    Opt.Link linkedGlobal ->
+      addGlobal mode graph state linkedGlobal
+
+    Opt.Cycle cycle deps ->
+      addStmt (addDeps deps state) (
+        generateCycle mode global cycle
+      )
+
+    Opt.Manager effectsType ->
+      generateManager mode graph global effectsType state
+
+    Opt.Kernel clientChunks clientDeps maybeServer ->
+      case maybeServer of
+        Just (serverChunks, serverDeps) | Name.isServer mode ->
+          addBuilder (addDeps serverDeps state) (generateKernel mode serverChunks)
+
+        _ ->
+          addBuilder (addDeps clientDeps state) (generateKernel mode clientChunks)
+
+    Opt.PortIncoming decoder deps ->
+      addStmt (addDeps deps state) (
+        generatePort mode global "incomingPort" decoder
+      )
+
+    Opt.PortOutgoing encoder deps ->
+      addStmt (addDeps deps state) (
+        generatePort mode global "outgoingPort" encoder
+      )
+
+
+addStmt :: State -> JS.Stmt -> State
+addStmt state stmt =
+  addBuilder state (JS.stmtToBuilder stmt)
+
+
+addBuilder :: State -> B.Builder -> State
+addBuilder (State revBuilders seen) builder =
+  State (builder:revBuilders) seen
+
+
+var :: Opt.Global -> Expr.Code -> JS.Stmt
+var (Opt.Global home name) code =
+  JS.Var [ (Name.fromGlobal home name, Just (Expr.codeToExpr code)) ]
 
 
 
--- CRAWL KERNEL
+-- GENERATE CYCLES
 
 
-crawlKernel :: Env -> Obj.Graph -> ModuleName.Raw -> Kernel.Data -> State -> State
-crawlKernel env@(Env _ target) graph name (Kernel.Data client maybeServer) state =
+generateCycle :: Mode -> Opt.Global -> [(N.Name, Opt.Expr)] -> JS.Stmt
+generateCycle mode (Opt.Global home _) cycle =
   let
-    content =
-      case target of
-        Server ->
-          maybe client id maybeServer
-
-        Client ->
-          client
+    safeDefs = map (generateSafeCycle mode home) cycle
+    realDefs = map (generateRealCycle home) cycle
+    -- TODO add `try` in debug mode nice infinite recursion reports
   in
-  crawlKernelContent env graph name content state
+  JS.Block (safeDefs ++ realDefs)
 
 
-crawlKernelContent :: Env -> Obj.Graph -> ModuleName.Raw -> Kernel.Content -> State -> State
-crawlKernelContent env@(Env debug _) graph name (Kernel.Content imports chunks) state1 =
+generateSafeCycle :: Mode -> ModuleName.Canonical -> (N.Name, Opt.Expr) -> JS.Stmt
+generateSafeCycle mode home (name, expr) =
+  JS.FunctionStmt (Name.fromCycle home name) [] $
+    Expr.codeToStmtList (Expr.generate mode expr)
+
+
+generateRealCycle :: ModuleName.Canonical -> (N.Name, expr) -> JS.Stmt
+generateRealCycle home (name, _) =
   let
-    state2 =
-      state1 { _seenKernels = Set.insert name (_seenKernels state1) }
-
-    (State builders seenDecls seenKernels effects) =
-      List.foldl' (crawl env graph) state2 (map toCoreGlobal imports)
-
-    builder =
-      JS.run (foldM (chunkToBuilder debug) mempty chunks)
+    safeName = Name.fromCycle home name
+    realName = Name.fromGlobal home name
   in
-    State
-      { _builders = builder : builders
-      , _seenDecls = seenDecls
-      , _seenKernels = seenKernels
-      , _effects = effects
-      }
+  JS.Block
+    [ JS.Var [ ( realName, Just (JS.Call (JS.Ref safeName) []) ) ]
+    , JS.ExprStmt $ JS.Assign (JS.LRef safeName) $
+        JS.Function Nothing [] [ JS.Return (Just (JS.Ref realName)) ]
+    ]
 
 
-toCoreGlobal :: ( ModuleName.Raw, Text.Text ) -> Var.Global
-toCoreGlobal (home, name) =
-  Var.Global (ModuleName.inCore home) name
+
+-- GENERATE KERNEL
 
 
-chunkToBuilder :: Bool -> BS.Builder -> Kernel.Chunk -> JS.Generator BS.Builder
-chunkToBuilder debug builder chunk =
+generateKernel :: Mode -> [Opt.KChunk] -> B.Builder
+generateKernel mode chunks =
+  List.foldl' (addChunk mode) mempty chunks
+
+
+addChunk :: Mode -> B.Builder -> Opt.KChunk -> B.Builder
+addChunk mode builder chunk =
   case chunk of
-    Kernel.JS javascript ->
-      return $ BS.byteString javascript <> builder
+    Opt.JS javascript ->
+      B.byteString javascript <> builder
 
-    Kernel.Var home name ->
-      do  expr <- JS.global (Var.Global (ModuleName.inCore home) name)
-          return $ JsBuilder.exprToBuilder expr <> builder
+    Opt.Var home name ->
+      Name.toBuilder (Name.fromGlobal (ModuleName.Canonical Pkg.core home) name) <> builder
 
-    Kernel.Field name ->
-      -- TODO generate a smaller field
-      return $ Text.encodeUtf8Builder name <> builder
+    Opt.ElmField name ->
+      Name.toBuilder (Name.fromField mode name) <> builder
 
-    Kernel.Debug ->
-      return $ if debug then builder else "_UNUSED" <> builder
+    Opt.JsField int ->
+      Name.toBuilder (Name.fromInt int) <> builder
 
-    Kernel.Prod ->
-      return $ if debug then "_UNUSED" <> builder else builder
+    Opt.Enum int ->
+      Name.toBuilder (Name.fromInt int) <> builder
+
+    Opt.Debug ->
+      case mode of
+        Name.Debug _ ->
+          builder
+
+        Name.Prod _ _ ->
+          "_UNUSED" <> builder
+
+    Opt.Prod ->
+      case mode of
+        Name.Debug _ ->
+          "_UNUSED" <> builder
+
+        Name.Prod _ _ ->
+          builder
 
 
 
--- CRAWL HELPERS
+-- GENERATE PORTS
 
 
-crawlError :: Var.Global -> String
-crawlError (Var.Global (ModuleName.Canonical pkg home) name) =
-  Text.unpack $
-    "compiler bug manifesting in Generate.JavaScript\n"
-    <> "Could not find " <> Pkg.toText pkg <> " " <> ModuleName.toText home <> "." <> name <> "\n"
-    <> "Please report at <https://github.com/elm-lang/elm-compiler/issues>\n"
-    <> "Try to make an <http://sscce.org/> that demonstrates the issue!"
+generatePort :: Mode -> Opt.Global -> N.Name -> Opt.Expr -> JS.Stmt
+generatePort mode (Opt.Global home name) makePort converter =
+  let
+    definition =
+      JS.Call (JS.Ref (Name.fromKernel N.platform makePort))
+        [ JS.String (N.toBuilder name)
+        , Expr.codeToExpr (Expr.generate mode converter)
+        ]
+  in
+  JS.Var [ (Name.fromGlobal home name, Just definition) ]
 
 
-virtualDomDebug :: ModuleName.Canonical
-virtualDomDebug =
-  ModuleName.inVirtualDom "VirtualDom.Debug"
+
+-- GENERATE MANAGER
+
+
+
+generateManager :: Mode -> Graph -> Opt.Global -> Opt.EffectsType -> State -> State
+generateManager mode graph (Opt.Global home@(ModuleName.Canonical _ moduleName) _) effectsType state =
+  let
+    managerLVar =
+      JS.LBracket
+        (JS.Ref (Name.fromKernel N.platform "effectManagers"))
+        (JS.String (N.toBuilder moduleName))
+
+    (deps, args, stmts) =
+      generateManagerHelp home effectsType
+
+    createManager =
+      JS.ExprStmt $ JS.Assign managerLVar $
+        JS.Call (JS.Ref (Name.fromKernel N.platform "createManager")) args
+  in
+  addStmt (List.foldl' (addGlobal mode graph) state deps) $
+    JS.Block (createManager : stmts)
+
+
+generateLeaf :: ModuleName.Canonical -> N.Name -> JS.Stmt
+generateLeaf home@(ModuleName.Canonical _ moduleName) name =
+  let
+    definition =
+      JS.Call leaf [ JS.String (N.toBuilder moduleName) ]
+  in
+  JS.Var [ (Name.fromGlobal home name, Just definition) ]
+
+
+{-# NOINLINE leaf #-}
+leaf :: JS.Expr
+leaf =
+  JS.Ref (Name.fromKernel N.platform "leaf")
+
+
+generateManagerHelp :: ModuleName.Canonical -> Opt.EffectsType -> ([Opt.Global], [JS.Expr], [JS.Stmt])
+generateManagerHelp home effectsType =
+  let
+    dep name = Opt.Global home name
+    ref name = JS.Ref (Name.fromGlobal home name)
+  in
+  case effectsType of
+    Opt.Cmd ->
+      ( [ dep "init", dep "onEffects", dep "onSelfMsg", dep "cmdMap" ]
+      , [ ref "init", ref "onEffects", ref "onSelfMsg", ref "cmdMap" ]
+      , [ generateLeaf home "command" ]
+      )
+
+    Opt.Sub ->
+      ( [ dep "init", dep "onEffects", dep "onSelfMsg", dep "subMap" ]
+      , [ ref "init", ref "onEffects", ref "onSelfMsg", JS.Int 0, ref "subMap" ]
+      , [ generateLeaf home "subscription" ]
+      )
+
+    Opt.Fx ->
+      ( [ dep "init", dep "onEffects", dep "onSelfMsg", dep "cmdMap", dep "subMap" ]
+      , [ ref "init", ref "onEffects", ref "onSelfMsg", ref "cmdMap", ref "subMap" ]
+      , [ generateLeaf home "command"
+        , generateLeaf home "subscription"
+        ]
+      )
+
+
+
+-- ADD MAIN
+
+
+type Mains =
+  Map.Map ModuleName.Canonical Opt.Main
+
+
+generateMain :: Mode -> Graph -> Mains -> B.Builder
+generateMain mode graph mains =
+  mconcat
+    [ stateToBuilder $ Map.foldrWithKey (addMain mode graph) emptyState mains
+    , exportMains mains
+    ]
+
+
+addMain :: Mode -> Graph -> ModuleName.Canonical -> main -> State -> State
+addMain mode graph home _ state =
+  addGlobal mode graph state (Opt.Global home "main")
+
+
+exportMains :: Mains -> B.Builder
+exportMains mains =
+  error "TODO" mains
+
+
+verifyMains :: Mains -> [ModuleName.Canonical] -> Either [ModuleName.Canonical] Mains
+verifyMains mains modules =
+  let
+    rootSet = Set.fromList modules
+    rootMap = Map.restrictKeys mains rootSet
+  in
+  if Map.size rootMap == Set.size rootSet then
+    Right rootMap
+  else
+    Left $ Set.toList $
+      Set.intersection rootSet (Map.keysSet mains)

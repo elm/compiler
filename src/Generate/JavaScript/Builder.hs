@@ -46,7 +46,7 @@ data Expr
 
 
 data LValue
-  = LVar Name
+  = LRef Name
   | LDot Expr Name
   | LBracket Expr Expr
 
@@ -62,7 +62,6 @@ data Stmt
   | IfStmt Expr Stmt Stmt -- if (e) stmt1 else stmt2
   | Switch Expr [Case] -- switch (e) clauses
   | While Expr Stmt -- while (e) do stmt
-  | DoWhile Stmt Expr -- do stmt while (e);
   | Break (Maybe Name) -- break lab;
   | Continue (Maybe Name) -- continue lab;
   | Labelled Name Stmt -- lab: stmt
@@ -189,13 +188,6 @@ fromStmt indent statement =
         [ indent, "while (", snd (fromExpr indent Whatever expr), ") {\n"
         , fromStmt (deeper indent) stmt
         , indent, "}\n"
-        ]
-
-    DoWhile stmt expr ->
-      mconcat
-        [ indent, "do {\n"
-        , fromStmt (deeper indent) stmt
-        , indent, "} while(", snd (fromExpr indent Whatever expr), ");\n"
         ]
 
     Break Nothing ->
@@ -454,7 +446,7 @@ fromField indent (field, expr) =
 fromLValue :: Builder -> LValue -> (Lines, Builder)
 fromLValue indent lValue =
   case lValue of
-    LVar name ->
+    LRef name ->
       (One, Name.toBuilder name)
 
     LDot expr field ->
