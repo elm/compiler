@@ -4,8 +4,12 @@ module Data.OneOrMore
   , one
   , more
   , toList
+  , map
   )
   where
+
+
+import Prelude hiding (map)
 
 
 
@@ -44,3 +48,17 @@ toListHelp oneOrMore list =
 
     More a b ->
       toListHelp a (toListHelp b list)
+
+
+
+-- MAP
+
+
+map :: (a -> b) -> OneOrMore a -> OneOrMore b
+map func oneOrMore =
+  case oneOrMore of
+    One value ->
+      One (func value)
+
+    More left right ->
+      More (map func left) (map func right)
