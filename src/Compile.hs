@@ -1,80 +1,82 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
-module Compile (compile) where
+module Compile
+  ( compile
+  )
+  where
 
-import Data.Map (Map)
-import Data.Text (Text)
 
-import qualified AST.Expression.Canonical as Can
-import qualified AST.Module as Module
+import qualified Data.ByteString as BS
+import qualified Data.Map as Map
+
+import qualified AST.Canonical as Can
+import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
-import qualified Canonicalize
-import qualified Elm.Package as Package
-import qualified Nitpick.PatternMatches as Nitpick
-import qualified Nitpick.TopLevelTypes as Nitpick
-import qualified Optimize
-import qualified Parse.Parse as Parse (program)
+import qualified Canonicalize.Module as Canonicalize
+import qualified Elm.Interface as I
+import qualified Elm.Name as N
+import qualified Elm.Package as Pkg
+import qualified Nitpick.PatternMatches as PatternMatches
+import qualified Nitpick.TopLevelTypes as TopLevelTypes
+import qualified Optimize.Module as Optimize
+import qualified Parse.Parse as Parse
 import qualified Reporting.Error as Error
-import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Result as Result
 import qualified Reporting.Warning as Warning
-import qualified Type.Inference as TI
+import qualified Type.Constrain.Module as Type
+import qualified Type.Solve as Type
+
+import System.IO.Unsafe (unsafePerformIO)
 
 
 
 -- COMPILE
 
 
-type Result =
-  Result.Result (Result.One RenderType.Localizer) Warning.Warning Error.Error
+type Result i a =
+  Result.Result i [Warning.Warning] Error.Error a
 
 
-compile
-    :: Package.Name
-    -> Map ModuleName.Raw ModuleName.Canonical
-    -> Module.Interfaces
-    -> Text
-    -> Result Module.Optimized
-compile packageName importDict interfaces source =
+type ImportDict =
+  Map.Map N.Name ModuleName.Canonical
+
+
+compile :: Pkg.Name -> ImportDict -> I.Interfaces -> BS.ByteString -> Result i (I.Interface, Opt.Graph)
+compile pkg importDict interfaces source =
   do
-      -- Parse the source code
-      validModule <-
-          Result.format Error.Syntax $
-            {-# SCC elm_compiler_parse #-}
-            Parse.program packageName source
+      valid <- Result.mapError Error.Syntax $
+        Parse.program source
 
-      -- Canonicalize all variables, pinning down where they came from.
-      canonicalModule <-
-          {-# SCC elm_compiler_canonicalize #-}
-          Canonicalize.module' importDict interfaces validModule
+      canonical <- Result.mapError Error.Canonicalize $
+        Canonicalize.canonicalize pkg importDict interfaces valid
 
-      -- Run type inference on the program.
       types <-
-          Result.from Error.Type $
-            {-# SCC elm_compiler_types #-}
-            TI.infer interfaces canonicalModule
+        runTypeInference canonical
 
-      -- One last round of checks
-      canonicalDefs <-
-          Result.format Error.Type $
-            {-# SCC elm_compiler_nitpick #-}
-            Nitpick.topLevelTypes types $
-              Can.toSortedDefs (Module.program (Module.info canonicalModule))
+      mains <- Result.mapError Error.Main $
+        TopLevelTypes.check types canonical
 
-      tagDict <-
-        Result.format Error.Pattern $
-          {-# SCC elm_compiler_exhaustiveness #-}
-          Nitpick.patternMatches interfaces canonicalModule
+      () <- exhaustivenessCheck canonical
 
-      -- Do some basic optimizations
-      let optimisedDefs =
-            {-# SCC elm_compiler_optimization #-}
-            Optimize.optimize tagDict (Module.name canonicalModule) canonicalDefs
+      let (Optimize.Graph fields graph) = Optimize.optimize canonical
 
-      -- Add the real list of types
-      let info =
-            (Module.info canonicalModule)
-              { Module.types = types
-              , Module.program = optimisedDefs
-              }
+      Result.ok (I.fromModule types canonical, Opt.Graph mains graph fields)
 
-      return $ canonicalModule { Module.info = info }
+
+runTypeInference :: Can.Module -> Result i (Map.Map N.Name Can.Annotation)
+runTypeInference canonical =
+  case unsafePerformIO (Type.run =<< Type.constrain canonical) of
+    Left errors ->
+      Result.throw (Error.Type errors)
+
+    Right annotations ->
+      Result.ok annotations
+
+
+exhaustivenessCheck :: Can.Module -> Result i ()
+exhaustivenessCheck canonical =
+  case PatternMatches.check canonical of
+    Left errors ->
+      Result.throw (Error.Pattern errors)
+
+    Right () ->
+      Result.ok ()

@@ -31,12 +31,12 @@ import qualified Reporting.Region as R
 -- RUN
 
 
-run :: Parser a -> B.ByteString -> Either (A.Located E.Error) a
+run :: Parser a -> B.ByteString -> Either E.Error a
 run parser bytes =
   runAt 1 1 parser bytes
 
 
-runAt :: Int -> Int -> Parser a -> B.ByteString -> Either (A.Located E.Error) a
+runAt :: Int -> Int -> Parser a -> B.ByteString -> Either E.Error a
 runAt startRow startColumn (Parser parser) (B.PS fp offset length) =
   case parser (State fp offset (offset + length) 0 startRow startColumn []) Ok Err Ok Err of
     Ok value _ _ ->
@@ -46,7 +46,7 @@ runAt startRow startColumn (Parser parser) (B.PS fp offset length) =
       let
         pos = R.Position row col
         mkError overallRegion subRegion =
-          Left (A.At overallRegion (E.Parse subRegion problem))
+          Left (E.Parse overallRegion subRegion problem)
       in
         case problem of
           E.BadChar endCol ->

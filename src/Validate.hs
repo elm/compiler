@@ -1,8 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Validate
-  ( Result
-  , validate
+  ( validate
   )
   where
 
@@ -25,11 +24,11 @@ import qualified Reporting.Result as Result
 -- VALIDATE
 
 
-type Result warning a =
-  Result.Result () warning Error.Error a
+type Result i w a =
+  Result.Result i w Error.Error a
 
 
-validate :: Src.Module [Src.Decl] -> Result w Valid.Module
+validate :: Src.Module [Src.Decl] -> Result i w Valid.Module
 validate (Src.Module name srcEffects overview exports imports srcDecls) =
   do  (Stuff decls unions aliases binops ports docs) <- validateDecls srcDecls
       effects <- validateEffects srcEffects ports
@@ -51,12 +50,12 @@ data Stuff =
     }
 
 
-validateDecls :: [Src.Decl] -> Result w Stuff
+validateDecls :: [Src.Decl] -> Result i w Stuff
 validateDecls decls =
   vsdHelp decls (Stuff [] [] [] [] [] Map.empty)
 
 
-vsdHelp :: [Src.Decl] -> Stuff -> Result w Stuff
+vsdHelp :: [Src.Decl] -> Stuff -> Result i w Stuff
 vsdHelp decls stuff =
   case decls of
     [] ->
@@ -96,7 +95,7 @@ vsdHelp decls stuff =
 -- VALIDATE DOCS
 
 
-validateDocs :: Text -> [Src.Decl] -> Stuff -> Result w Stuff
+validateDocs :: Text -> [Src.Decl] -> Stuff -> Result i w Stuff
 validateDocs docs decls stuff =
   case decls of
     [] ->
@@ -107,7 +106,7 @@ validateDocs docs decls stuff =
           vsdHelp decls $ stuff { _docs = Map.insert name docs (_docs stuff) }
 
 
-getNameForDocs :: Src.Decl_ -> Result w N.Name
+getNameForDocs :: Src.Decl_ -> Result i w N.Name
 getNameForDocs decl =
   case decl of
     Src.Union (A.At _ name) _ _ ->
@@ -136,7 +135,7 @@ getNameForDocs decl =
 -- VALIDATE ANNOTATION
 
 
-validateAnnotation :: R.Region -> N.Name -> Src.Type -> [Src.Decl] -> Stuff -> Result w Stuff
+validateAnnotation :: R.Region -> N.Name -> Src.Type -> [Src.Decl] -> Stuff -> Result i w Stuff
 validateAnnotation annRegion annotationName tipe decls stuff =
   case decls of
     [] ->
@@ -162,7 +161,7 @@ validateAnnotation annRegion annotationName tipe decls stuff =
 -- VALIDATE EXPRESSIONS
 
 
-expression :: Src.Expr -> Result w Valid.Expr
+expression :: Src.Expr -> Result i w Valid.Expr
 expression (A.At region sourceExpression) =
   A.At region <$>
   case sourceExpression of
@@ -245,7 +244,7 @@ expression (A.At region sourceExpression) =
         pure (Valid.Shader uid src gltipe)
 
 
-both :: (Src.Expr, Src.Expr) -> Result w (Valid.Expr, Valid.Expr)
+both :: (Src.Expr, Src.Expr) -> Result i w (Valid.Expr, Valid.Expr)
 both (a, b) =
   liftA2 (,) (expression a) (expression b)
 
@@ -254,7 +253,7 @@ both (a, b) =
 -- VALIDATE DEFINITIONS
 
 
-definitions :: [A.Located Src.Def] -> Result w [Valid.Def]
+definitions :: [A.Located Src.Def] -> Result i w [Valid.Def]
 definitions sourceDefs =
   case sourceDefs of
     [] ->
@@ -279,16 +278,16 @@ definitions sourceDefs =
                 <*> definitions otherOtherDefs
 
         _ ->
-          Result.throw annRegion (Error.TypeWithoutDefinition annotationName)
+          Result.throw (Error.TypeWithoutDefinition annRegion annotationName)
 
 
-validateDefinition :: R.Region -> A.Located Text -> [Src.Pattern] -> Src.Expr -> Maybe Src.Type -> Result w Valid.Def
+validateDefinition :: R.Region -> A.Located Text -> [Src.Pattern] -> Src.Expr -> Maybe Src.Type -> Result i w Valid.Def
 validateDefinition region name args expr maybeType =
   do  validExpr <- expression expr
       return $ Valid.Define region name args validExpr maybeType
 
 
-validateDestruct :: R.Region -> Src.Pattern -> Src.Expr -> Result w Valid.Def
+validateDestruct :: R.Region -> Src.Pattern -> Src.Expr -> Result i w Valid.Def
 validateDestruct region pattern expr =
   Valid.Destruct region pattern <$> expression expr
 
@@ -297,7 +296,7 @@ validateDestruct region pattern expr =
 -- VALIDATE EFFECTS
 
 
-validateEffects :: Src.Effects -> [Valid.Port] -> Result w Valid.Effects
+validateEffects :: Src.Effects -> [Valid.Port] -> Result i w Valid.Effects
 validateEffects effects ports =
   case effects of
     Src.NoEffects ->
@@ -321,7 +320,7 @@ validateEffects effects ports =
                 Valid.Fx cmd sub
 
 
-noPorts :: [Valid.Port] -> Result w ()
+noPorts :: [Valid.Port] -> Result i w ()
 noPorts ports =
   forM_ ports $ \(Valid.Port (A.At region name) _) ->
-    Result.throw region (Error.UnexpectedPort name)
+    Result.throw (Error.UnexpectedPort region name)

@@ -22,6 +22,7 @@ module Type.Type
   , nameToFlex
   , nameToRigid
   , toSrcType
+  , toAnnotation
   )
   where
 
@@ -308,10 +309,18 @@ toSuper name =
 
 -- TODO: Attach resulting type to the descriptor so that you
 -- never have to do extra work, particularly nice for aliased types
+toAnnotation :: Variable -> IO Can.Annotation
+toAnnotation variable =
+  do  userNames <- getVarNames variable Map.empty
+      (tipe, NameState allNames _ _ _ _ _) <-
+        State.runStateT (variableToSrcType variable) (makeNameState userNames)
+      return $ Can.Forall (Map.map (\_ -> ()) allNames) tipe
+
+
 toSrcType :: Variable -> IO Can.Type
 toSrcType variable =
-  do  takenNames <- getVarNames variable Map.empty
-      State.evalStateT (variableToSrcType variable) (makeNameState takenNames)
+  do  userNames <- getVarNames variable Map.empty
+      State.evalStateT (variableToSrcType variable) (makeNameState userNames)
 
 
 variableToSrcType :: Variable -> StateT NameState IO Can.Type
@@ -423,7 +432,7 @@ data NameState =
     }
 
 
-type TakenNames = Map.Map Text Variable
+type TakenNames = Map.Map N.Name Variable
 
 
 makeNameState :: TakenNames -> NameState
@@ -431,7 +440,7 @@ makeNameState taken =
   NameState taken 0 0 0 0 0
 
 
-getFreshVarName :: (Monad m) => StateT NameState m Text
+getFreshVarName :: (Monad m) => StateT NameState m N.Name
 getFreshVarName =
   do  index <- State.gets _normals
       taken <- State.gets _taken
@@ -440,7 +449,7 @@ getFreshVarName =
       return uniqueName
 
 
-getFreshSuperName :: (Monad m) => SuperType -> StateT NameState m Text
+getFreshSuperName :: (Monad m) => SuperType -> StateT NameState m N.Name
 getFreshSuperName super =
   case super of
     Number ->
@@ -456,7 +465,7 @@ getFreshSuperName super =
       getFreshSuper "compappend" _compAppends (\index state -> state { _compAppends = index })
 
 
-getFreshNormal :: Int -> TakenNames -> (Text, Int)
+getFreshNormal :: Int -> TakenNames -> (N.Name, Int)
 getFreshNormal index taken =
   let
     (postfix, letter) =
@@ -477,10 +486,10 @@ getFreshNormal index taken =
 
 getFreshSuper
     :: (Monad m)
-    => Text
+    => N.Name
     -> (NameState -> Int)
     -> (Int -> NameState -> NameState)
-    -> StateT NameState m Text
+    -> StateT NameState m N.Name
 getFreshSuper name getter setter =
   do  index <- State.gets getter
       taken <- State.gets _taken
@@ -489,7 +498,7 @@ getFreshSuper name getter setter =
       return uniqueName
 
 
-getFreshSuperHelp :: Text -> Int -> TakenNames -> (Text, Int)
+getFreshSuperHelp :: N.Name -> Int -> TakenNames -> (N.Name, Int)
 getFreshSuperHelp name index taken =
   let
     newName =

@@ -12,7 +12,7 @@ import qualified AST.Valid as Valid
 import qualified Parse.Declaration as Decl
 import qualified Parse.Module as Module
 import qualified Parse.Primitives as P
-import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Syntax as Error
 import qualified Reporting.Result as Result
 import qualified Validate
 
@@ -21,14 +21,14 @@ import qualified Validate
 -- PROGRAM
 
 
-program :: B.ByteString -> Validate.Result wrn Valid.Module
+program :: B.ByteString -> Result.Result i w Error.Error Valid.Module
 program src =
   case P.run chompProgram src of
     Right modul ->
       Validate.validate modul
 
-    Left (A.At region syntaxError) ->
-      Result.throw region syntaxError
+    Left syntaxError ->
+      Result.throw syntaxError
 
 
 chompProgram :: P.Parser (Src.Module [Src.Decl])

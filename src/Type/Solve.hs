@@ -27,7 +27,7 @@ import qualified Type.UnionFind as UF
 -- RUN SOLVER
 
 
-run :: Constraint -> IO (Either [Error.Error] (Map.Map N.Name Can.Type))
+run :: Constraint -> IO (Either [Error.Error] (Map.Map N.Name Can.Annotation))
 run constraint =
   do  pools <- MVector.replicate 16 []
 
@@ -36,7 +36,7 @@ run constraint =
 
       case errors of
         [] ->
-          Right <$> traverse toSrcType env
+          Right <$> traverse Type.toAnnotation env
 
         _ ->
           return $ Left errors
