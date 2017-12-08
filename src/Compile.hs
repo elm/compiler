@@ -49,17 +49,18 @@ compile pkg importDict interfaces source =
       canonical <- Result.mapError Error.Canonicalize $
         Canonicalize.canonicalize pkg importDict interfaces valid
 
-      types <-
+      annotations <-
         runTypeInference canonical
 
       mains <- Result.mapError Error.Main $
-        TopLevelTypes.check types canonical
+        TopLevelTypes.check annotations canonical
 
-      () <- exhaustivenessCheck canonical
+      () <-
+        exhaustivenessCheck canonical
 
       let (Optimize.Graph fields graph) = Optimize.optimize canonical
 
-      Result.ok (I.fromModule types canonical, Opt.Graph mains graph fields)
+      Result.ok (I.fromModule annotations canonical, Opt.Graph mains graph fields)
 
 
 runTypeInference :: Can.Module -> Result i (Map.Map N.Name Can.Annotation)
