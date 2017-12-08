@@ -16,12 +16,12 @@ import qualified AST.Valid as Valid
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Utils.Type as Type
 import qualified Canonicalize.Environment as Env
-import qualified Canonicalize.Result as Result
 import qualified Canonicalize.Type as Type
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Region as R
+import qualified Reporting.Result as Result
 
 
 

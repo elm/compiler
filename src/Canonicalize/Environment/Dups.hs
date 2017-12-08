@@ -15,12 +15,12 @@ module Canonicalize.Environment.Dups
 
 import qualified Data.Map as Map
 
-import qualified Canonicalize.Result as Result
 import qualified Data.OneOrMore as OneOrMore
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Region as R
+import qualified Reporting.Result as Result
 
 
 

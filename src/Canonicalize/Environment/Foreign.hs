@@ -13,7 +13,6 @@ import qualified AST.Canonical as Can
 import qualified AST.Source as Src
 import qualified AST.Module.Name as ModuleName
 import qualified Canonicalize.Environment as Env
-import qualified Canonicalize.Result as Result
 import qualified Data.Bag as Bag
 import qualified Data.Index as Index
 import qualified Data.OneOrMore as OneOrMore
@@ -23,6 +22,7 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Helpers as Help (nearbyNames)
 import qualified Reporting.Region as R
+import qualified Reporting.Result as Result
 
 
 
@@ -144,8 +144,8 @@ toExplicitHomes home prefix explicits toInfo toBag name value =
     (Map.singleton prefix (OneOrMore.one info))
 
 
-toBinopHomes :: ModuleName.Canonical -> N.Name -> I.Op -> OneOrMore.OneOrMore Env.Binop
-toBinopHomes home op (I.Op name annotation associativity precedence) =
+toBinopHomes :: ModuleName.Canonical -> N.Name -> I.Binop -> OneOrMore.OneOrMore Env.Binop
+toBinopHomes home op (I.Binop name annotation associativity precedence) =
   OneOrMore.one (Env.Binop op home name annotation associativity precedence)
 
 

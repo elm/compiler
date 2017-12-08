@@ -14,12 +14,12 @@ import qualified AST.Canonical as Can
 import qualified AST.Source as Src
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
-import qualified Canonicalize.Result as Result
 import qualified Data.Index as Index
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Region as R
+import qualified Reporting.Result as Result
 
 
 

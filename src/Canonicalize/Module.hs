@@ -19,7 +19,6 @@ import qualified Canonicalize.Environment.Foreign as Foreign
 import qualified Canonicalize.Environment.Local as Local
 import qualified Canonicalize.Expression as Expr
 import qualified Canonicalize.Pattern as Pattern
-import qualified Canonicalize.Result as Result
 import qualified Canonicalize.Type as Type
 import qualified Data.Index as Index
 import qualified Elm.Interface as I
@@ -27,6 +26,7 @@ import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
+import qualified Reporting.Result as Result
 import qualified Reporting.Warning as W
 
 

@@ -1,193 +1,123 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE Rank2Types #-}
 module Reporting.Result
   ( Result(..)
-  , Answer(..)
+  , run
   , ok
-  , throw
-  , accumulate
   , warn
-  , untracked
-  , from
+  , throw
   , mapError
-  , format
-  , answerToEither
-  , oneToValue
   )
   where
 
-import Control.Monad.Except (Except, runExcept)
 
-import qualified Data.Bag as Bag
-import qualified Reporting.Annotation as A
-import qualified Reporting.Region as R
+-- TODO try adding INLINE to warn, throw, (>>=), etc.
 
 
-
--- RESULTS
-
-
-data Result info warning error result =
-  Result
-    { _info :: info
-    , _warnings :: LBag warning
-    , _answer :: Answer (LBag error) result
-    }
-
-
-data Answer e a = Ok a | Err e
-
-
-type LBag a =
-  Bag.Bag (A.Located a)
-
-
-data One a = None | One a
+import qualified Data.OneOrMore as OneOrMore
+import qualified Reporting.Warning as Warning
 
 
 
--- RESULT HELPERS
+-- RESULT
 
 
-ok :: (Monoid i) => a -> Result i w e a
-ok value =
-  Result mempty Bag.empty (Ok value)
+newtype Result info warnings error a =
+  Result (
+    forall result.
+      info
+      -> warnings
+      -> (info -> warnings -> OneOrMore.OneOrMore error -> result)
+      -> (info -> warnings -> a -> result)
+      -> result
+  )
 
 
-throw :: (Monoid i) => R.Region -> e -> Result i w e a
-throw region err =
-  Result mempty Bag.empty (Err (Bag.one (A.A region err)))
-
-
-accumulate :: (Monoid i) => i -> a -> Result i w e a
-accumulate info value =
-  Result info Bag.empty (Ok value)
-
-
-warn :: (Monoid i) => R.Region -> w -> a -> Result i w e a
-warn region warning a =
-  Result mempty (Bag.one (A.A region warning)) (Ok a)
+run :: Result () [w] e a -> ([w], Either (OneOrMore.OneOrMore e) a)
+run (Result k) =
+  k () []
+    (\() w e -> (reverse w, Left e))
+    (\() w a -> (reverse w, Right a))
 
 
 
--- EXTRACTION HELPERS
+-- HELPERS
 
 
-untracked :: (Monoid i) => Result () w e a -> Result i w e a
-untracked (Result () warnings answer) =
-  Result mempty warnings answer
+{-# INLINE ok #-}
+ok :: a -> Result i w e a
+ok a =
+  Result $ \i w _ good ->
+    good i w a
 
 
-from :: (Monoid i) => (e -> e') -> Except [A.Located e] a -> Result i w e' a
-from f except =
-  case runExcept except of
-    Right answer ->
-        ok answer
+warn :: Warning.Warning -> Result i [Warning.Warning] e ()
+warn warning =
+  Result $ \i warnings _ good ->
+    good i (warning:warnings) ()
 
-    Left errors ->
-        Result mempty Bag.empty (Err (Bag.fromList (A.map f) errors))
+
+throw :: e -> Result i w e a
+throw e =
+  Result $ \i w bad _ ->
+    bad i w (OneOrMore.one e)
 
 
 mapError :: (e -> e') -> Result i w e a -> Result i w e' a
-mapError f (Result info warnings rawResult) =
-  Result info warnings $
-    case rawResult of
-      Ok v ->
-          Ok v
-
-      Err msgs ->
-          Err (Bag.map (A.map f) msgs)
-
-
-format :: (Monoid i) => (e -> e') -> Result () w e a -> Result i w e' a
-format func (Result _ warnings answer) =
-  mapError func (Result mempty warnings answer)
-
-
-answerToEither :: (A.Located e -> e') -> (a -> a') -> Answer (LBag e) a -> Either [e'] a'
-answerToEither onErr onOk answer =
-  case answer of
-    Ok value ->
-      Right (onOk value)
-
-    Err errors ->
-      Left (map onErr (Bag.toList errors))
-
-
-oneToValue :: b -> (a -> b) -> One a -> b
-oneToValue fallback onOne one =
-  case one of
-    None ->
-      fallback
-
-    One value ->
-      onOne value
+mapError func (Result k) =
+  Result $ \i w bad good ->
+    let
+      bad1 i1 w1 e1 =
+        bad i1 w1 (OneOrMore.map func e1)
+    in
+    k i w bad1 good
 
 
 
--- EXTRA FANCY HELPERS
+-- FANCY INSTANCE STUFF
 
 
 instance Functor (Result i w e) where
-  fmap func (Result info warnings rawResult) =
-      case rawResult of
-        Ok a ->
-            Result info warnings (Ok (func a))
-
-        Err msgs ->
-            Result info warnings (Err msgs)
-
-
-instance (Monoid i) => Applicative (Result i w e) where
-  pure value =
-      ok value
-
-  (<*>) (Result info warnings resultFunc) (Result info' warnings' resultVal) =
-      Result (mappend info info') (Bag.append warnings warnings') $
-          case (resultFunc, resultVal) of
-            (Ok func, Ok val) ->
-                Ok (func val)
-
-            (Err msgs, Err msgs') ->
-                Err (Bag.append msgs msgs')
-
-            (Err msgs, _) ->
-                Err msgs
-
-            (_, Err msgs) ->
-                Err msgs
+  fmap func (Result k) =
+    Result $ \i w bad good ->
+      let
+        good1 i1 w1 value =
+          good i1 w1 (func value)
+      in
+      k i w bad good1
 
 
-instance (Monoid i) => Monad (Result i w e) where
-  return value =
-      ok value
+instance Applicative (Result i w e) where
+  pure = ok
 
-  (>>=) (Result info warnings rawResult) callback =
-      case rawResult of
-          Err msg ->
-              Result info warnings (Err msg)
+  (<*>) (Result kf) (Result kv) =
+    Result $ \i w bad good ->
+      let
+        bad1 i1 w1 e1 =
+          let
+            bad2 i2 w2 e2 = bad i2 w2 (OneOrMore.more e1 e2)
+            good2 i2 w2 _value = bad i2 w2 e1
+          in
+          kv i1 w1 bad2 good2
 
-          Ok value ->
-              let
-                (Result info' warnings' rawResult') =
-                  callback value
-              in
-                Result
-                  (mappend info info')
-                  (Bag.append warnings warnings')
-                  rawResult'
+        good1 i1 w1 func =
+          let
+            bad2 i2 w2 e2 = bad i2 w2 e2
+            good2 i2 w2 value = good i2 w2 (func value)
+          in
+          kv i1 w1 bad2 good2
+      in
+      kf i w bad1 good1
 
 
-instance Monoid (One a) where
-  mempty =
-    None
+instance Monad (Result i w e) where
+  return = ok
 
-  mappend left right =
-    case (left, right) of
-      (other, None) ->
-        other
-
-      (None, other) ->
-        other
-
-      (One _, One _) ->
-        error "There should only be one!"
+  (>>=) (Result ka) callback =
+    Result $ \i w bad good ->
+      let
+        good1 i1 w1 a =
+          case callback a of
+            Result kb -> kb i1 w1 bad good
+      in
+      ka i w bad good1
