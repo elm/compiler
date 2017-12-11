@@ -5,24 +5,24 @@ module Elm.Compiler.Type
   , Format(..)
   , toString
   , Program(..)
+  , Alias(..)
+  , Union(..)
   , encode
   , decoder
   , encodeProgram
   )
   where
 
-import Control.Arrow ((***))
-import Data.Aeson ((.:))
-import qualified Data.Aeson as Aeson
-import qualified Data.Text as Text
+
 import Data.Text (Text)
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import qualified Text.PrettyPrint as P
 import Text.PrettyPrint ((<+>))
 
-import qualified AST.Helpers as Help
-import qualified AST.Type as Type
-import qualified AST.Variable as Var
-import qualified Parse.Helpers as Parse
+import qualified AST.Source as Src
+import qualified Elm.Name as N
+import qualified Parse.Primitives as Parse
 import qualified Parse.Type as Type
 import qualified Reporting.Annotation as A
 import qualified Json.Decode as Decode
@@ -36,17 +36,23 @@ import Json.Encode ((==>))
 
 data Type
     = Lambda Type Type
-    | Var Text
-    | Type Text [Type]
-    | Record [(Text, Type)] (Maybe Type)
+    | Var N.Name
+    | Type N.Name [Type]
+    | Record [(N.Name, Type)] (Maybe Type)
+    | Unit
+    | Tuple Type Type [Type]
 
 
 data Program =
   Program
     { _message :: Type
-    , _aliases :: [( Text, [Text], Type )]
-    , _unions :: [( Text, [Text], [(Text, [Type])] )]
+    , _aliases :: [Alias]
+    , _unions :: [Union]
     }
+
+
+data Alias = Alias N.Name [N.Name] Type
+data Union = Union N.Name [N.Name] [(N.Name, [Type])]
 
 
 
@@ -89,30 +95,38 @@ toDoc context tipe =
     Var name ->
         P.text (Text.unpack name)
 
-    Type name [] ->
-        P.text (if name == Help.zeroTuple then "()" else Text.unpack name)
+    Unit ->
+        "()"
 
-    Type name arguments@(arg:args) ->
-        if Help.isTuple name then
-          P.sep
-            [ P.cat ("(" <+> toDoc None arg : map (\a -> "," <+> toDoc None a) args)
-            , ")"
-            ]
+    Tuple a b cs ->
+        P.sep
+          [ P.cat $
+              [ "(" <+> toDoc None a
+              , "," <+> toDoc None b
+              ]
+              ++ map ("," <+>) (map (toDoc None) cs)
+          , ")"
+          ]
 
-        else
-          let
-            application =
-              P.hang
-                  (P.text (Text.unpack name))
-                  2
-                  (P.sep $ map (toDoc InType) arguments)
-          in
-            case context of
-              InType ->
-                P.parens application
+    Type name args ->
+        case args of
+          [] ->
+            P.text (Text.unpack name)
 
-              _ ->
-                application
+          _ ->
+            let
+              application =
+                P.hang
+                    (P.text (Text.unpack name))
+                    2
+                    (P.sep $ map (toDoc InType) args)
+            in
+              case context of
+                InType ->
+                  P.parens application
+
+                _ ->
+                  application
 
     Record _ _ ->
         case flattenRecord tipe of
@@ -175,66 +189,41 @@ encode tipe =
 
 decoder :: Decode.Decoder Type
 decoder =
-  Decode.oneOf
-    [
-      do  txt <- Decode.text
-          case Parse.run Type.expression (Text.replace "'" "_" txt) of
-            Left _ ->
-              Decode.fail "Expecting a type, like (String -> Int)"
+  do  txt <- Decode.text
+      case Parse.run Type.expression (Text.encodeUtf8 (Text.replace "'" "_" txt)) of
+        Left _ ->
+          Decode.fail "Expecting a type, like (String -> Int)"
 
-            Right (tipe, _, _) ->
-              Decode.succeed (fromRawType tipe)
-    ,
-      Decode.aeson
-    ]
+        Right (tipe, _, _) ->
+          Decode.succeed (fromRawType tipe)
 
 
-instance Aeson.FromJSON Type where
-  parseJSON =
-    Aeson.withObject "Type" $ \object ->
-      do  tag <- object .: "tag"
-          case (tag :: String) of
-            "lambda" ->
-                Lambda <$> object .: "in" <*> object .: "out"
-
-            "var" ->
-                Var <$> object .: "name"
-
-            "type" ->
-                do  name <- object .: "name"
-                    return (Type name [])
-
-            "app" ->
-                do  func <- object .: "func"
-                    args <- object .: "args"
-                    case func of
-                      Type name [] ->
-                        return (Type name args)
-
-                      _ ->
-                        fail "unexpected type application"
-
-            "record" ->
-                Record <$> object .: "fields" <*> object .: "extension"
-
-            _ ->
-                fail $ "Error when decoding type with tag: " ++ tag
-
-
-fromRawType :: Type.Raw -> Type
-fromRawType (A.A _ astType) =
+fromRawType :: Src.Type -> Type
+fromRawType (A.At _ astType) =
   case astType of
-    Type.RLambda t1 t2 ->
+    Src.TLambda t1 t2 ->
         Lambda (fromRawType t1) (fromRawType t2)
 
-    Type.RVar x ->
+    Src.TVar x ->
         Var x
 
-    Type.RType (A.A _ name) args ->
-        Type (Var.rawToText name) (map fromRawType args)
+    Src.TUnit ->
+        Unit
 
-    Type.RRecord fields ext ->
-        Record (map (A.drop *** fromRawType) fields) (fmap fromRawType ext)
+    Src.TTuple a b cs ->
+        Tuple
+          (fromRawType a)
+          (fromRawType b)
+          (map fromRawType cs)
+
+    Src.TType _ _ name args ->
+        Type name (map fromRawType args)
+
+    Src.TRecord fields ext ->
+        let fromField (A.At _ field, tipe) = (field, fromRawType tipe) in
+        Record
+          (map fromField fields)
+          (fmap fromRawType ext)
 
 
 
@@ -250,8 +239,8 @@ encodeProgram (Program msg aliases unions) =
     ]
 
 
-toAliasField :: ( Text, [Text], Type ) -> ( String, Encode.Value )
-toAliasField ( name, args, tipe ) =
+toAliasField :: Alias -> ( String, Encode.Value )
+toAliasField (Alias name args tipe) =
   Text.unpack name ==>
     Encode.object
       [ "args" ==> Encode.list Encode.text args
@@ -259,8 +248,8 @@ toAliasField ( name, args, tipe ) =
       ]
 
 
-toUnionField :: ( Text, [Text], [(Text, [Type])] ) -> ( String, Encode.Value )
-toUnionField ( name, args, constructors ) =
+toUnionField :: Union -> ( String, Encode.Value )
+toUnionField (Union name args constructors) =
   Text.unpack name ==>
     Encode.object
       [ "args" ==> Encode.list Encode.text args

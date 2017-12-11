@@ -1,158 +1,242 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE Rank2Types #-}
 module Elm.Compiler.Type.Extract
-  ( extract
-  , extractProgram
+  ( fromAnnotation
+  , fromType
+  , fromProgram
   )
   where
 
-import qualified Control.Monad.Writer.Strict as Writer
+
+import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
+import Data.Monoid ((<>))
 import qualified Data.Set as Set
-import Data.Text (Text)
 
-import qualified AST.Module as Module
+import qualified AST.Canonical as Can
+import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
-import qualified AST.Type as T
-import qualified AST.Variable as Var
-import Elm.Compiler.Type (Type(..), Program(Program))
+import qualified AST.Utils.Type as Type
+import qualified Elm.Compiler.Type as T
+import qualified Elm.Interface as I
+import qualified Elm.Name as N
 
 
 
 -- EXTRACTION
 
 
-extract :: T.Canonical -> Type
+fromAnnotation :: Can.Annotation -> T.Type
+fromAnnotation (Can.Forall _ astType) =
+  fromType astType
+
+
+fromType :: Can.Type -> T.Type
+fromType astType =
+  snd (run (extract astType))
+
+
+extract :: Can.Type -> Extractor T.Type
 extract astType =
-  fst $ Writer.runWriter $ extractHelp astType
-
-
-type Deps =
-  ( Set.Set Var.Canonical -- aliases
-  , Set.Set Var.Canonical -- unions
-  )
-
-
-diff :: Deps -> Deps -> Deps
-diff (oldAliases, oldUnions) (newAliases, newUnions) =
-  ( Set.difference newAliases oldAliases
-  , Set.difference newUnions oldUnions
-  )
-
-
-extractHelp :: T.Canonical -> Writer.Writer Deps Type
-extractHelp astType =
   case astType of
-    T.Lambda arg result ->
-      Lambda <$> extractHelp arg <*> extractHelp result
+    Can.TLambda arg result ->
+      T.Lambda
+        <$> extract arg
+        <*> extract result
 
-    T.Var x ->
-      return (Var x)
+    Can.TVar x ->
+      pure (T.Var x)
 
-    T.Type var args ->
-      do  Writer.tell ( Set.empty, Set.singleton var )
-          Type (Var.toText var) <$> traverse extractHelp args
+    Can.TType home name args ->
+      addUnion (Opt.Global home name) (T.Type (toPublicName home name))
+        <*> traverse extract args
 
-    T.Record fields ext ->
-      Record
-        <$> traverse (traverse extractHelp) fields
-        <*> traverse extractHelp ext
+    Can.TRecord fields ext ->
+      T.Record
+        <$> fmap Map.toList (traverse extract fields)
+        <*> traverse extract ext
 
-    T.Aliased name args aliasedType ->
-      do  Writer.tell ( Set.singleton name, Set.empty )
-          _ <- extractHelp (T.dealias args aliasedType)
-          Type (Var.toText name) <$> traverse (extractHelp . snd) args
+    Can.TUnit ->
+      pure T.Unit
+
+    Can.TTuple a b maybeC ->
+      T.Tuple
+        <$> extract a
+        <*> extract b
+        <*> traverse extract (Maybe.maybeToList maybeC)
+
+    Can.TAlias home name args aliasType ->
+      do  addAlias (Opt.Global home name) ()
+          _ <- extract (Type.dealias args aliasType)
+          T.Type (toPublicName home name)
+            <$> traverse (extract . snd) args
+
+
+toPublicName :: ModuleName.Canonical -> N.Name -> N.Name
+toPublicName (ModuleName.Canonical _ home) name =
+  home <> "." <> name
 
 
 
 -- EXTRACT MODEL, MSG, AND ANY TRANSITIVE DEPENDENCIES
 
 
-extractProgram :: Module.Interfaces -> ModuleName.Canonical -> Maybe Program
-extractProgram interfaces name =
+fromProgram :: I.Interfaces -> ModuleName.Canonical -> Maybe T.Program
+fromProgram interfaces name =
   do  iface <- Map.lookup name interfaces
-      mainType <- Map.lookup "main" (Module.iTypes iface)
+      mainType <- Map.lookup "main" (I._types iface)
+      message <- getMessage mainType
 
-      message <-
-        case T.deepDealias mainType of
-          T.Type _program [_flags, _model, msg] -> Just msg
-          T.Type _node [msg] -> Just msg
-          _ -> Nothing
-
-      let (msgType, msgDeps) = Writer.runWriter (extractHelp message)
-      let (aliases, unions) = extractTransitive interfaces mempty msgDeps
-      Just (Program msgType aliases unions)
+      let (msgDeps, msgType) = run (extract message)
+      let (aliases, unions) = extractTransitive interfaces noDeps msgDeps
+      Just (T.Program msgType aliases unions)
 
 
-type Alias =
-  ( Text, [Text], Type )
+getMessage :: Can.Annotation -> Maybe Can.Type
+getMessage (Can.Forall _ mainType) =
+  case Type.deepDealias mainType of
+    Can.TType _ _program [_flags, _model, msg] ->
+      Just msg
+
+    Can.TType _ _node [msg] ->
+      Just msg
+
+    _ ->
+      Nothing
 
 
-type Union =
-  ( Text, [Text], [(Text, [Type])] )
-
-
-extractTransitive :: Module.Interfaces -> Deps -> Deps -> ( [Alias], [Union] )
-extractTransitive interfaces oldDeps currentDeps =
+extractTransitive :: I.Interfaces -> Deps -> Deps -> ( [T.Alias], [T.Union] )
+extractTransitive interfaces (Deps seenAliases seenUnions) (Deps nextAliases nextUnions) =
   let
-    (aliases, unions) =
-      diff oldDeps currentDeps
+    aliases = Set.difference nextAliases seenAliases
+    unions = Set.difference nextUnions seenUnions
   in
     if Set.null aliases && Set.null unions then
       ( [], [] )
 
     else
       let
-        (result, newDeps) =
-          Writer.runWriter $ do
-            publicAliases <- mapM (extractAlias interfaces) (Set.toList aliases)
-            publicUnions <- mapM (extractUnion interfaces) (Set.toList unions)
-            return ( Maybe.catMaybes publicAliases, Maybe.catMaybes publicUnions )
+        (newDeps, result) =
+          run $
+            (,)
+              <$> traverse (extractAlias interfaces) (Set.toList aliases)
+              <*> traverse (extractUnion interfaces) (Set.toList unions)
+
+        oldDeps =
+          Deps (Set.union seenAliases nextAliases) (Set.union seenUnions nextUnions)
 
         remainingResult =
-          extractTransitive interfaces (mappend oldDeps currentDeps) newDeps
+          extractTransitive interfaces oldDeps newDeps
       in
         mappend result remainingResult
 
 
-extractAlias :: Module.Interfaces -> Var.Canonical -> Writer.Writer Deps (Maybe Alias)
-extractAlias interfaces var =
+extractAlias :: I.Interfaces -> Opt.Global -> Extractor T.Alias
+extractAlias interfaces (Opt.Global home name) =
   let
-    toAlias (args, tipe) =
-      (,,) (Var.toText var) args <$> extractHelp tipe
+    (I.Interface _ _ aliases _) = interfaces ! home
+    (Can.Alias args aliasType _) = aliases ! name
   in
-    traverse toAlias (get Module.iAliases interfaces var)
+  T.Alias (toPublicName home name) args <$> extract aliasType
 
 
-extractUnion :: Module.Interfaces -> Var.Canonical -> Writer.Writer Deps (Maybe Union)
-extractUnion interfaces var =
+extractUnion :: I.Interfaces -> Opt.Global -> Extractor T.Union
+extractUnion interfaces (Opt.Global home name) =
   let
-    toUnion (args, constructors) =
-      (,,) (Var.toText var) args
-        <$> traverse (traverse (traverse extractHelp)) constructors
+    (I.Interface _ unions _ _) = interfaces ! home
+    (Can.Union args constructors) = unions ! name
   in
-    traverse toUnion (get Module.iUnions interfaces var)
+  T.Union (toPublicName home name) args
+    <$> traverse (traverse (traverse extract)) constructors
 
 
-get :: (Module.Interface -> Map.Map Text a) -> Module.Interfaces -> Var.Canonical -> Maybe a
-get getInfo interfaces var =
-  do  (home, name) <- getHome var
-      iface <- Map.lookup home interfaces
-      Map.lookup name (getInfo iface)
+
+-- DEPS
 
 
-getHome :: Var.Canonical -> Maybe (ModuleName.Canonical, Text)
-getHome (Var.Canonical home name) =
-  case home of
-    Var.BuiltIn ->
-      Nothing
+data Deps =
+  Deps
+    { _aliases :: Set.Set Opt.Global
+    , _unions :: Set.Set Opt.Global
+    }
 
-    Var.Module moduleName ->
-      Just (moduleName, name)
 
-    Var.TopLevel moduleName ->
-      Just (moduleName, name)
+{-# NOINLINE noDeps #-}
+noDeps :: Deps
+noDeps =
+  Deps Set.empty Set.empty
 
-    Var.Local ->
-      Nothing
+
+
+-- EXTRACTOR
+
+
+newtype Extractor a =
+  Extractor (
+    forall result.
+      Set.Set Opt.Global
+      -> Set.Set Opt.Global
+      -> (Set.Set Opt.Global -> Set.Set Opt.Global -> a -> result)
+      -> result
+  )
+
+
+run :: Extractor a -> (Deps, a)
+run (Extractor k) =
+  k Set.empty Set.empty $ \aliases unions value ->
+    ( Deps aliases unions, value )
+
+
+addAlias :: Opt.Global -> a -> Extractor a
+addAlias alias value =
+  Extractor $ \aliases unions ok ->
+    ok (Set.insert alias aliases) unions value
+
+
+addUnion :: Opt.Global -> a -> Extractor a
+addUnion union value =
+  Extractor $ \aliases unions ok ->
+    ok aliases (Set.insert union unions) value
+
+
+instance Functor Extractor where
+  fmap func (Extractor k) =
+    Extractor $ \aliases unions ok ->
+      let
+        ok1 a1 u1 value =
+          ok a1 u1 (func value)
+      in
+      k aliases unions ok1
+
+
+instance Applicative Extractor where
+  pure value =
+    Extractor $ \aliases unions ok ->
+      ok aliases unions value
+
+  (<*>) (Extractor kf) (Extractor kv) =
+    Extractor $ \aliases unions ok ->
+      let
+        ok1 a1 u1 func =
+          let
+            ok2 a2 u2 value =
+              ok a2 u2 (func value)
+          in
+          kv a1 u1 ok2
+      in
+      kf aliases unions ok1
+
+
+instance Monad Extractor where
+  return = pure
+
+  (>>=) (Extractor ka) callback =
+    Extractor $ \aliases unions ok ->
+      let
+        ok1 a1 u1 value =
+          case callback value of
+            Extractor kb -> kb a1 u1 ok
+      in
+      ka aliases unions ok1
