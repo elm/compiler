@@ -1,58 +1,50 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Elm.Compiler.Imports (defaults) where
-
-import Data.Text (Text)
-
-import qualified AST.Exposing as E
-import qualified AST.Module as Module
-import qualified Reporting.Annotation as A
-import qualified Reporting.Region as R
+module Elm.Compiler.Imports
+  ( Import(..)
+  , Exposing(..)
+  , defaults
+  )
+  where
 
 
-
--- DEFAULT IMPORTS
-
-
-(==>) :: a -> b -> (a,b)
-(==>) = (,)
+import qualified Elm.Name as N
 
 
-defaults :: [Module.DefaultImport]
+
+-- IMPORTS
+
+
+data Import =
+  Import
+    { _name :: N.Name
+    , _alias :: Maybe N.Name
+    , _exposing :: Exposing
+    }
+
+
+data Exposing
+  = Open
+  | Closed
+  | TypeOpen N.Name
+  | TypeClosed N.Name
+  | Operator N.Name
+
+
+
+-- DEFAULTS
+
+
+defaults :: [Import]
 defaults =
-    [ "Basics" ==> Module.ImportMethod Nothing E.Open
-    , "Debug" ==> Module.ImportMethod Nothing E.closed
-    , "List" ==> exposing [E.Lower "::"]
-    , "Maybe" ==> exposing [E.Upper "Maybe" (Just E.Open)]
-    , "Result" ==> exposing [E.Upper "Result" (Just E.Open)]
-    , "String" ==> Module.ImportMethod Nothing E.closed
-    , "Tuple" ==> Module.ImportMethod Nothing E.closed
-    , "Platform" ==> exposing [closedType "Program"]
-    , "Platform.Cmd" ==> named "Cmd" [closedType "Cmd"]
-    , "Platform.Sub" ==> named "Sub" [closedType "Sub"]
+    [ Import "Basics" Nothing Open
+    , Import "Debug" Nothing Closed
+    , Import "List" Nothing (Operator "::")
+    , Import "Maybe" Nothing (TypeOpen "Maybe")
+    , Import "Result" Nothing (TypeOpen "Result")
+    , Import "String" Nothing Closed
+    , Import "Tuple" Nothing Closed
+    , Import "Platform" Nothing (TypeClosed "Program")
+    , Import "Platform.Cmd" (Just "Cmd") (TypeClosed "Cmd")
+    , Import "Platform.Sub" (Just "Sub") (TypeClosed "Sub")
     ]
-
-
-exposing :: [E.Entry] -> Module.ImportMethod
-exposing entries =
-  Module.ImportMethod Nothing (explicit entries)
-
-
-closedType :: Text -> E.Entry
-closedType name =
-  E.Upper name Nothing
-
-
-named :: Text -> [E.Entry] -> Module.ImportMethod
-named name entries =
-  Module.ImportMethod (Just name) (explicit entries)
-
-
-explicit :: [E.Entry] -> E.Raw
-explicit entries =
-  E.Explicit (map (A.A nowhere) entries)
-
-
-nowhere :: R.Region
-nowhere =
-  R.Region (R.Position 1 1) (R.Position 1 1)
