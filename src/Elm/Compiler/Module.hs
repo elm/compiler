@@ -2,14 +2,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Elm.Compiler.Module
   -- interfaces
-  ( Module.Interface
-  , Module.Interfaces
-  , Module.privatize
+  ( I.Interface
+  , I.Interfaces
   , interfaceAliasedTypes
   , programTypes
 
   -- module names
-  , ModuleName.Raw
+  , Raw
   , nameToPath
   , nameToString
   , nameFromText
@@ -20,7 +19,6 @@ module Elm.Compiler.Module
 
   -- canonical names
   , ModuleName.Canonical(..)
-  , canonicalToMain
   )
   where
 
@@ -28,14 +26,13 @@ import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Text as Text
-import Data.Text (Text)
 import System.FilePath ((</>))
 
-import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
-import qualified Elm.Compiler.Type as PublicType
+import qualified Elm.Compiler.Type as Type
 import qualified Elm.Compiler.Type.Extract as Extract
-import qualified Generate.JavaScript.Variable as JS
+import qualified Elm.Interface as I
+import qualified Elm.Name as N
 import qualified Json.Decode as Decode
 import qualified Json.Encode as Encode
 
@@ -44,46 +41,49 @@ import qualified Json.Encode as Encode
 -- INTERFACES
 
 
-interfaceAliasedTypes :: Module.Interface -> Map.Map Text PublicType.Type
+interfaceAliasedTypes :: I.Interface -> Map.Map N.Name Type.Type
 interfaceAliasedTypes interface =
-  Map.map Extract.extract (Module.iTypes interface)
+  Map.map Extract.fromAnnotation (I._types interface)
 
 
-programTypes :: Module.Interfaces -> ModuleName.Canonical -> Maybe PublicType.Program
+programTypes :: I.Interfaces -> ModuleName.Canonical -> Maybe Type.Program
 programTypes =
-  Extract.extractProgram
+  Extract.fromProgram
 
 
 
 -- NAMES
 
 
-nameToPath :: ModuleName.Raw -> FilePath
+type Raw = N.Name
+
+
+nameToPath :: Raw -> FilePath
 nameToPath name =
   List.foldl1 (</>) (map Text.unpack (Text.splitOn "." name))
 
 
-nameToString :: ModuleName.Raw -> String
+nameToString :: Raw -> String
 nameToString name =
   Text.unpack name
 
 
-nameFromText :: Text -> Maybe ModuleName.Raw
+nameFromText :: Text.Text -> Maybe Raw
 nameFromText =
   fromText '.'
 
 
-hyphenate :: ModuleName.Raw -> Text
+hyphenate :: Raw -> Text.Text
 hyphenate name =
   Text.replace "." "-" name
 
 
-dehyphenate :: Text -> Maybe ModuleName.Raw
+dehyphenate :: Text.Text -> Maybe Raw
 dehyphenate =
   fromText '-'
 
 
-fromText :: Char -> Text -> Maybe ModuleName.Raw
+fromText :: Char -> Text.Text -> Maybe Raw
 fromText sep name =
   let
     chunks =
@@ -92,7 +92,7 @@ fromText sep name =
     if all isGoodChunk chunks then Just name else Nothing
 
 
-isGoodChunk :: Text -> Bool
+isGoodChunk :: Text.Text -> Bool
 isGoodChunk chunk =
   case Text.uncons chunk of
     Nothing ->
@@ -111,12 +111,12 @@ isGoodChar char =
 -- JSON
 
 
-encode :: ModuleName.Raw -> Encode.Value
+encode :: Raw -> Encode.Value
 encode =
   Encode.text
 
 
-decoder :: Decode.Decoder ModuleName.Raw
+decoder :: Decode.Decoder Raw
 decoder =
   do  txt <- Decode.text
       case nameFromText txt of
@@ -125,12 +125,3 @@ decoder =
 
         Just name ->
           Decode.succeed name
-
-
-
--- CANONICAL TO MAIN
-
-
-canonicalToMain :: ModuleName.Canonical -> Text
-canonicalToMain home =
-  JS.globalToName home "main"
