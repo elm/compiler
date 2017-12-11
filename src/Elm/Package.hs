@@ -3,7 +3,9 @@
 module Elm.Package
   ( Name(..)
   , Package(..)
-  , dummyName, core, browser, virtualDom, html, webgl, linearAlgebra
+  , dummyName, kernel, core
+  , browser, virtualDom, html
+  , webgl, linearAlgebra
   , toString, toText, toUrl, toFilePath
   , fromText
   , Version(..)
@@ -57,36 +59,49 @@ data Package =
     deriving (Eq, Ord)
 
 
+{-# NOINLINE dummyName #-}
 dummyName :: Name
 dummyName =
-    Name "user" "project"
+  Name "user" "project"
 
 
+{-# NOINLINE kernel #-}
+kernel :: Name
+kernel =
+  Name "elm-lang" "kernel"
+
+
+{-# NOINLINE core #-}
 core :: Name
 core =
   Name "elm-lang" "core"
 
 
+{-# NOINLINE browser #-}
 browser :: Name
 browser =
   Name "elm-lang" "browser"
 
 
+{-# NOINLINE virtualDom #-}
 virtualDom :: Name
 virtualDom =
   Name "elm-lang" "virtual-dom"
 
 
+{-# NOINLINE html #-}
 html :: Name
 html =
   Name "elm-lang" "html"
 
 
+{-# NOINLINE webgl #-}
 webgl :: Name
 webgl =
   Name "elm-community" "webgl"
 
 
+{-# NOINLINE linearAlgebra #-}
 linearAlgebra :: Name
 linearAlgebra =
   Name "elm-community" "linear-algebra"
