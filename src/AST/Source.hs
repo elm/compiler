@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE OverloadedStrings #-}
 module AST.Source
   ( Expr, Expr_(..)
   , Decl, Decl_(..)
@@ -7,10 +6,10 @@ module AST.Source
   , Pattern, Pattern_(..)
   , Type, Type_(..)
   , Module(..)
+  , Header(..)
   , Import(..)
   , Effects(..)
   , Manager(..)
-  , defaultModule
   , Exposing(..)
   , Exposed(..)
   , Privacy(..)
@@ -130,14 +129,16 @@ data Decl_
 
 
 data Module decls =
-  Module
-    { _name :: N.Name
-    , _effects :: Effects
-    , _docs :: A.Located (Maybe B.ByteString)
-    , _exports :: Exposing
-    , _imports :: [Import]
-    , _decls :: decls
-    }
+  Module (Maybe Header) [Import] decls
+
+
+data Header
+  = Header
+      { _name :: N.Name
+      , _effects :: Effects
+      , _exports :: Exposing
+      , _docs :: A.Located (Maybe B.ByteString)
+      }
 
 
 data Import =
@@ -158,19 +159,6 @@ data Manager
   = Cmd (A.Located N.Name)
   | Sub (A.Located N.Name)
   | Fx (A.Located N.Name) (A.Located N.Name)
-
-
-defaultModule :: [Import] -> decls -> Module decls
-defaultModule imports decls =
-  let zero = R.Position 1 1 in
-  Module
-    { _name = "Main"
-    , _effects = NoEffects
-    , _docs = A.at zero zero Nothing
-    , _exports = Open
-    , _imports = imports
-    , _decls = decls
-    }
 
 
 

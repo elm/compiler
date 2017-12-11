@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module AST.Valid
   ( Expr, Expr_(..)
   , Def(..)
@@ -10,6 +11,7 @@ module AST.Valid
   , Effects(..)
   , Port(..)
   , Manager(..)
+  , defaultModule
   )
   where
 
@@ -104,3 +106,24 @@ data Manager
 
 
 data Port = Port (A.Located N.Name) Src.Type
+
+
+defaultModule :: Map.Map N.Name Text -> [Src.Import] -> [A.Located Decl] -> [Union] -> [Alias] -> [Binop] -> Module
+defaultModule docs imports decls unions aliases binop =
+  Module
+    { _name     = "Main"
+    , _overview = A.At zero Nothing
+    , _docs     = docs
+    , _exports  = Src.Open
+    , _imports  = imports
+    , _decls    = decls
+    , _unions   = unions
+    , _aliases  = aliases
+    , _binop    = binop
+    , _effects  = NoEffects
+    }
+
+
+zero :: R.Region
+zero =
+  R.Region (R.Position 1 1) (R.Position 1 1)

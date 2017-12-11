@@ -29,10 +29,15 @@ type Result i w a =
 
 
 validate :: Src.Module [Src.Decl] -> Result i w Valid.Module
-validate (Src.Module name srcEffects overview exports imports srcDecls) =
+validate (Src.Module header imports srcDecls) =
   do  (Stuff decls unions aliases binops ports docs) <- validateDecls srcDecls
-      effects <- validateEffects srcEffects ports
-      return $ Valid.Module name overview docs exports imports decls unions aliases binops effects
+      case header of
+        Nothing ->
+          return $ Valid.defaultModule docs imports decls unions aliases binops
+
+        Just (Src.Header name srcEffects exports overview) ->
+          do  effects <- validateEffects srcEffects ports
+              return $ Valid.Module name overview docs exports imports decls unions aliases binops effects
 
 
 

@@ -25,28 +25,29 @@ import qualified Reporting.Region as R
 
 
 
--- HEADER
+-- MODULE
 
 
 module_ :: Parser decls -> Parser (Src.Module decls)
 module_ chompDecls =
   do  freshLine
-      oneOf
-        [ do  start <- P.getPosition
-              P.pushContext start E.Module
-              (name, effects) <- chompNameAndEffects
-              P.hint E.Exposing $ Keyword.exposing_
-              P.spaces
-              exports <- exposing
-              P.popContext ()
-              docs <- maybeDocComment
-              imports <- chompImports []
-              decls <- chompDecls
-              return (Src.Module name effects docs exports imports decls)
-        , Src.defaultModule
-            <$> chompImports []
-            <*> chompDecls
-        ]
+      header <- oneOf [ Just <$> chompHeader, return Nothing ]
+      imports <- chompImports []
+      decls <- chompDecls
+      return (Src.Module header imports decls)
+
+
+chompHeader :: Parser Src.Header
+chompHeader =
+  do  start <- P.getPosition
+      P.pushContext start E.Module
+      (name, effects) <- chompNameAndEffects
+      P.hint E.Exposing $ Keyword.exposing_
+      P.spaces
+      exports <- exposing
+      P.popContext ()
+      docs <- maybeDocComment
+      return (Src.Header name effects exports docs)
 
 
 

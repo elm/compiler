@@ -6,15 +6,15 @@ module Elm.Header
   where
 
 
-import Data.Text (Text)
+import qualified Data.ByteString as B
 
-import qualified AST.Module as Module
+import qualified AST.Source as Src
 import qualified Elm.Compiler.Imports as Imports
-import qualified Elm.Compiler.Internals as I
 import qualified Elm.Compiler.Module as M
-import qualified Elm.Package as Package
-import qualified Parse.Helpers as Parse (run)
-import qualified Parse.Module as Parse (header)
+import qualified Elm.Name as N
+import qualified Elm.Package as Pkg
+import qualified Parse.Primitives as Parser
+import qualified Parse.Module as Module
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error as Error
 
@@ -30,34 +30,63 @@ data Tag = Normal | Effect | Port
 -- PARSE
 
 
-parse :: Package.Name -> Text -> Either I.Error (Maybe (Tag, M.Raw), [M.Raw])
-parse pkgName sourceCode =
-  case Parse.run Parse.header sourceCode of
-    Right header ->
-      Right $ toSummary pkgName header
+parse :: Pkg.Name -> B.ByteString -> Either Error.Error (Maybe (Tag, M.Raw), [M.Raw])
+parse pkg sourceCode =
+  case Parser.run chompHeader sourceCode of
+    Right (Src.Module header imports _) ->
+      Right
+        ( fmap simplifyHeader header
+        , toDeps pkg imports
+        )
 
     Left err ->
-      Left (I.Error (A.map Error.Syntax err))
+      Left (Error.Syntax err)
 
 
-toSummary :: Package.Name -> Module.Header [Module.UserImport] -> (Maybe (Tag, M.Raw), [M.Raw])
-toSummary pkgName (Module.Header maybeHeaderDecl imports) =
-  let
-    dependencies =
-      if pkgName == Package.core
-        then map (A.drop . fst . A.drop) imports
-        else map (A.drop . fst . A.drop) imports ++ map fst Imports.defaults
-  in
-    case maybeHeaderDecl of
-      Nothing ->
-        ( Nothing, dependencies )
+chompHeader :: Parser.Parser (Src.Module ())
+chompHeader =
+  Module.module_ $ return ()
 
-      Just (Module.HeaderDecl sourceTag name _ _ _) ->
-        let
-          tag =
-            case sourceTag of
-              Module.Normal -> Normal
-              Module.Port _ -> Port
-              Module.Effect _ -> Effect
-        in
-          ( Just (tag, name), dependencies )
+
+
+-- TO DEPS
+
+
+toDeps :: Pkg.Name -> [Src.Import] -> [N.Name]
+toDeps pkg imports =
+  if pkg == Pkg.core
+    then map getName imports
+    else map getName imports ++ defaultImports
+
+
+getName :: Src.Import -> N.Name
+getName (Src.Import (A.At _ name) _ _) =
+  name
+
+
+{-# NOINLINE defaultImports #-}
+defaultImports :: [N.Name]
+defaultImports =
+  map Imports._name Imports.defaults
+
+
+
+-- TO HEADER
+
+
+simplifyHeader :: Src.Header -> (Tag, N.Name)
+simplifyHeader (Src.Header name effects _ _) =
+  ( toTag effects, name )
+
+
+toTag :: Src.Effects -> Tag
+toTag effects =
+  case effects of
+    Src.NoEffects ->
+      Normal
+
+    Src.Ports _ ->
+      Port
+
+    Src.Manager _ _ ->
+      Effect
