@@ -157,17 +157,16 @@ chompSubscription =
 -- DOC COMMENTS
 
 
-maybeDocComment :: Parser (A.Located (Maybe B.ByteString))
+maybeDocComment :: Parser (Maybe (A.Located B.ByteString))
 maybeDocComment =
-  do  oldEnd <- P.getPosition
-      freshLine
+  do  freshLine
       newStart <- P.getPosition
       oneOf
         [ do  doc <- W.docComment
               end <- P.getPosition
               freshLine
-              return (A.at newStart end (Just doc))
-        , return (A.at oldEnd newStart Nothing)
+              return (Just (A.at newStart end doc))
+        , return Nothing
         ]
 
 

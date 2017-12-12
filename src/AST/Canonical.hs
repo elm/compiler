@@ -236,7 +236,7 @@ data AliasType
 data Module =
   Module
     { _name    :: ModuleName.Canonical
-    , _docs    :: A.Located (Maybe Docs)
+    , _docs    :: Maybe (A.Located Docs)
     , _exports :: Exports
     , _decls   :: Decls
     , _unions  :: Map.Map N.Name Union
@@ -268,7 +268,7 @@ data Docs =
 
 data Exports
   = ExportEverything
-  | Export (Map.Map N.Name Export)
+  | Export (Map.Map N.Name (A.Located Export))
 
 
 data Export

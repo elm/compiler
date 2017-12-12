@@ -137,7 +137,7 @@ data Header
       { _name :: N.Name
       , _effects :: Effects
       , _exports :: Exposing
-      , _docs :: A.Located (Maybe B.ByteString)
+      , _docs :: Maybe (A.Located B.ByteString)
       }
 
 

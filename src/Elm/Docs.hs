@@ -2,30 +2,50 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Elm.Docs
   ( Documentation
-  , Module(..)
   , toDict
-  , decoder
-  , encode
+  , Module(..)
+  , fromCanonical
   , Union(..)
   , Alias(..)
   , Value(..)
   , Binop(..)
   , Binop.Associativity(..)
   , Binop.Precedence(..)
+  , decoder
+  , encode
   )
   where
 
 
+import Control.Monad (foldM)
+import qualified Data.ByteString as B
+import qualified Data.List as List
+import Data.Map ((!))
 import qualified Data.Map as Map
-import Data.Text (Text)
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 
+import qualified AST.Canonical as Can
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Utils.Binop as Binop
+import qualified Data.OneOrMore as OneOrMore
 import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Type as Type
+import qualified Elm.Compiler.Type.Extract as Extract
 import qualified Elm.Name as N
 import qualified Json.Decode as Decode
 import qualified Json.Encode as Encode
 import Json.Encode ((==>))
+import qualified Reporting.Annotation as A
+import qualified Reporting.Error as Error
+import qualified Reporting.Error.Docs as E
+import qualified Reporting.Region as R
+import qualified Reporting.Result as Result
+import Parse.Primitives (Parser)
+import qualified Parse.Primitives as P
+import qualified Parse.Primitives.Symbol as Symbol
+import qualified Parse.Primitives.Variable as Var
+import qualified Parse.Primitives.Whitespace as W
 
 
 
@@ -54,7 +74,7 @@ toPair modul@(Module name _ _ _ _ _) =
 data Module =
   Module
     { _name :: N.Name
-    , _comment :: Text
+    , _comment :: Comment
     , _unions :: Map.Map N.Name Union
     , _aliases :: Map.Map N.Name Alias
     , _values :: Map.Map N.Name Value
@@ -62,14 +82,17 @@ data Module =
     }
 
 
-data Alias = Alias Text [N.Name] Type.Type
-data Union = Union Text [N.Name] [(N.Name, [Type.Type])]
-data Value = Value Text Type.Type
-data Binop = Binop Text Type.Type Binop.Associativity Binop.Precedence
+type Comment = Text.Text
+
+
+data Alias = Alias Comment [N.Name] Type.Type
+data Union = Union Comment [N.Name] [(N.Name, [Type.Type])]
+data Value = Value Comment Type.Type
+data Binop = Binop Comment Type.Type Binop.Associativity Binop.Precedence
 
 
 
--- ENCODE
+-- JSON ENCODE / DECODE
 
 
 encode :: Module -> Encode.Value
@@ -82,10 +105,6 @@ encode (Module name comment unions aliases values binops) =
     , "values" ==> Encode.list encodeValue (Map.toList values)
     , "binops" ==> Encode.list encodeBinop (Map.toList binops)
     ]
-
-
-
--- DECODE
 
 
 decoder :: Decode.Decoder Module
@@ -112,7 +131,7 @@ named entryDecoder =
 
 
 
--- UNION
+-- UNION JSON
 
 
 encodeUnion :: (N.Name, Union) -> Encode.Value
@@ -133,10 +152,6 @@ union =
     <*> Decode.field "cases" (Decode.list caseDecoder)
 
 
-
--- UNION CASE
-
-
 encodeCase :: ( N.Name, [Type.Type] ) -> Encode.Value
 encodeCase ( tag, args ) =
   Encode.list id [ Encode.text tag, Encode.list Type.encode args ]
@@ -150,7 +165,7 @@ caseDecoder =
 
 
 
--- ALIAS
+-- ALIAS JSON
 
 
 encodeAlias :: (N.Name, Alias) -> Encode.Value
@@ -172,7 +187,7 @@ alias =
 
 
 
--- ENCODE VALUE
+-- VALUE JSON
 
 
 encodeValue :: (N.Name, Value) -> Encode.Value
@@ -192,7 +207,7 @@ value =
 
 
 
--- BINOP
+-- BINOP JSON
 
 
 encodeBinop :: (N.Name, Binop) -> Encode.Value
@@ -216,7 +231,7 @@ binop =
 
 
 
--- ASSOCIATIVITY
+-- ASSOCIATIVITY JSON
 
 
 encodeAssoc :: Binop.Associativity -> Encode.Value
@@ -238,7 +253,7 @@ assocDecoder =
 
 
 
--- PRECEDENCE
+-- PRECEDENCE JSON
 
 
 encodePrec :: Binop.Precedence -> Encode.Value
@@ -249,3 +264,257 @@ encodePrec (Binop.Precedence n) =
 precDecoder :: Decode.Decoder Binop.Precedence
 precDecoder =
   Binop.Precedence <$> Decode.int
+
+
+
+-- FROM MODULE
+
+
+fromCanonical :: Can.Module -> Result.Result i w Error.Error Module
+fromCanonical (Can.Module name docs exports decls unions aliases binops effects) =
+  case exports of
+    Can.ExportEverything ->
+      Result.throw $ Error.Docs $ E.ImplicitExposing
+
+    Can.Export exportDict ->
+      case docs of
+        Nothing ->
+          Result.throw $ Error.Docs $ E.NoDocs
+
+        Just (A.At region (Can.Docs overview comments)) ->
+          do  names <- parseOverview region overview
+              Result.mapError Error.Docs $
+                do  checkNames exportDict names
+                    let types = gatherTypes decls Map.empty
+                    foldM
+                      (addExport (Info comments types unions aliases binops effects))
+                      (emptyModule name overview)
+                      (Map.toList exportDict)
+
+
+emptyModule :: ModuleName.Canonical -> B.ByteString -> Module
+emptyModule (ModuleName.Canonical _ name) overview =
+  Module name (Text.decodeUtf8 overview) Map.empty Map.empty Map.empty Map.empty
+
+
+
+-- PARSE OVERVIEW
+
+
+type LName = A.Located N.Name
+
+
+parseOverview :: R.Region -> B.ByteString -> Result.Result i w Error.Error [LName]
+parseOverview (R.Region (R.Position row col) _) overview =
+  case P.runAt row (col + 3) (chompOverview []) overview of
+    Left err ->
+      Result.throw (Error.Syntax err)
+
+    Right names ->
+      Result.ok names
+
+
+chompOverview :: [LName] -> Parser [LName]
+chompOverview names =
+  do  isDocs <- W.chompUntilDocs
+      if isDocs
+        then chompOverviewHelp names
+        else return names
+
+
+chompOverviewHelp :: [LName] -> Parser [LName]
+chompOverviewHelp names =
+  do  pos <- P.getPosition
+      (W.SPos spos) <- W.whitespace
+      if pos == spos
+        then chompOverview names
+        else chompOverview =<< chompDocs names
+
+
+chompDocs :: [LName] -> Parser [LName]
+chompDocs names =
+  do  name <- P.addLocation (P.oneOf [ Var.lower, Var.upper, chompBinop ])
+      spos <- W.whitespace
+      P.oneOf
+        [ do  P.checkSpace spos
+              Symbol.comma
+              P.spaces
+              chompDocs (name:names)
+        , return (name:names)
+        ]
+
+
+chompBinop :: Parser N.Name
+chompBinop =
+  do  Symbol.leftParen
+      name <- Symbol.binop
+      Symbol.rightParen
+      return name
+
+
+
+-- CHECK NAMES
+
+
+type Result i w a =
+  Result.Result i w E.Error a
+
+
+type Dups =
+  Map.Map N.Name (OneOrMore.OneOrMore R.Region)
+
+
+checkNames :: Map.Map N.Name (A.Located Can.Export) -> [LName] -> Result i w ()
+checkNames exports names =
+  do  docs <- Map.traverseWithKey isUnique (List.foldl' addName Map.empty names)
+      let overlap = Map.size (Map.intersection docs exports)
+      if Map.size exports == overlap && overlap == Map.size docs
+        then Result.ok ()
+        else
+          do  _ <- Map.traverseWithKey onlyInDocs (Map.difference docs exports)
+              _ <- Map.traverseWithKey onlyInExports (Map.difference exports docs)
+              Result.ok ()
+
+
+addName :: Dups -> LName -> Dups
+addName dict (A.At region name) =
+  Map.insertWith OneOrMore.more name (OneOrMore.one region) dict
+
+
+isUnique :: N.Name -> OneOrMore.OneOrMore R.Region -> Result i w R.Region
+isUnique name regions =
+  case regions of
+    OneOrMore.One region ->
+      Result.ok region
+
+    OneOrMore.More _ _ ->
+      let (r1:r2:_) = OneOrMore.toList regions in
+      Result.throw (E.Duplicate name r1 r2)
+
+
+onlyInDocs :: N.Name -> R.Region -> Result i w a
+onlyInDocs name region =
+  Result.throw $ E.OnlyInDocs name region
+
+
+onlyInExports :: N.Name -> A.Located Can.Export -> Result i w a
+onlyInExports name (A.At region _) =
+  Result.throw $ E.OnlyInExports name region
+
+
+
+-- CHECK EXPORTS
+
+
+data Info =
+  Info
+    { _iComments :: Map.Map N.Name Comment
+    , _iValues   :: Types
+    , _iUnions   :: Map.Map N.Name Can.Union
+    , _iAliases  :: Map.Map N.Name Can.Alias
+    , _iBinops   :: Map.Map N.Name Can.Binop
+    , _iEffects  :: Can.Effects
+    }
+
+
+addExport :: Info -> Module -> (N.Name, A.Located Can.Export) -> Result i w Module
+addExport info (Module n c us as_ vs bs) (name, A.At region export) =
+  case export of
+    Can.ExportValue ->
+      do  tipe <- getType region name info
+          comment <- getComment region name info
+
+          let newValues = Map.insert name (Value comment tipe) vs
+          Result.ok $ Module n c us as_ newValues bs
+
+    Can.ExportBinop ->
+      do  let (Can.Binop_ assoc prec realName) = _iBinops info ! name
+          tipe <- getType region realName info
+          comment <- getComment region realName info
+
+          let newBinops = Map.insert name (Binop comment tipe assoc prec) bs
+          Result.ok $ Module n c us as_ vs newBinops
+
+    Can.ExportAlias ->
+      do  let (Can.Alias tvars tipe _) = _iAliases info ! name
+          comment <- getComment region name info
+
+          let newAliases = Map.insert name (Alias comment tvars (Extract.fromType tipe)) as_
+          Result.ok $ Module n c us newAliases vs bs
+
+    Can.ExportUnionOpen ->
+      do  let (Can.Union tvars ctors) = _iUnions info ! name
+          comment <- getComment region name info
+
+          let newUnions = Map.insert name (Union comment tvars (map dector ctors)) us
+          Result.ok $ Module n c newUnions as_ vs bs
+
+    Can.ExportUnionClosed ->
+      do  let (Can.Union tvars _) = _iUnions info ! name
+          comment <- getComment region name info
+
+          let newUnions = Map.insert name (Union comment tvars []) us
+          Result.ok $ Module n c newUnions as_ vs bs
+
+    Can.ExportPort ->
+      error "TODO"
+
+
+getComment :: R.Region -> N.Name -> Info -> Result i w Comment
+getComment region name info =
+  case Map.lookup name (_iComments info) of
+    Nothing ->
+      Result.throw (E.NoComment name region)
+
+    Just comment ->
+      Result.ok comment
+
+
+getType :: R.Region -> N.Name -> Info -> Result i w Type.Type
+getType exportRegion name info =
+  case _iValues info ! name of
+    A.At defRegion Nothing ->
+      Result.throw (E.NoAnnotation name exportRegion defRegion)
+
+    A.At _ (Just tipe) ->
+      Result.ok (Extract.fromType tipe)
+
+
+dector :: (N.Name, [Can.Type]) -> (N.Name, [Type.Type])
+dector (name, args) =
+  ( name, map Extract.fromType args )
+
+
+
+-- GATHER TYPES
+
+
+type Types =
+  Map.Map N.Name (A.Located (Maybe Can.Type))
+
+
+gatherTypes :: Can.Decls -> Types -> Types
+gatherTypes decls types =
+  case decls of
+    Can.Declare def subDecls ->
+      gatherTypes subDecls (addDef types def)
+
+    Can.DeclareRec defs subDecls ->
+      gatherTypes subDecls (List.foldl' addDef types defs)
+
+    Can.SaveTheEnvironment ->
+      types
+
+
+addDef :: Types -> Can.Def -> Types
+addDef types def =
+  case def of
+    Can.Def (A.At region name) _ _ ->
+      Map.insert name (A.At region Nothing) types
+
+    Can.TypedDef (A.At region name) _ typedArgs _ resultType ->
+      let
+        tipe =
+          foldr Can.TLambda resultType (map snd typedArgs)
+      in
+      Map.insert name (A.At region (Just tipe)) types

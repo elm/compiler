@@ -26,6 +26,7 @@ import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
+import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
 import qualified Reporting.Warning as W
 
@@ -77,14 +78,14 @@ canonicalize pkg importDict interfaces module_@(Valid.Module name _ _ exports im
 -- DOCUMENTATION
 
 
-toDocs :: Valid.Module -> A.Located (Maybe Can.Docs)
-toDocs (Valid.Module _ (A.At region maybeOverview) comments _ _ _ _ _ _ _) =
-  case maybeOverview of
+toDocs :: Valid.Module -> Maybe (A.Located Can.Docs)
+toDocs (Valid.Module _ docs comments _ _ _ _ _ _ _) =
+  case docs of
     Nothing ->
-      A.At region Nothing
+      Nothing
 
-    Just overview ->
-      A.At region (Just (Can.Docs overview comments))
+    Just (A.At region overview) ->
+      Just (A.At region (Can.Docs overview comments))
 
 
 
@@ -290,16 +291,16 @@ checkExposed
   -> Map.Map N.Name binop
   -> Can.Effects
   -> A.Located Src.Exposed
-  -> Result i w (Dups.Dict () Can.Export)
+  -> Result i w (Dups.Dict () (A.Located Can.Export))
 checkExposed decls unions aliases binops effects (A.At region exposed) =
   case exposed of
     Src.Lower name ->
       if Map.member name decls then
-        Result.ok (Dups.one name region () Can.ExportValue)
+        ok name region Can.ExportValue
       else
         case checkPorts effects name of
           Nothing ->
-            Result.ok (Dups.one name region () Can.ExportPort)
+            ok name region Can.ExportPort
 
           Just ports ->
             Result.throw $ Error.ExportNotFound region Error.BadVar name $
@@ -307,14 +308,14 @@ checkExposed decls unions aliases binops effects (A.At region exposed) =
 
     Src.Operator name ->
       if Map.member name binops then
-        Result.ok (Dups.one name region () Can.ExportBinop)
+        ok name region Can.ExportBinop
       else
         Result.throw $ Error.ExportNotFound region Error.BadOp name $
           Map.keys binops
 
     Src.Upper name Src.Public ->
       if Map.member name unions then
-        Result.ok (Dups.one name region () Can.ExportUnionOpen)
+        ok name region Can.ExportUnionOpen
       else if Map.member name aliases then
         Result.throw $ Error.ExportOpenAlias region name
       else
@@ -323,9 +324,9 @@ checkExposed decls unions aliases binops effects (A.At region exposed) =
 
     Src.Upper name Src.Private ->
       if Map.member name unions then
-        Result.ok (Dups.one name region () Can.ExportUnionClosed)
+        ok name region Can.ExportUnionClosed
       else if Map.member name aliases then
-        Result.ok (Dups.one name region () Can.ExportAlias)
+        ok name region Can.ExportAlias
       else
         Result.throw $ Error.ExportNotFound region Error.BadType name $
           Map.keys unions ++ Map.keys aliases
@@ -342,3 +343,8 @@ checkPorts effects name =
 
     Can.Manager _ _ _ _ ->
       Just []
+
+
+ok :: N.Name -> R.Region -> Can.Export -> Result i w (Dups.Dict () (A.Located Can.Export))
+ok name region export =
+  Result.ok $ Dups.one name region () (A.At region export)

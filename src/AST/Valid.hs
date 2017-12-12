@@ -75,7 +75,7 @@ data Def
 data Module =
   Module
     { _name     :: N.Name
-    , _overview :: A.Located (Maybe B.ByteString)
+    , _overview :: Maybe (A.Located B.ByteString)
     , _docs     :: Map.Map N.Name Text
     , _exports  :: Src.Exposing
     , _imports  :: [Src.Import]
@@ -112,7 +112,7 @@ defaultModule :: Map.Map N.Name Text -> [Src.Import] -> [A.Located Decl] -> [Uni
 defaultModule docs imports decls unions aliases binop =
   Module
     { _name     = "Main"
-    , _overview = A.At zero Nothing
+    , _overview = Nothing
     , _docs     = docs
     , _exports  = Src.Open
     , _imports  = imports
@@ -122,8 +122,3 @@ defaultModule docs imports decls unions aliases binop =
     , _binop    = binop
     , _effects  = NoEffects
     }
-
-
-zero :: R.Region
-zero =
-  R.Region (R.Position 1 1) (R.Position 1 1)
