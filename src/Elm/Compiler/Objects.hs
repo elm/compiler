@@ -1,6 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 module Elm.Compiler.Objects
-  ( Gen.Roots
+  ( JS.Mode(..)
+  , JS.generate
+  , JS.Roots
   , mains
   , value
   , Opt.Graph
@@ -18,21 +20,21 @@ import qualified Data.Text as Text
 
 import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
-import qualified Generate.JavaScript as Gen
+import qualified Generate.JavaScript as JS
 
 
 
 -- ROOTS
 
 
-mains :: [ModuleName.Canonical] -> Gen.Roots
+mains :: [ModuleName.Canonical] -> JS.Roots
 mains =
-  Gen.Mains
+  JS.Mains
 
 
-value :: ModuleName.Canonical -> String -> Gen.Roots
+value :: ModuleName.Canonical -> String -> JS.Roots
 value home name =
-  Gen.Value home (Text.pack name)
+  JS.Value home (Text.pack name)
 
 
 

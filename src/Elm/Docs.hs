@@ -4,7 +4,7 @@ module Elm.Docs
   ( Documentation
   , toDict
   , Module(..)
-  , fromCanonical
+  , fromModule
   , Union(..)
   , Alias(..)
   , Value(..)
@@ -270,8 +270,8 @@ precDecoder =
 -- FROM MODULE
 
 
-fromCanonical :: Can.Module -> Result.Result i w Error.Error Module
-fromCanonical (Can.Module name docs exports decls unions aliases binops effects) =
+fromModule :: Can.Module -> Result.Result i w Error.Error Module
+fromModule (Can.Module name docs exports decls unions aliases binops effects) =
   case exports of
     Can.ExportEverything ->
       Result.throw $ Error.Docs $ E.ImplicitExposing

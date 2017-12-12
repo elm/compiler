@@ -1,6 +1,8 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Compile
-  ( compile
+  ( DocsFlag(..)
+  , compile
+  , Artifacts(..)
   )
   where
 
@@ -12,6 +14,7 @@ import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
 import qualified Canonicalize.Module as Canonicalize
+import qualified Elm.Docs as Docs
 import qualified Elm.Interface as I
 import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
@@ -40,8 +43,16 @@ type ImportDict =
   Map.Map N.Name ModuleName.Canonical
 
 
-compile :: Pkg.Name -> ImportDict -> I.Interfaces -> BS.ByteString -> Result i (I.Interface, Opt.Graph)
-compile pkg importDict interfaces source =
+data Artifacts =
+  Artifacts
+    { _elmi :: I.Interface
+    , _elmo :: Opt.Graph
+    , _docs :: Maybe Docs.Module
+    }
+
+
+compile :: DocsFlag -> Pkg.Name -> ImportDict -> I.Interfaces -> BS.ByteString -> Result i Artifacts
+compile flag pkg importDict interfaces source =
   do
       valid <- Result.mapError Error.Syntax $
         Parse.program source
@@ -60,7 +71,19 @@ compile pkg importDict interfaces source =
 
       let (Optimize.Graph fields graph) = Optimize.optimize canonical
 
-      Result.ok (I.fromModule annotations canonical, Opt.Graph mains graph fields)
+      documentation <-
+        genaretaDocs flag canonical
+
+      Result.ok $
+        Artifacts
+          { _elmi = I.fromModule annotations canonical
+          , _elmo = Opt.Graph mains graph fields
+          , _docs = documentation
+          }
+
+
+
+-- TYPE INFERENCE
 
 
 runTypeInference :: Can.Module -> Result i (Map.Map N.Name Can.Annotation)
@@ -73,6 +96,10 @@ runTypeInference canonical =
       Result.ok annotations
 
 
+
+-- EXHAUSTIVENESS CHECK
+
+
 exhaustivenessCheck :: Can.Module -> Result i ()
 exhaustivenessCheck canonical =
   case PatternMatches.check canonical of
@@ -81,3 +108,20 @@ exhaustivenessCheck canonical =
 
     Right () ->
       Result.ok ()
+
+
+
+-- DOCUMENTATION
+
+
+data DocsFlag = YesDocs | NoDocs
+
+
+genaretaDocs :: DocsFlag -> Can.Module -> Result.Result i w Error.Error (Maybe Docs.Module)
+genaretaDocs flag modul =
+  case flag of
+    NoDocs ->
+      Result.ok Nothing
+
+    YesDocs ->
+      Just <$> Docs.fromModule modul

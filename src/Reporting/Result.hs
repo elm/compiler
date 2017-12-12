@@ -33,10 +33,10 @@ newtype Result info warnings error a =
   )
 
 
-run :: Result () [w] e a -> ([w], Either (OneOrMore.OneOrMore e) a)
+run :: Result () [w] e a -> ([w], Either [e] a)
 run (Result k) =
   k () []
-    (\() w e -> (reverse w, Left e))
+    (\() w e -> (reverse w, Left (OneOrMore.toList e)))
     (\() w a -> (reverse w, Right a))
 
 

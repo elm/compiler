@@ -1,8 +1,9 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Generate.JavaScript
-  ( generate
+  ( Mode(..)
   , Roots(..)
+  , generate
   )
   where
 
@@ -28,29 +29,34 @@ import qualified Generate.JavaScript.Name as Name
 -- GENERATE
 
 
+data Mode = Debug | Prod
+
+
 data Roots
   = Mains [ModuleName.Canonical]
   | Value ModuleName.Canonical N.Name
 
 
-generate :: Bool -> Name.Target -> Opt.Graph -> Roots -> Either [ModuleName.Canonical] B.Builder
-generate debug target (Opt.Graph mains nodes fields) roots =
+generate :: Mode -> Name.Target -> Opt.Graph -> Roots -> Either [ModuleName.Canonical] B.Builder
+generate mode target (Opt.Graph mains nodes fields) roots =
   case roots of
     Value home name ->
       Right $ stateToBuilder $
-        addGlobal (toMode debug target fields) nodes emptyState (Opt.Global home name)
+        addGlobal (toRealMode mode target fields) nodes emptyState (Opt.Global home name)
 
     Mains modules ->
-      generateMain (toMode debug target fields) nodes
+      generateMain (toRealMode mode target fields) nodes
         <$> verifyMains mains modules
 
 
-toMode :: Bool -> Name.Target -> Map.Map N.Name Int -> Name.Mode
-toMode debug target fields =
-  if debug then
-    Name.Debug target
-  else
-    Name.Prod target (Name.shortenFieldNames fields)
+toRealMode :: Mode -> Name.Target -> Map.Map N.Name Int -> Name.Mode
+toRealMode mode target fields =
+  case mode of
+    Debug ->
+      Name.Debug target
+
+    Prod ->
+      Name.Prod target (Name.shortenFieldNames fields)
 
 
 
@@ -78,11 +84,10 @@ stateToBuilder (State revBuilders _) =
 -- ADD DEPENDENCIES
 
 
-type Mode = Name.Mode
 type Graph = Map.Map Opt.Global Opt.Node
 
 
-addGlobal :: Mode -> Graph -> State -> Opt.Global -> State
+addGlobal :: Name.Mode -> Graph -> State -> Opt.Global -> State
 addGlobal mode graph state@(State builders seen) global =
   if Set.member global seen then
     state
@@ -91,7 +96,7 @@ addGlobal mode graph state@(State builders seen) global =
       State builders (Set.insert global seen)
 
 
-addGlobalHelp :: Mode -> Graph -> Opt.Global -> State -> State
+addGlobalHelp :: Name.Mode -> Graph -> Opt.Global -> State -> State
 addGlobalHelp mode graph global state =
   let
     addDeps deps someState =
@@ -163,7 +168,7 @@ var (Opt.Global home name) code =
 -- GENERATE CYCLES
 
 
-generateCycle :: Mode -> Opt.Global -> [(N.Name, Opt.Expr)] -> JS.Stmt
+generateCycle :: Name.Mode -> Opt.Global -> [(N.Name, Opt.Expr)] -> JS.Stmt
 generateCycle mode (Opt.Global home _) cycle =
   let
     safeDefs = map (generateSafeCycle mode home) cycle
@@ -173,7 +178,7 @@ generateCycle mode (Opt.Global home _) cycle =
   JS.Block (safeDefs ++ realDefs)
 
 
-generateSafeCycle :: Mode -> ModuleName.Canonical -> (N.Name, Opt.Expr) -> JS.Stmt
+generateSafeCycle :: Name.Mode -> ModuleName.Canonical -> (N.Name, Opt.Expr) -> JS.Stmt
 generateSafeCycle mode home (name, expr) =
   JS.FunctionStmt (Name.fromCycle home name) [] $
     Expr.codeToStmtList (Expr.generate mode expr)
@@ -196,12 +201,12 @@ generateRealCycle home (name, _) =
 -- GENERATE KERNEL
 
 
-generateKernel :: Mode -> [Opt.KChunk] -> B.Builder
+generateKernel :: Name.Mode -> [Opt.KChunk] -> B.Builder
 generateKernel mode chunks =
   List.foldl' (addChunk mode) mempty chunks
 
 
-addChunk :: Mode -> B.Builder -> Opt.KChunk -> B.Builder
+addChunk :: Name.Mode -> B.Builder -> Opt.KChunk -> B.Builder
 addChunk mode builder chunk =
   case chunk of
     Opt.JS javascript ->
@@ -240,7 +245,7 @@ addChunk mode builder chunk =
 -- GENERATE PORTS
 
 
-generatePort :: Mode -> Opt.Global -> N.Name -> Opt.Expr -> JS.Stmt
+generatePort :: Name.Mode -> Opt.Global -> N.Name -> Opt.Expr -> JS.Stmt
 generatePort mode (Opt.Global home name) makePort converter =
   let
     definition =
@@ -257,7 +262,7 @@ generatePort mode (Opt.Global home name) makePort converter =
 
 
 
-generateManager :: Mode -> Graph -> Opt.Global -> Opt.EffectsType -> State -> State
+generateManager :: Name.Mode -> Graph -> Opt.Global -> Opt.EffectsType -> State -> State
 generateManager mode graph (Opt.Global home@(ModuleName.Canonical _ moduleName) _) effectsType state =
   let
     managerLVar =
@@ -327,7 +332,7 @@ type Mains =
   Map.Map ModuleName.Canonical Opt.Main
 
 
-generateMain :: Mode -> Graph -> Mains -> B.Builder
+generateMain :: Name.Mode -> Graph -> Mains -> B.Builder
 generateMain mode graph mains =
   mconcat
     [ stateToBuilder $ Map.foldrWithKey (addMain mode graph) emptyState mains
@@ -335,7 +340,7 @@ generateMain mode graph mains =
     ]
 
 
-addMain :: Mode -> Graph -> ModuleName.Canonical -> main -> State -> State
+addMain :: Name.Mode -> Graph -> ModuleName.Canonical -> main -> State -> State
 addMain mode graph home _ state =
   addGlobal mode graph state (Opt.Global home "main")
 
