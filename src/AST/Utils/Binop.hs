@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 module AST.Utils.Binop
-  ( Precedence
+  ( Precedence(..)
   , Associativity(..)
   )
   where

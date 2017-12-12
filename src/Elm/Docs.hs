@@ -6,14 +6,12 @@ module Elm.Docs
   , toDict
   , decoder
   , encode
-  , Docs.Docs(..)
-  , Docs.Checked
-  , Docs.Entry(..)
-  , Docs.Union(..)
-  , Docs.Alias(..)
-  , Docs.Value(..)
-  , Decl.Assoc(..)
-  , Decl.assocToText
+  , Union(..)
+  , Alias(..)
+  , Value(..)
+  , Binop(..)
+  , Binop.Associativity(..)
+  , Binop.Precedence(..)
   )
   where
 
@@ -21,10 +19,10 @@ module Elm.Docs
 import qualified Data.Map as Map
 import Data.Text (Text)
 
-import qualified AST.Declaration as Decl
-import qualified Docs.AST as Docs
+import qualified AST.Utils.Binop as Binop
 import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Type as Type
+import qualified Elm.Name as N
 import qualified Json.Decode as Decode
 import qualified Json.Encode as Encode
 import Json.Encode ((==>))
@@ -35,19 +33,39 @@ import Json.Encode ((==>))
 
 
 type Documentation =
-  Map.Map Module.Raw Docs.Checked
-
-
-data Module =
-  Module
-    { _name :: !Module.Raw
-    , _docs :: !Docs.Checked
-    }
+  Map.Map N.Name Module
 
 
 toDict :: [Module] -> Documentation
 toDict modules =
-  Map.fromList $ map (\(Module name docs) -> (name, docs)) modules
+  Map.fromList (map toPair modules)
+
+
+
+toPair :: Module -> (N.Name, Module)
+toPair modul@(Module name _ _ _ _ _) =
+  (name, modul)
+
+
+
+-- MODULES
+
+
+data Module =
+  Module
+    { _name :: N.Name
+    , _comment :: Text
+    , _unions :: Map.Map N.Name Union
+    , _aliases :: Map.Map N.Name Alias
+    , _values :: Map.Map N.Name Value
+    , _binops :: Map.Map N.Name Binop
+    }
+
+
+data Alias = Alias Text [N.Name] Type.Type
+data Union = Union Text [N.Name] [(N.Name, [Type.Type])]
+data Value = Value Text Type.Type
+data Binop = Binop Text Type.Type Binop.Associativity Binop.Precedence
 
 
 
@@ -55,13 +73,14 @@ toDict modules =
 
 
 encode :: Module -> Encode.Value
-encode (Module name (Docs.Docs overview unions aliases values)) =
+encode (Module name comment unions aliases values binops) =
   Encode.object $
     [ "name" ==> Module.encode name
-    , "comment" ==> Encode.text overview
-    , "types" ==> Encode.list encodeUnion (Map.toList unions)
+    , "comment" ==> Encode.text comment
+    , "unions" ==> Encode.list encodeUnion (Map.toList unions)
     , "aliases" ==> Encode.list encodeAlias (Map.toList aliases)
     , "values" ==> Encode.list encodeValue (Map.toList values)
+    , "binops" ==> Encode.list encodeBinop (Map.toList binops)
     ]
 
 
@@ -73,36 +92,31 @@ decoder :: Decode.Decoder Module
 decoder =
   Module
     <$> Decode.field "name" Module.decoder
-    <*> decodeDocs
+    <*> Decode.field "comment" Decode.text
+    <*> Decode.field "unions" (dictDecoder union)
+    <*> Decode.field "aliases" (dictDecoder alias)
+    <*> Decode.field "values" (dictDecoder value)
+    <*> Decode.field "binops" (dictDecoder binop)
 
 
-decodeDocs :: Decode.Decoder Docs.Checked
-decodeDocs =
-  Docs.Docs
-    <$> Decode.field "comment" Decode.text
-    <*> Decode.field "types" (entryDictDecoder unionDecoder)
-    <*> Decode.field "aliases" (entryDictDecoder aliasDecoder)
-    <*> Decode.field "values" (entryDictDecoder valueDecoder)
+dictDecoder :: Decode.Decoder a -> Decode.Decoder (Map.Map N.Name a)
+dictDecoder entryDecoder =
+  Map.fromList <$> Decode.list (named entryDecoder)
 
 
-entryDictDecoder :: Decode.Decoder a -> Decode.Decoder (Map.Map Text (Docs.Good a))
-entryDictDecoder subDecoder =
-  Map.fromList <$> Decode.list (entryDecoder subDecoder)
-
-
-entryDecoder :: Decode.Decoder a -> Decode.Decoder ( Text, Docs.Good a )
-entryDecoder subDecoder =
-  Decode.map2 (,) (Decode.field "name" Decode.text) $
-    Decode.map2 Docs.Entry (Decode.field "comment" Decode.text) $
-      subDecoder
+named :: Decode.Decoder a -> Decode.Decoder (N.Name, a)
+named entryDecoder =
+  (,)
+    <$> Decode.field "name" Decode.text
+    <*> entryDecoder
 
 
 
--- ENCODE UNION
+-- UNION
 
 
-encodeUnion :: ( Text, Docs.Good Docs.Union ) -> Encode.Value
-encodeUnion ( name, Docs.Entry comment (Docs.Union args cases) ) =
+encodeUnion :: (N.Name, Union) -> Encode.Value
+encodeUnion (name, Union comment args cases) =
   Encode.object
     [ "name" ==> Encode.text name
     , "comment" ==> Encode.text comment
@@ -111,23 +125,24 @@ encodeUnion ( name, Docs.Entry comment (Docs.Union args cases) ) =
     ]
 
 
-encodeCase :: ( Text, [Type.Type] ) -> Encode.Value
+union :: Decode.Decoder Union
+union =
+  Union
+    <$> Decode.field "comment" Decode.text
+    <*> Decode.field "args" (Decode.list Decode.text)
+    <*> Decode.field "cases" (Decode.list caseDecoder)
+
+
+
+-- UNION CASE
+
+
+encodeCase :: ( N.Name, [Type.Type] ) -> Encode.Value
 encodeCase ( tag, args ) =
   Encode.list id [ Encode.text tag, Encode.list Type.encode args ]
 
 
-
--- DECODE UNION
-
-
-unionDecoder :: Decode.Decoder Docs.Union
-unionDecoder =
-  Docs.Union
-    <$> Decode.field "args" (Decode.list Decode.text)
-    <*> Decode.field "cases" (Decode.list caseDecoder)
-
-
-caseDecoder :: Decode.Decoder ( Text, [Type.Type] )
+caseDecoder :: Decode.Decoder ( N.Name, [Type.Type] )
 caseDecoder =
   (,)
     <$> Decode.index 0 Decode.text
@@ -135,11 +150,11 @@ caseDecoder =
 
 
 
--- ENCODE ALIAS
+-- ALIAS
 
 
-encodeAlias :: ( Text, Docs.Good Docs.Alias ) -> Encode.Value
-encodeAlias ( name, Docs.Entry comment (Docs.Alias args tipe) ) =
+encodeAlias :: (N.Name, Alias) -> Encode.Value
+encodeAlias ( name, Alias comment args tipe) =
   Encode.object
     [ "name" ==> Encode.text name
     , "comment" ==> Encode.text comment
@@ -148,14 +163,11 @@ encodeAlias ( name, Docs.Entry comment (Docs.Alias args tipe) ) =
     ]
 
 
-
--- DECODE ALIAS
-
-
-aliasDecoder :: Decode.Decoder Docs.Alias
-aliasDecoder =
-  Docs.Alias
-    <$> Decode.field "args" (Decode.list Decode.text)
+alias :: Decode.Decoder Alias
+alias =
+  Alias
+    <$> Decode.field "comment" Decode.text
+    <*> Decode.field "args" (Decode.list Decode.text)
     <*> Decode.field "type" Type.decoder
 
 
@@ -163,45 +175,77 @@ aliasDecoder =
 -- ENCODE VALUE
 
 
-encodeValue :: ( Text, Docs.Good Docs.GoodValue ) -> Encode.Value
-encodeValue ( name, Docs.Entry comment value ) =
-  Encode.object $
+encodeValue :: (N.Name, Value) -> Encode.Value
+encodeValue (name, Value comment tipe) =
+  Encode.object
     [ "name" ==> Encode.text name
     , "comment" ==> Encode.text comment
+    , "type" ==> Type.encode tipe
     ]
-    ++
-      case value of
-        Docs.Value tipe ->
-          [ "type" ==> Type.encode tipe
-          ]
 
-        Docs.Infix tipe assoc prec ->
-          [ "type" ==> Type.encode tipe
-          , "associativity" ==> Encode.text (Decl.assocToText assoc)
-          , "precedence" ==> Encode.int prec
-          ]
+
+value :: Decode.Decoder Value
+value =
+  Value
+    <$> Decode.field "comment" Decode.text
+    <*> Decode.field "type" Type.decoder
 
 
 
--- DECODE VALUE
+-- BINOP
 
 
-valueDecoder :: Decode.Decoder Docs.GoodValue
-valueDecoder =
-  do  tipe <- Decode.field "type" Type.decoder
-      Decode.oneOf
-        [ Docs.Infix tipe
-            <$> Decode.field "associativity" assocDecoder
-            <*> Decode.field "precedence" Decode.int
-        , Decode.succeed (Docs.Value tipe)
-        ]
+encodeBinop :: (N.Name, Binop) -> Encode.Value
+encodeBinop (name, Binop comment tipe assoc prec) =
+  Encode.object
+    [ "name" ==> Encode.text name
+    , "comment" ==> Encode.text comment
+    , "type" ==> Type.encode tipe
+    , "associativity" ==> encodeAssoc assoc
+    , "precedence" ==> encodePrec prec
+    ]
 
 
-assocDecoder :: Decode.Decoder Decl.Assoc
+binop :: Decode.Decoder Binop
+binop =
+  Binop
+    <$> Decode.field "comment" Decode.text
+    <*> Decode.field "type" Type.decoder
+    <*> Decode.field "associativity" assocDecoder
+    <*> Decode.field "precedence" precDecoder
+
+
+
+-- ASSOCIATIVITY
+
+
+encodeAssoc :: Binop.Associativity -> Encode.Value
+encodeAssoc assoc =
+  case assoc of
+    Binop.Left  -> Encode.text "left"
+    Binop.Non   -> Encode.text "non"
+    Binop.Right -> Encode.text "right"
+
+
+assocDecoder :: Decode.Decoder Binop.Associativity
 assocDecoder =
   do  txt <- Decode.text
       case txt of
-        "left"  -> Decode.succeed Decl.Left
-        "non"   -> Decode.succeed Decl.Non
-        "right" -> Decode.succeed Decl.Right
+        "left"  -> Decode.succeed Binop.Left
+        "non"   -> Decode.succeed Binop.Non
+        "right" -> Decode.succeed Binop.Right
         _       -> Decode.fail "Expecting an ASSOCIATIVITY (e.g. left, non, right)"
+
+
+
+-- PRECEDENCE
+
+
+encodePrec :: Binop.Precedence -> Encode.Value
+encodePrec (Binop.Precedence n) =
+  Encode.int n
+
+
+precDecoder :: Decode.Decoder Binop.Precedence
+precDecoder =
+  Binop.Precedence <$> Decode.int
