@@ -19,7 +19,6 @@ import qualified Data.Set as Set
 import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
 import qualified Elm.Name as N
-import qualified Elm.Package as Pkg
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Expression as Expr
 import qualified Generate.JavaScript.Name as Name
@@ -130,9 +129,9 @@ addGlobalHelp mode graph global state =
     Opt.Manager effectsType ->
       generateManager mode graph global effectsType state
 
-    Opt.Kernel clientChunks clientDeps maybeServer ->
+    Opt.Kernel (Opt.KContent clientChunks clientDeps) maybeServer ->
       case maybeServer of
-        Just (serverChunks, serverDeps) | Name.isServer mode ->
+        Just (Opt.KContent serverChunks serverDeps) | Name.isServer mode ->
           addBuilder (addDeps serverDeps state) (generateKernel mode serverChunks)
 
         _ ->
@@ -212,8 +211,11 @@ addChunk mode builder chunk =
     Opt.JS javascript ->
       B.byteString javascript <> builder
 
-    Opt.Var home name ->
-      Name.toBuilder (Name.fromGlobal (ModuleName.Canonical Pkg.core home) name) <> builder
+    Opt.ElmVar home name ->
+      Name.toBuilder (Name.fromGlobal home name) <> builder
+
+    Opt.JsVar home name ->
+      Name.toBuilder (Name.fromKernel home name) <> builder
 
     Opt.ElmField name ->
       Name.toBuilder (Name.fromField mode name) <> builder
