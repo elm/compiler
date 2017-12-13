@@ -3,12 +3,14 @@ module AST.Optimized
   ( Def(..)
   , Expr(..)
   , Global(..)
+  , kernel
   , Decider(..)
   , Choice(..)
   , Graph(..)
   , Main(..)
   , Node(..)
   , EffectsType(..)
+  , KContent(..)
   , KChunk(..)
   )
   where
@@ -25,6 +27,7 @@ import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
 import qualified Elm.Name as N
+import qualified Elm.Package as Pkg
 import qualified Optimize.DecisionTree as DT
 import qualified Reporting.Region as R
 
@@ -62,6 +65,13 @@ data Expr
 
 data Global = Global ModuleName.Canonical N.Name
   deriving (Eq, Ord)
+
+
+-- Provide "List" not "Elm.Kernel.List"
+--
+kernel :: N.Name -> Global
+kernel home =
+  Global (ModuleName.Canonical Pkg.kernel home) N.dollar
 
 
 
@@ -121,7 +131,7 @@ data Node
   | Link Global
   | Cycle [(N.Name, Expr)] (Set.Set Global)
   | Manager EffectsType
-  | Kernel [KChunk] (Set.Set Global) (Maybe ([KChunk], Set.Set Global))
+  | Kernel KContent (Maybe KContent)
   | PortIncoming Expr (Set.Set Global)
   | PortOutgoing Expr (Set.Set Global)
 
@@ -129,9 +139,14 @@ data Node
 data EffectsType = Cmd | Sub | Fx
 
 
+data KContent =
+  KContent [KChunk] (Set.Set Global)
+
+
 data KChunk
   = JS BS.ByteString
-  | Var N.Name N.Name
+  | ElmVar ModuleName.Canonical N.Name
+  | JsVar N.Name N.Name
   | ElmField N.Name
   | JsField Int
   | Enum Int
@@ -250,25 +265,96 @@ instance Binary Choice where
           _ -> error "problem getting Opt.Choice binary"
 
 
+
+instance Binary Graph where
+  get = liftM3 Graph get get get
+  put (Graph a b c) = put a >> put b >> put c
+
+
+instance Binary Main where
+  put main =
+    case main of
+      Static    -> putWord8 0
+      Dynamic a -> putWord8 1 >> put a
+
+  get =
+    do  word <- getWord8
+        case word of
+          0 -> return Static
+          1 -> liftM  Dynamic get
+          _ -> error "problem getting Opt.Main binary"
+
+
+instance Binary Node where
+  put node =
+    case node of
+      Define a b           -> putWord8 0 >> put a >> put b
+      DefineTailFunc a b c -> putWord8 1 >> put a >> put b >> put c
+      Ctor a b c           -> putWord8 2 >> put a >> put b >> put c
+      Link a               -> putWord8 3 >> put a
+      Cycle a b            -> putWord8 4 >> put a >> put b
+      Manager a            -> putWord8 5 >> put a
+      Kernel a b           -> putWord8 6 >> put a >> put b
+      PortIncoming a b     -> putWord8 7 >> put a >> put b
+      PortOutgoing a b     -> putWord8 8 >> put a >> put b
+
+  get =
+    do  word <- getWord8
+        case word of
+          0 -> liftM2 Define get get
+          1 -> liftM3 DefineTailFunc get get get
+          2 -> liftM3 Ctor get get get
+          3 -> liftM  Link get
+          4 -> liftM2 Cycle get get
+          5 -> liftM  Manager get
+          6 -> liftM2 Kernel get get
+          7 -> liftM2 PortIncoming get get
+          8 -> liftM2 PortOutgoing get get
+          _ -> error "problem getting Opt.Node binary"
+
+
+instance Binary EffectsType where
+  put effectsType =
+    case effectsType of
+      Cmd -> putWord8 0
+      Sub -> putWord8 1
+      Fx  -> putWord8 2
+
+  get =
+    do  word <- getWord8
+        case word of
+          0 -> return Cmd
+          1 -> return Sub
+          2 -> return Fx
+          _ -> error "problem getting Opt.EffectsType binary"
+
+
+instance Binary KContent where
+  get = liftM2 KContent get get
+  put (KContent a b) = put a >> put b
+
+
 instance Binary KChunk where
   put chunk =
     case chunk of
       JS a       -> putWord8 0 >> put a
-      Var a b    -> putWord8 1 >> put a >> put b
-      ElmField a -> putWord8 2 >> put a
-      JsField a  -> putWord8 3 >> put a
-      Enum a     -> putWord8 4 >> put a
-      Debug      -> putWord8 5
-      Prod       -> putWord8 6
+      ElmVar a b -> putWord8 1 >> put a >> put b
+      JsVar a b  -> putWord8 2 >> put a >> put b
+      ElmField a -> putWord8 3 >> put a
+      JsField a  -> putWord8 4 >> put a
+      Enum a     -> putWord8 5 >> put a
+      Debug      -> putWord8 6
+      Prod       -> putWord8 7
 
   get =
     do  word <- getWord8
         case word of
           0 -> liftM  JS get
-          1 -> liftM2 Var get get
-          2 -> liftM  ElmField get
-          3 -> liftM  JsField get
-          4 -> liftM  Enum get
-          5 -> return Debug
-          6 -> return Prod
+          1 -> liftM2 ElmVar get get
+          2 -> liftM2 JsVar get get
+          3 -> liftM  ElmField get
+          4 -> liftM  JsField get
+          5 -> liftM  Enum get
+          6 -> return Debug
+          7 -> return Prod
           _ -> error "problem deserializing AST.Optimized.KChunk"
