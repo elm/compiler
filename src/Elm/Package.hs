@@ -6,7 +6,7 @@ module Elm.Package
   , dummyName, kernel, core
   , browser, virtualDom, html
   , webgl, linearAlgebra
-  , toString, toText, toUrl, toFilePath
+  , toString, toUrl, toFilePath
   , fromText
   , Version(..)
   , initialVersion, dummyVersion

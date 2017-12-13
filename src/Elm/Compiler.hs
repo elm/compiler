@@ -18,6 +18,7 @@ module Elm.Compiler
 import qualified Data.Aeson as Json
 import qualified Data.ByteString as BS
 import qualified Data.Map as Map
+import qualified Data.Text as Text
 import Text.PrettyPrint.ANSI.Leijen (Doc)
 
 import qualified Compile
@@ -81,7 +82,7 @@ dummyLocalizer =
 -- ERRORS
 
 
-errorToDoc :: Localizer -> String -> String -> Error.Error -> Doc
+errorToDoc :: Localizer -> String -> Text.Text -> Error.Error -> Doc
 errorToDoc (Localizer localizer) location source err =
   error "TODO Report.toDoc" location (Error.toReport localizer err) source
 
@@ -95,7 +96,7 @@ errorToJson (Localizer localizer) location err =
 -- WARNINGS
 
 
-warningToDoc :: Localizer -> String -> String -> Warning.Warning -> Doc
+warningToDoc :: Localizer -> String -> Text.Text -> Warning.Warning -> Doc
 warningToDoc (Localizer localizer) location source warning =
   error "TODO Report.toDoc" location (Warning.toReport localizer warning) source
 
