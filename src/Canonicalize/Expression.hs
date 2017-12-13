@@ -639,7 +639,15 @@ findVar :: R.Region -> Env.Env -> Maybe N.Name -> N.Name -> Result FreeLocals w 
 findVar region (Env.Env localHome vars _ _ _) maybePrefix name =
   case Map.lookup name vars of
     Nothing ->
-      Result.throw (error "TODO no name" region)
+      case maybePrefix of
+        Nothing ->
+          Result.throw (error "TODO no name" region)
+
+        Just prefix ->
+          if ModuleName.isKernel prefix then
+            Result.ok $ Can.VarKernel (ModuleName.getKernel prefix) name
+          else
+            Result.throw (error "TODO no name" region)
 
     Just (Env.VarHomes unqualified qualified) ->
       case maybePrefix of
