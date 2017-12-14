@@ -3,6 +3,7 @@ module Generate.JavaScript.Expression
   ( generate
   , generateCtor
   , generateFunction
+  , generateMain
   , Code
   , codeToExpr
   , codeToStmtList
@@ -18,6 +19,9 @@ import qualified Data.Text.Encoding as Text
 import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
+import qualified Elm.Compiler.Type as Type
+import qualified Elm.Compiler.Type.Extract as Extract
+import qualified Elm.Interface as I
 import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 import qualified Generate.JavaScript.Builder as JS
@@ -849,3 +853,38 @@ pathToJsExpr mode expr path =
 
     DT.Alias ->
         expr
+
+
+
+-- GENERATE MAIN
+
+
+generateMain :: Mode -> I.Interfaces -> ModuleName.Canonical -> [N.Name] -> Opt.Main -> JS.Expr
+generateMain mode interfaces home segments main =
+  case main of
+    Opt.Static ->
+      JS.Ref (Name.fromKernel N.browser "staticPage")
+        # JS.Ref (Name.fromGlobal home "main")
+        # List.foldl' addDot elm segments
+
+    Opt.Dynamic decoder msgType ->
+      JS.Ref (Name.fromGlobal home "main")
+        # List.foldl' addDot elm segments
+        # generateJsExpr mode decoder
+        # JS.Json (Type.encodeMetadata (Extract.fromMsg interfaces msgType))
+
+
+(#) :: JS.Expr -> JS.Expr -> JS.Expr
+(#) func arg =
+  JS.Call func [arg]
+
+
+addDot :: JS.Expr -> N.Name -> JS.Expr
+addDot root name =
+  JS.Index root (JS.String (N.toBuilder name))
+
+
+{-# NOINLINE elm #-}
+elm :: JS.Expr
+elm =
+  JS.Ref (Name.fromLocal "Elm")

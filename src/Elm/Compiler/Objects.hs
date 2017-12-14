@@ -1,11 +1,12 @@
 {-# OPTIONS_GHC -Wall #-}
 module Elm.Compiler.Objects
-  ( JS.Mode(..)
-  , Name.Target(..)
-  , JS.generate
-  , JS.Roots
-  , mains
-  , value
+  ( Name.Target(..)
+  , JS.ReplBuilder(..)
+  , JS.generateForRepl
+  , JS.Mode(..)
+  , JS.MainsBuilder(..)
+  , JS.MainTrie(..)
+  , JS.generateMains
   , Opt.Graph
   , empty
   , union
@@ -16,7 +17,6 @@ module Elm.Compiler.Objects
 
 
 import qualified Data.Map as Map
-import qualified Data.Text as Text
 
 import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
@@ -24,20 +24,6 @@ import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 import qualified Generate.JavaScript as JS
 import qualified Generate.JavaScript.Name as Name
-
-
-
--- ROOTS
-
-
-mains :: [ModuleName.Canonical] -> JS.Roots
-mains =
-  JS.Mains
-
-
-value :: ModuleName.Canonical -> String -> JS.Roots
-value home name =
-  JS.Value home (Text.pack name)
 
 
 

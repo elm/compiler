@@ -16,6 +16,8 @@ import qualified AST.Module.Name as ModuleName
 import qualified AST.Utils.Type as Type
 import qualified Canonicalize.Effects as Effects
 import qualified Elm.Name as N
+import qualified Optimize.Names as Names
+import qualified Optimize.Port as Port
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Main as Error
 import qualified Reporting.Region as R
@@ -95,14 +97,15 @@ checkMainType region (Can.Forall _ tipe) =
       | home == ModuleName.virtualDom && name == N.node ->
           Result.ok Opt.Static
 
-    Can.TType home name [flags, _, _]
+    Can.TType home name [flags, message, _]
       | home == ModuleName.platform && name == N.program ->
           case Effects.checkPayload flags of
             Left (subType, invalidPayload) ->
               Result.throw (Error.BadFlags region subType invalidPayload)
 
             Right () ->
-              Result.ok (Opt.Dynamic flags)
+              let (_, _, flagDecoder) = Names.run (Port.toFlagsDecoder flags) in
+              Result.ok (Opt.Dynamic flagDecoder message)
 
     _ ->
       Result.throw (Error.BadType region tipe)

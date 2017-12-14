@@ -5,7 +5,6 @@ module Elm.Compiler.Module
   ( I.Interface
   , I.Interfaces
   , interfaceAliasedTypes
-  , programTypes
 
   -- module names
   , Raw
@@ -44,11 +43,6 @@ import qualified Json.Encode as Encode
 interfaceAliasedTypes :: I.Interface -> Map.Map N.Name Type.Type
 interfaceAliasedTypes interface =
   Map.map Extract.fromAnnotation (I._types interface)
-
-
-programTypes :: I.Interfaces -> ModuleName.Canonical -> Maybe Type.Program
-programTypes =
-  Extract.fromProgram
 
 
 

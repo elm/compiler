@@ -10,7 +10,7 @@ module Elm.Name
   , toCompositeName
   , int, float, bool, char, string
   , maybe, list, array, tuple
-  , task, router, cmd, sub, platform
+  , task, router, cmd, sub, platform, browser
   , shader, debug, bitwise, basics
   , utils, negate, value
   , node, program, main, dollar
@@ -135,6 +135,11 @@ sub = "Sub"
 {-# NOINLINE platform #-}
 platform :: Name
 platform = "Platform"
+
+
+{-# NOINLINE browser #-}
+browser :: Name
+browser = "Browser"
 
 
 {-# NOINLINE shader #-}

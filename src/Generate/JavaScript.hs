@@ -1,9 +1,12 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Generate.JavaScript
-  ( Mode(..)
-  , Roots(..)
-  , generate
+  ( ReplBuilder(..)
+  , generateForRepl
+  , Mode(..)
+  , MainsBuilder(..)
+  , MainTrie(..)
+  , generateMains
   )
   where
 
@@ -15,9 +18,11 @@ import qualified Data.List as List
 import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 
 import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
+import qualified Elm.Interface as I
 import qualified Elm.Name as N
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Expression as Expr
@@ -25,27 +30,62 @@ import qualified Generate.JavaScript.Name as Name
 
 
 
--- GENERATE
+-- GENERATE FOR REPL
+
+
+data ReplBuilder =
+  ReplBuilder
+    { _repl_code :: B.Builder
+    , _repl_name :: B.Builder
+    }
+
+
+generateForRepl :: Opt.Graph -> ModuleName.Canonical -> N.Name -> ReplBuilder
+generateForRepl (Opt.Graph _ graph _) home name =
+  ReplBuilder
+    { _repl_code =
+        stateToBuilder $
+          addGlobal (Name.Debug Name.Client) graph emptyState (Opt.Global home name)
+    , _repl_name =
+        Name.toBuilder (Name.fromGlobal home name)
+    }
+
+
+
+-- GENERATE MAINS
+
+
+data MainsBuilder =
+  MainsBuilder
+    { _main_code :: B.Builder
+    , _main_trie :: MainTrie
+    }
 
 
 data Mode = Debug | Prod
 
 
-data Roots
-  = Mains [ModuleName.Canonical]
-  | Value ModuleName.Canonical N.Name
+generateMains :: Mode -> Name.Target -> Opt.Graph -> I.Interfaces -> [ModuleName.Canonical] -> Either [ModuleName.Canonical] MainsBuilder
+generateMains mode target (Opt.Graph mains graph fields) interfaces roots =
+  let
+    rootSet = Set.fromList roots
+    rootMap = Map.restrictKeys mains rootSet
+  in
+  if Map.size rootMap == Set.size rootSet then
+    let
+      realMode = toRealMode mode target fields
+      state = Map.foldrWithKey (addMain realMode graph) emptyState rootMap
+    in
+    Right $ MainsBuilder (stateToBuilder state) (toMainTrie realMode interfaces rootMap)
+
+  else
+    Left $ Set.toList $
+      Set.intersection rootSet (Map.keysSet mains)
 
 
-generate :: Mode -> Name.Target -> Opt.Graph -> Roots -> Either [ModuleName.Canonical] B.Builder
-generate mode target (Opt.Graph mains nodes fields) roots =
-  case roots of
-    Value home name ->
-      Right $ stateToBuilder $
-        addGlobal (toRealMode mode target fields) nodes emptyState (Opt.Global home name)
-
-    Mains modules ->
-      generateMain (toRealMode mode target fields) nodes
-        <$> verifyMains mains modules
+addMain :: Name.Mode -> Graph -> ModuleName.Canonical -> main -> State -> State
+addMain mode graph home _ state =
+  addGlobal mode graph state (Opt.Global home "main")
 
 
 toRealMode :: Mode -> Name.Target -> Map.Map N.Name Int -> Name.Mode
@@ -327,39 +367,61 @@ generateManagerHelp home effectsType =
 
 
 
--- ADD MAIN
+-- MAIN TRIE
 
 
-type Mains =
-  Map.Map ModuleName.Canonical Opt.Main
+data MainTrie =
+  MainTrie
+    { _main :: Maybe B.Builder
+    , _subs :: Map.Map N.Name MainTrie
+    }
 
 
-generateMain :: Name.Mode -> Graph -> Mains -> B.Builder
-generateMain mode graph mains =
-  mconcat
-    [ stateToBuilder $ Map.foldrWithKey (addMain mode graph) emptyState mains
-    , exportMains mains
-    ]
+emptyTrie :: MainTrie
+emptyTrie =
+  MainTrie Nothing Map.empty
 
 
-addMain :: Name.Mode -> Graph -> ModuleName.Canonical -> main -> State -> State
-addMain mode graph home _ state =
-  addGlobal mode graph state (Opt.Global home "main")
+toMainTrie :: Name.Mode -> I.Interfaces -> Map.Map ModuleName.Canonical Opt.Main -> MainTrie
+toMainTrie mode interfaces mains =
+  Map.foldrWithKey (addMainTrie mode interfaces) emptyTrie mains
 
 
-exportMains :: Mains -> B.Builder
-exportMains mains =
-  error "TODO" mains
-
-
-verifyMains :: Mains -> [ModuleName.Canonical] -> Either [ModuleName.Canonical] Mains
-verifyMains mains modules =
+addMainTrie :: Name.Mode -> I.Interfaces -> ModuleName.Canonical -> Opt.Main -> MainTrie -> MainTrie
+addMainTrie mode interfaces home@(ModuleName.Canonical _ moduleName) main trie =
   let
-    rootSet = Set.fromList modules
-    rootMap = Map.restrictKeys mains rootSet
+    segments = Text.splitOn "." moduleName
+    initMain = Expr.generateMain mode interfaces home segments main
+    newTrie = segmentsToTrie segments (JS.exprToBuilder initMain)
   in
-  if Map.size rootMap == Set.size rootSet then
-    Right rootMap
-  else
-    Left $ Set.toList $
-      Set.intersection rootSet (Map.keysSet mains)
+  merge trie newTrie
+
+
+segmentsToTrie :: [N.Name] -> B.Builder -> MainTrie
+segmentsToTrie segments mainBuilder =
+  case segments of
+    [] ->
+      MainTrie (Just mainBuilder) Map.empty
+
+    segment : otherSegments ->
+      MainTrie Nothing (Map.singleton segment (segmentsToTrie otherSegments mainBuilder))
+
+
+merge :: MainTrie -> MainTrie -> MainTrie
+merge (MainTrie main1 subs1) (MainTrie main2 subs2) =
+  MainTrie
+    (checkedMerge main1 main2)
+    (Map.unionWith merge subs1 subs2)
+
+
+checkedMerge :: Maybe a -> Maybe a -> Maybe a
+checkedMerge a b =
+  case (a, b) of
+    (Nothing, main) ->
+      main
+
+    (main, Nothing) ->
+      main
+
+    (Just _, Just _) ->
+      error "cannot have two modules with the same name"

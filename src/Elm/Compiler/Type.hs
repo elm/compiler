@@ -4,12 +4,12 @@ module Elm.Compiler.Type
   ( Type(..)
   , Format(..)
   , toString
-  , Program(..)
+  , DebugMetadata(..)
   , Alias(..)
   , Union(..)
   , encode
   , decoder
-  , encodeProgram
+  , encodeMetadata
   )
   where
 
@@ -43,8 +43,8 @@ data Type
     | Tuple Type Type [Type]
 
 
-data Program =
-  Program
+data DebugMetadata =
+  DebugMetadata
     { _message :: Type
     , _aliases :: [Alias]
     , _unions :: [Union]
@@ -230,8 +230,8 @@ fromRawType (A.At _ astType) =
 -- JSON for PROGRAM
 
 
-encodeProgram :: Program -> Encode.Value
-encodeProgram (Program msg aliases unions) =
+encodeMetadata :: DebugMetadata -> Encode.Value
+encodeMetadata (DebugMetadata msg aliases unions) =
   Encode.object
     [ "message" ==> encode msg
     , "aliases" ==> Encode.object (map toAliasField aliases)

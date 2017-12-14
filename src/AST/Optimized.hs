@@ -121,7 +121,10 @@ data Graph =
 
 data Main
   = Static
-  | Dynamic Can.Type
+  | Dynamic
+      { _decoder :: Expr
+      , _message :: Can.Type
+      }
 
 
 data Node
@@ -274,14 +277,14 @@ instance Binary Graph where
 instance Binary Main where
   put main =
     case main of
-      Static    -> putWord8 0
-      Dynamic a -> putWord8 1 >> put a
+      Static      -> putWord8 0
+      Dynamic a b -> putWord8 1 >> put a >> put b
 
   get =
     do  word <- getWord8
         case word of
           0 -> return Static
-          1 -> liftM  Dynamic get
+          1 -> liftM2 Dynamic get get
           _ -> error "problem getting Opt.Main binary"
 
 

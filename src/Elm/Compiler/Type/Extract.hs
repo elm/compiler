@@ -4,7 +4,7 @@
 module Elm.Compiler.Type.Extract
   ( fromAnnotation
   , fromType
-  , fromProgram
+  , fromMsg
   )
   where
 
@@ -83,28 +83,16 @@ toPublicName (ModuleName.Canonical _ home) name =
 -- EXTRACT MODEL, MSG, AND ANY TRANSITIVE DEPENDENCIES
 
 
-fromProgram :: I.Interfaces -> ModuleName.Canonical -> Maybe T.Program
-fromProgram interfaces name =
-  do  iface <- Map.lookup name interfaces
-      mainType <- Map.lookup "main" (I._types iface)
-      message <- getMessage mainType
+fromMsg :: I.Interfaces -> Can.Type -> T.DebugMetadata
+fromMsg interfaces message =
+  let
+    (msgDeps, msgType) =
+      run (extract message)
 
-      let (msgDeps, msgType) = run (extract message)
-      let (aliases, unions) = extractTransitive interfaces noDeps msgDeps
-      Just (T.Program msgType aliases unions)
-
-
-getMessage :: Can.Annotation -> Maybe Can.Type
-getMessage (Can.Forall _ mainType) =
-  case Type.deepDealias mainType of
-    Can.TType _ _program [_flags, _model, msg] ->
-      Just msg
-
-    Can.TType _ _node [msg] ->
-      Just msg
-
-    _ ->
-      Nothing
+    (aliases, unions) =
+      extractTransitive interfaces noDeps msgDeps
+  in
+  T.DebugMetadata msgType aliases unions
 
 
 extractTransitive :: I.Interfaces -> Deps -> Deps -> ( [T.Alias], [T.Union] )

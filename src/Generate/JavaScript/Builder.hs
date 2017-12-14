@@ -20,6 +20,7 @@ import Data.ByteString.Builder as B
 import Data.Monoid ((<>))
 import qualified Generate.JavaScript.Name as Name
 import Generate.JavaScript.Name (Name)
+import qualified Json.Encode as Json
 
 
 
@@ -32,6 +33,7 @@ data Expr
   | Int Int
   | Bool Bool
   | Null
+  | Json Json.Value
   | Array [Expr]
   | Object [(Name, Expr)]
   | Ref Name
@@ -311,6 +313,9 @@ fromExpr indent grouping expression =
 
     Null ->
       (One, "null")
+
+    Json json ->
+      ( One, Json.encodeUgly json )
 
     Array exprs ->
       (,) Many $
