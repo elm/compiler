@@ -871,16 +871,22 @@ generateMain mode interfaces home segments main =
 
     Opt.Dynamic decoder msgType ->
       let
-        jsonMetadata =
-          Encode.object
-            [ ("versions", Encode.object [ ("elm", Pkg.encodeVersion Version.version) ])
-            , ("types", Type.encodeMetadata (Extract.fromMsg interfaces msgType))
-            ]
+        initializer =
+          JS.Ref (Name.fromGlobal home "main")
+            # List.foldl' addDot elm segments
+            # generateJsExpr mode decoder
       in
-      JS.Ref (Name.fromGlobal home "main")
-        # List.foldl' addDot elm segments
-        # generateJsExpr mode decoder
-        # JS.Json jsonMetadata
+      JS.Call initializer $
+        case mode of
+          Name.Prod _ _ ->
+            []
+
+          Name.Debug _ ->
+            [ JS.Json $ Encode.object $
+                [ ("versions", Encode.object [ ("elm", Pkg.encodeVersion Version.version) ])
+                , ("types", Type.encodeMetadata (Extract.fromMsg interfaces msgType))
+                ]
+            ]
 
 
 (#) :: JS.Expr -> JS.Expr -> JS.Expr
