@@ -24,8 +24,10 @@ import qualified Elm.Compiler.Type.Extract as Extract
 import qualified Elm.Interface as I
 import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
+import qualified Elm.Compiler.Version as Version
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Name as Name
+import qualified Json.Encode as Encode
 import qualified Optimize.DecisionTree as DT
 import qualified Reporting.Region as R
 
@@ -868,10 +870,17 @@ generateMain mode interfaces home segments main =
         # List.foldl' addDot elm segments
 
     Opt.Dynamic decoder msgType ->
+      let
+        jsonMetadata =
+          Encode.object
+            [ ("versions", Encode.object [ ("elm", Pkg.encodeVersion Version.version) ])
+            , ("types", Type.encodeMetadata (Extract.fromMsg interfaces msgType))
+            ]
+      in
       JS.Ref (Name.fromGlobal home "main")
         # List.foldl' addDot elm segments
         # generateJsExpr mode decoder
-        # JS.Json (Type.encodeMetadata (Extract.fromMsg interfaces msgType))
+        # JS.Json jsonMetadata
 
 
 (#) :: JS.Expr -> JS.Expr -> JS.Expr
