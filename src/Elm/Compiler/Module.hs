@@ -4,7 +4,6 @@ module Elm.Compiler.Module
   -- interfaces
   ( I.Interface
   , I.Interfaces
-  , interfaceAliasedTypes
 
   -- module names
   , Raw
@@ -21,28 +20,17 @@ module Elm.Compiler.Module
   )
   where
 
+
 import qualified Data.Char as Char
 import qualified Data.List as List
-import qualified Data.Map as Map
 import qualified Data.Text as Text
 import System.FilePath ((</>))
 
 import qualified AST.Module.Name as ModuleName
-import qualified Elm.Compiler.Type as Type
-import qualified Elm.Compiler.Type.Extract as Extract
 import qualified Elm.Interface as I
 import qualified Elm.Name as N
 import qualified Json.Decode as Decode
 import qualified Json.Encode as Encode
-
-
-
--- INTERFACES
-
-
-interfaceAliasedTypes :: I.Interface -> Map.Map N.Name Type.Type
-interfaceAliasedTypes interface =
-  Map.map Extract.fromAnnotation (I._types interface)
 
 
 

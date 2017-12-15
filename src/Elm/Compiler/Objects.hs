@@ -1,19 +1,20 @@
 {-# OPTIONS_GHC -Wall #-}
 module Elm.Compiler.Objects
   ( Name.Target(..)
-  , JS.ReplBuilder(..)
-  , JS.generateForRepl
   , JS.Mode(..)
   , JS.generate
+  , JS.generateForRepl
   , Opt.Graph
   , empty
   , union
+  , unions
   , Kernel(..)
   , fromKernels
   )
   where
 
 
+import qualified Data.List as List
 import qualified Data.Map as Map
 
 import qualified AST.Optimized as Opt
@@ -40,6 +41,16 @@ union (Opt.Graph mains1 graph1 fields1) (Opt.Graph mains2 graph2 fields2) =
     (Map.union mains1 mains2)
     (Map.union graph1 graph2)
     (Map.union fields1 fields2)
+
+
+unions :: [Opt.Graph] -> Opt.Graph
+unions graphs =
+  case graphs of
+    [] ->
+      empty
+
+    g:gs ->
+      List.foldl' union g gs
 
 
 

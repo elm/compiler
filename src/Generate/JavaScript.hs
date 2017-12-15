@@ -1,15 +1,14 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Generate.JavaScript
-  ( ReplBuilder(..)
-  , generateForRepl
-  , Mode(..)
+  ( Mode(..)
   , generate
+  , generateForRepl
   )
   where
 
 
-import Prelude hiding (cycle)
+import Prelude hiding (cycle, print)
 import qualified Data.ByteString.Builder as B
 import Data.Monoid ((<>))
 import qualified Data.List as List
@@ -20,33 +19,13 @@ import qualified Data.Text as Text
 
 import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
+import qualified Elm.Compiler.Type as Type
+import qualified Elm.Compiler.Type.Extract as Extract
 import qualified Elm.Interface as I
 import qualified Elm.Name as N
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Expression as Expr
 import qualified Generate.JavaScript.Name as Name
-
-
-
--- GENERATE FOR REPL
-
-
-data ReplBuilder =
-  ReplBuilder
-    { _repl_code :: B.Builder
-    , _repl_name :: B.Builder
-    }
-
-
-generateForRepl :: Opt.Graph -> ModuleName.Canonical -> N.Name -> ReplBuilder
-generateForRepl (Opt.Graph _ graph _) home name =
-  ReplBuilder
-    { _repl_code =
-        stateToBuilder $
-          addGlobal (Name.Debug Name.Client) graph emptyState (Opt.Global home name)
-    , _repl_name =
-        Name.toBuilder (Name.fromGlobal home name)
-    }
 
 
 
@@ -56,8 +35,8 @@ generateForRepl (Opt.Graph _ graph _) home name =
 data Mode = Debug | Prod
 
 
-generate :: Mode -> Name.Target -> Opt.Graph -> I.Interfaces -> [ModuleName.Canonical] -> Either [ModuleName.Canonical] B.Builder
-generate mode target (Opt.Graph mains graph fields) interfaces roots =
+generate :: Mode -> Name.Target -> I.Interfaces -> Opt.Graph -> [ModuleName.Canonical] -> Either [ModuleName.Canonical] B.Builder
+generate mode target interfaces (Opt.Graph mains graph fields) roots =
   let
     rootSet = Set.fromList roots
     rootMap = Map.restrictKeys mains rootSet
@@ -87,6 +66,36 @@ toRealMode mode target fields =
 
     Prod ->
       Name.Prod target (Name.shortenFieldNames fields)
+
+
+
+-- GENERATE FOR REPL
+
+
+generateForRepl :: I.Interfaces -> Opt.Graph -> ModuleName.Canonical -> N.Name -> B.Builder
+generateForRepl interfaces (Opt.Graph _ graph _) home name =
+  let
+    mode = Name.Debug Name.Server
+    eval = addGlobal mode graph emptyState (Opt.Global home name)
+  in
+  stateToBuilder eval <> print interfaces home name
+
+
+print :: I.Interfaces -> ModuleName.Canonical -> N.Name -> B.Builder
+print interfaces home name =
+  let
+    value = Name.toBuilder (Name.fromGlobal home name)
+    toString = Name.toBuilder (Name.fromKernel N.debug "toString")
+    annotation = I._types (interfaces ! home) ! name
+    tipe = Type.toString Type.MultiLine $ Extract.fromAnnotation annotation
+  in
+    "var _value = " <> toString <> "(" <> value <> ");\n" <>
+    "var _type = '" <> B.stringUtf8 (show tipe) <> "';\n\
+    \if (_value.length + 3 + _type.length >= 80 || _type.indexOf('\\n') >= 0) {\n\
+    \    console.log(_value + '\\n    : ' + _type.split('\\n').join('\\n      '));\n\
+    \} else {\n\
+    \    console.log(_value + ' : ' + _type);\n\
+    \}\n"
 
 
 
