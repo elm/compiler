@@ -4,9 +4,7 @@ module Generate.JavaScript
   ( ReplBuilder(..)
   , generateForRepl
   , Mode(..)
-  , MainsBuilder(..)
-  , MainTrie(..)
-  , generateMains
+  , generate
   )
   where
 
@@ -55,18 +53,11 @@ generateForRepl (Opt.Graph _ graph _) home name =
 -- GENERATE MAINS
 
 
-data MainsBuilder =
-  MainsBuilder
-    { _main_code :: B.Builder
-    , _main_trie :: MainTrie
-    }
-
-
 data Mode = Debug | Prod
 
 
-generateMains :: Mode -> Name.Target -> Opt.Graph -> I.Interfaces -> [ModuleName.Canonical] -> Either [ModuleName.Canonical] MainsBuilder
-generateMains mode target (Opt.Graph mains graph fields) interfaces roots =
+generate :: Mode -> Name.Target -> Opt.Graph -> I.Interfaces -> [ModuleName.Canonical] -> Either [ModuleName.Canonical] B.Builder
+generate mode target (Opt.Graph mains graph fields) interfaces roots =
   let
     rootSet = Set.fromList roots
     rootMap = Map.restrictKeys mains rootSet
@@ -76,7 +67,7 @@ generateMains mode target (Opt.Graph mains graph fields) interfaces roots =
       realMode = toRealMode mode target fields
       state = Map.foldrWithKey (addMain realMode graph) emptyState rootMap
     in
-    Right $ MainsBuilder (stateToBuilder state) (toMainTrie realMode interfaces rootMap)
+    Right $ stateToBuilder state <> toMainExports realMode interfaces rootMap
 
   else
     Left $ Set.toList $
@@ -367,49 +358,85 @@ generateManagerHelp home effectsType =
 
 
 
--- MAIN TRIE
+-- MAIN EXPORTS
 
 
-data MainTrie =
-  MainTrie
-    { _main :: Maybe B.Builder
-    , _subs :: Map.Map N.Name MainTrie
+toMainExports :: Name.Mode -> I.Interfaces -> Map.Map ModuleName.Canonical Opt.Main -> B.Builder
+toMainExports mode interfaces mains =
+  let
+    export =
+      Name.fromKernel N.platform "export"
+
+    exports =
+      generateExports mode interfaces $
+        Map.foldrWithKey addToTrie emptyTrie mains
+  in
+  Name.toBuilder export <> "(" <> exports <> ");"
+
+
+generateExports :: Name.Mode -> I.Interfaces -> Trie -> B.Builder
+generateExports mode interfaces (Trie maybeMain subs) =
+  let
+    object =
+      case Map.toList subs of
+        [] ->
+          "{}"
+
+        (name, subTrie) : otherSubTries ->
+          "{'" <> N.toBuilder name <> "':"
+          <> generateExports mode interfaces subTrie
+          <> List.foldl' (addSubTrie mode interfaces) "}" otherSubTries
+  in
+  case maybeMain of
+    Nothing ->
+      object
+
+    Just (home, main) ->
+      let initialize = Expr.generateMain mode interfaces home main in
+      JS.exprToBuilder initialize <> "(" <> object <> ")"
+
+
+addSubTrie :: Name.Mode -> I.Interfaces -> B.Builder -> (N.Name, Trie) -> B.Builder
+addSubTrie mode interfaces end (name, trie) =
+  ",'" <> N.toBuilder name <> "':"
+  <> generateExports mode interfaces trie
+  <> end
+
+
+
+-- BUILD TRIES
+
+
+data Trie =
+  Trie
+    { _main :: Maybe (ModuleName.Canonical, Opt.Main)
+    , _subs :: Map.Map N.Name Trie
     }
 
 
-emptyTrie :: MainTrie
+emptyTrie :: Trie
 emptyTrie =
-  MainTrie Nothing Map.empty
+  Trie Nothing Map.empty
 
 
-toMainTrie :: Name.Mode -> I.Interfaces -> Map.Map ModuleName.Canonical Opt.Main -> MainTrie
-toMainTrie mode interfaces mains =
-  Map.foldrWithKey (addMainTrie mode interfaces) emptyTrie mains
+addToTrie :: ModuleName.Canonical -> Opt.Main -> Trie -> Trie
+addToTrie home@(ModuleName.Canonical _ moduleName) main trie =
+  merge trie $ segmentsToTrie home (Text.splitOn "." moduleName) main
 
 
-addMainTrie :: Name.Mode -> I.Interfaces -> ModuleName.Canonical -> Opt.Main -> MainTrie -> MainTrie
-addMainTrie mode interfaces home@(ModuleName.Canonical _ moduleName) main trie =
-  let
-    segments = Text.splitOn "." moduleName
-    initMain = Expr.generateMain mode interfaces home segments main
-    newTrie = segmentsToTrie segments (JS.exprToBuilder initMain)
-  in
-  merge trie newTrie
-
-
-segmentsToTrie :: [N.Name] -> B.Builder -> MainTrie
-segmentsToTrie segments mainBuilder =
+segmentsToTrie :: ModuleName.Canonical -> [N.Name] -> Opt.Main -> Trie
+segmentsToTrie home segments main =
   case segments of
     [] ->
-      MainTrie (Just mainBuilder) Map.empty
+      Trie (Just (home, main)) Map.empty
 
     segment : otherSegments ->
-      MainTrie Nothing (Map.singleton segment (segmentsToTrie otherSegments mainBuilder))
+      Trie Nothing (Map.singleton segment (segmentsToTrie home otherSegments main))
 
 
-merge :: MainTrie -> MainTrie -> MainTrie
-merge (MainTrie main1 subs1) (MainTrie main2 subs2) =
-  MainTrie
+merge :: Trie -> Trie -> Trie
+merge (Trie main1 subs1) (Trie main2 subs2) =
+  Trie
     (checkedMerge main1 main2)
     (Map.unionWith merge subs1 subs2)
 

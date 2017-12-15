@@ -16,6 +16,7 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Text.Encoding as Text
 
+import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
@@ -169,6 +170,9 @@ codeToExpr :: Code -> JS.Expr
 codeToExpr code =
   case code of
     JsExpr expr ->
+      expr
+
+    JsBlock [ JS.Return (Just expr) ] ->
       expr
 
     JsBlock stmts ->
@@ -861,32 +865,19 @@ pathToJsExpr mode expr path =
 -- GENERATE MAIN
 
 
-generateMain :: Mode -> I.Interfaces -> ModuleName.Canonical -> [N.Name] -> Opt.Main -> JS.Expr
-generateMain mode interfaces home segments main =
+generateMain :: Mode -> I.Interfaces -> ModuleName.Canonical -> Opt.Main -> JS.Expr
+generateMain mode interfaces home main =
   case main of
     Opt.Static ->
       JS.Ref (Name.fromKernel N.browser "staticPage")
         # JS.Ref (Name.fromGlobal home "main")
-        # List.foldl' addDot elm segments
+        # JS.Int 0
+        # JS.Int 0
 
     Opt.Dynamic decoder msgType ->
-      let
-        initializer =
-          JS.Ref (Name.fromGlobal home "main")
-            # List.foldl' addDot elm segments
-            # generateJsExpr mode decoder
-      in
-      JS.Call initializer $
-        case mode of
-          Name.Prod _ _ ->
-            []
-
-          Name.Debug _ ->
-            [ JS.Json $ Encode.object $
-                [ ("versions", Encode.object [ ("elm", Pkg.encodeVersion Version.version) ])
-                , ("types", Type.encodeMetadata (Extract.fromMsg interfaces msgType))
-                ]
-            ]
+      JS.Ref (Name.fromGlobal home "main")
+        # generateJsExpr mode decoder
+        # toDebugMetadata mode interfaces msgType
 
 
 (#) :: JS.Expr -> JS.Expr -> JS.Expr
@@ -894,12 +885,14 @@ generateMain mode interfaces home segments main =
   JS.Call func [arg]
 
 
-addDot :: JS.Expr -> N.Name -> JS.Expr
-addDot root name =
-  JS.Index root (JS.String (N.toBuilder name))
+toDebugMetadata :: Mode -> I.Interfaces -> Can.Type -> JS.Expr
+toDebugMetadata mode interfaces msgType =
+  case mode of
+    Name.Prod _ _ ->
+      JS.Int 0
 
-
-{-# NOINLINE elm #-}
-elm :: JS.Expr
-elm =
-  JS.Ref (Name.fromLocal "Elm")
+    Name.Debug _ ->
+      JS.Json $ Encode.object $
+        [ ("versions", Encode.object [ ("elm", Pkg.encodeVersion Version.version) ])
+        , ("types", Type.encodeMetadata (Extract.fromMsg interfaces msgType))
+        ]

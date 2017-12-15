@@ -4,9 +4,7 @@ module Elm.Compiler.Objects
   , JS.ReplBuilder(..)
   , JS.generateForRepl
   , JS.Mode(..)
-  , JS.MainsBuilder(..)
-  , JS.MainTrie(..)
-  , JS.generateMains
+  , JS.generate
   , Opt.Graph
   , empty
   , union
