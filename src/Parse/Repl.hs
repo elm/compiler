@@ -12,6 +12,7 @@ import qualified Data.Text as Text
 import Data.Text (Text)
 
 import qualified AST.Source as Src
+import qualified Elm.Name as N
 import Parse.Primitives
 import qualified Parse.Primitives.Keyword as Keyword
 import qualified Parse.Primitives.Symbol as Symbol
@@ -25,9 +26,9 @@ import qualified Reporting.Annotation as A
 
 
 data Entry
-  = Import String Text
-  | Type String Text
-  | Def (Maybe String) Text
+  = Import N.Name Text
+  | Type N.Name Text
+  | Def (Maybe N.Name) Text
   | Other Text
   | Annotation
   | Port
@@ -57,7 +58,7 @@ entryParser source =
     [ do  Keyword.import_
           spaces
           name <- Var.moduleName
-          return (Import (Text.unpack name) source)
+          return (Import name source)
 
     , do  Keyword.port_
           return Port
@@ -70,7 +71,7 @@ entryParser source =
             , return ()
             ]
           name <- Var.upper
-          return (Type (Text.unpack name) source)
+          return (Type name source)
 
     , do  root <- Pattern.term
           spaces
@@ -80,7 +81,7 @@ entryParser source =
                 [ do  Symbol.hasType
                       return Annotation
                 , do  chompArgs
-                      return (Def (Just (Text.unpack name)) source)
+                      return (Def (Just name) source)
                 ]
 
             _ ->
