@@ -9,6 +9,7 @@ import qualified Data.ByteString as B
 
 import qualified AST.Source as Src
 import qualified AST.Valid as Valid
+import qualified Elm.Package as Pkg
 import qualified Parse.Declaration as Decl
 import qualified Parse.Module as Module
 import qualified Parse.Primitives as P
@@ -21,9 +22,13 @@ import qualified Validate
 -- PROGRAM
 
 
-program :: B.ByteString -> Result.Result i w Error.Error Valid.Module
-program src =
-  case P.run chompProgram src of
+program :: Pkg.Name -> B.ByteString -> Result.Result i w Error.Error Valid.Module
+program pkg src =
+  let
+    parser =
+      if Pkg.isKernel pkg then fancyParser else normalParser
+  in
+  case P.run parser src of
     Right modul ->
       Validate.validate modul
 
@@ -31,11 +36,25 @@ program src =
       Result.throw syntaxError
 
 
-chompProgram :: P.Parser (Src.Module [Src.Decl])
-chompProgram =
+-- CHOMP PROGRAMS
+
+
+normalParser :: P.Parser (Src.Module [Src.Decl])
+normalParser =
   do  srcModule <- Module.module_ (chompDeclarations [])
       P.endOfFile
       return srcModule
+
+
+fancyParser :: P.Parser (Src.Module [Src.Decl])
+fancyParser =
+  do  srcModule <- Module.module_ (chompDeclarations =<< chompInfixes [])
+      P.endOfFile
+      return srcModule
+
+
+
+-- CHOMP DECLARATIONS
 
 
 chompDeclarations :: [Src.Decl] -> P.Parser [Src.Decl]
@@ -45,4 +64,13 @@ chompDeclarations decls =
         [ do  P.checkFreshLine pos
               chompDeclarations (decl:decls)
         , return (reverse (decl:decls))
+        ]
+
+
+chompInfixes :: [Src.Decl] -> P.Parser [Src.Decl]
+chompInfixes decls =
+  do  decl <- Decl.infix_
+      P.oneOf
+        [ chompInfixes (decl:decls)
+        , return (decl:decls)
         ]

@@ -117,7 +117,7 @@ type Decl = A.Located Decl_
 data Decl_
   = Union (A.Located N.Name) [A.Located N.Name] [(A.Located N.Name, [Type])]
   | Alias (A.Located N.Name) [A.Located N.Name] Type
-  | Binop (A.Located N.Name) Binop.Associativity Binop.Precedence N.Name
+  | Binop N.Name Binop.Associativity Binop.Precedence N.Name
   | Port (A.Located N.Name) Type
   | Docs Text
   | Annotation (A.Located N.Name) Type

@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Parse.Declaration
   ( declaration
+  , infix_
   )
   where
 
@@ -10,10 +11,12 @@ import Data.Text (Text)
 import qualified Data.Text.Encoding as Text
 
 import qualified AST.Source as Src
+import qualified AST.Utils.Binop as Binop
 import qualified Parse.Expression as Expr
 import qualified Parse.Pattern as Pattern
 import Parse.Primitives
 import qualified Parse.Primitives.Keyword as Keyword
+import qualified Parse.Primitives.Number as Number
 import qualified Parse.Primitives.Symbol as Symbol
 import qualified Parse.Primitives.Variable as Var
 import qualified Parse.Primitives.Whitespace as W
@@ -159,3 +162,36 @@ port_ start =
             spaces
             (tipe, end, pos) <- Type.expression
             return ( A.at start end (Src.Port name tipe), end, pos )
+
+
+
+-- INFIX
+
+
+-- INVARIANT: always chomps to a freshline
+--
+infix_ :: Parser Src.Decl
+infix_ =
+  do  start <- getPosition
+      Keyword.infix_
+      inContext start E.Infix $
+        do  spaces
+            associativity <-
+              oneOf
+                [ Keyword.left_  >> return Binop.Left
+                , Keyword.right_ >> return Binop.Right
+                , Keyword.non_   >> return Binop.Non
+                ]
+            spaces
+            precedence <- Number.precedence
+            spaces
+            Symbol.leftParen
+            op <- Symbol.binop
+            Symbol.rightParen
+            spaces
+            Symbol.equals
+            spaces
+            name <- Var.lower
+            end <- getPosition
+            checkFreshLine =<< W.whitespace
+            return (A.at start end (Src.Binop op associativity precedence name))

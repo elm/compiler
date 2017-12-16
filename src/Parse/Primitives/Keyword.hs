@@ -5,6 +5,7 @@ module Parse.Primitives.Keyword
   , if_, then_, else_
   , case_, of_
   , let_, in_
+  , infix_, left_, right_, non_
   , module_, import_, exposing_, as_, where_, effect_
   , command_, subscription_
   )
@@ -125,6 +126,34 @@ let_ =
 in_ :: Parser ()
 in_ =
   keyword "in"
+
+
+
+-- INFIXES
+
+
+{-# NOINLINE infix_ #-}
+infix_ :: Parser ()
+infix_ =
+  keyword "infix"
+
+
+{-# NOINLINE left_ #-}
+left_ :: Parser ()
+left_ =
+  keyword "left"
+
+
+{-# NOINLINE right_ #-}
+right_ :: Parser ()
+right_ =
+  keyword "right"
+
+
+{-# NOINLINE non_ #-}
+non_ :: Parser ()
+non_ =
+  keyword "non"
 
 
 

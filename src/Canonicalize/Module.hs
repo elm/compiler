@@ -128,7 +128,7 @@ canonicalizeUnion env (Valid.Union (A.At _ name) args ctors) =
 
 
 canonicalizeBinop :: Valid.Binop -> ( N.Name, Can.Binop )
-canonicalizeBinop (Valid.Binop (A.At _ op) associativity precedence func) =
+canonicalizeBinop (Valid.Binop op associativity precedence func) =
   ( op, Can.Binop_ associativity precedence func )
 
 

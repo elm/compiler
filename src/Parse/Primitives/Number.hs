@@ -4,6 +4,7 @@ module Parse.Primitives.Number
   ( Number(..)
   , number
   , chompHex
+  , precedence
   )
   where
 
@@ -14,6 +15,7 @@ import qualified Data.ByteString.Internal as B
 import Foreign.ForeignPtr (ForeignPtr)
 import GHC.Word (Word8)
 
+import qualified AST.Utils.Binop as Binop
 import Parse.Primitives.Internals (Parser(..), State(..), noError)
 import qualified Parse.Primitives.Internals as I
 import qualified Parse.Primitives.Variable as Var
@@ -270,3 +272,24 @@ stepHex fp offset terminal word acc
   | 0x41 {- A -} <= word && word <= 0x46 {- F -} = 16 * acc + 10 + fromIntegral (word - 0x41 {- A -})
   | isDirtyEnd fp offset terminal word           = -2
   | True                                         = -1
+
+
+
+-- PRECEDENCE
+
+
+precedence :: Parser Binop.Precedence
+precedence =
+  Parser $ \(State fp offset terminal indent row col ctx) cok _ _ eerr ->
+    if offset >= terminal then
+      eerr noError
+
+    else
+      let !word = I.unsafeIndex fp offset in
+      if isDecimalDigit word then
+        cok
+          (Binop.Precedence (fromIntegral (word - 0x30 {- 0 -})))
+          (State fp (offset + 1) terminal indent row (col + 1) ctx)
+          noError
+      else
+        eerr noError

@@ -55,7 +55,7 @@ compile :: DocsFlag -> Pkg.Name -> ImportDict -> I.Interfaces -> BS.ByteString -
 compile flag pkg importDict interfaces source =
   do
       valid <- Result.mapError Error.Syntax $
-        Parse.program source
+        Parse.program pkg source
 
       canonical <- Result.mapError Error.Canonicalize $
         Canonicalize.canonicalize pkg importDict interfaces valid
