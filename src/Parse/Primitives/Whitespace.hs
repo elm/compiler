@@ -68,7 +68,7 @@ eatSpaces fp offset terminal row col =
         eatMultiComment fp offset terminal row col
 
       0x2D {- - -} ->
-        let !offset1 = offset1 + 1 in
+        let !offset1 = offset + 1 in
         if offset1 < terminal && I.unsafeIndex fp offset1 == 0x2D {- - -} then
           eatLineComment fp (offset + 2) terminal row (col + 2)
         else
