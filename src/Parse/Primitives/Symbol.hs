@@ -2,7 +2,7 @@
 {-# LANGUAGE BangPatterns, OverloadedStrings #-}
 module Parse.Primitives.Symbol
   ( underscore
-  , binop, binopTable
+  , binop
   , equals, rightArrow, hasType, comma, pipe, cons, dot, doubleDot, minus, lambda
   , leftParen, rightParen, leftSquare, rightSquare, leftCurly, rightCurly
   , elmDocCommentOpen, jsMultiCommentOpen, jsMultiCommentClose
