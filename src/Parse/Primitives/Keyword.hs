@@ -43,7 +43,7 @@ keyword kwd@(B.PS kwdFp kwdOffset kwdLength) =
     then
       let
         !newState =
-          State fp (offset + kwdLength) terminal indent (row + kwdLength) col ctx
+          State fp (offset + kwdLength) terminal indent row (col + kwdLength) ctx
       in
         cok () newState noError
 

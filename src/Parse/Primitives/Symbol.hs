@@ -125,7 +125,7 @@ symbol sym@(B.PS symFp symOffset symLength) =
   in
   Parser $ \(State fp offset terminal indent row col ctx) cok _ _ eerr ->
     if I.isSubstring symFp symOffset symLength fp offset terminal then
-      let !newState = State fp (offset + symLength) terminal indent (row + symLength) col ctx in
+      let !newState = State fp (offset + symLength) terminal indent row (col + symLength) ctx in
       cok () newState noError
 
     else
