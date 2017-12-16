@@ -6,7 +6,7 @@ module Elm.Name
   , toString
   , toBuilder
   , toShort
-  , localFromInt
+  , addIndex
   , toCompositeName
   , int, float, bool, char, string
   , maybe, list, array, tuple
@@ -53,9 +53,9 @@ toShort =
   error "TODO"
 
 
-localFromInt :: Int -> Name
-localFromInt n =
-  Text.pack ('x' : show n)
+addIndex :: Name -> Int -> Name
+addIndex name i =
+  Text.append name (Text.pack (show i))
 
 
 toCompositeName :: Set.Set Name -> Name

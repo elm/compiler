@@ -268,7 +268,7 @@ decodeTuple a b maybeC =
 
 toLocal :: Int -> Opt.Expr
 toLocal index =
-  Opt.VarLocal (N.localFromInt index)
+  Opt.VarLocal (N.addIndex "x" index)
 
 
 indexAndThen :: Int -> Can.Type -> Opt.Expr -> Names.Tracker Opt.Expr
@@ -278,7 +278,7 @@ indexAndThen i tipe decoder =
       typeDecoder <- toDecoder tipe
       return $
         Opt.Call andThen
-          [ Opt.Function [N.localFromInt i] decoder
+          [ Opt.Function [N.addIndex "x" i] decoder
           , Opt.Call index [ Opt.Int i, typeDecoder ]
           ]
 
