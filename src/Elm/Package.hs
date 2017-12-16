@@ -3,11 +3,12 @@
 module Elm.Package
   ( Name(..)
   , Package(..)
+  , isKernel
+  , toString, toUrl, toFilePath
+  , fromText
   , dummyName, kernel, core
   , browser, virtualDom, html
   , webgl, linearAlgebra
-  , toString, toUrl, toFilePath
-  , fromText
   , Version(..)
   , initialVersion, dummyVersion
   , bumpPatch, bumpMinor, bumpMajor
@@ -59,52 +60,13 @@ data Package =
     deriving (Eq, Ord)
 
 
-{-# NOINLINE dummyName #-}
-dummyName :: Name
-dummyName =
-  Name "user" "project"
+
+-- HELPERS
 
 
-{-# NOINLINE kernel #-}
-kernel :: Name
-kernel =
-  Name "elm-lang" "kernel"
-
-
-{-# NOINLINE core #-}
-core :: Name
-core =
-  Name "elm-lang" "core"
-
-
-{-# NOINLINE browser #-}
-browser :: Name
-browser =
-  Name "elm-lang" "browser"
-
-
-{-# NOINLINE virtualDom #-}
-virtualDom :: Name
-virtualDom =
-  Name "elm-lang" "virtual-dom"
-
-
-{-# NOINLINE html #-}
-html :: Name
-html =
-  Name "elm-lang" "html"
-
-
-{-# NOINLINE webgl #-}
-webgl :: Name
-webgl =
-  Name "elm-community" "webgl"
-
-
-{-# NOINLINE linearAlgebra #-}
-linearAlgebra :: Name
-linearAlgebra =
-  Name "elm-community" "linear-algebra"
+isKernel :: Name -> Bool
+isKernel (Name user _) =
+  user == "elm-lang" || user == "elm-explorations"
 
 
 toString :: Name -> String
@@ -159,6 +121,58 @@ validateProjectName text =
 
   else
     Right text
+
+
+
+-- COMMON PACKAGE NAMES
+
+
+{-# NOINLINE dummyName #-}
+dummyName :: Name
+dummyName =
+  Name "user" "project"
+
+
+{-# NOINLINE kernel #-}
+kernel :: Name
+kernel =
+  Name "elm-lang" "kernel"
+
+
+{-# NOINLINE core #-}
+core :: Name
+core =
+  Name "elm-lang" "core"
+
+
+{-# NOINLINE browser #-}
+browser :: Name
+browser =
+  Name "elm-lang" "browser"
+
+
+{-# NOINLINE virtualDom #-}
+virtualDom :: Name
+virtualDom =
+  Name "elm-lang" "virtual-dom"
+
+
+{-# NOINLINE html #-}
+html :: Name
+html =
+  Name "elm-lang" "html"
+
+
+{-# NOINLINE webgl #-}
+webgl :: Name
+webgl =
+  Name "elm-community" "webgl"
+
+
+{-# NOINLINE linearAlgebra #-}
+linearAlgebra :: Name
+linearAlgebra =
+  Name "elm-community" "linear-algebra"
 
 
 
