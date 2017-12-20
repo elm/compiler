@@ -421,7 +421,7 @@ addExport :: Info -> Module -> (N.Name, A.Located Can.Export) -> Result i w Modu
 addExport info (Module n c us as_ vs bs) (name, A.At region export) =
   case export of
     Can.ExportValue ->
-      do  tipe <- getType region name info
+      do  tipe <- getType name info
           comment <- getComment region name info
 
           let newValues = Map.insert name (Value comment tipe) vs
@@ -429,7 +429,7 @@ addExport info (Module n c us as_ vs bs) (name, A.At region export) =
 
     Can.ExportBinop ->
       do  let (Can.Binop_ assoc prec realName) = _iBinops info ! name
-          tipe <- getType region realName info
+          tipe <- getType realName info
           comment <- getComment region realName info
 
           let newBinops = Map.insert name (Binop comment tipe assoc prec) bs
@@ -470,11 +470,11 @@ getComment region name info =
       Result.ok comment
 
 
-getType :: R.Region -> N.Name -> Info -> Result i w Type.Type
-getType exportRegion name info =
+getType :: N.Name -> Info -> Result i w Type.Type
+getType name info =
   case _iValues info ! name of
     A.At defRegion Nothing ->
-      Result.throw (E.NoAnnotation name exportRegion defRegion)
+      Result.throw (E.NoAnnotation name defRegion)
 
     A.At _ (Just tipe) ->
       Result.ok (Extract.fromType tipe)
