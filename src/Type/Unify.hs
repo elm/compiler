@@ -689,6 +689,15 @@ unifyStructure context flatType content otherContent =
                       Unify k ->
                         k vars ok err
 
+          (Tuple1 a b Nothing, Tuple1 x y Nothing) ->
+              do  subUnify context a x
+                  subUnify context b y
+
+          (Tuple1 a b (Just c), Tuple1 x y (Just z)) ->
+              do  subUnify context a x
+                  subUnify context b y
+                  subUnify context c z
+
           _ ->
               mismatch context Nothing
 
