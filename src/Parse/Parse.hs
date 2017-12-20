@@ -36,6 +36,7 @@ program pkg src =
       Result.throw syntaxError
 
 
+
 -- CHOMP PROGRAMS
 
 
@@ -69,8 +70,8 @@ chompDeclarations decls =
 
 chompInfixes :: [Src.Decl] -> P.Parser [Src.Decl]
 chompInfixes decls =
-  do  decl <- Decl.infix_
-      P.oneOf
-        [ chompInfixes (decl:decls)
-        , return (decl:decls)
-        ]
+  P.oneOf
+    [ do  decl <- Decl.infix_
+          chompInfixes (decl:decls)
+    , return decls
+    ]
