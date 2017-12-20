@@ -114,7 +114,7 @@ chompInt fp !offset terminal !n =
         chompInt fp (offset + 1) terminal (10 * n + fromIntegral (word - 0x30 {- 0 -}))
 
       else if word == 0x2E {- . -} then
-        chompFraction fp (offset + 1) terminal
+        chompFraction fp (offset + 1) terminal n
 
       else if word == 0x65 {- e -} || word == 0x45 {- E -} then
         chompExponent fp (offset + 1) terminal
@@ -130,16 +130,16 @@ chompInt fp !offset terminal !n =
 -- CHOMP FRACTION
 
 
-chompFraction :: ForeignPtr Word8 -> Int -> Int -> Outcome
-chompFraction fp offset terminal =
+chompFraction :: ForeignPtr Word8 -> Int -> Int -> Int -> Outcome
+chompFraction fp offset terminal n =
   if offset >= terminal then
-    Err offset E.BadNumberDot
+    Err offset (E.BadNumberDot n)
 
   else if isDecimalDigit (I.unsafeIndex fp offset) then
     chompFractionHelp fp (offset + 1) terminal
 
   else
-    Err offset E.BadNumberDot
+    Err offset (E.BadNumberDot n)
 
 
 chompFractionHelp :: ForeignPtr Word8 -> Int -> Int -> Outcome
@@ -215,7 +215,7 @@ chompZero fp offset terminal =
       chompHexInt fp (offset + 1) terminal
 
     else if word == 0x2E {- . -} then
-      chompFraction fp (offset + 1) terminal
+      chompFraction fp (offset + 1) terminal 0
 
     else if isDecimalDigit word then
       Err offset E.BadNumberZero
