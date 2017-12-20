@@ -27,14 +27,13 @@ import qualified Reporting.Result as Result
 -- DUPLICATE TRACKER
 
 
-type Dict category value =
-  Map.Map N.Name (OneOrMore.OneOrMore (Info category value))
+type Dict value =
+  Map.Map N.Name (OneOrMore.OneOrMore (Info value))
 
 
-data Info category value =
+data Info value =
   Info
     { _region :: R.Region
-    , _category :: category
     , _value :: value
     }
 
@@ -43,24 +42,24 @@ data Info category value =
 -- DETECT
 
 
-type ToError c =
-  N.Name -> R.Region -> c -> R.Region -> c -> Error.Error
+type ToError =
+  N.Name -> R.Region -> R.Region -> Error.Error
 
 
-detect :: ToError c -> Dict c v -> Result.Result i w Error.Error (Map.Map N.Name v)
+detect :: ToError -> Dict a -> Result.Result i w Error.Error (Map.Map N.Name a)
 detect toError dict =
   Map.traverseWithKey (detectHelp toError) dict
 
 
-detectHelp :: ToError c -> N.Name -> OneOrMore.OneOrMore (Info c v) -> Result.Result i w Error.Error v
+detectHelp :: ToError -> N.Name -> OneOrMore.OneOrMore (Info a) -> Result.Result i w Error.Error a
 detectHelp toError name values =
   case values of
-    OneOrMore.One (Info _ _ value) ->
+    OneOrMore.One (Info _ value) ->
       return value
 
     OneOrMore.More _ _ ->
-      let (Info r1 c1 _ : Info r2 c2 _ : _) = OneOrMore.toList values in
-      Result.throw (toError name r1 c1 r2 c2)
+      let (Info r1 _ : Info r2 _ : _) = OneOrMore.toList values in
+      Result.throw (toError name r1 r2)
 
 
 
@@ -72,35 +71,35 @@ checkFields fields =
   detect Error.DuplicateField (foldr addField none fields)
 
 
-addField :: (A.Located N.Name, a) -> Dict () a -> Dict () a
+addField :: (A.Located N.Name, a) -> Dict a -> Dict a
 addField (A.At region name, value) dups =
-  Map.insertWith OneOrMore.more name (OneOrMore.one (Info region () value)) dups
+  Map.insertWith OneOrMore.more name (OneOrMore.one (Info region value)) dups
 
 
 
 -- BUILDING DICTIONARIES
 
 
-none :: Dict c v
+none :: Dict a
 none =
   Map.empty
 
 
-one :: N.Name -> R.Region -> category -> value -> Dict category value
-one name region category value =
-  Map.singleton name (OneOrMore.one (Info region category value))
+one :: N.Name -> R.Region -> value -> Dict value
+one name region value =
+  Map.singleton name (OneOrMore.one (Info region value))
 
 
-insert :: N.Name -> R.Region -> c -> v -> Dict c v -> Dict c v
-insert name region category value dict =
-  Map.insertWith OneOrMore.more name (OneOrMore.one (Info region category value)) dict
+insert :: N.Name -> R.Region -> a -> Dict a -> Dict a
+insert name region value dict =
+  Map.insertWith OneOrMore.more name (OneOrMore.one (Info region value)) dict
 
 
-union :: Dict c v -> Dict c v -> Dict c v
+union :: Dict a -> Dict a -> Dict a
 union a b =
   Map.unionWith OneOrMore.more a b
 
 
-unions :: [Dict c v] -> Dict c v
+unions :: [Dict a] -> Dict a
 unions dicts =
   Map.unionsWith OneOrMore.more dicts

@@ -59,7 +59,7 @@ verify context (Result.Result k) =
 
 
 type DupsDict =
-  Dups.Dict () R.Region
+  Dups.Dict R.Region
 
 
 canonicalize :: Env.Env -> Src.Pattern -> Result DupsDict w Can.Pattern
@@ -154,14 +154,14 @@ canonicalizeList env list =
 logVar :: N.Name -> R.Region -> a -> Result DupsDict w a
 logVar name region value =
   Result.Result $ \bindings warnings _ ok ->
-    ok (Dups.insert name region () region bindings) warnings value
+    ok (Dups.insert name region region bindings) warnings value
 
 
 logFields :: [A.Located N.Name] -> a -> Result DupsDict w a
 logFields fields value =
   let
     addField (A.At region name) dict =
-      Dups.insert name region () region dict
+      Dups.insert name region region dict
   in
   Result.Result $ \bindings warnings _ ok ->
     ok (foldr addField bindings fields) warnings value

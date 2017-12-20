@@ -313,14 +313,14 @@ canonicalizeLet letRegion env defs body =
 
 
 type Bindings =
-  Dups.Dict () (A.Located Int)
+  Dups.Dict (A.Located Int)
 
 
 addBindings :: (Valid.Def, Int) -> Bindings -> Bindings
 addBindings (def, key) bindings =
   case def of
     Valid.Define defRegion (A.At region name) _ _ _ ->
-      Dups.insert name region () (A.At defRegion key) bindings
+      Dups.insert name region (A.At defRegion key) bindings
 
     Valid.Destruct defRegion pattern _ ->
       addBindingsHelp (A.At defRegion key) pattern bindings
@@ -333,12 +333,12 @@ addBindingsHelp key (A.At region pattern) bindings =
       bindings
 
     Src.PVar name ->
-      Dups.insert name region () key bindings
+      Dups.insert name region key bindings
 
     Src.PRecord fields ->
       let
         addField (A.At fieldRegion name) dict =
-          Dups.insert name fieldRegion () key dict
+          Dups.insert name fieldRegion key dict
       in
       foldr addField bindings fields
 
@@ -358,7 +358,7 @@ addBindingsHelp key (A.At region pattern) bindings =
       addBindingsHelp key rest (addBindingsHelp key first bindings)
 
     Src.PAlias ptrn (A.At reg name) ->
-      addBindingsHelp key ptrn (Dups.insert name reg () key bindings)
+      addBindingsHelp key ptrn (Dups.insert name reg key bindings)
 
     Src.PChr _ ->
       bindings

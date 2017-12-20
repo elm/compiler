@@ -137,10 +137,10 @@ collectLowerVars :: Valid.Module -> Result i (Map.Map N.Name ())
 collectLowerVars (Valid.Module _ _ _ _ _ decls _ _ _ effects) =
   let
     addDecl (A.At _ (Valid.Decl (A.At region name) _ _ _)) dict =
-      Dups.insert name region () () dict
+      Dups.insert name region () dict
 
     addPort (Valid.Port (A.At region name) _) dict =
-      Dups.insert name region () () dict
+      Dups.insert name region () dict
 
     effectDict =
       case effects of
@@ -153,15 +153,15 @@ collectLowerVars (Valid.Module _ _ _ _ _ decls _ _ _ effects) =
         Valid.Manager _ manager ->
           case manager of
             Valid.Cmd (A.At region _) ->
-              Dups.one "command" region () ()
+              Dups.one "command" region ()
 
             Valid.Sub (A.At region _) ->
-              Dups.one "subscription" region () ()
+              Dups.one "subscription" region ()
 
             Valid.Fx (A.At regionCmd _) (A.At regionSub _) ->
               Dups.union
-                (Dups.one "command" regionCmd () ())
-                (Dups.one "subscription" regionSub () ())
+                (Dups.one "command" regionCmd ())
+                (Dups.one "subscription" regionSub ())
   in
   Dups.detect Error.DuplicateDecl $ foldr addDecl effectDict decls
 
@@ -169,16 +169,16 @@ collectLowerVars (Valid.Module _ _ _ _ _ decls _ _ _ effects) =
 collectUpperVars :: Valid.Module -> Result i (Map.Map N.Name ())
 collectUpperVars (Valid.Module _ _ _ _ _ _ unions aliases _ _) =
   let
-    addUnion (Valid.Union (A.At _ name) _ ctors) dict =
-      foldr (addCtor name) dict ctors
+    addUnion (Valid.Union _ _ ctors) dict =
+      foldr addCtor dict ctors
 
-    addCtor tipe (A.At region name, _args) dict =
-      Dups.insert name region (Error.UnionCtor tipe) () dict
+    addCtor (A.At region name, _args) dict =
+      Dups.insert name region () dict
 
     addAlias (Valid.Alias (A.At region name) _ (A.At _ tipe)) dict =
       case tipe of
         Src.TRecord _ Nothing ->
-          Dups.insert name region Error.RecordCtor () dict
+          Dups.insert name region () dict
 
         _ ->
           dict
@@ -196,11 +196,11 @@ addTypes (Valid.Module _ _ _ _ _ _ unions aliases _ _) env =
   let
     aliasToDict alias@(Valid.Alias (A.At region name) _ tipe) =
       do  args <- checkAliasFreeVars alias
-          return $ Dups.one name region () (Left (Alias region name args tipe))
+          return $ Dups.one name region (Left (Alias region name args tipe))
 
     unionToDict union@(Valid.Union (A.At region name) _ _) =
       do  arity <- checkUnionFreeVars union
-          return $ Dups.one name region () (Right arity)
+          return $ Dups.one name region (Right arity)
 
     combineDicts dicts1 dicts2 =
       Dups.union (Dups.unions dicts1) (Dups.unions dicts2)
@@ -323,15 +323,12 @@ checkUnionFreeVars :: Valid.Union -> Result i Int
 checkUnionFreeVars (Valid.Union (A.At unionRegion name) args ctors) =
   let
     addUnion (A.At region arg) dict =
-      Dups.insert arg region () region dict
-
-    toError =
-      Error.DuplicateUnionArg name (map A.toValue args)
+      Dups.insert arg region region dict
 
     addCtorFreeVars (_, tipes) freeVars =
       foldr addFreeVars freeVars tipes
   in
-  do  boundVars <- Dups.detect toError (foldr addUnion Dups.none args)
+  do  boundVars <- Dups.detect (Error.DuplicateUnionArg name) (foldr addUnion Dups.none args)
       let freeVars = foldr addCtorFreeVars Map.empty ctors
       case Map.toList (Map.difference freeVars boundVars) of
         [] ->
@@ -348,12 +345,9 @@ checkAliasFreeVars :: Valid.Alias -> Result i [N.Name]
 checkAliasFreeVars (Valid.Alias (A.At aliasRegion name) args tipe) =
   let
     addAlias (A.At region arg) dict =
-      Dups.insert arg region () region dict
-
-    toError =
-      Error.DuplicateAliasArg name (map A.toValue args)
+      Dups.insert arg region region dict
   in
-  do  boundVars <- Dups.detect toError (foldr addAlias Dups.none args)
+  do  boundVars <- Dups.detect (Error.DuplicateAliasArg name) (foldr addAlias Dups.none args)
       let freeVars = addFreeVars tipe Map.empty
       let overlap = Map.size (Map.intersection boundVars freeVars)
       if Map.size boundVars == overlap && Map.size freeVars == overlap

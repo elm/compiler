@@ -291,7 +291,7 @@ checkExposed
   -> Map.Map N.Name binop
   -> Can.Effects
   -> A.Located Src.Exposed
-  -> Result i w (Dups.Dict () (A.Located Can.Export))
+  -> Result i w (Dups.Dict (A.Located Can.Export))
 checkExposed decls unions aliases binops effects (A.At region exposed) =
   case exposed of
     Src.Lower name ->
@@ -345,6 +345,6 @@ checkPorts effects name =
       Just []
 
 
-ok :: N.Name -> R.Region -> Can.Export -> Result i w (Dups.Dict () (A.Located Can.Export))
+ok :: N.Name -> R.Region -> Can.Export -> Result i w (Dups.Dict (A.Located Can.Export))
 ok name region export =
-  Result.ok $ Dups.one name region () (A.At region export)
+  Result.ok $ Dups.one name region (A.At region export)
