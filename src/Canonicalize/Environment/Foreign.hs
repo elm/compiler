@@ -353,7 +353,7 @@ throwExposingNotFound moduleName region name (I.Interface types unions aliases _
   in
   case Map.lookup name ctorDict of
     Just tipe ->
-      Result.throw $ Error.ImportCtorNotFound region name tipe
+      Result.throw $ Error.ImportCtorByName region name tipe
 
     Nothing ->
       Result.throw $ Error.ImportExposingNotFound region moduleName name $
