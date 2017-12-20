@@ -7,26 +7,25 @@ module Elm.Compiler
   , Localizer
   , dummyLocalizer
   , Error.Error
-  , errorToDoc
-  , errorToJson
+  , errorsToDoc
   , Warning.Warning
-  , warningToDoc
-  , warningToJson
   )
   where
 
-import qualified Data.Aeson as Json
+
 import qualified Data.ByteString as BS
 import qualified Data.Map as Map
 import qualified Data.Text as Text
-import Text.PrettyPrint.ANSI.Leijen (Doc)
 
 import qualified Compile
 import qualified Elm.Compiler.Module as M
 import qualified Elm.Compiler.Version
 import qualified Elm.Package as Pkg
 import qualified Reporting.Error as Error
+import qualified Reporting.Helpers as H
+import qualified Reporting.Render.Code as Code
 import qualified Reporting.Render.Type as RenderType
+import qualified Reporting.Report as Report
 import qualified Reporting.Result as Result
 import qualified Reporting.Warning as Warning
 
@@ -82,25 +81,9 @@ dummyLocalizer =
 -- ERRORS
 
 
-errorToDoc :: Localizer -> String -> Text.Text -> Error.Error -> Doc
-errorToDoc (Localizer localizer) location source err =
-  error "TODO Report.toDoc" location (Error.toReport localizer err) source
-
-
-errorToJson :: Localizer -> String -> Error.Error -> Json.Value
-errorToJson (Localizer localizer) location err =
-  error "TODO Error.toJson" localizer location err
-
-
-
--- WARNINGS
-
-
-warningToDoc :: Localizer -> String -> Text.Text -> Warning.Warning -> Doc
-warningToDoc (Localizer localizer) location source warning =
-  error "TODO Report.toDoc" location (Warning.toReport localizer warning) source
-
-
-warningToJson :: Localizer -> String -> Warning.Warning -> Json.Value
-warningToJson (Localizer localizer) location warning =
-  error "TODO Warning.toJson" localizer location warning
+errorsToDoc :: FilePath -> Text.Text -> Localizer -> [Error.Error] -> H.Doc
+errorsToDoc filePath source (Localizer localizer) errors =
+  H.vcat $
+    map
+      (Report.toDoc filePath)
+      (concatMap (Error.toReports (Code.toSource source) localizer) errors)
