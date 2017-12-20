@@ -39,7 +39,6 @@ unify v1 v2 =
             return (Err vars problem t1 t2)
 
 
-
 onSuccess :: [Variable] -> () -> IO Answer
 onSuccess vars () =
   return (Ok vars)
@@ -654,8 +653,8 @@ unifyStructure context flatType content otherContent =
     Alias _ _ _ realVar ->
         subUnify context (_first context) realVar
 
-    Structure otherTerm ->
-        case (flatType, otherTerm) of
+    Structure otherFlatType ->
+        case (flatType, otherFlatType) of
           (App1 home name args, App1 otherHome otherName otherArgs) ->
               if home == otherHome && name == otherName then
                 do  zipWithM_ (subUnify context) args otherArgs
@@ -703,7 +702,6 @@ unifyStructure context flatType content otherContent =
 
     Error _ ->
         return ()
-
 
 
 isIntFloat :: ModuleName.Canonical -> N.Name -> ModuleName.Canonical -> N.Name -> Bool
