@@ -126,8 +126,14 @@ foreignUpper =
       eerr (expect row newCol ctx E.CapVar)
     else
       let
-        !foreign = toForeign fp offset start end
         !newState = State fp end terminal indent row newCol ctx
+        !variable = Text.decodeUtf8 (B.PS fp start (end - start))
+        !foreign =
+          if start == offset then
+            (Nothing, variable)
+          else
+            let !home = Text.decodeUtf8 (B.PS fp offset ((start - 1) - offset)) in
+            (Just home, variable)
       in
       cok foreign newState noError
 
@@ -158,7 +164,18 @@ foreignAlpha =
     if start == end then
       eerr (E.ParseError row newCol (E.Theories ctx [E.LowVar, E.CapVar]))
     else
-      cok (toForeign fp offset start end) (State fp end terminal indent row newCol ctx) noError
+      let
+        !newState = State fp end terminal indent row newCol ctx
+        !variable = Text.decodeUtf8 (B.PS fp start (end - start))
+      in
+      if start == offset then
+        if Set.member variable reservedWords then
+          eerr noError
+        else
+          cok (Nothing, variable) newState noError
+      else
+        let !home = Text.decodeUtf8 (B.PS fp offset ((start - 1) - offset)) in
+        cok (Just home, variable) newState noError
 
 
 foreignAlphaHelp :: ForeignPtr Word8 -> Int -> Int -> Int -> (# Int, Int, Int #)
@@ -181,26 +198,6 @@ foreignAlphaHelp fp offset terminal col =
 
     else
       (# offset, upperOffset, upperCol #)
-
-
-
--- TO FOREIGN NAME
-
-
-toForeign :: ForeignPtr Word8 -> Int -> Int -> Int -> ( Maybe Text, Text )
-toForeign fp offset start end =
-  let
-    !qualifier =
-      if start == offset then
-        Nothing
-      else
-        Just (Text.decodeUtf8 (B.PS fp offset ((start - 1) - offset)))
-
-    !variable =
-      Text.decodeUtf8 (B.PS fp start (end - start))
-  in
-  ( qualifier, variable )
-
 
 
 
