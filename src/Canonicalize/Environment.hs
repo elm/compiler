@@ -73,8 +73,8 @@ data VarHomes =
 
 
 data UnqualifiedVarHome
-  = Local
-  | TopLevel
+  = Local R.Region
+  | TopLevel R.Region
   | Foreign (Bag.Bag ForeignVarHome)
 
 
@@ -129,7 +129,7 @@ addLocals :: Map.Map N.Name R.Region -> Env -> Result i w Env
 addLocals names (Env home vars types patterns binops) =
   do  newVars <-
         Map.mergeA
-          (Map.mapMissing (\_ _ -> localVarHomes))
+          (Map.mapMissing addLocalLeft)
           (Map.mapMissing (\_ homes -> homes))
           (Map.zipWithAMatched addLocalBoth)
           names
@@ -137,23 +137,22 @@ addLocals names (Env home vars types patterns binops) =
       Result.ok $ Env home newVars types patterns binops
 
 
-{-# NOINLINE localVarHomes #-}
-localVarHomes :: VarHomes
-localVarHomes =
-  VarHomes Local Map.empty
+addLocalLeft :: N.Name -> R.Region -> VarHomes
+addLocalLeft _ region =
+  VarHomes (Local region) Map.empty
 
 
 addLocalBoth :: N.Name -> R.Region -> VarHomes -> Result i w VarHomes
 addLocalBoth name region (VarHomes unqualified qualified) =
   case unqualified of
     Foreign _ ->
-      Result.ok (VarHomes Local qualified)
+      Result.ok (VarHomes (Local region) qualified)
 
-    Local ->
-      Result.throw (Error.Shadowing name region)
+    Local parentRegion ->
+      Result.throw (Error.Shadowing name parentRegion region)
 
-    TopLevel ->
-      Result.throw (Error.Shadowing name region)
+    TopLevel parentRegion ->
+      Result.throw (Error.Shadowing name parentRegion region)
 
 
 

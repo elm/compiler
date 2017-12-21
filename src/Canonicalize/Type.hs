@@ -87,9 +87,7 @@ canonicalize env (A.At typeRegion tipe) =
                 Just <$> canonicalize env c
 
               _ ->
-                let (A.At start _, A.At end _) = (head cs, last cs) in
-                Result.throw $
-                  Error.TupleLargerThanThree typeRegion (R.merge start end)
+                Result.throw $ Error.TupleLargerThanThree typeRegion
 
 
 

@@ -164,9 +164,8 @@ canonicalizeTupleExtras region env extras =
     [three] ->
       Just <$> canonicalize env three
 
-    _ : others ->
-      let (A.At r1 _, A.At r2 _) = (head others, last others) in
-      Result.throw (Error.TupleLargerThanThree region (R.merge r1 r2))
+    _ ->
+      Result.throw (Error.TupleLargerThanThree region)
 
 
 
@@ -653,10 +652,10 @@ findVar region (Env.Env localHome vars _ _ _) maybePrefix name =
       case maybePrefix of
         Nothing ->
           case unqualified of
-            Env.Local ->
+            Env.Local _ ->
               logVar name (Can.VarLocal name)
 
-            Env.TopLevel ->
+            Env.TopLevel _ ->
               logVar name (Can.VarTopLevel localHome name)
 
             Env.Foreign bag ->

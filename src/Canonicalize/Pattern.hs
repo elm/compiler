@@ -130,9 +130,8 @@ canonicalizeTuple tupleRegion env extras =
     [three] ->
       Just <$> canonicalize env three
 
-    _ : others ->
-      let (A.At r1 _, A.At r2 _) = (head others, last others) in
-      Result.throw (Error.TupleLargerThanThree tupleRegion (R.merge r1 r2))
+    _ ->
+      Result.throw $ Error.TupleLargerThanThree tupleRegion
 
 
 canonicalizeList :: Env.Env -> [Src.Pattern] -> Result DupsDict w [Can.Pattern]

@@ -118,29 +118,26 @@ addVars module_ (Env.Env home vars types patterns binops) =
       return $ Env.Env home newVars types patterns binops
 
 
-addVarsHelp :: Map.Map N.Name () -> Map.Map N.Name Env.VarHomes -> Map.Map N.Name Env.VarHomes
+addVarsHelp :: Map.Map N.Name R.Region -> Map.Map N.Name Env.VarHomes -> Map.Map N.Name Env.VarHomes
 addVarsHelp localVars vars =
   let
-    varHomes =
-      Env.VarHomes Env.TopLevel Map.empty
+    addLeft _ region =
+      Env.VarHomes (Env.TopLevel region) Map.empty
 
-    addLeft _ _ =
-      varHomes
-
-    addBoth _ _ (Env.VarHomes _ qualified) =
-      Env.VarHomes Env.TopLevel qualified
+    addBoth _ region (Env.VarHomes _ qualified) =
+      Env.VarHomes (Env.TopLevel region) qualified
   in
   merge addLeft addBoth localVars vars
 
 
-collectLowerVars :: Valid.Module -> Result i (Map.Map N.Name ())
+collectLowerVars :: Valid.Module -> Result i (Map.Map N.Name R.Region)
 collectLowerVars (Valid.Module _ _ _ _ _ decls _ _ _ effects) =
   let
     addDecl (A.At _ (Valid.Decl (A.At region name) _ _ _)) dict =
-      Dups.insert name region () dict
+      Dups.insert name region region dict
 
     addPort (Valid.Port (A.At region name) _) dict =
-      Dups.insert name region () dict
+      Dups.insert name region region dict
 
     effectDict =
       case effects of
@@ -153,32 +150,32 @@ collectLowerVars (Valid.Module _ _ _ _ _ decls _ _ _ effects) =
         Valid.Manager _ manager ->
           case manager of
             Valid.Cmd (A.At region _) ->
-              Dups.one "command" region ()
+              Dups.one "command" region region
 
             Valid.Sub (A.At region _) ->
-              Dups.one "subscription" region ()
+              Dups.one "subscription" region region
 
             Valid.Fx (A.At regionCmd _) (A.At regionSub _) ->
               Dups.union
-                (Dups.one "command" regionCmd ())
-                (Dups.one "subscription" regionSub ())
+                (Dups.one "command" regionCmd regionCmd)
+                (Dups.one "subscription" regionSub regionSub)
   in
   Dups.detect Error.DuplicateDecl $ foldr addDecl effectDict decls
 
 
-collectUpperVars :: Valid.Module -> Result i (Map.Map N.Name ())
+collectUpperVars :: Valid.Module -> Result i (Map.Map N.Name R.Region)
 collectUpperVars (Valid.Module _ _ _ _ _ _ unions aliases _ _) =
   let
     addUnion (Valid.Union _ _ ctors) dict =
       foldr addCtor dict ctors
 
     addCtor (A.At region name, _args) dict =
-      Dups.insert name region () dict
+      Dups.insert name region region dict
 
     addAlias (Valid.Alias (A.At region name) _ (A.At _ tipe)) dict =
       case tipe of
         Src.TRecord _ Nothing ->
-          Dups.insert name region () dict
+          Dups.insert name region region dict
 
         _ ->
           dict
