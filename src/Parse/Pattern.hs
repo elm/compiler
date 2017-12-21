@@ -232,11 +232,14 @@ cons tl@(A.At (R.Region _ end) _) hd@(A.At (R.Region start _) _) =
 exprTerm :: SParser Src.Pattern
 exprTerm =
   oneOf
-    [ do  start <- getPosition
+    [
+      do  start <- getPosition
           pair <- Var.foreignUpper
           exprTermHelp start pair []
-
-    , (,,) <$> term <*> getPosition <*> whitespace
+    ,
+      do  t@(A.At (R.Region _ end) _) <- term
+          pos <- whitespace
+          return (t, end, pos)
     ]
 
 
