@@ -293,9 +293,22 @@ guardedUnify orientation left right =
           else
             do  leftDesc <- UF.get left
                 rightDesc <- UF.get right
+                putStrLn (toString leftDesc ++ " vs " ++ toString rightDesc)
                 case actuallyUnify (Context orientation left leftDesc right rightDesc) of
                   Unify k ->
                     k vars ok err
+
+
+toString :: Descriptor -> String
+toString (Descriptor content _ _ _) =
+  case content of
+    FlexVar _      -> "FlexVar"
+    FlexSuper _ _  -> "FlexSuper"
+    RigidVar _     -> "RigidVar"
+    RigidSuper _ _ -> "RigidSuper"
+    Alias _ _ _ _  -> "Alias"
+    Structure _    -> "Structure"
+    Error _        -> "Error"
 
 
 subUnify :: Context -> Variable -> Variable -> Unify ()

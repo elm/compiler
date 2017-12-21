@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE BangPatterns, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, UnboxedTuples, OverloadedStrings #-}
 module Parse.Primitives.Symbol
   ( underscore
   , binop
@@ -45,7 +45,8 @@ underscore =
         !newCol = col + 1
       in
       if Var.getInnerWidth fp newOffset terminal > 0 then
-        cerr (E.ParseError row newCol E.BadUnderscore)
+        let (# _, badCol #) = Var.chompInnerChars fp newOffset terminal newCol in
+        cerr (E.ParseError row newCol (E.BadUnderscore badCol))
       else
         let !newState = State fp newOffset terminal indent row newCol ctx in
         cok () newState noError

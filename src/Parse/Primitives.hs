@@ -55,6 +55,9 @@ runAt startRow startColumn (Parser parser) (B.PS fp offset length) =
           E.BadEscape width _ ->
             mkError (R.Region pos (R.Position row (col + width))) Nothing
 
+          E.BadUnderscore badCol ->
+            mkError (R.Region pos (R.Position row badCol)) Nothing
+
           E.BadOp _ ((_, start) : _) ->
             mkError (R.Region start pos) (Just (R.Region pos pos))
 
