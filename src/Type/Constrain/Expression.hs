@@ -224,7 +224,7 @@ constrainCallBackup rtv region maybeFuncName func args =
       let resultType = VarN resultVar
       let arityType = foldr FunN resultType argTypes
 
-      funcCon <- constrain rtv func (FromContext region BadArity arityType)
+      funcCon <- constrain rtv func (FromContext region (TooManyArgs maybeFuncName (length args)) arityType)
 
       return $ exists (resultVar:argVars) $ CAnd [ CAnd argCons, funcCon ]
 

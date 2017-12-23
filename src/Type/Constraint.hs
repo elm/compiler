@@ -78,7 +78,7 @@ data Context
   | IfBranch Index.ZeroBased
   | CaseBranch Index.ZeroBased
   | CallArg (Maybe FuncName) Index.ZeroBased
-  | BadArity
+  | TooManyArgs (Maybe FuncName) Int
   | RecordAccess N.Name
   | RecordUpdate
   | Destructure
