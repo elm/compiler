@@ -5,6 +5,7 @@ module Nitpick.PatternMatches
   , Error(..)
   , Context(..)
   , Pattern(..)
+  , Literal(..)
   )
   where
 
