@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Canonicalize.Expression
   ( canonicalize
   , FreeLocals
@@ -9,8 +10,11 @@ module Canonicalize.Expression
   where
 
 
+import Control.Monad (foldM)
 import qualified Data.Graph as Graph
+import qualified Data.List as List
 import qualified Data.Map.Strict as Map
+import qualified Data.Text as Text
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
@@ -287,77 +291,66 @@ toBinop (Env.Binop op home name annotation _ _) left right =
 canonicalizeLet :: R.Region -> Env.Env -> [Valid.Def] -> Valid.Expr -> Result FreeLocals [W.Warning] Can.Expr
 canonicalizeLet letRegion env defs body =
   directUsage $
-  do  let keyedDefs = zip defs [ 0 .. length defs ]
-      let names = foldr addBindings Dups.none keyedDefs
-      nameDict <- Dups.detect (Error.DuplicatePattern Error.DPLetBinding) names
+    do  bindings <-
+          Dups.detect (Error.DuplicatePattern Error.DPLetBinding) $
+            List.foldl' addBindings Dups.none defs
 
-      let bindings = Map.map A.toRegion nameDict
-      let defKeys = Map.map A.toValue nameDict
-      newEnv <- Env.addLocals bindings env
+        newEnv <- Env.addLocals bindings env
 
-      ((nodes, cbody), freeLocals) <-
         verifyBindings W.Def bindings $
-          (,)
-            <$> traverse (defToNode defKeys newEnv) keyedDefs
-            <*> canonicalize newEnv body
-
-      letExpr <-
-        detectCycles letRegion (Graph.stronglyConnComp nodes) cbody
-
-      return (letExpr, freeLocals)
+          do  nodes <- foldM (addDefNodes newEnv) [] defs
+              cbody <- canonicalize newEnv body
+              detectCycles letRegion (Graph.stronglyConnComp nodes) cbody
 
 
 
 -- ADD BINDINGS
 
 
-type Bindings =
-  Dups.Dict (A.Located Int)
-
-
-addBindings :: (Valid.Def, Int) -> Bindings -> Bindings
-addBindings (def, key) bindings =
+addBindings :: Dups.Dict R.Region -> Valid.Def -> Dups.Dict R.Region
+addBindings bindings def =
   case def of
-    Valid.Define defRegion (A.At region name) _ _ _ ->
-      Dups.insert name region (A.At defRegion key) bindings
+    Valid.Define _ (A.At region name) _ _ _ ->
+      Dups.insert name region region bindings
 
-    Valid.Destruct defRegion pattern _ ->
-      addBindingsHelp (A.At defRegion key) pattern bindings
+    Valid.Destruct _ pattern _ ->
+      addBindingsHelp bindings pattern
 
 
-addBindingsHelp :: A.Located Int -> Src.Pattern -> Bindings -> Bindings
-addBindingsHelp key (A.At region pattern) bindings =
+addBindingsHelp :: Dups.Dict R.Region -> Src.Pattern -> Dups.Dict R.Region
+addBindingsHelp bindings (A.At region pattern) =
   case pattern of
     Src.PAnything ->
       bindings
 
     Src.PVar name ->
-      Dups.insert name region key bindings
+      Dups.insert name region region bindings
 
     Src.PRecord fields ->
       let
-        addField (A.At fieldRegion name) dict =
-          Dups.insert name fieldRegion key dict
+        addField dict (A.At fieldRegion name) =
+          Dups.insert name fieldRegion fieldRegion dict
       in
-      foldr addField bindings fields
+      List.foldl' addField bindings fields
 
     Src.PUnit ->
       bindings
 
     Src.PTuple a b cs ->
-      foldr (addBindingsHelp key) bindings (a:b:cs)
+      List.foldl' addBindingsHelp bindings (a:b:cs)
 
     Src.PCtor _ _ _ patterns ->
-      foldr (addBindingsHelp key) bindings patterns
+      List.foldl' addBindingsHelp bindings patterns
 
     Src.PList patterns ->
-      foldr (addBindingsHelp key) bindings patterns
+      List.foldl' addBindingsHelp bindings patterns
 
-    Src.PCons first rest ->
-      addBindingsHelp key rest (addBindingsHelp key first bindings)
+    Src.PCons hd tl ->
+      addBindingsHelp (addBindingsHelp bindings hd) tl
 
-    Src.PAlias ptrn (A.At reg name) ->
-      addBindingsHelp key ptrn (Dups.insert name reg key bindings)
+    Src.PAlias aliasPattern (A.At nameRegion name) ->
+      Dups.insert name nameRegion nameRegion $
+        addBindingsHelp bindings aliasPattern
 
     Src.PChr _ ->
       bindings
@@ -374,71 +367,74 @@ addBindingsHelp key (A.At region pattern) bindings =
 
 
 type Node =
-  (Binding, Int, [Int])
+  (Binding, N.Name, [N.Name])
 
 
 data Binding
-  = Define R.Region Can.Def
-  | Destruct R.Region Can.Pattern Can.Expr
+  = Define Can.Def
+  | Edge (A.Located N.Name)
+  | Destruct Can.Pattern Can.Expr
 
 
-defToNode :: Map.Map N.Name Int -> Env.Env -> (Valid.Def, Int) -> Result FreeLocals [W.Warning] Node
-defToNode defKeys env (def, key) =
+addDefNodes :: Env.Env -> [Node] -> Valid.Def -> Result FreeLocals [W.Warning] [Node]
+addDefNodes env nodes def =
   case def of
-    Valid.Define region aname@(A.At _ name) srcArgs body Nothing ->
-      do  (args, argBindings) <-
-            Pattern.verify (Error.DPFuncArgs name) $
-              traverse (Pattern.canonicalize env) srcArgs
+    Valid.Define _ aname@(A.At _ name) srcArgs body maybeType ->
+      case maybeType of
+        Nothing ->
+          do  (args, argBindings) <-
+                Pattern.verify (Error.DPFuncArgs name) $
+                  traverse (Pattern.canonicalize env) srcArgs
 
-          newEnv <-
-            Env.addLocals argBindings env
+              newEnv <-
+                Env.addLocals argBindings env
 
-          (cbody, freeLocals) <-
-            verifyBindings W.Pattern argBindings (canonicalize newEnv body)
+              (cbody, freeLocals) <-
+                verifyBindings W.Pattern argBindings (canonicalize newEnv body)
 
-          logLetLocals args freeLocals
-            ( Define region (Can.Def aname args cbody)
-            , key
-            , Map.elems (Map.intersection defKeys freeLocals)
-            )
+              let cdef = Can.Def aname args cbody
+              let node = ( Define cdef, name, Map.keys freeLocals )
+              logLetLocals args freeLocals (node:nodes)
 
-    Valid.Destruct region pattern body ->
+        Just tipe ->
+          do  (Can.Forall freeVars ctipe) <- Type.toAnnotation env tipe
+              ((args, resultType), argBindings) <-
+                Pattern.verify (Error.DPFuncArgs name) $
+                  gatherTypedArgs env name srcArgs ctipe Index.first []
+
+              newEnv <-
+                Env.addLocals argBindings env
+
+              (cbody, freeLocals) <-
+                verifyBindings W.Pattern argBindings (canonicalize newEnv body)
+
+              let cdef = Can.TypedDef aname freeVars args cbody resultType
+              let node = ( Define cdef, name, Map.keys freeLocals )
+              logLetLocals args freeLocals (node:nodes)
+
+    Valid.Destruct _ pattern body ->
       do  (cpattern, _bindings) <-
             Pattern.verify Error.DPDestruct $
               Pattern.canonicalize env pattern
 
-          Result.Result $ \freeLocals warnings bad good ->
+          Result.Result $ \fs ws bad good ->
             case canonicalize env body of
               Result.Result k ->
-                k Map.empty warnings
-                  (\_ ws es -> bad freeLocals ws es)
-                  (\newFreeLocals warnings1 cbody ->
-                      good
-                        (Map.unionWith combineUses freeLocals newFreeLocals)
-                        warnings1
-                        ( Destruct region cpattern cbody
-                        , key
-                        , Map.elems (Map.intersection defKeys freeLocals)
-                        )
+                k Map.empty ws
+                  (\freeLocals warnings errors ->
+                      bad (Map.unionWith combineUses freeLocals fs) warnings errors
                   )
-
-    Valid.Define region aname@(A.At _ name) srcArgs body (Just tipe) ->
-      do  (Can.Forall freeVars ctipe) <- Type.toAnnotation env tipe
-          ((args, resultType), argBindings) <-
-            Pattern.verify (Error.DPFuncArgs name) $
-              gatherTypedArgs env name srcArgs ctipe Index.first []
-
-          newEnv <-
-            Env.addLocals argBindings env
-
-          (cbody, freeLocals) <-
-            verifyBindings W.Pattern argBindings (canonicalize newEnv body)
-
-          logLetLocals args freeLocals
-            ( Define region (Can.TypedDef aname freeVars args cbody resultType)
-            , key
-            , Map.elems (Map.intersection defKeys freeLocals)
-            )
+                  (\freeLocals warnings cbody ->
+                      let
+                        names = getPatternNames [] pattern
+                        name = Text.intercalate "$" (map A.toValue names)
+                        node = ( Destruct cpattern cbody, name, Map.keys freeLocals )
+                      in
+                      good
+                        (Map.unionWith combineUses fs freeLocals)
+                        warnings
+                        (List.foldl' (addEdge [name]) (node:nodes) names)
+                  )
 
 
 logLetLocals :: [arg] -> FreeLocals -> value -> Result FreeLocals w value
@@ -452,6 +448,28 @@ logLetLocals args letLocals value =
       )
       warnings
       value
+
+
+addEdge :: [N.Name] -> [Node] -> A.Located N.Name -> [Node]
+addEdge edges nodes aname@(A.At _ name) =
+  (Edge aname, name, edges) : nodes
+
+
+getPatternNames :: [A.Located N.Name] -> Src.Pattern ->  [A.Located N.Name]
+getPatternNames names (A.At region pattern) =
+  case pattern of
+    Src.PAnything        -> names
+    Src.PVar name        -> A.At region name : names
+    Src.PRecord fields   -> fields ++ names
+    Src.PAlias ptrn name -> getPatternNames (name : names) ptrn
+    Src.PUnit            -> names
+    Src.PTuple a b cs    -> List.foldl' getPatternNames (getPatternNames (getPatternNames names a) b) cs
+    Src.PCtor _ _ _ args -> List.foldl' getPatternNames names args
+    Src.PList patterns   -> List.foldl' getPatternNames names patterns
+    Src.PCons hd tl      -> getPatternNames (getPatternNames names hd) tl
+    Src.PChr _           -> names
+    Src.PStr _           -> names
+    Src.PInt _           -> names
 
 
 
@@ -495,54 +513,76 @@ detectCycles letRegion sccs body =
       Result.ok body
 
     scc : subSccs ->
-      A.At letRegion <$>
       case scc of
         Graph.AcyclicSCC binding ->
           case binding of
-            Define _ def ->
-              Can.Let def
-                <$> detectCycles letRegion subSccs body
+            Define def ->
+              A.At letRegion . Can.Let def <$> detectCycles letRegion subSccs body
 
-            Destruct _ pattern expr ->
-              Can.LetDestruct pattern expr
-                <$> detectCycles letRegion subSccs body
+            Edge _ ->
+              detectCycles letRegion subSccs body
+
+            Destruct pattern expr ->
+              A.At letRegion . Can.LetDestruct pattern expr <$> detectCycles letRegion subSccs body
 
         Graph.CyclicSCC bindings ->
-          case traverse requireFunction bindings of
-            Just defs ->
-              Can.LetRec defs
-                <$> detectCycles letRegion subSccs body
-
-            Nothing ->
-              Result.throw (Error.RecursiveLet letRegion (map toCycleNodes bindings))
+          A.At letRegion <$>
+            (Can.LetRec
+              <$> checkCycle bindings []
+              <*> detectCycles letRegion subSccs body
+            )
 
 
-requireFunction :: Binding -> Maybe Can.Def
-requireFunction binding =
-  case binding of
-    Define _ def@(Can.Def _ (_:_) _) ->
-      Just def
+checkCycle :: [Binding] -> [Can.Def] -> Result i w [Can.Def]
+checkCycle bindings defs =
+  case bindings of
+    [] ->
+      Result.ok defs
 
-    Define _ def@(Can.TypedDef _ _ (_:_) _ _) ->
-      Just def
+    binding : otherBindings ->
+      case binding of
+        Define def@(Can.Def name args _) ->
+          if null args then
+            Result.throw (Error.RecursiveLet name (toNames otherBindings defs))
+          else
+            checkCycle otherBindings (def:defs)
 
-    _ ->
-      Nothing
+        Define def@(Can.TypedDef name _ args _ _) ->
+          if null args then
+            Result.throw (Error.RecursiveLet name (toNames otherBindings defs))
+          else
+            checkCycle otherBindings (def:defs)
+
+        Edge name ->
+          Result.throw (Error.RecursiveLet name (toNames otherBindings defs))
+
+        Destruct _ _ ->
+          -- a Destruct cannot appear in a cycle without any Edge values
+          -- so we just keep going until we get to the edges
+          checkCycle otherBindings defs
 
 
-toCycleNodes :: Binding -> Error.CycleNode
-toCycleNodes binding =
-  case binding of
-    Define _ def ->
-      case def of
-        Can.Def name args _ ->
-          if null args then Error.CycleValue name else Error.CycleFunc name
+toNames :: [Binding] -> [Can.Def] -> [N.Name]
+toNames bindings revDefs =
+  case bindings of
+    [] ->
+      reverse (map getDefName revDefs)
 
-        Can.TypedDef name _ args _ _ ->
-          if null args then Error.CycleValue name else Error.CycleFunc name
+    binding : otherBindings ->
+      case binding of
+        Define def         -> getDefName def : toNames otherBindings revDefs
+        Edge (A.At _ name) -> name : toNames otherBindings revDefs
+        Destruct _ _       -> toNames otherBindings revDefs
 
-    Destruct _ pattern _ ->
-      Error.CyclePattern pattern
+
+getDefName :: Can.Def -> N.Name
+getDefName def =
+  case def of
+    Can.Def (A.At _ name) _ _ ->
+      name
+
+    Can.TypedDef (A.At _ name) _ _ _ _ ->
+      name
 
 
 
