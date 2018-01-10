@@ -91,7 +91,7 @@ data InfixOp
   | OpEq -- ==
   | OpNEq -- !=
   | OpStrictEq -- ===
-  | OpStrictNEq -- !===
+  | OpStrictNEq -- !==
   | OpLAnd -- &&
   | OpLOr -- ||
   | OpMul -- *
@@ -510,7 +510,7 @@ fromInfix op =
     OpEq         -> " == "
     OpNEq        -> " != "
     OpStrictEq   -> " === "
-    OpStrictNEq  -> " !=== "
+    OpStrictNEq  -> " !== "
     OpLAnd       -> " && "
     OpLOr        -> " || "
     OpMul        -> " * "
