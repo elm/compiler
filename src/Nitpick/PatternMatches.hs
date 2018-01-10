@@ -23,6 +23,8 @@ import qualified Data.Maybe as Maybe
 import qualified Data.Text as Text
 
 import qualified AST.Canonical as Can
+import qualified AST.Module.Name as ModuleName
+import qualified Data.Index as Index
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
@@ -35,8 +37,7 @@ import qualified Reporting.Region as R
 data Pattern
   = Anything
   | Literal Literal
-  | Ctor Can.CtorAlts N.Name [Pattern]
-  deriving (Eq)
+  | Ctor Can.Union N.Name [Pattern]
 
 
 data Literal
@@ -63,16 +64,16 @@ simplify (A.At _ pattern) =
       Anything
 
     Can.PUnit ->
-      Ctor unitAlts unitName []
+      Ctor unit unitName []
 
     Can.PTuple a b Nothing ->
-      Ctor pairAlts pairName [ simplify a, simplify b ]
+      Ctor pair pairName [ simplify a, simplify b ]
 
     Can.PTuple a b (Just c) ->
-      Ctor tripleAlts tripleName [ simplify a, simplify b, simplify c ]
+      Ctor triple tripleName [ simplify a, simplify b, simplify c ]
 
-    Can.PCtor _ _ _ alts name _ args ->
-      Ctor alts name $
+    Can.PCtor _ _ union name _ args ->
+      Ctor union name $
         map (\(Can.PatternCtorArg _ _ arg) -> simplify arg) args
 
     Can.PList entries ->
@@ -96,41 +97,63 @@ simplify (A.At _ pattern) =
 
 cons :: Can.Pattern -> Pattern -> Pattern
 cons hd tl =
-  Ctor listAlts consName [ simplify hd, tl ]
+  Ctor list consName [ simplify hd, tl ]
 
 
 {-# NOINLINE nil #-}
 nil :: Pattern
 nil =
-  Ctor listAlts nilName []
+  Ctor list nilName []
 
 
 
--- ALTS
+-- BUILT-IN UNIONS
 
 
-{-# NOINLINE unitAlts #-}
-unitAlts :: Can.CtorAlts
-unitAlts =
-  Can.toAlts [ Can.CtorAlt unitName 0 ]
+{-# NOINLINE unit #-}
+unit :: Can.Union
+unit =
+  let
+    ctor =
+      Can.Ctor unitName Index.first 0 []
+  in
+  Can.Union [] [ ctor ] 1 Can.Normal
 
 
-{-# NOINLINE pairAlts #-}
-pairAlts :: Can.CtorAlts
-pairAlts =
-  Can.toAlts [ Can.CtorAlt pairName 2 ]
+{-# NOINLINE pair #-}
+pair :: Can.Union
+pair =
+  let
+    ctor =
+      Can.Ctor pairName Index.first 2 [Can.TVar "a", Can.TVar "b"]
+  in
+  Can.Union ["a","b"] [ ctor ] 1 Can.Normal
 
 
-{-# NOINLINE tripleAlts #-}
-tripleAlts :: Can.CtorAlts
-tripleAlts =
-  Can.toAlts [ Can.CtorAlt tripleName 3 ]
+{-# NOINLINE triple #-}
+triple :: Can.Union
+triple =
+  let
+    ctor =
+      Can.Ctor pairName Index.first 3 [Can.TVar "a", Can.TVar "b", Can.TVar "c"]
+  in
+  Can.Union ["a","b","c"] [ ctor ] 1 Can.Normal
 
 
-{-# NOINLINE listAlts #-}
-listAlts :: Can.CtorAlts
-listAlts =
-  Can.toAlts [ Can.CtorAlt consName 2, Can.CtorAlt nilName 0 ]
+{-# NOINLINE list #-}
+list :: Can.Union
+list =
+  let
+    nilCtor =
+      Can.Ctor nilName Index.first 0 []
+
+    consCtor =
+      Can.Ctor consName Index.second 2
+        [ Can.TVar "a"
+        , Can.TType ModuleName.list N.list [Can.TVar "a"]
+        ]
+  in
+  Can.Union ["a"] [ nilCtor, consCtor ] 2 Can.Normal
 
 
 {-# NOINLINE unitName #-}
@@ -245,6 +268,9 @@ checkExpr (A.At region expression) errors =
       errors
 
     Can.VarForeign _ _ _ ->
+      errors
+
+    Can.VarCtor _ _ _ _ _ ->
       errors
 
     Can.VarDebug _ _ _ ->
@@ -403,7 +429,7 @@ isExhaustive matrix n =
           <$> isExhaustive (Maybe.mapMaybe specializeRowByAnything matrix) (n - 1)
 
       else
-        let alts@(Can.CtorAlts numAlts altList) = snd (Map.findMin ctors) in
+        let alts@(Can.Union _ altList numAlts _) = snd (Map.findMin ctors) in
         if numSeen < numAlts then
           (:)
             <$> Maybe.mapMaybe (isMissing alts ctors) altList
@@ -411,7 +437,7 @@ isExhaustive matrix n =
 
         else
           let
-            isAltExhaustive (Can.CtorAlt name arity) =
+            isAltExhaustive (Can.Ctor name _ arity _) =
               recoverCtor alts name arity <$>
               isExhaustive
                 (Maybe.mapMaybe (specializeRowByCtor name arity) matrix)
@@ -420,21 +446,21 @@ isExhaustive matrix n =
           concatMap isAltExhaustive altList
 
 
-isMissing :: Can.CtorAlts -> Map.Map N.Name a -> Can.CtorAlt -> Maybe Pattern
-isMissing alts ctors (Can.CtorAlt name arity) =
+isMissing :: Can.Union -> Map.Map N.Name a -> Can.Ctor -> Maybe Pattern
+isMissing union ctors (Can.Ctor name _ arity _) =
   if Map.member name ctors then
     Nothing
   else
-    Just (Ctor alts name (replicate arity Anything))
+    Just (Ctor union name (replicate arity Anything))
 
 
-recoverCtor :: Can.CtorAlts -> N.Name -> Int -> [Pattern] -> [Pattern]
-recoverCtor alts name arity patterns =
+recoverCtor :: Can.Union -> N.Name -> Int -> [Pattern] -> [Pattern]
+recoverCtor union name arity patterns =
   let
     (args, rest) =
       splitAt arity patterns
   in
-  Ctor alts name args : rest
+  Ctor union name args : rest
 
 
 
@@ -499,9 +525,9 @@ isUseful matrix vector =
                   -- of those. But what if some of those Ctors have subpatterns
                   -- that make them less general? If so, this actually is useful!
                   let
-                    isUsefulAlt (Can.CtorAlt ctor arity) =
+                    isUsefulAlt (Can.Ctor name _ arity _) =
                       isUseful
-                        (Maybe.mapMaybe (specializeRowByCtor ctor arity) matrix)
+                        (Maybe.mapMaybe (specializeRowByCtor name arity) matrix)
                         (replicate arity Anything ++ patterns)
                   in
                     any isUsefulAlt alts
@@ -579,7 +605,7 @@ specializeRowByAnything row =
 
 
 data Complete
-  = Yes [Can.CtorAlt]
+  = Yes [Can.Ctor]
   | No
 
 
@@ -592,7 +618,7 @@ isComplete matrix =
     if numSeen == 0 then
       No
     else
-      let (Can.CtorAlts numAlts alts) = snd (Map.findMin ctors) in
+      let (Can.Union _ alts numAlts _) = snd (Map.findMin ctors) in
       if numSeen == numAlts then Yes alts else No
 
 
@@ -600,16 +626,16 @@ isComplete matrix =
 -- COLLECT CTORS
 
 
-collectCtors :: [[Pattern]] -> Map.Map N.Name Can.CtorAlts
+collectCtors :: [[Pattern]] -> Map.Map N.Name Can.Union
 collectCtors matrix =
   List.foldl' collectCtorsHelp Map.empty matrix
 
 
-collectCtorsHelp :: Map.Map N.Name Can.CtorAlts -> [Pattern] -> Map.Map N.Name Can.CtorAlts
+collectCtorsHelp :: Map.Map N.Name Can.Union -> [Pattern] -> Map.Map N.Name Can.Union
 collectCtorsHelp ctors row =
   case row of
-    Ctor alts name _ : _ ->
-      Map.insert name alts ctors
+    Ctor union name _ : _ ->
+      Map.insert name union ctors
 
     _ ->
       ctors
