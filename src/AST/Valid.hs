@@ -40,7 +40,8 @@ data Expr_
     | Str Text
     | Int Int
     | Float Double
-    | Var (Maybe N.Name) N.Name
+    | Var Src.VarType N.Name
+    | VarQual Src.VarType N.Name N.Name
     | List [Expr]
     | Op N.Name
     | Negate Expr

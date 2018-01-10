@@ -170,8 +170,11 @@ expression :: Src.Expr -> Result i w Valid.Expr
 expression (A.At region sourceExpression) =
   A.At region <$>
   case sourceExpression of
-    Src.Var prefix name ->
-        pure (Valid.Var prefix name)
+    Src.Var varType name ->
+        pure (Valid.Var varType name)
+
+    Src.VarQual varType home name ->
+        pure (Valid.VarQual varType home name)
 
     Src.Lambda pattern body ->
         Valid.Lambda pattern <$> expression body
