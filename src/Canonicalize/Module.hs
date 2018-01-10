@@ -49,29 +49,19 @@ canonicalize
   -> I.Interfaces
   -> Valid.Module
   -> Result i [W.Warning] Can.Module
-canonicalize pkg importDict interfaces module_@(Valid.Module name _ _ exports imports decls unions aliases binops effects) =
+canonicalize pkg importDict interfaces module_@(Valid.Module name _ _ exports imports decls _ _ binops effects) =
   do  let home = ModuleName.Canonical pkg name
-
-      startEnv <- Local.addVarsAndTypes module_ =<<
-        Foreign.createInitialEnv home importDict interfaces imports
-
-      (cunions, caliases) <-
-        (,)
-          <$> (Map.fromList <$> traverse (canonicalizeUnion startEnv) unions)
-          <*> (Map.fromList <$> traverse (canonicalizeAlias startEnv) aliases)
-
-      let finalEnv = Local.addPatterns cunions startEnv
       let cbinops = Map.fromList (map canonicalizeBinop binops)
 
-      (cdecls, ceffects) <-
-        (,)
-          <$> canonicalizeDecls finalEnv decls
-          <*> Effects.canonicalize finalEnv decls cunions effects
+      (env, cunions, caliases) <-
+        Local.add module_ =<<
+          Foreign.createInitialEnv home importDict interfaces imports
 
+      cdecls <- canonicalizeDecls env decls
+      ceffects <- Effects.canonicalize env decls cunions effects
       cexports <- canonicalizeExports decls cunions caliases cbinops ceffects exports
 
-      let docs = toDocs module_
-      return $ Can.Module home docs cexports cdecls cunions caliases cbinops ceffects
+      return $ Can.Module home (toDocs module_) cexports cdecls cunions caliases cbinops ceffects
 
 
 
@@ -86,41 +76,6 @@ toDocs (Valid.Module _ docs comments _ _ _ _ _ _ _) =
 
     Just (A.At region overview) ->
       Just (A.At region (Can.Docs overview comments))
-
-
-
--- CANONICALIZE ALIAS
-
-
-canonicalizeAlias :: Env.Env -> Valid.Alias -> Result i w ( N.Name, Can.Alias )
-canonicalizeAlias env (Valid.Alias (A.At _ name) args tipe) =
-  do  ctipe <- Type.canonicalize env tipe
-      return (name, Can.Alias (map A.toValue args) ctipe (toRecordCtorInfo tipe))
-
-
-toRecordCtorInfo :: Src.Type -> Maybe [N.Name]
-toRecordCtorInfo (A.At _ tipe) =
-  case tipe of
-    Src.TRecord fields Nothing ->
-      Just (map (A.toValue . fst) fields)
-
-    _ ->
-      Nothing
-
-
-
--- CANONICALIZE UNION
-
-
-canonicalizeUnion :: Env.Env -> Valid.Union -> Result i w ( N.Name, Can.Union )
-canonicalizeUnion env (Valid.Union (A.At _ name) args ctors) =
-  let
-    canonicalizeCtor (A.At _ ctor, tipes) =
-      do  ctipes <- traverse (Type.canonicalize env) tipes
-          return (ctor, ctipes)
-  in
-  do  cctors <- traverse canonicalizeCtor ctors
-      return ( name, Can.Union (map A.toValue args) cctors )
 
 
 

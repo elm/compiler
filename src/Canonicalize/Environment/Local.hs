@@ -1,331 +1,205 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Canonicalize.Environment.Local
-  ( addVarsAndTypes
-  , addPatterns
+  ( add
   )
   where
 
 
-import Control.Applicative (liftA2)
 import Control.Monad (foldM)
 import qualified Data.Graph as Graph
+import qualified Data.List as List
 import qualified Data.Map.Strict as Map
-import qualified Data.Map.Merge.Strict as Map
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
 import qualified AST.Valid as Valid
+import qualified AST.Module.Name as ModuleName
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
 import qualified Canonicalize.Type as Type
-import qualified Data.Bag as Bag
 import qualified Data.Index as Index
+import qualified Data.OneOrMore as OneOrMore
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
-import qualified Reporting.Warning as Warning
 
 
 
 -- RESULT
 
 
-type Result i a =
-  Result.Result i [Warning.Warning] Error.Error a
+type Result i w a =
+  Result.Result i w Error.Error a
 
 
-
--- ADD VARS, TYPES, AND OPS
---
--- We can add names for local definitions, unions, aliases, and operators.
--- These are basically just names. We CANNOT add patterns though. Those must
--- be added by `addPatterns` after some canonicalization has occurred.
---
--- This code checks for (1) duplicate names and (2) cycles in type aliases.
+type Unions = Map.Map N.Name Can.Union
+type Aliases = Map.Map N.Name Can.Alias
 
 
-addVarsAndTypes :: Valid.Module -> Env.Env -> Result i Env.Env
-addVarsAndTypes module_ env =
-  addVars module_ =<< addTypes module_ env
-
-
-merge
-  :: (N.Name -> a -> homes)
-  -> (N.Name -> a -> homes -> homes)
-  -> Map.Map N.Name a
-  -> Map.Map N.Name homes
-  -> Map.Map N.Name homes
-merge addLeft addBoth locals foreigns =
-  let addRight _ homes = homes in
-  Map.merge
-    (Map.mapMissing addLeft)
-    (Map.mapMissing addRight)
-    (Map.zipWithMatched addBoth)
-    locals
-    foreigns
-
-
-
--- ADD PATTERNS
---
--- Local patterns are added to the environment later such that we can have
--- canonical union types. This way we can avoid looking up the types during
--- type constraint generation.
---
--- This function does not return a Result because Dups.detect is already called
--- in collectUpperVars. This will detect all local pattern clashes. We skip it
--- here to avoid a second version of the same error.
-
-
-addPatterns :: Map.Map N.Name Can.Union -> Env.Env -> Env.Env
-addPatterns unions (Env.Env home vars types patterns binops) =
-  let
-    localPatterns =
-      Map.fromList $ concatMap toPatterns (Map.toList unions)
-
-    toPatterns (tipe, Can.Union tvars ctors) =
-      Index.indexedMap (ctorToPattern tipe tvars (Can.ctorsToAlts ctors)) ctors
-
-    ctorToPattern tipe tvars alts index (name, args) =
-      ( name, Env.Pattern home tipe tvars alts index args )
-  in
-  let
-    newPatterns =
-      merge addLeft addBoth localPatterns patterns
-
-    addLeft _ localPattern =
-      Env.Homes (Bag.one localPattern) Map.empty
-
-    addBoth _ localPattern (Env.Homes _ qualified) =
-      Env.Homes (Bag.one localPattern) qualified
-  in
-  Env.Env home vars types newPatterns binops
+add :: Valid.Module -> Env.Env -> Result i w (Env.Env, Unions, Aliases)
+add module_ env =
+  addCtors module_ =<< addVars module_ =<< addTypes module_ env
 
 
 
 -- ADD VARS
 
 
-addVars :: Valid.Module -> Env.Env -> Result i Env.Env
-addVars module_ (Env.Env home vars types patterns binops) =
-  do  upperDict <- collectUpperVars module_
-      lowerDict <- collectLowerVars module_
-      let varDict = Map.union upperDict lowerDict
-      let newVars = addVarsHelp varDict vars
-      return $ Env.Env home newVars types patterns binops
+addVars :: Valid.Module -> Env.Env -> Result i w Env.Env
+addVars module_ (Env.Env home vs ts cs bs qvs qts qcs) =
+  do  topLevelVars <- collectVars module_
+      let vs2 = Map.union topLevelVars vs
+      -- Use union to overwrite foreign stuff.
+      Result.ok $ Env.Env home vs2 ts cs bs qvs qts qcs
 
 
-addVarsHelp :: Map.Map N.Name R.Region -> Map.Map N.Name Env.VarHomes -> Map.Map N.Name Env.VarHomes
-addVarsHelp localVars vars =
+collectVars :: Valid.Module -> Result i w (Map.Map N.Name Env.Var)
+collectVars (Valid.Module _ _ _ _ _ decls _ _ _ effects) =
   let
-    addLeft _ region =
-      Env.VarHomes (Env.TopLevel region) Map.empty
-
-    addBoth _ region (Env.VarHomes _ qualified) =
-      Env.VarHomes (Env.TopLevel region) qualified
+    addDecl dict (A.At _ (Valid.Decl (A.At region name) _ _ _)) =
+      Dups.insert name region (Env.TopLevel region) dict
   in
-  merge addLeft addBoth localVars vars
+  Dups.detect Error.DuplicateDecl $
+    List.foldl' addDecl (toEffectDups effects) decls
 
 
-collectLowerVars :: Valid.Module -> Result i (Map.Map N.Name R.Region)
-collectLowerVars (Valid.Module _ _ _ _ _ decls _ _ _ effects) =
-  let
-    addDecl (A.At _ (Valid.Decl (A.At region name) _ _ _)) dict =
-      Dups.insert name region region dict
+toEffectDups :: Valid.Effects -> Dups.Dict Env.Var
+toEffectDups effects =
+  case effects of
+    Valid.NoEffects ->
+      Dups.none
 
-    addPort (Valid.Port (A.At region name) _) dict =
-      Dups.insert name region region dict
+    Valid.Ports ports ->
+      let
+        addPort dict (Valid.Port (A.At region name) _) =
+          Dups.insert name region (Env.TopLevel region) dict
+      in
+      List.foldl' addPort Dups.none ports
 
-    effectDict =
-      case effects of
-        Valid.NoEffects ->
-          Dups.none
+    Valid.Manager _ manager ->
+      case manager of
+        Valid.Cmd (A.At region _) ->
+          Dups.one "command" region (Env.TopLevel region)
 
-        Valid.Ports ports ->
-          foldr addPort Dups.none ports
+        Valid.Sub (A.At region _) ->
+          Dups.one "subscription" region (Env.TopLevel region)
 
-        Valid.Manager _ manager ->
-          case manager of
-            Valid.Cmd (A.At region _) ->
-              Dups.one "command" region region
-
-            Valid.Sub (A.At region _) ->
-              Dups.one "subscription" region region
-
-            Valid.Fx (A.At regionCmd _) (A.At regionSub _) ->
-              Dups.union
-                (Dups.one "command" regionCmd regionCmd)
-                (Dups.one "subscription" regionSub regionSub)
-  in
-  Dups.detect Error.DuplicateDecl $ foldr addDecl effectDict decls
-
-
-collectUpperVars :: Valid.Module -> Result i (Map.Map N.Name R.Region)
-collectUpperVars (Valid.Module _ _ _ _ _ _ unions aliases _ _) =
-  let
-    addUnion (Valid.Union _ _ ctors) dict =
-      foldr addCtor dict ctors
-
-    addCtor (A.At region name, _args) dict =
-      Dups.insert name region region dict
-
-    addAlias (Valid.Alias (A.At region name) _ (A.At _ tipe)) dict =
-      case tipe of
-        Src.TRecord _ Nothing ->
-          Dups.insert name region region dict
-
-        _ ->
-          dict
-  in
-  Dups.detect Error.DuplicateCtor $
-    foldr addAlias (foldr addUnion Dups.none unions) aliases
+        Valid.Fx (A.At regionCmd _) (A.At regionSub _) ->
+          Dups.union
+            (Dups.one "command" regionCmd (Env.TopLevel regionCmd))
+            (Dups.one "subscription" regionSub (Env.TopLevel regionSub))
 
 
 
 -- ADD TYPES
 
 
-addTypes :: Valid.Module -> Env.Env -> Result i Env.Env
-addTypes (Valid.Module _ _ _ _ _ _ unions aliases _ _) env =
+addTypes :: Valid.Module -> Env.Env -> Result i w Env.Env
+addTypes (Valid.Module _ _ _ _ _ _ unions aliases _ _) (Env.Env home vs ts cs bs qvs qts qcs) =
   let
-    aliasToDict alias@(Valid.Alias (A.At region name) _ tipe) =
-      do  args <- checkAliasFreeVars alias
-          return $ Dups.one name region (Left (Alias region name args tipe))
-
-    unionToDict union@(Valid.Union (A.At region name) _ _) =
-      do  arity <- checkUnionFreeVars union
-          return $ Dups.one name region (Right arity)
-
-    combineDicts dicts1 dicts2 =
-      Dups.union (Dups.unions dicts1) (Dups.unions dicts2)
+    addAliasDups dups (Valid.Alias (A.At region name) _ _) = Dups.insert name region () dups
+    addUnionDups dups (Valid.Union (A.At region name) _ _) = Dups.insert name region () dups
+    typeNameDups =
+      List.foldl' addUnionDups (List.foldl' addAliasDups Dups.none aliases) unions
   in
-  do  dict <-
-        liftA2 combineDicts
-          (traverse aliasToDict aliases)
-          (traverse unionToDict unions)
-      types <- Dups.detect Error.DuplicateType dict
-      let (aliasDict, unionDict) = Map.mapEither id types
-      addTypeAliases aliasDict (addUnionTypes unionDict env)
+  do  _ <- Dups.detect Error.DuplicateType typeNameDups
+      ts1 <- foldM (addUnion home) ts unions
+      addAliases aliases (Env.Env home vs ts1 cs bs qvs qts qcs)
 
 
-addUnionTypes :: Map.Map N.Name Int -> Env.Env -> Env.Env
-addUnionTypes unions (Env.Env home vars types patterns binops) =
-  let
-    addLeft _ arity =
-      Env.Homes (Bag.one (Env.Union arity home)) Map.empty
-
-    addBoth _ arity (Env.Homes _ qualified) =
-      Env.Homes (Bag.one (Env.Union arity home)) qualified
-
-    newTypes =
-      merge addLeft addBoth unions types
-  in
-  Env.Env home vars newTypes patterns binops
+addUnion :: ModuleName.Canonical -> Env.Exposed Env.Type -> Valid.Union -> Result i w (Env.Exposed Env.Type)
+addUnion home types union@(Valid.Union (A.At _ name) _ _) =
+  do  arity <- checkUnionFreeVars union
+      let one = OneOrMore.one (Env.Union arity home)
+      Result.ok $ Map.insertWith OneOrMore.more name one types
 
 
 
 -- ADD TYPE ALIASES
 
 
-data Alias =
-  Alias
-    { _region :: R.Region
-    , _name :: N.Name
-    , _args :: [N.Name]
-    , _type :: Src.Type
-    }
+addAliases :: [Valid.Alias] -> Env.Env -> Result i w Env.Env
+addAliases aliases env =
+  let
+    nodes = map toNode aliases
+    sccs = Graph.stronglyConnComp nodes
+  in
+  foldM addAlias env sccs
 
 
-addTypeAliases :: Map.Map N.Name Alias -> Env.Env -> Result i Env.Env
-addTypeAliases aliases env =
-  do  let nodes = map toNode (Map.elems aliases)
-      let sccs = Graph.stronglyConnComp nodes
-      foldM addTypeAlias env sccs
-
-
-addTypeAlias :: Env.Env -> Graph.SCC Alias -> Result i Env.Env
-addTypeAlias env@(Env.Env home vars types patterns binops) scc =
+addAlias :: Env.Env -> Graph.SCC Valid.Alias -> Result i w Env.Env
+addAlias env@(Env.Env home vs ts cs bs qvs qts qcs) scc =
   case scc of
-    Graph.AcyclicSCC (Alias _ name args tipe) ->
-      do  ctype <- Type.canonicalize env tipe
-          let info = Env.Alias (length args) home args ctype
-          let newTypes = Map.alter (addAliasInfo info) name types
-          return $ Env.Env home vars newTypes patterns binops
+    Graph.AcyclicSCC alias@(Valid.Alias (A.At _ name) _ tipe) ->
+      do  args <- checkAliasFreeVars alias
+          ctype <- Type.canonicalize env tipe
+          let one = OneOrMore.one (Env.Alias (length args) home args ctype)
+          let ts1 = Map.insertWith OneOrMore.more name one ts
+          Result.ok $ Env.Env home vs ts1 cs bs qvs qts qcs
 
     Graph.CyclicSCC [] ->
       Result.ok env
 
-    Graph.CyclicSCC (Alias region name1 args tipe : others) ->
-      let toName (Alias _ name _ _) = name in
-      Result.throw (Error.RecursiveAlias region name1 args tipe (map toName others))
-
-
-addAliasInfo :: a -> Maybe (Env.Homes a) -> Maybe (Env.Homes a)
-addAliasInfo info maybeHomes =
-  Just $
-    case maybeHomes of
-      Nothing ->
-        Env.Homes (Bag.one info) Map.empty
-
-      Just (Env.Homes _ qualified) ->
-        Env.Homes (Bag.one info) qualified
+    Graph.CyclicSCC (alias@(Valid.Alias (A.At region name1) _ tipe) : others) ->
+      do  args <- checkAliasFreeVars alias
+          let toName (Valid.Alias (A.At _ name) _ _) = name
+          Result.throw (Error.RecursiveAlias region name1 args tipe (map toName others))
 
 
 
 -- DETECT TYPE ALIAS CYCLES
 
 
-toNode :: Alias -> ( Alias, N.Name, [N.Name] )
-toNode alias@(Alias _ name _ tipe) =
-  ( alias, name, Bag.toList (getEdges tipe) )
+toNode :: Valid.Alias -> (Valid.Alias, N.Name, [N.Name])
+toNode alias@(Valid.Alias (A.At _ name) _ tipe) =
+  ( alias, name, getEdges [] tipe )
 
 
-getEdges :: Src.Type -> Bag.Bag N.Name
-getEdges (A.At _ tipe) =
+getEdges :: [N.Name] -> Src.Type -> [N.Name]
+getEdges edges (A.At _ tipe) =
   case tipe of
     Src.TLambda arg result ->
-      Bag.append (getEdges arg) (getEdges result)
+      getEdges (getEdges edges arg) result
 
     Src.TVar _ ->
-      Bag.empty
+      edges
 
-    Src.TType _ Nothing name args ->
-      foldr Bag.append (Bag.one name) (map getEdges args)
+    Src.TType _ name args ->
+      List.foldl' getEdges (name:edges) args
 
-    Src.TType _ (Just _) _ args ->
-      foldr Bag.append Bag.empty (map getEdges args)
+    Src.TTypeQual _ _ _ args ->
+      List.foldl' getEdges edges args
 
-    Src.TRecord fields ext ->
-      foldr Bag.append
-        (maybe Bag.empty getEdges ext)
-        (map (getEdges . snd) fields)
+    Src.TRecord fields Nothing ->
+      List.foldl' (\es (_,t) -> getEdges es t) edges fields
+
+    Src.TRecord fields (Just ext) ->
+      List.foldl' (\es (_,t) -> getEdges es t) (getEdges edges ext) fields
 
     Src.TUnit ->
-      Bag.empty
+      edges
 
     Src.TTuple a b cs ->
-      foldr Bag.append
-        (getEdges a)
-        (getEdges b : map getEdges cs)
+      List.foldl' getEdges (getEdges (getEdges edges a) b) cs
 
 
 
 -- CHECK FREE VARIABLES
 
 
-checkUnionFreeVars :: Valid.Union -> Result i Int
+checkUnionFreeVars :: Valid.Union -> Result i w Int
 checkUnionFreeVars (Valid.Union (A.At unionRegion name) args ctors) =
   let
-    addUnion (A.At region arg) dict =
+    addArg (A.At region arg) dict =
       Dups.insert arg region region dict
 
     addCtorFreeVars (_, tipes) freeVars =
-      foldr addFreeVars freeVars tipes
+      List.foldl' addFreeVars freeVars tipes
   in
-  do  boundVars <- Dups.detect (Error.DuplicateUnionArg name) (foldr addUnion Dups.none args)
+  do  boundVars <- Dups.detect (Error.DuplicateUnionArg name) (foldr addArg Dups.none args)
       let freeVars = foldr addCtorFreeVars Map.empty ctors
       case Map.toList (Map.difference freeVars boundVars) of
         [] ->
@@ -337,15 +211,14 @@ checkUnionFreeVars (Valid.Union (A.At unionRegion name) args ctors) =
             Error.TypeVarsUnboundInUnion unionRegion name (map A.toValue args) (map toLoc unbound)
 
 
-
-checkAliasFreeVars :: Valid.Alias -> Result i [N.Name]
+checkAliasFreeVars :: Valid.Alias -> Result i w [N.Name]
 checkAliasFreeVars (Valid.Alias (A.At aliasRegion name) args tipe) =
   let
-    addAlias (A.At region arg) dict =
+    addArg (A.At region arg) dict =
       Dups.insert arg region region dict
   in
-  do  boundVars <- Dups.detect (Error.DuplicateAliasArg name) (foldr addAlias Dups.none args)
-      let freeVars = addFreeVars tipe Map.empty
+  do  boundVars <- Dups.detect (Error.DuplicateAliasArg name) (foldr addArg Dups.none args)
+      let freeVars = addFreeVars Map.empty tipe
       let overlap = Map.size (Map.intersection boundVars freeVars)
       if Map.size boundVars == overlap && Map.size freeVars == overlap
         then Result.ok (map A.toValue args)
@@ -358,26 +231,125 @@ checkAliasFreeVars (Valid.Alias (A.At aliasRegion name) args tipe) =
               (map toLoc (Map.toList (Map.difference freeVars boundVars)))
 
 
-addFreeVars :: Src.Type -> Map.Map N.Name R.Region -> Map.Map N.Name R.Region
-addFreeVars (A.At region tipe) freeVars =
+addFreeVars :: Map.Map N.Name R.Region -> Src.Type -> Map.Map N.Name R.Region
+addFreeVars freeVars (A.At region tipe) =
   case tipe of
     Src.TLambda arg result ->
-      addFreeVars arg (addFreeVars result freeVars)
+      addFreeVars (addFreeVars freeVars arg) result
 
     Src.TVar name ->
       Map.insert name region freeVars
 
-    Src.TType _ _ _ args ->
-      foldr addFreeVars freeVars args
+    Src.TType _ _ args ->
+      List.foldl' addFreeVars freeVars args
+
+    Src.TTypeQual _ _ _ args ->
+      List.foldl' addFreeVars freeVars args
 
     Src.TRecord fields Nothing ->
-      foldr addFreeVars freeVars (map snd fields)
+      List.foldl' (\fvs (_,t) -> addFreeVars fvs t) freeVars fields
 
     Src.TRecord fields (Just ext) ->
-      foldr addFreeVars (addFreeVars ext freeVars) (map snd fields)
+      List.foldl' (\fvs (_,t) -> addFreeVars fvs t) (addFreeVars freeVars ext) fields
 
     Src.TUnit ->
       freeVars
 
     Src.TTuple a b cs ->
-      foldr addFreeVars freeVars (a:b:cs)
+      List.foldl' addFreeVars (addFreeVars (addFreeVars freeVars a) b) cs
+
+
+
+-- ADD CTORS
+
+
+addCtors :: Valid.Module -> Env.Env -> Result i w (Env.Env, Unions, Aliases)
+addCtors (Valid.Module _ _ _ _ _ _ unions aliases _ _) env@(Env.Env home vs ts cs bs qvs qts qcs) =
+  do  unionInfo <- traverse (canonicalizeUnion env) unions
+      aliasInfo <- traverse (canonicalizeAlias env) aliases
+
+      ctors <-
+        Dups.detect Error.DuplicateCtor $
+          Dups.union
+            (Dups.unions (map snd unionInfo))
+            (Dups.unions (map snd aliasInfo))
+
+      let cs2 = Map.unionWith OneOrMore.more cs ctors
+
+      Result.ok
+        ( Env.Env home vs ts cs2 bs qvs qts qcs
+        , Map.fromList (map fst unionInfo)
+        , Map.fromList (map fst aliasInfo)
+        )
+
+
+type CtorDups = Dups.Dict (OneOrMore.OneOrMore Env.Ctor)
+
+
+
+-- CANONICALIZE ALIAS
+
+
+canonicalizeAlias :: Env.Env -> Valid.Alias -> Result i w ( (N.Name, Can.Alias), CtorDups )
+canonicalizeAlias env@(Env.Env home _ _ _ _ _ _ _) (Valid.Alias (A.At region name) args tipe) =
+  case tipe of
+    A.At _ (Src.TRecord fields Nothing) ->
+      do  cfields <- traverse (traverse (Type.canonicalize env)) fields
+          fieldDict <- Dups.checkFields cfields
+
+          let recordType = Can.TRecord fieldDict Nothing
+          let ctorType = foldr (Can.TLambda . snd) recordType cfields
+          let vars = map A.toValue args
+          let alias = Can.Alias vars recordType (Just (map (A.toValue . fst) fields))
+          let ctor = Env.RecordCtor home vars ctorType
+
+          Result.ok
+            ( (name, alias)
+            , Dups.one name region (OneOrMore.one ctor)
+            )
+
+    _ ->
+      do  ctipe <- Type.canonicalize env tipe
+          Result.ok
+            ( (name, Can.Alias (map A.toValue args) ctipe Nothing)
+            , Dups.none
+            )
+
+
+
+-- CANONICALIZE UNION
+
+
+canonicalizeUnion :: Env.Env -> Valid.Union -> Result i w ( (N.Name, Can.Union), CtorDups )
+canonicalizeUnion env@(Env.Env home _ _ _ _ _ _ _) (Valid.Union (A.At _ name) avars ctors) =
+  do  cctors <- Index.indexedTraverse (canonicalizeCtor env) ctors
+      let vars = map A.toValue avars
+      let alts = map A.toValue cctors
+      let union = Can.Union vars alts (length alts) (toOpts ctors)
+      Result.ok
+        ( (name, union)
+        , Dups.unions $ map (toCtor home name union) cctors
+        )
+
+
+canonicalizeCtor :: Env.Env -> Index.ZeroBased -> (A.Located N.Name, [Src.Type]) -> Result i w (A.Located Can.Ctor)
+canonicalizeCtor env index (A.At region ctor, tipes) =
+  do  ctipes <- traverse (Type.canonicalize env) tipes
+      Result.ok $ A.At region $
+        Can.Ctor ctor index (length ctipes) ctipes
+
+
+toOpts :: [(A.Located N.Name, [Src.Type])] -> Can.CtorOpts
+toOpts ctors =
+  case ctors of
+    [ (_,[_]) ] ->
+      Can.Unbox
+
+    _ ->
+      if all (null . snd) ctors then Can.Enum else Can.Normal
+
+
+toCtor :: ModuleName.Canonical -> N.Name -> Can.Union -> A.Located Can.Ctor -> CtorDups
+toCtor home typeName union (A.At region (Can.Ctor name index _ args)) =
+  Dups.one name region $ OneOrMore.one $
+    Env.Ctor home typeName union index args

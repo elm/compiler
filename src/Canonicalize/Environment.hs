@@ -2,15 +2,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Canonicalize.Environment
   ( Env(..)
-  , VarHomes(..)
-  , UnqualifiedVarHome(..)
-  , ForeignVarHome(..)
+  , Exposed
+  , Qualified
+  , Var(..)
+  , ForeignVar(..)
   , Type(..)
-  , Pattern(..)
-  , Homes(..)
+  , Ctor(..)
   , addLocals
   , findType
-  , findPattern
+  , findTypeQual
+  , findCtor
+  , findCtorQual
   , findBinop
   , Binop(..)
   )
@@ -23,7 +25,6 @@ import qualified Data.Map.Merge.Strict as Map
 import qualified AST.Utils.Binop as Binop
 import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
-import qualified Data.Bag as Bag
 import qualified Data.Index as Index
 import qualified Data.OneOrMore as OneOrMore
 import qualified Elm.Name as N
@@ -47,39 +48,36 @@ type Result i w a =
 data Env =
   Env
     { _home :: ModuleName.Canonical
-    , _vars :: Map.Map N.Name VarHomes
-    , _types :: Map.Map N.Name (Homes Type)
-    , _patterns :: Map.Map N.Name (Homes Pattern)
-    , _binops :: Map.Map N.Name (OneOrMore.OneOrMore Binop)
+    , _vars :: Map.Map N.Name Var
+    , _types :: Exposed Type
+    , _ctors :: Exposed Ctor
+    , _binops :: Exposed Binop
+    , _q_vars :: Qualified ForeignVar
+    , _q_types :: Qualified Type
+    , _q_ctors :: Qualified Ctor
     }
 
 
-data Homes a =
-  Homes
-    { _unqualified :: Bag.Bag a
-    , _qualified :: Map.Map N.Name (OneOrMore.OneOrMore a)
-    }
+type Exposed a =
+  Map.Map N.Name (OneOrMore.OneOrMore a)
+
+
+type Qualified a =
+  Map.Map N.Name (Map.Map N.Name (OneOrMore.OneOrMore a))
 
 
 
 -- VARIABLES
 
 
-data VarHomes =
-  VarHomes
-    { _var_unqualified :: UnqualifiedVarHome
-    , _var_qualified :: Map.Map N.Name (OneOrMore.OneOrMore ForeignVarHome)
-    }
-
-
-data UnqualifiedVarHome
+data Var
   = Local R.Region
   | TopLevel R.Region
-  | Foreign (Bag.Bag ForeignVarHome)
+  | Foreign (OneOrMore.OneOrMore ForeignVar)
 
 
-data ForeignVarHome =
-  ForeignVarHome ModuleName.Canonical Can.Annotation
+data ForeignVar =
+  ForeignVar ModuleName.Canonical Can.Annotation
 
 
 
@@ -92,18 +90,18 @@ data Type
 
 
 
--- PATTERNs
+-- CTORS
 
 
-data Pattern =
-  Pattern
-    { _p_home :: ModuleName.Canonical
-    , _p_type :: N.Name
-    , _p_vars :: [N.Name]
-    , _p_alts :: Can.CtorAlts
-    , _p_index :: Index.ZeroBased
-    , _p_args :: [Can.Type]
-    }
+data Ctor
+  = RecordCtor ModuleName.Canonical [N.Name] Can.Type
+  | Ctor
+      { _c_home :: ModuleName.Canonical
+      , _c_type :: N.Name
+      , _c_union :: Can.Union
+      , _c_index :: Index.ZeroBased
+      , _c_args :: [Can.Type]
+      }
 
 
 
@@ -126,7 +124,7 @@ data Binop =
 
 
 addLocals :: Map.Map N.Name R.Region -> Env -> Result i w Env
-addLocals names (Env home vars types patterns binops) =
+addLocals names (Env home vars ts cs bs qvs qts qcs) =
   do  newVars <-
         Map.mergeA
           (Map.mapMissing addLocalLeft)
@@ -134,19 +132,20 @@ addLocals names (Env home vars types patterns binops) =
           (Map.zipWithAMatched addLocalBoth)
           names
           vars
-      Result.ok $ Env home newVars types patterns binops
+
+      Result.ok (Env home newVars ts cs bs qvs qts qcs)
 
 
-addLocalLeft :: N.Name -> R.Region -> VarHomes
+addLocalLeft :: N.Name -> R.Region -> Var
 addLocalLeft _ region =
-  VarHomes (Local region) Map.empty
+  Local region
 
 
-addLocalBoth :: N.Name -> R.Region -> VarHomes -> Result i w VarHomes
-addLocalBoth name region (VarHomes unqualified qualified) =
-  case unqualified of
+addLocalBoth :: N.Name -> R.Region -> Var -> Result i w Var
+addLocalBoth name region var =
+  case var of
     Foreign _ ->
-      Result.ok (VarHomes (Local region) qualified)
+      Result.ok (Local region)
 
     Local parentRegion ->
       Result.throw (Error.Shadowing name parentRegion region)
@@ -156,17 +155,73 @@ addLocalBoth name region (VarHomes unqualified qualified) =
 
 
 
--- FIND TYPE and PATTERN
+-- FIND TYPE
 
 
-findType :: R.Region -> Env -> Maybe N.Name -> N.Name -> Result i w Type
-findType region (Env _ _ types _ _) maybePrefix name =
-  error "TODO findType" region types maybePrefix name
+findType :: R.Region -> Env -> N.Name -> Result i w Type
+findType region (Env _ _ types _ _ _ _ _) name =
+  case Map.lookup name types of
+    Just (OneOrMore.One tipe) ->
+      Result.ok tipe
+
+    Just _ ->
+      error "TODO findType ambiguous unqualified"
+
+    Nothing ->
+      error "TODO findType not found" region
 
 
-findPattern :: R.Region -> Env -> Maybe N.Name -> N.Name -> Result i w Pattern
-findPattern region (Env _ _ _ patterns _) maybePrefix name =
-  error "TODO findPattern" region patterns maybePrefix name
+findTypeQual :: R.Region -> Env -> N.Name -> N.Name -> Result i w Type
+findTypeQual region (Env _ _ _ _ _ _ types _) prefix name =
+  case Map.lookup prefix types of
+    Just qualified ->
+      case Map.lookup name qualified of
+        Just (OneOrMore.One tipe) ->
+          Result.ok tipe
+
+        Just more ->
+          error "TODO findTypeQual ambiguous qualified" more
+
+        Nothing ->
+          error "TODO findTypeQual no qualified"
+
+    Nothing ->
+      error "TODO findTypeQual not found" region
+
+
+
+-- FIND CTOR
+
+
+findCtor :: R.Region -> Env -> N.Name -> Result i w Ctor
+findCtor region (Env _ _ _ ctors _ _ _ _) name =
+  case Map.lookup name ctors of
+    Just (OneOrMore.One ctor) ->
+      Result.ok ctor
+
+    Just _ ->
+      error "TODO findCtor ambiguous unqualified"
+
+    Nothing ->
+      error "TODO findCtor not found" region
+
+
+findCtorQual :: R.Region -> Env -> N.Name -> N.Name -> Result i w Ctor
+findCtorQual region (Env _ _ _ _ _ _ _ ctors) prefix name =
+  case Map.lookup prefix ctors of
+    Just qualified ->
+      case Map.lookup name qualified of
+        Just (OneOrMore.One pattern) ->
+          Result.ok pattern
+
+        Just _ ->
+          error "TODO findCtorQual ambiguous qualified"
+
+        Nothing ->
+          error "TODO findCtorQual no qualified"
+
+    Nothing ->
+      error "TODO findCtorQual not found" region
 
 
 
@@ -174,7 +229,7 @@ findPattern region (Env _ _ _ patterns _) maybePrefix name =
 
 
 findBinop :: R.Region -> Env -> N.Name -> Result i w Binop
-findBinop region (Env _ _ _ _ binops) name =
+findBinop region (Env _ _ _ _ binops _ _ _) name =
   case Map.lookup name binops of
     Just (OneOrMore.One binop) ->
       Result.ok binop
