@@ -84,20 +84,11 @@ canonicalize env (A.At region pattern) =
         <*> canonicalize env b
         <*> canonicalizeTuple region env cs
 
-    Src.PCtor nameRegion maybePrefix name patterns ->
-      let
-        toCanonicalArg index ptrn tipe =
-          Can.PatternCtorArg index tipe
-            <$> canonicalize env ptrn
-      in
-      do  (Env.Pattern home tipe vars alts index args) <- Env.findPattern nameRegion env maybePrefix name
-          verifiedList <- Index.indexedZipWithA toCanonicalArg patterns args
-          case verifiedList of
-            Index.LengthMatch cargs ->
-              Result.ok (Can.PCtor home tipe vars alts name index cargs)
+    Src.PCtor nameRegion name patterns ->
+      canonicalizeCtor env region name patterns =<< Env.findCtor nameRegion env name
 
-            Index.LengthMismatch actualLength expectedLength ->
-              Result.throw (error "TODO" region actualLength expectedLength)
+    Src.PCtorQual nameRegion home name patterns ->
+      canonicalizeCtor env region name patterns =<< Env.findCtorQual nameRegion env home name
 
     Src.PList patterns ->
       Can.PList <$> canonicalizeList env patterns
@@ -119,6 +110,26 @@ canonicalize env (A.At region pattern) =
 
     Src.PInt int ->
       Result.ok (Can.PInt int)
+
+
+canonicalizeCtor :: Env.Env -> R.Region -> N.Name -> [Src.Pattern] -> Env.Ctor -> Result DupsDict w Can.Pattern_
+canonicalizeCtor env region name patterns ctor =
+  case ctor of
+    Env.Ctor home tipe union index args ->
+      let
+        toCanonicalArg argIndex argPattern argTipe =
+          Can.PatternCtorArg argIndex argTipe <$> canonicalize env argPattern
+      in
+      do  verifiedList <- Index.indexedZipWithA toCanonicalArg patterns args
+          case verifiedList of
+            Index.LengthMatch cargs ->
+              Result.ok (Can.PCtor home tipe union name index cargs)
+
+            Index.LengthMismatch actualLength expectedLength ->
+              Result.throw (Error.BadArity region Error.PatternArity name actualLength expectedLength)
+
+    Env.RecordCtor _ _ _ ->
+      Result.throw (Error.PatternHasRecordCtor region name)
 
 
 canonicalizeTuple :: R.Region -> Env.Env -> [Src.Pattern] -> Result DupsDict w (Maybe Can.Pattern)

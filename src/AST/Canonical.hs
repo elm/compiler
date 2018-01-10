@@ -3,15 +3,12 @@
 module AST.Canonical
   ( Expr, Expr_(..)
   , CaseBranch(..)
+  , CtorOpts(..)
   -- definitions
   , Def(..)
   , Decls(..)
   -- patterns
   , Pattern, Pattern_(..)
-  , CtorAlts(..)
-  , CtorAlt(..)
-  , toAlts
-  , ctorsToAlts
   , PatternCtorArg(..)
   -- types
   , Annotation(..)
@@ -20,8 +17,9 @@ module AST.Canonical
   -- modules
   , Module(..)
   , Alias(..)
-  , Union(..)
   , Binop(..)
+  , Union(..)
+  , Ctor(..)
   , Docs(..)
   , Exports(..)
   , Export(..)
@@ -49,6 +47,7 @@ cached data with comments like:
 
 So it is clear why the data is kept around.
 -}
+
 
 import Control.Monad (liftM, liftM2, liftM3, liftM4, replicateM)
 import Data.Binary
@@ -79,6 +78,7 @@ data Expr_
   | VarTopLevel ModuleName.Canonical N.Name
   | VarKernel N.Name N.Name
   | VarForeign ModuleName.Canonical N.Name Annotation
+  | VarCtor CtorOpts ModuleName.Canonical N.Name Index.ZeroBased Annotation
   | VarDebug ModuleName.Canonical N.Name Annotation
   | VarOperator N.Name ModuleName.Canonical N.Name Annotation -- CACHE real name for optimization
   | Chr Text
@@ -150,15 +150,15 @@ data Pattern_
   | PCtor
       { _p_home :: ModuleName.Canonical
       , _p_type :: N.Name
-      , _p_vars :: [N.Name]
-      , _p_alts :: CtorAlts
+      , _p_union :: Union
       , _p_name :: N.Name
       , _p_index :: Index.ZeroBased
       , _p_args :: [PatternCtorArg]
       }
       -- CACHE _p_home, _p_type, and _p_vars for type inference
-      -- CACHE _p_alts for exhaustiveness checker
-      -- CACHE _p_id for production code gen
+      -- CACHE _p_index to replace _p_name in PROD code gen
+      -- CACHE _p_opts to allocate less in PROD code gen
+      -- CACHE _p_alts and _p_numAlts for exhaustiveness checker
 
 
 data PatternCtorArg =
@@ -167,41 +167,6 @@ data PatternCtorArg =
     , _type :: Type             -- CACHE for type inference
     , _arg :: Pattern
     }
-
-
-data CtorAlts =
-  CtorAlts
-    { _num :: Int -- CACHE (length _alts) for exhaustiveness
-    , _alts :: [CtorAlt]
-    }
-  deriving (Eq)
-
-
-data CtorAlt =
-  CtorAlt
-    { _ctor :: N.Name
-    , _arity :: Int
-    }
-  deriving (Eq)
-
-
-
--- PATTERN CTOR HELPERS
-
-
-toAlts :: [CtorAlt] -> CtorAlts
-toAlts alts =
-  CtorAlts (length alts) alts
-
-
-ctorsToAlts :: [(N.Name, [Type])] -> CtorAlts
-ctorsToAlts ctors =
-  CtorAlts (length ctors) (map toAlt ctors)
-
-
-toAlt :: (N.Name, [Type]) -> CtorAlt
-toAlt (ctor, argTypes) =
-  CtorAlt ctor (length argTypes)
 
 
 
@@ -247,8 +212,27 @@ data Module =
 
 
 data Alias = Alias [N.Name] Type (Maybe [N.Name])
-data Union = Union [N.Name] [(N.Name, [Type])]
 data Binop = Binop_ Binop.Associativity Binop.Precedence N.Name
+
+
+data Union =
+  Union
+    { _u_vars :: [N.Name]
+    , _u_alts :: [Ctor]
+    , _u_numAlts :: Int -- CACHE numAlts for exhaustiveness checking
+    , _u_opts :: CtorOpts -- CACHE which optimizations are available
+    }
+
+
+data CtorOpts
+  = Normal
+  | Enum
+  | Unbox
+  deriving (Eq, Ord)
+
+
+data Ctor =
+  Ctor N.Name Index.ZeroBased Int [Type] -- CACHE length args
 
 
 
@@ -311,8 +295,29 @@ instance Binary Alias where
 
 
 instance Binary Union where
-  get = liftM2 Union get get
-  put (Union a b) = put a >> put b
+  put (Union a b c d) = put a >> put b >> put c >> put d
+  get = liftM4 Union get get get get
+
+
+instance Binary Ctor where
+  get = liftM4 Ctor get get get get
+  put (Ctor a b c d) = put a >> put b >> put c >> put d
+
+
+instance Binary CtorOpts where
+  put opts =
+    case opts of
+      Normal -> putWord8 0
+      Enum   -> putWord8 1
+      Unbox  -> putWord8 2
+
+  get =
+    do  n <- getWord8
+        case n of
+          0 -> return Normal
+          1 -> return Enum
+          2 -> return Unbox
+          _ -> error "binary encoding of CtorOpts was corrupted"
 
 
 instance Binary Annotation where
@@ -363,4 +368,4 @@ instance Binary AliasType where
         case n of
           0 -> liftM Holey get
           1 -> liftM Filled get
-          _ -> error "Error reading a valid type from serialized string"
+          _ -> error "binary encoding of AliasType was corrupted"

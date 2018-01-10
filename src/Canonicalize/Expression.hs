@@ -26,7 +26,6 @@ import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
 import qualified Canonicalize.Pattern as Pattern
 import qualified Canonicalize.Type as Type
-import qualified Data.Bag as Bag
 import qualified Data.Index as Index
 import qualified Data.OneOrMore as OneOrMore
 import qualified Elm.Name as N
@@ -76,8 +75,15 @@ canonicalize env (A.At region expression) =
     Valid.Float float ->
       Result.ok (Can.Float float)
 
-    Valid.Var maybePrefix name ->
-      findVar region env maybePrefix name
+    Valid.Var varType name ->
+      case varType of
+        Src.Value -> findVar region env name
+        Src.Ctor -> toVarCtor name <$> Env.findCtor region env name
+
+    Valid.VarQual varType prefix name ->
+      case varType of
+        Src.Value -> findVarQual region env prefix name
+        Src.Ctor -> toVarCtor name <$> Env.findCtorQual region env prefix name
 
     Valid.List exprs ->
       Can.List <$> traverse (canonicalize env) exprs
@@ -134,7 +140,7 @@ canonicalize env (A.At region expression) =
 
     Valid.Update (A.At reg name) fields ->
       do  fieldDict <- Dups.checkFields fields
-          name_ <- findVar reg env Nothing name
+          name_ <- findVar reg env name
           Can.Update (A.At reg name_)
             <$> traverse (canonicalize env) fieldDict
 
@@ -339,7 +345,10 @@ addBindingsHelp bindings (A.At region pattern) =
     Src.PTuple a b cs ->
       List.foldl' addBindingsHelp bindings (a:b:cs)
 
-    Src.PCtor _ _ _ patterns ->
+    Src.PCtor _ _ patterns ->
+      List.foldl' addBindingsHelp bindings patterns
+
+    Src.PCtorQual _ _ _ patterns ->
       List.foldl' addBindingsHelp bindings patterns
 
     Src.PList patterns ->
@@ -458,18 +467,19 @@ addEdge edges nodes aname@(A.At _ name) =
 getPatternNames :: [A.Located N.Name] -> Src.Pattern ->  [A.Located N.Name]
 getPatternNames names (A.At region pattern) =
   case pattern of
-    Src.PAnything        -> names
-    Src.PVar name        -> A.At region name : names
-    Src.PRecord fields   -> fields ++ names
-    Src.PAlias ptrn name -> getPatternNames (name : names) ptrn
-    Src.PUnit            -> names
-    Src.PTuple a b cs    -> List.foldl' getPatternNames (getPatternNames (getPatternNames names a) b) cs
-    Src.PCtor _ _ _ args -> List.foldl' getPatternNames names args
-    Src.PList patterns   -> List.foldl' getPatternNames names patterns
-    Src.PCons hd tl      -> getPatternNames (getPatternNames names hd) tl
-    Src.PChr _           -> names
-    Src.PStr _           -> names
-    Src.PInt _           -> names
+    Src.PAnything            -> names
+    Src.PVar name            -> A.At region name : names
+    Src.PRecord fields       -> fields ++ names
+    Src.PAlias ptrn name     -> getPatternNames (name : names) ptrn
+    Src.PUnit                -> names
+    Src.PTuple a b cs        -> List.foldl' getPatternNames (getPatternNames (getPatternNames names a) b) cs
+    Src.PCtor _ _ args       -> List.foldl' getPatternNames names args
+    Src.PCtorQual _ _ _ args -> List.foldl' getPatternNames names args
+    Src.PList patterns       -> List.foldl' getPatternNames names patterns
+    Src.PCons hd tl          -> getPatternNames (getPatternNames names hd) tl
+    Src.PChr _               -> names
+    Src.PStr _               -> names
+    Src.PInt _               -> names
 
 
 
@@ -674,56 +684,74 @@ delayedUsage (Result.Result k) =
 -- FIND VARIABLE
 
 
-findVar :: R.Region -> Env.Env -> Maybe N.Name -> N.Name -> Result FreeLocals w Can.Expr_
-findVar region (Env.Env localHome vars _ _ _) maybePrefix name =
+findVar :: R.Region -> Env.Env -> N.Name -> Result FreeLocals w Can.Expr_
+findVar region (Env.Env localHome vars _ _ _ _ _ _) name =
   case Map.lookup name vars of
-    Nothing ->
-      case maybePrefix of
-        Nothing ->
-          Result.throw (error "TODO no name" region)
+    Just var ->
+      case var of
+        Env.Local _ ->
+          logVar name (Can.VarLocal name)
 
-        Just prefix ->
-          if ModuleName.isKernel prefix then
-            Result.ok $ Can.VarKernel (ModuleName.getKernel prefix) name
-          else
-            Result.throw (error "TODO no name" region)
+        Env.TopLevel _ ->
+          logVar name (Can.VarTopLevel localHome name)
 
-    Just (Env.VarHomes unqualified qualified) ->
-      case maybePrefix of
-        Nothing ->
-          case unqualified of
-            Env.Local _ ->
-              logVar name (Can.VarLocal name)
-
-            Env.TopLevel _ ->
-              logVar name (Can.VarTopLevel localHome name)
-
-            Env.Foreign bag ->
-              case bag of
-                Bag.One (Env.ForeignVarHome home annotation) ->
-                  Result.ok $
-                    if home == ModuleName.debug then
-                      Can.VarDebug localHome name annotation
-                    else
-                      Can.VarForeign home name annotation
-
-                Bag.Empty ->
-                  Result.throw (error "TODO no unqualified" region)
-
-                Bag.Two _ _ ->
-                  Result.throw (error "TODO ambiguous unqualified" region)
-
-        Just prefix ->
-          case Map.lookup prefix qualified of
-            Nothing ->
-              Result.throw (error "TODO no qualified" region)
-
-            Just (OneOrMore.One (Env.ForeignVarHome home annotation)) ->
+        Env.Foreign bag ->
+          case bag of
+            OneOrMore.One (Env.ForeignVar home annotation) ->
               Result.ok $
                 if home == ModuleName.debug then
                   Can.VarDebug localHome name annotation
                 else
                   Can.VarForeign home name annotation
 
-            Just _ ->
-              Result.throw (error "TODO ambiguous qualified" region)
+            OneOrMore.More _ _ ->
+              Result.throw (error "TODO ambiguous unqualified" region)
+
+    Nothing ->
+      Result.throw (error "TODO no name" region)
+
+
+findVarQual :: R.Region -> Env.Env -> N.Name -> N.Name -> Result FreeLocals w Can.Expr_
+findVarQual region (Env.Env localHome _ _ _ _ vars _ _) prefix name =
+  case Map.lookup prefix vars of
+    Just qualified ->
+      case Map.lookup name qualified of
+        Just (OneOrMore.One (Env.ForeignVar home annotation)) ->
+          Result.ok $
+            if home == ModuleName.debug then
+              Can.VarDebug localHome name annotation
+            else
+              Can.VarForeign home name annotation
+
+        Just _ ->
+          Result.throw (error "TODO ambiguous qualified" region)
+
+        Nothing ->
+          Result.throw (error "TODO no qualified" region)
+
+    Nothing ->
+      if ModuleName.isKernel prefix then
+        Result.ok $ Can.VarKernel (ModuleName.getKernel prefix) name
+      else
+        Result.throw (error "TODO no name" region)
+
+
+-- FIND CTOR
+
+
+toVarCtor :: N.Name -> Env.Ctor -> Can.Expr_
+toVarCtor name ctor =
+  case ctor of
+    Env.Ctor home typeName (Can.Union vars _ _ opts) index args ->
+      let
+        freeVars = Map.fromList (map (\v -> (v, ())) vars)
+        result = Can.TType home typeName (map Can.TVar vars)
+        tipe = foldr Can.TLambda result args
+      in
+      Can.VarCtor opts home name index (Can.Forall freeVars tipe)
+
+    Env.RecordCtor home vars tipe ->
+      let
+        freeVars = Map.fromList (map (\v -> (v, ())) vars)
+      in
+      Can.VarCtor Can.Normal home name Index.first (Can.Forall freeVars tipe)

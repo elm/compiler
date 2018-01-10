@@ -7,6 +7,7 @@ module Canonicalize.Type
   where
 
 
+import qualified Data.List as List
 import qualified Data.Map as Map
 
 import qualified AST.Canonical as Can
@@ -35,7 +36,7 @@ type Result i w a =
 toAnnotation :: Env.Env -> Src.Type -> Result i w Can.Annotation
 toAnnotation env srcType =
   do  tipe <- canonicalize env srcType
-      Result.ok $ Can.Forall (addFreeVars tipe Map.empty) tipe
+      Result.ok $ Can.Forall (addFreeVars Map.empty tipe) tipe
 
 
 
@@ -48,17 +49,13 @@ canonicalize env (A.At typeRegion tipe) =
     Src.TVar x ->
         Result.ok (Can.TVar x)
 
-    Src.TType region maybePrefix name args ->
-        do  info <- Env.findType region env maybePrefix name
-            cargs <- traverse (canonicalize env) args
-            case info of
-              Env.Alias arity home argNames aliasedType ->
-                checkArgs Error.AliasArgs arity typeRegion name args $
-                  Can.TAlias home name (zip argNames cargs) (Can.Holey aliasedType)
+    Src.TType region name args ->
+        canonicalizeType env typeRegion name args =<<
+          Env.findType region env name
 
-              Env.Union arity home ->
-                checkArgs Error.UnionArgs arity typeRegion name args $
-                  Can.TType home name cargs
+    Src.TTypeQual region home name args ->
+        canonicalizeType env typeRegion name args =<<
+          Env.findTypeQual region env home name
 
     Src.TLambda a b ->
         Can.TLambda
@@ -68,7 +65,7 @@ canonicalize env (A.At typeRegion tipe) =
     Src.TRecord fields ext ->
         do  fieldDict <- Dups.checkFields fields
             Can.TRecord
-              <$> Map.traverseWithKey (\_ t -> canonicalize env t) fieldDict
+              <$> traverse (canonicalize env) fieldDict
               <*> traverse (canonicalize env) ext
 
     Src.TUnit ->
@@ -91,59 +88,63 @@ canonicalize env (A.At typeRegion tipe) =
 
 
 
--- CHECK ARGS
+-- CANONICALIZE TYPE
 
 
-checkArgs :: Error.Args -> Int -> R.Region -> N.Name -> [A.Located arg] -> answer -> Result i w answer
-checkArgs argsType expected region name args answer =
+canonicalizeType :: Env.Env -> R.Region -> N.Name -> [Src.Type] -> Env.Type -> Result i w Can.Type
+canonicalizeType env region name args info =
+  do  cargs <- traverse (canonicalize env) args
+      case info of
+        Env.Alias arity home argNames aliasedType ->
+          checkArity arity region name args $
+            Can.TAlias home name (zip argNames cargs) (Can.Holey aliasedType)
+
+        Env.Union arity home ->
+          checkArity arity region name args $
+            Can.TType home name cargs
+
+
+checkArity :: Int -> R.Region -> N.Name -> [A.Located arg] -> answer -> Result i w answer
+checkArity expected region name args answer =
   let actual = length args in
   if expected == actual then
     Result.ok answer
   else
-    Result.throw $
-      if actual < expected then
-        Error.TooFew region argsType name expected actual
-      else
-        let
-          extras = drop expected args
-          (A.At start _, A.At end _) = (head extras, last extras)
-        in
-        Error.TooMany region argsType name expected actual (R.merge start end)
+    Result.throw (Error.BadArity region Error.TypeArity name expected actual)
 
 
 
 -- ADD FREE VARS
 
 
-addFreeVars :: Can.Type -> Map.Map N.Name () -> Map.Map N.Name ()
-addFreeVars tipe freeVars =
+addFreeVars :: Map.Map N.Name () -> Can.Type -> Map.Map N.Name ()
+addFreeVars freeVars tipe =
   case tipe of
     Can.TLambda arg result ->
-      addFreeVars arg (addFreeVars result freeVars)
+      addFreeVars (addFreeVars freeVars result) arg
 
     Can.TVar var ->
       Map.insert var () freeVars
 
     Can.TType _ _ args ->
-      foldr addFreeVars freeVars args
+      List.foldl' addFreeVars freeVars args
 
     Can.TRecord fields Nothing ->
-      Map.foldr addFreeVars freeVars fields
+      Map.foldl addFreeVars freeVars fields
 
     Can.TRecord fields (Just ext) ->
-      addFreeVars ext (Map.foldr addFreeVars freeVars fields)
+      Map.foldl addFreeVars (addFreeVars freeVars ext) fields
 
     Can.TUnit ->
       freeVars
 
     Can.TTuple a b maybeC ->
-      addFreeVars a $ addFreeVars b $
-        case maybeC of
-          Nothing ->
-            freeVars
+      case maybeC of
+        Nothing ->
+          addFreeVars (addFreeVars freeVars a) b
 
-          Just c ->
-            addFreeVars c freeVars
+        Just c ->
+          addFreeVars (addFreeVars (addFreeVars freeVars a) b) c
 
     Can.TAlias _ _ args _ ->
-      foldr addFreeVars freeVars (map snd args)
+      List.foldl' (\fvs (_,arg) -> addFreeVars fvs arg) freeVars args
