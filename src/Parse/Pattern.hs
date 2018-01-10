@@ -51,10 +51,16 @@ termHelp start =
           end <- getPosition
           return (A.at start end (Src.PVar name))
     ,
-      do  (maybePrefix, name) <- Var.foreignUpper
+      do  upper <- Var.foreignUpper
           end <- getPosition
-          let ctor = Src.PCtor (R.Region start end) maybePrefix name []
-          return (A.at start end ctor)
+          let region = R.Region start end
+          return $ A.at start end $
+            case upper of
+              Var.Unqualified name ->
+                Src.PCtor region name []
+
+              Var.Qualified home name ->
+                Src.PCtorQual region home name []
     ,
       do  number <- Number.number
           end <- getPosition
@@ -234,8 +240,9 @@ exprTerm =
   oneOf
     [
       do  start <- getPosition
-          pair <- Var.foreignUpper
-          exprTermHelp start pair []
+          upper <- Var.foreignUpper
+          end <- getPosition
+          exprTermHelp (R.Region start end) upper start []
     ,
       do  t@(A.At (R.Region _ end) _) <- term
           pos <- whitespace
@@ -243,16 +250,22 @@ exprTerm =
     ]
 
 
-exprTermHelp :: R.Position -> (Maybe N.Name, N.Name) -> [Src.Pattern] -> SParser Src.Pattern
-exprTermHelp start pair@(maybePrefix, name) args =
+exprTermHelp :: R.Region -> Var.Upper -> R.Position -> [Src.Pattern] -> SParser Src.Pattern
+exprTermHelp region upper start revArgs =
   do  end <- getPosition
       sPos <- whitespace
       oneOf
         [ do  checkSpace sPos
               arg <- term
-              exprTermHelp start pair (arg:args)
+              exprTermHelp region upper start (arg:revArgs)
         , return
-            ( A.at start end (Src.PCtor (R.Region start end) maybePrefix name (reverse args))
+            ( A.at start end $
+                case upper of
+                  Var.Unqualified name ->
+                    Src.PCtor region name (reverse revArgs)
+
+                  Var.Qualified home name ->
+                    Src.PCtorQual region home name (reverse revArgs)
             , end
             , sPos
             )

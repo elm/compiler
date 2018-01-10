@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 module AST.Source
-  ( Expr, Expr_(..)
+  ( Expr, Expr_(..), VarType(..)
   , Decl, Decl_(..)
   , Def(..)
   , Pattern, Pattern_(..)
@@ -39,7 +39,8 @@ data Expr_
   | Str Text
   | Int Int
   | Float Double
-  | Var (Maybe N.Name) N.Name
+  | Var VarType N.Name
+  | VarQual VarType N.Name N.Name
   | List [Expr]
   | Op N.Name
   | Negate Expr
@@ -56,6 +57,9 @@ data Expr_
   | Unit
   | Tuple Expr Expr [Expr]
   | Shader Text Text Shader.Shader
+
+
+data VarType = Value | Ctor
 
 
 
@@ -82,7 +86,8 @@ data Pattern_
   | PAlias Pattern (A.Located N.Name)
   | PUnit
   | PTuple Pattern Pattern [Pattern]
-  | PCtor R.Region (Maybe N.Name) N.Name [Pattern]
+  | PCtor R.Region N.Name [Pattern]
+  | PCtorQual R.Region N.Name N.Name [Pattern]
   | PList [Pattern]
   | PCons Pattern Pattern
   | PChr Text
@@ -101,7 +106,8 @@ type Type =
 data Type_
   = TLambda Type Type
   | TVar N.Name
-  | TType R.Region (Maybe N.Name) N.Name [Type]
+  | TType R.Region N.Name [Type]
+  | TTypeQual R.Region N.Name N.Name [Type]
   | TRecord [(A.Located N.Name, Type)] (Maybe Type)
   | TUnit
   | TTuple Type Type [Type]

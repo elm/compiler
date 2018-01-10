@@ -83,9 +83,9 @@ accessor start =
 
 variable :: R.Position -> Parser Src.Expr
 variable start =
-  do  (maybePrefix, name) <- Var.foreignAlpha
+  do  var <- Var.foreignAlpha
       end <- getPosition
-      return (A.at start end (Src.Var maybePrefix name))
+      return (A.at start end var)
 
 
 accessible :: R.Position -> Src.Expr -> Parser Src.Expr

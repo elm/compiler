@@ -4,6 +4,7 @@ module Parse.Primitives.Variable
   ( lower
   , upper
   , moduleName
+  , Upper(..)
   , foreignUpper
   , foreignAlpha
   , chompInnerChars
@@ -15,14 +16,14 @@ module Parse.Primitives.Variable
 
 import Control.Exception (assert)
 import Data.Bits ((.&.), (.|.), shiftL)
-import qualified Data.ByteString.Internal as B
 import qualified Data.Char as Char
 import qualified Data.Set as Set
 import Data.Text (Text)
-import qualified Data.Text.Encoding as Text
 import Foreign.ForeignPtr (ForeignPtr)
 import GHC.Word (Word8)
 
+import qualified AST.Source as Src
+import qualified Elm.Name as N
 import Parse.Primitives.Internals (Parser(..), State(..), expect, noError, unsafeIndex)
 import qualified Reporting.Error.Syntax as E
 
@@ -38,8 +39,8 @@ upper =
     if offset == newOffset then
       eerr (expect row col ctx E.CapVar)
     else
-      let !variable = Text.decodeUtf8 (B.PS fp offset (newOffset - offset)) in
-      cok variable (State fp newOffset terminal indent row newCol ctx) noError
+      let !name = N.fromForeignPtr fp offset (newOffset - offset) in
+      cok name (State fp newOffset terminal indent row newCol ctx) noError
 
 
 
@@ -53,11 +54,11 @@ lower =
     if offset == newOffset then
       eerr (expect row col ctx E.LowVar)
     else
-      let !variable = Text.decodeUtf8 (B.PS fp offset (newOffset - offset)) in
-      if Set.member variable reservedWords then
+      let !name = N.fromForeignPtr fp offset (newOffset - offset) in
+      if Set.member name reservedWords then
         eerr (expect row col ctx E.LowVar)
       else
-        cok variable (State fp newOffset terminal indent row newCol ctx) noError
+        cok name (State fp newOffset terminal indent row newCol ctx) noError
 
 
 {-# NOINLINE reservedWords #-}
@@ -89,7 +90,7 @@ moduleName =
 
       Good end endCol ->
         let
-          !name = Text.decodeUtf8 (B.PS fp offset (end - offset))
+          !name = N.fromForeignPtr fp offset (end - offset)
           !newState = State fp end terminal indent row endCol ctx
         in
         cok name newState noError
@@ -118,7 +119,12 @@ moduleNameHelp fp offset terminal col =
 -- FOREIGN UPPER
 
 
-foreignUpper :: Parser (Maybe Text, Text)
+data Upper
+  = Unqualified N.Name
+  | Qualified N.Name N.Name
+
+
+foreignUpper :: Parser Upper
 foreignUpper =
   Parser $ \(State fp offset terminal indent row col ctx) cok _ _ eerr ->
     let (# start, end, newCol #) = foreignUpperHelp fp offset terminal col in
@@ -127,13 +133,13 @@ foreignUpper =
     else
       let
         !newState = State fp end terminal indent row newCol ctx
-        !variable = Text.decodeUtf8 (B.PS fp start (end - start))
+        !name = N.fromForeignPtr fp start (end - start)
         !foreign =
           if start == offset then
-            (Nothing, variable)
+            Unqualified name
           else
-            let !home = Text.decodeUtf8 (B.PS fp offset ((start - 1) - offset)) in
-            (Just home, variable)
+            let !home = N.fromForeignPtr fp offset ((start - 1) - offset) in
+            Qualified home name
       in
       cok foreign newState noError
 
@@ -157,47 +163,47 @@ foreignUpperHelp fp offset terminal col =
 -- FOREIGN ALPHA
 
 
-foreignAlpha :: Parser (Maybe Text, Text)
+foreignAlpha :: Parser Src.Expr_
 foreignAlpha =
   Parser $ \(State fp offset terminal indent row col ctx) cok _ _ eerr ->
-    let (# start, end, newCol #) = foreignAlphaHelp fp offset terminal col in
+    let (# start, end, newCol, varType #) = foreignAlphaHelp fp offset terminal col in
     if start == end then
       eerr (E.ParseError row newCol (E.Theories ctx [E.LowVar, E.CapVar]))
     else
       let
         !newState = State fp end terminal indent row newCol ctx
-        !variable = Text.decodeUtf8 (B.PS fp start (end - start))
+        !name = N.fromForeignPtr fp start (end - start)
       in
       if start == offset then
-        if Set.member variable reservedWords then
+        if Set.member name reservedWords then
           eerr noError
         else
-          cok (Nothing, variable) newState noError
+          cok (Src.Var varType name) newState noError
       else
-        let !home = Text.decodeUtf8 (B.PS fp offset ((start - 1) - offset)) in
-        cok (Just home, variable) newState noError
+        let !home = N.fromForeignPtr fp offset ((start - 1) - offset) in
+        cok (Src.VarQual varType home name) newState noError
 
 
-foreignAlphaHelp :: ForeignPtr Word8 -> Int -> Int -> Int -> (# Int, Int, Int #)
+foreignAlphaHelp :: ForeignPtr Word8 -> Int -> Int -> Int -> (# Int, Int, Int, Src.VarType #)
 foreignAlphaHelp fp offset terminal col =
   let
     (# lowerOffset, lowerCol #) = chompLower fp offset terminal col
   in
   if offset < lowerOffset then
-    (# offset, lowerOffset, lowerCol #)
+    (# offset, lowerOffset, lowerCol, Src.Value #)
 
   else
     let
       (# upperOffset, upperCol #) = chompUpper fp offset terminal col
     in
     if offset == upperOffset then
-      (# offset, offset, col #)
+      (# offset, offset, col, Src.Ctor #)
 
     else if isDot fp upperOffset terminal then
       foreignAlphaHelp fp (upperOffset + 1) terminal (upperCol + 1)
 
     else
-      (# offset, upperOffset, upperCol #)
+      (# offset, upperOffset, upperCol, Src.Ctor #)
 
 
 

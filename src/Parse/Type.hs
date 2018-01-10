@@ -74,19 +74,34 @@ expression =
 app0 :: Parser Src.Type
 app0 =
   do  start <- getPosition
-      (maybeQualifier, name) <- Var.foreignUpper
+      upper <- Var.foreignUpper
       end <- getPosition
-      return $ A.at start end $
-        Src.TType (R.Region start end) maybeQualifier name []
+      let region = R.Region start end
+      return $ A.At region $
+        case upper of
+          Var.Unqualified name ->
+            Src.TType region name []
+
+          Var.Qualified home name ->
+            Src.TTypeQual region home name []
 
 
 app :: R.Position -> SParser Src.Type
 app start =
-  do  (maybeQualifier, name) <- Var.foreignUpper
+  do  upper <- Var.foreignUpper
       nameEnd <- getPosition
       namePos <- whitespace
       (args, end, pos) <- eatArgs [] nameEnd namePos
-      let tipe = Src.TType (R.Region start nameEnd) maybeQualifier name args
+
+      let region = R.Region start nameEnd
+      let tipe =
+            case upper of
+              Var.Unqualified name ->
+                Src.TType region name args
+
+              Var.Qualified home name ->
+                Src.TTypeQual region home name args
+
       return ( A.at start end tipe, end, pos )
 
 
