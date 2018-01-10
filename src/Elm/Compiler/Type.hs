@@ -216,7 +216,10 @@ fromRawType (A.At _ astType) =
           (fromRawType b)
           (map fromRawType cs)
 
-    Src.TType _ _ name args ->
+    Src.TType _ name args ->
+        Type name (map fromRawType args)
+
+    Src.TTypeQual _ _ name args ->
         Type name (map fromRawType args)
 
     Src.TRecord fields ext ->

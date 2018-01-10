@@ -443,14 +443,14 @@ addExport info (Module n c us as_ vs bs) (name, A.At region export) =
           Result.ok $ Module n c us newAliases vs bs
 
     Can.ExportUnionOpen ->
-      do  let (Can.Union tvars ctors) = _iUnions info ! name
+      do  let (Can.Union tvars ctors _ _) = _iUnions info ! name
           comment <- getComment region name info
 
           let newUnions = Map.insert name (Union comment tvars (map dector ctors)) us
           Result.ok $ Module n c newUnions as_ vs bs
 
     Can.ExportUnionClosed ->
-      do  let (Can.Union tvars _) = _iUnions info ! name
+      do  let (Can.Union tvars _ _ _) = _iUnions info ! name
           comment <- getComment region name info
 
           let newUnions = Map.insert name (Union comment tvars []) us
@@ -480,8 +480,8 @@ getType name info =
       Result.ok (Extract.fromType tipe)
 
 
-dector :: (N.Name, [Can.Type]) -> (N.Name, [Type.Type])
-dector (name, args) =
+dector :: Can.Ctor -> (N.Name, [Type.Type])
+dector (Can.Ctor name _ _ args) =
   ( name, map Extract.fromType args )
 
 
