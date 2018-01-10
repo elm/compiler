@@ -8,22 +8,26 @@ module Elm.Name
   , toShort
   , addIndex
   , toCompositeName
+  , fromForeignPtr
   , int, float, bool, char, string
-  , maybe, list, array, tuple
+  , maybe, list, array, tuple, jsArray
   , task, router, cmd, sub, platform, browser
   , shader, debug, bitwise, basics
   , utils, negate, value
-  , node, program, main, dollar
+  , node, program, main, dollar, identity
   )
   where
 
 
 import Prelude hiding (length, maybe, negate)
 import qualified Data.ByteString.Builder as B
+import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.Short as S
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import Data.Word (Word8)
+import Foreign.ForeignPtr (ForeignPtr)
 
 
 
@@ -61,6 +65,15 @@ addIndex name i =
 toCompositeName :: Set.Set Name -> Name
 toCompositeName names =
   Text.cons '$' (Text.intercalate "$" (Set.toList names))
+
+
+
+-- FROM PARSER
+
+
+fromForeignPtr :: ForeignPtr Word8 -> Int -> Int -> Name
+fromForeignPtr fptr offset len =
+  Text.decodeUtf8 (B.PS fptr offset len)
 
 
 
@@ -110,6 +123,11 @@ array = "Array"
 {-# NOINLINE tuple #-}
 tuple :: Name
 tuple = "Tuple"
+
+
+{-# NOINLINE jsArray #-}
+jsArray :: Name
+jsArray = "JsArray"
 
 
 {-# NOINLINE task #-}
@@ -195,3 +213,8 @@ main = "main"
 {-# NOINLINE dollar #-}
 dollar :: Name
 dollar = "$"
+
+
+{-# NOINLINE identity #-}
+identity :: Name
+identity = "identity"

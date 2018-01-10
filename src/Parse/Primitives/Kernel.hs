@@ -9,7 +9,6 @@ module Parse.Primitives.Kernel
 
 import Prelude hiding (length)
 import qualified Data.ByteString.Internal as B
-import qualified Data.Text.Encoding as Text
 import Data.Text (Text)
 import Data.Word (Word8)
 import Foreign.ForeignPtr (ForeignPtr)
@@ -96,10 +95,10 @@ chompSpecial fp offset terminal row col jsOffset =
 
     !special =
       if word == 0x24 {- $ -} then
-        ElmField (Text.decodeUtf8 (B.PS fp offset (newOffset - offset)))
+        ElmField (N.fromForeignPtr fp offset (newOffset - offset))
 
       else
-        let !name = Text.decodeUtf8 (B.PS fp tagOffset (newOffset - tagOffset)) in
+        let !name = N.fromForeignPtr fp tagOffset (newOffset - tagOffset) in
         if 0x30 <= word && word <= 0x39 then
           Enum (fromIntegral (word - 0x30)) name
 

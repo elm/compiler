@@ -19,10 +19,10 @@ import qualified Data.Map as Map
 import qualified Data.IntSet as IntSet
 import qualified Data.Vector as Vector
 import Data.Text (Text)
-import qualified Data.Text.Encoding as Text
 import Foreign.ForeignPtr (ForeignPtr)
 import GHC.Word (Word8)
 
+import qualified Elm.Name as N
 import Parse.Primitives.Internals (Parser(..), State(..), expect, noError, oneOf)
 import qualified Parse.Primitives.Internals as I
 import qualified Parse.Primitives.Variable as Var
@@ -65,7 +65,7 @@ binop =
 
     else
       let !length = newOffset - offset in
-      case Text.decodeUtf8 (B.PS fp offset length) of
+      case N.fromForeignPtr fp offset length of
         "."  -> cerr (E.ParseError row col (E.BadOp Dot ctx))
         "|"  -> cerr (E.ParseError row col (E.BadOp Pipe ctx))
         "->" -> cerr (E.ParseError row col (E.BadOp Arrow ctx))
