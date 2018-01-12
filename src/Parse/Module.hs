@@ -265,7 +265,7 @@ chompEntry =
     , do  Symbol.leftParen
           op <- Symbol.binop
           Symbol.rightParen
-          return (Src.Lower op)
+          return (Src.Operator op)
     , do  name <- Var.upper
           P.spaces
           Src.Upper name <$> privacy
