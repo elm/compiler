@@ -42,9 +42,14 @@ type ImportDict =
 
 createInitialEnv :: ModuleName.Canonical -> ImportDict -> I.Interfaces -> [Src.Import] -> Result i w Env.Env
 createInitialEnv home importDict interfaces sourceImports =
-  do  imports <- traverse (verifyImport importDict interfaces) sourceImports
+  do  imports <- traverse (verifyImport importDict interfaces) (filter isNotKernel sourceImports)
       (State vs ts cs bs qvs qts qcs) <- foldM addImport emptyState imports
       Result.ok (Env.Env home (Map.map Env.Foreign vs) ts cs bs qvs qts qcs)
+
+
+isNotKernel :: Src.Import -> Bool
+isNotKernel (Src.Import (A.At _ name) _ _) =
+  not (ModuleName.isKernel name)
 
 
 
@@ -65,7 +70,12 @@ data State =
 
 emptyState :: State
 emptyState =
-  State Map.empty Map.empty Map.empty Map.empty Map.empty Map.empty Map.empty
+  State Map.empty emptyTypes Map.empty Map.empty Map.empty Map.empty Map.empty
+
+
+emptyTypes :: Env.Exposed Env.Type
+emptyTypes =
+  Map.singleton "List" (OneOrMore.one (Env.Union 1 ModuleName.list))
 
 
 
