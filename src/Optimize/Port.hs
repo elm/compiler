@@ -18,7 +18,6 @@ import qualified AST.Module.Name as ModuleName
 import qualified AST.Utils.Type as Type
 import qualified Data.Index as Index
 import qualified Elm.Name as N
-import qualified Optimize.DecisionTree as DT
 import qualified Optimize.Names as Names
 
 
@@ -85,13 +84,9 @@ encodeMaybe :: Can.Type -> Names.Tracker Opt.Expr
 encodeMaybe tipe =
   do  null <- encode "null"
       encoder <- toEncoder tipe
-
-      let test = (DT.Empty, DT.IsCtor 2 "Just" Index.first)
-      let just = Opt.Call encoder [ Opt.Index (Opt.VarLocal N.dollar) 0 ]
-      let leaf expr = Opt.Leaf (Opt.Inline expr)
-
+      destruct <- Names.registerGlobal ModuleName.maybe "destruct"
       return $ Opt.Function [N.dollar] $
-        Opt.Case N.dollar N.dollar (Opt.Chain [test] (leaf just) (leaf null)) []
+        Opt.Call destruct [ null, encoder, Opt.VarLocal N.dollar ]
 
 
 encodeList :: Can.Type -> Names.Tracker Opt.Expr
@@ -117,21 +112,28 @@ encodeArray tipe =
 encodeTuple :: Can.Type -> Can.Type -> Maybe Can.Type -> Names.Tracker Opt.Expr
 encodeTuple a b maybeC =
   let
-    convert index tipe =
-      do  encoder <- toEncoder tipe
-          return $ Opt.Call encoder [ Opt.Index (Opt.VarLocal N.dollar) index ]
-  in
-  Opt.Function [N.dollar] <$> (
-    Opt.Call
-      <$> encode "list"
-      <*>
-        case maybeC of
-          Nothing ->
-            sequence [ convert 0 a, convert 1 b ]
+    let_ arg index body =
+      Opt.Destruct (Opt.Destructor arg (Opt.Index index (Opt.Root N.dollar))) body
 
-          Just c ->
-            sequence [ convert 0 a, convert 1 b, convert 2 c ]
-  )
+    encodeArg arg tipe =
+      do  encoder <- toEncoder tipe
+          return $ Opt.Call encoder [ Opt.VarLocal arg ]
+  in
+  do  list <- encode "list"
+      arg1 <- encodeArg "a" a
+      arg2 <- encodeArg "b" b
+
+      Opt.Function [N.dollar] <$>
+        let_ "a" Index.first <$>
+        let_ "b" Index.second <$>
+          case maybeC of
+            Nothing ->
+              return $ Opt.Call list [ arg1, arg2 ]
+
+            Just c ->
+              do  arg3 <- encodeArg "c" c
+                  return $ let_ "c" Index.third $
+                    Opt.Call list [ arg1, arg2, arg3 ]
 
 
 

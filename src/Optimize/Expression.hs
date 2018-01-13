@@ -49,6 +49,9 @@ optimize cycle (A.At region expression) =
     Can.VarForeign home name _ ->
       Names.registerGlobal home name
 
+    Can.VarCtor opts home name index _ ->
+      Names.registerCtor home name index opts
+
     Can.VarDebug home name _ ->
       Names.registerKernel N.debug (Opt.VarDebug name home region Nothing)
 
@@ -82,9 +85,9 @@ optimize cycle (A.At region expression) =
           return (Opt.Call optFunc [optLeft, optRight])
 
     Can.Lambda args body ->
-      do  (argNames, defss) <- destructArgs args
+      do  (argNames, destructors) <- destructArgs args
           obody <- optimize cycle body
-          pure $ Opt.Function argNames (foldr Opt.Let obody (concat defss))
+          pure $ Opt.Function argNames (foldr Opt.Destruct obody destructors)
 
     Can.Call func args ->
       Opt.Call
@@ -117,18 +120,18 @@ optimize cycle (A.At region expression) =
               foldM (\bod def -> optimizeDef cycle def bod) obody defs
 
     Can.LetDestruct pattern expr body ->
-      do  (name, defs) <- destruct pattern
+      do  (name, destructs) <- destruct pattern
           oexpr <- optimize cycle expr
           obody <- optimize cycle body
           pure $
-            Opt.Let (Opt.Def name oexpr) (foldr Opt.Let obody defs)
+            Opt.Let (Opt.Def name oexpr) (foldr Opt.Destruct obody destructs)
 
     Can.Case expr branches ->
       let
         optimizeBranch root (Can.CaseBranch pattern branch) =
-          do  defs <- destructHelp (Opt.VarLocal root) pattern []
+          do  destructors <- destructHelp (Opt.Root root) pattern []
               obranch <- optimize cycle branch
-              pure (pattern, foldr Opt.Let obranch defs)
+              pure (pattern, foldr Opt.Destruct obranch destructors)
       in
       do  temp <- Names.generate
           oexpr <- optimize cycle expr
@@ -190,8 +193,8 @@ optimizeDefHelp cycle name args expr body =
           pure $ Opt.Let (Opt.Def name oexpr) body
 
     _ ->
-      do  (argNames, defss) <- destructArgs args
-          let oexpr = Opt.Function argNames (foldr Opt.Let body (concat defss))
+      do  (argNames, destructors) <- destructArgs args
+          let oexpr = Opt.Function argNames (foldr Opt.Destruct body destructors)
           pure $ Opt.Let (Opt.Def name oexpr) body
 
 
@@ -199,98 +202,98 @@ optimizeDefHelp cycle name args expr body =
 -- DESTRUCTURING
 
 
-destructArgs :: [Can.Pattern] -> Names.Tracker ([N.Name], [[Opt.Def]])
+destructArgs :: [Can.Pattern] -> Names.Tracker ([N.Name], [Opt.Destructor])
 destructArgs args =
-  unzip <$> traverse destruct args
+  do  (argNames, destructorLists) <- unzip <$> traverse destruct args
+      return (argNames, concat destructorLists)
 
 
-destruct :: Can.Pattern -> Names.Tracker (N.Name, [Opt.Def])
+destruct :: Can.Pattern -> Names.Tracker (N.Name, [Opt.Destructor])
 destruct pattern@(A.At _ ptrn) =
   case ptrn of
     Can.PVar name ->
       pure (name, [])
 
     Can.PAlias subPattern name ->
-      do  revDefs <- destructHelp (Opt.VarLocal name) subPattern []
-          pure (name, reverse revDefs)
+      do  revDs <- destructHelp (Opt.Root name) subPattern []
+          pure (name, reverse revDs)
 
     _ ->
       do  name <- Names.generate
-          revDefs <- destructHelp (Opt.VarLocal name) pattern []
-          pure (name, reverse revDefs)
+          revDs <- destructHelp (Opt.Root name) pattern []
+          pure (name, reverse revDs)
 
 
-destructHelp :: Opt.Expr -> Can.Pattern -> [Opt.Def] -> Names.Tracker [Opt.Def]
-destructHelp root (A.At region pattern) revDefs =
+destructHelp :: Opt.Path -> Can.Pattern -> [Opt.Destructor] -> Names.Tracker [Opt.Destructor]
+destructHelp path (A.At region pattern) revDs =
   case pattern of
     Can.PAnything ->
-      pure revDefs
+      pure revDs
 
     Can.PVar name ->
-      pure (Opt.Def name root : revDefs)
+      pure (Opt.Destructor name path : revDs)
 
     Can.PRecord fields ->
-      let toDef name = Opt.Def name (Opt.Access root name) in
-      Names.registerFieldList fields (map toDef fields ++ revDefs)
+      let
+        toDestruct name =
+          Opt.Destructor name (Opt.Field name path)
+      in
+      Names.registerFieldList fields (map toDestruct fields ++ revDs)
 
     Can.PAlias subPattern name ->
-      destructHelp (Opt.VarLocal name) subPattern $
-        Opt.Def name root : revDefs
+      destructHelp (Opt.Root name) subPattern $
+        Opt.Destructor name path : revDs
 
     Can.PUnit ->
-      pure revDefs
+      pure revDs
 
-    Can.PTuple a b maybeC ->
+    Can.PTuple a b Nothing ->
+      destructTwo path a b revDs
+
+    Can.PTuple a b (Just c) ->
       do  name <- Names.generate
-          let tuple = Opt.VarLocal name
-          let newRevDefs = Opt.Def name root : revDefs
-          case maybeC of
-            Nothing ->
-              destructHelp (Opt.Index tuple 1) b =<<
-                destructHelp (Opt.Index tuple 0) a newRevDefs
-
-            Just c ->
-              destructHelp (Opt.Index tuple 2) c =<<
-                destructHelp (Opt.Index tuple 1) b =<<
-                  destructHelp (Opt.Index tuple 0) a newRevDefs
+          let newRoot = Opt.Root name
+          destructHelp (Opt.Index Index.first newRoot) a =<<
+            destructHelp (Opt.Index Index.second newRoot) b =<<
+              destructHelp (Opt.Index Index.third newRoot) c (Opt.Destructor name path : revDs)
 
     Can.PList [] ->
-      pure revDefs
+      pure revDs
 
     Can.PList (hd:tl) ->
-      destructCons root hd (A.At region (Can.PList tl)) revDefs
+      destructTwo path hd (A.At region (Can.PList tl)) revDs
 
     Can.PCons hd tl ->
-      destructCons root hd tl revDefs
+      destructTwo path hd tl revDs
 
     Can.PChr _ ->
-      pure revDefs
+      pure revDs
 
     Can.PStr _ ->
-      pure revDefs
+      pure revDs
 
     Can.PInt _ ->
-      pure revDefs
+      pure revDs
 
-    Can.PCtor _ _ _ _ _ _ args ->
+    Can.PCtor _ _ _ _ _ args ->
       do  name <- Names.generate
           foldM
-            (destructCtorArg (Opt.VarLocal name))
-            (Opt.Def name root : revDefs)
+            (destructCtorArg (Opt.Root name))
+            (Opt.Destructor name path : revDs)
             args
 
 
-destructCons :: Opt.Expr -> Can.Pattern -> Can.Pattern -> [Opt.Def] -> Names.Tracker [Opt.Def]
-destructCons root hd tl revDefs =
+destructTwo :: Opt.Path -> Can.Pattern -> Can.Pattern -> [Opt.Destructor] -> Names.Tracker [Opt.Destructor]
+destructTwo path a b revDs =
   do  name <- Names.generate
-      let list = Opt.VarLocal name
-      destructHelp (Opt.Index list 0) hd =<<
-        destructHelp (Opt.Index list 1) tl (Opt.Def name root : revDefs)
+      let newRoot = Opt.Root name
+      destructHelp (Opt.Index Index.first newRoot) a =<<
+        destructHelp (Opt.Index Index.second newRoot) b (Opt.Destructor name path : revDs)
 
 
-destructCtorArg :: Opt.Expr -> [Opt.Def] -> Can.PatternCtorArg -> Names.Tracker [Opt.Def]
-destructCtorArg root revDefs (Can.PatternCtorArg index _ arg) =
-  destructHelp (Opt.Index root (Index.toZeroBased index)) arg revDefs
+destructCtorArg :: Opt.Path -> [Opt.Destructor] -> Can.PatternCtorArg -> Names.Tracker [Opt.Destructor]
+destructCtorArg path revDs (Can.PatternCtorArg index _ arg) =
+  destructHelp (Opt.Index index path) arg revDs
 
 
 
@@ -301,13 +304,13 @@ optimizePotentialTailCall :: Cycle -> Can.Def -> Names.Tracker Opt.Def
 optimizePotentialTailCall cycle def =
   case def of
     Can.Def (A.At _ name) args expr ->
-      do  (argNames, defss) <- destructArgs args
-          toTailDef name argNames defss <$>
+      do  (argNames, destructors) <- destructArgs args
+          toTailDef name argNames destructors <$>
             optimizeTail cycle name argNames expr
 
     Can.TypedDef (A.At _ name) _ typedArgs expr _ ->
-      do  (argNames, defss) <- destructArgs (map fst typedArgs)
-          toTailDef name argNames defss <$>
+      do  (argNames, destructors) <- destructArgs (map fst typedArgs)
+          toTailDef name argNames destructors <$>
             optimizeTail cycle name argNames expr
 
 
@@ -355,18 +358,18 @@ optimizeTail cycle rootName argNames locExpr@(A.At _ expression) =
               foldM (\bod def -> optimizeDef cycle def bod) obody defs
 
     Can.LetDestruct pattern expr body ->
-      do  (dname, defs) <- destruct pattern
+      do  (dname, destructors) <- destruct pattern
           oexpr <- optimize cycle expr
           obody <- optimizeTail cycle dname argNames body
           pure $
-            Opt.Let (Opt.Def dname oexpr) (foldr Opt.Let obody defs)
+            Opt.Let (Opt.Def dname oexpr) (foldr Opt.Destruct obody destructors)
 
     Can.Case expr branches ->
       let
         optimizeBranch root (Can.CaseBranch pattern branch) =
-          do  defs <- destructHelp (Opt.VarLocal root) pattern []
+          do  destructors <- destructHelp (Opt.Root root) pattern []
               obranch <- optimizeTail cycle rootName argNames branch
-              pure (pattern, foldr Opt.Let obranch defs)
+              pure (pattern, foldr Opt.Destruct obranch destructors)
       in
       do  temp <- Names.generate
           oexpr <- optimize cycle expr
@@ -385,12 +388,12 @@ optimizeTail cycle rootName argNames locExpr@(A.At _ expression) =
 -- DETECT TAIL CALLS
 
 
-toTailDef :: N.Name -> [N.Name] -> [[Opt.Def]] -> Opt.Expr -> Opt.Def
-toTailDef name argNames defss body =
+toTailDef :: N.Name -> [N.Name] -> [Opt.Destructor] -> Opt.Expr -> Opt.Def
+toTailDef name argNames destructors body =
   if hasTailCall body then
-    Opt.TailDef name argNames (foldr Opt.Let body (concat defss))
+    Opt.TailDef name argNames (foldr Opt.Destruct body destructors)
   else
-    Opt.Def name (Opt.Function argNames (foldr Opt.Let body (concat defss)))
+    Opt.Def name (Opt.Function argNames (foldr Opt.Destruct body destructors))
 
 
 hasTailCall :: Opt.Expr -> Bool

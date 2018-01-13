@@ -7,6 +7,7 @@ module Optimize.Names
   , generate
   , registerKernel
   , registerGlobal
+  , registerCtor
   , registerField
   , registerFieldDict
   , registerFieldList
@@ -19,8 +20,10 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 
+import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
+import qualified Data.Index as Index
 import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 
@@ -68,6 +71,29 @@ registerGlobal home name =
   Tracker $ \uid deps fields ok ->
     let global = Opt.Global home name in
     ok uid (Set.insert global deps) fields (Opt.VarGlobal global)
+
+
+registerCtor :: ModuleName.Canonical -> N.Name -> Index.ZeroBased -> Can.CtorOpts -> Tracker Opt.Expr
+registerCtor home name index opts =
+  Tracker $ \uid deps fields ok ->
+    let
+      global = Opt.Global home name
+      newDeps = Set.insert global deps
+    in
+    case opts of
+      Can.Normal ->
+        ok uid newDeps fields (Opt.VarGlobal global)
+
+      Can.Enum ->
+        ok uid newDeps fields (Opt.VarEnum global index)
+
+      Can.Unbox ->
+        ok uid (Set.insert identity newDeps) fields (Opt.VarBox global)
+
+
+identity :: Opt.Global
+identity =
+  Opt.Global ModuleName.basics N.identity
 
 
 registerField :: N.Name -> a -> Tracker a

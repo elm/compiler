@@ -9,13 +9,13 @@ module Optimize.Module
 
 import Prelude hiding (cycle)
 import Control.Monad (foldM)
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
-import qualified Data.Index as Index
 import qualified Elm.Name as N
 import qualified Optimize.Expression as Expr
 import qualified Optimize.Names as Names
@@ -58,14 +58,13 @@ addUnions home unions (Graph fields nodes) =
 
 
 addUnion :: ModuleName.Canonical -> Can.Union -> Nodes -> Nodes
-addUnion home (Can.Union _ ctors) nodes =
-  Map.union nodes $
-    Map.fromList (Index.indexedMap (ctorToNode home) ctors)
+addUnion home (Can.Union _ ctors _ _) nodes =
+  List.foldl' (addCtorNode home) nodes ctors
 
 
-ctorToNode :: ModuleName.Canonical -> Index.ZeroBased -> (N.Name, [t]) -> (Opt.Global, Opt.Node)
-ctorToNode home index (name, args) =
-  ( Opt.Global home name, Opt.Ctor name index (length args) )
+addCtorNode :: ModuleName.Canonical -> Nodes -> Can.Ctor -> Nodes
+addCtorNode home nodes (Can.Ctor name index numArgs _) =
+  Map.insert (Opt.Global home name) (Opt.Ctor name index numArgs) nodes
 
 
 
@@ -207,10 +206,10 @@ addDefHelp name args body graph =
       let
         (deps, fields, function) =
           Names.run $
-            do  (argNames, defss) <- Expr.destructArgs args
+            do  (argNames, destructors) <- Expr.destructArgs args
                 obody <- Expr.optimize Set.empty body
                 pure $ Opt.Function argNames $
-                  foldr Opt.Let obody (concat defss)
+                  foldr Opt.Destruct obody destructors
       in
       addToGraph name (Opt.Define function deps) fields graph
 

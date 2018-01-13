@@ -21,7 +21,7 @@ as SML/NJ to get nice trees.
 -}
 
 import Control.Arrow (second)
-import Control.Monad (liftM, liftM2, liftM3)
+import Control.Monad (liftM, liftM2, liftM4)
 import Data.Binary
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
@@ -71,7 +71,9 @@ data DecisionTree
 
 
 data Test
-  = IsCtor Int N.Name Index.ZeroBased
+  = IsCtor N.Name Index.ZeroBased Int Can.CtorOpts
+  | IsCons
+  | IsNil
   | IsInt Int
   | IsChr Text
   | IsStr Text
@@ -79,39 +81,10 @@ data Test
 
 
 data Path
-  = Index Int Path
-  | Field N.Name Path
+  = Index Index.ZeroBased Path
+  | Unbox Path
   | Empty
-  | Alias
   deriving (Eq)
-
-
-
--- PATH HELPERS
-
-
-add :: Path -> Path -> Path
-add path finalLink =
-  case path of
-    Empty ->
-        finalLink
-
-    Alias ->
-        error "nothing should be added to an alias path"
-
-    Index index subpath ->
-        Index index (add subpath finalLink)
-
-    Field name subpath ->
-        Field name (add subpath finalLink)
-
-
-subPositions :: Path -> [Can.Pattern] -> [(Path, Can.Pattern)]
-subPositions path patterns =
-    zipWith
-      (\index pattern -> (add path (Index index Empty), pattern))
-      [0..]
-      patterns
 
 
 
@@ -163,8 +136,14 @@ toDecisionTree rawBranches =
 isComplete :: [Test] -> Bool
 isComplete tests =
   case head tests of
-    IsCtor alts _ _ ->
-        alts == length tests
+    IsCtor _ _ numAlts _ ->
+      numAlts == length tests
+
+    IsCons ->
+      length tests == 2
+
+    IsNil ->
+      length tests == 2
 
     _ ->
         False
@@ -191,28 +170,31 @@ flatten pathPattern@(path, A.At region pattern) =
     Can.PAnything ->
         [pathPattern]
 
-    Can.PAlias realPattern alias ->
-        (add path Alias, A.At region (Can.PVar alias))
-        :
-        flatten (path, realPattern)
-
-    Can.PRecord _ ->
-        [pathPattern]
-
-    Can.PUnit ->
-        [pathPattern]
-
     Can.PTuple a b Nothing ->
         concatMap flatten (subPositions path [a,b])
 
     Can.PTuple a b (Just c) ->
         concatMap flatten (subPositions path [a,b,c])
 
-    Can.PCtor _ _ _ (Can.CtorAlts numAlts _) _ _ args ->
-        if numAlts == 1 then
-          concatMap flatten (subPositions path (map dearg args))
-        else
+    Can.PCtor _ _ (Can.Union _ _ 1 _) _ _ ctorArgs ->
+      case map dearg ctorArgs of
+        [arg] ->
+          flatten (Unbox path, arg)
+
+        args ->
+          concatMap flatten (subPositions path args)
+
+    Can.PCtor _ _ _ _ _ _ ->
           [pathPattern]
+
+    Can.PAlias realPattern alias ->
+        (path, A.At region (Can.PVar alias)) : flatten (path, realPattern)
+
+    Can.PRecord _ ->
+        [pathPattern]
+
+    Can.PUnit ->
+        [pathPattern]
 
     Can.PList _ ->
         [pathPattern]
@@ -228,6 +210,11 @@ flatten pathPattern@(path, A.At region pattern) =
 
     Can.PInt _ ->
         [pathPattern]
+
+
+subPositions :: Path -> [Can.Pattern] -> [(Path, Can.Pattern)]
+subPositions path patterns =
+  Index.indexedMap (\index pattern -> (Index index path, pattern)) patterns
 
 
 dearg :: Can.PatternCtorArg -> Can.Pattern
@@ -305,8 +292,8 @@ testAtPath selectedPath (Branch _ pathPatterns) =
 
     Just (A.At _ pattern) ->
         case pattern of
-          Can.PCtor _ _ _ (Can.CtorAlts numAlts _) name index _ ->
-              Just (IsCtor numAlts name index)
+          Can.PCtor _ _ (Can.Union _ _ numAlts opts) name index _ ->
+              Just (IsCtor name index numAlts opts)
 
           Can.PInt int ->
               Just (IsInt int)
@@ -318,13 +305,13 @@ testAtPath selectedPath (Branch _ pathPatterns) =
               Just (IsChr chr)
 
           Can.PList [] ->
-              Just nilTest
+              Just IsNil
 
           Can.PList _ ->
-              Just consTest
+              Just IsCons
 
           Can.PCons _ _ ->
-              Just consTest
+              Just IsCons
 
           Can.PVar _ ->
               Nothing
@@ -345,16 +332,6 @@ testAtPath selectedPath (Branch _ pathPatterns) =
               Nothing
 
 
-{-# NOINLINE nilTest #-}
-nilTest :: Test
-nilTest = IsCtor 2 "[]" (Index.unsafe (-1))
-
-
-{-# NOINLINE consTest #-}
-consTest :: Test
-consTest = IsCtor 2 "::" (Index.unsafe (-2))
-
-
 
 -- BUILD EDGES
 
@@ -371,47 +348,66 @@ toRelevantBranch test path branch@(Branch goal pathPatterns) =
   case extract path pathPatterns of
     Just (start, A.At region pattern, end) ->
         case pattern of
-          Can.PCtor _ _ _ (Can.CtorAlts numAlts _) name index args ->
-              if test == IsCtor numAlts name index then
-                  Just (Branch goal (start ++ subPositions path (map dearg args) ++ end))
-              else
+          Can.PCtor _ _ (Can.Union _ _ numAlts _) name _ ctorArgs ->
+              case test of
+                IsCtor testName _ _ _ | name == testName ->
+                  Just $ Branch goal $
+                    case map dearg ctorArgs of
+                      [arg] | numAlts == 1 ->
+                        start ++ [(Unbox path, arg)] ++ end
+
+                      args ->
+                        start ++ subPositions path args ++ end
+
+                _ ->
                   Nothing
 
           Can.PList [] ->
-              if test == nilTest then
+              case test of
+                IsNil ->
                   Just (Branch goal (start ++ end))
-              else
+
+                _ ->
                   Nothing
 
           Can.PList (hd:tl) ->
-              if test == consTest then
+              case test of
+                IsCons ->
                   let tl' = A.At region (Can.PList tl) in
                   Just (Branch goal (start ++ subPositions path [ hd, tl' ] ++ end))
-              else
+
+                _ ->
                   Nothing
 
           Can.PCons hd tl ->
-              if test == consTest then
+              case test of
+                IsCons ->
                   Just (Branch goal (start ++ subPositions path [hd,tl] ++ end))
-              else
+
+                _ ->
                   Nothing
 
           Can.PChr chr ->
-              if test == IsChr chr then
+              case test of
+                IsChr testChr | chr == testChr ->
                   Just (Branch goal (start ++ end))
-              else
+                _ ->
                   Nothing
 
           Can.PStr str ->
-              if test == IsStr str then
+              case test of
+                IsStr testStr | str == testStr ->
                   Just (Branch goal (start ++ end))
-              else
+
+                _ ->
                   Nothing
 
           Can.PInt int ->
-              if test == IsInt int then
+              case test of
+                IsInt testInt | int == testInt ->
                   Just (Branch goal (start ++ end))
-              else
+
+                _ ->
                   Nothing
 
           _ ->
@@ -472,7 +468,7 @@ needsTests (A.At _ pattern) =
     Can.PRecord _ ->
         False
 
-    Can.PCtor _ _ _ _ _ _ _ ->
+    Can.PCtor _ _ _ _ _ _ ->
         True
 
     Can.PList _ ->
@@ -574,18 +570,22 @@ smallBranchingFactor branches path =
 instance Binary Test where
   put test =
     case test of
-      IsCtor a b c -> putWord8 0 >> put a >> put b >> put c
-      IsChr a      -> putWord8 1 >> put a
-      IsStr a      -> putWord8 2 >> put a
-      IsInt a      -> putWord8 3 >> put a
+      IsCtor a b c d -> putWord8 0 >> put a >> put b >> put c >> put d
+      IsCons         -> putWord8 1
+      IsNil          -> putWord8 2
+      IsChr a        -> putWord8 3 >> put a
+      IsStr a        -> putWord8 4 >> put a
+      IsInt a        -> putWord8 5 >> put a
 
   get =
     do  word <- getWord8
         case word of
-          0 -> liftM3 IsCtor get get get
-          1 -> liftM  IsChr get
-          2 -> liftM  IsStr get
-          3 -> liftM  IsInt get
+          0 -> liftM4 IsCtor get get get get
+          1 -> pure   IsCons
+          2 -> pure   IsNil
+          3 -> liftM  IsChr get
+          4 -> liftM  IsStr get
+          5 -> liftM  IsInt get
           _ -> error "problem getting DecisionTree.Test binary"
 
 
@@ -593,15 +593,13 @@ instance Binary Path where
   put path =
     case path of
       Index a b -> putWord8 0 >> put a >> put b
-      Field a b -> putWord8 1 >> put a >> put b
+      Unbox a   -> putWord8 1 >> put a
       Empty     -> putWord8 2
-      Alias     -> putWord8 3
 
   get =
     do  word <- getWord8
         case word of
           0 -> liftM2 Index get get
-          1 -> liftM2 Field get get
+          1 -> liftM Unbox get
           2 -> pure Empty
-          3 -> pure Alias
           _ -> error "problem getting DecisionTree.Path binary"
