@@ -42,7 +42,8 @@ defaults =
     , Import "List" Nothing (Operator "::")
     , Import "Maybe" Nothing (TypeOpen "Maybe")
     , Import "Result" Nothing (TypeOpen "Result")
-    , Import "String" Nothing Closed
+    , Import "String" Nothing (TypeClosed "String")
+    , Import "Char" Nothing (TypeClosed "Char")
     , Import "Tuple" Nothing Closed
     , Import "Platform" Nothing (TypeClosed "Program")
     , Import "Platform.Cmd" (Just "Cmd") (TypeClosed "Cmd")
