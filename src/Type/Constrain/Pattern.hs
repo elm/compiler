@@ -61,7 +61,7 @@ add (A.At region pattern) expectation state =
     Can.PTuple a b maybeC ->
       addTuple region a b maybeC expectation state
 
-    Can.PCtor home typeName typeVars _ ctorName _ args ->
+    Can.PCtor home typeName (Can.Union typeVars _ _ _) ctorName _ args ->
       addCtor region home typeName typeVars ctorName args expectation state
 
     Can.PList patterns ->
