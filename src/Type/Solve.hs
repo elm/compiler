@@ -203,7 +203,7 @@ solve env rank pools state constraint =
 
           let newEnv = Map.union env (Map.map A.toValue locals)
           let tempState = State savedEnv finalMark errors
-          newState <- solve newEnv nextRank nextPools tempState subCon
+          newState <- solve newEnv rank nextPools tempState subCon
 
           foldM occurs newState (Map.toList locals)
 
