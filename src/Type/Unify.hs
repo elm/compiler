@@ -542,19 +542,15 @@ unifyStructure context flatType content otherContent =
 
     Structure otherFlatType ->
         case (flatType, otherFlatType) of
-          (App1 home name args, App1 otherHome otherName otherArgs) ->
-              if home == otherHome && name == otherName then
-                Unify $ \vars ok err ->
-                  let
-                    ok1 vars1 () =
-                      case merge context otherContent of
-                        Unify k ->
-                          k vars1 ok err
-                  in
-                  unifyArgs vars context args otherArgs ok1 err
-
-              else
-                mismatch
+          (App1 home name args, App1 otherHome otherName otherArgs) | home == otherHome && name == otherName ->
+              Unify $ \vars ok err ->
+                let
+                  ok1 vars1 () =
+                    case merge context otherContent of
+                      Unify k ->
+                        k vars1 ok err
+                in
+                unifyArgs vars context args otherArgs ok1 err
 
           (Fun1 arg1 res1, Fun1 arg2 res2) ->
               do  try2
