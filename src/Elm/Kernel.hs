@@ -196,7 +196,7 @@ chompChunks vtable enums fields chunks =
             K.Enum n var ->
               let (enum, newEnums) = lookupEnum n var enums in
               chompChunks vtable newEnums fields $
-                Opt.Enum enum : Opt.JS javascript : chunks
+                Opt.JsEnum enum : Opt.JS javascript : chunks
 
             K.ElmField name ->
               chompChunks vtable enums fields $
