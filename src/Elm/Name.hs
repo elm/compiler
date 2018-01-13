@@ -3,6 +3,7 @@
 module Elm.Name
   ( Name
   , length
+  , startsWith
   , toString
   , toBuilder
   , toShort
@@ -40,6 +41,11 @@ type Name = Text.Text
 length :: Name -> Int
 length =
   Text.length
+
+
+startsWith :: Name -> Name -> Bool
+startsWith =
+  Text.isPrefixOf
 
 
 toString :: Name -> String
