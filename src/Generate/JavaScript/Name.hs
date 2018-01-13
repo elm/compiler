@@ -6,6 +6,7 @@ module Generate.JavaScript.Name
   , Target(..)
   , isServer
   , toBuilder
+  , fromIndex
   , fromInt
   , fromLocal
   , fromGlobal
@@ -32,6 +33,7 @@ import qualified Data.Text.Encoding as Text
 import Data.Word (Word8)
 
 import qualified AST.Module.Name as ModuleName
+import qualified Data.Index as Index
 import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 
@@ -74,6 +76,11 @@ isServerHelp target =
 
 
 -- CONSTRUCTORS
+
+
+fromIndex :: Index.ZeroBased -> Name
+fromIndex index =
+  fromInt (Index.toMachine index)
 
 
 fromInt :: Int -> Name

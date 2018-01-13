@@ -19,6 +19,7 @@ import qualified Data.Text as Text
 
 import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
+import qualified Data.Index as Index
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Compiler.Type.Extract as Extract
 import qualified Elm.Interface as I
@@ -153,9 +154,8 @@ addGlobalHelp mode graph global state =
       )
 
     Opt.Ctor name index arity ->
-      let (args, ctor) = Expr.generateCtor mode name index arity in
       addStmt state (
-        var global (Expr.generateFunction args ctor)
+        var global (Expr.generateCtor mode name index arity)
       )
 
     Opt.Link linkedGlobal ->
@@ -176,6 +176,16 @@ addGlobalHelp mode graph global state =
 
         _ ->
           addBuilder (addDeps clientDeps state) (generateKernel mode clientChunks)
+
+    Opt.Enum name index ->
+      addStmt state (
+        generateEnum mode global name index
+      )
+
+    Opt.Box name ->
+      addStmt state (
+        generateBox mode global name
+      )
 
     Opt.PortIncoming decoder deps ->
       addStmt (addDeps deps state) (
@@ -263,7 +273,7 @@ addChunk mode builder chunk =
     Opt.JsField int ->
       Name.toBuilder (Name.fromInt int) <> builder
 
-    Opt.Enum int ->
+    Opt.JsEnum int ->
       Name.toBuilder (Name.fromInt int) <> builder
 
     Opt.Debug ->
@@ -284,6 +294,42 @@ addChunk mode builder chunk =
 
 
 
+-- GENERATE ENUM
+
+
+generateEnum :: Name.Mode -> Opt.Global -> N.Name -> Index.ZeroBased -> JS.Stmt
+generateEnum mode (Opt.Global home name) ctorName index =
+  let
+    definition =
+      case mode of
+        Name.Debug _ ->
+          JS.Object [(Name.dollar, JS.String (N.toBuilder ctorName))]
+
+        Name.Prod _ _ ->
+          JS.Int (Index.toMachine index)
+  in
+  JS.Var [ (Name.fromGlobal home name, Just definition) ]
+
+
+
+-- GENERATE BOX
+
+
+generateBox :: Name.Mode -> Opt.Global -> N.Name -> JS.Stmt
+generateBox mode (Opt.Global home name) ctorName =
+  let
+    definition =
+      case mode of
+        Name.Debug _ ->
+          Expr.codeToExpr $ Expr.generateCtor mode ctorName Index.first 1
+
+        Name.Prod _ _ ->
+          JS.Ref (Name.fromGlobal ModuleName.basics N.identity)
+  in
+  JS.Var [ (Name.fromGlobal home name, Just definition) ]
+
+
+
 -- GENERATE PORTS
 
 
@@ -301,7 +347,6 @@ generatePort mode (Opt.Global home name) makePort converter =
 
 
 -- GENERATE MANAGER
-
 
 
 generateManager :: Name.Mode -> Graph -> Opt.Global -> Opt.EffectsType -> State -> State

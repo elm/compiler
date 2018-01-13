@@ -76,6 +76,20 @@ generate mode expression =
     Opt.VarGlobal (Opt.Global home name) ->
       JsExpr $ JS.Ref (Name.fromGlobal home name)
 
+    Opt.VarEnum (Opt.Global home name) index ->
+      case mode of
+        Name.Debug _ ->
+          JsExpr $ JS.Ref (Name.fromGlobal home name)
+
+        Name.Prod _ _ ->
+          JsExpr $ JS.Int (Index.toMachine index)
+
+    Opt.VarBox (Opt.Global home name) ->
+      JsExpr $ JS.Ref $
+        case mode of
+          Name.Debug _  -> Name.fromGlobal home name
+          Name.Prod _ _ -> Name.fromGlobal ModuleName.basics N.identity
+
     Opt.VarCycle home name ->
       JsExpr $ JS.Call (JS.Ref (Name.fromCycle home name)) []
 
@@ -108,11 +122,15 @@ generate mode expression =
       JsBlock $
         generateDef mode def : codeToStmtList (generate mode body)
 
+    Opt.Destruct (Opt.Destructor name path) body ->
+      let
+        pathExpr = generatePath mode path
+        pathDef = JS.Var [ (Name.fromLocal name, Just pathExpr) ]
+      in
+      JsBlock $ pathDef : codeToStmtList (generate mode body)
+
     Opt.Case label root decider jumps ->
       JsBlock $ generateCase mode label root decider jumps
-
-    Opt.Index expr index ->
-      JsExpr $ JS.Access (generateJsExpr mode expr) (Name.fromInt index)
 
     Opt.Accessor field ->
       JsExpr $ JS.Function Nothing [Name.dollar]
@@ -134,7 +152,12 @@ generate mode expression =
       JsExpr $ generateRecord mode fields
 
     Opt.Unit ->
-      JsExpr $ JS.Ref (Name.fromKernel N.utils "Tuple0")
+      case mode of
+        Name.Debug _ ->
+          JsExpr $ JS.Ref (Name.fromKernel N.utils "Tuple0")
+
+        Name.Prod _ _ ->
+          JsExpr $ JS.Int 0
 
     Opt.Tuple a b maybeC ->
       JsExpr $
@@ -216,21 +239,19 @@ toChar =
 -- CTOR
 
 
-generateCtor :: Mode -> N.Name -> Index.ZeroBased -> Int -> ([Name.Name], Code)
+generateCtor :: Mode -> N.Name -> Index.ZeroBased -> Int -> Code
 generateCtor mode name index arity =
   let
-    argNames  = map Name.fromInt [1 .. arity]
-    argFields = map (\n -> (n, JS.Ref n)) argNames
+    argNames =
+      Index.indexedMap (\i _ -> Name.fromIndex i) [1 .. arity]
 
-    tag =
+    ctorTag =
       case mode of
-        Name.Debug _ ->
-          ( Name.dollar, JS.String (N.toBuilder name) )
-
-        Name.Prod _ _ ->
-          ( Name.dollar, JS.Int (Index.toZeroBased index) )
+        Name.Debug _ -> JS.String (N.toBuilder name)
+        Name.Prod _ _ -> JS.Int (Index.toMachine index)
   in
-    ( argNames, JsExpr (JS.Object (tag:argFields)) )
+  generateFunction argNames $ JsExpr $ JS.Object $
+    (Name.dollar, ctorTag) : map (\n -> (n, JS.Ref n)) argNames
 
 
 
@@ -334,14 +355,32 @@ generateCall mode func args =
     Opt.VarGlobal global@(Opt.Global (ModuleName.Canonical pkg _) _) | pkg == Pkg.core ->
       generateCoreCall mode global args
 
+    Opt.VarBox _ ->
+      case mode of
+        Name.Debug _ ->
+          generateCallHelp mode func args
+
+        Name.Prod _ _ ->
+          case args of
+            [arg] ->
+              generateJsExpr mode arg
+
+            _ ->
+              generateCallHelp mode func args
+
     _ ->
-      generateNormalCall
-        (generateJsExpr mode func)
-        (map (generateJsExpr mode) args)
+      generateCallHelp mode func args
 
 
-generateNormalCall' :: ModuleName.Canonical -> N.Name -> [JS.Expr] -> JS.Expr
-generateNormalCall' home name args =
+generateCallHelp :: Mode -> Opt.Expr -> [Opt.Expr] -> JS.Expr
+generateCallHelp mode func args =
+  generateNormalCall
+    (generateJsExpr mode func)
+    (map (generateJsExpr mode) args)
+
+
+generateGlobalCall :: ModuleName.Canonical -> N.Name -> [JS.Expr] -> JS.Expr
+generateGlobalCall home name args =
   generateNormalCall (JS.Ref (Name.fromGlobal home name)) args
 
 
@@ -385,8 +424,11 @@ generateCoreCall mode (Opt.Global home@(ModuleName.Canonical _ moduleName) name)
   else if moduleName == N.tuple then
     generateTupleCall home name (map (generateJsExpr mode) args)
 
+  else if moduleName == N.jsArray then
+    generateJsArrayCall home name (map (generateJsExpr mode) args)
+
   else
-    generateNormalCall' home name (map (generateJsExpr mode) args)
+    generateGlobalCall home name (map (generateJsExpr mode) args)
 
 
 generateTupleCall :: ModuleName.Canonical -> N.Name -> [JS.Expr] -> JS.Expr
@@ -396,10 +438,18 @@ generateTupleCall home name args =
       case name of
         "first"  -> JS.Access value (Name.fromLocal "a")
         "second" -> JS.Access value (Name.fromLocal "b")
-        _        -> generateNormalCall' home name args
+        _        -> generateGlobalCall home name args
 
     _ ->
-      generateNormalCall' home name args
+      generateGlobalCall home name args
+
+
+generateJsArrayCall :: ModuleName.Canonical -> N.Name -> [JS.Expr] -> JS.Expr
+generateJsArrayCall home name args =
+  case args of
+    [entry]        | name == "singleton" -> JS.Array [entry]
+    [index, array] | name == "unsafeGet" -> JS.Index array index
+    _                                    -> generateGlobalCall home name args
 
 
 generateBitwiseCall :: ModuleName.Canonical -> N.Name -> [JS.Expr] -> JS.Expr
@@ -408,7 +458,7 @@ generateBitwiseCall home name args =
     [arg] ->
       case name of
         "complement" -> JS.Prefix JS.PrefixBNot arg
-        _            -> generateNormalCall' home name args
+        _            -> generateGlobalCall home name args
 
     [left,right] ->
       case name of
@@ -418,10 +468,10 @@ generateBitwiseCall home name args =
         "shiftLeftBy"    -> JS.Infix JS.OpLShift   right left
         "shiftRightBy"   -> JS.Infix JS.OpSpRShift right left
         "shiftRightZfBy" -> JS.Infix JS.OpZfRShift right left
-        _                -> generateNormalCall' home name args
+        _                -> generateGlobalCall home name args
 
     _ ->
-      generateNormalCall' home name args
+      generateGlobalCall home name args
 
 
 generateBasicsCall :: Mode -> ModuleName.Canonical -> N.Name -> [Opt.Expr] -> JS.Expr
@@ -433,7 +483,7 @@ generateBasicsCall mode home name args =
         "not"      -> JS.Prefix JS.PrefixLNot arg
         "toFloat"  -> arg
         "truncate" -> JS.Infix JS.OpBOr arg (JS.Int 0)
-        _          -> generateNormalCall' home name [arg]
+        _          -> generateGlobalCall home name [arg]
 
     [elmLeft, elmRight] ->
       case name of
@@ -462,10 +512,10 @@ generateBasicsCall mode home name args =
             "or"   -> JS.Infix JS.OpLOr         left right
             "and"  -> JS.Infix JS.OpLAnd        left right
             "xor"  -> JS.Infix JS.OpStrictNEq   left right
-            _      -> generateNormalCall' home name [left, right]
+            _      -> generateGlobalCall home name [left, right]
 
     _ ->
-      generateNormalCall' home name (map (generateJsExpr mode) args)
+      generateGlobalCall home name (map (generateJsExpr mode) args)
 
 
 equal :: JS.Expr -> JS.Expr -> JS.Expr
@@ -676,6 +726,31 @@ generateDef mode def =
 
 
 
+-- PATHS
+
+
+generatePath :: Mode -> Opt.Path -> JS.Expr
+generatePath mode path =
+  case path of
+    Opt.Index index subPath ->
+      JS.Access (generatePath mode subPath) (Name.fromIndex index)
+
+    Opt.Root name ->
+      JS.Ref (Name.fromLocal name)
+
+    Opt.Field field subPath ->
+      JS.Access (generatePath mode subPath) (Name.fromField mode field)
+
+    Opt.Unbox subPath ->
+      case mode of
+        Name.Debug _ ->
+          JS.Access (generatePath mode subPath) (Name.fromIndex Index.first)
+
+        Name.Prod _ _ ->
+          generatePath mode subPath
+
+
+
 -- GENERATE IFS
 
 
@@ -770,45 +845,69 @@ generateDecider mode label root decisionTree =
       [ JS.Break (Just (Name.makeLabel label index)) ]
 
     Opt.Chain testChain success failure ->
-      let
-        makeTest (path, test) =
-          strictEq
-            (pathToTestableExpr mode root path test)
-            (testToExpr mode test)
-      in
       [ JS.IfStmt
-          (List.foldl1' (JS.Infix JS.OpLAnd) (map makeTest testChain))
+          (List.foldl1' (JS.Infix JS.OpLAnd) (map (generateIfTest mode root) testChain))
           (JS.Block $ generateDecider mode label root success)
           (JS.Block $ generateDecider mode label root failure)
       ]
 
     Opt.FanOut path edges fallback ->
       [ JS.Switch
-          (pathToTestableExpr mode root path (fst (head edges)))
+          (generateCaseTest mode root path (fst (head edges)))
           ( foldr
-              (addCase mode label root)
+              (\edge cases -> generateCaseBranch mode label root edge : cases)
               [ JS.Default (generateDecider mode label root fallback) ]
               edges
           )
       ]
 
 
-addCase :: Mode -> N.Name -> N.Name -> (DT.Test, Opt.Decider Opt.Choice) -> [JS.Case] -> [JS.Case]
-addCase mode label root (test, subTree) cases =
-  let stmts = generateDecider mode label root subTree in
-  JS.Case (testToExpr mode test) stmts : cases
-
-
-testToExpr :: Mode -> DT.Test -> JS.Expr
-testToExpr mode test =
+generateIfTest :: Mode -> N.Name -> (DT.Path, DT.Test) -> JS.Expr
+generateIfTest mode root (path, test) =
+  let
+    value = pathToJsExpr mode root path
+  in
   case test of
-    DT.IsCtor _ tag index ->
-      case mode of
-        Name.Debug _ ->
-          JS.String (N.toBuilder tag)
+    DT.IsCtor name index _ _ ->
+      strictEq (JS.Access value Name.dollar) $
+        case mode of
+          Name.Debug _ -> JS.String (N.toBuilder name)
+          Name.Prod _ _ -> JS.Int (Index.toMachine index)
 
-        Name.Prod _ _ ->
-          JS.Int (Index.toZeroBased index)
+    DT.IsInt int ->
+      strictEq value (JS.Int int)
+
+    DT.IsChr char ->
+      strictEq (JS.String (Text.encodeUtf8Builder char)) $
+        case mode of
+          Name.Debug _ -> JS.Call (JS.Access value (Name.fromLocal "valueOf")) []
+          Name.Prod _ _ -> value
+
+    DT.IsStr string ->
+      strictEq value (JS.String (Text.encodeUtf8Builder string))
+
+    DT.IsCons ->
+      JS.Access value (Name.fromLocal "b")
+
+    DT.IsNil ->
+      JS.Prefix JS.PrefixLNot $
+        JS.Access value (Name.fromLocal "b")
+
+
+generateCaseBranch :: Mode -> N.Name -> N.Name -> (DT.Test, Opt.Decider Opt.Choice) -> JS.Case
+generateCaseBranch mode label root (test, subTree) =
+  JS.Case
+    (generateCaseValue mode test)
+    (generateDecider mode label root subTree)
+
+
+generateCaseValue :: Mode -> DT.Test -> JS.Expr
+generateCaseValue mode test =
+  case test of
+    DT.IsCtor name index _ _ ->
+      case mode of
+        Name.Debug _ -> JS.String (N.toBuilder name)
+        Name.Prod _ _ -> JS.Int (Index.toMachine index)
 
     DT.IsInt int ->
       JS.Int int
@@ -819,46 +918,76 @@ testToExpr mode test =
     DT.IsStr string ->
       JS.String (Text.encodeUtf8Builder string)
 
+    DT.IsCons ->
+      error "COMPILER BUG - there should never be three tests on a list"
 
-pathToTestableExpr :: Mode -> N.Name -> DT.Path -> DT.Test -> JS.Expr
-pathToTestableExpr mode root path exampleTest =
+    DT.IsNil ->
+      error "COMPILER BUG - there should never be three tests on a list"
+
+
+generateCaseTest :: Mode -> N.Name -> DT.Path -> DT.Test -> JS.Expr
+generateCaseTest mode root path exampleTest =
   let
-    expr =
-      pathToJsExpr mode (JS.Ref (Name.fromLocal root)) path
+    value = pathToJsExpr mode root path
   in
   case exampleTest of
-    DT.IsCtor _ _ _ ->
-      JS.Access expr Name.dollar
+    DT.IsCtor _ _ _ opts ->
+      case mode of
+        Name.Debug _ ->
+          JS.Access value Name.dollar
+
+        Name.Prod _ _ ->
+          case opts of
+            Can.Normal ->
+              JS.Access value Name.dollar
+
+            Can.Enum ->
+              value
+
+            Can.Unbox ->
+              value
 
     DT.IsInt _ ->
-      expr
+      value
 
     DT.IsStr _ ->
-      expr
+      value
 
     DT.IsChr _ ->
       case mode of
         Name.Debug _ ->
-          JS.Call (JS.Access expr (Name.fromLocal "valueOf")) []
+          JS.Call (JS.Access value (Name.fromLocal "valueOf")) []
 
         Name.Prod _ _ ->
-          expr
+          value
+
+    DT.IsCons ->
+      error "COMPILER BUG - there should never be three tests on a list"
+
+    DT.IsNil ->
+      error "COMPILER BUG - there should never be three tests on a list"
 
 
-pathToJsExpr :: Mode -> JS.Expr -> DT.Path -> JS.Expr
-pathToJsExpr mode expr path =
+
+-- PATTERN PATHS
+
+
+pathToJsExpr :: Mode -> N.Name -> DT.Path -> JS.Expr
+pathToJsExpr mode root path =
   case path of
-    DT.Index index subpath ->
-      pathToJsExpr mode (JS.Access expr (Name.fromInt index)) subpath
+    DT.Index index subPath ->
+      JS.Access (pathToJsExpr mode root subPath) (Name.fromIndex index)
 
-    DT.Field field subpath ->
-        pathToJsExpr mode (JS.Access expr (Name.fromField mode field)) subpath
+    DT.Unbox subPath ->
+      case mode of
+        Name.Debug _ ->
+          JS.Access (pathToJsExpr mode root subPath) (Name.fromIndex Index.first)
+
+        Name.Prod _ _ ->
+          pathToJsExpr mode root subPath
 
     DT.Empty ->
-        expr
-
-    DT.Alias ->
-        expr
+      JS.Ref (Name.fromLocal root)
 
 
 
