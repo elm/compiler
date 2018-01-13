@@ -87,15 +87,14 @@ solve env rank pools state constraint =
               do  introduce rank pools vars
                   return state
 
-            Unify.Err vars problem actualType expectedType ->
+            Unify.Err vars actualType expectedType ->
               do  introduce rank pools vars
                   return $ addError state $
                     Error.Mismatch
                       (Error.BadExpr region category actualType)
                       (Con.typeReplace expectation expectedType)
-                      problem
 
-    CLookup region name expectation ->
+    CLocal region name expectation ->
       do  actual <- makeCopy rank pools (env ! name)
           expected <- expectedToVariable rank pools expectation
           answer <- Unify.unify actual expected
@@ -104,15 +103,14 @@ solve env rank pools state constraint =
               do  introduce rank pools vars
                   return state
 
-            Unify.Err vars problem actualType expectedType ->
+            Unify.Err vars actualType expectedType ->
               do  introduce rank pools vars
                   return $ addError state $
                     Error.Mismatch
                       (Error.BadLocal region name actualType)
                       (Con.typeReplace expectation expectedType)
-                      problem
 
-    CInstance region funcName (Can.Forall freeVars srcType) expectation ->
+    CForeign region name (Can.Forall freeVars srcType) expectation ->
       do  actual <- srcTypeToVariable rank pools freeVars srcType
           expected <- expectedToVariable rank pools expectation
           answer <- Unify.unify actual expected
@@ -121,13 +119,12 @@ solve env rank pools state constraint =
               do  introduce rank pools vars
                   return state
 
-            Unify.Err vars problem actualType expectedType ->
+            Unify.Err vars actualType expectedType ->
               do  introduce rank pools vars
                   return $ addError state $
                     Error.Mismatch
-                      (Error.BadForeign region funcName actualType)
+                      (Error.BadForeign region name actualType)
                       (Con.typeReplace expectation expectedType)
-                      problem
 
     CPattern region category tipe expectation ->
       do  actual <- typeToVariable rank pools tipe
@@ -138,12 +135,11 @@ solve env rank pools state constraint =
               do  introduce rank pools vars
                   return state
 
-            Unify.Err vars problem actualType expectedType ->
+            Unify.Err vars actualType expectedType ->
               do  introduce rank pools vars
                   return $ addError state $
                     Error.BadPattern region category actualType
                       (Con.ptypeReplace expectation expectedType)
-                      problem
 
     CAnd constraints ->
       foldM (solve env rank pools) state constraints
@@ -157,7 +153,7 @@ solve env rank pools state constraint =
               do  introduce rank pools vars
                   solve env rank pools state eqCon
 
-            Unify.Err vars _ _ _ ->
+            Unify.Err vars _ _ ->
               do  introduce rank pools vars
                   solve env rank pools state =<< makeNotEqCon
 
@@ -218,16 +214,11 @@ isGeneric var =
   do  (Descriptor _ rank _ _) <- UF.get var
       if rank == noRank
         then return ()
-        else crash "Unable to generalize a type variable. It is not unranked."
-
-
-crash :: String -> a
-crash msg =
-  error $
-    "It looks like something went wrong with the type inference algorithm.\n\n"
-    ++ msg ++ "\n\n"
-    ++ "Please create a minimal example that triggers this problem and report it to\n"
-    ++ "<https://github.com/elm-lang/elm-compiler/issues>"
+        else
+          error
+            "You ran into a compiler bug!\n\n\
+            \I was unable to generalize a type variable during type inference. It was ranked.\n\n\
+            \Please create an <http://sscce.org/> and report it at <https://github.com/elm-lang/elm-compiler/issues>\n\n"
 
 
 

@@ -6,7 +6,7 @@ module Type.Constraint
   , Expected(..)
   , Context(..)
   , SubContext(..)
-  , FuncName(..)
+  , MaybeName(..)
   , Category(..)
   , PExpected(..)
   , PContext(..)
@@ -35,8 +35,8 @@ data Constraint
   = CTrue
   | CSaveTheEnvironment
   | CEqual R.Region Category Type (Expected Type)
-  | CLookup R.Region N.Name (Expected Type)
-  | CInstance R.Region FuncName Can.Annotation (Expected Type)
+  | CLocal R.Region N.Name (Expected Type)
+  | CForeign R.Region N.Name Can.Annotation (Expected Type)
   | CPattern R.Region PCategory Type (PExpected Type)
   | CAnd [Constraint]
   | CBranch
@@ -77,8 +77,8 @@ data Context
   | IfCondition
   | IfBranch Index.ZeroBased
   | CaseBranch Index.ZeroBased
-  | CallArg (Maybe FuncName) Index.ZeroBased
-  | TooManyArgs (Maybe FuncName) Int
+  | CallArg MaybeName Index.ZeroBased
+  | TooManyArgs MaybeName Int
   | RecordAccess N.Name
   | RecordUpdate
   | Destructure
@@ -90,9 +90,11 @@ data SubContext
   | TypedBody
 
 
-data FuncName
+data MaybeName
   = FuncName N.Name
+  | CtorName N.Name
   | OpName N.Name
+  | NoName
 
 
 data Category
@@ -104,7 +106,7 @@ data Category
   | Binop
   | If
   | Case
-  | CallResult (Maybe FuncName)
+  | CallResult MaybeName
   | Lambda
   | Accessor N.Name
   | Access N.Name

@@ -136,11 +136,11 @@ constrainEffects r0 r1 r2 toFinalArgs =
       return $
         CLet [] vars Map.empty
           (CAnd
-            [ CLookup r0 "init" $ NoExpectation $
+            [ CLocal r0 "init" $ NoExpectation $
                 task s0
-            , CLookup r1 "onEffects" $ NoExpectation $
+            , CLocal r1 "onEffects" $ NoExpectation $
                 router msg1 selfMsg1 ==> toFinalArgs msg1 (VarN s1 ==> task s1)
-            , CLookup r2 "onSelfMsg" $ NoExpectation $
+            , CLocal r2 "onSelfMsg" $ NoExpectation $
                 router msg2 selfMsg2 ==> VarN selfMsg2 ==> VarN s2 ==> task s2
             , equal r1 s0 (VarN s1)
             , equal r2 s0 (VarN s2)

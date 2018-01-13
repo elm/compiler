@@ -41,22 +41,25 @@ constrain :: RTV -> Can.Expr -> Expected Type -> IO Constraint
 constrain rtv (A.At region expression) expected =
   case expression of
     Can.VarLocal name ->
-      return (CLookup region name expected)
+      return (CLocal region name expected)
 
     Can.VarTopLevel _ name ->
-      return (CLookup region name expected)
+      return (CLocal region name expected)
 
     Can.VarKernel _ _ ->
       return CTrue
 
     Can.VarForeign _ name annotation ->
-      return $ CInstance region (FuncName name) annotation expected
+      return $ CForeign region name annotation expected
+
+    Can.VarCtor _ _ name _ annotation ->
+      return $ CForeign region name annotation expected
 
     Can.VarDebug _ name annotation ->
-      return $ CInstance region (FuncName name) annotation expected
+      return $ CForeign region name annotation expected
 
     Can.VarOperator op _ _ annotation ->
-      return $ CInstance region (OpName op) annotation expected
+      return $ CForeign region op annotation expected
 
     Can.Str _ ->
       return $ CEqual region String Type.string expected
@@ -180,7 +183,7 @@ constrainLambda rtv region args body expected =
 
 constrainCall :: RTV -> R.Region -> Can.Expr -> [Can.Expr] -> Expected Type -> IO Constraint
 constrainCall rtv region func args expected =
-  do  let maybeFuncName = getFuncName func
+  do  let maybeName = getName func
 
       funcVar <- mkFlexVar
       resultVar <- mkFlexVar
@@ -190,10 +193,10 @@ constrainCall rtv region func args expected =
       funcCon <- constrain rtv func (NoExpectation funcType)
 
       (argVars, argTypes, argCons) <-
-        unzip3 <$> Index.indexedTraverse (constrainArg rtv region maybeFuncName) args
+        unzip3 <$> Index.indexedTraverse (constrainArg rtv region maybeName) args
 
       let arityType = foldr FunN resultType argTypes
-      let resultCon = CEqual region (CallResult maybeFuncName) resultType expected
+      let resultCon = CEqual region (CallResult maybeName) resultType expected
 
       return $ exists (funcVar:resultVar:argVars) $
         CAnd
@@ -202,53 +205,56 @@ constrainCall rtv region func args expected =
               { _a = funcType
               , _b = arityType
               , _eq = CAnd [ CAnd argCons, resultCon ]
-              , _neq = constrainCallBackup rtv region maybeFuncName func args
+              , _neq = constrainCallBackup rtv region maybeName func args
               }
           ]
 
 
-constrainArg :: RTV -> R.Region -> Maybe FuncName -> Index.ZeroBased -> Can.Expr -> IO (Variable, Type, Constraint)
-constrainArg rtv region maybeFuncName index arg =
+constrainArg :: RTV -> R.Region -> MaybeName -> Index.ZeroBased -> Can.Expr -> IO (Variable, Type, Constraint)
+constrainArg rtv region maybeName index arg =
   do  argVar <- mkFlexVar
       let argType = VarN argVar
-      argCon <- constrain rtv arg (FromContext region (CallArg maybeFuncName index) argType)
+      argCon <- constrain rtv arg (FromContext region (CallArg maybeName index) argType)
       return (argVar, argType, argCon)
 
 
-constrainCallBackup :: RTV -> R.Region -> Maybe FuncName -> Can.Expr -> [Can.Expr] -> IO Constraint
-constrainCallBackup rtv region maybeFuncName func args =
+constrainCallBackup :: RTV -> R.Region -> MaybeName -> Can.Expr -> [Can.Expr] -> IO Constraint
+constrainCallBackup rtv region maybeName func args =
   do  (argVars, argTypes, argCons) <-
-        unzip3 <$> Index.indexedTraverse (constrainArg rtv region maybeFuncName) args
+        unzip3 <$> Index.indexedTraverse (constrainArg rtv region maybeName) args
 
       resultVar <- mkFlexVar
       let resultType = VarN resultVar
       let arityType = foldr FunN resultType argTypes
 
-      funcCon <- constrain rtv func (FromContext region (TooManyArgs maybeFuncName (length args)) arityType)
+      funcCon <- constrain rtv func (FromContext region (TooManyArgs maybeName (length args)) arityType)
 
       return $ exists (resultVar:argVars) $ CAnd [ CAnd argCons, funcCon ]
 
 
-getFuncName :: Can.Expr -> Maybe FuncName
-getFuncName (A.At _ expr) =
+getName :: Can.Expr -> MaybeName
+getName (A.At _ expr) =
   case expr of
     Can.VarLocal name ->
-      Just (FuncName name)
+      FuncName name
 
     Can.VarTopLevel _ name ->
-      Just (FuncName name)
-
-    Can.VarKernel _ name ->
-      Just (FuncName name)
+      FuncName name
 
     Can.VarForeign _ name _ ->
-      Just (FuncName name)
+      FuncName name
+
+    Can.VarCtor _ _ name _ _ ->
+      CtorName name
 
     Can.VarOperator op _ _ _ ->
-      Just (OpName op)
+      OpName op
+
+    Can.VarKernel _ name ->
+      FuncName name
 
     _ ->
-      Nothing
+      NoName
 
 
 
@@ -265,7 +271,7 @@ constrainBinop rtv region op annotation leftExpr rightExpr expected =
       let answerType = VarN answerVar
       let binopType = leftType ==> rightType ==> answerType
 
-      let opCon = CInstance region (OpName op) annotation (NoExpectation binopType)
+      let opCon = CForeign region op annotation (NoExpectation binopType)
 
       leftCon <- constrain rtv leftExpr (FromContext region (OpLeft op) leftType)
       rightCon <- constrain rtv rightExpr (FromContext region (OpRight op) rightType)
@@ -275,7 +281,7 @@ constrainBinop rtv region op annotation leftExpr rightExpr expected =
           [ opCon
           , leftCon
           , rightCon
-          , CEqual region (CallResult (Just (OpName op))) answerType expected
+          , CEqual region (CallResult (OpName op)) answerType expected
           ]
 
 
