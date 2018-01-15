@@ -103,7 +103,6 @@ data Category
   | Float
   | String
   | Char
-  | Binop
   | If
   | Case
   | CallResult MaybeName
