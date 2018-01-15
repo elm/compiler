@@ -1,5 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Reporting.Region where
+module Reporting.Region
+  ( Region(..)
+  , Position(..)
+  , merge
+  )
+  where
 
 import Data.Aeson ((.=))
 import qualified Data.Aeson as Json
@@ -29,22 +34,6 @@ data Position =
 merge :: Region -> Region -> Region
 merge (Region start _) (Region _ end) =
     Region start end
-
-
-
--- TO STRING
-
-
-toString :: Region -> String
-toString (Region (Position startLine startColumn) (Position endLine endColumn)) =
-  case startLine == endLine of
-    False ->
-        "between lines " ++ show startLine
-        ++ " and " ++ show endLine
-
-    True ->
-        "on line " ++ show endLine ++ ", column "
-        ++ show startColumn ++ " to " ++ show endColumn
 
 
 
