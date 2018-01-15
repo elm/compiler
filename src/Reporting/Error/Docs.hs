@@ -1,85 +1,133 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Reporting.Error.Docs where
+module Reporting.Error.Docs
+  ( Error(..)
+  , toReport
+  )
+  where
 
-import Data.Text (Text)
 
+import qualified Elm.Name as N
+import Reporting.Helpers ((<>))
+import qualified Reporting.Helpers as H
+import qualified Reporting.Region as R
+import qualified Reporting.Render.Code as Code
 import qualified Reporting.Report as Report
-import qualified Reporting.Helpers as Help
-import Reporting.Helpers ((<>), text)
 
 
 
 data Error
-    = NoDocs
-    | OnlyInDocs Text [Text]
-    | OnlyInExports [Text]
-    | Duplicates Text
-    | NoComment Text
-    | NoType Text
+  = NoDocs
+  | ImplicitExposing
+  | Duplicate N.Name R.Region R.Region
+  | OnlyInDocs N.Name R.Region
+  | OnlyInExports N.Name R.Region
+  | NoComment N.Name R.Region
+  | NoAnnotation N.Name R.Region
 
 
 
 -- TO REPORT
 
 
-toReport :: Error -> Report.Report
-toReport err =
+toReport :: Code.Source -> Error -> Report.Report
+toReport source err =
   case err of
     NoDocs ->
-        Report.report
-          "DOCUMENTATION ERROR"
-          Nothing
-          ( "You must have a documentation comment between the module\
-            \ declaration and the imports."
+      Report.Report "NO DOCS" (error "TODO") [] $
+        H.stack
+          [
+            H.reflow $
+              "You must have a documentation comment between the module\
+              \ declaration and the imports."
+          ,
+            H.reflow
+              "Learn more at <http://package.elm-lang.org/help/documentation-format>"
+          ]
+
+    ImplicitExposing ->
+      Report.Report "IMPLICIT EXPOSING" (error "TODO") [] $
+        H.stack
+          [
+            H.reflow $
+              "I need you to be explicit about what this module exposes:"
+          ,
+            H.reflow $
+              "A great API usually hides some implementation details, so it is rare that\
+              \ everything in the file should be exposed. And requiring package authors\
+              \ to be explicit about this is a way of adding another quality check before\
+              \ code gets published. So as you write out the public API, ask yourself if\
+              \ it will be easy to understand as people read the documentation!"
+          ]
+
+    Duplicate name r1 r2 ->
+      Report.Report "DUPLICATE DOCS" r2 [] $
+        Report.toCodePair source r1 r2
+          (
+            H.reflow $
+              "There can only be one `" <> N.toString name
+              <> "` in your module documentation, but it is listed twice:"
+          ,
+            "Remove one of them!"
           )
-          ( text "Learn more at <http://package.elm-lang.org/help/documentation-format>"
+          (
+            H.reflow $
+              "There can only be one `" <> N.toString name
+              <> "` in your module documentation, but I see two. One here:"
+          ,
+            "And another one over here:"
+          ,
+            "Remove one of them!"
           )
 
-    OnlyInDocs name suggestions ->
-        Report.report
-          "DOCUMENTATION ERROR"
-          Nothing
-          ("Your module documentation includes `" <> name <> "` which is not exported."
-          )
-          ( Help.maybeYouWant (Just "Is it misspelled? Should it be exported?") suggestions
-          )
-
-    OnlyInExports names ->
-        Report.report
-          "DOCUMENTATION ERROR"
-          Nothing
-          ( "The following exports do not appear in your module documentation: "
-            <> Help.commaSep names
-          )
-          ( text $
-              "All exports must be listed in the module documentation after a @docs keyword.\n"
-              <> "Learn more at <http://package.elm-lang.org/help/documentation-format>"
+    OnlyInDocs name region ->
+      Report.Report "DOCS MISTAKE" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            H.reflow $
+              "I do not see `" <> N.toString name
+              <> "` in the `exposing` list, but it is in your module documentation:"
+          ,
+            error "TODO OnlyInDocs"
           )
 
-    Duplicates name ->
-        Report.report
-          "DOCUMENTATION ERROR"
-          Nothing
-          ( "There can only be one `" <> name <> "` in your module documentation."
-          )
-          ( text "Remove one of them!"
-          )
-
-    NoComment name ->
-        Report.report
-          "DOCUMENTATION ERROR"
-          Nothing
-          ("The `" <> name <> "` definition does not have a documentation comment.")
-          ( text "Learn more at <http://package.elm-lang.org/help/documentation-format>"
+    OnlyInExports name region ->
+      Report.Report "DOCS MISTAKE" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            H.reflow $
+              "I do not see `" <> N.toString name
+              <> "` in your module documentation, but it is in your `exposing` list:"
+          ,
+            error "TODO OnlyInExports"
           )
 
-    NoType name ->
-        Report.report
-          "MISSING ANNOTATION"
-          Nothing
-          ("The `" <> name <> "` definition does not have a type annotation.")
-          ( text $
-              "Adding type annotations is best practice and it gives you a chance to name\n"
-              <> "types and type variables so they are as easy as possible to understand!"
+    NoComment name region ->
+      Report.Report "NO DOCS" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            H.reflow $
+              "The `" <> N.toString name <> "` definition does not have a documentation comment."
+          ,
+            H.stack
+              [ H.reflow $
+                  "Add documentation with nice examples of how to use it!"
+              , H.link "Note" "Read" "docs" "for more advice on writing great docs. There are a couple important tricks!"
+              ]
+          )
+
+    NoAnnotation name region ->
+      Report.Report "NO TYPE ANNOTATION" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            H.reflow $
+              "The `" <> N.toString name <> "` definition does not have a type annotation."
+          ,
+            H.stack
+              [ H.reflow $
+                  "I use the type variable names from your annotations when generating docs. So if\
+                  \ you say `Html msg` in your type annotation, I can use `msg` in the docs and make\
+                  \ them a bit clearer. So add an annotation and try to use nice type variables!"
+              , H.link "Note" "Read" "docs" "for more advice on writing great docs. There are a couple important tricks!"
+              ]
           )
