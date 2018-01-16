@@ -642,17 +642,17 @@ unifyRecord context (RecordStructure fields1 ext1) (RecordStructure fields2 ext2
         (unifySharedFields context sharedFields Map.empty ext1)
 
     else
-      do  subRecord <- fresh context (Structure (Record1 uniqueFields1 ext1))
+      do  subRecord <- fresh context (Structure (Record1 uniqueFields2 ext2))
           try2
-            (subUnify subRecord ext2)
+            (subUnify ext1 subRecord)
             (unifySharedFields context sharedFields Map.empty subRecord)
 
   else
 
     if Map.null uniqueFields2 then
-      do  subRecord <- fresh context (Structure (Record1 uniqueFields2 ext2))
+      do  subRecord <- fresh context (Structure (Record1 uniqueFields1 ext1))
           try2
-            (subUnify ext1 subRecord)
+            (subUnify subRecord ext2)
             (unifySharedFields context sharedFields Map.empty subRecord)
 
     else
