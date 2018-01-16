@@ -291,7 +291,9 @@ generalize youngMark visitMark youngRank pools =
       -- get the ranks right for each entry.
       -- start at low ranks so that we only have to pass
       -- over the information once.
-      Vector.imapM_ (mapM_ . adjustRank youngMark visitMark) rankTable
+      Vector.imapM_
+        (\rank table -> mapM_ (adjustRank youngMark visitMark rank) table)
+        rankTable
 
       -- For variables that have rank lowerer than youngRank, register them in
       -- the appropriate old pool if they are not redundant.
@@ -562,14 +564,13 @@ srcTypeToVar rank pools flexVars srcType =
 makeCopy :: Int -> Pools -> Variable -> IO Variable
 makeCopy rank pools var =
   do  copy <- makeCopyHelp rank pools var
-      _ <- restore var
+      restore var
       return copy
 
 
 makeCopyHelp :: Int -> Pools -> Variable -> IO Variable
 makeCopyHelp maxRank pools variable =
-  do  (Descriptor content rank _ maybeCopy) <-
-        UF.get variable
+  do  (Descriptor content rank _ maybeCopy) <- UF.get variable
 
       case maybeCopy of
         Just copy ->
@@ -628,45 +629,65 @@ makeCopyHelp maxRank pools variable =
 -- RESTORE
 
 
-restore :: Variable -> IO Variable
+restore :: Variable -> IO ()
 restore variable =
-  do  (Descriptor content _rank _mark maybeCopy) <- UF.get variable
+  do  (Descriptor content _ _ maybeCopy) <- UF.get variable
       case maybeCopy of
         Nothing ->
-          return variable
+          return ()
 
         Just _ ->
-          do  restoredContent <- restoreContent content
-              UF.set variable $
-                Descriptor restoredContent noRank noMark Nothing
-              return variable
+          do  UF.set variable $ Descriptor content noRank noMark Nothing
+              restoreContent content
 
 
-restoreContent :: Content -> IO Content
+restoreContent :: Content -> IO ()
 restoreContent content =
   case content of
     FlexVar _ ->
-        return content
+      return ()
 
     FlexSuper _ _ ->
-        return content
+      return ()
 
     RigidVar _ ->
-        return content
+      return ()
 
     RigidSuper _ _ ->
-        return content
+      return ()
 
     Structure term ->
-        Structure <$> traverseFlatType restore term
+      case term of
+        App1 _ _ args ->
+          mapM_ restore args
 
-    Alias home name args var ->
-        Alias home name
-          <$> mapM (traverse restore) args
-          <*> restore var
+        Fun1 arg result ->
+          do  restore arg
+              restore result
+
+        EmptyRecord1 ->
+          return ()
+
+        Record1 fields ext ->
+          do  mapM_ restore fields
+              restore ext
+
+        Unit1 ->
+          return ()
+
+        Tuple1 a b maybeC ->
+          do  restore a
+              restore b
+              case maybeC of
+                Nothing -> return ()
+                Just c  -> restore c
+
+    Alias _ _ args var ->
+      do  mapM_ (traverse restore) args
+          restore var
 
     Error _ ->
-        return content
+        return ()
 
 
 
