@@ -1,20 +1,21 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Reporting.Helpers
-  ( (|>)
-  -- re-exports
-  , Doc, (<+>), (<>), cat, dullyellow, fillSep, green, hang
-  , hsep, indent, parens, sep, text, underline, vcat
-  -- custom helpers
-  , i2t
-  , functionName, args, moreArgs
-  , toSimpleHint, toFancyHint, hintLink
-  , stack, reflowParagraph
+  ( textToDoc
+  , nameToDoc
+  , args, moreArgs
+  , toSimpleNote, toSimpleHint, toFancyHint
+  , link, reflowLink
+  , stack, reflow
   , commaSep, capitalize, ordinalize, drawCycle
   , findPotentialTypos, findTypoPairs, vetTypos
   , nearbyNames, distance, maybeYouWant, maybeYouWant'
+  -- re-exports
+  , Doc, (<+>), (<>), black, cat, dullyellow, fillSep, green, hang, hardline
+  , hcat, hsep, indent, magenta, parens, sep, text, underline, vcat
   )
   where
+
 
 import Data.Function (on)
 import qualified Data.Char as Char
@@ -24,67 +25,51 @@ import Data.Monoid ((<>))
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Text (Text)
+import qualified Elm.Name as N
 import qualified Text.EditDistance as Dist
 import qualified Text.PrettyPrint.ANSI.Leijen as P
-import Text.PrettyPrint.ANSI.Leijen hiding ((<>), text)
+import Text.PrettyPrint.ANSI.Leijen hiding ((<>))
 
-import qualified AST.Helpers as Help
 import qualified Elm.Compiler.Version as Compiler
 import qualified Elm.Package as Pkg
-
-
-
--- PIPES
-
-
-(|>) :: a -> (a -> b) -> b
-(|>) x f =
-  f x
-
-
-infixl 0 |>
 
 
 
 -- DOC HELPERS
 
 
-text :: Text -> Doc
-text msg =
-  P.text (Text.unpack msg)
+textToDoc :: Text -> Doc
+textToDoc msg =
+  text (Text.unpack msg)
 
 
-i2t :: Int -> Text
-i2t n =
-  Text.pack (show n)
+nameToDoc :: N.Name -> Doc
+nameToDoc name =
+  text (N.toString name)
 
 
-functionName :: Text -> Text
-functionName opName =
-  if Help.isOp opName then
-      "(" <> opName <> ")"
-
-  else
-      "`" <> opName <> "`"
-
-
-args :: Int -> Text
+args :: Int -> String
 args n =
-  i2t n <> if n == 1 then " argument" else " arguments"
+  show n <> if n == 1 then " argument" else " arguments"
 
 
-moreArgs :: Int -> Text
+moreArgs :: Int -> String
 moreArgs n =
-  i2t n <> " more" <> if n == 1 then " argument" else " arguments"
+  show n <> " more" <> if n == 1 then " argument" else " arguments"
 
 
 
 -- HINTS
 
 
-toSimpleHint :: Text -> Doc
-toSimpleHint txt =
-  toFancyHint (map text (Text.words txt))
+toSimpleNote :: String -> Doc
+toSimpleNote message =
+  fillSep ((underline (text "Note") <> ":") : map text (words message))
+
+
+toSimpleHint :: String -> Doc
+toSimpleHint message =
+  toFancyHint (map text (words message))
 
 
 toFancyHint :: [Doc] -> Doc
@@ -92,11 +77,26 @@ toFancyHint chunks =
   fillSep (underline (text "Hint") <> ":" : chunks)
 
 
-hintLink :: Text -> Text
-hintLink fileName =
-  "<https://github.com/elm-lang/elm-compiler/blob/"
-  <> Text.pack (Pkg.versionToString Compiler.version)
-  <> "/hints/" <> fileName <> ".md>"
+link :: Doc -> String -> String -> String -> Doc
+link word before fileName after =
+  fillSep $
+    (underline word <> ":")
+    : map text (words before)
+    ++ P.text (makeLink fileName)
+    : map text (words after)
+
+
+makeLink :: String -> String
+makeLink fileName =
+  "<http://elm-lang.org/hints/" <> Pkg.versionToString Compiler.version <> "/" <> fileName <> ".md>"
+
+
+reflowLink :: String -> String -> String -> Doc
+reflowLink before fileName after =
+  fillSep $
+    map text (words before)
+    ++ P.text (makeLink fileName)
+    : map text (words after)
 
 
 stack :: [Doc] -> Doc
@@ -109,22 +109,26 @@ stack chunks =
         List.foldl' (\a b -> a <> hardline <> hardline <> b) doc docs
 
 
-reflowParagraph :: Text -> Doc
-reflowParagraph paragraph =
-  fillSep (map text (Text.words paragraph))
+reflow :: String -> Doc
+reflow paragraph =
+  fillSep (map text (words paragraph))
 
 
-commaSep :: [Text] -> Text
-commaSep tokens =
-  case tokens of
-    [token] ->
-      " " <> token
+commaSep :: Doc -> (Doc -> Doc) -> [Doc] -> [Doc]
+commaSep conjunction addStyle names =
+  case names of
+    [name] ->
+      [ addStyle name ]
 
-    [token1,token2] ->
-      " " <> token1 <> " and " <> token2
+    [name1,name2] ->
+      [ addStyle name1, conjunction, addStyle name2 ]
 
     _ ->
-      " " <> Text.intercalate ", " (init tokens) <> ", and " <> last tokens
+      map (\name -> addStyle name <> ",") (init names)
+      ++
+      [ conjunction
+      , addStyle (last names)
+      ]
 
 
 capitalize :: Text -> Text
@@ -137,7 +141,7 @@ capitalize txt =
       Text.cons (Char.toUpper c) rest
 
 
-ordinalize :: Int -> Text
+ordinalize :: Int -> String
 ordinalize number =
   let
     remainder10 =
@@ -153,24 +157,24 @@ ordinalize number =
       | remainder10 == 3             = "rd"
       | otherwise                    = "th"
   in
-    i2t number <> ending
+    show number <> ending
 
 
 
-drawCycle :: [Text] -> Doc
+drawCycle :: [N.Name] -> Doc
 drawCycle names =
   let
     topLine =
-        text "┌─────┐"
+      "┌─────┐"
 
     nameLine name =
-        text "│    " <> dullyellow (text name)
+      "│    " <> dullyellow (textToDoc name)
 
     midLine =
-        text "│     ↓"
+      "│     ↓"
 
     bottomLine =
-        text "└─────┘"
+      "└─────┘"
   in
     vcat (topLine : List.intersperse midLine (map nameLine names) ++ [ bottomLine ])
 
@@ -179,12 +183,12 @@ drawCycle names =
 -- FIND TYPOS
 
 
-findPotentialTypos :: [Text] -> Text -> [Text]
+findPotentialTypos :: [String] -> String -> [String]
 findPotentialTypos knownNames badName =
   filter ((==1) . distance badName) knownNames
 
 
-findTypoPairs :: [Text] -> [Text] -> [(Text, Text)]
+findTypoPairs :: [String] -> [String] -> [(String, String)]
 findTypoPairs leftOnly rightOnly =
   let
     veryNear leftName =
@@ -193,7 +197,7 @@ findTypoPairs leftOnly rightOnly =
     concatMap veryNear leftOnly
 
 
-vetTypos :: [(Text, Text)] -> Maybe (Set.Set Text, Set.Set Text)
+vetTypos :: [(String, String)] -> Maybe (Set.Set String, Set.Set String)
 vetTypos potentialTypos =
   let
     tallyNames (ln, rn) (lc, rc) =
@@ -204,7 +208,7 @@ vetTypos potentialTypos =
     (leftCounts, rightCounts) =
       foldr tallyNames (Map.empty, Map.empty) potentialTypos
 
-    acceptable :: Map.Map Text Int -> Bool
+    acceptable :: Map.Map String Int -> Bool
     acceptable counts =
       not (Map.null counts)
       &&
@@ -221,32 +225,28 @@ vetTypos potentialTypos =
 -- NEARBY NAMES
 
 
-nearbyNames :: (a -> Text) -> a -> [a] -> [a]
+nearbyNames :: (a -> String) -> a -> [a] -> [a]
 nearbyNames format name names =
   let editDistance =
-        if Text.length (format name) < 3 then 1 else 2
+        if length (format name) < 3 then 1 else 2
   in
-      names
-        |> map (\x -> (distance (format name) (format x), x))
-        |> List.sortBy (compare `on` fst)
-        |> filter ( (<= editDistance) . abs . fst )
-        |> map snd
+  map snd $
+    filter ( (<= editDistance) . abs . fst ) $
+      List.sortBy (compare `on` fst) $
+        map (\x -> (distance (format name) (format x), x)) names
 
 
-distance :: Text -> Text -> Int
+distance :: String -> String -> Int
 distance x y =
-  Dist.restrictedDamerauLevenshteinDistance
-    Dist.defaultEditCosts
-    (Text.unpack x)
-    (Text.unpack y)
+  Dist.restrictedDamerauLevenshteinDistance Dist.defaultEditCosts x y
 
 
-maybeYouWant :: Maybe Doc -> [Text] -> Doc
+maybeYouWant :: Maybe Doc -> [N.Name] -> Doc
 maybeYouWant maybeStarter suggestions =
   maybe P.empty id (maybeYouWant' maybeStarter suggestions)
 
 
-maybeYouWant' :: Maybe Doc -> [Text] -> Maybe Doc
+maybeYouWant' :: Maybe Doc -> [N.Name] -> Maybe Doc
 maybeYouWant' maybeStarter suggestions =
   case suggestions of
     [] ->
@@ -255,5 +255,5 @@ maybeYouWant' maybeStarter suggestions =
     _:_ ->
       Just $ stack $
         [ maybe id (<+>) maybeStarter "Maybe you want one of the following?"
-        , P.indent 4 $ P.vcat $ map (P.dullyellow . text) (take 4 suggestions)
+        , P.indent 4 $ P.vcat $ map (P.dullyellow . nameToDoc) (take 4 suggestions)
         ]
