@@ -588,6 +588,9 @@ unifyStructure context flatType content otherContent =
                     (subUnify c z)
                   merge context otherContent
 
+          (Unit1, Unit1) ->
+              merge context otherContent
+
           _ ->
               mismatch
 
