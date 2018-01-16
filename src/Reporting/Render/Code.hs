@@ -1,5 +1,13 @@
 {-# OPTIONS_GHC -Wall #-}
-module Reporting.Render.Code (render) where
+module Reporting.Render.Code
+  ( Source
+  , toSource
+  , render
+  , CodePair(..)
+  , renderPair
+  )
+  where
+
 
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -8,6 +16,24 @@ import Text.PrettyPrint.ANSI.Leijen
 
 import qualified Reporting.Region as R
 import qualified Reporting.Helpers as H
+
+
+
+-- CODE
+
+
+newtype Source =
+  Source [(Int, Text.Text)]
+
+
+toSource :: Text.Text -> Source
+toSource source =
+  Source $ zip [1..] $
+    Text.lines source ++ [Text.empty]
+
+
+
+-- RENDER
 
 
 (|>) :: a -> (a -> b) -> b
@@ -20,17 +46,16 @@ import qualified Reporting.Helpers as H
   a <> hardline <> b
 
 
-render :: Maybe R.Region -> R.Region -> Text -> Doc
-render maybeSubRegion region@(R.Region start end) source =
+render :: Source -> R.Region -> Maybe R.Region -> Doc
+render (Source sourceLines) region@(R.Region start end) maybeSubRegion =
   let
     (R.Position startLine _) = start
     (R.Position endLine _) = end
 
     relevantLines =
-      (Text.lines source ++ [Text.empty])
-        |> take endLine
+      sourceLines
         |> drop (startLine - 1)
-        |> zip [startLine .. endLine + 1]
+        |> take (1 + endLine - startLine)
 
     width =
       length (show (fst (last relevantLines)))
@@ -71,7 +96,7 @@ drawLines addZigZag width (R.Region start end) sourceLines finalLine =
 
 drawLine :: Bool -> Int -> Int -> Int -> (Int, Text) -> Doc
 drawLine addZigZag width startLine endLine (n, line) =
-  addLineNumber addZigZag width startLine endLine n (H.text line)
+  addLineNumber addZigZag width startLine endLine n (H.textToDoc line)
 
 
 addLineNumber :: Bool -> Int -> Int -> Int -> Int -> Doc -> Doc
@@ -90,3 +115,17 @@ addLineNumber addZigZag width start end n line =
         text " "
   in
     text lineNumber <> spacer <> line
+
+
+
+-- RENDER PAIR
+
+
+data CodePair
+  = OneLine Doc
+  | TwoChunks Doc Doc
+
+
+renderPair :: Source -> R.Region -> R.Region -> CodePair
+renderPair source r1 r2 =
+  error "TODO" source r1 r2
