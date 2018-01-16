@@ -186,7 +186,7 @@ solve env rank pools state constraint =
           MVector.write nextPools nextRank vars
 
           -- run solver in next pool
-          locals <- traverse (A.traverse (typeToVariable rank nextPools)) header
+          locals <- traverse (A.traverse (typeToVariable nextRank nextPools)) header
           (State savedEnv mark errors) <-
             solve env nextRank nextPools state headerCon
 
