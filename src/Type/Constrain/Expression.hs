@@ -133,7 +133,7 @@ constrain rtv (A.At region expression) expected =
           return $ exists [ fieldVar, extVar ] $
             CAnd
               [ recordCon
-              , CEqual region (Access field) recordType expected
+              , CEqual region (Access field) fieldType expected
               ]
 
     Can.Update expr fields ->
