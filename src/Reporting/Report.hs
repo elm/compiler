@@ -1,21 +1,17 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Reporting.Report
-    ( Report
-    , report
-    , reportDoc
+    ( Report(..)
     , toDoc
-    , toJson
+    , toCodeSnippet
+    , toCodePair
     )
     where
 
-import Data.Aeson ((.=))
-import qualified Data.Aeson.Types as Json
 import qualified Data.Text as Text
-import Data.Text (Text)
-import Text.PrettyPrint.ANSI.Leijen (Doc, (<>), displayS, dullcyan, hardline, plain, renderPretty, text)
+import Text.PrettyPrint.ANSI.Leijen (Doc, (<>), hardline, dullcyan)
 
-import qualified Reporting.Helpers as Help
+import qualified Reporting.Helpers as H
 import qualified Reporting.Region as R
 import qualified Reporting.Render.Code as Code
 
@@ -26,67 +22,63 @@ import qualified Reporting.Render.Code as Code
 
 data Report =
   Report
-    { _title :: Text
-    , _highlight :: Maybe R.Region
-    , _preHint :: Doc
-    , _postHint :: Doc
+    { _title :: String
+    , _region :: R.Region
+    , _sgstns :: [Text.Text]
+    , _message :: Doc
     }
 
 
-report :: Text -> Maybe R.Region -> Text -> Doc -> Report
-report title highlight pre post =
-  Report title highlight (Help.reflowParagraph pre) post
+toDoc :: FilePath -> Report -> Doc
+toDoc filePath (Report title _ _ message) =
+  messageBar title filePath
+  <> hardline <> hardline <>
+  message
 
 
-reportDoc :: Text -> Maybe R.Region -> [Doc] -> Doc -> Report
-reportDoc title highlight pre post =
-  Report title highlight (Help.hsep pre) post
-
-
-
--- REPORT TO JSON
-
-
-toJson :: [Json.Pair] -> Report -> (Maybe R.Region, [Json.Pair])
-toJson extraFields (Report title subregion pre post) =
-  let
-    fields =
-      [ "tag" .= title
-      , "overview" .= nonAnsiRender pre
-      , "details" .= nonAnsiRender post
-      ]
-  in
-    (subregion, fields ++ extraFields)
-
-
-nonAnsiRender :: Doc -> String
-nonAnsiRender doc =
-  displayS (renderPretty 1 80 (plain doc)) ""
-
-
-
--- REPORT TO DOC
-
-
-toDoc :: String -> R.Region -> Report -> Text -> Doc
-toDoc location region (Report title highlight preHint postHint) source =
-    messageBar title location
-    <> hardline <> hardline <>
-    preHint
-    <> hardline <> hardline <>
-    Code.render highlight region source
-    <> hardline <>
-    postHint
-    <> hardline <> hardline
-
-
-messageBar :: Text -> String -> Doc
-messageBar tag location =
+messageBar :: String -> FilePath -> Doc
+messageBar title filePath =
   let
     usedSpace =
-      4 + Text.length tag + 1 + length location
+      4 + length title + 1 + length filePath
   in
-    dullcyan $ text $
-      "-- " ++ Text.unpack tag
+    dullcyan $ H.text $
+      "-- " ++ title
       ++ " " ++ replicate (max 1 (80 - usedSpace)) '-'
-      ++ " " ++ location
+      ++ " " ++ filePath
+
+
+
+-- CODE FORMATTING
+
+
+toCodeSnippet :: Code.Source -> R.Region -> Maybe R.Region -> (Doc, Doc) -> Doc
+toCodeSnippet source region highlight (preHint, postHint) =
+  preHint
+  <> hardline <> hardline <>
+  Code.render source region highlight
+  <> hardline <>
+  postHint
+  <> hardline <> hardline
+
+
+toCodePair :: Code.Source -> R.Region -> R.Region -> (Doc, Doc) -> (Doc, Doc, Doc) -> Doc
+toCodePair source r1 r2 (oneStart, oneEnd) (twoStart, twoMiddle, twoEnd) =
+  case Code.renderPair source r1 r2 of
+    Code.OneLine codeDocs ->
+      oneStart
+      <> hardline <> hardline <>
+      codeDocs
+      <> hardline <>
+      oneEnd
+
+    Code.TwoChunks code1 code2 ->
+      twoStart
+      <> hardline <> hardline <>
+      code1
+      <> hardline <>
+      twoMiddle
+      <> hardline <> hardline <>
+      code2
+      <> hardline <>
+      twoEnd
