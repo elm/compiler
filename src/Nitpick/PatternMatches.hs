@@ -135,7 +135,7 @@ triple :: Can.Union
 triple =
   let
     ctor =
-      Can.Ctor pairName Index.first 3 [Can.TVar "a", Can.TVar "b", Can.TVar "c"]
+      Can.Ctor tripleName Index.first 3 [Can.TVar "a", Can.TVar "b", Can.TVar "c"]
   in
   Can.Union ["a","b","c"] [ ctor ] 1 Can.Normal
 
