@@ -182,7 +182,7 @@ checkMap name home tipe constraint =
   do  a <- mkFlexVar
       b <- mkFlexVar
       let mapType = toMapType home tipe (VarN a) (VarN b)
-      let mapCon = CLocal zero "cmdMap" (NoExpectation mapType)
+      let mapCon = CLocal zero name (NoExpectation mapType)
       return $ CLet [a,b] [] Map.empty mapCon constraint
 
 
