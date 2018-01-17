@@ -28,48 +28,39 @@ constrain :: Can.Module -> IO Constraint
 constrain (Can.Module home _ _ decls _ _ _ effects) =
   case effects of
     Can.NoEffects ->
-      constrainDecls CSaveTheEnvironment decls
+      constrainDecls decls CSaveTheEnvironment
 
     Can.Ports ports ->
-      do  header <- traverse portToHeader ports
-          CLet [] [] header CTrue
-            <$> constrainDecls CSaveTheEnvironment decls
+      Map.foldrWithKey letPort (constrainDecls decls CSaveTheEnvironment) ports
 
     Can.Manager r0 r1 r2 manager ->
       case manager of
         Can.Cmd cmdName ->
-          do  header <- mkCmd home cmdName
-              fxCon <- constrainEffects r0 r1 r2 $ \msg result ->
-                effectList home cmdName msg ==> result
-              CLet [] [] header CTrue <$> constrainDecls fxCon decls
+          letCmd home cmdName =<<
+            constrainDecls decls =<< constrainEffects home r0 r1 r2 manager
 
         Can.Sub subName ->
-          do  header <- mkSub home subName
-              fxCon <- constrainEffects r0 r1 r2 $ \msg result ->
-                effectList home subName msg ==> result
-              CLet [] [] header CTrue <$> constrainDecls fxCon decls
+          letSub home subName =<<
+            constrainDecls decls =<< constrainEffects home r0 r1 r2 manager
 
         Can.Fx cmdName subName ->
-          do  header <- Map.union <$> mkCmd home cmdName <*> mkSub home subName
-              fxCon <- constrainEffects r0 r1 r2 $ \msg result ->
-                effectList home cmdName msg ==> effectList home subName msg ==> result
-              CLet [] [] header CTrue <$> constrainDecls fxCon decls
+          letCmd home cmdName =<<
+          letSub home subName =<<
+            constrainDecls decls =<< constrainEffects home r0 r1 r2 manager
 
 
 
 -- CONSTRAIN DECLARATIONS
 
 
-constrainDecls :: Constraint -> Can.Decls -> IO Constraint
-constrainDecls finalConstraint decls =
+constrainDecls :: Can.Decls -> Constraint -> IO Constraint
+constrainDecls decls finalConstraint =
   case decls of
     Can.Declare def otherDecls ->
-      Expr.constrainDef Map.empty def
-        =<< constrainDecls finalConstraint otherDecls
+      Expr.constrainDef Map.empty def =<< constrainDecls otherDecls finalConstraint
 
     Can.DeclareRec defs otherDecls ->
-      Expr.constrainRecursiveDefs Map.empty defs
-        =<< constrainDecls finalConstraint otherDecls
+      Expr.constrainRecursiveDefs Map.empty defs =<< constrainDecls otherDecls finalConstraint
 
     Can.SaveTheEnvironment ->
       return finalConstraint
@@ -79,16 +70,20 @@ constrainDecls finalConstraint decls =
 -- PORT HELPERS
 
 
-portToHeader :: Can.Port -> IO (A.Located Type)
-portToHeader port_ =
+letPort :: N.Name -> Can.Port -> IO Constraint -> IO Constraint
+letPort name port_ makeConstraint =
   case port_ of
-    Can.Incoming freeVars tipe ->
-      do  vars <- traverse (\_ -> VarN <$> mkFlexVar) freeVars
-          A.At zero <$> Instantiate.fromSrcType vars tipe
+    Can.Incoming freeVars srcType ->
+      do  vars <- traverse (\_ -> mkFlexVar) freeVars
+          tipe <- Instantiate.fromSrcType (Map.map VarN vars) srcType
+          let header = Map.singleton name (A.At zero tipe)
+          CLet (Map.elems vars) [] header CTrue <$> makeConstraint
 
-    Can.Outgoing freeVars tipe ->
-      do  vars <- traverse (\_ -> VarN <$> mkFlexVar) freeVars
-          A.At zero <$> Instantiate.fromSrcType vars tipe
+    Can.Outgoing freeVars srcType ->
+      do  vars <- traverse (\_ -> mkFlexVar) freeVars
+          tipe <- Instantiate.fromSrcType (Map.map VarN vars) srcType
+          let header = Map.singleton name (A.At zero tipe)
+          CLet (Map.elems vars) [] header CTrue <$> makeConstraint
 
 
 {-# NOINLINE zero #-}
@@ -101,55 +96,96 @@ zero =
 -- EFFECT MANAGER HELPERS
 
 
-mkCmd :: ModuleName.Canonical -> N.Name -> IO (Map.Map N.Name (A.Located Type))
-mkCmd home typeName =
-  do  msg <- VarN <$> mkFlexVar
-      return $ Map.singleton "command" $ A.At zero $
-        FunN (AppN home typeName [msg]) (AppN ModuleName.cmd N.cmd [msg])
+letCmd :: ModuleName.Canonical -> N.Name -> Constraint -> IO Constraint
+letCmd home tipe constraint =
+  do  msgVar <- mkFlexVar
+      let msg = VarN msgVar
+      let cmdType = FunN (AppN home tipe [msg]) (AppN ModuleName.cmd N.cmd [msg])
+      let header = Map.singleton "command" (A.At zero cmdType)
+      return $ CLet [msgVar] [] header CTrue constraint
 
 
-mkSub :: ModuleName.Canonical -> N.Name -> IO (Map.Map N.Name (A.Located Type))
-mkSub home typeName =
-  do  msg <- VarN <$> mkFlexVar
-      return $ Map.singleton "subscription" $ A.At zero $
-        FunN (AppN home typeName [msg]) (AppN ModuleName.sub N.sub [msg])
+letSub :: ModuleName.Canonical -> N.Name -> Constraint -> IO Constraint
+letSub home tipe constraint =
+  do  msgVar <- mkFlexVar
+      let msg = VarN msgVar
+      let subType = FunN (AppN home tipe [msg]) (AppN ModuleName.sub N.sub [msg])
+      let header = Map.singleton "subscription" (A.At zero subType)
+      return $ CLet [msgVar] [] header CTrue constraint
 
 
-constrainEffects
-  :: R.Region
-  -> R.Region
-  -> R.Region
-  -> (Variable -> Type -> Type)
-  -> IO Constraint
-constrainEffects r0 r1 r2 toFinalArgs =
-  let
-    task t =
-      AppN ModuleName.platform N.task [ never, VarN t ]
+constrainEffects :: ModuleName.Canonical -> R.Region -> R.Region -> R.Region -> Can.Manager -> IO Constraint
+constrainEffects home r0 r1 r2 manager =
+  do  s0 <- mkFlexVar
+      s1 <- mkFlexVar
+      s2 <- mkFlexVar
+      m1 <- mkFlexVar
+      m2 <- mkFlexVar
+      sm1 <- mkFlexVar
+      sm2 <- mkFlexVar
 
-    router msg selfMsg =
-      AppN ModuleName.platform N.router [ VarN msg, VarN selfMsg ]
+      let state0 = VarN s0
+      let state1 = VarN s1
+      let state2 = VarN s2
+      let msg1 = VarN m1
+      let msg2 = VarN m2
+      let self1 = VarN sm1
+      let self2 = VarN sm2
 
-    equal region var tipe =
-      CEqual region Effects (VarN var) (NoExpectation tipe)
-  in
-  do  vars@[s0,s1,s2,msg1,msg2,selfMsg1,selfMsg2] <- replicateM 7 mkFlexVar
-      return $
-        CLet [] vars Map.empty
-          (CAnd
-            [ CLocal r0 "init" $ NoExpectation $
-                task s0
-            , CLocal r1 "onEffects" $ NoExpectation $
-                router msg1 selfMsg1 ==> toFinalArgs msg1 (VarN s1 ==> task s1)
-            , CLocal r2 "onSelfMsg" $ NoExpectation $
-                router msg2 selfMsg2 ==> VarN selfMsg2 ==> VarN s2 ==> task s2
-            , equal r1 s0 (VarN s1)
-            , equal r2 s0 (VarN s2)
-            , equal r2 selfMsg1 (VarN selfMsg2)
-            ]
-          )
-          CSaveTheEnvironment
+      let onSelfMsg = router msg2 self2 ==> self2 ==> state2 ==> task state2
+      let onEffects =
+            case manager of
+              Can.Cmd cmd    -> router msg1 self1 ==> effectList home cmd msg1 ==> state1 ==> task state1
+              Can.Sub sub    -> router msg1 self1 ==> effectList home sub msg1 ==> state1 ==> task state1
+              Can.Fx cmd sub -> router msg1 self1 ==> effectList home cmd msg1 ==> effectList home sub msg1 ==> state1 ==> task state1
+
+      let effectCons =
+            CAnd
+              [ CLocal r0 "init" (NoExpectation (task state0))
+              , CLocal r1 "onEffects" (NoExpectation onEffects)
+              , CLocal r2 "onSelfMsg" (NoExpectation onSelfMsg)
+              , CEqual r1 Effects state0 (NoExpectation state1)
+              , CEqual r2 Effects state0 (NoExpectation state2)
+              , CEqual r2 Effects self1 (NoExpectation self2)
+              ]
+
+      CLet [] [s0,s1,s2,m1,m2,sm1,sm2] Map.empty effectCons <$>
+        case manager of
+          Can.Cmd cmd ->
+            checkMap "cmdMap" home cmd CSaveTheEnvironment
+
+          Can.Sub sub ->
+            checkMap "subMap" home sub CSaveTheEnvironment
+
+          Can.Fx cmd sub ->
+            checkMap "cmdMap" home cmd =<<
+              checkMap "subMap" home sub CSaveTheEnvironment
 
 
-effectList :: ModuleName.Canonical -> N.Name -> Variable -> Type
+effectList :: ModuleName.Canonical -> N.Name -> Type -> Type
 effectList home name msg =
-  AppN ModuleName.list N.list [AppN home name [VarN msg]]
+  AppN ModuleName.list N.list [AppN home name [msg]]
+
+
+task :: Type -> Type
+task answer =
+  AppN ModuleName.platform N.task [ never, answer ]
+
+
+router :: Type -> Type -> Type
+router msg self =
+  AppN ModuleName.platform N.router [ msg, self ]
+
+
+checkMap :: N.Name -> ModuleName.Canonical -> N.Name -> Constraint -> IO Constraint
+checkMap name home tipe constraint =
+  do  a <- mkFlexVar
+      b <- mkFlexVar
+      let mapType = toMapType home tipe (VarN a) (VarN b)
+      let mapCon = CLocal zero "cmdMap" (NoExpectation mapType)
+      return $ CLet [a,b] [] Map.empty mapCon constraint
+
+
+toMapType :: ModuleName.Canonical -> N.Name -> Type -> Type -> Type
+toMapType home tipe a b =
+  (a ==> b) ==> AppN home tipe [a] ==> AppN home tipe [b]
