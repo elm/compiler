@@ -436,7 +436,7 @@ addDefNodes env nodes def =
                   (\freeLocals warnings cbody ->
                       let
                         names = getPatternNames [] pattern
-                        name = Text.intercalate "$" (map A.toValue names)
+                        name = Text.cons '$' (Text.intercalate "$" (map A.toValue names))
                         node = ( Destruct cpattern cbody, name, Map.keys freeLocals )
                       in
                       good
