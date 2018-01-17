@@ -533,7 +533,7 @@ constrainDestruct rtv region pattern expr bodyCon =
       exprCon <-
         constrain rtv expr (FromContext region Destructure patternType)
 
-      return $ CLet [] pvars headers (CAnd (reverse (exprCon:revCons))) bodyCon
+      return $ CLet [] (patternVar:pvars) headers (CAnd (reverse (exprCon:revCons))) bodyCon
 
 
 
