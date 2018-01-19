@@ -3,12 +3,13 @@ module Reporting.Region
   ( Region(..)
   , Position(..)
   , merge
+  , encode
   )
   where
 
-import Data.Aeson ((.=))
-import qualified Data.Aeson as Json
-import Data.Binary
+
+import qualified Json.Encode as Json
+import Data.Binary (Binary, get, put)
 
 
 
@@ -33,27 +34,27 @@ data Position =
 
 merge :: Region -> Region -> Region
 merge (Region start _) (Region _ end) =
-    Region start end
+  Region start end
 
 
 
 -- JSON
 
 
-instance Json.ToJSON Region where
-  toJSON (Region start end) =
-      Json.object
-        [ "start" .= start
-        , "end" .= end
-        ]
+encode :: Region -> Json.Value
+encode (Region start end) =
+  Json.object
+    [ ("start", encodePosition start)
+    , ("end", encodePosition end)
+    ]
 
 
-instance Json.ToJSON Position where
-  toJSON (Position line column) =
-      Json.object
-        [ "line" .= line
-        , "column" .= column
-        ]
+encodePosition :: Position -> Json.Value
+encodePosition (Position line column) =
+  Json.object
+    [ ("line", Json.int line)
+    , ("column", Json.int column)
+    ]
 
 
 
