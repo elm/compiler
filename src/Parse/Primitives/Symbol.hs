@@ -97,15 +97,7 @@ binopCharVector =
 {-# NOINLINE binopCharSet #-}
 binopCharSet :: IntSet.IntSet
 binopCharSet =
-  IntSet.fromList (map Char.ord (Map.keys binopTable))
-
-
-binopTable :: Map.Map Char Char
-binopTable =
-  Map.fromList $
-    zip
-      "+-/*=.<>:&|^?%~!"
-      "abcdefghijklmnop"
+  IntSet.fromList (map Char.ord "+-/*=.<>:&|^?%!")
 
 
 
