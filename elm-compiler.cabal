@@ -91,6 +91,7 @@ Library
         Generate.JavaScript.Builder,
         Generate.JavaScript.Expression,
         Generate.JavaScript.Name,
+        Json.Decode.Internals,
         Nitpick.PatternMatches,
         Nitpick.TopLevelTypes,
         Optimize.Case,
@@ -146,7 +147,6 @@ Library
         Paths_elm_compiler
 
     Build-depends:
-        aeson >= 0.11,
         ansi-terminal >= 0.7 && < 0.8,
         ansi-wl-pprint >= 0.6.7 && < 0.7,
         base >=4.8 && <5,

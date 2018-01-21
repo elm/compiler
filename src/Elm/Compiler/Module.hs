@@ -14,6 +14,7 @@ module Elm.Compiler.Module
   , dehyphenate
   , encode
   , decoder
+  , Error(..)
 
   -- canonical names
   , ModuleName.Canonical(..)
@@ -98,12 +99,15 @@ encode =
   Encode.text
 
 
-decoder :: Decode.Decoder Raw
+data Error = BadModuleName
+
+
+decoder :: Decode.Decoder Error Raw
 decoder =
   do  txt <- Decode.text
       case nameFromText txt of
         Nothing ->
-          Decode.fail "Expecting a module name like \"Html.Events\""
+          Decode.fail BadModuleName
 
         Just name ->
           Decode.succeed name

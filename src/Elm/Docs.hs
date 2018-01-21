@@ -33,8 +33,8 @@ import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Compiler.Type.Extract as Extract
 import qualified Elm.Name as N
-import qualified Json.Decode as Decode
-import qualified Json.Encode as Encode
+import qualified Json.Decode as D
+import qualified Json.Encode as E
 import Json.Encode ((==>))
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error as Error
@@ -95,175 +95,180 @@ data Binop = Binop Comment Type.Type Binop.Associativity Binop.Precedence
 -- JSON ENCODE / DECODE
 
 
-encode :: Module -> Encode.Value
+encode :: Module -> E.Value
 encode (Module name comment unions aliases values binops) =
-  Encode.object $
+  E.object $
     [ "name" ==> Module.encode name
-    , "comment" ==> Encode.text comment
-    , "unions" ==> Encode.list encodeUnion (Map.toList unions)
-    , "aliases" ==> Encode.list encodeAlias (Map.toList aliases)
-    , "values" ==> Encode.list encodeValue (Map.toList values)
-    , "binops" ==> Encode.list encodeBinop (Map.toList binops)
+    , "comment" ==> E.text comment
+    , "unions" ==> E.list encodeUnion (Map.toList unions)
+    , "aliases" ==> E.list encodeAlias (Map.toList aliases)
+    , "values" ==> E.list encodeValue (Map.toList values)
+    , "binops" ==> E.list encodeBinop (Map.toList binops)
     ]
 
 
-decoder :: Decode.Decoder Module
+decoder :: D.Decoder Error Module
 decoder =
   Module
-    <$> Decode.field "name" Module.decoder
-    <*> Decode.field "comment" Decode.text
-    <*> Decode.field "unions" (dictDecoder union)
-    <*> Decode.field "aliases" (dictDecoder alias)
-    <*> Decode.field "values" (dictDecoder value)
-    <*> Decode.field "binops" (dictDecoder binop)
+    <$> D.field "name" Module.decoder
+    <*> D.field "comment" D.text
+    <*> D.field "unions" (dictDecoder union)
+    <*> D.field "aliases" (dictDecoder alias)
+    <*> D.field "values" (dictDecoder value)
+    <*> D.field "binops" (dictDecoder binop)
 
 
-dictDecoder :: Decode.Decoder a -> Decode.Decoder (Map.Map N.Name a)
+dictDecoder :: D.Decoder Error a -> D.Decoder Error (Map.Map N.Name a)
 dictDecoder entryDecoder =
-  Map.fromList <$> Decode.list (named entryDecoder)
+  Map.fromList <$> D.list (named entryDecoder)
 
 
-named :: Decode.Decoder a -> Decode.Decoder (N.Name, a)
+named :: D.Decoder Error a -> D.Decoder Error (N.Name, a)
 named entryDecoder =
   (,)
-    <$> Decode.field "name" Decode.text
+    <$> D.field "name" D.text
     <*> entryDecoder
+
+
+data Error
+  = BadAssociativity
+  | BadType
 
 
 
 -- UNION JSON
 
 
-encodeUnion :: (N.Name, Union) -> Encode.Value
+encodeUnion :: (N.Name, Union) -> E.Value
 encodeUnion (name, Union comment args cases) =
-  Encode.object
-    [ "name" ==> Encode.text name
-    , "comment" ==> Encode.text comment
-    , "args" ==> Encode.list Encode.text args
-    , "cases" ==> Encode.list encodeCase cases
+  E.object
+    [ "name" ==> E.text name
+    , "comment" ==> E.text comment
+    , "args" ==> E.list E.text args
+    , "cases" ==> E.list encodeCase cases
     ]
 
 
-union :: Decode.Decoder Union
+union :: D.Decoder Error Union
 union =
   Union
-    <$> Decode.field "comment" Decode.text
-    <*> Decode.field "args" (Decode.list Decode.text)
-    <*> Decode.field "cases" (Decode.list caseDecoder)
+    <$> D.field "comment" D.text
+    <*> D.field "args" (D.list D.text)
+    <*> D.field "cases" (D.list caseDecoder)
 
 
-encodeCase :: ( N.Name, [Type.Type] ) -> Encode.Value
+encodeCase :: ( N.Name, [Type.Type] ) -> E.Value
 encodeCase ( tag, args ) =
-  Encode.list id [ Encode.text tag, Encode.list Type.encode args ]
+  E.list id [ E.text tag, E.list Type.encode args ]
 
 
-caseDecoder :: Decode.Decoder ( N.Name, [Type.Type] )
+caseDecoder :: D.Decoder Error ( N.Name, [Type.Type] )
 caseDecoder =
   (,)
-    <$> Decode.index 0 Decode.text
-    <*> Decode.index 1 (Decode.list Type.decoder)
+    <$> D.index 0 D.text
+    <*> D.index 1 (D.list typeDecoder)
 
 
 
 -- ALIAS JSON
 
 
-encodeAlias :: (N.Name, Alias) -> Encode.Value
+encodeAlias :: (N.Name, Alias) -> E.Value
 encodeAlias ( name, Alias comment args tipe) =
-  Encode.object
-    [ "name" ==> Encode.text name
-    , "comment" ==> Encode.text comment
-    , "args" ==> Encode.list Encode.text args
+  E.object
+    [ "name" ==> E.text name
+    , "comment" ==> E.text comment
+    , "args" ==> E.list E.text args
     , "type" ==> Type.encode tipe
     ]
 
 
-alias :: Decode.Decoder Alias
+alias :: D.Decoder Error Alias
 alias =
   Alias
-    <$> Decode.field "comment" Decode.text
-    <*> Decode.field "args" (Decode.list Decode.text)
-    <*> Decode.field "type" Type.decoder
+    <$> D.field "comment" D.text
+    <*> D.field "args" (D.list D.text)
+    <*> D.field "type" typeDecoder
 
 
 
 -- VALUE JSON
 
 
-encodeValue :: (N.Name, Value) -> Encode.Value
+encodeValue :: (N.Name, Value) -> E.Value
 encodeValue (name, Value comment tipe) =
-  Encode.object
-    [ "name" ==> Encode.text name
-    , "comment" ==> Encode.text comment
+  E.object
+    [ "name" ==> E.text name
+    , "comment" ==> E.text comment
     , "type" ==> Type.encode tipe
     ]
 
 
-value :: Decode.Decoder Value
+value :: D.Decoder Error Value
 value =
   Value
-    <$> Decode.field "comment" Decode.text
-    <*> Decode.field "type" Type.decoder
+    <$> D.field "comment" D.text
+    <*> D.field "type" typeDecoder
 
 
 
 -- BINOP JSON
 
 
-encodeBinop :: (N.Name, Binop) -> Encode.Value
+encodeBinop :: (N.Name, Binop) -> E.Value
 encodeBinop (name, Binop comment tipe assoc prec) =
-  Encode.object
-    [ "name" ==> Encode.text name
-    , "comment" ==> Encode.text comment
+  E.object
+    [ "name" ==> E.text name
+    , "comment" ==> E.text comment
     , "type" ==> Type.encode tipe
     , "associativity" ==> encodeAssoc assoc
     , "precedence" ==> encodePrec prec
     ]
 
 
-binop :: Decode.Decoder Binop
+binop :: D.Decoder Error Binop
 binop =
   Binop
-    <$> Decode.field "comment" Decode.text
-    <*> Decode.field "type" Type.decoder
-    <*> Decode.field "associativity" assocDecoder
-    <*> Decode.field "precedence" precDecoder
+    <$> D.field "comment" D.text
+    <*> D.field "type" typeDecoder
+    <*> D.field "associativity" assocDecoder
+    <*> D.field "precedence" precDecoder
 
 
 
 -- ASSOCIATIVITY JSON
 
 
-encodeAssoc :: Binop.Associativity -> Encode.Value
+encodeAssoc :: Binop.Associativity -> E.Value
 encodeAssoc assoc =
   case assoc of
-    Binop.Left  -> Encode.text "left"
-    Binop.Non   -> Encode.text "non"
-    Binop.Right -> Encode.text "right"
+    Binop.Left  -> E.text "left"
+    Binop.Non   -> E.text "non"
+    Binop.Right -> E.text "right"
 
 
-assocDecoder :: Decode.Decoder Binop.Associativity
+assocDecoder :: D.Decoder Error Binop.Associativity
 assocDecoder =
-  do  txt <- Decode.text
+  do  txt <- D.text
       case txt of
-        "left"  -> Decode.succeed Binop.Left
-        "non"   -> Decode.succeed Binop.Non
-        "right" -> Decode.succeed Binop.Right
-        _       -> Decode.fail "Expecting an ASSOCIATIVITY (e.g. left, non, right)"
+        "left"  -> D.succeed Binop.Left
+        "non"   -> D.succeed Binop.Non
+        "right" -> D.succeed Binop.Right
+        _       -> D.fail BadAssociativity
 
 
 
 -- PRECEDENCE JSON
 
 
-encodePrec :: Binop.Precedence -> Encode.Value
+encodePrec :: Binop.Precedence -> E.Value
 encodePrec (Binop.Precedence n) =
-  Encode.int n
+  E.int n
 
 
-precDecoder :: Decode.Decoder Binop.Precedence
+precDecoder :: D.Decoder Error Binop.Precedence
 precDecoder =
-  Binop.Precedence <$> Decode.int
+  Binop.Precedence <$> D.int
 
 
 

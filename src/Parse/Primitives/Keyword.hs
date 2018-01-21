@@ -8,6 +8,7 @@ module Parse.Primitives.Keyword
   , infix_, left_, right_, non_
   , module_, import_, exposing_, as_, where_, effect_
   , command_, subscription_
+  , jsonTrue, jsonFalse, jsonNull
   )
   where
 
@@ -210,3 +211,25 @@ command_ =
 subscription_ :: Parser ()
 subscription_ =
   keyword "subscription"
+
+
+
+-- JSON
+
+
+{-# NOINLINE jsonTrue #-}
+jsonTrue :: Parser ()
+jsonTrue =
+  keyword "true"
+
+
+{-# NOINLINE jsonFalse #-}
+jsonFalse :: Parser ()
+jsonFalse =
+  keyword "false"
+
+
+{-# NOINLINE jsonNull #-}
+jsonNull :: Parser ()
+jsonNull =
+  keyword "null"

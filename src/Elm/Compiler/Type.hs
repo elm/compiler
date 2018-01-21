@@ -8,6 +8,7 @@ module Elm.Compiler.Type
   , Alias(..)
   , Union(..)
   , encode
+  , Error(..)
   , decoder
   , encodeMetadata
   )
@@ -187,12 +188,15 @@ encode tipe =
   Encode.text (Text.pack (toString OneLine tipe))
 
 
-decoder :: Decode.Decoder Type
+data Error = BadType
+
+
+decoder :: Decode.Decoder Error Type
 decoder =
   do  txt <- Decode.text
       case Parse.run Type.expression (Text.encodeUtf8 (Text.replace "'" "_" txt)) of
         Left _ ->
-          Decode.fail "Expecting a type, like (String -> Int)"
+          Decode.fail BadType
 
         Right (tipe, _, _) ->
           Decode.succeed (fromRawType tipe)

@@ -1,320 +1,267 @@
-{-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
+{-# LANGUAGE BangPatterns, MagicHash, OverloadedStrings, UnboxedTuples #-}
 module Json.Decode
-  ( Decoder, Error(..), decode, parse
-  , string, text, bool, int, float
-  , list, dict, maybe
-  , field, at
-  , index
-  , map, map2, succeed, fail, andThen, oneOf
-  , aeson
+  ( parse
+  -- re-export from Json.Decode.Internals
+  , Json.Decoder, Json.Error(..)
+  , Json.string, Json.text, Json.bool, Json.int
+  , Json.list, Json.dict, Json.maybe
+  , Json.field, Json.at
+  , Json.index
+  , Json.map, Json.map2
+  , Json.succeed, Json.fail
+  , Json.andThen, Json.oneOf
   )
   where
 
 
-import Data.Text (Text)
-import Prelude hiding (fail, map, maybe)
-
-import qualified Control.Monad as Monad
-import qualified Data.Aeson as Aeson
-import qualified Data.ByteString.Lazy as BS
-import qualified Data.HashMap.Lazy as HashMap
-import qualified Data.Scientific as Scientific
+import Prelude hiding (length)
+import qualified Data.ByteString.Internal as B
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import qualified Data.Vector as Vector
-import Data.Vector ((!?))
+import Foreign.ForeignPtr (ForeignPtr)
+import GHC.Word (Word8(..))
+
+import qualified Json.Decode.Internals as Json
+import qualified Parse.Primitives as P
+import qualified Parse.Primitives.Internals as I
+import Parse.Primitives.Internals (Parser(..), State(..), noError)
+import qualified Parse.Primitives.Keyword as Keyword
+import qualified Parse.Primitives.Symbol as Symbol
+import qualified Reporting.Error.Syntax as E
+import qualified Reporting.Region as R
 
 
 
--- DECODERS
+-- PARSE
 
 
-data Decoder a =
-  Decoder
-    { _run :: (Error -> Error) -> Aeson.Value -> Either Error a
-    }
+data Result e a
+  = BadJson E.Error
+  | BadContent (Json.Error e)
+  | Success a
 
 
-data Error
-  = Field Text Error
-  | Index Int Error
-  | OneOf [Error]
-  | Failure Aeson.Value String
-  deriving (Show)
+parse :: Json.Decoder e a -> B.ByteString -> Result e a
+parse (Json.Decoder run) bytestring =
+  case P.run jsonFile bytestring of
+    Left err ->
+      BadJson err
 
-
-decode :: Decoder a -> Aeson.Value -> Either Error a
-decode decoder value =
-  _run decoder id value
-
-
-parse :: Decoder a -> BS.ByteString -> Either (Maybe Error) a
-parse decoder bytestring =
-  case Aeson.eitherDecode bytestring of
-    Left _ ->
-      Left Nothing
-
-    Right json ->
-      case decode decoder json of
+    Right value ->
+      case run id value of
         Left err ->
-          Left (Just err)
+          BadContent err
 
-        Right value ->
-          Right value
-
-
-
--- PRIMITIVES
+        Right answer ->
+          Success answer
 
 
-string :: Decoder String
+
+-- JSON
+
+
+jsonFile :: Parser Json.Value
+jsonFile =
+  do  spaces
+      value <- jsonValue
+      spaces
+      P.endOfFile
+      return value
+
+
+jsonValue :: Parser Json.Value
+jsonValue =
+  do  start <- P.getPosition
+      I.oneOf
+        [ Json.String <$> string
+        , object start
+        , array start
+        , number
+        , Keyword.jsonTrue >> return Json.TRUE
+        , Keyword.jsonFalse >> return Json.FALSE
+        , Keyword.jsonNull >> return Json.NULL
+        ]
+
+
+
+-- OBJECT
+
+
+object :: R.Position -> Parser Json.Value
+object start =
+  do  Symbol.leftCurly
+      P.inContext start E.ExprRecord $
+        do  spaces
+            I.oneOf
+              [ do  entry <- field
+                    spaces
+                    objectHelp [entry]
+              , do  Symbol.rightCurly
+                    return (Json.Object [] HashMap.empty)
+              ]
+
+
+objectHelp :: [(Text.Text, Json.Value)] -> Parser Json.Value
+objectHelp revEntries =
+  I.oneOf
+    [
+      do  Symbol.comma
+          spaces
+          entry <- field
+          spaces
+          objectHelp (entry:revEntries)
+    ,
+      do  Symbol.rightCurly
+          return (Json.Object (reverse revEntries) (HashMap.fromList revEntries))
+    ]
+
+
+field :: Parser (Text.Text, Json.Value)
+field =
+  do  key <- string
+      spaces
+      Symbol.hasType
+      spaces
+      value <- jsonValue
+      return (key, value)
+
+
+
+-- ARRAY
+
+
+array :: R.Position -> Parser Json.Value
+array start =
+  do  Symbol.leftSquare
+      P.inContext start E.ExprList $
+        do  spaces
+            I.oneOf
+              [ do  entry <- jsonValue
+                    spaces
+                    arrayHelp 1 [entry]
+              , do  Symbol.rightSquare
+                    return (Json.Array Vector.empty)
+              ]
+
+
+arrayHelp :: Int -> [Json.Value] -> Parser Json.Value
+arrayHelp !length revEntries =
+  I.oneOf
+    [
+      do  Symbol.comma
+          spaces
+          entry <- jsonValue
+          spaces
+          arrayHelp (length + 1) (entry:revEntries)
+    ,
+      do  Symbol.rightSquare
+          return $ Json.Array $ Vector.reverse $
+            Vector.fromListN length revEntries
+    ]
+
+
+
+-- NUMBER
+
+
+number :: Parser Json.Value
+number =
+  error "TODO"
+
+
+
+-- STRING
+
+
+string :: Parser Text.Text
 string =
-  Text.unpack <$> text
+  Parser $ \(State fp offset terminal indent row col ctx) cok cerr _ eerr ->
+    if offset < terminal && I.unsafeIndex fp offset == 0x22 {- " -} then
+
+      case stringHelp fp (offset + 1) terminal row (col + 1) of
+        Err err ->
+          cerr err
+
+        Ok newOffset newRow newCol ->
+          let
+            !newState = State fp newOffset terminal indent newRow newCol ctx
+            !content = Text.decodeUtf8 (B.PS fp offset (newOffset - offset))
+          in
+            cok content newState noError
+
+    else
+      eerr noError
 
 
-text :: Decoder Text
-text =
-  Decoder $ \mkError value ->
-    case value of
-      Aeson.String txt ->
-        Right txt
+data StringResult
+  = Err E.ParseError
+  | Ok !Int !Int !Int
 
+
+stringHelp :: ForeignPtr Word8 -> Int -> Int -> Int -> Int -> StringResult
+stringHelp fp offset terminal row col =
+  if offset >= terminal then
+    Err (E.ParseError row col E.EndOfFile_String)
+
+  else
+    case I.unsafeIndex fp offset of
+      0x22 {- " -} ->
+        Ok (offset + 1) row (col + 1)
+
+      0x0A {- \n -} ->
+        Err (E.ParseError row col E.NewLineInString)
+
+      0x5C {- \ -} ->
+        let
+          !offset1 = offset + 1
+        in
+        if offset1 < terminal then
+
+          let
+            !word = I.unsafeIndex fp offset1
+            !newOffset = offset1 + I.getCharWidth fp offset1 terminal word
+          in
+          stringHelp fp newOffset terminal row (col + 2)
+
+        else
+          Err (E.ParseError (row + 1) col E.EndOfFile_String)
+
+      word ->
+        let !newOffset = offset + I.getCharWidth fp offset terminal word in
+        stringHelp fp newOffset terminal row (col + 1)
+
+
+
+
+-- SPACES
+
+
+spaces :: Parser ()
+spaces =
+  Parser $ \(State fp offset terminal indent row col ctx) cok _ _ _ ->
+    let
+      (# newOffset, newRow, newCol #) =
+        eatSpaces fp offset terminal row col
+
+      !newState =
+        State fp newOffset terminal indent newRow newCol ctx
+    in
+    cok () newState noError
+
+
+eatSpaces :: ForeignPtr Word8 -> Int -> Int -> Int -> Int -> (# Int, Int, Int #)
+eatSpaces fp offset terminal row col =
+  if offset >= terminal then
+    (# offset, row, col #)
+
+  else
+    case I.unsafeIndex fp offset of
+      0x20 {-   -}  -> eatSpaces fp (offset + 1) terminal row (col + 1)
+      0x09 {- \t -} -> eatSpaces fp (offset + 1) terminal row (col + 1)
+      0x0A {- \n -} -> eatSpaces fp (offset + 1) terminal (row + 1) 1
+      0x0D {- \r -} -> eatSpaces fp (offset + 1) terminal row col
       _ ->
-        Left (mkError (Failure value "Expecting a STRING"))
-
-
-bool :: Decoder Bool
-bool =
-  Decoder $ \mkError value ->
-    case value of
-      Aeson.Bool boolean ->
-        Right boolean
-
-      _ ->
-        Left (mkError (Failure value "Expecting a BOOL"))
-
-
-int :: Decoder Int
-int =
-  Decoder $ \mkError value ->
-    case value of
-      Aeson.Number number ->
-        case Scientific.toBoundedInteger number of
-          Nothing ->
-            Left (mkError (Failure value "Expecting an INT"))
-
-          Just integer ->
-            Right integer
-
-      _ ->
-        Left (mkError (Failure value "Expecting an INT"))
-
-
-float :: Decoder Float
-float =
-  Decoder $ \mkError value ->
-    case value of
-      Aeson.Number number ->
-        Right (Scientific.toRealFloat number)
-
-      _ ->
-        Left (mkError (Failure value "Expecting a FLOAT"))
-
-
-
--- DATA STRUCTURES
-
-
-list :: Decoder a -> Decoder [a]
-list (Decoder run) =
-  Decoder $ \mkError value ->
-    case value of
-      Aeson.Array vector ->
-        Vector.toList <$>
-          Vector.imapM (\i v -> run (mkError . Index i) v) vector
-
-      _ ->
-        Left (mkError (Failure value "Expecting an ARRAY"))
-
-
-dict :: Decoder a -> Decoder (HashMap.HashMap Text a)
-dict (Decoder run) =
-  Decoder $ \mkError value ->
-    case value of
-      Aeson.Object hashMap ->
-        HashMap.traverseWithKey (\k v -> run (mkError . Field k) v) hashMap
-
-      _ ->
-        Left (mkError (Failure value "Expecting an OBJECT"))
-
-
-maybe :: Decoder a -> Decoder (Maybe a)
-maybe (Decoder run) =
-  Decoder $ \mkError value ->
-    case run mkError value of
-      Left _ ->
-        Right Nothing
-
-      Right a ->
-        Right (Just a)
-
-
-
--- OBJECT PRIMITIVES
-
-
-field :: Text -> Decoder a -> Decoder a
-field name (Decoder run) =
-  Decoder $ \mkError value ->
-    case value of
-      Aeson.Object hashMap ->
-        case HashMap.lookup name hashMap of
-          Just v ->
-            run (mkError . Field name) v
-
-          Nothing ->
-            Left $ mkError $ Failure value $
-              "Expecting a \"" ++ Text.unpack name ++ "\" field."
-
-      _ ->
-        Left (mkError (Failure value "Expecting an OBJECT"))
-
-
-at :: [Text] -> Decoder a -> Decoder a
-at names decoder =
-  foldr field decoder names
-
-
-
--- ARRAY PRIMITIVES
-
-
-index :: Int -> Decoder a -> Decoder a
-index i (Decoder run) =
-  Decoder $ \mkError value ->
-    case value of
-      Aeson.Array vector ->
-        case vector !? i of
-          Just v ->
-            run (mkError . Index i) v
-
-          Nothing ->
-            Left $ mkError $ Failure value $
-              "Expecting a longer ARRAY. I need index " ++ show i
-              ++ ", but the array only has " ++ show (Vector.length vector)
-              ++ " elements."
-
-      _ ->
-        Left (mkError (Failure value "Expecting an ARRAY"))
-
-
-
--- MAPPING
-
-
-map :: (a -> value) -> Decoder a -> Decoder value
-map func (Decoder run) =
-  Decoder $ \mkError value ->
-    func <$> run mkError value
-
-
-map2 :: (a -> b -> value) -> Decoder a -> Decoder b -> Decoder value
-map2 func (Decoder runA) (Decoder runB) =
-  Decoder $ \mkError value ->
-    func
-      <$> runA mkError value
-      <*> runB mkError value
-
-
-apply :: Decoder (a -> b) -> Decoder a -> Decoder b
-apply (Decoder runFunc) (Decoder runArg) =
-  Decoder $ \mkError value ->
-    do  func <- runFunc mkError value
-        arg <- runArg mkError value
-        return (func arg)
-
-
-instance Functor Decoder where
-  fmap =
-    map
-
-
-instance Applicative Decoder where
-  pure =
-    succeed
-
-  (<*>) =
-    apply
-
-
-instance Monad Decoder where
-  return =
-    succeed
-
-  (>>=) decoder callback =
-    andThen callback decoder
-
-  fail msg =
-    fail msg
-
-
-
--- FANCY PRIMITIVES
-
-
-succeed :: a -> Decoder a
-succeed a =
-  Decoder $ \_ _ -> Right a
-
-
-fail :: String  -> Decoder a
-fail msg =
-  Decoder $ \mkError value ->
-    Left (mkError (Failure value msg))
-
-
-andThen :: (a -> Decoder b) -> Decoder a -> Decoder b
-andThen callback (Decoder runA) =
-  Decoder $ \mkError value ->
-    do  a <- runA mkError value
-        let (Decoder runB) = callback a
-        runB mkError value
-
-
-
--- ONE OF
-
-
-oneOf :: [Decoder a] -> Decoder a
-oneOf decoders =
-  Decoder (oneOfHelp decoders [])
-
-
-oneOfHelp :: [Decoder a] -> [Error] -> (Error -> Error) -> Aeson.Value -> Either Error a
-oneOfHelp decoders errors mkError value =
-  case decoders of
-    [] ->
-      Left (mkError (OneOf (reverse errors)))
-
-    Decoder run : otherDecoders ->
-      case run mkError value of
-        Right a ->
-          Right a
-
-        Left err ->
-          oneOfHelp otherDecoders (err:errors) mkError value
-
-
-
--- AESON
-
-
-aeson :: (Aeson.FromJSON a) => Decoder a
-aeson =
-  Decoder $ \mkError value ->
-    case Aeson.fromJSON value of
-      Aeson.Error msg ->
-        Left (mkError (Failure value msg))
-
-      Aeson.Success a ->
-        Right a
+        (# offset, row, col #)

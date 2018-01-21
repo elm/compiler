@@ -4,7 +4,7 @@ module Elm.Package
   ( Name(..)
   , Package(..)
   , isKernel
-  , toString, toUrl, toFilePath
+  , toString, toText, toUrl, toFilePath
   , fromText
   , dummyName, kernel, core
   , browser, virtualDom, html
@@ -36,7 +36,7 @@ import qualified Data.Text.Lazy.Builder.Int as B (decimal)
 import Data.Text (Text)
 import Data.Word (Word16)
 import System.FilePath ((</>))
-import qualified Json.Decode as Decode
+import qualified Json.Decode.Internals as Decode
 import qualified Json.Encode as Encode
 
 
@@ -316,12 +316,12 @@ instance Binary Version where
 -- JSON
 
 
-decoder :: Decode.Decoder Name
+decoder :: Decode.Decoder String Name
 decoder =
   do  txt <- Decode.text
       case fromText txt of
         Left msg ->
-          Decode.fail $ "Expecting a PACKAGE name. " ++ msg
+          Decode.fail msg
 
         Right name ->
           Decode.succeed name
@@ -333,7 +333,7 @@ encode name =
 
 
 
-versionDecoder :: Decode.Decoder Version
+versionDecoder :: Decode.Decoder String Version
 versionDecoder =
   do  txt <- Decode.text
       case versionFromText txt of
@@ -341,7 +341,7 @@ versionDecoder =
           Decode.succeed version
 
         Left msg ->
-          Decode.fail $ "Expecting a VERSION. " ++ msg
+          Decode.fail msg
 
 
 encodeVersion :: Version -> Encode.Value
