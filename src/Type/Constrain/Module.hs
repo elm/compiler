@@ -6,7 +6,6 @@ module Type.Constrain.Module
   where
 
 
-import Control.Monad (replicateM)
 import qualified Data.Map.Strict as Map
 
 import qualified AST.Canonical as Can
@@ -17,7 +16,7 @@ import qualified Reporting.Region as R
 import Type.Constraint
 import qualified Type.Constrain.Expression as Expr
 import qualified Type.Instantiate as Instantiate
-import Type.Type (Type(..), Variable, (==>), mkFlexVar, never)
+import Type.Type (Type(..), (==>), mkFlexVar, never)
 
 
 
