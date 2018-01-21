@@ -107,10 +107,16 @@ encode (Module name comment unions aliases values binops) =
     ]
 
 
+data Error
+  = BadAssociativity
+  | BadName
+  | BadType
+
+
 decoder :: D.Decoder Error Module
 decoder =
   Module
-    <$> D.field "name" Module.decoder
+    <$> D.field "name" nameDecoder
     <*> D.field "comment" D.text
     <*> D.field "unions" (dictDecoder union)
     <*> D.field "aliases" (dictDecoder alias)
@@ -130,9 +136,14 @@ named entryDecoder =
     <*> entryDecoder
 
 
-data Error
-  = BadAssociativity
-  | BadType
+nameDecoder :: D.Decoder Error N.Name
+nameDecoder =
+  D.mapError (const BadName) Module.decoder
+
+
+typeDecoder :: D.Decoder Error Type.Type
+typeDecoder =
+  D.mapError (const BadType) Type.decoder
 
 
 

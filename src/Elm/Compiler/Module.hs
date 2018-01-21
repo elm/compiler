@@ -14,7 +14,6 @@ module Elm.Compiler.Module
   , dehyphenate
   , encode
   , decoder
-  , Error(..)
 
   -- canonical names
   , ModuleName.Canonical(..)

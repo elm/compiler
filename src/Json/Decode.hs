@@ -8,7 +8,7 @@ module Json.Decode
   , Json.list, Json.dict, Json.maybe
   , Json.field, Json.at
   , Json.index
-  , Json.map, Json.map2
+  , Json.map, Json.map2, Json.mapError
   , Json.succeed, Json.fail
   , Json.andThen, Json.oneOf
   )
@@ -51,7 +51,7 @@ parse (Json.Decoder run) bytestring =
       BadJson err
 
     Right value ->
-      case run id value of
+      case run value of
         Left err ->
           BadContent err
 

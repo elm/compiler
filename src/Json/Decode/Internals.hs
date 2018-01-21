@@ -43,10 +43,12 @@ data Value
 -- DECODERS
 
 
+-- TODO switch to CPS if possible
+--
 newtype Decoder e a =
-  Decoder
-    { _run :: (Error e -> Error e) -> Value -> Either (Error e) a
-    }
+  Decoder {
+    _run :: Value -> Either (Error e) a
+  }
 
 
 data Error e
@@ -67,6 +69,13 @@ data Type
   | TArrayWith Int Int
 
 
+mapLeft :: (e -> e') -> Either e a -> Either e' a
+mapLeft func eith =
+  case eith of
+    Right a -> Right a
+    Left e -> Left (func e)
+
+
 
 -- PRIMITIVES
 
@@ -78,18 +87,18 @@ string =
 
 text :: Decoder e Text
 text =
-  Decoder $ \mkError value ->
+  Decoder $ \value ->
     case value of
       String txt ->
         Right txt
 
       _ ->
-        Left (mkError (Expecting value TString))
+        Left (Expecting value TString)
 
 
 bool :: Decoder e Bool
 bool =
-  Decoder $ \mkError value ->
+  Decoder $ \value ->
     case value of
       TRUE ->
         Right True
@@ -98,18 +107,18 @@ bool =
         Right False
 
       _ ->
-        Left (mkError (Expecting value TBool))
+        Left (Expecting value TBool)
 
 
 int :: Decoder e Int
 int =
-  Decoder $ \mkError value ->
+  Decoder $ \value ->
     case value of
       Integer integer ->
         Right integer
 
       _ ->
-        Left (mkError (Expecting value TInt))
+        Left (Expecting value TInt)
 
 
 
@@ -118,47 +127,60 @@ int =
 
 list :: Decoder e a -> Decoder e [a]
 list (Decoder run) =
-  Decoder $ \mkError value ->
+  Decoder $ \value ->
     case value of
       Array vector ->
-        Vector.toList <$>
-          Vector.imapM (\i v -> run (mkError . Index i) v) vector
+        let
+          runHelp i v =
+            mapLeft (Index i) (run v)
+        in
+        Vector.toList <$> Vector.imapM runHelp vector
 
       _ ->
-        Left (mkError (Expecting value TArray))
+        Left (Expecting value TArray)
 
 
 dict :: Decoder e a -> Decoder e (HashMap.HashMap Text a)
 dict (Decoder run) =
-  Decoder $ \mkError value ->
+  Decoder $ \value ->
     case value of
       Object _ hashMap ->
-        HashMap.traverseWithKey (\k v -> run (mkError . Field k) v) hashMap
+        let
+          runHelp k v =
+            mapLeft (Field k) (run v)
+        in
+        HashMap.traverseWithKey runHelp hashMap
 
       _ ->
-        Left (mkError (Expecting value TObject))
+        Left (Expecting value TObject)
 
 
 pairs :: Decoder e a -> Decoder e [(Text, a)]
 pairs (Decoder run) =
-  Decoder $ \mkError value ->
+  Decoder $ \value ->
     case value of
       Object kvs _ ->
-        traverse (\(k,v) -> (,) k <$> run (mkError . Field k) v) kvs
+        let
+          runHelp (k,v) =
+            case run v of
+              Right a -> Right (k, a)
+              Left e -> Left (Field k e)
+        in
+        traverse runHelp kvs
 
       _ ->
-        Left (mkError (Expecting value TObject))
+        Left (Expecting value TObject)
 
 
 maybe :: Decoder e a -> Decoder e (Maybe a)
 maybe (Decoder run) =
-  Decoder $ \mkError value ->
-    case run mkError value of
-      Left _ ->
-        Right Nothing
-
+  Decoder $ \value ->
+    case run value of
       Right a ->
         Right (Just a)
+
+      Left _ ->
+        Right Nothing
 
 
 
@@ -166,19 +188,19 @@ maybe (Decoder run) =
 
 
 field :: Text -> Decoder e a -> Decoder e a
-field name (Decoder run) =
-  Decoder $ \mkError value ->
+field k (Decoder run) =
+  Decoder $ \value ->
     case value of
       Object _ hashMap ->
-        case HashMap.lookup name hashMap of
+        case HashMap.lookup k hashMap of
           Just v ->
-            run (mkError . Field name) v
+            mapLeft (Field k) (run v)
 
           Nothing ->
-            Left $ mkError $ Expecting value (ObjectWith name)
+            Left (Expecting value (TObjectWith k))
 
       _ ->
-        Left (mkError (Expecting value TObject))
+        Left (Expecting value TObject)
 
 
 at :: [Text] -> Decoder e a -> Decoder e a
@@ -192,18 +214,18 @@ at names decoder =
 
 index :: Int -> Decoder e a -> Decoder e a
 index i (Decoder run) =
-  Decoder $ \mkError value ->
+  Decoder $ \value ->
     case value of
       Array vector ->
         case vector !? i of
           Just v ->
-            run (mkError . Index i) v
+            mapLeft (Index i) (run v)
 
           Nothing ->
-            Left $ mkError $ Expecting value $ ArrayWith i (Vector.length vector)
+            Left (Expecting value (TArrayWith i (Vector.length vector)))
 
       _ ->
-        Left (mkError (Expecting value TArray))
+        Left (Expecting value TArray)
 
 
 
@@ -212,22 +234,23 @@ index i (Decoder run) =
 
 map :: (a -> value) -> Decoder e a -> Decoder e value
 map func (Decoder run) =
-  Decoder $ \mkError value ->
-    func <$> run mkError value
+  Decoder $ \value ->
+    func <$> run value
+
 
 
 map2 :: (a -> b -> value) -> Decoder e a -> Decoder e b -> Decoder e value
 map2 func (Decoder runA) (Decoder runB) =
-  Decoder $ \mkError value ->
+  Decoder $ \value ->
     func
-      <$> runA mkError value
-      <*> runB mkError value
+      <$> runA value
+      <*> runB value
 
 
 mapError :: (e -> e') -> Decoder e a -> Decoder e' a
 mapError func (Decoder run) =
-  Decoder $ \mkError value ->
-    run (mapErrorHelp func . mkError) value
+  Decoder $ \value ->
+    mapLeft (mapErrorHelp func) (run value)
 
 
 mapErrorHelp :: (e -> e') -> Error e -> Error e'
@@ -235,16 +258,16 @@ mapErrorHelp func err =
   case err of
     Field f subErr -> Field f (mapErrorHelp func subErr)
     Index i subErr -> Index i (mapErrorHelp func subErr)
-    OneOf errors   -> OneOf (map (mapErrorHelp func) errors)
+    OneOf errors   -> OneOf (fmap (mapErrorHelp func) errors)
     Failure v e    -> Failure v (func e)
     Expecting v e  -> Expecting v e
 
 
 apply :: Decoder e (a -> b) -> Decoder e a -> Decoder e b
 apply (Decoder runFunc) (Decoder runArg) =
-  Decoder $ \mkError value ->
-    do  func <- runFunc mkError value
-        arg <- runArg mkError value
+  Decoder $ \value ->
+    do  func <- runFunc value
+        arg <- runArg value
         return (func arg)
 
 
@@ -275,21 +298,21 @@ instance Monad (Decoder e) where
 
 succeed :: a -> Decoder e a
 succeed a =
-  Decoder $ \_ _ -> Right a
+  Decoder $ \_ -> Right a
 
 
 fail :: e -> Decoder e a
 fail err =
-  Decoder $ \mkError value ->
-    Left (mkError (Failure value err))
+  Decoder $ \value ->
+    Left (Failure value err)
 
 
 andThen :: (a -> Decoder e b) -> Decoder e a -> Decoder e b
 andThen callback (Decoder runA) =
-  Decoder $ \mkError value ->
-    do  a <- runA mkError value
+  Decoder $ \value ->
+    do  a <- runA value
         let (Decoder runB) = callback a
-        runB mkError value
+        runB value
 
 
 
@@ -301,16 +324,16 @@ oneOf decoders =
   Decoder (oneOfHelp decoders [])
 
 
-oneOfHelp :: [Decoder e a] -> [Error e] -> (Error e -> Error e) -> Value -> Either (Error e) a
-oneOfHelp decoders errors mkError value =
+oneOfHelp :: [Decoder e a] -> [Error e] -> Value -> Either (Error e) a
+oneOfHelp decoders errors value =
   case decoders of
     [] ->
-      Left (mkError (OneOf (reverse errors)))
+      Left (OneOf (reverse errors))
 
     Decoder run : otherDecoders ->
-      case run mkError value of
+      case run value of
         Right a ->
           Right a
 
         Left err ->
-          oneOfHelp otherDecoders (err:errors) mkError value
+          oneOfHelp otherDecoders (err:errors) value
