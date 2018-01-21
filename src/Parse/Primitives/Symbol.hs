@@ -15,7 +15,6 @@ import Control.Exception (assert)
 import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.Char8 as Char8
 import qualified Data.Char as Char
-import qualified Data.Map as Map
 import qualified Data.IntSet as IntSet
 import qualified Data.Vector as Vector
 import Data.Text (Text)
