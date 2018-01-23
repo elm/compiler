@@ -98,15 +98,12 @@ encode =
   Encode.text
 
 
-data Error = BadModuleName
-
-
-decoder :: Decode.Decoder Error Raw
+decoder :: Decode.Decoder Text.Text Raw
 decoder =
   do  txt <- Decode.text
       case nameFromText txt of
-        Nothing ->
-          Decode.fail BadModuleName
-
         Just name ->
           Decode.succeed name
+
+        Nothing ->
+          Decode.fail txt
