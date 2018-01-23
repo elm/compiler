@@ -2,10 +2,11 @@
 {-# LANGUAGE BangPatterns, MagicHash, OverloadedStrings, UnboxedTuples #-}
 module Json.Decode
   ( parse
+  , Failure(..)
   -- re-export from Json.Decode.Internals
-  , Json.Decoder, Json.Error(..)
+  , Json.Decoder, Json.Error(..), Json.Type(..)
   , Json.string, Json.text, Json.bool, Json.int
-  , Json.list, Json.dict, Json.maybe
+  , Json.list, Json.dict, Json.pairs, Json.maybe
   , Json.field, Json.at
   , Json.index
   , Json.map, Json.map2, Json.mapError
@@ -38,25 +39,24 @@ import qualified Reporting.Region as R
 -- PARSE
 
 
-data Result e a
+data Failure e
   = BadJson E.Error
   | BadContent (Json.Error e)
-  | Success a
 
 
-parse :: Json.Decoder e a -> B.ByteString -> Result e a
+parse :: Json.Decoder e a -> B.ByteString -> Either (Failure e) a
 parse (Json.Decoder run) bytestring =
   case P.run jsonFile bytestring of
     Left err ->
-      BadJson err
+      Left (BadJson err)
 
     Right value ->
       case run value of
         Left err ->
-          BadContent err
+          Left (BadContent err)
 
         Right answer ->
-          Success answer
+          Right answer
 
 
 
@@ -181,14 +181,17 @@ string =
   Parser $ \(State fp offset terminal indent row col ctx) cok cerr _ eerr ->
     if offset < terminal && I.unsafeIndex fp offset == 0x22 {- " -} then
 
-      case stringHelp fp (offset + 1) terminal row (col + 1) of
+      let
+        !offset1 = offset + 1
+      in
+      case stringHelp fp offset1 terminal row (col + 1) of
         Err err ->
           cerr err
 
         Ok newOffset newRow newCol ->
           let
             !newState = State fp newOffset terminal indent newRow newCol ctx
-            !content = Text.decodeUtf8 (B.PS fp offset (newOffset - offset))
+            !content = Text.decodeUtf8 (B.PS fp offset1 (newOffset - offset1 - 1))
           in
             cok content newState noError
 

@@ -4,6 +4,7 @@ module Json.Decode.Internals
   ( Value(..)
   , Decoder(..)
   , Error(..)
+  , Type(..)
   , string, text, bool, int
   , list, dict, pairs
   , maybe
@@ -23,6 +24,7 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import Data.Vector ((!?))
+import qualified Json.Encode as E
 
 
 
@@ -55,8 +57,8 @@ data Error e
   = Field Text (Error e)
   | Index Int (Error e)
   | OneOf [Error e]
-  | Failure Value e
-  | Expecting Value Type
+  | Failure E.Value e
+  | Expecting E.Value Type
 
 
 data Type
@@ -67,13 +69,6 @@ data Type
   | TInt
   | TObjectWith Text
   | TArrayWith Int Int
-
-
-mapLeft :: (e -> e') -> Either e a -> Either e' a
-mapLeft func eith =
-  case eith of
-    Right a -> Right a
-    Left e -> Left (func e)
 
 
 
@@ -93,7 +88,7 @@ text =
         Right txt
 
       _ ->
-        Left (Expecting value TString)
+        Left (expecting value TString)
 
 
 bool :: Decoder e Bool
@@ -107,7 +102,7 @@ bool =
         Right False
 
       _ ->
-        Left (Expecting value TBool)
+        Left (expecting value TBool)
 
 
 int :: Decoder e Int
@@ -118,7 +113,7 @@ int =
         Right integer
 
       _ ->
-        Left (Expecting value TInt)
+        Left (expecting value TInt)
 
 
 
@@ -137,7 +132,7 @@ list (Decoder run) =
         Vector.toList <$> Vector.imapM runHelp vector
 
       _ ->
-        Left (Expecting value TArray)
+        Left (expecting value TArray)
 
 
 dict :: Decoder e a -> Decoder e (HashMap.HashMap Text a)
@@ -152,7 +147,7 @@ dict (Decoder run) =
         HashMap.traverseWithKey runHelp hashMap
 
       _ ->
-        Left (Expecting value TObject)
+        Left (expecting value TObject)
 
 
 pairs :: Decoder e a -> Decoder e [(Text, a)]
@@ -169,7 +164,7 @@ pairs (Decoder run) =
         traverse runHelp kvs
 
       _ ->
-        Left (Expecting value TObject)
+        Left (expecting value TObject)
 
 
 maybe :: Decoder e a -> Decoder e (Maybe a)
@@ -197,10 +192,10 @@ field k (Decoder run) =
             mapLeft (Field k) (run v)
 
           Nothing ->
-            Left (Expecting value (TObjectWith k))
+            Left (expecting value (TObjectWith k))
 
       _ ->
-        Left (Expecting value TObject)
+        Left (expecting value TObject)
 
 
 at :: [Text] -> Decoder e a -> Decoder e a
@@ -222,29 +217,14 @@ index i (Decoder run) =
             mapLeft (Index i) (run v)
 
           Nothing ->
-            Left (Expecting value (TArrayWith i (Vector.length vector)))
+            Left (expecting value (TArrayWith i (Vector.length vector)))
 
       _ ->
-        Left (Expecting value TArray)
+        Left (expecting value TArray)
 
 
 
--- MAPPING
-
-
-map :: (a -> value) -> Decoder e a -> Decoder e value
-map func (Decoder run) =
-  Decoder $ \value ->
-    func <$> run value
-
-
-
-map2 :: (a -> b -> value) -> Decoder e a -> Decoder e b -> Decoder e value
-map2 func (Decoder runA) (Decoder runB) =
-  Decoder $ \value ->
-    func
-      <$> runA value
-      <*> runB value
+-- ERRORS
 
 
 mapError :: (e -> e') -> Decoder e a -> Decoder e' a
@@ -263,33 +243,54 @@ mapErrorHelp func err =
     Expecting v e  -> Expecting v e
 
 
+mapLeft :: (e -> e') -> Either e a -> Either e' a
+mapLeft func eith =
+  case eith of
+    Right a -> Right a
+    Left e -> Left (func e)
+
+
+expecting :: Value -> Type -> Error e
+expecting value tipe =
+  Expecting (toEncodeValue value) tipe
+
+
+toEncodeValue :: Value -> E.Value
+toEncodeValue value =
+  case value of
+    Array vector    -> E.array (Vector.toList (Vector.map toEncodeValue vector))
+    Object fields _ -> E.object (fmap (\(k,v) -> (Text.unpack k, toEncodeValue v)) fields)
+    String txt      -> E.text txt
+    TRUE            -> E.bool True
+    FALSE           -> E.bool False
+    Integer n       -> E.int n
+    NULL            -> E.null
+
+
+
+-- MAPPING
+
+
+map :: (a -> value) -> Decoder e a -> Decoder e value
+map func (Decoder run) =
+  Decoder $ \value ->
+    func <$> run value
+
+
+map2 :: (a -> b -> value) -> Decoder e a -> Decoder e b -> Decoder e value
+map2 func (Decoder runA) (Decoder runB) =
+  Decoder $ \value ->
+    func
+      <$> runA value
+      <*> runB value
+
+
 apply :: Decoder e (a -> b) -> Decoder e a -> Decoder e b
 apply (Decoder runFunc) (Decoder runArg) =
   Decoder $ \value ->
     do  func <- runFunc value
         arg <- runArg value
         return (func arg)
-
-
-instance Functor (Decoder e) where
-  fmap =
-    map
-
-
-instance Applicative (Decoder e) where
-  pure =
-    succeed
-
-  (<*>) =
-    apply
-
-
-instance Monad (Decoder e) where
-  return =
-    succeed
-
-  (>>=) decoder callback =
-    andThen callback decoder
 
 
 
@@ -304,7 +305,7 @@ succeed a =
 fail :: e -> Decoder e a
 fail err =
   Decoder $ \value ->
-    Left (Failure value err)
+    Left (Failure (toEncodeValue value) err)
 
 
 andThen :: (a -> Decoder e b) -> Decoder e a -> Decoder e b
@@ -337,3 +338,22 @@ oneOfHelp decoders errors value =
 
         Left err ->
           oneOfHelp otherDecoders (err:errors) value
+
+
+
+-- INSTANCES
+
+
+instance Functor (Decoder e) where
+  fmap = map
+
+
+instance Applicative (Decoder e) where
+  pure = succeed
+  (<*>) = apply
+
+
+instance Monad (Decoder e) where
+  return = succeed
+  (>>=) decoder callback =
+    andThen callback decoder
