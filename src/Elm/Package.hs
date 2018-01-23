@@ -245,7 +245,7 @@ versionToText (Version major minor patch) =
     <> B.decimal patch
 
 
-versionFromText :: Text -> Either String Version
+versionFromText :: Text -> Maybe Version
 versionFromText text =
   case Text.splitOn "." text of
     [major, minor, patch] ->
@@ -255,17 +255,17 @@ versionFromText text =
         <*> toNumber patch
 
     _ ->
-      Left "Must have format MAJOR.MINOR.PATCH (e.g. 1.0.2)"
+      Nothing
 
 
-toNumber :: Text -> Either String Word16
+toNumber :: Text -> Maybe Word16
 toNumber txt =
   case Text.decimal txt of
     Right (n, "") ->
-      Right n
+      Just n
 
     _ ->
-      Left "Must have format MAJOR.MINOR.PATCH (e.g. 1.0.2)"
+      Nothing
 
 
 
@@ -320,11 +320,12 @@ decoder :: Decode.Decoder String Name
 decoder =
   do  txt <- Decode.text
       case fromText txt of
+        Right name ->
+          Decode.succeed name
+
         Left msg ->
           Decode.fail msg
 
-        Right name ->
-          Decode.succeed name
 
 
 encode :: Name -> Encode.Value
@@ -333,15 +334,15 @@ encode name =
 
 
 
-versionDecoder :: Decode.Decoder String Version
+versionDecoder :: Decode.Decoder Text Version
 versionDecoder =
   do  txt <- Decode.text
       case versionFromText txt of
-        Right version ->
+        Just version ->
           Decode.succeed version
 
-        Left msg ->
-          Decode.fail msg
+        Nothing ->
+          Decode.fail txt
 
 
 encodeVersion :: Version -> Encode.Value
