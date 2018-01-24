@@ -1,6 +1,11 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Parse.Type (expression, unionConstructor) where
+module Parse.Type
+  ( expression
+  , unionConstructor
+  )
+  where
+
 
 import Data.Text (Text)
 
