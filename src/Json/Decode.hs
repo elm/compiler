@@ -17,6 +17,7 @@ module Json.Decode
 
 
 import Prelude hiding (length)
+import qualified Data.ByteString.Char8 as Char8
 import qualified Data.ByteString.Internal as B
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
@@ -30,6 +31,7 @@ import qualified Parse.Primitives as P
 import qualified Parse.Primitives.Internals as I
 import Parse.Primitives.Internals (Parser(..), State(..), noError)
 import qualified Parse.Primitives.Keyword as Keyword
+import qualified Parse.Primitives.Number as Number
 import qualified Parse.Primitives.Symbol as Symbol
 import qualified Reporting.Error.Syntax as E
 import qualified Reporting.Region as R
@@ -169,7 +171,41 @@ arrayHelp !length revEntries =
 
 number :: Parser Json.Value
 number =
-  error "TODO"
+  Parser $ \(State fp offset terminal indent row col ctx) cok cerr _ eerr ->
+    if offset < terminal then
+
+      let
+        !word = I.unsafeIndex fp offset
+        !offset1 = offset + 1
+      in
+      if word <= 0x39 {- 9 -} && word >= 0x31 {- 1 -} then
+        case Number.chompInt fp offset1 terminal (fromIntegral (word - 0x30 {- 0 -})) of
+          Number.Err newOffset problem ->
+            cerr (E.ParseError row (col + (newOffset - offset)) problem)
+
+          Number.OkInt newOffset n ->
+            let
+              !newState = State fp newOffset terminal indent row (col + (newOffset - offset)) ctx
+            in
+            cok (Json.Integer n) newState noError
+
+          Number.OkFloat newOffset ->
+            let
+              !length = newOffset - offset
+              !scientific = read $ Char8.unpack $ B.PS fp offset length
+              !newState = State fp newOffset terminal indent row (col + length) ctx
+            in
+            cok (Json.Float scientific) newState noError
+
+      else if word == 0x30 {- 0 -} then
+        cok (Json.Integer 0) (State fp offset1 terminal indent row (col + 1) ctx) noError
+
+      else
+        eerr noError
+
+    else
+      eerr noError
+
 
 
 

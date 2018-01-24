@@ -3,6 +3,8 @@
 module Parse.Primitives.Number
   ( Number(..)
   , number
+  , Outcome(..)
+  , chompInt
   , chompHex
   , precedence
   )

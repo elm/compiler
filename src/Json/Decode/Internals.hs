@@ -21,6 +21,7 @@ import Data.Text (Text)
 import Prelude hiding (fail, map, maybe)
 
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Scientific as Sci
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import Data.Vector ((!?))
@@ -35,9 +36,10 @@ data Value
   = Array (Vector.Vector Value)
   | Object [(Text, Value)] (HashMap.HashMap Text Value)
   | String Text
+  | Integer Int
+  | Float Sci.Scientific
   | TRUE
   | FALSE
-  | Integer Int
   | NULL
 
 
@@ -261,9 +263,10 @@ toEncodeValue value =
     Array vector    -> E.array (Vector.toList (Vector.map toEncodeValue vector))
     Object fields _ -> E.object (fmap (\(k,v) -> (Text.unpack k, toEncodeValue v)) fields)
     String txt      -> E.text txt
+    Integer n       -> E.int n
+    Float n         -> E.number n
     TRUE            -> E.bool True
     FALSE           -> E.bool False
-    Integer n       -> E.int n
     NULL            -> E.null
 
 
