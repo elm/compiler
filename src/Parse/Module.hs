@@ -12,7 +12,9 @@ import qualified Data.ByteString as B
 import Data.Text (Text)
 
 import qualified AST.Source as Src
+import qualified Elm.Compiler.Imports as Imports
 import qualified Elm.Name as N
+import qualified Elm.Package as Pkg
 import Parse.Primitives (Parser, oneOf)
 import qualified Parse.Primitives as P
 import qualified Parse.Primitives.Keyword as Keyword
@@ -28,11 +30,11 @@ import qualified Reporting.Region as R
 -- MODULE
 
 
-module_ :: Parser decls -> Parser (Src.Module decls)
-module_ chompDecls =
+module_ :: Pkg.Name -> Parser decls -> Parser (Src.Module decls)
+module_ pkgName chompDecls =
   do  freshLine
       header <- oneOf [ Just <$> chompHeader, return Nothing ]
-      imports <- chompImports []
+      imports <- Imports.addDefaults pkgName <$> chompImports []
       decls <- chompDecls
       return (Src.Module header imports decls)
 

@@ -25,8 +25,14 @@ import qualified Validate
 program :: Pkg.Name -> B.ByteString -> Result.Result i w Error.Error Valid.Module
 program pkg src =
   let
+    bodyParser =
+      if Pkg.isKernel pkg then
+        chompDeclarations =<< chompInfixes []
+      else
+        chompDeclarations []
+
     parser =
-      if Pkg.isKernel pkg then fancyParser else normalParser
+      Module.module_ pkg bodyParser <* P.endOfFile
   in
   case P.run parser src of
     Right modul ->
@@ -34,24 +40,6 @@ program pkg src =
 
     Left syntaxError ->
       Result.throw syntaxError
-
-
-
--- CHOMP PROGRAMS
-
-
-normalParser :: P.Parser (Src.Module [Src.Decl])
-normalParser =
-  do  srcModule <- Module.module_ (chompDeclarations [])
-      P.endOfFile
-      return srcModule
-
-
-fancyParser :: P.Parser (Src.Module [Src.Decl])
-fancyParser =
-  do  srcModule <- Module.module_ (chompDeclarations =<< chompInfixes [])
-      P.endOfFile
-      return srcModule
 
 
 
