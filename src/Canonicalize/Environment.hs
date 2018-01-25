@@ -168,7 +168,7 @@ findType region (Env _ _ types _ _ _ _ _) name =
       error "TODO findType ambiguous unqualified"
 
     Nothing ->
-      error "TODO findType not found" region
+      error ("TODO findType not found: " ++ N.toString name) region
 
 
 findTypeQual :: R.Region -> Env -> N.Name -> N.Name -> Result i w Type
@@ -200,10 +200,10 @@ findCtor region (Env _ _ _ ctors _ _ _ _) name =
       Result.ok ctor
 
     Just _ ->
-      error "TODO findCtor ambiguous unqualified"
+      error ("TODO findCtor ambiguous unqualified " ++ N.toString name)
 
     Nothing ->
-      error "TODO findCtor not found" region
+      error ("TODO findCtor not found " ++ N.toString name) region
 
 
 findCtorQual :: R.Region -> Env -> N.Name -> N.Name -> Result i w Ctor
@@ -235,7 +235,7 @@ findBinop region (Env _ _ _ _ binops _ _ _) name =
       Result.ok binop
 
     Nothing ->
-      Result.throw (error "TODO unknown binop" region)
+      Result.throw (error ("TODO unknown binop " ++ N.toString name) region)
 
     Just _ ->
-      Result.throw (error "TODO ambiguous binop" region)
+      Result.throw (error ("TODO ambiguous binop " ++ N.toString name) region)

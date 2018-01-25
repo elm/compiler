@@ -705,10 +705,10 @@ findVar region (Env.Env localHome vars _ _ _ _ _ _) name =
                   Can.VarForeign home name annotation
 
             OneOrMore.More _ _ ->
-              Result.throw (error "TODO ambiguous unqualified" region)
+              Result.throw (error ("TODO ambiguous unqualified " ++ N.toString name) region)
 
     Nothing ->
-      Result.throw (error "TODO no name" region)
+      Result.throw (error ("TODO no name " ++ N.toString name) region)
 
 
 findVarQual :: R.Region -> Env.Env -> N.Name -> N.Name -> Result FreeLocals w Can.Expr_
@@ -724,16 +724,16 @@ findVarQual region (Env.Env localHome _ _ _ _ vars _ _) prefix name =
               Can.VarForeign home name annotation
 
         Just _ ->
-          Result.throw (error "TODO ambiguous qualified" region)
+          Result.throw (error ("TODO ambiguous qualified " ++ N.toString name) region)
 
         Nothing ->
-          Result.throw (error "TODO no qualified" region)
+          Result.throw (error ("TODO no qualified " ++ N.toString name) region)
 
     Nothing ->
       if ModuleName.isKernel prefix then
         Result.ok $ Can.VarKernel (ModuleName.getKernel prefix) name
       else
-        Result.throw (error "TODO no name" region)
+        Result.throw (error ("TODO no name " ++ N.toString name) region)
 
 
 -- FIND CTOR

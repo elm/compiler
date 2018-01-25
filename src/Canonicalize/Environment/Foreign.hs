@@ -269,7 +269,7 @@ throwImportNotFound region name knownModules =
 
 throwExposingNotFound :: R.Region -> N.Name -> Result i w a
 throwExposingNotFound region name =
-  Result.throw (error "TODO throwExposingNotFound" region name)
+  Result.throw (error ("TODO throwExposingNotFound " ++ N.toString name) region name)
 
 {-
   let
