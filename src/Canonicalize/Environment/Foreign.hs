@@ -14,7 +14,6 @@ import qualified AST.Source as Src
 import qualified AST.Module.Name as ModuleName
 import qualified Canonicalize.Environment as Env
 import qualified Data.List as List
-import qualified Data.OneOrMore as OneOrMore
 import qualified Elm.Interface as I
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
@@ -58,11 +57,11 @@ isNotKernel (Src.Import (A.At _ name) _ _) =
 
 data State =
   State
-    { _vars :: Env.Exposed Env.ForeignVar
+    { _vars :: Env.Exposed Can.Annotation
     , _types :: Env.Exposed Env.Type
     , _ctors :: Env.Exposed Env.Ctor
     , _binops :: Env.Exposed Env.Binop
-    , _q_vars :: Env.Qualified Env.ForeignVar
+    , _q_vars :: Env.Qualified Can.Annotation
     , _q_types :: Env.Qualified Env.Type
     , _q_ctors :: Env.Qualified Env.Ctor
     }
@@ -75,7 +74,7 @@ emptyState =
 
 emptyTypes :: Env.Exposed Env.Type
 emptyTypes =
-  Map.singleton "List" (OneOrMore.one (Env.Union 1 ModuleName.list))
+  Map.singleton "List" (Map.singleton ModuleName.list (Env.Union 1 ModuleName.list))
 
 
 
@@ -90,8 +89,8 @@ addImport (State vs ts cs bs qvs qts qcs) (Import home (I.Interface defs unions 
         (Map.mapWithKey (unionToType home) unions)
         (Map.mapWithKey (aliasToType home) aliases)
 
-    !vars = Map.map (OneOrMore.one . Env.ForeignVar home) defs
-    !types = Map.map (OneOrMore.one . fst) rawTypeInfo
+    !vars = Map.map (Map.singleton home) defs
+    !types = Map.map (Map.singleton home . fst) rawTypeInfo
     !ctors = Map.foldr (addExposed . snd) Map.empty rawTypeInfo
 
     !qvs2 = addQualified prefix vars qvs
@@ -117,7 +116,7 @@ addImport (State vs ts cs bs qvs qts qcs) (Import home (I.Interface defs unions 
 
 addExposed :: Env.Exposed a -> Env.Exposed a -> Env.Exposed a
 addExposed =
-  Map.unionWith OneOrMore.more
+  Map.unionWith Map.union
 
 
 addQualified :: N.Name -> Env.Exposed a -> Env.Qualified a -> Env.Qualified a
@@ -133,7 +132,7 @@ unionToType :: ModuleName.Canonical -> N.Name -> Can.Union -> (Env.Type, Env.Exp
 unionToType home name union@(Can.Union vars ctors _ _) =
   let
     addCtor dict (Can.Ctor ctor index _ args) =
-      Map.insert ctor (OneOrMore.one (Env.Ctor home name union index args)) dict
+      Map.insert ctor (Map.singleton home (Env.Ctor home name union index args)) dict
   in
   ( Env.Union (length vars) home
   , List.foldl' addCtor Map.empty ctors
@@ -150,13 +149,13 @@ aliasToType home name (Can.Alias vars tipe maybeRecordArgs) =
         Map.empty
 
       Just _ ->
-        Map.singleton name (OneOrMore.one (Env.RecordCtor home vars tipe))
+        Map.singleton name (Map.singleton home (Env.RecordCtor home vars tipe))
   )
 
 
-binopToBinop :: ModuleName.Canonical -> N.Name -> I.Binop -> OneOrMore.OneOrMore Env.Binop
+binopToBinop :: ModuleName.Canonical -> N.Name -> I.Binop -> Map.Map ModuleName.Canonical Env.Binop
 binopToBinop home op (I.Binop name annotation associativity precedence) =
-  OneOrMore.one (Env.Binop op home name annotation associativity precedence)
+  Map.singleton home (Env.Binop op home name annotation associativity precedence)
 
 
 
@@ -165,7 +164,7 @@ binopToBinop home op (I.Binop name annotation associativity precedence) =
 
 addExposedValue
   :: ModuleName.Canonical
-  -> Env.Exposed Env.ForeignVar
+  -> Env.Exposed Can.Annotation
   -> Map.Map N.Name (Env.Type, Env.Exposed Env.Ctor)
   -> Map.Map N.Name I.Binop
   -> State
@@ -189,13 +188,13 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) (A.At reg
               case tipe of
                 Env.Union _ _ ->
                   let
-                    !ts2 = Map.insert name (OneOrMore.one tipe) ts
+                    !ts2 = Map.insert name (Map.singleton home tipe) ts
                   in
                   Result.ok (State vs ts2 cs bs qvs qts qcs)
 
                 Env.Alias _ _ _ _ ->
                   let
-                    !ts2 = Map.insert name (OneOrMore.one tipe) ts
+                    !ts2 = Map.insert name (Map.singleton home tipe) ts
                     !cs2 = addExposed cs ctors
                   in
                   Result.ok (State vs ts2 cs2 bs qvs qts qcs)
@@ -209,7 +208,7 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) (A.At reg
               case tipe of
                 Env.Union _ _ ->
                   let
-                    !ts2 = Map.insert name (OneOrMore.one tipe) ts
+                    !ts2 = Map.insert name (Map.singleton home tipe) ts
                     !cs2 = addExposed cs ctors
                   in
                   Result.ok (State vs ts2 cs2 bs qvs qts qcs)

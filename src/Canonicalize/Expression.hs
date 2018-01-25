@@ -14,6 +14,7 @@ import Control.Monad (foldM)
 import qualified Data.Graph as Graph
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
+import qualified Data.Map.Strict.Internal as I
 import qualified Data.Text as Text
 
 import qualified AST.Canonical as Can
@@ -27,7 +28,6 @@ import qualified Canonicalize.Environment.Dups as Dups
 import qualified Canonicalize.Pattern as Pattern
 import qualified Canonicalize.Type as Type
 import qualified Data.Index as Index
-import qualified Data.OneOrMore as OneOrMore
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
@@ -695,17 +695,15 @@ findVar region (Env.Env localHome vars _ _ _ _ _ _) name =
         Env.TopLevel _ ->
           logVar name (Can.VarTopLevel localHome name)
 
-        Env.Foreign bag ->
-          case bag of
-            OneOrMore.One (Env.ForeignVar home annotation) ->
-              Result.ok $
-                if home == ModuleName.debug then
-                  Can.VarDebug localHome name annotation
-                else
-                  Can.VarForeign home name annotation
+        Env.Foreign (I.Bin 1 home annotation _ _) ->
+          Result.ok $
+            if home == ModuleName.debug then
+              Can.VarDebug localHome name annotation
+            else
+              Can.VarForeign home name annotation
 
-            OneOrMore.More _ _ ->
-              Result.throw (error ("TODO ambiguous unqualified " ++ N.toString name) region)
+        Env.Foreign _ ->
+          Result.throw (error ("TODO ambiguous unqualified " ++ N.toString name) region)
 
     Nothing ->
       Result.throw (error ("TODO no name " ++ N.toString name) region)
@@ -716,7 +714,7 @@ findVarQual region (Env.Env localHome _ _ _ _ vars _ _) prefix name =
   case Map.lookup prefix vars of
     Just qualified ->
       case Map.lookup name qualified of
-        Just (OneOrMore.One (Env.ForeignVar home annotation)) ->
+        Just (I.Bin 1 home annotation _ _) ->
           Result.ok $
             if home == ModuleName.debug then
               Can.VarDebug localHome name annotation

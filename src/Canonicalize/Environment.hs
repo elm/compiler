@@ -5,7 +5,6 @@ module Canonicalize.Environment
   , Exposed
   , Qualified
   , Var(..)
-  , ForeignVar(..)
   , Type(..)
   , Ctor(..)
   , addLocals
@@ -19,14 +18,14 @@ module Canonicalize.Environment
   where
 
 
-import qualified Data.Map.Strict as Map
 import qualified Data.Map.Merge.Strict as Map
+import qualified Data.Map.Strict as Map
+import qualified Data.Map.Strict.Internal as I
 
 import qualified AST.Utils.Binop as Binop
 import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
-import qualified Data.OneOrMore as OneOrMore
 import qualified Elm.Name as N
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Region as R
@@ -52,18 +51,18 @@ data Env =
     , _types :: Exposed Type
     , _ctors :: Exposed Ctor
     , _binops :: Exposed Binop
-    , _q_vars :: Qualified ForeignVar
+    , _q_vars :: Qualified Can.Annotation
     , _q_types :: Qualified Type
     , _q_ctors :: Qualified Ctor
     }
 
 
 type Exposed a =
-  Map.Map N.Name (OneOrMore.OneOrMore a)
+  Map.Map N.Name (Map.Map ModuleName.Canonical a)
 
 
 type Qualified a =
-  Map.Map N.Name (Map.Map N.Name (OneOrMore.OneOrMore a))
+  Map.Map N.Name (Map.Map N.Name (Map.Map ModuleName.Canonical a))
 
 
 
@@ -73,11 +72,7 @@ type Qualified a =
 data Var
   = Local R.Region
   | TopLevel R.Region
-  | Foreign (OneOrMore.OneOrMore ForeignVar)
-
-
-data ForeignVar =
-  ForeignVar ModuleName.Canonical Can.Annotation
+  | Foreign (Map.Map ModuleName.Canonical Can.Annotation)
 
 
 
@@ -161,7 +156,7 @@ addLocalBoth name region var =
 findType :: R.Region -> Env -> N.Name -> Result i w Type
 findType region (Env _ _ types _ _ _ _ _) name =
   case Map.lookup name types of
-    Just (OneOrMore.One tipe) ->
+    Just (I.Bin 1 _ tipe _ _) ->
       Result.ok tipe
 
     Just _ ->
@@ -176,7 +171,7 @@ findTypeQual region (Env _ _ _ _ _ _ types _) prefix name =
   case Map.lookup prefix types of
     Just qualified ->
       case Map.lookup name qualified of
-        Just (OneOrMore.One tipe) ->
+        Just (I.Bin 1 _ tipe _ _) ->
           Result.ok tipe
 
         Just more ->
@@ -196,7 +191,7 @@ findTypeQual region (Env _ _ _ _ _ _ types _) prefix name =
 findCtor :: R.Region -> Env -> N.Name -> Result i w Ctor
 findCtor region (Env _ _ _ ctors _ _ _ _) name =
   case Map.lookup name ctors of
-    Just (OneOrMore.One ctor) ->
+    Just (I.Bin 1 _ ctor _ _) ->
       Result.ok ctor
 
     Just _ ->
@@ -211,7 +206,7 @@ findCtorQual region (Env _ _ _ _ _ _ _ ctors) prefix name =
   case Map.lookup prefix ctors of
     Just qualified ->
       case Map.lookup name qualified of
-        Just (OneOrMore.One pattern) ->
+        Just (I.Bin 1 _ pattern _ _) ->
           Result.ok pattern
 
         Just _ ->
@@ -231,7 +226,7 @@ findCtorQual region (Env _ _ _ _ _ _ _ ctors) prefix name =
 findBinop :: R.Region -> Env -> N.Name -> Result i w Binop
 findBinop region (Env _ _ _ _ binops _ _ _) name =
   case Map.lookup name binops of
-    Just (OneOrMore.One binop) ->
+    Just (I.Bin 1 _ binop _ _) ->
       Result.ok binop
 
     Nothing ->

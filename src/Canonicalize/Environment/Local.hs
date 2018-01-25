@@ -19,7 +19,6 @@ import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
 import qualified Canonicalize.Type as Type
 import qualified Data.Index as Index
-import qualified Data.OneOrMore as OneOrMore
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
@@ -113,8 +112,8 @@ addTypes (Valid.Module _ _ _ _ _ _ unions aliases _ _) (Env.Env home vs ts cs bs
 addUnion :: ModuleName.Canonical -> Env.Exposed Env.Type -> Valid.Union -> Result i w (Env.Exposed Env.Type)
 addUnion home types union@(Valid.Union (A.At _ name) _ _) =
   do  arity <- checkUnionFreeVars union
-      let one = OneOrMore.one (Env.Union arity home)
-      Result.ok $ Map.insertWith OneOrMore.more name one types
+      let one = Map.singleton home (Env.Union arity home)
+      Result.ok $ Map.insertWith Map.union name one types
 
 
 
@@ -136,8 +135,8 @@ addAlias env@(Env.Env home vs ts cs bs qvs qts qcs) scc =
     Graph.AcyclicSCC alias@(Valid.Alias (A.At _ name) _ tipe) ->
       do  args <- checkAliasFreeVars alias
           ctype <- Type.canonicalize env tipe
-          let one = OneOrMore.one (Env.Alias (length args) home args ctype)
-          let ts1 = Map.insertWith OneOrMore.more name one ts
+          let one = Map.singleton home (Env.Alias (length args) home args ctype)
+          let ts1 = Map.insertWith Map.union name one ts
           Result.ok $ Env.Env home vs ts1 cs bs qvs qts qcs
 
     Graph.CyclicSCC [] ->
@@ -274,7 +273,7 @@ addCtors (Valid.Module _ _ _ _ _ _ unions aliases _ _) env@(Env.Env home vs ts c
             (Dups.unions (map snd unionInfo))
             (Dups.unions (map snd aliasInfo))
 
-      let cs2 = Map.unionWith OneOrMore.more cs ctors
+      let cs2 = Map.unionWith Map.union cs ctors
 
       Result.ok
         ( Env.Env home vs ts cs2 bs qvs qts qcs
@@ -283,7 +282,7 @@ addCtors (Valid.Module _ _ _ _ _ _ unions aliases _ _) env@(Env.Env home vs ts c
         )
 
 
-type CtorDups = Dups.Dict (OneOrMore.OneOrMore Env.Ctor)
+type CtorDups = Dups.Dict (Map.Map ModuleName.Canonical Env.Ctor)
 
 
 
@@ -305,7 +304,7 @@ canonicalizeAlias env@(Env.Env home _ _ _ _ _ _ _) (Valid.Alias (A.At region nam
 
           Result.ok
             ( (name, alias)
-            , Dups.one name region (OneOrMore.one ctor)
+            , Dups.one name region (Map.singleton home ctor)
             )
 
     _ ->
@@ -351,5 +350,5 @@ toOpts ctors =
 
 toCtor :: ModuleName.Canonical -> N.Name -> Can.Union -> A.Located Can.Ctor -> CtorDups
 toCtor home typeName union (A.At region (Can.Ctor name index _ args)) =
-  Dups.one name region $ OneOrMore.one $
+  Dups.one name region $ Map.singleton home $
     Env.Ctor home typeName union index args
