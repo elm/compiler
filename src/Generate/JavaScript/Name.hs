@@ -13,6 +13,8 @@ module Generate.JavaScript.Name
   , fromCycle
   , fromKernel
   , fromField
+  , makeF
+  , makeA
   , makeLabel
   , makeTemp
   , dollar
@@ -101,7 +103,7 @@ fromGlobal (ModuleName.Canonical (Pkg.Name user project) home) name =
   Name $
     Text.encodeUtf8Builder (Text.replace "-" "_" user)
     <> "$" <> Text.encodeUtf8Builder (Text.replace "-" "_" project) -- TODO store this in a better way
-    <> "$" <> N.toBuilder home
+    <> "$" <> N.toBuilder (Text.replace "." "$" home)
     <> "$" <> N.toBuilder name
 
 
@@ -131,6 +133,16 @@ fromField mode name =
 
 
 -- TEMPORARY NAMES
+
+
+makeF :: Int -> Name
+makeF n =
+  Name ("F" <> B.intDec n)
+
+
+makeA :: Int -> Name
+makeA n =
+  Name ("A" <> B.intDec n)
 
 
 makeLabel :: N.Name -> Int -> Name

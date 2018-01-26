@@ -333,16 +333,8 @@ generateFunction args body =
 {-# NOINLINE funcHelpers #-}
 funcHelpers :: IntMap.IntMap JS.Expr
 funcHelpers =
-  IntMap.fromList
-    [ (2, JS.Ref (Name.fromLocal "F2"))
-    , (3, JS.Ref (Name.fromLocal "F3"))
-    , (4, JS.Ref (Name.fromLocal "F4"))
-    , (5, JS.Ref (Name.fromLocal "F5"))
-    , (6, JS.Ref (Name.fromLocal "F6"))
-    , (7, JS.Ref (Name.fromLocal "F7"))
-    , (8, JS.Ref (Name.fromLocal "F8"))
-    , (9, JS.Ref (Name.fromLocal "F9"))
-    ]
+  IntMap.fromList $
+    map (\n -> (n, JS.Ref (Name.makeF n))) [2..9]
 
 
 
@@ -397,16 +389,8 @@ generateNormalCall func args =
 {-# NOINLINE callHelpers #-}
 callHelpers :: IntMap.IntMap JS.Expr
 callHelpers =
-  IntMap.fromList
-    [ (2, JS.Ref (Name.fromLocal "A2"))
-    , (3, JS.Ref (Name.fromLocal "A3"))
-    , (4, JS.Ref (Name.fromLocal "A4"))
-    , (5, JS.Ref (Name.fromLocal "A5"))
-    , (6, JS.Ref (Name.fromLocal "A6"))
-    , (7, JS.Ref (Name.fromLocal "A7"))
-    , (8, JS.Ref (Name.fromLocal "A8"))
-    , (9, JS.Ref (Name.fromLocal "A9"))
-    ]
+  IntMap.fromList $
+    map (\n -> (n, JS.Ref (Name.makeA n))) [2..9]
 
 
 
