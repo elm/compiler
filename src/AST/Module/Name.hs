@@ -123,12 +123,12 @@ bitwise = Canonical Pkg.core N.bitwise
 
 {-# NOINLINE jsonDecode #-}
 jsonDecode :: Canonical
-jsonDecode = Canonical Pkg.core "Json.Decode"
+jsonDecode = Canonical Pkg.json "Json.Decode"
 
 
 {-# NOINLINE jsonEncode #-}
 jsonEncode :: Canonical
-jsonEncode = Canonical Pkg.core "Json.Encode"
+jsonEncode = Canonical Pkg.json "Json.Encode"
 
 
 
