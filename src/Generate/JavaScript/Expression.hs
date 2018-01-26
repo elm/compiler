@@ -893,6 +893,10 @@ generateIfTest mode root (path, test) =
       JS.Prefix JS.PrefixLNot $
         JS.Access value (Name.fromLocal "b")
 
+    DT.IsTuple ->
+      error "COMPILER BUG - there should never be tests on a tuple"
+
+
 
 generateCaseBranch :: Mode -> N.Name -> N.Name -> (DT.Test, Opt.Decider Opt.Choice) -> JS.Case
 generateCaseBranch mode label root (test, subTree) =
@@ -923,6 +927,9 @@ generateCaseValue mode test =
 
     DT.IsNil ->
       error "COMPILER BUG - there should never be three tests on a list"
+
+    DT.IsTuple ->
+      error "COMPILER BUG - there should never be three tests on a tuple"
 
 
 generateCaseTest :: Mode -> N.Name -> DT.Path -> DT.Test -> JS.Expr
@@ -965,6 +972,9 @@ generateCaseTest mode root path exampleTest =
       error "COMPILER BUG - there should never be three tests on a list"
 
     DT.IsNil ->
+      error "COMPILER BUG - there should never be three tests on a list"
+
+    DT.IsTuple ->
       error "COMPILER BUG - there should never be three tests on a list"
 
 

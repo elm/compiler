@@ -74,6 +74,7 @@ data Test
   = IsCtor N.Name Index.ZeroBased Int Can.CtorOpts
   | IsCons
   | IsNil
+  | IsTuple
   | IsInt Int
   | IsChr Text
   | IsStr Text
@@ -145,8 +146,17 @@ isComplete tests =
     IsNil ->
       length tests == 2
 
-    _ ->
-        False
+    IsTuple ->
+      True
+
+    IsChr _ ->
+      False
+
+    IsStr _ ->
+      False
+
+    IsInt _ ->
+      False
 
 
 
@@ -158,58 +168,63 @@ the only variant so we can skip doing any tests on it.
 -}
 flattenPatterns :: Branch -> Branch
 flattenPatterns (Branch goal pathPatterns) =
-  Branch goal (concatMap flatten pathPatterns)
+  Branch goal (foldr flatten [] pathPatterns)
 
 
-flatten :: (Path, Can.Pattern) -> [(Path, Can.Pattern)]
-flatten pathPattern@(path, A.At region pattern) =
+flatten :: (Path, Can.Pattern) -> [(Path, Can.Pattern)] -> [(Path, Can.Pattern)]
+flatten pathPattern@(path, A.At region pattern) otherPathPatterns =
   case pattern of
     Can.PVar _ ->
-        [pathPattern]
+      pathPattern : otherPathPatterns
 
     Can.PAnything ->
-        [pathPattern]
+      pathPattern : otherPathPatterns
 
-    Can.PTuple a b Nothing ->
-        concatMap flatten (subPositions path [a,b])
+    Can.PCtor _ _ (Can.Union _ _ numAlts _) _ _ ctorArgs ->
+      if numAlts == 1 then
+        case map dearg ctorArgs of
+          [arg] ->
+            flatten (Unbox path, arg) otherPathPatterns
 
-    Can.PTuple a b (Just c) ->
-        concatMap flatten (subPositions path [a,b,c])
+          args ->
+            foldr flatten otherPathPatterns (subPositions path args)
+      else
+        pathPattern : otherPathPatterns
 
-    Can.PCtor _ _ (Can.Union _ _ 1 _) _ _ ctorArgs ->
-      case map dearg ctorArgs of
-        [arg] ->
-          flatten (Unbox path, arg)
+    Can.PTuple a b maybeC ->
+      flatten (Index Index.first path, a) $
+      flatten (Index Index.second path, b) $
+        case maybeC of
+          Nothing ->
+            otherPathPatterns
 
-        args ->
-          concatMap flatten (subPositions path args)
-
-    Can.PCtor _ _ _ _ _ _ ->
-          [pathPattern]
-
-    Can.PAlias realPattern alias ->
-        (path, A.At region (Can.PVar alias)) : flatten (path, realPattern)
-
-    Can.PRecord _ ->
-        [pathPattern]
+          Just c ->
+            flatten (Index Index.third path, c) otherPathPatterns
 
     Can.PUnit ->
-        [pathPattern]
+      otherPathPatterns
+
+    Can.PAlias realPattern alias ->
+      flatten (path, realPattern) $
+        (path, A.At region (Can.PVar alias)) : otherPathPatterns
+
+    Can.PRecord _ ->
+      pathPattern : otherPathPatterns
 
     Can.PList _ ->
-        [pathPattern]
+      pathPattern : otherPathPatterns
 
     Can.PCons _ _ ->
-        [pathPattern]
+      pathPattern : otherPathPatterns
 
     Can.PChr _ ->
-        [pathPattern]
+      pathPattern : otherPathPatterns
 
     Can.PStr _ ->
-        [pathPattern]
+      pathPattern : otherPathPatterns
 
     Can.PInt _ ->
-        [pathPattern]
+      pathPattern : otherPathPatterns
 
 
 subPositions :: Path -> [Can.Pattern] -> [(Path, Can.Pattern)]
@@ -281,55 +296,52 @@ testsAtPath selectedPath branches =
             , Set.insert test visitedTests
             )
   in
-    fst (foldr skipVisited ([], Set.empty) allTests)
+  fst (foldr skipVisited ([], Set.empty) allTests)
 
 
 testAtPath :: Path -> Branch -> Maybe Test
 testAtPath selectedPath (Branch _ pathPatterns) =
   case List.lookup selectedPath pathPatterns of
     Nothing ->
-        Nothing
+      Nothing
 
     Just (A.At _ pattern) ->
-        case pattern of
-          Can.PCtor _ _ (Can.Union _ _ numAlts opts) name index _ ->
-              Just (IsCtor name index numAlts opts)
+      case pattern of
+        Can.PCtor _ _ (Can.Union _ _ numAlts opts) name index _ ->
+            Just (IsCtor name index numAlts opts)
 
-          Can.PInt int ->
-              Just (IsInt int)
+        Can.PList ps ->
+            Just (case ps of { [] -> IsNil ; _ -> IsCons })
 
-          Can.PStr str ->
-              Just (IsStr str)
+        Can.PCons _ _ ->
+            Just IsCons
 
-          Can.PChr chr ->
-              Just (IsChr chr)
+        Can.PTuple _ _ _ ->
+            Just IsTuple
 
-          Can.PList [] ->
-              Just IsNil
+        Can.PUnit ->
+            Just IsTuple
 
-          Can.PList _ ->
-              Just IsCons
+        Can.PVar _ ->
+            Nothing
 
-          Can.PCons _ _ ->
-              Just IsCons
+        Can.PAnything ->
+            Nothing
 
-          Can.PVar _ ->
-              Nothing
+        Can.PInt int ->
+            Just (IsInt int)
 
-          Can.PAlias _ _ ->
-              error "aliases should never reach 'testAtPath' function"
+        Can.PStr str ->
+            Just (IsStr str)
 
-          Can.PAnything ->
-              Nothing
+        Can.PChr chr ->
+            Just (IsChr chr)
 
-          Can.PUnit ->
-              Nothing
+        Can.PRecord _ ->
+            Nothing
 
-          Can.PTuple _ _ _ ->
-              Nothing
-
-          Can.PRecord _ ->
-              Nothing
+        Can.PAlias _ _ ->
+            error "aliases should never reach 'testAtPath' function"
 
 
 
@@ -346,7 +358,7 @@ edgesFor path branches test =
 toRelevantBranch :: Test -> Path -> Branch -> Maybe Branch
 toRelevantBranch test path branch@(Branch goal pathPatterns) =
   case extract path pathPatterns of
-    Just (start, A.At region pattern, end) ->
+    Found start (A.At region pattern) end ->
         case pattern of
           Can.PCtor _ _ (Can.Union _ _ numAlts _) name _ ctorArgs ->
               case test of
@@ -410,33 +422,50 @@ toRelevantBranch test path branch@(Branch goal pathPatterns) =
                 _ ->
                   Nothing
 
-          _ ->
+          Can.PUnit ->
+              Just (Branch goal (start ++ end))
+
+          Can.PTuple a b maybeC ->
+              Just (Branch goal (start ++ subPositions path (a : b : Maybe.maybeToList maybeC) ++ end))
+
+          Can.PVar _ ->
               Just branch
 
-    _ ->
+          Can.PAnything ->
+              Just branch
+
+          Can.PRecord _ ->
+              Just branch
+
+          Can.PAlias _ _ ->
+              Just branch
+
+    NotFound ->
         Just branch
 
 
-extract
-    :: Path
-    -> [(Path, Can.Pattern)]
-    -> Maybe ([(Path, Can.Pattern)], Can.Pattern, [(Path, Can.Pattern)])
+data Extract
+  = NotFound
+  | Found [(Path, Can.Pattern)] Can.Pattern [(Path, Can.Pattern)]
+
+
+extract :: Path -> [(Path, Can.Pattern)] -> Extract
 extract selectedPath pathPatterns =
   case pathPatterns of
     [] ->
-        Nothing
+        NotFound
 
     first@(path, pattern) : rest ->
         if path == selectedPath then
-            Just ([], pattern, rest)
+            Found [] pattern rest
 
         else
             case extract selectedPath rest of
-              Nothing ->
-                  Nothing
+              NotFound ->
+                  NotFound
 
-              Just (start, foundPattern, end) ->
-                  Just (first : start, foundPattern, end)
+              Found start foundPattern end ->
+                  Found (first : start) foundPattern end
 
 
 
@@ -456,41 +485,20 @@ isIrrelevantTo selectedPath (Branch _ pathPatterns) =
 needsTests :: Can.Pattern -> Bool
 needsTests (A.At _ pattern) =
   case pattern of
-    Can.PVar _ ->
-        False
-
-    Can.PAnything ->
-        False
-
+    Can.PVar _            -> False
+    Can.PAnything         -> False
+    Can.PRecord _         -> False
+    Can.PCtor _ _ _ _ _ _ -> True
+    Can.PList _           -> True
+    Can.PCons _ _         -> True
+    Can.PUnit             -> True
+    Can.PTuple _ _ _      -> True
+    Can.PChr _            -> True
+    Can.PStr _            -> True
+    Can.PInt _            -> True
     Can.PAlias _ _ ->
         error "aliases should never reach 'isIrrelevantTo' function"
 
-    Can.PRecord _ ->
-        False
-
-    Can.PCtor _ _ _ _ _ _ ->
-        True
-
-    Can.PList _ ->
-        True
-
-    Can.PCons _ _ ->
-        True
-
-    Can.PUnit ->
-        False
-
-    Can.PTuple _ _ _ ->
-        False
-
-    Can.PChr _ ->
-        True
-
-    Can.PStr _ ->
-        True
-
-    Can.PInt _ ->
-        True
 
 
 
@@ -573,9 +581,10 @@ instance Binary Test where
       IsCtor a b c d -> putWord8 0 >> put a >> put b >> put c >> put d
       IsCons         -> putWord8 1
       IsNil          -> putWord8 2
-      IsChr a        -> putWord8 3 >> put a
-      IsStr a        -> putWord8 4 >> put a
-      IsInt a        -> putWord8 5 >> put a
+      IsTuple        -> putWord8 3
+      IsChr a        -> putWord8 4 >> put a
+      IsStr a        -> putWord8 5 >> put a
+      IsInt a        -> putWord8 6 >> put a
 
   get =
     do  word <- getWord8
@@ -583,9 +592,10 @@ instance Binary Test where
           0 -> liftM4 IsCtor get get get get
           1 -> pure   IsCons
           2 -> pure   IsNil
-          3 -> liftM  IsChr get
-          4 -> liftM  IsStr get
-          5 -> liftM  IsInt get
+          3 -> pure   IsTuple
+          4 -> liftM  IsChr get
+          5 -> liftM  IsStr get
+          6 -> liftM  IsInt get
           _ -> error "problem getting DecisionTree.Test binary"
 
 
