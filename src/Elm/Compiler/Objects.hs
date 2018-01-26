@@ -69,14 +69,42 @@ fromKernels kernels =
   Opt.Graph
     Map.empty
     (Map.mapKeys toGlobal (Map.map toNode kernels))
-    Map.empty
+    (Map.foldl' addKernel Map.empty kernels)
+
+
+
+-- KERNEL TO NODES
 
 
 toGlobal :: N.Name -> Opt.Global
 toGlobal home =
-  Opt.Global (ModuleName.Canonical Pkg.kernel home) N.dollar
+  Opt.Global (ModuleName.Canonical Pkg.kernel (ModuleName.getKernel home)) N.dollar
 
 
 toNode :: Kernel -> Opt.Node
 toNode (Kernel client server) =
   Opt.Kernel client server
+
+
+
+-- KERNEL TO ELM FIELDS
+
+
+addKernel :: Map.Map N.Name Int -> Kernel -> Map.Map N.Name Int
+addKernel fields (Kernel client maybeServer) =
+  addContent (maybe fields (addContent fields) maybeServer) client
+
+
+addContent :: Map.Map N.Name Int -> Opt.KContent -> Map.Map N.Name Int
+addContent fields (Opt.KContent chunks _) =
+  List.foldl' addChunk fields chunks
+
+
+addChunk :: Map.Map N.Name Int -> Opt.KChunk -> Map.Map N.Name Int
+addChunk fields chunk =
+  case chunk of
+    Opt.ElmField name ->
+      Map.insertWith (+) name 1 fields
+
+    _ ->
+      fields
