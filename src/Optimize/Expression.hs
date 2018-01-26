@@ -408,8 +408,29 @@ hasTailCall expression =
     Opt.Let _ body ->
       hasTailCall body
 
-    Opt.Case _ _ _ branches ->
-      any (hasTailCall . snd) branches
+    Opt.Destruct _ body ->
+      hasTailCall body
+
+    Opt.Case _ _ decider jumps ->
+      decidecHasTailCall decider || any (hasTailCall . snd) jumps
 
     _ ->
       False
+
+
+decidecHasTailCall :: Opt.Decider Opt.Choice -> Bool
+decidecHasTailCall decider =
+  case decider of
+    Opt.Leaf choice ->
+      case choice of
+        Opt.Inline expr ->
+          hasTailCall expr
+
+        Opt.Jump _ ->
+          False
+
+    Opt.Chain _ success failure ->
+      decidecHasTailCall success || decidecHasTailCall failure
+
+    Opt.FanOut _ tests fallback ->
+      decidecHasTailCall fallback || any (decidecHasTailCall . snd) tests

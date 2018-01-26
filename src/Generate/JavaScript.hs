@@ -150,7 +150,7 @@ addGlobalHelp mode graph global state =
 
     Opt.DefineTailFunc argNames body deps ->
       addStmt (addDeps deps state) (
-        var global (Expr.generateFunction (map Name.fromLocal argNames) (Expr.generate mode body))
+        generateTailDef mode global argNames body
       )
 
     Opt.Ctor name index arity ->
@@ -211,6 +211,19 @@ addBuilder (State revBuilders seen) builder =
 var :: Opt.Global -> Expr.Code -> JS.Stmt
 var (Opt.Global home name) code =
   JS.Var [ (Name.fromGlobal home name, Just (Expr.codeToExpr code)) ]
+
+
+
+-- GENERATE TAIL DEFS
+
+
+generateTailDef :: Name.Mode -> Opt.Global -> [N.Name] -> Opt.Expr -> JS.Stmt
+generateTailDef mode (Opt.Global home name) argNames body =
+  let
+    definition =
+      Expr.generateTailDef mode name argNames body
+  in
+  JS.Var [ (Name.fromGlobal home name, Just definition) ]
 
 
 

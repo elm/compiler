@@ -2,7 +2,7 @@
 module Generate.JavaScript.Expression
   ( generate
   , generateCtor
-  , generateFunction
+  , generateTailDef
   , generateMain
   , Code
   , codeToExpr
@@ -714,15 +714,16 @@ generateDef mode def =
       JS.Var [ (Name.fromLocal name, Just (generateJsExpr mode body)) ]
 
     Opt.TailDef name argNames body ->
-      let
-        function =
-          JS.Function Nothing (map Name.fromLocal argNames)
-            [ JS.Labelled (Name.fromLocal name) $
-                JS.While (JS.Bool True) $
-                  codeToStmt $ generate mode body
-            ]
-      in
-      JS.Var [ (Name.fromLocal name, Just function) ]
+      JS.Var [ (Name.fromLocal name, Just (generateTailDef mode name argNames body)) ]
+
+
+generateTailDef :: Mode -> N.Name -> [N.Name] -> Opt.Expr -> JS.Expr
+generateTailDef mode name argNames body =
+  JS.Function Nothing (map Name.fromLocal argNames)
+    [ JS.Labelled (Name.fromLocal name) $
+        JS.While (JS.Bool True) $
+          codeToStmt $ generate mode body
+    ]
 
 
 
