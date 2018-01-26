@@ -251,11 +251,18 @@ destructHelp path (A.At region pattern) revDs =
       destructTwo path a b revDs
 
     Can.PTuple a b (Just c) ->
-      do  name <- Names.generate
-          let newRoot = Opt.Root name
-          destructHelp (Opt.Index Index.first newRoot) a =<<
-            destructHelp (Opt.Index Index.second newRoot) b =<<
-              destructHelp (Opt.Index Index.third newRoot) c (Opt.Destructor name path : revDs)
+      case path of
+        Opt.Root _ ->
+          destructHelp (Opt.Index Index.first path) a =<<
+            destructHelp (Opt.Index Index.second path) b =<<
+              destructHelp (Opt.Index Index.third path) c revDs
+
+        _ ->
+          do  name <- Names.generate
+              let newRoot = Opt.Root name
+              destructHelp (Opt.Index Index.first newRoot) a =<<
+                destructHelp (Opt.Index Index.second newRoot) b =<<
+                  destructHelp (Opt.Index Index.third newRoot) c (Opt.Destructor name path : revDs)
 
     Can.PList [] ->
       pure revDs
@@ -276,19 +283,27 @@ destructHelp path (A.At region pattern) revDs =
       pure revDs
 
     Can.PCtor _ _ _ _ _ args ->
-      do  name <- Names.generate
-          foldM
-            (destructCtorArg (Opt.Root name))
-            (Opt.Destructor name path : revDs)
-            args
+      case path of
+        Opt.Root _ ->
+          foldM (destructCtorArg path) revDs args
+
+        _ ->
+          do  name <- Names.generate
+              foldM (destructCtorArg (Opt.Root name)) (Opt.Destructor name path : revDs) args
 
 
 destructTwo :: Opt.Path -> Can.Pattern -> Can.Pattern -> [Opt.Destructor] -> Names.Tracker [Opt.Destructor]
 destructTwo path a b revDs =
-  do  name <- Names.generate
-      let newRoot = Opt.Root name
-      destructHelp (Opt.Index Index.first newRoot) a =<<
-        destructHelp (Opt.Index Index.second newRoot) b (Opt.Destructor name path : revDs)
+  case path of
+    Opt.Root _ ->
+      destructHelp (Opt.Index Index.first path) a =<<
+        destructHelp (Opt.Index Index.second path) b revDs
+
+    _ ->
+      do  name <- Names.generate
+          let newRoot = Opt.Root name
+          destructHelp (Opt.Index Index.first newRoot) a =<<
+            destructHelp (Opt.Index Index.second newRoot) b (Opt.Destructor name path : revDs)
 
 
 destructCtorArg :: Opt.Path -> [Opt.Destructor] -> Can.PatternCtorArg -> Names.Tracker [Opt.Destructor]
