@@ -187,15 +187,15 @@ optimizeDef cycle def body =
 
 optimizeDefHelp :: Cycle -> N.Name -> [Can.Pattern] -> Can.Expr -> Opt.Expr -> Names.Tracker Opt.Expr
 optimizeDefHelp cycle name args expr body =
-  case args of
-    [] ->
-      do  oexpr <- optimize cycle expr
+  do  oexpr <- optimize cycle expr
+      case args of
+        [] ->
           pure $ Opt.Let (Opt.Def name oexpr) body
 
-    _ ->
-      do  (argNames, destructors) <- destructArgs args
-          let oexpr = Opt.Function argNames (foldr Opt.Destruct body destructors)
-          pure $ Opt.Let (Opt.Def name oexpr) body
+        _ ->
+          do  (argNames, destructors) <- destructArgs args
+              let ofunc = Opt.Function argNames (foldr Opt.Destruct oexpr destructors)
+              pure $ Opt.Let (Opt.Def name ofunc) body
 
 
 
