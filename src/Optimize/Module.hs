@@ -1,8 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Optimize.Module
-  ( Graph(..)
-  , optimize
+  ( optimize
   )
   where
 
@@ -12,49 +11,56 @@ import Control.Monad (foldM)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Data.Map ((!))
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
+import qualified AST.Utils.Type as Type
+import qualified Canonicalize.Effects as Effects
 import qualified Elm.Name as N
 import qualified Optimize.Expression as Expr
 import qualified Optimize.Names as Names
 import qualified Optimize.Port as Port
 import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Main as E
+import qualified Reporting.Region as R
+import qualified Reporting.Result as Result
+import qualified Reporting.Warning as W
 
 
 
 -- OPTIMIZE
 
 
-data Graph =
-  Graph
-    { _fields :: Map.Map N.Name Int
-    , _nodes :: Nodes
-    }
+type Result i w a =
+  Result.Result i w E.Error a
 
 
-type Nodes =
-  Map.Map Opt.Global Opt.Node
+type Annotations =
+  Map.Map N.Name Can.Annotation
 
 
-optimize :: Can.Module -> Graph
-optimize (Can.Module home _ _ decls unions aliases _ effects) =
-  addEffects home effects $
-    addUnions home unions $
-      addAliases home aliases $
-        addDecls home decls $
-          Graph Map.empty Map.empty
+optimize :: Annotations -> Can.Module -> Result i [W.Warning] Opt.Graph
+optimize annotations (Can.Module home _ _ decls unions aliases _ effects) =
+  addDecls home annotations decls $
+    addEffects home effects $
+      addUnions home unions $
+        addAliases home aliases $
+          Opt.Graph Map.empty Map.empty Map.empty
 
 
 
 -- UNION
 
 
-addUnions :: ModuleName.Canonical -> Map.Map N.Name Can.Union -> Graph -> Graph
-addUnions home unions (Graph fields nodes) =
-  Graph fields $
-    Map.foldr (addUnion home) nodes unions
+type Nodes =
+  Map.Map Opt.Global Opt.Node
+
+
+addUnions :: ModuleName.Canonical -> Map.Map N.Name Can.Union -> Opt.Graph -> Opt.Graph
+addUnions home unions (Opt.Graph mains nodes fields) =
+  Opt.Graph mains (Map.foldr (addUnion home) nodes unions) fields
 
 
 addUnion :: ModuleName.Canonical -> Can.Union -> Nodes -> Nodes
@@ -71,13 +77,13 @@ addCtorNode home nodes (Can.Ctor name index numArgs _) =
 -- ALIAS
 
 
-addAliases :: ModuleName.Canonical -> Map.Map N.Name Can.Alias -> Graph -> Graph
+addAliases :: ModuleName.Canonical -> Map.Map N.Name Can.Alias -> Opt.Graph -> Opt.Graph
 addAliases home aliases graph =
   Map.foldrWithKey (addAlias home) graph aliases
 
 
-addAlias :: ModuleName.Canonical -> N.Name -> Can.Alias -> Graph -> Graph
-addAlias home name (Can.Alias _ _ maybeFields) graph@(Graph fieldCounts nodes) =
+addAlias :: ModuleName.Canonical -> N.Name -> Can.Alias -> Opt.Graph -> Opt.Graph
+addAlias home name (Can.Alias _ _ maybeFields) graph@(Opt.Graph mains nodes fieldCounts) =
   case maybeFields of
     Nothing ->
       graph
@@ -91,9 +97,10 @@ addAlias home name (Can.Alias _ _ maybeFields) graph@(Graph fieldCounts nodes) =
         node =
           Opt.Define function Set.empty
       in
-      Graph
-        (foldr addOne fieldCounts fields)
+      Opt.Graph
+        mains
         (Map.insert (Opt.Global home name) node nodes)
+        (foldr addOne fieldCounts fields)
 
 
 toPair :: N.Name -> (N.Name, Opt.Expr)
@@ -110,8 +117,8 @@ addOne name fields =
 -- ADD EFFECTS
 
 
-addEffects :: ModuleName.Canonical -> Can.Effects -> Graph -> Graph
-addEffects home effects graph@(Graph fields nodes) =
+addEffects :: ModuleName.Canonical -> Can.Effects -> Opt.Graph -> Opt.Graph
+addEffects home effects graph@(Opt.Graph mains nodes fields) =
   case effects of
     Can.NoEffects ->
       graph
@@ -120,30 +127,30 @@ addEffects home effects graph@(Graph fields nodes) =
       Map.foldrWithKey (addPort home) graph ports
 
     Can.Manager _ _ _ manager ->
-      Graph fields $
-        let
-          fx = Opt.Global home "$fx$"
-          cmd = Opt.Global home "command"
-          sub = Opt.Global home "subscription"
-          link = Opt.Link fx
-        in
-        case manager of
-          Can.Cmd _ ->
-            Map.insert cmd link $
-            Map.insert fx (Opt.Manager Opt.Cmd) nodes
+      let
+        fx = Opt.Global home "$fx$"
+        cmd = Opt.Global home "command"
+        sub = Opt.Global home "subscription"
+        link = Opt.Link fx
+        newNodes =
+          case manager of
+            Can.Cmd _ ->
+              Map.insert cmd link $
+              Map.insert fx (Opt.Manager Opt.Cmd) nodes
 
-          Can.Sub _ ->
-            Map.insert sub link $
-            Map.insert fx (Opt.Manager Opt.Sub) nodes
+            Can.Sub _ ->
+              Map.insert sub link $
+              Map.insert fx (Opt.Manager Opt.Sub) nodes
 
-          Can.Fx _ _ ->
-            Map.insert cmd link $
-            Map.insert sub link $
-            Map.insert fx (Opt.Manager Opt.Fx) nodes
+            Can.Fx _ _ ->
+              Map.insert cmd link $
+              Map.insert sub link $
+              Map.insert fx (Opt.Manager Opt.Fx) nodes
+      in
+      Opt.Graph mains newNodes fields
 
 
-
-addPort :: ModuleName.Canonical -> N.Name -> Can.Port -> Graph -> Graph
+addPort :: ModuleName.Canonical -> N.Name -> Can.Port -> Opt.Graph -> Opt.Graph
 addPort home name port_ graph =
   case port_ of
     Can.Incoming _ payloadType _ ->
@@ -162,86 +169,151 @@ addPort home name port_ graph =
 
 
 
+-- HELPER
+
+
+addToGraph :: Opt.Global -> Opt.Node -> Map.Map N.Name Int -> Opt.Graph -> Opt.Graph
+addToGraph name node fields (Opt.Graph mains nodes fieldCounts) =
+  Opt.Graph
+    mains
+    (Map.insert name node nodes)
+    (Map.unionWith (+) fields fieldCounts)
+
+
+
 -- ADD DECLS
 
 
-addDecls :: ModuleName.Canonical -> Can.Decls -> Graph -> Graph
-addDecls home decls graph =
+addDecls :: ModuleName.Canonical -> Annotations -> Can.Decls -> Opt.Graph -> Result i [W.Warning] Opt.Graph
+addDecls home annotations decls graph =
   case decls of
     Can.Declare def subDecls ->
-      addDecls home subDecls (addDef home def graph)
+      addDecls home annotations subDecls =<< addDef home annotations def graph
 
     Can.DeclareRec defs subDecls ->
-      addDecls home subDecls (addRecDefs home defs graph)
+      case findMain defs of
+        Nothing ->
+          addDecls home annotations subDecls (addRecDefs home defs graph)
+
+        Just region ->
+          Result.throw $ E.BadCycle region (map defToName defs)
 
     Can.SaveTheEnvironment ->
-      graph
+      Result.ok graph
+
+
+findMain :: [Can.Def] -> Maybe R.Region
+findMain defs =
+  case defs of
+    [] ->
+      Nothing
+
+    def:rest ->
+      case def of
+        Can.Def (A.At region name) _ _ ->
+          if name == N.main then Just region else findMain rest
+
+        Can.TypedDef (A.At region name) _ _ _ _ ->
+          if name == N.main then Just region else findMain rest
+
+
+defToName :: Can.Def -> N.Name
+defToName def =
+  case def of
+    Can.Def (A.At _ name) _ _          -> name
+    Can.TypedDef (A.At _ name) _ _ _ _ -> name
 
 
 
 -- ADD DEFS
 
 
-addDef :: ModuleName.Canonical -> Can.Def -> Graph -> Graph
-addDef home def graph =
+addDef :: ModuleName.Canonical -> Annotations -> Can.Def -> Opt.Graph -> Result i [W.Warning] Opt.Graph
+addDef home annotations def graph =
   case def of
-    Can.Def (A.At _ name) args body ->
-      addDefHelp (Opt.Global home name) args body graph
+    Can.Def (A.At region name) args body ->
+      do  let (Can.Forall _ tipe) = annotations ! name
+          Result.warn $ W.MissingTypeAnnotation region name tipe
+          addDefHelp region annotations home name args body graph
 
-    Can.TypedDef (A.At _ name) _ typedArgs body _ ->
-      addDefHelp (Opt.Global home name) (map fst typedArgs) body graph
+    Can.TypedDef (A.At region name) _ typedArgs body _ ->
+      addDefHelp region annotations home name (map fst typedArgs) body graph
 
 
-addDefHelp :: Opt.Global -> [Can.Pattern] -> Can.Expr -> Graph -> Graph
-addDefHelp name args body graph =
-  case args of
-    [] ->
-      let
-        (deps, fields, value) =
-          Names.run (Expr.optimize Set.empty body)
-      in
-      addToGraph name (Opt.Define value deps) fields graph
+addDefHelp :: R.Region -> Annotations -> ModuleName.Canonical -> N.Name -> [Can.Pattern] -> Can.Expr -> Opt.Graph -> Result i w Opt.Graph
+addDefHelp region annotations home name args body graph@(Opt.Graph mains nodes fieldCounts) =
+  if name /= N.main then
+    Result.ok (addDefNode home name args body Set.empty graph)
+  else
+    let
+      (Can.Forall _ tipe) = annotations ! name
 
-    _ ->
-      let
-        (deps, fields, function) =
-          Names.run $
+      addMain (deps, fields, main) =
+        let
+          newMains = Map.insert home main mains
+          newFields = Map.unionWith (+) fields fieldCounts
+        in
+        addDefNode home name args body deps $
+          Opt.Graph newMains nodes newFields
+    in
+    case Type.deepDealias tipe of
+      Can.TType hm nm [_] | hm == ModuleName.virtualDom && nm == N.node ->
+          Result.ok $ addMain $ Names.run $
+            Names.registerKernel N.browser Opt.Static
+
+      Can.TType hm nm [flags, message, _] | hm == ModuleName.platform && nm == N.program ->
+          case Effects.checkPayload flags of
+            Right () ->
+              Result.ok $ addMain $ Names.run $
+                Opt.Dynamic message <$> Port.toFlagsDecoder flags
+
+            Left (subType, invalidPayload) ->
+              Result.throw (E.BadFlags region subType invalidPayload)
+
+      _ ->
+          Result.throw (E.BadType region tipe)
+
+
+addDefNode :: ModuleName.Canonical -> N.Name -> [Can.Pattern] -> Can.Expr -> Set.Set Opt.Global -> Opt.Graph -> Opt.Graph
+addDefNode home name args body mainDeps graph =
+  let
+    (deps, fields, def) =
+      Names.run $
+        case args of
+          [] ->
+            Expr.optimize Set.empty body
+
+          _ ->
             do  (argNames, destructors) <- Expr.destructArgs args
                 obody <- Expr.optimize Set.empty body
                 pure $ Opt.Function argNames $
                   foldr Opt.Destruct obody destructors
-      in
-      addToGraph name (Opt.Define function deps) fields graph
-
-
-addToGraph :: Opt.Global -> Opt.Node -> Map.Map N.Name Int -> Graph -> Graph
-addToGraph name node fields (Graph fieldCounts nodes) =
-  Graph
-    (Map.unionWith (+) fields fieldCounts)
-    (Map.insert name node nodes)
+  in
+  addToGraph (Opt.Global home name) (Opt.Define def (Set.union deps mainDeps)) fields graph
 
 
 
 -- ADD RECURSIVE DEFS
 
 
-addRecDefs :: ModuleName.Canonical -> [Can.Def] -> Graph -> Graph
+data State =
+  State
+    { _values :: [(N.Name, Opt.Expr)]
+    , _graph :: Opt.Graph
+    }
+
+
+addRecDefs :: ModuleName.Canonical -> [Can.Def] -> Opt.Graph -> Opt.Graph
 addRecDefs home defs graph =
   let
-    cycleValues =
-      foldr addValueName Set.empty defs
-
-    dummyName =
-      Opt.Global home (N.toCompositeName cycleValues)
+    cycleValues = foldr addValueName Set.empty defs
+    dummyName = Opt.Global home (N.toCompositeName cycleValues)
 
     (deps, fields, State cyclicValuePairs newGraph) =
       Names.run $
         foldM (addRecDef home dummyName cycleValues) (State [] graph) defs
-
-    node =
-      Opt.Cycle cyclicValuePairs deps
   in
-  addToGraph dummyName node fields newGraph
+  addToGraph dummyName (Opt.Cycle cyclicValuePairs deps) fields newGraph
 
 
 addValueName :: Can.Def -> Set.Set N.Name -> Set.Set N.Name
@@ -259,13 +331,6 @@ addValueName def valueNames =
 
 
 -- ADD RECURSIVE DEFS
-
-
-data State =
-  State
-    { _values :: [(N.Name, Opt.Expr)]
-    , _graph :: Graph
-    }
 
 
 addRecDef :: ModuleName.Canonical -> Opt.Global -> Expr.Cycle -> State -> Can.Def -> Names.Tracker State
@@ -294,11 +359,14 @@ addRecDef home dummyName cycle state@(State values graph) def =
 
 
 addRecValue :: ModuleName.Canonical -> Opt.Global -> Expr.Cycle -> N.Name -> Can.Expr -> State -> Names.Tracker State
-addRecValue home dummyName cycle name body (State values (Graph fields nodes)) =
+addRecValue home dummyName cycle name body (State values (Opt.Graph mains nodes fields)) =
   do  obody <- Expr.optimize cycle body
+
+      let global = Opt.Global home name
+      let node = Opt.Link dummyName
+
       pure $
         State
           { _values = (name, obody) : values
-          , _graph = Graph fields $
-              Map.insert (Opt.Global home name) (Opt.Link dummyName) nodes
+          , _graph = Opt.Graph mains (Map.insert global node nodes) fields
           }

@@ -19,7 +19,6 @@ import qualified Elm.Interface as I
 import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 import qualified Nitpick.PatternMatches as PatternMatches
-import qualified Nitpick.TopLevelTypes as TopLevelTypes
 import qualified Optimize.Module as Optimize
 import qualified Parse.Parse as Parse
 import qualified Reporting.Error as Error
@@ -63,13 +62,11 @@ compile flag pkg importDict interfaces source =
       annotations <-
         runTypeInference canonical
 
-      mains <- Result.mapError Error.Main $
-        TopLevelTypes.check annotations canonical
-
       () <-
         exhaustivenessCheck canonical
 
-      let (Optimize.Graph fields graph) = Optimize.optimize canonical
+      graph <- Result.mapError Error.Main $
+        Optimize.optimize annotations canonical
 
       documentation <-
         genaretaDocs flag canonical
@@ -77,7 +74,7 @@ compile flag pkg importDict interfaces source =
       Result.ok $
         Artifacts
           { _elmi = I.fromModule annotations canonical
-          , _elmo = Opt.Graph mains graph fields
+          , _elmo = graph
           , _docs = documentation
           }
 

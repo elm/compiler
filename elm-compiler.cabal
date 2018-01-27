@@ -93,7 +93,6 @@ Library
         Generate.JavaScript.Name,
         Json.Decode.Internals,
         Nitpick.PatternMatches,
-        Nitpick.TopLevelTypes,
         Optimize.Case,
         Optimize.DecisionTree,
         Optimize.Expression,

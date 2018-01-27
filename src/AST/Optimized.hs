@@ -138,8 +138,8 @@ data Graph =
 data Main
   = Static
   | Dynamic
-      { _decoder :: Expr
-      , _message :: Can.Type
+      { _message :: Can.Type
+      , _decoder :: Expr
       }
 
 

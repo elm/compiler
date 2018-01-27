@@ -1006,7 +1006,7 @@ generateMain mode interfaces home main =
         # JS.Int 0
         # JS.Int 0
 
-    Opt.Dynamic decoder msgType ->
+    Opt.Dynamic msgType decoder ->
       JS.Ref (Name.fromGlobal home "main")
         # generateJsExpr mode decoder
         # toDebugMetadata mode interfaces msgType
