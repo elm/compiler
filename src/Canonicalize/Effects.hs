@@ -8,8 +8,6 @@ module Canonicalize.Effects
 
 import qualified Data.Foldable as F
 import qualified Data.Map as Map
-import qualified Data.Set as Set
-import Data.Text (Text)
 
 import qualified AST.Canonical as Can
 import qualified AST.Valid as Valid
@@ -86,7 +84,7 @@ canonicalizePort env (Valid.Port (A.At region portName) tipe) =
                   Result.throw (Error.PortPayloadInvalid region portName badType err)
 
                 Right () ->
-                  Result.ok (portName, Can.Outgoing freeVars ctipe)
+                  Result.ok (portName, Can.Outgoing freeVars outgoingType ctipe)
 
         Can.TLambda (Can.TLambda incomingType (Can.TVar msg1)) (Can.TType home name [Can.TVar msg2])
           | home == ModuleName.sub && name == "Sub" && msg1 == msg2 ->
@@ -95,7 +93,7 @@ canonicalizePort env (Valid.Port (A.At region portName) tipe) =
                   Result.throw (Error.PortPayloadInvalid region portName badType err)
 
                 Right () ->
-                  Result.ok (portName, Can.Incoming freeVars ctipe)
+                  Result.ok (portName, Can.Incoming freeVars incomingType ctipe)
 
         _ ->
           Result.throw (Error.PortTypeInvalid region portName ctipe)
@@ -141,8 +139,9 @@ checkPayload tipe =
     Can.TType home name args ->
       case args of
         []
-          | isPrim home name -> Right ()
           | isJson home name -> Right ()
+          | isString home name -> Right ()
+          | isIntFloatBool home name -> Right ()
 
         [arg]
           | isList  home name -> checkPayload arg
@@ -178,31 +177,43 @@ checkPayload tipe =
         F.traverse_ checkPayload fields
 
 
-isPrim :: ModuleName.Canonical -> N.Name -> Bool
-isPrim home name =
-  home == ModuleName.basics && Set.member name primitives
+isIntFloatBool :: ModuleName.Canonical -> N.Name -> Bool
+isIntFloatBool home name =
+  home == ModuleName.basics
+  &&
+  (name == N.int || name == N.float || name == N.bool)
 
 
-primitives :: Set.Set Text
-primitives =
-  Set.fromList [ N.int, N.float, N.string, N.bool ]
+isString :: ModuleName.Canonical -> N.Name -> Bool
+isString home name =
+  home == ModuleName.string
+  &&
+  name == N.string
 
 
 isJson :: ModuleName.Canonical -> N.Name -> Bool
 isJson home name =
-  home == ModuleName.jsonEncode && name == N.value
+  home == ModuleName.jsonEncode
+  &&
+  name == N.value
 
 
 isList :: ModuleName.Canonical -> N.Name -> Bool
 isList home name =
-  home == ModuleName.list && name == N.list
+  home == ModuleName.list
+  &&
+  name == N.list
 
 
 isMaybe :: ModuleName.Canonical -> N.Name -> Bool
 isMaybe home name =
-  home == ModuleName.maybe && name == N.maybe
+  home == ModuleName.maybe
+  &&
+  name == N.maybe
 
 
 isArray :: ModuleName.Canonical -> N.Name -> Bool
 isArray home name =
-  home == ModuleName.array && name == N.array
+  home == ModuleName.array
+  &&
+  name == N.array
