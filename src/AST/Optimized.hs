@@ -39,7 +39,8 @@ import qualified Reporting.Region as R
 
 
 data Expr
-  = Chr Text
+  = Bool Bool
+  | Chr Text
   | Str Text
   | Int Int
   | Float Double
@@ -186,62 +187,64 @@ instance Binary Global where
 instance Binary Expr where
   put expr =
     case expr of
-      Chr a            -> putWord8  0 >> put a
-      Str a            -> putWord8  1 >> put a
-      Int a            -> putWord8  2 >> put a
-      Float a          -> putWord8  3 >> put a
-      VarLocal a       -> putWord8  4 >> put a
-      VarGlobal a      -> putWord8  5 >> put a
-      VarEnum a b      -> putWord8  6 >> put a >> put b
-      VarBox a         -> putWord8  7 >> put a
-      VarCycle a b     -> putWord8  8 >> put a >> put b
-      VarDebug a b c d -> putWord8  9 >> put a >> put b >> put c >> put d
-      VarKernel a b    -> putWord8 10 >> put a >> put b
-      List a           -> putWord8 11 >> put a
-      Function a b     -> putWord8 12 >> put a >> put b
-      Call a b         -> putWord8 13 >> put a >> put b
-      TailCall a b     -> putWord8 14 >> put a >> put b
-      If a b           -> putWord8 15 >> put a >> put b
-      Let a b          -> putWord8 16 >> put a >> put b
-      Destruct a b     -> putWord8 17 >> put a >> put b
-      Case a b c d     -> putWord8 18 >> put a >> put b >> put c >> put d
-      Accessor a       -> putWord8 19 >> put a
-      Access a b       -> putWord8 20 >> put a >> put b
-      Update a b       -> putWord8 21 >> put a >> put b
-      Record a         -> putWord8 22 >> put a
-      Unit             -> putWord8 23
-      Tuple a b c      -> putWord8 24 >> put a >> put b >> put c
-      Shader a         -> putWord8 25 >> put a
+      Bool a           -> putWord8  0 >> put a
+      Chr a            -> putWord8  1 >> put a
+      Str a            -> putWord8  2 >> put a
+      Int a            -> putWord8  3 >> put a
+      Float a          -> putWord8  4 >> put a
+      VarLocal a       -> putWord8  5 >> put a
+      VarGlobal a      -> putWord8  6 >> put a
+      VarEnum a b      -> putWord8  7 >> put a >> put b
+      VarBox a         -> putWord8  8 >> put a
+      VarCycle a b     -> putWord8  9 >> put a >> put b
+      VarDebug a b c d -> putWord8 10 >> put a >> put b >> put c >> put d
+      VarKernel a b    -> putWord8 11 >> put a >> put b
+      List a           -> putWord8 12 >> put a
+      Function a b     -> putWord8 13 >> put a >> put b
+      Call a b         -> putWord8 14 >> put a >> put b
+      TailCall a b     -> putWord8 15 >> put a >> put b
+      If a b           -> putWord8 16 >> put a >> put b
+      Let a b          -> putWord8 17 >> put a >> put b
+      Destruct a b     -> putWord8 18 >> put a >> put b
+      Case a b c d     -> putWord8 19 >> put a >> put b >> put c >> put d
+      Accessor a       -> putWord8 20 >> put a
+      Access a b       -> putWord8 21 >> put a >> put b
+      Update a b       -> putWord8 22 >> put a >> put b
+      Record a         -> putWord8 23 >> put a
+      Unit             -> putWord8 24
+      Tuple a b c      -> putWord8 25 >> put a >> put b >> put c
+      Shader a         -> putWord8 26 >> put a
 
   get =
     do  word <- getWord8
         case word of
-          0  -> liftM  Chr get
-          1  -> liftM  Str get
-          2  -> liftM  Int get
-          3  -> liftM  Float get
-          4  -> liftM  VarLocal get
-          5  -> liftM  VarGlobal get
-          6  -> liftM2 VarEnum get get
-          7  -> liftM  VarBox get
-          8  -> liftM2 VarCycle get get
-          9  -> liftM4 VarDebug get get get get
-          10 -> liftM2 VarKernel get get
-          11 -> liftM  List get
-          12 -> liftM2 Function get get
-          13 -> liftM2 Call get get
-          14 -> liftM2 TailCall get get
-          15 -> liftM2 If get get
-          16 -> liftM2 Let get get
-          17 -> liftM2 Destruct get get
-          18 -> liftM4 Case get get get get
-          19 -> liftM  Accessor get
-          20 -> liftM2 Access get get
-          21 -> liftM2 Update get get
-          22 -> liftM  Record get
-          23 -> pure   Unit
-          24 -> liftM3 Tuple get get get
-          25 -> liftM  Shader get
+          0  -> liftM  Bool get
+          1  -> liftM  Chr get
+          2  -> liftM  Str get
+          3  -> liftM  Int get
+          4  -> liftM  Float get
+          5  -> liftM  VarLocal get
+          6  -> liftM  VarGlobal get
+          7  -> liftM2 VarEnum get get
+          8  -> liftM  VarBox get
+          9  -> liftM2 VarCycle get get
+          10 -> liftM4 VarDebug get get get get
+          11 -> liftM2 VarKernel get get
+          12 -> liftM  List get
+          13 -> liftM2 Function get get
+          14 -> liftM2 Call get get
+          15 -> liftM2 TailCall get get
+          16 -> liftM2 If get get
+          17 -> liftM2 Let get get
+          18 -> liftM2 Destruct get get
+          19 -> liftM4 Case get get get get
+          20 -> liftM  Accessor get
+          21 -> liftM2 Access get get
+          22 -> liftM2 Update get get
+          23 -> liftM  Record get
+          24 -> pure   Unit
+          25 -> liftM3 Tuple get get get
+          26 -> liftM  Shader get
           _  -> error "problem getting Opt.Expr binary"
 
 

@@ -52,6 +52,9 @@ generateJsExpr mode expression =
 generate :: Mode -> Opt.Expr -> Code
 generate mode expression =
   case expression of
+    Opt.Bool bool ->
+      JsExpr $ JS.Bool bool
+
     Opt.Chr char ->
       JsExpr $
         case mode of
@@ -100,11 +103,16 @@ generate mode expression =
       JsExpr $ JS.Ref (Name.fromKernel home name)
 
     Opt.List entries ->
-      JsExpr $
-        JS.Call
-          (JS.Ref (Name.fromKernel N.list "fromArray"))
-          [ JS.Array $ map (generateJsExpr mode) entries
-          ]
+      case entries of
+        [] ->
+          JsExpr $ JS.Ref (Name.fromKernel N.list "Nil")
+
+        _ ->
+          JsExpr $
+            JS.Call
+              (JS.Ref (Name.fromKernel N.list "fromArray"))
+              [ JS.Array $ map (generateJsExpr mode) entries
+              ]
 
     Opt.Function args body ->
       generateFunction (map Name.fromLocal args) (generate mode body)
@@ -698,12 +706,12 @@ generateDef mode def =
       JS.Var [ (Name.fromLocal name, Just (generateJsExpr mode body)) ]
 
     Opt.TailDef name argNames body ->
-      JS.Var [ (Name.fromLocal name, Just (generateTailDef mode name argNames body)) ]
+      JS.Var [ (Name.fromLocal name, Just (codeToExpr (generateTailDef mode name argNames body))) ]
 
 
-generateTailDef :: Mode -> N.Name -> [N.Name] -> Opt.Expr -> JS.Expr
+generateTailDef :: Mode -> N.Name -> [N.Name] -> Opt.Expr -> Code
 generateTailDef mode name argNames body =
-  JS.Function Nothing (map Name.fromLocal argNames)
+  generateFunction (map Name.fromLocal argNames) $ JsBlock $
     [ JS.Labelled (Name.fromLocal name) $
         JS.While (JS.Bool True) $
           codeToStmt $ generate mode body

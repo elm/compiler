@@ -150,7 +150,8 @@ addGlobalHelp mode graph global state =
 
     Opt.DefineTailFunc argNames body deps ->
       addStmt (addDeps deps state) (
-        generateTailDef mode global argNames body
+        let (Opt.Global _ name) = global in
+        var global (Expr.generateTailDef mode name argNames body)
       )
 
     Opt.Ctor name index arity ->
@@ -214,19 +215,6 @@ var (Opt.Global home name) code =
 
 
 
--- GENERATE TAIL DEFS
-
-
-generateTailDef :: Name.Mode -> Opt.Global -> [N.Name] -> Opt.Expr -> JS.Stmt
-generateTailDef mode (Opt.Global home name) argNames body =
-  let
-    definition =
-      Expr.generateTailDef mode name argNames body
-  in
-  JS.Var [ (Name.fromGlobal home name, Just definition) ]
-
-
-
 -- GENERATE CYCLES
 
 
@@ -287,7 +275,7 @@ addChunk mode builder chunk =
       Name.toBuilder (Name.fromInt int) <> builder
 
     Opt.JsEnum int ->
-      Name.toBuilder (Name.fromInt int) <> builder
+      B.intDec int <> builder
 
     Opt.Debug ->
       case mode of
@@ -329,17 +317,13 @@ generateEnum mode (Opt.Global home name) ctorName index =
 
 
 generateBox :: Name.Mode -> Opt.Global -> N.Name -> JS.Stmt
-generateBox mode (Opt.Global home name) ctorName =
-  let
-    definition =
-      case mode of
-        Name.Debug _ ->
-          Expr.codeToExpr $ Expr.generateCtor mode ctorName Index.first 1
+generateBox mode global ctorName =
+  case mode of
+    Name.Debug _ ->
+      var global (Expr.generateCtor mode ctorName Index.first 1)
 
-        Name.Prod _ _ ->
-          JS.Ref (Name.fromGlobal ModuleName.basics N.identity)
-  in
-  JS.Var [ (Name.fromGlobal home name, Just definition) ]
+    Name.Prod _ _ ->
+      JS.EmptyStmt
 
 
 

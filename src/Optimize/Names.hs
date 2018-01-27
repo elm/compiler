@@ -85,7 +85,11 @@ registerCtor home name index opts =
         ok uid newDeps fields (Opt.VarGlobal global)
 
       Can.Enum ->
-        ok uid newDeps fields (Opt.VarEnum global index)
+        ok uid newDeps fields $
+          case name of
+            "True"  | home == ModuleName.basics -> Opt.Bool True
+            "False" | home == ModuleName.basics -> Opt.Bool False
+            _ -> Opt.VarEnum global index
 
       Can.Unbox ->
         ok uid (Set.insert identity newDeps) fields (Opt.VarBox global)
