@@ -146,16 +146,16 @@ addEffects home effects graph@(Graph fields nodes) =
 addPort :: ModuleName.Canonical -> N.Name -> Can.Port -> Graph -> Graph
 addPort home name port_ graph =
   case port_ of
-    Can.Incoming _ tipe ->
+    Can.Incoming _ payloadType _ ->
       let
-        (deps, fields, decoder) = Names.run (Port.toDecoder tipe)
+        (deps, fields, decoder) = Names.run (Port.toDecoder payloadType)
         node = Opt.PortIncoming decoder deps
       in
       addToGraph (Opt.Global home name) node fields graph
 
-    Can.Outgoing _ tipe ->
+    Can.Outgoing _ payloadType _ ->
       let
-        (deps, fields, encoder) = Names.run (Port.toEncoder tipe)
+        (deps, fields, encoder) = Names.run (Port.toEncoder payloadType)
         node = Opt.PortOutgoing encoder deps
       in
       addToGraph (Opt.Global home name) node fields graph

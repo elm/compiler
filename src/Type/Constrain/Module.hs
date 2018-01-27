@@ -72,13 +72,13 @@ constrainDecls decls finalConstraint =
 letPort :: N.Name -> Can.Port -> IO Constraint -> IO Constraint
 letPort name port_ makeConstraint =
   case port_ of
-    Can.Incoming freeVars srcType ->
+    Can.Incoming freeVars _ srcType ->
       do  vars <- traverse (\_ -> mkFlexVar) freeVars
           tipe <- Instantiate.fromSrcType (Map.map VarN vars) srcType
           let header = Map.singleton name (A.At zero tipe)
           CLet (Map.elems vars) [] header CTrue <$> makeConstraint
 
-    Can.Outgoing freeVars srcType ->
+    Can.Outgoing freeVars _ srcType ->
       do  vars <- traverse (\_ -> mkFlexVar) freeVars
           tipe <- Instantiate.fromSrcType (Map.map VarN vars) srcType
           let header = Map.singleton name (A.At zero tipe)

@@ -275,8 +275,8 @@ data Effects
 
 
 data Port
-  = Incoming FreeVars Type
-  | Outgoing FreeVars Type
+  = Incoming { _freeVars :: FreeVars, _payload :: Type, _func :: Type }
+  | Outgoing { _freeVars :: FreeVars, _payload :: Type, _func :: Type }
 
 
 data Manager
