@@ -140,7 +140,8 @@ optimize cycle (A.At region expression) =
               Case.optimize temp root <$> traverse (optimizeBranch root) branches
 
             _ ->
-              Case.optimize temp temp <$> traverse (optimizeBranch temp) branches
+              do  obranches <- traverse (optimizeBranch temp) branches
+                  return $ Opt.Let (Opt.Def temp oexpr) (Case.optimize temp temp obranches)
 
     Can.Accessor field ->
       Names.registerField field (Opt.Accessor field)
