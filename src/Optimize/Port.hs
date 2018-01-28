@@ -92,21 +92,15 @@ encodeMaybe tipe =
 encodeList :: Can.Type -> Names.Tracker Opt.Expr
 encodeList tipe =
   do  list <- encode "list"
-      map_ <- Names.registerGlobal ModuleName.list "map"
       encoder <- toEncoder tipe
-      return $
-        Opt.Function [N.dollar] $
-          Opt.Call list [ Opt.Call map_ [ encoder, Opt.VarLocal N.dollar ] ]
+      return $ Opt.Call list [ encoder ]
 
 
 encodeArray :: Can.Type -> Names.Tracker Opt.Expr
 encodeArray tipe =
   do  array <- encode "array"
-      map_ <- Names.registerGlobal ModuleName.array "map"
       encoder <- toEncoder tipe
-      return $
-        Opt.Function [N.dollar] $
-          Opt.Call array [ Opt.Call map_ [ encoder, Opt.VarLocal N.dollar ] ]
+      return $ Opt.Call array [ encoder ]
 
 
 encodeTuple :: Can.Type -> Can.Type -> Maybe Can.Type -> Names.Tracker Opt.Expr
