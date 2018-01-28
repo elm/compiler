@@ -17,6 +17,7 @@ import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Utils.Binop as Binop
 import qualified Elm.Name as N
+import qualified Reporting.Annotation as A
 
 
 
@@ -54,13 +55,36 @@ data Binop =
 
 
 fromModule :: Map.Map N.Name Can.Annotation -> Can.Module -> Interface
-fromModule types (Can.Module _ _ _ _ unions aliases binops _) =
+fromModule types (Can.Module _ _ exports _ unions aliases binops _) =
   Interface
-    { _types = types
-    , _unions = unions
-    , _aliases = aliases
-    , _binops = Map.map (toOp types) binops
+    { _types = privatize exports const types
+    , _unions = privatize exports toUnion unions
+    , _aliases = privatize exports const aliases
+    , _binops = privatize exports const (Map.map (toOp types) binops)
     }
+
+
+privatize :: Can.Exports -> (a -> A.Located Can.Export -> a) -> Map.Map N.Name a -> Map.Map N.Name a
+privatize exports func dict =
+  case exports of
+    Can.ExportEverything ->
+      dict
+
+    Can.Export explicitExports ->
+      Map.intersectionWith func dict explicitExports
+
+
+toUnion :: Can.Union -> A.Located Can.Export -> Can.Union
+toUnion union@(Can.Union vars _ _ opts) (A.At _ export) =
+  case export of
+    Can.ExportUnionOpen ->
+      union
+
+    Can.ExportUnionClosed ->
+      Can.Union vars [] 0 opts
+
+    _ ->
+      error "Compiler bug. Should not run into non-union exports here."
 
 
 toOp :: Map.Map N.Name Can.Annotation -> Can.Binop -> Binop
