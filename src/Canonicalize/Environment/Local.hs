@@ -113,7 +113,7 @@ addUnion :: ModuleName.Canonical -> Env.Exposed Env.Type -> Valid.Union -> Resul
 addUnion home types union@(Valid.Union (A.At _ name) _ _) =
   do  arity <- checkUnionFreeVars union
       let one = Map.singleton home (Env.Union arity home)
-      Result.ok $ Map.insertWith Map.union name one types
+      Result.ok $ Map.insert name one types
 
 
 
@@ -136,7 +136,7 @@ addAlias env@(Env.Env home vs ts cs bs qvs qts qcs) scc =
       do  args <- checkAliasFreeVars alias
           ctype <- Type.canonicalize env tipe
           let one = Map.singleton home (Env.Alias (length args) home args ctype)
-          let ts1 = Map.insertWith Map.union name one ts
+          let ts1 = Map.insert name one ts
           Result.ok $ Env.Env home vs ts1 cs bs qvs qts qcs
 
     Graph.CyclicSCC [] ->
@@ -273,7 +273,7 @@ addCtors (Valid.Module _ _ _ _ _ _ unions aliases _ _) env@(Env.Env home vs ts c
             (Dups.unions (map snd unionInfo))
             (Dups.unions (map snd aliasInfo))
 
-      let cs2 = Map.unionWith Map.union cs ctors
+      let cs2 = Map.union ctors cs
 
       Result.ok
         ( Env.Env home vs ts cs2 bs qvs qts qcs
