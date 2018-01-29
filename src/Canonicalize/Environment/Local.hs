@@ -6,6 +6,7 @@ module Canonicalize.Environment.Local
   where
 
 
+import Control.Arrow (first)
 import Control.Monad (foldM)
 import qualified Data.Graph as Graph
 import qualified Data.List as List
@@ -299,7 +300,7 @@ canonicalizeAlias env@(Env.Env home _ _ _ _ _ _ _) (Valid.Alias (A.At region nam
           let recordType = Can.TRecord fieldDict Nothing
           let ctorType = foldr (Can.TLambda . snd) recordType cfields
           let vars = map A.toValue args
-          let alias = Can.Alias vars recordType (Just (map (A.toValue . fst) fields))
+          let alias = Can.Alias vars recordType (Just (map (first A.toValue) cfields))
           let ctor = Env.RecordCtor home vars ctorType
 
           Result.ok

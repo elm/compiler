@@ -211,7 +211,7 @@ data Module =
     }
 
 
-data Alias = Alias [N.Name] Type (Maybe [N.Name])
+data Alias = Alias [N.Name] Type (Maybe [(N.Name,Type)])
 data Binop = Binop_ Binop.Associativity Binop.Precedence N.Name
 
 

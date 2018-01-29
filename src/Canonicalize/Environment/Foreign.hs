@@ -140,16 +140,24 @@ unionToType home name union@(Can.Union vars ctors _ _) =
 
 
 aliasToType :: ModuleName.Canonical -> N.Name -> Can.Alias -> (Env.Type, Env.Exposed Env.Ctor)
-aliasToType home name (Can.Alias vars tipe maybeRecordArgs) =
+aliasToType home name (Can.Alias vars tipe maybeRecordFields) =
   (
     Env.Alias (length vars) home vars tipe
   ,
-    case maybeRecordArgs of
+    case maybeRecordFields of
       Nothing ->
         Map.empty
 
-      Just _ ->
-        Map.singleton name (Map.singleton home (Env.RecordCtor home vars tipe))
+      Just fields ->
+        let
+          avars = map (\var -> (var, Can.TVar var)) vars
+          alias =
+            foldr
+              (\(_,t1) t2 -> Can.TLambda t1 t2)
+              (Can.TAlias home name avars (Can.Filled tipe))
+              fields
+        in
+        Map.singleton name (Map.singleton home (Env.RecordCtor home vars alias))
   )
 
 
