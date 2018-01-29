@@ -32,9 +32,7 @@ import qualified Control.Monad.State.Strict as State
 import qualified Data.Char as Char
 import Data.Foldable (foldrM)
 import qualified Data.Map.Strict as Map
-import Data.Monoid ((<>))
 import qualified Data.Text as Text
-import Data.Text (Text)
 import Data.Word (Word32)
 
 import qualified AST.Canonical as Can
@@ -93,7 +91,7 @@ data Content
     | RigidSuper SuperType N.Name
     | Structure FlatType
     | Alias ModuleName.Canonical N.Name [(N.Name,Variable)] Variable
-    | Error Text
+    | Error N.Name
 
 
 data SuperType
@@ -287,16 +285,16 @@ nameToRigid name =
 
 toSuper :: N.Name -> Maybe SuperType
 toSuper name =
-  if Text.isPrefixOf "number" name then
+  if N.startsWith "number" name then
       Just Number
 
-  else if Text.isPrefixOf "comparable" name then
+  else if N.startsWith "comparable" name then
       Just Comparable
 
-  else if Text.isPrefixOf "appendable" name then
+  else if N.startsWith "appendable" name then
       Just Appendable
 
-  else if Text.isPrefixOf "compappend" name then
+  else if N.startsWith "compappend" name then
       Just CompAppend
 
   else
@@ -502,7 +500,7 @@ getFreshSuperHelp :: N.Name -> Int -> TakenNames -> (N.Name, Int)
 getFreshSuperHelp name index taken =
   let
     newName =
-      if index <= 0 then name else name <> Text.pack (show index)
+      if index <= 0 then name else N.addIndex name index
   in
     if Map.member newName taken then
       getFreshSuperHelp name (index + 1) taken
@@ -586,10 +584,8 @@ addName index givenName var makeContent takenNames =
     indexedName =
       if index <= 0 then
         givenName
-      else if Char.isDigit (Text.last givenName) then
-        givenName <> Text.pack ('_' : show index)
       else
-        givenName <> Text.pack (show index)
+        N.addSafeIndex givenName index
   in
     case Map.lookup indexedName takenNames of
       Nothing ->

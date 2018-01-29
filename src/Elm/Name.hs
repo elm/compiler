@@ -4,10 +4,12 @@ module Elm.Name
   ( Name
   , length
   , startsWith
+  , drop
   , toString
   , toBuilder
   , toShort
   , addIndex
+  , addSafeIndex
   , toCompositeName
   , fromForeignPtr
   , int, float, bool, char, string
@@ -20,10 +22,11 @@ module Elm.Name
   where
 
 
-import Prelude hiding (length, maybe, negate)
+import Prelude hiding (drop, length, maybe, negate)
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.Short as S
+import qualified Data.Char as Char
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
@@ -48,6 +51,11 @@ startsWith =
   Text.isPrefixOf
 
 
+drop :: Int -> Name -> Name
+drop =
+  Text.drop
+
+
 toString :: Name -> String
 toString =
   Text.unpack
@@ -59,13 +67,22 @@ toBuilder =
 
 
 toShort :: Name -> S.ShortByteString
-toShort =
-  error "TODO"
+toShort name =
+  error "TODO" name
 
 
 addIndex :: Name -> Int -> Name
-addIndex name i =
-  Text.append name (Text.pack (show i))
+addIndex name index =
+  Text.append name (Text.pack (show index))
+
+
+addSafeIndex :: Name -> Int -> Name
+addSafeIndex name index =
+  Text.append name $ Text.pack $
+    if Char.isDigit (Text.last name) then
+      '_' : show index
+    else
+      show index
 
 
 toCompositeName :: Set.Set Name -> Name

@@ -8,7 +8,6 @@ module AST.Module.Name
   , virtualDom, debug, bitwise
   , jsonDecode, jsonEncode
   , webgl, vector2, vector3, vector4, matrix4
-  , canonicalToText
   , isKernel, getKernel, canonicalIsKernel
   )
   where
@@ -17,8 +16,6 @@ module AST.Module.Name
 import Prelude hiding (maybe)
 import Control.Monad (liftM2)
 import Data.Binary
-import qualified Data.Text as Text
-import Data.Text (Text)
 
 import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
@@ -161,26 +158,17 @@ matrix4 = Canonical Pkg.linearAlgebra "Math.Matrix4"
 
 
 
--- CONVERSIONS
-
-
-canonicalToText :: Canonical -> Text
-canonicalToText (Canonical _ name) =
-  name
-
-
-
 -- IS KERNEL
 
 
 isKernel :: N.Name -> Bool
 isKernel name =
-  Text.isPrefixOf "Elm.Kernel." name
+  N.startsWith "Elm.Kernel." name
 
 
-getKernel :: N.Name -> Text
+getKernel :: N.Name -> N.Name
 getKernel name =
-  Text.drop 11 name
+  N.drop 11 name
 
 
 canonicalIsKernel :: Canonical -> Bool
