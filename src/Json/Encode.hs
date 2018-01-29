@@ -9,7 +9,6 @@ module Json.Encode
   , array
   , object
   , text
-  , string
   , bool
   , int
   , number
@@ -25,11 +24,14 @@ import Prelude hiding (null)
 import Control.Arrow ((***))
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Builder as B
+import qualified Data.ByteString.Builder.Prim as BP
+import Data.ByteString.Builder.Prim ((>*<))
 import qualified Data.Map as Map
 import qualified Data.Scientific as Sci
 import Data.Monoid ((<>))
 import qualified Data.Text as Text
-import qualified Numeric
+import qualified Data.Text.Encoding as Text
+import qualified Data.Word as W
 import System.IO (IOMode(WriteMode), withBinaryFile)
 
 
@@ -39,8 +41,8 @@ import System.IO (IOMode(WriteMode), withBinaryFile)
 
 data Value
   = Array [Value]
-  | Object [(String, Value)]
-  | String B.Builder
+  | Object [(Text.Text, Value)]
+  | String Text.Text
   | Boolean Bool
   | Integer Int
   | Number Sci.Scientific
@@ -52,19 +54,14 @@ array =
   Array
 
 
-object :: [(String,Value)] -> Value
+object :: [(Text.Text,Value)] -> Value
 object =
   Object
 
 
 text :: Text.Text -> Value
-text txt =
-  String (encodeString (Text.unpack txt))
-
-
-string :: String -> Value
-string str =
-  String (encodeString str)
+text =
+  String
 
 
 bool :: Bool -> Value
@@ -87,7 +84,7 @@ null =
   Null
 
 
-dict :: (k -> String) -> (v -> Value) -> Map.Map k v -> Value
+dict :: (k -> Text.Text) -> (v -> Value) -> Map.Map k v -> Value
 dict encodeKey encodeValue pairs =
   Object $ map (encodeKey *** encodeValue) (Map.toList pairs)
 
@@ -149,8 +146,8 @@ encodeUgly value =
       in
         encodeEntry '{' first <> mconcat (map (encodeEntry ',') rest) <> B.char7 '}'
 
-    String builder ->
-      builder
+    String txt ->
+      encodeString txt
 
     Boolean boolean ->
       B.string7 (if boolean then "true" else "false")
@@ -189,8 +186,8 @@ encodeHelp indent value =
     Object (first : rest) ->
       encodeObject indent first rest
 
-    String builder ->
-      builder
+    String txt ->
+      encodeString txt
 
     Boolean boolean ->
       B.string7 (if boolean then "true" else "false")
@@ -228,7 +225,7 @@ arrayClose =
 -- ENCODE OBJECT
 
 
-encodeObject :: BSC.ByteString -> (String, Value) -> [(String, Value)] -> B.Builder
+encodeObject :: BSC.ByteString -> (Text.Text, Value) -> [(Text.Text, Value)] -> B.Builder
 encodeObject =
   encodeSequence objectOpen objectClose encodeField
 
@@ -243,7 +240,7 @@ objectClose =
   B.char7 '}'
 
 
-encodeField :: BSC.ByteString -> (String, Value) -> B.Builder
+encodeField :: BSC.ByteString -> (Text.Text, Value) -> B.Builder
 encodeField indent (key, value) =
   encodeString key <> B.string7 ": " <> encodeHelp indent value
 
@@ -290,48 +287,28 @@ newline =
 -- ENCODE STRING
 
 
-encodeString :: String -> B.Builder
-encodeString str =
-    B.char7 '"' <> escape str <> B.char7 '"'
+encodeString :: Text.Text -> B.Builder
+encodeString txt =
+  B.char7 '"' <> Text.encodeUtf8BuilderEscaped escapeAscii txt <> B.char7 '"'
 
 
-escape :: String -> B.Builder
-escape str =
-  let
-    (front, back) =
-      break isEscape str
-  in
-    case back of
-      "" ->
-        B.stringUtf8 front
-
-      char : rest ->
-        B.stringUtf8 front <> escapeChar char <> escape rest
-
-
-isEscape :: Char -> Bool
-isEscape c =
-  c == '\"' || c == '\\' || c < '\x20'
+{-# INLINE escapeAscii #-}
+escapeAscii :: BP.BoundedPrim W.Word8
+escapeAscii =
+    BP.condB (== 0x5C {- \\ -}) (ascii2 ('\\','\\')) $
+    BP.condB (== 0x22 {- \" -}) (ascii2 ('\\','"' )) $
+    BP.condB (>= 0x20         ) (BP.liftFixedToBounded BP.word8) $
+    BP.condB (== 0x0A {- \n -}) (ascii2 ('\\','n' )) $
+    BP.condB (== 0x0D {- \r -}) (ascii2 ('\\','r' )) $
+    BP.condB (== 0x09 {- \t -}) (ascii2 ('\\','t' )) $
+    BP.liftFixedToBounded hexEscape -- fallback for chars < 0x20
+  where
+    hexEscape :: BP.FixedPrim W.Word8
+    hexEscape = (\c -> ('\\', ('u', fromIntegral c))) BP.>$<
+        BP.char8 >*< BP.char8 >*< BP.word16HexFixed
 
 
-escapeChar :: Char -> B.Builder
-escapeChar char =
-  case char of
-    '\"' -> B.string7 "\\\""
-    '\\' -> B.string7 "\\\\"
-    '\n' -> B.string7 "\\n"
-    '\r' -> B.string7 "\\r"
-    '\t' -> B.string7 "\\t"
-    _    -> if char < '\x20' then toEscapeCode char else B.charUtf8 char
-
-
-toEscapeCode :: Char -> B.Builder
-toEscapeCode char =
-  let
-    hex =
-      Numeric.showHex (fromEnum char) ""
-
-    code =
-      "\\u" ++ replicate (4 - length hex) '0' ++ hex
-  in
-    B.string7 code
+{-# INLINE ascii2 #-}
+ascii2 :: (Char, Char) -> BP.BoundedPrim a
+ascii2 cs =
+  BP.liftFixedToBounded $ const cs BP.>$< BP.char7 >*< BP.char7

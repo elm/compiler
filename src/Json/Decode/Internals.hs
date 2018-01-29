@@ -261,7 +261,7 @@ toEncodeValue :: Value -> E.Value
 toEncodeValue value =
   case value of
     Array vector    -> E.array (Vector.toList (Vector.map toEncodeValue vector))
-    Object fields _ -> E.object (fmap (\(k,v) -> (Text.unpack k, toEncodeValue v)) fields)
+    Object fields _ -> E.object (fmap (fmap toEncodeValue) fields)
     String txt      -> E.text txt
     Integer n       -> E.int n
     Float n         -> E.number n

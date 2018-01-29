@@ -8,7 +8,6 @@ module Elm.Compiler.Type
   , Alias(..)
   , Union(..)
   , encode
-  , Error(..)
   , decoder
   , encodeMetadata
   )
@@ -188,15 +187,12 @@ encode tipe =
   Encode.text (Text.pack (toString OneLine tipe))
 
 
-data Error = BadType
-
-
-decoder :: Decode.Decoder Error Type
+decoder :: Decode.Decoder () Type
 decoder =
   do  txt <- Decode.text
       case Parse.run Type.expression (Text.encodeUtf8 (Text.replace "'" "_" txt)) of
         Left _ ->
-          Decode.fail BadType
+          Decode.fail ()
 
         Right (tipe, _, _) ->
           Decode.succeed (fromRawType tipe)
@@ -246,24 +242,24 @@ encodeMetadata (DebugMetadata msg aliases unions) =
     ]
 
 
-toAliasField :: Alias -> ( String, Encode.Value )
+toAliasField :: Alias -> ( Text.Text, Encode.Value )
 toAliasField (Alias name args tipe) =
-  Text.unpack name ==>
+  name ==>
     Encode.object
       [ "args" ==> Encode.list Encode.text args
       , "type" ==> encode tipe
       ]
 
 
-toUnionField :: Union -> ( String, Encode.Value )
+toUnionField :: Union -> ( Text.Text, Encode.Value )
 toUnionField (Union name args constructors) =
-  Text.unpack name ==>
+  name ==>
     Encode.object
       [ "args" ==> Encode.list Encode.text args
       , "tags" ==> Encode.object (map toCtorObject constructors)
       ]
 
 
-toCtorObject :: (Text, [Type]) -> ( String, Encode.Value )
+toCtorObject :: (Text, [Type]) -> ( Text.Text, Encode.Value )
 toCtorObject (name, args) =
-  Text.unpack name ==> Encode.list encode args
+  name ==> Encode.list encode args
