@@ -100,8 +100,8 @@ toDotlessBuilder (Name name) =
 
 
 toShort :: Name -> S.ShortByteString
-toShort name =
-  error "TODO" name
+toShort (Name name) =
+  S.toShort (Text.encodeUtf8 name)
 
 
 addIndex :: Name -> Int -> Name
