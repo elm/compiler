@@ -7,11 +7,12 @@ module Parse.Primitives.Shader
   where
 
 
+import qualified Data.ByteString.Internal as B
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import Foreign.ForeignPtr (ForeignPtr)
 import GHC.Word (Word8)
 
-import qualified Elm.Name as N
 import Parse.Primitives.Internals (Parser(..), State(..), noError)
 import qualified Parse.Primitives.Internals as I
 import qualified Parse.Primitives.Symbol as Symbol
@@ -39,7 +40,7 @@ block =
           Ok newOffset newRow newCol ->
             let
               !size = newOffset - offset
-              !shader = N.fromForeignPtr fp offset size
+              !shader = Text.decodeUtf8 (B.PS fp offset size)
               !newState = State fp (newOffset + 2) terminal indent newRow newCol ctx
             in
               cok shader newState noError

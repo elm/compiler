@@ -68,7 +68,7 @@ toEncoder tipe =
         encodeField (name, fieldType) =
           do  encoder <- toEncoder fieldType
               let value = Opt.Call encoder [Opt.Access (Opt.VarLocal N.dollar) name]
-              return $ Opt.Tuple (Opt.Str name) value Nothing
+              return $ Opt.Tuple (Opt.Str (N.toText name)) value Nothing
       in
       do  object <- encode "object"
           keyValuePairs <- traverse encodeField (Map.toList fields)
@@ -305,7 +305,7 @@ fieldAndThen decoder (key, tipe) =
       return $
         Opt.Call andThen
           [ Opt.Function [key] decoder
-          , Opt.Call field [ Opt.Str key, typeDecoder ]
+          , Opt.Call field [ Opt.Str (N.toText key), typeDecoder ]
           ]
 
 

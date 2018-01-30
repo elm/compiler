@@ -15,7 +15,6 @@ import qualified Data.Graph as Graph
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Map.Strict.Internal as I
-import qualified Data.Text as Text
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
@@ -436,7 +435,7 @@ addDefNodes env nodes def =
                   (\freeLocals warnings cbody ->
                       let
                         names = getPatternNames [] pattern
-                        name = Text.cons '$' (Text.intercalate "$" (map A.toValue names))
+                        name = N.toCompositeName (map A.toValue names)
                         node = ( Destruct cpattern cbody, name, Map.keys freeLocals )
                       in
                       good

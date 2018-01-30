@@ -5,7 +5,7 @@ module Json.Decode
   , Failure(..)
   -- re-export from Json.Decode.Internals
   , Json.Decoder, Json.Error(..), Json.Type(..)
-  , Json.string, Json.text, Json.bool, Json.int
+  , Json.string, Json.text, Json.name, Json.bool, Json.int
   , Json.list, Json.dict, Json.pairs, Json.maybe
   , Json.field, Json.at
   , Json.index

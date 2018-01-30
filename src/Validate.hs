@@ -289,7 +289,7 @@ definitions sourceDefs =
           Result.throw (Error.TypeWithoutDefinition annRegion annotationName)
 
 
-validateDefinition :: R.Region -> A.Located Text -> [Src.Pattern] -> Src.Expr -> Maybe Src.Type -> Result i w Valid.Def
+validateDefinition :: R.Region -> A.Located N.Name -> [Src.Pattern] -> Src.Expr -> Maybe Src.Type -> Result i w Valid.Def
 validateDefinition region name args expr maybeType =
   do  validExpr <- expression expr
       return $ Valid.Define region name args validExpr maybeType

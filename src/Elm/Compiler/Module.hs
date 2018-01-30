@@ -7,11 +7,9 @@ module Elm.Compiler.Module
 
   -- module names
   , Raw
-  , nameToPath
   , nameToString
-  , nameFromText
-  , hyphenate
-  , dehyphenate
+  , nameToSlashPath
+  , nameToHyphenPath
   , encode
   , decoder
 
@@ -40,38 +38,37 @@ import qualified Json.Encode as Encode
 type Raw = N.Name
 
 
-nameToPath :: Raw -> FilePath
-nameToPath name =
-  List.foldl1 (</>) (map Text.unpack (Text.splitOn "." name))
-
-
 nameToString :: Raw -> String
-nameToString name =
-  Text.unpack name
+nameToString =
+  N.toString
 
 
-nameFromText :: Text.Text -> Maybe Raw
-nameFromText =
-  fromText '.'
+nameToSlashPath :: Raw -> FilePath
+nameToSlashPath name =
+  List.foldl1 (</>) (map Text.unpack (Text.splitOn "." (N.toText name)))
 
 
-hyphenate :: Raw -> Text.Text
-hyphenate name =
-  Text.replace "." "-" name
+nameToHyphenPath :: Raw -> FilePath
+nameToHyphenPath name =
+  Text.unpack (Text.replace "." "-" (N.toText name))
 
 
-dehyphenate :: Text.Text -> Maybe Raw
-dehyphenate =
-  fromText '-'
+
+-- JSON
 
 
-fromText :: Char -> Text.Text -> Maybe Raw
-fromText sep name =
-  let
-    chunks =
-      Text.splitOn (Text.singleton sep) name
-  in
-    if all isGoodChunk chunks then Just name else Nothing
+encode :: Raw -> Encode.Value
+encode =
+  Encode.name
+
+
+decoder :: Decode.Decoder Text.Text Raw
+decoder =
+  do  txt <- Decode.text
+      let chunks = Text.splitOn "." txt
+      if all isGoodChunk chunks
+        then Decode.succeed (N.fromText txt)
+        else Decode.fail txt
 
 
 isGoodChunk :: Text.Text -> Bool
@@ -89,21 +86,3 @@ isGoodChar char =
   Char.isAlphaNum char || char == '_'
 
 
-
--- JSON
-
-
-encode :: Raw -> Encode.Value
-encode =
-  Encode.text
-
-
-decoder :: Decode.Decoder Text.Text Raw
-decoder =
-  do  txt <- Decode.text
-      case nameFromText txt of
-        Just name ->
-          Decode.succeed name
-
-        Nothing ->
-          Decode.fail txt

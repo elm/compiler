@@ -12,7 +12,6 @@ module Elm.Compiler.Type.Extract
 import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
-import Data.Monoid ((<>))
 import qualified Data.Set as Set
 
 import qualified AST.Canonical as Can
@@ -76,7 +75,7 @@ extract astType =
 
 toPublicName :: ModuleName.Canonical -> N.Name -> N.Name
 toPublicName (ModuleName.Canonical _ home) name =
-  home <> "." <> name
+  N.sepBy 0x2E {- . -} home name
 
 
 

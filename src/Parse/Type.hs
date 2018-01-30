@@ -7,15 +7,13 @@ module Parse.Type
   where
 
 
-import Data.Text (Text)
-
 import qualified AST.Source as Src
+import qualified Elm.Name as N
 import Parse.Primitives (Parser, SParser, addLocation, checkSpace, getPosition, hint, spaces, oneOf)
 import qualified Parse.Primitives as P
 import qualified Parse.Primitives.Symbol as Symbol
 import qualified Parse.Primitives.Variable as Var
 import Parse.Primitives.Whitespace (SPos, whitespace)
-
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as E
 import qualified Reporting.Region as R
@@ -110,7 +108,7 @@ app start =
       return ( A.at start end tipe, end, pos )
 
 
-unionConstructor :: SParser (A.Located Text, [Src.Type])
+unionConstructor :: SParser (A.Located N.Name, [Src.Type])
 unionConstructor =
   do  start <- getPosition
       name <- Var.upper
@@ -204,7 +202,7 @@ record start =
               ]
 
 
-type Field = ( A.Located Text, Src.Type )
+type Field = ( A.Located N.Name, Src.Type )
 
 
 chompFields :: [Field] -> Parser [Field]

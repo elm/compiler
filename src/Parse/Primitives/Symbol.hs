@@ -17,7 +17,6 @@ import qualified Data.ByteString.Char8 as Char8
 import qualified Data.Char as Char
 import qualified Data.IntSet as IntSet
 import qualified Data.Vector as Vector
-import Data.Text (Text)
 import Foreign.ForeignPtr (ForeignPtr)
 import GHC.Word (Word8)
 
@@ -55,7 +54,7 @@ underscore =
 -- BINOP
 
 
-binop :: Parser Text
+binop :: Parser N.Name
 binop =
   Parser $ \(State fp offset terminal indent row col ctx) cok cerr _ eerr ->
     let !newOffset = chompOps fp offset terminal in

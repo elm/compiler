@@ -15,10 +15,8 @@ module Optimize.Names
   where
 
 
-import Data.Monoid ((<>))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Data.Text as Text
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
@@ -52,7 +50,7 @@ run (Tracker k) =
 generate :: Tracker N.Name
 generate =
   Tracker $ \uid deps fields ok ->
-    ok (uid + 1) deps fields ("_n" <> Text.pack (show uid))
+    ok (uid + 1) deps fields (N.addIndex "_n" uid)
 
 
 registerKernel :: N.Name -> a -> Tracker a

@@ -29,10 +29,8 @@ module Type.Type
 
 import Control.Monad.State.Strict (StateT, liftIO)
 import qualified Control.Monad.State.Strict as State
-import qualified Data.Char as Char
 import Data.Foldable (foldrM)
 import qualified Data.Map.Strict as Map
-import qualified Data.Text as Text
 import Data.Word (Word32)
 
 import qualified AST.Canonical as Can
@@ -469,11 +467,8 @@ getFreshNormal index taken =
     (postfix, letter) =
       quotRem index 26
 
-    character =
-      Char.chr (97 + letter)
-
-    name =
-      Text.pack (if postfix <= 0 then [character] else character : show postfix)
+    chr = N.fromLetter letter
+    name = if postfix <= 0 then chr else N.addIndex chr postfix
   in
     if Map.member name taken then
       getFreshNormal (index + 1) taken

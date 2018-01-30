@@ -18,7 +18,6 @@ import Control.Exception (assert)
 import Data.Bits ((.&.), (.|.), shiftL)
 import qualified Data.Char as Char
 import qualified Data.Set as Set
-import Data.Text (Text)
 import Foreign.ForeignPtr (ForeignPtr)
 import GHC.Word (Word8)
 
@@ -32,7 +31,7 @@ import qualified Reporting.Error.Syntax as E
 -- LOCAL UPPER
 
 
-upper :: Parser Text
+upper :: Parser N.Name
 upper =
   Parser $ \(State fp offset terminal indent row col ctx) cok _ _ eerr ->
     let (# newOffset, newCol #) = chompUpper fp offset terminal col in
@@ -47,7 +46,7 @@ upper =
 -- LOCAL LOWER
 
 
-lower :: Parser Text
+lower :: Parser N.Name
 lower =
   Parser $ \(State fp offset terminal indent row col ctx) cok _ _ eerr ->
     let (# newOffset, newCol #) = chompLower fp offset terminal col in
@@ -62,7 +61,7 @@ lower =
 
 
 {-# NOINLINE reservedWords #-}
-reservedWords :: Set.Set Text
+reservedWords :: Set.Set N.Name
 reservedWords =
   Set.fromList
     [ "if", "then", "else"
@@ -80,7 +79,7 @@ reservedWords =
 -- MODULE NAME
 
 
-moduleName :: Parser Text
+moduleName :: Parser N.Name
 moduleName =
   Parser $ \(State fp offset terminal indent row col ctx) cok _ _ eerr ->
     let (# newOffset, newCol #) = chompUpper fp offset terminal col in

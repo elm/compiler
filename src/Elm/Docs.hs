@@ -132,7 +132,7 @@ dictDecoder entryDecoder =
 named :: D.Decoder Error a -> D.Decoder Error (N.Name, a)
 named entryDecoder =
   (,)
-    <$> D.field "name" D.text
+    <$> D.field "name" D.name
     <*> entryDecoder
 
 
@@ -153,9 +153,9 @@ typeDecoder =
 encodeUnion :: (N.Name, Union) -> E.Value
 encodeUnion (name, Union comment args cases) =
   E.object
-    [ "name" ==> E.text name
+    [ "name" ==> E.name name
     , "comment" ==> E.text comment
-    , "args" ==> E.list E.text args
+    , "args" ==> E.list E.name args
     , "cases" ==> E.list encodeCase cases
     ]
 
@@ -164,19 +164,19 @@ union :: D.Decoder Error Union
 union =
   Union
     <$> D.field "comment" D.text
-    <*> D.field "args" (D.list D.text)
+    <*> D.field "args" (D.list D.name)
     <*> D.field "cases" (D.list caseDecoder)
 
 
 encodeCase :: ( N.Name, [Type.Type] ) -> E.Value
 encodeCase ( tag, args ) =
-  E.list id [ E.text tag, E.list Type.encode args ]
+  E.list id [ E.name tag, E.list Type.encode args ]
 
 
 caseDecoder :: D.Decoder Error ( N.Name, [Type.Type] )
 caseDecoder =
   (,)
-    <$> D.index 0 D.text
+    <$> D.index 0 D.name
     <*> D.index 1 (D.list typeDecoder)
 
 
@@ -187,9 +187,9 @@ caseDecoder =
 encodeAlias :: (N.Name, Alias) -> E.Value
 encodeAlias ( name, Alias comment args tipe) =
   E.object
-    [ "name" ==> E.text name
+    [ "name" ==> E.name name
     , "comment" ==> E.text comment
-    , "args" ==> E.list E.text args
+    , "args" ==> E.list E.name args
     , "type" ==> Type.encode tipe
     ]
 
@@ -198,7 +198,7 @@ alias :: D.Decoder Error Alias
 alias =
   Alias
     <$> D.field "comment" D.text
-    <*> D.field "args" (D.list D.text)
+    <*> D.field "args" (D.list D.name)
     <*> D.field "type" typeDecoder
 
 
@@ -209,7 +209,7 @@ alias =
 encodeValue :: (N.Name, Value) -> E.Value
 encodeValue (name, Value comment tipe) =
   E.object
-    [ "name" ==> E.text name
+    [ "name" ==> E.name name
     , "comment" ==> E.text comment
     , "type" ==> Type.encode tipe
     ]
@@ -229,7 +229,7 @@ value =
 encodeBinop :: (N.Name, Binop) -> E.Value
 encodeBinop (name, Binop comment tipe assoc prec) =
   E.object
-    [ "name" ==> E.text name
+    [ "name" ==> E.name name
     , "comment" ==> E.text comment
     , "type" ==> Type.encode tipe
     , "associativity" ==> encodeAssoc assoc

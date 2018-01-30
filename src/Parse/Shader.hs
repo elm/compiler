@@ -15,6 +15,7 @@ import qualified Text.Parsec.Error as Parsec
 
 import qualified AST.Source as Src
 import qualified AST.Utils.Shader as Shader
+import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 import Parse.Primitives (Parser, getPosition)
@@ -65,22 +66,16 @@ emptyShader =
   Shader.Shader Map.empty Map.empty Map.empty
 
 
-addInput :: (GLS.StorageQualifier, Shader.Type, Text.Text) -> Shader.Shader -> Shader.Shader
-addInput ( qual, tipe, name ) glDecls =
+addInput :: (GLS.StorageQualifier, Shader.Type, String) -> Shader.Shader -> Shader.Shader
+addInput (qual, tipe, name) glDecls =
   case qual of
-    GLS.Attribute ->
-      glDecls { Shader._attribute = Map.insert name tipe (Shader._attribute glDecls) }
-
-    GLS.Uniform ->
-      glDecls { Shader._uniform = Map.insert name tipe (Shader._uniform glDecls) }
-
-    GLS.Varying ->
-      glDecls { Shader._varying = Map.insert name tipe (Shader._varying glDecls) }
-
-    _ -> error "Should never happen due to below filter"
+    GLS.Attribute -> glDecls { Shader._attribute = Map.insert (N.fromString name) tipe (Shader._attribute glDecls) }
+    GLS.Uniform   -> glDecls { Shader._uniform = Map.insert (N.fromString name) tipe (Shader._uniform glDecls) }
+    GLS.Varying   -> glDecls { Shader._varying = Map.insert (N.fromString name) tipe (Shader._varying glDecls) }
+    _             -> error "Should never happen due to `extractInputs` function"
 
 
-extractInputs :: GLS.ExternalDeclaration -> [(GLS.StorageQualifier, Shader.Type, Text.Text)]
+extractInputs :: GLS.ExternalDeclaration -> [(GLS.StorageQualifier, Shader.Type, String)]
 extractInputs decl =
   case decl of
     GLS.Declaration
@@ -95,12 +90,12 @@ extractInputs decl =
           False -> []
           True ->
               case tipe of
-                GLS.Vec2 -> [(qual, Shader.V2, Text.pack name)]
-                GLS.Vec3 -> [(qual, Shader.V3, Text.pack name)]
-                GLS.Vec4 -> [(qual, Shader.V4, Text.pack name)]
-                GLS.Mat4 -> [(qual, Shader.M4, Text.pack name)]
-                GLS.Int -> [(qual, Shader.Int, Text.pack name)]
-                GLS.Float -> [(qual, Shader.Float, Text.pack name)]
-                GLS.Sampler2D -> [(qual, Shader.Texture, Text.pack name)]
+                GLS.Vec2 -> [(qual, Shader.V2, name)]
+                GLS.Vec3 -> [(qual, Shader.V3, name)]
+                GLS.Vec4 -> [(qual, Shader.V4, name)]
+                GLS.Mat4 -> [(qual, Shader.M4, name)]
+                GLS.Int -> [(qual, Shader.Int, name)]
+                GLS.Float -> [(qual, Shader.Float, name)]
+                GLS.Sampler2D -> [(qual, Shader.Texture, name)]
                 _ -> []
     _ -> []

@@ -9,6 +9,7 @@ module Json.Encode
   , array
   , object
   , text
+  , name
   , bool
   , int
   , number
@@ -34,6 +35,8 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Word as W
 import System.IO (IOMode(WriteMode), withBinaryFile)
 
+import qualified Elm.Name as N
+
 
 
 -- VALUES
@@ -42,7 +45,7 @@ import System.IO (IOMode(WriteMode), withBinaryFile)
 data Value
   = Array [Value]
   | Object [(Text.Text, Value)]
-  | String Text.Text
+  | String B.Builder
   | Boolean Bool
   | Integer Int
   | Number Sci.Scientific
@@ -60,8 +63,13 @@ object =
 
 
 text :: Text.Text -> Value
-text =
-  String
+text txt =
+  String (encodeText txt)
+
+
+name :: N.Name -> Value
+name nm =
+  String ("\"" <> N.toBuilder nm <> "\"")
 
 
 bool :: Bool -> Value
@@ -142,12 +150,12 @@ encodeUgly value =
     Object (first : rest) ->
       let
         encodeEntry char (key, entry) =
-          B.char7 char <> encodeString key <> B.char7 ':' <> encodeUgly entry
+          B.char7 char <> encodeText key <> B.char7 ':' <> encodeUgly entry
       in
         encodeEntry '{' first <> mconcat (map (encodeEntry ',') rest) <> B.char7 '}'
 
-    String txt ->
-      encodeString txt
+    String builder ->
+      builder
 
     Boolean boolean ->
       B.string7 (if boolean then "true" else "false")
@@ -186,8 +194,8 @@ encodeHelp indent value =
     Object (first : rest) ->
       encodeObject indent first rest
 
-    String txt ->
-      encodeString txt
+    String builder ->
+      builder
 
     Boolean boolean ->
       B.string7 (if boolean then "true" else "false")
@@ -242,7 +250,7 @@ objectClose =
 
 encodeField :: BSC.ByteString -> (Text.Text, Value) -> B.Builder
 encodeField indent (key, value) =
-  encodeString key <> B.string7 ": " <> encodeHelp indent value
+  encodeText key <> B.string7 ": " <> encodeHelp indent value
 
 
 
@@ -284,11 +292,11 @@ newline =
 
 
 
--- ENCODE STRING
+-- ENCODE TEXT
 
 
-encodeString :: Text.Text -> B.Builder
-encodeString txt =
+encodeText :: Text.Text -> B.Builder
+encodeText txt =
   B.char7 '"' <> Text.encodeUtf8BuilderEscaped escapeAscii txt <> B.char7 '"'
 
 

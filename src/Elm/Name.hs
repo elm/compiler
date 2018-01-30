@@ -2,16 +2,28 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Elm.Name
   ( Name
+  -- utilities
   , length
+  , contains
   , startsWith
   , drop
+  -- conversions
+  , toText
   , toString
   , toBuilder
+  , toDotlessBuilder
   , toShort
+  -- helpers
   , addIndex
   , addSafeIndex
   , toCompositeName
+  , sepBy
+  -- create
   , fromForeignPtr
+  , fromString
+  , fromLetter
+  , fromText
+  -- interned
   , int, float, bool, char, string
   , maybe, list, array, tuple, jsArray
   , task, router, cmd, sub, platform, browser
@@ -23,11 +35,12 @@ module Elm.Name
 
 
 import Prelude hiding (drop, length, maybe, negate)
+import Data.Binary
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.Short as S
 import qualified Data.Char as Char
-import qualified Data.Set as Set
+import qualified Data.String as String
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Word (Word8)
@@ -38,32 +51,52 @@ import Foreign.ForeignPtr (ForeignPtr)
 -- NAME
 
 
-type Name = Text.Text
+newtype Name = Name { _name :: Text.Text }
+  deriving (Eq, Ord)
 
 
 length :: Name -> Int
-length =
-  Text.length
+length (Name name) =
+  Text.length name
+
+
+contains :: Word8 -> Name -> Bool
+contains word (Name name) =
+  Text.isInfixOf (Text.singleton (Char.chr (fromIntegral word))) name
 
 
 startsWith :: Name -> Name -> Bool
-startsWith =
-  Text.isPrefixOf
+startsWith (Name prefix) (Name name) =
+  Text.isPrefixOf prefix name
 
 
 drop :: Int -> Name -> Name
-drop =
-  Text.drop
+drop numBytes (Name name) =
+  Name (Text.drop numBytes name)
+
+
+
+-- CONVERSIONS
+
+
+toText :: Name -> Text.Text
+toText (Name name) =
+  name
 
 
 toString :: Name -> String
-toString =
-  Text.unpack
+toString (Name name) =
+  Text.unpack name
 
 
 toBuilder :: Name -> B.Builder
-toBuilder =
-  Text.encodeUtf8Builder
+toBuilder (Name name) =
+  Text.encodeUtf8Builder name
+
+
+toDotlessBuilder :: Name -> B.Builder
+toDotlessBuilder (Name name) =
+  Text.encodeUtf8Builder (Text.replace "." "$" name)
 
 
 toShort :: Name -> S.ShortByteString
@@ -72,31 +105,66 @@ toShort name =
 
 
 addIndex :: Name -> Int -> Name
-addIndex name index =
-  Text.append name (Text.pack (show index))
+addIndex (Name name) index =
+  Name (Text.append name (Text.pack (show index)))
 
 
 addSafeIndex :: Name -> Int -> Name
-addSafeIndex name index =
-  Text.append name $ Text.pack $
+addSafeIndex (Name name) index =
+  Name $ Text.append name $ Text.pack $
     if Char.isDigit (Text.last name) then
       '_' : show index
     else
       show index
 
 
-toCompositeName :: Set.Set Name -> Name
+toCompositeName :: [Name] -> Name
 toCompositeName names =
-  Text.cons '$' (Text.intercalate "$" (Set.toList names))
+  Name (Text.cons '$' (Text.intercalate "$" (map _name names)))
+
+
+sepBy :: Word8 -> Name -> Name -> Name
+sepBy sep (Name home) (Name name) =
+  Name (Text.concat [ home, Text.singleton (Char.chr (fromIntegral sep)), name ])
 
 
 
--- FROM PARSER
+-- CREATE NAMES
 
 
 fromForeignPtr :: ForeignPtr Word8 -> Int -> Int -> Name
 fromForeignPtr fptr offset len =
-  Text.decodeUtf8 (B.PS fptr offset len)
+  Name (Text.decodeUtf8 (B.PS fptr offset len))
+
+
+fromString :: String -> Name
+fromString str =
+  Name (Text.pack str)
+
+
+{- Takes a letter from 0 to 25 -}
+fromLetter :: Int -> Name
+fromLetter letter =
+  Name (Text.singleton (Char.chr (97 + letter)))
+
+
+fromText :: Text.Text -> Name
+fromText =
+  Name
+
+
+
+-- INSTANCES
+
+
+instance String.IsString Name where
+  fromString str =
+    Name (Text.pack str)
+
+
+instance Binary Name where
+  put (Name name) = put name
+  get = Name <$> get
 
 
 

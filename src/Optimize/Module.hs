@@ -307,7 +307,7 @@ addRecDefs :: ModuleName.Canonical -> [Can.Def] -> Opt.Graph -> Opt.Graph
 addRecDefs home defs graph =
   let
     cycleValues = foldr addValueName Set.empty defs
-    dummyName = Opt.Global home (N.toCompositeName cycleValues)
+    dummyName = Opt.Global home (N.toCompositeName (Set.toList cycleValues))
 
     (deps, fields, State cyclicValuePairs newGraph) =
       Names.run $

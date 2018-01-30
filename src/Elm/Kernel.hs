@@ -10,9 +10,7 @@ module Elm.Kernel
 import qualified Data.ByteString as B
 import qualified Data.List as List
 import qualified Data.Map as Map
-import Data.Monoid ((<>))
 import qualified Data.Set as Set
-import qualified Data.Text as Text
 import Data.Word (Word8)
 
 
@@ -66,7 +64,7 @@ parser importDict =
 
 
 type VarTable =
-  Map.Map Text.Text Opt.KChunk
+  Map.Map N.Name Opt.KChunk
 
 
 data State =
@@ -83,7 +81,7 @@ addImport importDict state (Src.Import (A.At _ home) maybeAlias exposing) =
   if ModuleName.isKernel home then
     case maybeAlias of
       Just _ ->
-        error ("Cannot use aliases on kernel import of: " ++ show home)
+        error ("Cannot use aliases on kernel import of: " ++ N.toString home)
 
       Nothing ->
         addKernelImport (ModuleName.getKernel home) exposing state
@@ -98,7 +96,7 @@ addImport importDict state (Src.Import (A.At _ home) maybeAlias exposing) =
         addNormalImport canonicalHome prefix exposing state
 
       _ ->
-        error ("Cannot find kernel import of: " ++ show home)
+        error ("Cannot find kernel import of: " ++ N.toString home)
 
 
 -- INVARIANT: the `home` is the * in `Elm.Kernel.*`
@@ -107,7 +105,7 @@ addKernelImport :: N.Name -> Src.Exposing -> State -> State
 addKernelImport home exposing (State vtable deps) =
   let
     addVar table name =
-      Map.insert (home <> "_" <> name) (Opt.JsVar home name) table
+      Map.insert (N.sepBy 0x5F {- _ -} home name) (Opt.JsVar home name) table
   in
   State
     (List.foldl' addVar vtable (toNames exposing))
@@ -119,7 +117,7 @@ addNormalImport home prefix exposing state =
   let
     addVar (State vtable deps) name =
       State
-        (Map.insert (prefix <> "_" <> name) (Opt.ElmVar home name) vtable)
+        (Map.insert (N.sepBy 0x5F {- _ -} prefix name) (Opt.ElmVar home name) vtable)
         (Set.insert (Opt.Global home name) deps)
   in
   List.foldl' addVar state (toNames exposing)
@@ -132,8 +130,8 @@ toPrefix home maybeAlias =
       alias
 
     Nothing ->
-      if Text.isInfixOf "." home then
-        error ("kernel imports with dots need an alias: " ++ show home)
+      if N.contains 0x2E {- . -} home then
+        error ("kernel imports with dots need an alias: " ++ show (N.toString home))
       else
         home
 
@@ -187,7 +185,7 @@ chompChunks vtable enums fields chunks =
             K.Import var ->
               case Map.lookup var vtable of
                 Nothing ->
-                  error ("Bad kernel symbol: " ++ Text.unpack var)
+                  error ("Bad kernel symbol: " ++ N.toString var)
 
                 Just chunk ->
                   chompChunks vtable enums fields $
@@ -213,10 +211,10 @@ chompChunks vtable enums fields chunks =
 
 
 type Fields =
-  Map.Map Text.Text Int
+  Map.Map N.Name Int
 
 
-lookupField :: Text.Text -> Fields -> (Int, Fields)
+lookupField :: N.Name -> Fields -> (Int, Fields)
 lookupField name fields =
   case Map.lookup name fields of
     Just n ->

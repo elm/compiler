@@ -16,6 +16,7 @@ import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 
 import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
@@ -434,7 +435,7 @@ generateExports mode interfaces (Trie maybeMain subs) =
           "{}"
 
         (name, subTrie) : otherSubTries ->
-          "{'" <> N.toBuilder name <> "':"
+          "{'" <> Text.encodeUtf8Builder name <> "':"
           <> generateExports mode interfaces subTrie
           <> List.foldl' (addSubTrie mode interfaces) "}" otherSubTries
   in
@@ -447,9 +448,9 @@ generateExports mode interfaces (Trie maybeMain subs) =
       JS.exprToBuilder initialize <> "(" <> object <> ")"
 
 
-addSubTrie :: Name.Mode -> I.Interfaces -> B.Builder -> (N.Name, Trie) -> B.Builder
+addSubTrie :: Name.Mode -> I.Interfaces -> B.Builder -> (Text.Text, Trie) -> B.Builder
 addSubTrie mode interfaces end (name, trie) =
-  ",'" <> N.toBuilder name <> "':"
+  ",'" <> Text.encodeUtf8Builder name <> "':"
   <> generateExports mode interfaces trie
   <> end
 
@@ -461,7 +462,7 @@ addSubTrie mode interfaces end (name, trie) =
 data Trie =
   Trie
     { _main :: Maybe (ModuleName.Canonical, Opt.Main)
-    , _subs :: Map.Map N.Name Trie
+    , _subs :: Map.Map Text.Text Trie
     }
 
 
@@ -472,10 +473,10 @@ emptyTrie =
 
 addToTrie :: ModuleName.Canonical -> Opt.Main -> Trie -> Trie
 addToTrie home@(ModuleName.Canonical _ moduleName) main trie =
-  merge trie $ segmentsToTrie home (Text.splitOn "." moduleName) main
+  merge trie $ segmentsToTrie home (Text.splitOn "." (N.toText moduleName)) main
 
 
-segmentsToTrie :: ModuleName.Canonical -> [N.Name] -> Opt.Main -> Trie
+segmentsToTrie :: ModuleName.Canonical -> [Text.Text] -> Opt.Main -> Trie
 segmentsToTrie home segments main =
   case segments of
     [] ->

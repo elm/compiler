@@ -14,7 +14,6 @@ module Elm.Compiler.Type
   where
 
 
-import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Text.PrettyPrint as P
@@ -93,7 +92,7 @@ toDoc context tipe =
               _ -> P.parens lambda
 
     Var name ->
-        P.text (Text.unpack name)
+        P.text (N.toString name)
 
     Unit ->
         "()"
@@ -111,13 +110,13 @@ toDoc context tipe =
     Type name args ->
         case args of
           [] ->
-            P.text (Text.unpack name)
+            P.text (N.toString name)
 
           _ ->
             let
               application =
                 P.hang
-                    (P.text (Text.unpack name))
+                    (P.text (N.toString name))
                     2
                     (P.sep $ map (toDoc InType) args)
             in
@@ -141,7 +140,7 @@ toDoc context tipe =
 
             (fields, Just x) ->
                 P.hang
-                    ("{" <+> P.text (Text.unpack x) <+> "|")
+                    ("{" <+> P.text (N.toString x) <+> "|")
                     4
                     (P.sep
                       [ P.sep (P.punctuate "," (map prettyField fields))
@@ -150,7 +149,7 @@ toDoc context tipe =
                     )
           where
             prettyField (field, fieldType) =
-                P.text (Text.unpack field) <+> ":" <+> toDoc None fieldType
+                P.text (N.toString field) <+> ":" <+> toDoc None fieldType
 
 
 collectLambdas :: Type -> [Type]
@@ -160,7 +159,7 @@ collectLambdas tipe =
     _ -> [tipe]
 
 
-flattenRecord :: Type -> ( [(Text, Type)], Maybe Text )
+flattenRecord :: Type -> ( [(N.Name, Type)], Maybe N.Name )
 flattenRecord tipe =
   case tipe of
     Var x ->
@@ -244,22 +243,22 @@ encodeMetadata (DebugMetadata msg aliases unions) =
 
 toAliasField :: Alias -> ( Text.Text, Encode.Value )
 toAliasField (Alias name args tipe) =
-  name ==>
+  N.toText name ==>
     Encode.object
-      [ "args" ==> Encode.list Encode.text args
+      [ "args" ==> Encode.list Encode.name args
       , "type" ==> encode tipe
       ]
 
 
 toUnionField :: Union -> ( Text.Text, Encode.Value )
 toUnionField (Union name args constructors) =
-  name ==>
+  N.toText name ==>
     Encode.object
-      [ "args" ==> Encode.list Encode.text args
+      [ "args" ==> Encode.list Encode.name args
       , "tags" ==> Encode.object (map toCtorObject constructors)
       ]
 
 
-toCtorObject :: (Text, [Type]) -> ( Text.Text, Encode.Value )
+toCtorObject :: (N.Name, [Type]) -> ( Text.Text, Encode.Value )
 toCtorObject (name, args) =
-  name ==> Encode.list encode args
+  N.toText name ==> Encode.list encode args

@@ -9,7 +9,6 @@ module Parse.Module
 
 
 import qualified Data.ByteString as B
-import Data.Text (Text)
 
 import qualified AST.Source as Src
 import qualified Elm.Compiler.Imports as Imports
@@ -137,7 +136,7 @@ chompManager =
         ]
 
 
-chompCommand :: Parser (A.Located Text)
+chompCommand :: Parser (A.Located N.Name)
 chompCommand =
   do  Keyword.command_
       P.spaces
@@ -146,7 +145,7 @@ chompCommand =
       P.addLocation Var.upper
 
 
-chompSubscription :: Parser (A.Located Text)
+chompSubscription :: Parser (A.Located N.Name)
 chompSubscription =
   do  Keyword.subscription_
       P.spaces
@@ -200,7 +199,7 @@ chompImports imports =
     ]
 
 
-chompAs :: A.Located Text -> [Src.Import] -> Parser [Src.Import]
+chompAs :: A.Located N.Name -> [Src.Import] -> Parser [Src.Import]
 chompAs name imports =
   do  Keyword.as_
       P.spaces
@@ -216,7 +215,7 @@ chompAs name imports =
         ]
 
 
-chompExposing :: A.Located Text -> Maybe Text -> [Src.Import] -> Parser [Src.Import]
+chompExposing :: A.Located N.Name -> Maybe N.Name -> [Src.Import] -> Parser [Src.Import]
 chompExposing name maybeAlias imports =
   do  Keyword.exposing_
       P.spaces

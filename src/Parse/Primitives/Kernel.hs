@@ -9,7 +9,6 @@ module Parse.Primitives.Kernel
 
 import Prelude hiding (length)
 import qualified Data.ByteString.Internal as B
-import Data.Text (Text)
 import Data.Word (Word8)
 import Foreign.ForeignPtr (ForeignPtr)
 
@@ -24,11 +23,11 @@ import qualified Parse.Primitives.Variable as Var
 
 
 data Special
-  = Enum Word8 Text
+  = Enum Word8 N.Name
   | Prod
   | Debug
-  | Import Text
-  | JsField Text
+  | Import N.Name
+  | JsField N.Name
   | ElmField N.Name
 
 
