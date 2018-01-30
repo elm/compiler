@@ -231,47 +231,41 @@ intToAscii n =
     S.pack [toByte n]
 
   else
-    intToAsciiHelp (numStartBytes * numInnerBytes) allBadFields (n - 53)
+    intToAsciiHelp 2 (numStartBytes * numInnerBytes) allBadFields (n - 53)
 
 
-intToAsciiHelp :: Int -> [BadFields] -> Int -> S.ShortByteString
-intToAsciiHelp blockSize badFields n =
+intToAsciiHelp :: Int -> Int -> [BadFields] -> Int -> S.ShortByteString
+intToAsciiHelp width blockSize badFields n =
   case badFields of
     [] ->
       if n < blockSize then
-        unsafeIntToAscii n
+        unsafeIntToAscii width [] n
       else
-        intToAsciiHelp (blockSize * numInnerBytes) [] (n - blockSize)
+        intToAsciiHelp (width + 1) (blockSize * numInnerBytes) [] (n - blockSize)
 
     BadFields renamings : biggerBadFields ->
       let availableSize = blockSize - Map.size renamings in
       if n < availableSize then
-        let name = unsafeIntToAscii n in
+        let name = unsafeIntToAscii width [] n in
         Map.findWithDefault name name renamings
       else
-        intToAsciiHelp (blockSize * numInnerBytes) biggerBadFields (n - availableSize)
+        intToAsciiHelp (width + 1) (blockSize * numInnerBytes) biggerBadFields (n - availableSize)
 
 
 
 -- UNSAFE INT TO ASCII
 
 
-unsafeIntToAscii :: Int -> S.ShortByteString
-unsafeIntToAscii n =
-  let
-    (quotient, remainder) =
-      quotRem n numStartBytes
-  in
-  S.pack $ toByte remainder : unsafeIntToAsciiHelp quotient
-
-
-unsafeIntToAsciiHelp :: Int -> [Word8]
-unsafeIntToAsciiHelp n =
-  if n == 0 then
-    []
+unsafeIntToAscii :: Int -> [Word8] -> Int -> S.ShortByteString
+unsafeIntToAscii width bytes n =
+  if width <= 1 then
+    S.pack (toByte n : bytes)
   else
-    let (quotient, remainder) = quotRem n numInnerBytes in
-    toByte remainder : unsafeIntToAsciiHelp quotient
+    let
+      (quotient, remainder) =
+        quotRem n numInnerBytes
+    in
+    unsafeIntToAscii (width - 1) (toByte remainder : bytes) quotient
 
 
 
@@ -322,12 +316,12 @@ allBadFields =
 addRenaming :: N.Name -> Maybe BadFields -> BadFields
 addRenaming keyword maybeBadFields =
   let
-    maxName =
-      numStartBytes * numInnerBytes ^ (N.length keyword - 1) - 1
+    width = N.length keyword
+    maxName = numStartBytes * numInnerBytes ^ (width - 1) - 1
   in
   case maybeBadFields of
     Nothing ->
-      BadFields $ Map.singleton (N.toShort keyword) (unsafeIntToAscii maxName)
+      BadFields $ Map.singleton (N.toShort keyword) (unsafeIntToAscii width [] maxName)
 
     Just (BadFields renamings) ->
-      BadFields $ Map.insert (N.toShort keyword) (unsafeIntToAscii (maxName - Map.size renamings)) renamings
+      BadFields $ Map.insert (N.toShort keyword) (unsafeIntToAscii width [] (maxName - Map.size renamings)) renamings
