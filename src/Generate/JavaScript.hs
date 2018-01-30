@@ -300,13 +300,17 @@ addChunk mode builder chunk =
 
 
 generateEnum :: Name.Mode -> Opt.Global -> N.Name -> Index.ZeroBased -> JS.Stmt
-generateEnum mode global ctorName index =
-  case mode of
-    Name.Debug _ ->
-      var global (Expr.generateCtor mode ctorName index 0)
+generateEnum mode (Opt.Global home name) ctorName index =
+  let
+    definition =
+      case mode of
+        Name.Debug _ ->
+          Expr.codeToExpr (Expr.generateCtor mode ctorName index 0)
 
-    Name.Prod _ _ ->
-      JS.EmptyStmt
+        Name.Prod _ _ ->
+          JS.Int (Index.toMachine index)
+  in
+  JS.Var [ (Name.fromGlobal home name, Just definition) ]
 
 
 
@@ -314,13 +318,17 @@ generateEnum mode global ctorName index =
 
 
 generateBox :: Name.Mode -> Opt.Global -> N.Name -> JS.Stmt
-generateBox mode global ctorName =
-  case mode of
-    Name.Debug _ ->
-      var global (Expr.generateCtor mode ctorName Index.first 1)
+generateBox mode (Opt.Global home name) ctorName =
+  let
+    definition =
+      case mode of
+        Name.Debug _ ->
+          Expr.codeToExpr (Expr.generateCtor mode ctorName Index.first 1)
 
-    Name.Prod _ _ ->
-      JS.EmptyStmt
+        Name.Prod _ _ ->
+          JS.Ref (Name.fromGlobal ModuleName.basics N.identity)
+  in
+  JS.Var [ (Name.fromGlobal home name, Just definition) ]
 
 
 
