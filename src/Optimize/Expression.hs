@@ -402,7 +402,8 @@ optimizeTail cycle rootName argNames locExpr@(A.At _ expression) =
               Case.optimize temp root <$> traverse (optimizeBranch root) branches
 
             _ ->
-              Case.optimize temp temp <$> traverse (optimizeBranch temp) branches
+              do  obranches <- traverse (optimizeBranch temp) branches
+                  return $ Opt.Let (Opt.Def temp oexpr) (Case.optimize temp temp obranches)
 
     _ ->
       optimize cycle locExpr
