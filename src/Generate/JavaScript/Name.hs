@@ -112,7 +112,7 @@ fromCycle (ModuleName.Canonical (Pkg.Name user project) home) name =
   Name $
     Text.encodeUtf8Builder (Text.replace "-" "_" user)
     <> "$" <> Text.encodeUtf8Builder (Text.replace "-" "_" project) -- TODO store this in a better way
-    <> "$" <> N.toBuilder home
+    <> "$" <> N.toDotlessBuilder home
     <> "$cyclic$" <> N.toBuilder name
 
 
