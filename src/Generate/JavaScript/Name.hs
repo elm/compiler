@@ -292,8 +292,8 @@ toByte :: Int -> Word8
 toByte n
   | n < 26  = fromIntegral (97 + n     ) {- lower -}
   | n < 52  = fromIntegral (65 + n - 26) {- upper -}
-  | n == 53 = 95 {- _ -}
-  | n == 54 = 36 {- $ -}
+  | n == 52 = 95 {- _ -}
+  | n == 53 = 36 {- $ -}
   | n < 64  = fromIntegral (48 + n - 54) {- digit -}
   | True    = error $ "cannot convert int " ++ show n ++ " to ASCII"
 
