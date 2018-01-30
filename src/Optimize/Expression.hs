@@ -283,14 +283,22 @@ destructHelp path (A.At region pattern) revDs =
     Can.PInt _ ->
       pure revDs
 
-    Can.PCtor _ _ _ _ _ args ->
-      case path of
-        Opt.Root _ ->
-          foldM (destructCtorArg path) revDs args
+    Can.PCtor _ _ (Can.Union _ _ _ opts) _ _ args ->
+      case args of
+        [Can.PatternCtorArg i _ arg] ->
+          case opts of
+            Can.Normal -> destructHelp (Opt.Index i path) arg revDs
+            Can.Unbox  -> destructHelp (Opt.Unbox path) arg revDs
+            Can.Enum   -> destructHelp (Opt.Index i path) arg revDs
 
         _ ->
-          do  name <- Names.generate
-              foldM (destructCtorArg (Opt.Root name)) (Opt.Destructor name path : revDs) args
+          case path of
+            Opt.Root _ ->
+              foldM (destructCtorArg path) revDs args
+
+            _ ->
+              do  name <- Names.generate
+                  foldM (destructCtorArg (Opt.Root name)) (Opt.Destructor name path : revDs) args
 
 
 destructTwo :: Opt.Path -> Can.Pattern -> Can.Pattern -> [Opt.Destructor] -> Names.Tracker [Opt.Destructor]
