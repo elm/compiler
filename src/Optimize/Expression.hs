@@ -129,7 +129,7 @@ optimize cycle (A.At region expression) =
     Can.Case expr branches ->
       let
         optimizeBranch root (Can.CaseBranch pattern branch) =
-          do  destructors <- destructHelp (Opt.Root root) pattern []
+          do  destructors <- destructCase root pattern
               obranch <- optimize cycle branch
               pure (pattern, foldr Opt.Destruct obranch destructors)
       in
@@ -209,6 +209,11 @@ destructArgs args =
       return (argNames, concat destructorLists)
 
 
+destructCase :: N.Name -> Can.Pattern -> Names.Tracker [Opt.Destructor]
+destructCase rootName pattern =
+  reverse <$> destructHelp (Opt.Root rootName) pattern []
+
+
 destruct :: Can.Pattern -> Names.Tracker (N.Name, [Opt.Destructor])
 destruct pattern@(A.At _ ptrn) =
   case ptrn of
@@ -254,16 +259,16 @@ destructHelp path (A.At region pattern) revDs =
     Can.PTuple a b (Just c) ->
       case path of
         Opt.Root _ ->
-          destructHelp (Opt.Index Index.first path) a =<<
+          destructHelp (Opt.Index Index.third path) c =<<
             destructHelp (Opt.Index Index.second path) b =<<
-              destructHelp (Opt.Index Index.third path) c revDs
+              destructHelp (Opt.Index Index.first path) a revDs
 
         _ ->
           do  name <- Names.generate
               let newRoot = Opt.Root name
-              destructHelp (Opt.Index Index.first newRoot) a =<<
+              destructHelp (Opt.Index Index.third newRoot) c =<<
                 destructHelp (Opt.Index Index.second newRoot) b =<<
-                  destructHelp (Opt.Index Index.third newRoot) c (Opt.Destructor name path : revDs)
+                  destructHelp (Opt.Index Index.first newRoot) a (Opt.Destructor name path : revDs)
 
     Can.PList [] ->
       pure revDs
@@ -285,11 +290,11 @@ destructHelp path (A.At region pattern) revDs =
 
     Can.PCtor _ _ (Can.Union _ _ _ opts) _ _ args ->
       case args of
-        [Can.PatternCtorArg i _ arg] ->
+        [Can.PatternCtorArg _ _ arg] ->
           case opts of
-            Can.Normal -> destructHelp (Opt.Index i path) arg revDs
+            Can.Normal -> destructHelp (Opt.Index Index.first path) arg revDs
             Can.Unbox  -> destructHelp (Opt.Unbox path) arg revDs
-            Can.Enum   -> destructHelp (Opt.Index i path) arg revDs
+            Can.Enum   -> destructHelp (Opt.Index Index.first path) arg revDs
 
         _ ->
           case path of
@@ -305,14 +310,14 @@ destructTwo :: Opt.Path -> Can.Pattern -> Can.Pattern -> [Opt.Destructor] -> Nam
 destructTwo path a b revDs =
   case path of
     Opt.Root _ ->
-      destructHelp (Opt.Index Index.first path) a =<<
-        destructHelp (Opt.Index Index.second path) b revDs
+      destructHelp (Opt.Index Index.second path) b =<<
+        destructHelp (Opt.Index Index.first path) a revDs
 
     _ ->
       do  name <- Names.generate
           let newRoot = Opt.Root name
-          destructHelp (Opt.Index Index.first newRoot) a =<<
-            destructHelp (Opt.Index Index.second newRoot) b (Opt.Destructor name path : revDs)
+          destructHelp (Opt.Index Index.second newRoot) b =<<
+            destructHelp (Opt.Index Index.first newRoot) a (Opt.Destructor name path : revDs)
 
 
 destructCtorArg :: Opt.Path -> [Opt.Destructor] -> Can.PatternCtorArg -> Names.Tracker [Opt.Destructor]
@@ -391,7 +396,7 @@ optimizeTail cycle rootName argNames locExpr@(A.At _ expression) =
     Can.Case expr branches ->
       let
         optimizeBranch root (Can.CaseBranch pattern branch) =
-          do  destructors <- destructHelp (Opt.Root root) pattern []
+          do  destructors <- destructCase root pattern
               obranch <- optimizeTail cycle rootName argNames branch
               pure (pattern, foldr Opt.Destruct obranch destructors)
       in
