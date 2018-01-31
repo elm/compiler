@@ -213,6 +213,9 @@ codeToExpr code =
 codeToStmtList :: Code -> [JS.Stmt]
 codeToStmtList code =
   case code of
+    JsExpr (JS.Call (JS.Function Nothing [] stmts) []) ->
+        stmts
+
     JsExpr expr ->
         [ JS.Return (Just expr) ]
 
@@ -223,6 +226,9 @@ codeToStmtList code =
 codeToStmt :: Code -> JS.Stmt
 codeToStmt code =
   case code of
+    JsExpr (JS.Call (JS.Function Nothing [] stmts) []) ->
+        JS.Block stmts
+
     JsExpr expr ->
         JS.Return (Just expr)
 
