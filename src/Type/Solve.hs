@@ -342,7 +342,6 @@ poolToRankTable youngMark youngRank youngInhabitants =
 --
 adjustRank :: Mark -> Mark -> Int -> Variable -> IO Int
 adjustRank youngMark visitMark groupRank var =
-  {-# SCC elm_compiler_type_adjust #-}
   do  (Descriptor content rank mark copy) <- UF.get var
       if mark == youngMark then
           do  -- Set the variable as marked first because it may be cyclic.
