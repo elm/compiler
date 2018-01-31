@@ -10,6 +10,7 @@ module Elm.Compiler.Module
   , nameToString
   , nameToSlashPath
   , nameToHyphenPath
+  , fromHyphenPath
   , encode
   , decoder
 
@@ -51,6 +52,13 @@ nameToSlashPath name =
 nameToHyphenPath :: Raw -> FilePath
 nameToHyphenPath name =
   Text.unpack (Text.replace "." "-" (N.toText name))
+
+
+fromHyphenPath :: Text.Text -> Maybe Raw
+fromHyphenPath txt =
+  if all isGoodChunk (Text.splitOn "-" txt)
+    then Just (N.fromText (Text.replace "-" "." txt))
+    else Nothing
 
 
 
