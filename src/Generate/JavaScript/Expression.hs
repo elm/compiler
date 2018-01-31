@@ -479,6 +479,7 @@ generateBasicsCall mode home name args =
       let arg = generateJsExpr mode elmArg in
       case name of
         "not"      -> JS.Prefix JS.PrefixLNot arg
+        "negate"   -> JS.Prefix JS.PrefixMinus arg
         "toFloat"  -> arg
         "truncate" -> JS.Infix JS.OpBOr arg (JS.Int 0)
         _          -> generateGlobalCall home name [arg]
