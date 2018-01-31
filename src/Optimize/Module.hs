@@ -352,7 +352,7 @@ addRecDef home dummyName cycle state@(State values graph) def =
     _ ->
       let
         (deps, fields, odef) =
-          Names.run (Expr.optimizePotentialTailCall Set.empty def)
+          Names.run (Expr.optimizePotentialTailCall cycle def)
       in
       pure $ State values $
         case odef of
