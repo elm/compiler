@@ -9,7 +9,6 @@ module Parse.Primitives.Utf8
 
 import Prelude hiding (length)
 import Data.Bits
---import qualified Data.ByteString as B
 import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.UTF8 as Utf8
 import qualified Data.Char as Char
@@ -19,12 +18,6 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as LText
 import qualified Data.Text.Lazy.Builder as Text
 import Foreign.ForeignPtr (ForeignPtr)
---import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
---import Foreign.Ptr (plusPtr)
---import GHC.IO (stToIO, unsafeDupablePerformIO)
---import GHC.Exts (Int(I#), Ptr(Ptr))
---import qualified GHC.Prim as Prim
---import GHC.ST (ST(ST))
 import GHC.Word (Word8(..))
 
 import Parse.Primitives.Internals (Parser(..), State(..), noError)
@@ -251,7 +244,7 @@ multiString fp offset terminal row col initialOffset builder =
 
     else
       let !newOffset = offset + I.getCharWidth fp offset terminal word in
-      multiString fp newOffset terminal row (col + 1) newOffset builder
+      multiString fp newOffset terminal row (col + 1) initialOffset builder
 
 
 
