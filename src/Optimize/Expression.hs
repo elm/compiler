@@ -53,7 +53,7 @@ optimize cycle (A.At region expression) =
       Names.registerCtor home name index opts
 
     Can.VarDebug home name _ ->
-      Names.registerKernel N.debug (Opt.VarDebug name home region Nothing)
+      Names.registerDebug name home region
 
     Can.VarOperator _ home name _ ->
       Names.registerGlobal home name

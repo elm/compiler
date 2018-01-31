@@ -7,6 +7,7 @@ module Optimize.Names
   , generate
   , registerKernel
   , registerGlobal
+  , registerDebug
   , registerCtor
   , registerField
   , registerFieldDict
@@ -24,6 +25,7 @@ import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
 import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
+import qualified Reporting.Region as R
 
 
 
@@ -69,6 +71,13 @@ registerGlobal home name =
   Tracker $ \uid deps fields ok ->
     let global = Opt.Global home name in
     ok uid (Set.insert global deps) fields (Opt.VarGlobal global)
+
+
+registerDebug :: N.Name -> ModuleName.Canonical -> R.Region -> Tracker Opt.Expr
+registerDebug name home region =
+  Tracker $ \uid deps fields ok ->
+    let global = Opt.Global ModuleName.debug name in
+    ok uid (Set.insert global deps) fields (Opt.VarDebug name home region Nothing)
 
 
 registerCtor :: ModuleName.Canonical -> N.Name -> Index.ZeroBased -> Can.CtorOpts -> Tracker Opt.Expr
