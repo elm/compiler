@@ -7,7 +7,8 @@ module Elm.Package
   , toString, toText, toUrl, toFilePath
   , fromText
   , dummyName, kernel, core
-  , browser, virtualDom, html, json
+  , browser, virtualDom, html
+  , json, http, url
   , webgl, linearAlgebra
   , Version(..)
   , initialVersion, dummyVersion
@@ -167,6 +168,18 @@ html =
 json :: Name
 json =
   Name "elm-lang" "json"
+
+
+{-# NOINLINE http #-}
+http :: Name
+http =
+  Name "elm-lang" "http"
+
+
+{-# NOINLINE url #-}
+url :: Name
+url =
+  Name "elm-lang" "url"
 
 
 {-# NOINLINE webgl #-}
