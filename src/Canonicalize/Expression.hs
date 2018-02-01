@@ -684,8 +684,8 @@ delayedUsage (Result.Result k) =
 
 
 findVar :: R.Region -> Env.Env -> N.Name -> Result FreeLocals w Can.Expr_
-findVar region (Env.Env localHome vars _ _ _ _ _ _) name =
-  case Map.lookup name vars of
+findVar region (Env.Env localHome vs _ _ _ qvs _ _) name =
+  case Map.lookup name vs of
     Just var ->
       case var of
         Env.Local _ ->
@@ -701,16 +701,16 @@ findVar region (Env.Env localHome vars _ _ _ _ _ _) name =
             else
               Can.VarForeign home name annotation
 
-        Env.Foreign _ ->
-          Result.throw (error ("TODO ambiguous unqualified " ++ N.toString name) region)
+        Env.Foreign homes ->
+          Result.throw (Error.AmbiguousVar region Nothing name (Map.keys homes))
 
     Nothing ->
-      Result.throw (error ("TODO no name " ++ N.toString name) region)
+      Result.throw (Error.NotFoundVar region name (toPossibleNames vs qvs))
 
 
 findVarQual :: R.Region -> Env.Env -> N.Name -> N.Name -> Result FreeLocals w Can.Expr_
-findVarQual region (Env.Env localHome _ _ _ _ vars _ _) prefix name =
-  case Map.lookup prefix vars of
+findVarQual region (Env.Env localHome vs _ _ _ qvs _ _) prefix name =
+  case Map.lookup prefix qvs of
     Just qualified ->
       case Map.lookup name qualified of
         Just (I.Bin 1 home annotation _ _) ->
@@ -720,17 +720,23 @@ findVarQual region (Env.Env localHome _ _ _ _ vars _ _) prefix name =
             else
               Can.VarForeign home name annotation
 
-        Just _ ->
-          Result.throw (error ("TODO ambiguous qualified " ++ N.toString name) region)
+        Just homes ->
+          Result.throw (Error.AmbiguousVar region (Just prefix) name (Map.keys homes))
 
         Nothing ->
-          Result.throw (error ("TODO no qualified " ++ N.toString name) region)
+          Result.throw (Error.NotFoundVarQual region prefix name (toPossibleNames vs qvs))
 
     Nothing ->
       if ModuleName.isKernel prefix then
         Result.ok $ Can.VarKernel (ModuleName.getKernel prefix) name
       else
-        Result.throw (error ("TODO no name " ++ N.toString name) region)
+        Result.throw (Error.NotFoundVarQual region prefix name (toPossibleNames vs qvs))
+
+
+toPossibleNames :: Map.Map N.Name Env.Var -> Env.Qualified Can.Annotation -> Error.PossibleNames
+toPossibleNames exposed qualified =
+  Error.PossibleNames (Map.keysSet exposed) (Map.map Map.keysSet qualified)
+
 
 
 -- FIND CTOR

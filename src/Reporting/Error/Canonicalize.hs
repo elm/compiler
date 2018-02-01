@@ -5,19 +5,20 @@ module Reporting.Error.Canonicalize
   , BadArityContext(..)
   , InvalidPayload(..)
   , DuplicatePatternContext(..)
-  , variable
+  , PossibleNames(..)
   , VarKind(..)
-  , VarProblem(..)
   , toReport
   )
   where
 
 
 import qualified Data.Char as Char
-import Data.Text (Text)
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
+import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
@@ -34,8 +35,11 @@ import Reporting.Helpers ( Doc, (<>) )
 
 
 data Error
-  = Var VarError
-  | AnnotationTooShort R.Region N.Name Index.ZeroBased Int
+  = AnnotationTooShort R.Region N.Name Index.ZeroBased Int
+  | AmbiguousVar R.Region (Maybe N.Name) N.Name [ModuleName.Canonical]
+  | AmbiguousType R.Region (Maybe N.Name) N.Name [ModuleName.Canonical]
+  | AmbiguousCtor R.Region (Maybe N.Name) N.Name [ModuleName.Canonical]
+  | AmbiguousBinop R.Region N.Name [ModuleName.Canonical]
   | BadArity R.Region BadArityContext N.Name Int Int
   | Binop R.Region N.Name N.Name
   | DuplicateDecl N.Name R.Region R.Region
@@ -55,6 +59,13 @@ data Error
   | ImportNotFound R.Region N.Name [N.Name]
   | ImportOpenAlias R.Region N.Name
   | ImportExposingNotFound R.Region N.Name N.Name [N.Name]
+  | NotFoundVar R.Region N.Name PossibleNames
+  | NotFoundType R.Region N.Name PossibleNames
+  | NotFoundCtor R.Region N.Name PossibleNames
+  | NotFoundBinop R.Region N.Name (Set.Set N.Name)
+  | NotFoundVarQual R.Region N.Name N.Name PossibleNames
+  | NotFoundTypeQual R.Region N.Name N.Name PossibleNames
+  | NotFoundCtorQual R.Region N.Name N.Name PossibleNames
   | PatternHasRecordCtor R.Region N.Name
   | PortPayloadInvalid R.Region N.Name Can.Type InvalidPayload
   | PortTypeInvalid R.Region N.Name Can.Type
@@ -87,29 +98,11 @@ data InvalidPayload
   | UnsupportedType N.Name
 
 
-
--- VARIABLES
-
-
-data VarError =
-  VarError
-    { _kind :: VarKind
-    , _name :: Text
-    , _problem :: VarProblem
-    , _suggestions :: [Text]
+data PossibleNames =
+  PossibleNames
+    { _locals :: Set.Set N.Name
+    , _quals :: Map.Map N.Name (Set.Set N.Name)
     }
-
-
-data VarProblem
-  = Ambiguous
-  | UnknownQualifier Text Text
-  | QualifiedUnknown Text Text
-  | ExposedUnknown
-
-
-variable :: VarKind -> Text -> VarProblem -> [Text] -> Error
-variable kind name problem suggestions =
-  Var (VarError kind name problem suggestions)
 
 
 
@@ -146,9 +139,6 @@ toKindInfo kind name =
 toReport :: Code.Source -> RenderType.Localizer -> Error -> Report.Report
 toReport source localizer err =
   case err of
-    Var varError ->
-      error "TODO" varError
-
     AnnotationTooShort region name index leftovers ->
       let
         numTypeArgs = Index.toHuman index
@@ -167,6 +157,18 @@ toReport source localizer err =
               <> (if leftovers == 1 then "" else "s")
               <> " be deleted? Maybe some parentheses are missing?"
           )
+
+    AmbiguousVar region maybePrefix name possibleHomes ->
+      error "TODO" region maybePrefix name possibleHomes
+
+    AmbiguousType region maybePrefix name possibleHomes ->
+      error "TODO" region maybePrefix name possibleHomes
+
+    AmbiguousCtor region maybePrefix name possibleHomes ->
+      error "TODO" region maybePrefix name possibleHomes
+
+    AmbiguousBinop region name possibleHomes ->
+      error "TODO" region name possibleHomes
 
     BadArity region badArityContext name expected actual ->
       let
@@ -257,11 +259,28 @@ toReport source localizer err =
           DPDestruct ->
             "This pattern contains multiple `" <> N.toString name <> "` variables."
 
-    EffectNotFound _ _ ->
-        error "TODO EffectNotFound"
+    EffectNotFound region name ->
+      Report.Report "EFFECT PROBLEM" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            H.reflow $
+              "You have declared that `" ++ N.toString name ++ "` is an effect type:"
+          ,
+            H.reflow $
+              "But I cannot find a union type named `" ++ N.toString name ++ "` in this file!"
+          )
 
-    EffectFunctionNotFound _ _ ->
-        error "TODO EffectFunctionNotFound"
+    EffectFunctionNotFound region name ->
+      Report.Report "EFFECT PROBLEM" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            H.reflow $
+              "This kind of effect module must define a `" ++ N.toString name ++ "` function."
+          ,
+            H.reflow $
+              "But I cannot find `" ++ N.toString name ++ "` in this file!"
+          )
+
 
     ExportDuplicate name r1 r2 ->
       let
@@ -295,7 +314,16 @@ toReport source localizer err =
           ]
 
     ExportOpenAlias region name ->
-        error "TODO" region name
+      Report.Report "BAD EXPORT" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            H.reflow $
+              "The (..) syntax is for exposing union type constructors. It cannot be used with a type alias like `"
+              ++ N.toString name ++ "` though."
+          ,
+            H.reflow $
+              "Remove the (..) and you should be fine!"
+          )
 
     ImportCtorByName region ctor tipe ->
       Report.Report "BAD IMPORT" region [] $
@@ -350,6 +378,27 @@ toReport source localizer err =
           ,
             H.maybeYouWant Nothing suggestions
           )
+
+    NotFoundVar region name possibleNames ->
+      error "TODO" region name possibleNames
+
+    NotFoundType region name possibleNames ->
+      error "TODO" region name possibleNames
+
+    NotFoundCtor region name possibleNames ->
+      error "TODO" region name possibleNames
+
+    NotFoundBinop region name locals ->
+      error "TODO" region name locals
+
+    NotFoundVarQual region prefix name possibleNames ->
+      error "TODO" region prefix name possibleNames
+
+    NotFoundTypeQual region prefix name possibleNames ->
+      error "TODO" region prefix name possibleNames
+
+    NotFoundCtorQual region prefix name possibleNames ->
+      error "TODO" region prefix name possibleNames
 
     PatternHasRecordCtor region name ->
       Report.Report "BAD PATTERN" region [] $
@@ -453,6 +502,7 @@ toReport source localizer err =
                   H.reflow $
                     "The `" <> N.toString name <> "` value has a direct use of `" <> N.toString name <> "` in its definition."
                 ,
+                  -- TODO see if shadowing rules out mutation attempts
                   H.stack
                     [ H.reflow $
                         "To know what `" <> N.toString name

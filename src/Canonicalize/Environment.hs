@@ -154,34 +154,34 @@ addLocalBoth name region var =
 
 
 findType :: R.Region -> Env -> N.Name -> Result i w Type
-findType region (Env _ _ types _ _ _ _ _) name =
-  case Map.lookup name types of
+findType region (Env _ _ ts _ _ _ qts _) name =
+  case Map.lookup name ts of
     Just (I.Bin 1 _ tipe _ _) ->
       Result.ok tipe
 
-    Just _ ->
-      error "TODO findType ambiguous unqualified"
+    Just homes ->
+      Result.throw (Error.AmbiguousType region Nothing name (Map.keys homes))
 
     Nothing ->
-      error ("TODO findType not found: " ++ N.toString name) region
+      Result.throw (Error.NotFoundType region name (toPossibleNames ts qts))
 
 
 findTypeQual :: R.Region -> Env -> N.Name -> N.Name -> Result i w Type
-findTypeQual region (Env _ _ _ _ _ _ types _) prefix name =
-  case Map.lookup prefix types of
+findTypeQual region (Env _ _ ts _ _ _ qts _) prefix name =
+  case Map.lookup prefix qts of
     Just qualified ->
       case Map.lookup name qualified of
         Just (I.Bin 1 _ tipe _ _) ->
           Result.ok tipe
 
-        Just more ->
-          error "TODO findTypeQual ambiguous qualified" more
+        Just homes ->
+          Result.throw (Error.AmbiguousType region (Just prefix) name (Map.keys homes))
 
         Nothing ->
-          error "TODO findTypeQual no qualified"
+          Result.throw (Error.NotFoundTypeQual region prefix name (toPossibleNames ts qts))
 
     Nothing ->
-      error "TODO findTypeQual not found" region
+      Result.throw (Error.NotFoundTypeQual region prefix name (toPossibleNames ts qts))
 
 
 
@@ -189,34 +189,34 @@ findTypeQual region (Env _ _ _ _ _ _ types _) prefix name =
 
 
 findCtor :: R.Region -> Env -> N.Name -> Result i w Ctor
-findCtor region (Env _ _ _ ctors _ _ _ _) name =
-  case Map.lookup name ctors of
+findCtor region (Env _ _ _ cs _ _ _ qcs) name =
+  case Map.lookup name cs of
     Just (I.Bin 1 _ ctor _ _) ->
       Result.ok ctor
 
-    Just _ ->
-      error ("TODO findCtor ambiguous unqualified " ++ N.toString name)
+    Just homes ->
+      Result.throw (Error.AmbiguousCtor region Nothing name (Map.keys homes))
 
     Nothing ->
-      error ("TODO findCtor not found " ++ N.toString name) region
+      Result.throw (Error.NotFoundCtor region name (toPossibleNames cs qcs))
 
 
 findCtorQual :: R.Region -> Env -> N.Name -> N.Name -> Result i w Ctor
-findCtorQual region (Env _ _ _ _ _ _ _ ctors) prefix name =
-  case Map.lookup prefix ctors of
+findCtorQual region (Env _ _ _ cs _ _ _ qcs) prefix name =
+  case Map.lookup prefix qcs of
     Just qualified ->
       case Map.lookup name qualified of
         Just (I.Bin 1 _ pattern _ _) ->
           Result.ok pattern
 
-        Just _ ->
-          error "TODO findCtorQual ambiguous qualified"
+        Just homes ->
+          Result.throw (Error.AmbiguousCtor region (Just prefix) name (Map.keys homes))
 
         Nothing ->
-          error "TODO findCtorQual no qualified"
+          Result.throw (Error.NotFoundCtorQual region prefix name (toPossibleNames cs qcs))
 
     Nothing ->
-      error "TODO findCtorQual not found" region
+      Result.throw (Error.NotFoundCtorQual region prefix name (toPossibleNames cs qcs))
 
 
 
@@ -229,8 +229,17 @@ findBinop region (Env _ _ _ _ binops _ _ _) name =
     Just (I.Bin 1 _ binop _ _) ->
       Result.ok binop
 
-    Nothing ->
-      Result.throw (error ("TODO unknown binop " ++ N.toString name) region)
-
     Just _ ->
-      Result.throw (error ("TODO ambiguous binop " ++ N.toString name) region)
+      Result.throw (error "TODO ambiguous binop")
+
+    Nothing ->
+      Result.throw (Error.NotFoundBinop region name (Map.keysSet binops))
+
+
+
+-- TO POSSIBLE NAMES
+
+
+toPossibleNames :: Exposed a -> Qualified a -> Error.PossibleNames
+toPossibleNames exposed qualified =
+  Error.PossibleNames (Map.keysSet exposed) (Map.map Map.keysSet qualified)
