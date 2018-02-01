@@ -28,6 +28,7 @@ import qualified Elm.Name as N
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Expression as Expr
 import qualified Generate.JavaScript.Name as Name
+import qualified Reporting.Helpers as H
 
 
 
@@ -224,9 +225,19 @@ generateCycle mode (Opt.Global home _) cycle =
   let
     safeDefs = map (generateSafeCycle mode home) cycle
     realDefs = map (generateRealCycle home) cycle
-    -- TODO add `try` in debug mode nice infinite recursion reports
+    block = JS.Block (safeDefs ++ realDefs)
   in
-  JS.Block (safeDefs ++ realDefs)
+  case mode of
+    Name.Prod _ _ ->
+      block
+
+    Name.Debug _ ->
+      JS.Try block Name.dollar $ JS.Throw $ JS.String $
+        "The following top-level definitions are causing infinite recursion:\\n"
+        <> drawCycle (map fst cycle)
+        <> "\\n\\nThese errors are very tricky, so read "
+        <> B.stringUtf8 (H.makeLink "halting-problem")
+        <> " to learn how to fix it!"
 
 
 generateSafeCycle :: Name.Mode -> ModuleName.Canonical -> (N.Name, Opt.Expr) -> JS.Stmt
@@ -246,6 +257,18 @@ generateRealCycle home (name, _) =
     , JS.ExprStmt $ JS.Assign (JS.LRef safeName) $
         JS.Function Nothing [] [ JS.Return (Just (JS.Ref realName)) ]
     ]
+
+
+drawCycle :: [N.Name] -> B.Builder
+drawCycle names =
+  let
+    topLine       = "\\n  ┌─────┐"
+    nameLine name = "\\n  │    " <> N.toBuilder name
+    midLine       = "\\n  │     ↓"
+    bottomLine    = "\\n  └─────┘"
+  in
+    mconcat (topLine : List.intersperse midLine (map nameLine names) ++ [ bottomLine ])
+
 
 
 

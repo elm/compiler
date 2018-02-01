@@ -67,6 +67,8 @@ data Stmt
   | Break (Maybe Name) -- break lab;
   | Continue (Maybe Name) -- continue lab;
   | Labelled Name Stmt -- lab: stmt
+  | Try Stmt Name Stmt -- try stmt catch (x) stmt
+  | Throw Expr -- throw expr;
   | Return (Maybe Expr) -- return expr;
   | Var [(Name, Maybe Expr)] -- var x, y=42;
   | FunctionStmt Name [Name] [Stmt] -- function f(x, y, z) {...}
@@ -209,6 +211,18 @@ fromStmt indent statement =
         [ indent, Name.toBuilder label, ":\n"
         , fromStmt indent stmt
         ]
+
+    Try tryStmt errorName catchStmt ->
+      mconcat
+        [ indent, "try {\n"
+        , fromStmt (deeper indent) tryStmt
+        , indent, "} catch (", Name.toBuilder errorName, ") {\n"
+        , fromStmt (deeper indent) catchStmt
+        , indent, "}\n"
+        ]
+
+    Throw expr ->
+      "throw " <> snd (fromExpr indent Whatever expr) <> ";"
 
     Return Nothing ->
       indent <> "return;\n"
