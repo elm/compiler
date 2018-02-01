@@ -58,15 +58,21 @@ canonicalize env decls unions effects =
         <*>
           case manager of
             Valid.Cmd cmdType ->
-              Can.Cmd <$> verifyEffectType cmdType unions
+              Can.Cmd
+                <$> verifyEffectType cmdType unions
+                <*  verifyManager region dict "cmdMap"
 
             Valid.Sub subType ->
-              Can.Sub <$> verifyEffectType subType unions
+              Can.Sub
+                <$> verifyEffectType subType unions
+                <*  verifyManager region dict "subMap"
 
             Valid.Fx cmdType subType ->
               Can.Fx
                 <$> verifyEffectType cmdType unions
                 <*> verifyEffectType subType unions
+                <*  verifyManager region dict "cmdMap"
+                <*  verifyManager region dict "subMap"
 
 
 
