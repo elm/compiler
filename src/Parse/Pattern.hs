@@ -12,6 +12,7 @@ import qualified Data.List as List
 import qualified AST.Source as Src
 import qualified Elm.Name as N
 import Parse.Primitives (Parser, SParser, SPos, addLocation, checkSpace, getPosition, hint, inContext, spaces, oneOf)
+import qualified Parse.Primitives as P
 import qualified Parse.Primitives.Keyword as Keyword
 import qualified Parse.Primitives.Number as Number
 import qualified Parse.Primitives.Symbol as Symbol
@@ -69,7 +70,7 @@ termHelp start =
               return (A.at start end (Src.PInt int))
 
             Number.Float _ ->
-              error "TODO floats are not allowed in pattern matches"
+              P.noFloatsAllowedInPatterns
     ,
       do  str <- Utf8.string
           end <- getPosition

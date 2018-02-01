@@ -5,6 +5,7 @@ module Parse.Primitives
   , I.oneOf
   , run, runAt
   , try, deadend, hint, endOfFile
+  , noFloatsAllowedInPatterns
   , getPosition, getCol
   , pushContext, popContext
   , getIndent, setIndent
@@ -113,6 +114,12 @@ endOfFile =
       eerr noError
     else
       eok () state noError
+
+
+noFloatsAllowedInPatterns :: Parser a
+noFloatsAllowedInPatterns =
+  Parser $ \(State _ _ _ _ row col _) _ cerr _ _ ->
+    cerr (E.ParseError row col E.FloatInPattern)
 
 
 
