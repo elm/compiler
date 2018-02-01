@@ -61,8 +61,6 @@ newtype Unify a =
   )
 
 
--- TODO experiment with INLINE on the Unify instances
-
 instance Functor Unify where
   fmap func (Unify kv) =
     Unify $ \vars ok err ->
