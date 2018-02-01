@@ -11,9 +11,6 @@ module Reporting.Result
   where
 
 
--- TODO try adding INLINE to warn, throw, (>>=), etc.
-
-
 import qualified Data.OneOrMore as OneOrMore
 import qualified Reporting.Warning as Warning
 
@@ -44,7 +41,6 @@ run (Result k) =
 -- HELPERS
 
 
-{-# INLINE ok #-}
 ok :: a -> Result i w e a
 ok a =
   Result $ \i w _ good ->
