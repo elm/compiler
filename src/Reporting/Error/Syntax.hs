@@ -30,6 +30,7 @@ import qualified Reporting.Helpers as H
 data Error
     = CommentOnNothing R.Region
     | UnexpectedPort R.Region N.Name
+    | TypeWithBadDefinition R.Region N.Name N.Name
     | TypeWithoutDefinition R.Region N.Name
     | Parse R.Region (Maybe R.Region) Problem
 
@@ -89,7 +90,7 @@ data Theory
 data Next
   = Decl
   | Expr
-  | AfterOpExpr Text
+  | AfterOpExpr N.Name
   | ElseBranch
   | Arg
   | Pattern
@@ -127,7 +128,7 @@ data Context
   | TypeAlias
   | Infix
   | Port
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord)
 
 
 
@@ -165,16 +166,34 @@ toReport source err =
               ]
           )
 
-    TypeWithoutDefinition region valueName ->
+    TypeWithBadDefinition region annName defName ->
+      Report.Report "ANNOTATION MISMATCH" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            H.reflow $
+              "I see a `" <> N.toString annName
+              <> "` annotation, but it is followed by a `"
+              <> N.toString defName <> "` definition."
+          ,
+            H.fillSep
+              ["The","annotation","and","definition","names","must","match!"
+              ,"Is","there","a","typo","between"
+              , H.dullyellow (H.nameToDoc annName)
+              ,"and"
+              , H.dullyellow (H.nameToDoc defName) <> "?"
+              ]
+          )
+
+    TypeWithoutDefinition region name ->
       Report.Report "MISSING DEFINITION" region [] $
         Report.toCodeSnippet source region Nothing
           (
             H.reflow $
-              "There is a type annotation for `" <> N.toString valueName
+              "There is a type annotation for `" <> N.toString name
               <> "` but there is no corresponding definition!"
           ,
             "Directly below the type annotation, put a definition like:\n\n"
-            <> "    " <> H.nameToDoc valueName <> " = 42"
+            <> "    " <> H.nameToDoc name <> " = 42"
           )
 
     Parse region subRegion problem ->

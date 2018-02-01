@@ -85,7 +85,7 @@ vsdHelp decls stuff =
               vsdHelp otherDecls $ stuff { _ports = port_ : _ports stuff }
 
         Src.Docs docs ->
-          validateDocs docs otherDecls stuff
+          validateDocs region docs otherDecls stuff
 
         Src.Annotation (A.At _ name) tipe ->
           validateAnnotation region name tipe otherDecls stuff
@@ -100,40 +100,40 @@ vsdHelp decls stuff =
 -- VALIDATE DOCS
 
 
-validateDocs :: Text -> [Src.Decl] -> Stuff -> Result i w Stuff
-validateDocs docs decls stuff =
+validateDocs :: R.Region -> Text -> [Src.Decl] -> Stuff -> Result i w Stuff
+validateDocs region docs decls stuff =
   case decls of
     [] ->
-      error "TODO no docs on nothing"
+      Result.throw (Error.CommentOnNothing region)
 
     A.At _ decl : _ ->
-      do  name <- getNameForDocs decl
+      do  name <- getNameForDocs region decl
           vsdHelp decls $ stuff { _docs = Map.insert name docs (_docs stuff) }
 
 
-getNameForDocs :: Src.Decl_ -> Result i w N.Name
-getNameForDocs decl =
+getNameForDocs :: R.Region -> Src.Decl_ -> Result i w N.Name
+getNameForDocs region decl =
   case decl of
     Src.Union (A.At _ name) _ _ ->
-      return name
+      Result.ok name
 
     Src.Alias (A.At _ name) _ _ ->
-      return name
+      Result.ok name
 
-    Src.Binop _ _ _ _ ->
-      error "TODO no docs on binop"
+    Src.Binop name _ _ _ ->
+      Result.ok name
 
-    Src.Port _ _ ->
-      error "TODO no docs on ports"
+    Src.Port (A.At _ name) _ ->
+      Result.ok name
 
     Src.Docs _ ->
-      error "TODO no docs on docs"
+      Result.throw (Error.CommentOnNothing region)
 
     Src.Annotation (A.At _ name) _ ->
-      return name
+      Result.ok name
 
     Src.Definition (A.At _ name) _ _ ->
-      return name
+      Result.ok name
 
 
 
@@ -144,7 +144,7 @@ validateAnnotation :: R.Region -> N.Name -> Src.Type -> [Src.Decl] -> Stuff -> R
 validateAnnotation annRegion annotationName tipe decls stuff =
   case decls of
     [] ->
-      error "TODO no attotations on nothing"
+      Result.throw (Error.TypeWithoutDefinition annRegion annotationName)
 
     A.At defRegion decl : otherDecls ->
       case decl of
@@ -156,10 +156,10 @@ validateAnnotation annRegion annotationName tipe decls stuff =
                 vsdHelp otherDecls $ stuff { _decls = validDecl : _decls stuff }
 
           else
-            error "TODO annotation does not match following definition"
+            Result.throw (Error.TypeWithBadDefinition annRegion annotationName definitionName)
 
         _ ->
-          error "TODO annotation needs to be on a definition"
+          Result.throw (Error.TypeWithoutDefinition annRegion annotationName)
 
 
 
