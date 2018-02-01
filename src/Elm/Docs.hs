@@ -473,7 +473,11 @@ addExport info (Module n c us as_ vs bs) (name, A.At region export) =
           Result.ok $ Module n c newUnions as_ vs bs
 
     Can.ExportPort ->
-      error "TODO"
+      do  tipe <- getType name info
+          comment <- getComment region name info
+
+          let newValues = Map.insert name (Value comment tipe) vs
+          Result.ok $ Module n c us as_ newValues bs
 
 
 getComment :: R.Region -> N.Name -> Info -> Result i w Comment
