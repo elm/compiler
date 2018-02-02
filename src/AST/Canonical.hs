@@ -254,7 +254,7 @@ data Docs
 
 
 data Exports
-  = ExportEverything
+  = ExportEverything R.Region
   | Export (Map.Map N.Name (A.Located Export))
 
 

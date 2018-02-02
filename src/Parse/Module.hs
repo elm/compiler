@@ -43,7 +43,7 @@ chompHeader =
       (name, effects) <- chompNameAndEffects
       P.hint E.Exposing $ Keyword.exposing_
       P.spaces
-      exports <- exposing
+      exports <- P.addLocation exposing
       P.popContext ()
       docs <- chompDocComment
       return (Src.Header name effects exports docs)

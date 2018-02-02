@@ -289,8 +289,8 @@ precDecoder =
 fromModule :: Can.Module -> Result.Result i w Error.Error Module
 fromModule (Can.Module name docs exports decls unions aliases binops effects) =
   case exports of
-    Can.ExportEverything ->
-      Result.throw $ Error.Docs $ E.ImplicitExposing
+    Can.ExportEverything region ->
+      Result.throw $ Error.Docs $ E.ImplicitExposing region
 
     Can.Export exportDict ->
       case docs of

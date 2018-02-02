@@ -143,7 +143,7 @@ data Header
   = Header
       { _name :: N.Name
       , _effects :: Effects
-      , _exports :: Exposing
+      , _exports :: A.Located Exposing
       , _docs :: Docs
       }
 

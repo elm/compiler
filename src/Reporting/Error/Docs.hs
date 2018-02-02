@@ -18,7 +18,7 @@ import qualified Reporting.Report as Report
 
 data Error
   = NoDocs R.Region
-  | ImplicitExposing
+  | ImplicitExposing R.Region
   | Duplicate N.Name R.Region R.Region
   | OnlyInDocs N.Name R.Region
   | OnlyInExports N.Name R.Region
@@ -45,8 +45,8 @@ toReport source err =
               "Learn more at <http://package.elm-lang.org/help/documentation-format>"
           ]
 
-    ImplicitExposing ->
-      Report.Report "IMPLICIT EXPOSING" (error "TODO") [] $
+    ImplicitExposing region ->
+      Report.Report "IMPLICIT EXPOSING" region [] $
         H.stack
           [
             H.reflow $

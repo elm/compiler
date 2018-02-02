@@ -221,12 +221,12 @@ canonicalizeExports
   -> Map.Map N.Name alias
   -> Map.Map N.Name binop
   -> Can.Effects
-  -> Src.Exposing
+  -> A.Located Src.Exposing
   -> Result i w Can.Exports
-canonicalizeExports decls unions aliases binops effects exposing =
+canonicalizeExports decls unions aliases binops effects (A.At region exposing) =
   case exposing of
     Src.Open ->
-      Result.ok Can.ExportEverything
+      Result.ok (Can.ExportEverything region)
 
     Src.Explicit exposeds ->
       do  let names = Map.fromList (map declToName decls)

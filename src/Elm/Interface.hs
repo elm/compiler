@@ -67,7 +67,7 @@ fromModule types (Can.Module _ _ exports _ unions aliases binops _) =
 privatize :: Can.Exports -> (a -> A.Located Can.Export -> a) -> Map.Map N.Name a -> Map.Map N.Name a
 privatize exports func dict =
   case exports of
-    Can.ExportEverything ->
+    Can.ExportEverything _ ->
       dict
 
     Can.Export explicitExports ->

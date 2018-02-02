@@ -77,7 +77,7 @@ data Module =
     { _name     :: N.Name
     , _overview :: Src.Docs
     , _docs     :: Map.Map N.Name Text
-    , _exports  :: Src.Exposing
+    , _exports  :: A.Located Src.Exposing
     , _imports  :: [Src.Import]
     , _decls    :: [A.Located Decl]
     , _unions   :: [Union]
@@ -114,7 +114,7 @@ defaultModule docs imports decls unions aliases binop =
     { _name     = "Main"
     , _overview = Src.NoDocs zero zero
     , _docs     = docs
-    , _exports  = Src.Open
+    , _exports  = A.at zero zero Src.Open
     , _imports  = imports
     , _decls    = decls
     , _unions   = unions
