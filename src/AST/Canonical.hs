@@ -201,7 +201,7 @@ data AliasType
 data Module =
   Module
     { _name    :: ModuleName.Canonical
-    , _docs    :: Maybe (A.Located Docs)
+    , _docs    :: Docs
     , _exports :: Exports
     , _decls   :: Decls
     , _unions  :: Map.Map N.Name Union
@@ -239,11 +239,14 @@ data Ctor =
 -- DOCS
 
 
-data Docs =
-  Docs
-    { _overview :: B.ByteString
-    , _comments :: Map.Map N.Name Text
-    }
+data Docs
+  = NoDocs R.Position R.Position
+  | YesDocs
+      { _start :: R.Position
+      , _end :: R.Position
+      , _overview :: B.ByteString
+      , _comments :: Map.Map N.Name Text
+      }
 
 
 

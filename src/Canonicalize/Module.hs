@@ -68,14 +68,14 @@ canonicalize pkg importDict interfaces module_@(Valid.Module name _ _ exports im
 -- DOCUMENTATION
 
 
-toDocs :: Valid.Module -> Maybe (A.Located Can.Docs)
+toDocs :: Valid.Module -> Can.Docs
 toDocs (Valid.Module _ docs comments _ _ _ _ _ _ _) =
   case docs of
-    Nothing ->
-      Nothing
+    Src.NoDocs start end ->
+      Can.NoDocs start end
 
-    Just (A.At region overview) ->
-      Just (A.At region (Can.Docs overview comments))
+    Src.YesDocs start end overview ->
+      Can.YesDocs start end overview comments
 
 
 

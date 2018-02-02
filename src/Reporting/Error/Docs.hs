@@ -17,7 +17,7 @@ import qualified Reporting.Report as Report
 
 
 data Error
-  = NoDocs
+  = NoDocs R.Region
   | ImplicitExposing
   | Duplicate N.Name R.Region R.Region
   | OnlyInDocs N.Name R.Region
@@ -33,8 +33,8 @@ data Error
 toReport :: Code.Source -> Error -> Report.Report
 toReport source err =
   case err of
-    NoDocs ->
-      Report.Report "NO DOCS" (error "TODO") [] $
+    NoDocs region ->
+      Report.Report "NO DOCS" region [] $
         H.stack
           [
             H.reflow $

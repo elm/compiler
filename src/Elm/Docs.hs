@@ -294,11 +294,11 @@ fromModule (Can.Module name docs exports decls unions aliases binops effects) =
 
     Can.Export exportDict ->
       case docs of
-        Nothing ->
-          Result.throw $ Error.Docs $ E.NoDocs
+        Can.NoDocs start end ->
+          Result.throw $ Error.Docs $ E.NoDocs $ R.Region start end
 
-        Just (A.At region (Can.Docs overview comments)) ->
-          do  names <- parseOverview region overview
+        Can.YesDocs start end overview comments ->
+          do  names <- parseOverview (R.Region start end) overview
               Result.mapError Error.Docs $
                 do  checkNames exportDict names
                     let types = gatherTypes decls Map.empty

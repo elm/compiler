@@ -16,7 +16,6 @@ module AST.Valid
   where
 
 
-import qualified Data.ByteString as B
 import qualified Data.Map as Map
 import Data.Text (Text)
 
@@ -76,7 +75,7 @@ data Def
 data Module =
   Module
     { _name     :: N.Name
-    , _overview :: Maybe (A.Located B.ByteString)
+    , _overview :: Src.Docs
     , _docs     :: Map.Map N.Name Text
     , _exports  :: Src.Exposing
     , _imports  :: [Src.Import]
@@ -113,7 +112,7 @@ defaultModule :: Map.Map N.Name Text -> [Src.Import] -> [A.Located Decl] -> [Uni
 defaultModule docs imports decls unions aliases binop =
   Module
     { _name     = "Main"
-    , _overview = Nothing
+    , _overview = Src.NoDocs zero zero
     , _docs     = docs
     , _exports  = Src.Open
     , _imports  = imports
@@ -123,3 +122,8 @@ defaultModule docs imports decls unions aliases binop =
     , _binop    = binop
     , _effects  = NoEffects
     }
+
+
+zero :: R.Position
+zero =
+  R.Position 1 1

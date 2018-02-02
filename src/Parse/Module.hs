@@ -8,8 +8,6 @@ module Parse.Module
   where
 
 
-import qualified Data.ByteString as B
-
 import qualified AST.Source as Src
 import qualified Elm.Compiler.Imports as Imports
 import qualified Elm.Name as N
@@ -47,7 +45,7 @@ chompHeader =
       P.spaces
       exports <- exposing
       P.popContext ()
-      docs <- maybeDocComment
+      docs <- chompDocComment
       return (Src.Header name effects exports docs)
 
 
@@ -158,16 +156,17 @@ chompSubscription =
 -- DOC COMMENTS
 
 
-maybeDocComment :: Parser (Maybe (A.Located B.ByteString))
-maybeDocComment =
-  do  freshLine
-      newStart <- P.getPosition
+chompDocComment :: Parser Src.Docs
+chompDocComment =
+  do  endOfExposing <- P.getPosition
+      freshLine
+      nextStart <- P.getPosition
       oneOf
         [ do  doc <- W.docComment
-              end <- P.getPosition
+              docEnd <- P.getPosition
               freshLine
-              return (Just (A.at newStart end doc))
-        , return Nothing
+              return (Src.YesDocs nextStart docEnd doc)
+        , return (Src.NoDocs endOfExposing nextStart)
         ]
 
 

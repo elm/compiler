@@ -7,6 +7,7 @@ module AST.Source
   , Type, Type_(..)
   , Module(..)
   , Header(..)
+  , Docs(..)
   , Import(..)
   , Effects(..)
   , Manager(..)
@@ -143,7 +144,7 @@ data Header
       { _name :: N.Name
       , _effects :: Effects
       , _exports :: Exposing
-      , _docs :: Maybe (A.Located B.ByteString)
+      , _docs :: Docs
       }
 
 
@@ -153,6 +154,11 @@ data Import =
     , _alias :: Maybe N.Name
     , _exposing :: Exposing
     }
+
+
+data Docs
+  = NoDocs R.Position R.Position
+  | YesDocs R.Position R.Position B.ByteString
 
 
 data Effects
