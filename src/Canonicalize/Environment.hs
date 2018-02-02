@@ -229,8 +229,8 @@ findBinop region (Env _ _ _ _ binops _ _ _) name =
     Just (I.Bin 1 _ binop _ _) ->
       Result.ok binop
 
-    Just _ ->
-      Result.throw (error "TODO ambiguous binop")
+    Just homes ->
+      Result.throw (Error.AmbiguousBinop region name (Map.keys homes))
 
     Nothing ->
       Result.throw (Error.NotFoundBinop region name (Map.keysSet binops))
