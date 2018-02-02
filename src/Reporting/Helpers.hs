@@ -5,7 +5,7 @@ module Reporting.Helpers
   , nameToDoc
   , args, moreArgs
   , toSimpleNote, toSimpleHint, toFancyHint
-  , link, reflowLink
+  , link, reflowLink, makeLink
   , stack, reflow
   , commaSep, capitalize, ordinalize, drawCycle
   , findPotentialTypos, findTypoPairs, vetTypos
@@ -88,7 +88,7 @@ link word before fileName after =
 
 makeLink :: String -> String
 makeLink fileName =
-  "<http://elm-lang.org/hints/" <> Pkg.versionToString Compiler.version <> "/" <> fileName <> ".md>"
+  "<https://elm-lang.org/hints/" <> Pkg.versionToString Compiler.version <> "/" <> fileName <> ">"
 
 
 reflowLink :: String -> String -> String -> Doc
@@ -164,17 +164,10 @@ ordinalize number =
 drawCycle :: [N.Name] -> Doc
 drawCycle names =
   let
-    topLine =
-      "┌─────┐"
-
-    nameLine name =
-      "│    " <> dullyellow (textToDoc name)
-
-    midLine =
-      "│     ↓"
-
-    bottomLine =
-      "└─────┘"
+    topLine       = "┌─────┐"
+    nameLine name = "│    " <> dullyellow (nameToDoc name)
+    midLine       = "│     ↓"
+    bottomLine    = "└─────┘"
   in
     vcat (topLine : List.intersperse midLine (map nameLine names) ++ [ bottomLine ])
 
@@ -185,7 +178,7 @@ drawCycle names =
 
 findPotentialTypos :: [String] -> String -> [String]
 findPotentialTypos knownNames badName =
-  filter ((==1) . distance badName) knownNames
+  filter (\name -> distance badName name == 1) knownNames
 
 
 findTypoPairs :: [String] -> [String] -> [(String, String)]
