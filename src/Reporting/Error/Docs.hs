@@ -88,7 +88,9 @@ toReport source err =
               "I do not see `" <> N.toString name
               <> "` in the `exposing` list, but it is in your module documentation:"
           ,
-            error "TODO OnlyInDocs"
+            H.reflow $
+              "Does it need to be added to the `exposing` list as well? Or maybe you removed `"
+              <> N.toString name <> "` and forgot to delete it here?"
           )
 
     OnlyInExports name region ->
@@ -99,7 +101,12 @@ toReport source err =
               "I do not see `" <> N.toString name
               <> "` in your module documentation, but it is in your `exposing` list:"
           ,
-            error "TODO OnlyInExports"
+            H.stack
+              [ H.reflow $
+                  "Add a line like `@docs " <> N.toString name
+                  <> "` to your module documentation!"
+              , H.link "Note" "See" "docs" "for more guidance on writing high quality docs."
+              ]
           )
 
     NoComment name region ->
