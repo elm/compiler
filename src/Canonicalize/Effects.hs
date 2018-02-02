@@ -82,27 +82,49 @@ canonicalize env decls unions effects =
 canonicalizePort :: Env.Env -> Valid.Port -> Result i w (N.Name, Can.Port)
 canonicalizePort env (Valid.Port (A.At region portName) tipe) =
   do  (Can.Forall freeVars ctipe) <- Type.toAnnotation env tipe
-      case Type.deepDealias ctipe of
-        Can.TLambda outgoingType (Can.TType home name [Can.TVar _])
-          | home == ModuleName.cmd && name == "Cmd" ->
-              case checkPayload outgoingType of
-                Left (badType, err) ->
-                  Result.throw (Error.PortPayloadInvalid region portName badType err)
+      case reverse (Type.delambda (Type.deepDealias ctipe)) of
+        Can.TType home name [msg] : revArgs
+           | home == ModuleName.cmd && name == N.cmd ->
+                case revArgs of
+                  [] ->
+                    Result.throw (Error.PortTypeInvalid region portName Error.CmdNoArg)
 
-                Right () ->
-                  Result.ok (portName, Can.Outgoing freeVars outgoingType ctipe)
+                  [outgoingType] ->
+                    case msg of
+                      Can.TVar _ ->
+                        case checkPayload outgoingType of
+                          Right () ->
+                            Result.ok (portName, Can.Outgoing freeVars outgoingType ctipe)
 
-        Can.TLambda (Can.TLambda incomingType (Can.TVar msg1)) (Can.TType home name [Can.TVar msg2])
-          | home == ModuleName.sub && name == "Sub" && msg1 == msg2 ->
-              case checkPayload incomingType of
-                Left (badType, err) ->
-                  Result.throw (Error.PortPayloadInvalid region portName badType err)
+                          Left (badType, err) ->
+                            Result.throw (Error.PortPayloadInvalid region portName badType err)
 
-                Right () ->
-                  Result.ok (portName, Can.Incoming freeVars incomingType ctipe)
+                      _ ->
+                        Result.throw (Error.PortTypeInvalid region portName Error.CmdBadMsg)
+
+                  _ ->
+                    Result.throw (Error.PortTypeInvalid region portName (Error.CmdExtraArgs (length revArgs)))
+
+            | home == ModuleName.sub && name == N.sub ->
+                case revArgs of
+                  [Can.TLambda incomingType (Can.TVar msg1)] ->
+                    case msg of
+                      Can.TVar msg2 | msg1 == msg2 ->
+                        case checkPayload incomingType of
+                          Right () ->
+                            Result.ok (portName, Can.Incoming freeVars incomingType ctipe)
+
+                          Left (badType, err) ->
+                            Result.throw (Error.PortPayloadInvalid region portName badType err)
+
+                      _ ->
+                        Result.throw (Error.PortTypeInvalid region portName Error.SubBad)
+
+                  _ ->
+                    Result.throw (Error.PortTypeInvalid region portName Error.SubBad)
 
         _ ->
-          Result.throw (Error.PortTypeInvalid region portName ctipe)
+          Result.throw (Error.PortTypeInvalid region portName Error.NotCmdOrSub)
 
 
 

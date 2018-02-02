@@ -4,6 +4,7 @@ module Reporting.Error.Canonicalize
   ( Error(..)
   , BadArityContext(..)
   , InvalidPayload(..)
+  , PortProblem(..)
   , DuplicatePatternContext(..)
   , PossibleNames(..)
   , VarKind(..)
@@ -24,7 +25,7 @@ import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 import qualified Reporting.Render.Code as Code
-import qualified Reporting.Render.Type as RenderType
+import qualified Reporting.Render.Type as Type
 import qualified Reporting.Report as Report
 import qualified Reporting.Helpers as H
 import Reporting.Helpers ( Doc, (<>) )
@@ -68,7 +69,7 @@ data Error
   | NotFoundCtorQual R.Region N.Name N.Name PossibleNames
   | PatternHasRecordCtor R.Region N.Name
   | PortPayloadInvalid R.Region N.Name Can.Type InvalidPayload
-  | PortTypeInvalid R.Region N.Name Can.Type
+  | PortTypeInvalid R.Region N.Name PortProblem
   | RecursiveAlias R.Region N.Name [N.Name] Src.Type [N.Name]
   | RecursiveDecl [Can.Def]
   | RecursiveLet (A.Located N.Name) [N.Name]
@@ -96,6 +97,14 @@ data InvalidPayload
   | Function
   | TypeVariable N.Name
   | UnsupportedType N.Name
+
+
+data PortProblem
+  = CmdNoArg
+  | CmdExtraArgs Int
+  | CmdBadMsg
+  | SubBad
+  | NotCmdOrSub
 
 
 data PossibleNames =
@@ -136,7 +145,7 @@ toKindInfo kind name =
 -- TO REPORT
 
 
-toReport :: Code.Source -> RenderType.Localizer -> Error -> Report.Report
+toReport :: Code.Source -> Type.Localizer -> Error -> Report.Report
 toReport source localizer err =
   case err of
     AnnotationTooShort region name index leftovers ->
@@ -414,78 +423,144 @@ toReport source localizer err =
 
     PortPayloadInvalid region portName badType invalidPayload ->
       let
-        (aBadKindOfThing, elaboration) =
-          case invalidPayload of
-            ExtendedRecord ->
+        formatDetails (aBadKindOfThing, elaboration) =
+          Report.Report "PORT ERROR" region [] $
+            Report.toCodeSnippet source region Nothing
               (
-                "an extended record"
-              ,
                 H.reflow $
-                  "The exact shape of the record must be known at compile time. No type variables!"
-              )
-
-            Function ->
-              (
-                "a function"
-              ,
-                H.reflow $
-                  "Functions cannot be sent in and out ports. If we allowed functions in from JS\
-                  \ they may perform some side-effects. If we let functions out, they could produce\
-                  \ incorrect results because Elm optimizations assume there are no side-effects."
-              )
-
-
-            TypeVariable name ->
-              (
-                "an unspecified type"
-              ,
-                H.reflow $
-                  "Type variables like `" <> N.toString name <> "` cannot flow through ports because\
-                  \ the marshalling code needs to know the exact data that it is going to process."
-              )
-
-            UnsupportedType name ->
-              (
-                "a `" <> N.toString name <> "` value"
+                  "The `" <> N.toString portName <> "` port is trying to transmit " <> aBadKindOfThing <> ":"
               ,
                 H.stack
-                  [ H.reflow $ "The types that can flow in and out of Elm include:"
-                  , H.indent 4 $
-                      H.reflow $
-                        "Ints, Floats, Bools, Strings, Maybes, Lists, Arrays,\
-                        \ tuples, records, and JSON values."
-                  , H.reflow $
-                      "Since JSON values can flow through, you can use JSON encoders and decoders\
-                      \ to allow other types through as well. More advanced users often just do\
-                      \ everything with encoders and decoders for more control and better errors."
+                  [ H.indent 4 (H.dullyellow (Type.toDoc localizer badType))
+                  , elaboration
+                  , H.link "Hint"
+                      "Ports are not a traditional FFI, so if you have tons of annoying ports, definitely read"
+                      "ports"
+                      "to learn how they are meant to work. They require a different mindset!"
                   ]
               )
       in
-        Report.Report "PORT ERROR" region [] $
-          Report.toCodeSnippet source region Nothing
+      formatDetails $
+        case invalidPayload of
+          ExtendedRecord ->
             (
+              "an extended record"
+            ,
               H.reflow $
-                "The `" <> N.toString portName <> "` port is trying to transmit " <> aBadKindOfThing <> ":"
+                "But the exact shape of the record must be known at compile time. No type variables!"
+            )
+
+          Function ->
+            (
+              "a function"
+            ,
+              H.reflow $
+                "But functions cannot be sent in and out ports. If we allowed functions in from JS\
+                \ they may perform some side-effects. If we let functions out, they could produce\
+                \ incorrect results because Elm optimizations assume there are no side-effects."
+            )
+
+
+          TypeVariable name ->
+            (
+              "an unspecified type"
+            ,
+              H.reflow $
+                "But type variables like `" <> N.toString name <> "` cannot flow through ports.\
+                \ I need to know exactly what type of data I am getting, so I can guarantee that\
+                \ unexpected data cannot sneak in and crash the Elm program."
+            )
+
+          UnsupportedType name ->
+            (
+              "a `" <> N.toString name <> "` value"
             ,
               H.stack
-                [ error "TODO" badType
-                , elaboration
-                , H.link "Hint"
-                    "Ports are not a traditional FFI for calling JS functions directly. They need a different mindset! Read"
-                    "ports"
-                    "to learn how to use ports effectively."
+                [ H.reflow $ "I cannot handle that. The types that CAN flow in and out of Elm include:"
+                , H.indent 4 $
+                    H.reflow $
+                      "Ints, Floats, Bools, Strings, Maybes, Lists, Arrays,\
+                      \ tuples, records, and JSON values."
+                , H.reflow $
+                    "Since JSON values can flow through, you can use JSON encoders and decoders\
+                    \ to allow other types through as well. More advanced users often just do\
+                    \ everything with encoders and decoders for more control and better errors."
                 ]
             )
 
-    PortTypeInvalid region name badType ->
-      Report.Report "BAD PORT" region [] $
-        Report.toCodeSnippet source region Nothing
-          (
-            H.reflow $
-              "Port `" <> N.toString name <> "` has an invalid type."
-          ,
-            error "TODO PortTypeInvalid" badType
-          )
+    PortTypeInvalid region name portProblem ->
+      let
+        formatDetails (before, after) =
+          Report.Report "BAD PORT" region [] $
+            Report.toCodeSnippet source region Nothing $
+              (
+                H.reflow before
+              ,
+                H.stack
+                  [ after
+                  , H.link "Hint" "Read" "ports"
+                      "for more advice. For example, do not end up with one port per JS function!"
+                  ]
+              )
+      in
+      formatDetails $
+        case portProblem of
+          CmdNoArg ->
+            (
+              "The `" <> N.toString name <> "` port cannot be just a command."
+            ,
+              H.reflow $
+                "It can be (() -> Cmd msg) if you just need to trigger a JavaScript\
+                \ function, but there is often a better way to set things up."
+            )
+
+          CmdExtraArgs n ->
+            (
+              "The `" <> N.toString name <> "` port can only send ONE value out to JavaScript."
+            ,
+              let
+                theseItemsInSomething
+                  | n == 2 = "both of these items into a tuple or record"
+                  | n == 3 = "these " ++ show n ++ " items into a tuple or record"
+                  | True   = "these " ++ show n ++ " items into a record"
+              in
+              H.reflow $
+                "You can put " ++ theseItemsInSomething ++ " to send them out though."
+            )
+
+          CmdBadMsg ->
+            (
+              "The `" <> N.toString name <> "` port cannot send any messages to the `update` function."
+            ,
+              H.reflow $
+                "It must produce a (Cmd msg) type. Notice the lower case `msg` type\
+                \ variable. The command will trigger some JS code, but it will not send\
+                \ anything particular back to Elm."
+            )
+
+          SubBad ->
+            ( "There is something off about this `" <> N.toString name <> "` port declaration."
+            ,
+              H.stack
+                [ H.reflow $
+                    "To receive messages from JavaScript, you need to define a port like this:"
+                , H.indent 4 $ H.dullyellow $ H.text $
+                    "port " <> N.toString name <> " : (Int -> msg) -> Sub msg"
+                , H.reflow $
+                    "Now every time JS sends an `Int` to this port, it is converted to a `msg`.\
+                    \ And if you subscribe, those `msg` values will be piped into your `update`\
+                    \ function. The only thing you can customize here is the `Int` type."
+                ]
+            )
+
+          NotCmdOrSub ->
+            (
+              "I am confused about the `" <> N.toString name <> "` port declaration."
+            ,
+              H.reflow $
+                "Ports need to produce a command (Cmd) or a subscription (Sub) but\
+                \ this is neither. I do not know how to handle this."
+            )
 
     RecursiveAlias region name args tipe others ->
         aliasRecursionReport source localizer region name args tipe others
@@ -777,7 +852,7 @@ _argMismatchReport source region kind name expected actual =
 -- BAD ALIAS RECURSION
 
 
-aliasRecursionReport :: Code.Source -> RenderType.Localizer -> R.Region -> N.Name -> [N.Name] -> Src.Type -> [N.Name] -> Report.Report
+aliasRecursionReport :: Code.Source -> Type.Localizer -> R.Region -> N.Name -> [N.Name] -> Src.Type -> [N.Name] -> Report.Report
 aliasRecursionReport source localizer region name args tipe others =
   case others of
     [] ->
@@ -791,7 +866,7 @@ aliasRecursionReport source localizer region name args tipe others =
                   "When I expand a recursive type alias, it just keeps getting bigger and bigger.\
                   \ So dealiasing results in an infinitely large type! Try this instead:"
               , H.indent 4 $
-                  RenderType.decl localizer name args [(name, [error "TODO" tipe])]
+                  Type.decl localizer name args [(name, [error "TODO" tipe])]
               , H.link "Hint"
                   "This is kind of a subtle distinction. I suggested the naive fix, but I recommend reading"
                   "recursive-alias"
