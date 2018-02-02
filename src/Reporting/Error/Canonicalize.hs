@@ -421,7 +421,7 @@ toReport source localizer err =
               "I recommend matching matching the record as a variable and unpacking it later."
           )
 
-    PortPayloadInvalid region portName badType invalidPayload ->
+    PortPayloadInvalid region portName _badType invalidPayload ->
       let
         formatDetails (aBadKindOfThing, elaboration) =
           Report.Report "PORT ERROR" region [] $
@@ -431,8 +431,7 @@ toReport source localizer err =
                   "The `" <> N.toString portName <> "` port is trying to transmit " <> aBadKindOfThing <> ":"
               ,
                 H.stack
-                  [ H.indent 4 (H.dullyellow (Type.toDoc localizer badType))
-                  , elaboration
+                  [ elaboration
                   , H.link "Hint"
                       "Ports are not a traditional FFI, so if you have tons of annoying ports, definitely read"
                       "ports"
