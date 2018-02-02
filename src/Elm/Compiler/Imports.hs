@@ -7,6 +7,7 @@ module Elm.Compiler.Imports
 
 
 import qualified AST.Source as Src
+import qualified AST.Module.Name as Module
 import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 import qualified Reporting.Annotation as A
@@ -30,22 +31,22 @@ addDefaults pkgName imports =
 
 defaults :: [Src.Import]
 defaults =
-  [ import_ "Basics" Nothing Src.Open
-  , import_ "Debug" Nothing closed
-  , import_ "List" Nothing (operator "::")
-  , import_ "Maybe" Nothing (typeOpen "Maybe")
-  , import_ "Result" Nothing (typeOpen "Result")
-  , import_ "String" Nothing (typeClosed "String")
-  , import_ "Char" Nothing (typeClosed "Char")
-  , import_ "Tuple" Nothing closed
-  , import_ "Platform" Nothing (typeClosed "Program")
-  , import_ "Platform.Cmd" (Just "Cmd") (typeClosed "Cmd")
-  , import_ "Platform.Sub" (Just "Sub") (typeClosed "Sub")
+  [ import_ Module.basics Nothing Src.Open
+  , import_ Module.debug Nothing closed
+  , import_ Module.list Nothing (operator "::")
+  , import_ Module.maybe Nothing (typeOpen N.maybe)
+  , import_ Module.result Nothing (typeOpen N.result)
+  , import_ Module.string Nothing (typeClosed N.string)
+  , import_ Module.char Nothing (typeClosed N.char)
+  , import_ Module.tuple Nothing closed
+  , import_ Module.platform Nothing (typeClosed N.program)
+  , import_ Module.cmd (Just N.cmd) (typeClosed N.cmd)
+  , import_ Module.sub (Just N.sub) (typeClosed N.sub)
   ]
 
 
-import_ :: N.Name -> Maybe N.Name -> Src.Exposing -> Src.Import
-import_ name maybeAlias exposing =
+import_ :: Module.Canonical -> Maybe N.Name -> Src.Exposing -> Src.Import
+import_ (Module.Canonical _ name) maybeAlias exposing =
   Src.Import (A.At zero name) maybeAlias exposing
 
 

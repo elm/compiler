@@ -25,7 +25,7 @@ module Elm.Name
   , fromText
   -- interned
   , int, float, bool, char, string
-  , maybe, list, array, tuple, jsArray
+  , maybe, result, list, array, tuple, jsArray
   , task, router, cmd, sub, platform, browser
   , shader, debug, bitwise, basics
   , utils, negate, value
@@ -199,6 +199,11 @@ string = "String"
 {-# NOINLINE maybe #-}
 maybe :: Name
 maybe = "Maybe"
+
+
+{-# NOINLINE result #-}
+result :: Name
+result = "Result"
 
 
 {-# NOINLINE list #-}
