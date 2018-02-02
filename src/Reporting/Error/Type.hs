@@ -12,6 +12,7 @@ import Prelude hiding (round)
 import Data.Monoid ((<>))
 
 import qualified AST.Canonical as Can
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Utils.Type as Type
 import qualified Data.Index as Index
 import qualified Elm.Name as N
@@ -75,13 +76,22 @@ data Thing
 
 typeComparison :: Type.Localizer -> Can.Type -> Can.Type -> ( String, String, [H.Doc] ) -> H.Doc
 typeComparison localizer actual expected ( iAmSeeing, insteadOf, soHereAreSomeThoughts ) =
+  let
+    (actualDoc, expectedDoc) =
+      Type.diffToDocs localizer actual expected
+  in
   H.stack $
     [ H.reflow iAmSeeing
-    , H.indent 4 (Type.toDoc localizer actual)
+    , H.indent 4 actualDoc
     , H.reflow insteadOf
-    , H.indent 4 (Type.toDoc localizer expected)
+    , H.indent 4 expectedDoc
     ]
     ++ soHereAreSomeThoughts
+
+
+indentType :: Type.Localizer -> Can.Type -> H.Doc
+indentType localizer tipe =
+  H.indent 4 (H.dullyellow (Type.toDoc localizer tipe))
 
 
 toDescription :: Thing -> String -> String
@@ -210,7 +220,7 @@ toMismatchReport source localizer exprRegion thing tipe expected =
             ,
               H.stack
                 [ H.reflow $ toDescription thing "It is"
-                , Type.toDoc localizer tipe
+                , indentType localizer tipe
                 , H.fillSep
                     ["But","I","only","now","how","to","negate"
                     ,H.dullyellow "Int","and",H.dullyellow "Float","values."
@@ -234,7 +244,7 @@ toMismatchReport source localizer exprRegion thing tipe expected =
             ,
               H.stack
               [ H.reflow $ toDescription thing "It is"
-              , Type.toDoc localizer tipe
+              , indentType localizer tipe
               , H.fillSep ["But","I","need","this","`if`","condition","to","be","a",H.dullyellow "Bool","value."]
               , H.toSimpleHint $
                   "Elm does not have “truthiness” such that ints and strings and lists\
@@ -423,7 +433,7 @@ toMismatchReport source localizer exprRegion thing tipe expected =
                   H.stack $
                     [ H.reflow $
                         "It is a record with this type:"
-                    , Type.toDoc localizer tipe
+                    , indentType localizer tipe
                     , H.reflow $
                         "So maybe the ." <> N.toString field <> " field access is misspelled?"
                     ]
@@ -457,7 +467,7 @@ toMismatchReport source localizer exprRegion thing tipe expected =
                   H.stack
                     [ H.reflow $
                         "The " <> whatever <> " is not a record! It is actually a function:"
-                    , Type.toDoc localizer tipe
+                    , indentType localizer tipe
                     , H.toSimpleHint "Maybe it is missing some arguments?"
                     ]
                 )
@@ -470,7 +480,7 @@ toMismatchReport source localizer exprRegion thing tipe expected =
                   H.stack
                     [ H.reflow $
                         "The " <> whatever <> " is not a record though! It is a:"
-                    , Type.toDoc localizer tipe
+                    , indentType localizer tipe
                     ]
                 )
 
@@ -493,7 +503,7 @@ toMismatchReport source localizer exprRegion thing tipe expected =
                   H.stack
                     [ H.reflow $
                         "I can only update records, but this appears to be a " <> whatever <> ":"
-                    , Type.toDoc localizer tipe
+                    , indentType localizer tipe
                     ]
                 )
 
@@ -534,7 +544,7 @@ opLeftToDocs localizer thing op tipe expectedType =
         H.stack
           [ H.reflow $
               "Instead of a function, I am seeing " <> whatever <> ":"
-          , Type.toDoc localizer tipe
+          , indentType localizer tipe
           , error "TODO"
             {-
             case category of
@@ -657,7 +667,7 @@ opRightToDocs localizer thing op tipe expectedType =
               H.stack
                 [ H.reflow $
                     "Instead of a function, I am seeing " <> whatever <> ":"
-                , Type.toDoc localizer tipe
+                , indentType localizer tipe
                 , error "TODO"
                   {-
                   case category of
@@ -694,22 +704,42 @@ opRightToDocs localizer thing op tipe expectedType =
 
 isInt :: Can.Type -> Bool
 isInt tipe =
-  error "TODO isInt" tipe
+  case tipe of
+    Can.TType home name [] ->
+      home == ModuleName.basics && name == N.int
+
+    _ ->
+      False
 
 
 isFloat :: Can.Type -> Bool
 isFloat tipe =
-  error "TODO isFloat" tipe
+  case tipe of
+    Can.TType home name [] ->
+      home == ModuleName.basics && name == N.float
+
+    _ ->
+      False
 
 
 isString :: Can.Type -> Bool
 isString tipe =
-  error "TODO isString" tipe
+  case tipe of
+    Can.TType home name [] ->
+      home == ModuleName.string && name == N.string
+
+    _ ->
+      False
 
 
 isList :: Can.Type -> Bool
 isList tipe =
-  error "TODO isList" tipe
+  case tipe of
+    Can.TType home name [_] ->
+      home == ModuleName.list && name == N.list
+
+    _ ->
+      False
 
 
 whatever :: String
@@ -786,7 +816,7 @@ badListAdd localizer direction tipe =
     H.stack
       [ H.reflow $
           "The " <> direction <> " side of (+) is " <> whatever <> ":"
-      , Type.toDoc localizer tipe
+      , indentType localizer tipe
       , H.fillSep
           ["But","(+)","only","works","with",H.dullyellow "Int","and",H.dullyellow "Float","values."
           ]
@@ -818,7 +848,7 @@ badMath localizer operation direction op tipe otherHints =
     H.stack $
       [ H.reflow $
           "The " <> direction <> " side of (" <> op <> ") is a " <> whatever <> ":"
-      , Type.toDoc localizer tipe
+      , indentType localizer tipe
       , H.fillSep
           ["But","(" <> H.text op <> ")","only","works","with"
           ,H.dullyellow "Int","and",H.dullyellow "Float","values."
@@ -857,7 +887,7 @@ badFDiv localizer direction tipe =
             ,H.dullyellow "Float" <> ","
             ,"but","instead","I","am","seeing:"
             ]
-        , Type.toDoc localizer tipe
+        , indentType localizer tipe
         ]
   )
 
@@ -892,7 +922,7 @@ badIDiv localizer direction tipe =
             ,H.dullyellow "Int" <> ","
             ,"but","instead","I","am","seeing:"
             ]
-        , Type.toDoc localizer tipe
+        , indentType localizer tipe
         ]
   )
 
@@ -912,7 +942,7 @@ badBool localizer op direction tipe =
           ["Both","sides","of","(" <> op <> ")","must","be"
           ,H.dullyellow "Bool","values,","but","the",direction,"side","is:"
           ]
-      , Type.toDoc localizer tipe
+      , indentType localizer tipe
       , H.toSimpleHint
           "Elm does not have “truthiness” such that ints and strings and lists are\
           \ automatically converted to booleans. Do that conversion explicitly!"
@@ -943,7 +973,7 @@ badCompArg localizer thing op direction tipe =
     H.stack
       [ H.reflow $ toDescription thing $
           "The " <> direction <> " side of (" <> op <> ") is"
-      , Type.toDoc localizer tipe
+      , indentType localizer tipe
       , H.fillSep
           ["But","(" <> H.text op <> ")","only","works","on"
           ,H.dullyellow "Int" <> ","
