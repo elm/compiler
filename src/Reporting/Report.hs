@@ -8,10 +8,10 @@ module Reporting.Report
     )
     where
 
-import qualified Data.Text as Text
-import Text.PrettyPrint.ANSI.Leijen (Doc, (<>), hardline, dullcyan)
 
-import qualified Reporting.Helpers as H
+import Text.PrettyPrint.ANSI.Leijen (Doc, (<>), hardline, dullcyan, text)
+
+import qualified Elm.Name as N
 import qualified Reporting.Region as R
 import qualified Reporting.Render.Code as Code
 
@@ -24,7 +24,7 @@ data Report =
   Report
     { _title :: String
     , _region :: R.Region
-    , _sgstns :: [Text.Text]
+    , _sgstns :: [N.Name]
     , _message :: Doc
     }
 
@@ -42,7 +42,7 @@ messageBar title filePath =
     usedSpace =
       4 + length title + 1 + length filePath
   in
-    dullcyan $ H.text $
+    dullcyan $ text $
       "-- " ++ title
       ++ " " ++ replicate (max 1 (80 - usedSpace)) '-'
       ++ " " ++ filePath
