@@ -165,16 +165,16 @@ toReport source localizer err =
           )
 
     AmbiguousVar region maybePrefix name possibleHomes ->
-      error "TODO" region maybePrefix name possibleHomes
+      ambiguousName source region maybePrefix name possibleHomes "name"
 
     AmbiguousType region maybePrefix name possibleHomes ->
-      error "TODO" region maybePrefix name possibleHomes
+      ambiguousName source region maybePrefix name possibleHomes "type"
 
     AmbiguousCtor region maybePrefix name possibleHomes ->
-      error "TODO" region maybePrefix name possibleHomes
+      ambiguousName source region maybePrefix name possibleHomes "constructor"
 
     AmbiguousBinop region name possibleHomes ->
-      error "TODO" region name possibleHomes
+      ambiguousName source region Nothing name possibleHomes "operator"
 
     BadArity region badArityContext name expected actual ->
       let
@@ -803,6 +803,36 @@ nameClash source r1 r2 messageThatEndsWithPunctuation =
       ,
         "How can I know which one you want? Rename one of them!"
       )
+
+
+
+-- AMBIGUOUS NAME
+
+
+ambiguousName :: Code.Source -> R.Region -> Maybe N.Name -> N.Name -> [ModuleName.Canonical] -> String -> Report.Report
+ambiguousName source region maybePrefix name possibleHomes thing =
+  let
+    givenName =
+      maybe N.toString toQualString maybePrefix name
+
+    homeToYellowDoc (ModuleName.Canonical _ home) =
+      H.dullyellow (H.nameToDoc home)
+
+    bothOrAll =
+      if length possibleHomes == 2 then "both" else "all"
+  in
+  Report.Report "AMBIGUOUS NAME" region [] $
+    Report.toCodeSnippet source region Nothing
+      (
+        H.reflow $ "This usage of `" ++ givenName ++ "` is ambiguous."
+      ,
+        H.stack
+          [ H.reflow $ "The following modules " ++ bothOrAll ++ " export this " ++ thing ++ ":"
+          , H.indent 4 $ H.vcat $ map homeToYellowDoc possibleHomes
+          , H.reflowLink "Read" "imports" "to learn how to clarify which one you want."
+          ]
+      )
+
 
 
 
