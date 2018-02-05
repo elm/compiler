@@ -11,7 +11,6 @@ module Reporting.Report
 
 import Text.PrettyPrint.ANSI.Leijen (Doc, (<>), hardline, dullcyan, text)
 
-import qualified Elm.Name as N
 import qualified Reporting.Region as R
 import qualified Reporting.Render.Code as Code
 
@@ -24,7 +23,7 @@ data Report =
   Report
     { _title :: String
     , _region :: R.Region
-    , _sgstns :: [N.Name]
+    , _sgstns :: [String]
     , _message :: Doc
     }
 

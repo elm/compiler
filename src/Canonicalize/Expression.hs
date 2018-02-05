@@ -705,7 +705,7 @@ findVar region (Env.Env localHome vs _ _ _ qvs _ _) name =
           Result.throw (Error.AmbiguousVar region Nothing name (Map.keys homes))
 
     Nothing ->
-      Result.throw (Error.NotFoundVar region name (toPossibleNames vs qvs))
+      Result.throw (Error.NotFoundVar region Nothing name (toPossibleNames vs qvs))
 
 
 findVarQual :: R.Region -> Env.Env -> N.Name -> N.Name -> Result FreeLocals w Can.Expr_
@@ -724,13 +724,13 @@ findVarQual region (Env.Env localHome vs _ _ _ qvs _ _) prefix name =
           Result.throw (Error.AmbiguousVar region (Just prefix) name (Map.keys homes))
 
         Nothing ->
-          Result.throw (Error.NotFoundVarQual region prefix name (toPossibleNames vs qvs))
+          Result.throw (Error.NotFoundVar region (Just prefix) name (toPossibleNames vs qvs))
 
     Nothing ->
       if ModuleName.isKernel prefix then
         Result.ok $ Can.VarKernel (ModuleName.getKernel prefix) name
       else
-        Result.throw (Error.NotFoundVarQual region prefix name (toPossibleNames vs qvs))
+        Result.throw (Error.NotFoundVar region (Just prefix) name (toPossibleNames vs qvs))
 
 
 toPossibleNames :: Map.Map N.Name Env.Var -> Env.Qualified Can.Annotation -> Error.PossibleNames

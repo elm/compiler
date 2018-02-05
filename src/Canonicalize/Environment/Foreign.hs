@@ -18,8 +18,6 @@ import qualified Elm.Interface as I
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Helpers as Help (nearbyNames)
-import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
 
 
@@ -186,7 +184,7 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) (A.At reg
           Result.ok (State (Map.insert name info vs) ts cs bs qvs qts qcs)
 
         Nothing ->
-          throwExposingNotFound region name
+          Result.throw (Error.ImportExposingNotFound region home name (Map.keys vars))
 
     Src.Upper name privacy ->
       case privacy of
@@ -208,7 +206,12 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) (A.At reg
                   Result.ok (State vs ts2 cs2 bs qvs qts qcs)
 
             Nothing ->
-              throwExposingNotFound region name
+              case Map.lookup name (toCtors types) of
+                Just tipe ->
+                  Result.throw $ Error.ImportCtorByName region name tipe
+
+                Nothing ->
+                  Result.throw $ Error.ImportExposingNotFound region home name (Map.keys types)
 
         Src.Public ->
           case Map.lookup name types of
@@ -225,7 +228,7 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) (A.At reg
                   Result.throw (Error.ImportOpenAlias region name)
 
             Nothing ->
-              throwExposingNotFound region name
+              Result.throw (Error.ImportExposingNotFound region home name (Map.keys types))
 
     Src.Operator op ->
       case Map.lookup op binops of
@@ -236,7 +239,24 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) (A.At reg
           Result.ok (State vs ts cs bs2 qvs qts qcs)
 
         Nothing ->
-          throwExposingNotFound region op
+          Result.throw (Error.ImportExposingNotFound region home op (Map.keys binops))
+
+
+
+toCtors :: Map.Map N.Name (Env.Type, Env.Exposed Env.Ctor) -> Map.Map N.Name N.Name
+toCtors types =
+    Map.foldr addCtors Map.empty types
+  where
+    addCtors (_, exposedCtors) dict =
+      Map.foldrWithKey addCtor dict exposedCtors
+
+    addCtor ctorName homes dict =
+      case Map.elems homes of
+        [Env.Ctor _ tipeName _ _ _] ->
+          Map.insert ctorName tipeName dict
+
+        _ ->
+          dict
 
 
 
@@ -261,45 +281,7 @@ verifyImport importDict interfaces (Src.Import (A.At region name) alias exposing
           Result.ok (Import canonicalName interface (maybe name id alias) exposing)
 
         Nothing ->
-          throwImportNotFound region name (Map.keys interfaces)
+          Result.throw $ Error.ImportNotFound region name (Map.keys interfaces)
 
     Nothing ->
-      throwImportNotFound region name (Map.elems importDict)
-
-
-throwImportNotFound :: R.Region -> N.Name -> [ModuleName.Canonical] -> Result i w a
-throwImportNotFound region name knownModules =
-  Result.throw $ Error.ImportNotFound region name $
-    Help.nearbyNames N.toString name $
-      map ModuleName._module knownModules
-
-
-throwExposingNotFound :: R.Region -> N.Name -> Result i w a
-throwExposingNotFound region name =
-  Result.throw (error ("TODO throwExposingNotFound " ++ N.toString name) region name)
-
-{-
-  let
-    ctorDict =
-      Map.fromList (concatMap toCtorPairs (Map.toList unions))
-
-    toCtorPairs (tipe, union) =
-      case union of
-        Can.Union _ _ ctors ->
-          map (\(Can.Ctor ctor _ _) -> (ctor, tipe)) ctors
-
-        Can.Enum _ _ names ->
-          map (\ctor -> (ctor, tipe)) names
-
-        Can.Box _ ctor _ ->
-          [(ctor, tipe)]
-  in
-  case Map.lookup name ctorDict of
-    Just tipe ->
-      Result.throw $ Error.ImportCtorByName region name tipe
-
-    Nothing ->
-      Result.throw $ Error.ImportExposingNotFound region moduleName name $
-        Help.nearbyNames N.toString name $ Set.toList $
-          Set.unions [ Map.keysSet types, Map.keysSet unions, Map.keysSet aliases ]
--}
+      Result.throw $ Error.ImportNotFound region name (Map.elems importDict)

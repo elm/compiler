@@ -10,6 +10,7 @@ module Elm.Package
   , browser, virtualDom, html
   , json, http, url
   , webgl, linearAlgebra
+  , suggestions
   , Version(..)
   , initialVersion, dummyVersion
   , bumpPatch, bumpMinor, bumpMajor
@@ -28,6 +29,7 @@ import Data.Binary (Binary, get, getWord8, put, putWord8)
 import qualified Data.Char as Char
 import Data.Function (on)
 import qualified Data.List as List
+import qualified Data.Map as Map
 import Data.Monoid ((<>))
 import qualified Data.Text as Text
 import qualified Data.Text.Read as Text
@@ -37,6 +39,8 @@ import qualified Data.Text.Lazy.Builder.Int as B (decimal)
 import Data.Text (Text)
 import Data.Word (Word16)
 import System.FilePath ((</>))
+
+import qualified Elm.Name as N
 import qualified Json.Decode.Internals as Decode
 import qualified Json.Encode as Encode
 
@@ -192,6 +196,23 @@ webgl =
 linearAlgebra :: Name
 linearAlgebra =
   Name "elm-community" "linear-algebra"
+
+
+
+-- PACKAGE SUGGESTIONS
+
+
+suggestions :: Map.Map N.Name Name
+suggestions =
+  Map.fromList
+    [ ("Browser", browser)
+    , ("Html", html)
+    , ("Http", http)
+    , ("Json.Decode", json)
+    , ("Json.Encode", json)
+    , ("Url.Parser", url)
+    , ("Url", url)
+    ]
 
 
 

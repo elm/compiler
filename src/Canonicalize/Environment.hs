@@ -163,7 +163,7 @@ findType region (Env _ _ ts _ _ _ qts _) name =
       Result.throw (Error.AmbiguousType region Nothing name (Map.keys homes))
 
     Nothing ->
-      Result.throw (Error.NotFoundType region name (toPossibleNames ts qts))
+      Result.throw (Error.NotFoundType region Nothing name (toPossibleNames ts qts))
 
 
 findTypeQual :: R.Region -> Env -> N.Name -> N.Name -> Result i w Type
@@ -178,10 +178,10 @@ findTypeQual region (Env _ _ ts _ _ _ qts _) prefix name =
           Result.throw (Error.AmbiguousType region (Just prefix) name (Map.keys homes))
 
         Nothing ->
-          Result.throw (Error.NotFoundTypeQual region prefix name (toPossibleNames ts qts))
+          Result.throw (Error.NotFoundType region (Just prefix) name (toPossibleNames ts qts))
 
     Nothing ->
-      Result.throw (Error.NotFoundTypeQual region prefix name (toPossibleNames ts qts))
+      Result.throw (Error.NotFoundType region (Just prefix) name (toPossibleNames ts qts))
 
 
 
@@ -198,7 +198,7 @@ findCtor region (Env _ _ _ cs _ _ _ qcs) name =
       Result.throw (Error.AmbiguousCtor region Nothing name (Map.keys homes))
 
     Nothing ->
-      Result.throw (Error.NotFoundCtor region name (toPossibleNames cs qcs))
+      Result.throw (Error.NotFoundCtor region Nothing name (toPossibleNames cs qcs))
 
 
 findCtorQual :: R.Region -> Env -> N.Name -> N.Name -> Result i w Ctor
@@ -213,10 +213,10 @@ findCtorQual region (Env _ _ _ cs _ _ _ qcs) prefix name =
           Result.throw (Error.AmbiguousCtor region (Just prefix) name (Map.keys homes))
 
         Nothing ->
-          Result.throw (Error.NotFoundCtorQual region prefix name (toPossibleNames cs qcs))
+          Result.throw (Error.NotFoundCtor region (Just prefix) name (toPossibleNames cs qcs))
 
     Nothing ->
-      Result.throw (Error.NotFoundCtorQual region prefix name (toPossibleNames cs qcs))
+      Result.throw (Error.NotFoundCtor region (Just prefix) name (toPossibleNames cs qcs))
 
 
 

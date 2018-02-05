@@ -57,16 +57,13 @@ data Error
   | ExportNotFound R.Region VarKind N.Name [N.Name]
   | ExportOpenAlias R.Region N.Name
   | ImportCtorByName R.Region N.Name N.Name
-  | ImportNotFound R.Region N.Name [N.Name]
+  | ImportNotFound R.Region N.Name [ModuleName.Canonical]
   | ImportOpenAlias R.Region N.Name
-  | ImportExposingNotFound R.Region N.Name N.Name [N.Name]
-  | NotFoundVar R.Region N.Name PossibleNames
-  | NotFoundType R.Region N.Name PossibleNames
-  | NotFoundCtor R.Region N.Name PossibleNames
+  | ImportExposingNotFound R.Region ModuleName.Canonical N.Name [N.Name]
+  | NotFoundVar R.Region (Maybe N.Name) N.Name PossibleNames
+  | NotFoundType R.Region (Maybe N.Name) N.Name PossibleNames
+  | NotFoundCtor R.Region (Maybe N.Name) N.Name PossibleNames
   | NotFoundBinop R.Region N.Name (Set.Set N.Name)
-  | NotFoundVarQual R.Region N.Name N.Name PossibleNames
-  | NotFoundTypeQual R.Region N.Name N.Name PossibleNames
-  | NotFoundCtorQual R.Region N.Name N.Name PossibleNames
   | PatternHasRecordCtor R.Region N.Name
   | PortPayloadInvalid R.Region N.Name Can.Type InvalidPayload
   | PortTypeInvalid R.Region N.Name PortProblem
@@ -311,7 +308,11 @@ toReport source localizer err =
             "Remove one of them and you should be all set!"
           )
 
-    ExportNotFound region kind rawName suggestions ->
+    ExportNotFound region kind rawName possibleNames ->
+      let
+        suggestions =
+          take 4 (H.nearbyNames (N.toString rawName) (map N.toString possibleNames))
+      in
       Report.Report "UNKNOWN EXPORT" region suggestions $
         let (a, thing, name) = toKindInfo kind rawName in
         H.stack
@@ -319,7 +320,19 @@ toReport source localizer err =
               ["You","are","trying","to","expose",a,thing,"named"
               ,name,"but","I","cannot","find","its","definition."
               ]
-          , H.maybeYouWant Nothing suggestions
+          , case map H.text suggestions of
+              [] ->
+                H.reflow $
+                  "I do not see any super similar names in this file. Is the definition missing?"
+
+              [alt] ->
+                H.fillSep ["Maybe","you","want",H.dullyellow alt,"instead?"]
+
+              alts ->
+                H.stack
+                  [ "These names seem close though:"
+                  , H.indent 4 $ H.vcat $ map H.dullyellow alts
+                  ]
           ]
 
     ExportOpenAlias region name ->
@@ -350,14 +363,18 @@ toReport source localizer err =
               ]
           )
 
-    ImportNotFound region name suggestions ->
-      Report.Report "UNKNOWN IMPORT" region suggestions $
+    ImportNotFound region name _ ->
+      --
+      -- NOTE: this should always be detected by `builder`
+      -- So this error should never actually get printed out.
+      --
+      Report.Report "UNKNOWN IMPORT" region [] $
         Report.toCodeSnippet source region Nothing
           (
             H.reflow $
               "I could not find a `" <> N.toString name <> "` module to import!"
           ,
-            H.maybeYouWant Nothing suggestions
+            mempty
           )
 
     ImportOpenAlias region name ->
@@ -376,38 +393,89 @@ toReport source localizer err =
               ]
           )
 
-    ImportExposingNotFound region name value suggestions ->
+    ImportExposingNotFound region (ModuleName.Canonical _ home) value possibleNames ->
+      let
+        suggestions =
+          take 4 $ H.nearbyNames (N.toString home) (map N.toString possibleNames)
+      in
       Report.Report "BAD IMPORT" region suggestions $
         Report.toCodeSnippet source region Nothing
           (
             H.reflow $
-              "The `" <> N.toString name
+              "The `" <> N.toString home
               <> "` module does not expose `"
               <> N.toString value <> "`:"
           ,
-            H.maybeYouWant Nothing suggestions
+            case map H.text suggestions of
+              [] ->
+                "I cannot find an super similar exposed names. Maybe it is private?"
+
+              [alt] ->
+                H.fillSep ["Maybe","you","want",H.dullyellow alt,"instead?"]
+
+              alts ->
+                H.stack
+                  [ "These names seem close though:"
+                  , H.indent 4 $ H.vcat $ map H.dullyellow alts
+                  ]
           )
 
-    NotFoundVar region name possibleNames ->
-      error "TODO" region name possibleNames
+    NotFoundVar region prefix name possibleNames ->
+      notFound source region prefix name "variable" possibleNames
 
-    NotFoundType region name possibleNames ->
-      error "TODO" region name possibleNames
+    NotFoundType region prefix name possibleNames ->
+      notFound source region prefix name "type" possibleNames
 
-    NotFoundCtor region name possibleNames ->
-      error "TODO" region name possibleNames
+    NotFoundCtor region prefix name possibleNames ->
+      notFound source region prefix name "constructor" possibleNames
 
-    NotFoundBinop region name locals ->
-      error "TODO" region name locals
+    NotFoundBinop region op locals ->
+      if op == "===" then
+        Report.Report "TRIPLE EQUALS" region ["=="] $
+          Report.toCodeSnippet source region Nothing
+            (
+              "Elm does not have a (===) operator like JavaScript."
+            ,
+              "Switch to (==) instead."
+            )
 
-    NotFoundVarQual region prefix name possibleNames ->
-      error "TODO" region prefix name possibleNames
+      else if op == "!=" || op == "!==" then
+        Report.Report "NOT EQUALS" region ["/="] $
+          Report.toCodeSnippet source region Nothing
+            (
+              H.reflow $
+                "Elm uses a different name for the “not equal” operator:"
+            ,
+              H.stack
+                [ H.reflow "Switch to (/=) instead."
+                , H.toSimpleNote $
+                    "Our (/=) operator is supposed to look like a real “not equal” sign (≠). I hope that history will remember ("
+                    ++ N.toString op ++ ") as a werid and temporary choice."
+                ]
+            )
 
-    NotFoundTypeQual region prefix name possibleNames ->
-      error "TODO" region prefix name possibleNames
+      else
+        let
+          suggestions =
+            take 2 $ H.nearbyNames (N.toString op) (map N.toString (Set.toList locals))
 
-    NotFoundCtorQual region prefix name possibleNames ->
-      error "TODO" region prefix name possibleNames
+          format altOp =
+            H.dullyellow $ "(" <> altOp <> ")"
+        in
+        Report.Report "UNKNOWN OPERATOR" region suggestions $
+          Report.toCodeSnippet source region Nothing
+            (
+              H.reflow $
+                "I do not recognize this (" ++ N.toString op ++ ") operator."
+            ,
+              case map H.text suggestions of
+                [] ->
+                  H.reflow "Is there an `import` and `exposing` entry for it?"
+
+                alts ->
+                  H.fillSep $
+                    ["Maybe","you","want"] ++ H.commaSep "or" format alts ++ ["instead?"]
+            )
 
     PatternHasRecordCtor region name ->
       Report.Report "BAD PATTERN" region [] $
@@ -735,6 +803,73 @@ nameClash source r1 r2 messageThatEndsWithPunctuation =
       ,
         "How can I know which one you want? Rename one of them!"
       )
+
+
+
+-- NOT FOUND
+
+
+notFound :: Code.Source -> R.Region -> Maybe N.Name -> N.Name -> String -> PossibleNames -> Report.Report
+notFound source region maybePrefix name thing (PossibleNames locals quals) =
+  let
+    givenName =
+      maybe N.toString toQualString maybePrefix name
+
+    possibleNames =
+      let
+        addQuals prefix localSet allNames =
+          Set.foldr (\x xs -> toQualString prefix x : xs) allNames localSet
+      in
+      Map.foldrWithKey addQuals (map N.toString (Set.toList locals)) quals
+
+    nearbyNames =
+      take 4 (H.nearbyNames givenName possibleNames)
+
+    toDetails noSuggestionDetails yesSuggestionDetails =
+      case nearbyNames of
+        [] ->
+          H.stack
+            [ H.reflow noSuggestionDetails
+            , H.link "Hint" "Read" "imports" "to see how `import` declarations work in Elm."
+            ]
+
+        suggestions ->
+          H.stack
+            [ H.reflow yesSuggestionDetails
+            , H.indent 4 $ H.vcat $ map H.dullyellow $ map H.text suggestions
+            , H.link "Hint" "Read" "imports" "to see how `import` declarations work in Elm."
+            ]
+
+  in
+  Report.Report "NAMING ERROR" region nearbyNames $
+    Report.toCodeSnippet source region Nothing
+      (
+        H.reflow $
+          "I cannot find a `" ++ givenName ++ "` " ++ thing ++ ":"
+      ,
+        case maybePrefix of
+          Nothing ->
+            toDetails
+              "Is there an `import` or `exposing` missing up top?"
+              "These names seem close though:"
+
+          Just prefix ->
+            case Map.lookup prefix quals of
+              Nothing ->
+                toDetails
+                  ("I cannot find a `" ++ N.toString prefix ++ "` module. Is there an `import` for it?")
+                  ("I cannot find a `" ++ N.toString prefix ++ "` import. These names seem close though:")
+
+              Just _ ->
+                toDetails
+                  ("The `" ++ N.toString prefix ++ "` module does not expose a `" ++ N.toString name ++ "` " ++ thing ++ ".")
+                  ("The `" ++ N.toString prefix ++ "` module does not expose a `" ++ N.toString name ++ "` " ++ thing ++ ". These names seem close though:")
+      )
+
+
+toQualString :: N.Name -> N.Name -> String
+toQualString prefix name =
+  N.toString prefix ++ "." ++ N.toString name
 
 
 

@@ -9,7 +9,7 @@ module Reporting.Helpers
   , stack, reflow
   , commaSep, capitalize, ordinalize, drawCycle
   , findPotentialTypos, findTypoPairs, vetTypos
-  , nearbyNames, distance, maybeYouWant, maybeYouWant'
+  , nearbyNames, distance
   -- re-exports
   , Doc, (<+>), (<>), black, cat, dullyellow, fillSep, green, hang, hardline
   , hcat, hsep, indent, magenta, parens, sep, text, underline, vcat
@@ -218,35 +218,18 @@ vetTypos potentialTypos =
 -- NEARBY NAMES
 
 
-nearbyNames :: (a -> String) -> a -> [a] -> [a]
-nearbyNames format name names =
-  let editDistance =
-        if length (format name) < 3 then 1 else 2
+nearbyNames :: String -> [String] -> [String]
+nearbyNames name names =
+  let
+    editDistance =
+      if length name < 3 then 1 else 2
   in
   map snd $
     filter ( (<= editDistance) . abs . fst ) $
       List.sortBy (compare `on` fst) $
-        map (\x -> (distance (format name) (format x), x)) names
+        map (\x -> (distance name x, x)) names
 
 
 distance :: String -> String -> Int
 distance x y =
   Dist.restrictedDamerauLevenshteinDistance Dist.defaultEditCosts x y
-
-
-maybeYouWant :: Maybe Doc -> [N.Name] -> Doc
-maybeYouWant maybeStarter suggestions =
-  maybe P.empty id (maybeYouWant' maybeStarter suggestions)
-
-
-maybeYouWant' :: Maybe Doc -> [N.Name] -> Maybe Doc
-maybeYouWant' maybeStarter suggestions =
-  case suggestions of
-    [] ->
-      maybeStarter
-
-    _:_ ->
-      Just $ stack $
-        [ maybe id (<+>) maybeStarter "Maybe you want one of the following?"
-        , P.indent 4 $ P.vcat $ map (P.dullyellow . nameToDoc) (take 4 suggestions)
-        ]
