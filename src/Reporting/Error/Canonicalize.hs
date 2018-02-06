@@ -430,7 +430,7 @@ toReport source err =
 
     NotFoundBinop region op locals ->
       if op == "===" then
-        Report.Report "TRIPLE EQUALS" region ["=="] $
+        Report.Report "UNKNOWN OPERATOR" region ["=="] $
           Report.toCodeSnippet source region Nothing
             (
               "Elm does not have a (===) operator like JavaScript."
@@ -439,7 +439,7 @@ toReport source err =
             )
 
       else if op == "!=" || op == "!==" then
-        Report.Report "NOT EQUALS" region ["/="] $
+        Report.Report "UNKNOWN OPERATOR" region ["/="] $
           Report.toCodeSnippet source region Nothing
             (
               H.reflow $
@@ -451,6 +451,17 @@ toReport source err =
                     "Our (/=) operator is supposed to look like a real “not equal” sign (≠). I hope that history will remember ("
                     ++ N.toString op ++ ") as a werid and temporary choice."
                 ]
+            )
+
+      else if op == "**" then
+        Report.Report "UNKNOWN OPERATOR" region ["^","*"] $
+          Report.toCodeSnippet source region Nothing
+            (
+              H.reflow $
+                "I do not recognize this (**) operator:"
+            ,
+              H.reflow $
+                "Switch to (^) for exponentiation. Or switch to (*) for multiplication."
             )
 
       else
