@@ -25,7 +25,6 @@ import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 import qualified Reporting.Render.Code as Code
-import qualified Reporting.Render.Type as Type
 import qualified Reporting.Report as Report
 import qualified Reporting.Helpers as H
 import Reporting.Helpers ( Doc, (<>) )
@@ -142,8 +141,8 @@ toKindInfo kind name =
 -- TO REPORT
 
 
-toReport :: Code.Source -> Type.Localizer -> Error -> Report.Report
-toReport source localizer err =
+toReport :: Code.Source -> Error -> Report.Report
+toReport source err =
   case err of
     AnnotationTooShort region name index leftovers ->
       let
@@ -630,7 +629,7 @@ toReport source localizer err =
             )
 
     RecursiveAlias region name args tipe others ->
-        aliasRecursionReport source localizer region name args tipe others
+        aliasRecursionReport source region name args tipe others
 
     RecursiveDecl cyclicValueDefs ->
         error "TODO" cyclicValueDefs
@@ -1016,8 +1015,8 @@ _argMismatchReport source region kind name expected actual =
 -- BAD ALIAS RECURSION
 
 
-aliasRecursionReport :: Code.Source -> Type.Localizer -> R.Region -> N.Name -> [N.Name] -> Src.Type -> [N.Name] -> Report.Report
-aliasRecursionReport source localizer region name args tipe others =
+aliasRecursionReport :: Code.Source -> R.Region -> N.Name -> [N.Name] -> Src.Type -> [N.Name] -> Report.Report
+aliasRecursionReport source region name args tipe others =
   case others of
     [] ->
       Report.Report "ALIAS PROBLEM" region [] $
@@ -1030,7 +1029,7 @@ aliasRecursionReport source localizer region name args tipe others =
                   "When I expand a recursive type alias, it just keeps getting bigger and bigger.\
                   \ So dealiasing results in an infinitely large type! Try this instead:"
               , H.indent 4 $
-                  Type.decl localizer name args [(name, [error "TODO" tipe])]
+                  error "TODO alias to doc" name args tipe
               , H.link "Hint"
                   "This is kind of a subtle distinction. I suggested the naive fix, but I recommend reading"
                   "recursive-alias"
