@@ -478,13 +478,15 @@ toReport source err =
               H.reflow $
                 "I do not recognize this (" ++ N.toString op ++ ") operator."
             ,
-              case map H.text suggestions of
-                [] ->
-                  H.reflow "Is there an `import` and `exposing` entry for it?"
+              H.fillSep $
+                ["Is","there","an","`import`","and","`exposing`","entry","for","it?"]
+                ++
+                  case map H.text suggestions of
+                    [] ->
+                      []
 
-                alts ->
-                  H.fillSep $
-                    ["Maybe","you","want"] ++ H.commaSep "or" format alts ++ ["instead?"]
+                    alts ->
+                      ["Maybe","you","want"] ++ H.commaSep "or" format alts ++ ["instead?"]
             )
 
     PatternHasRecordCtor region name ->
