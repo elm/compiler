@@ -27,7 +27,7 @@ import qualified Reporting.Region as R
 import qualified Reporting.Render.Code as Code
 import qualified Reporting.Report as Report
 import qualified Reporting.Helpers as H
-import Reporting.Helpers ( Doc, (<>) )
+import Reporting.Helpers ( Doc, (<+>), (<>) )
 
 
 
@@ -164,7 +164,7 @@ toReport source err =
           )
 
     AmbiguousVar region maybePrefix name possibleHomes ->
-      ambiguousName source region maybePrefix name possibleHomes "name"
+      ambiguousName source region maybePrefix name possibleHomes "variable"
 
     AmbiguousType region maybePrefix name possibleHomes ->
       ambiguousName source region maybePrefix name possibleHomes "type"
@@ -823,27 +823,51 @@ nameClash source r1 r2 messageThatEndsWithPunctuation =
 
 ambiguousName :: Code.Source -> R.Region -> Maybe N.Name -> N.Name -> [ModuleName.Canonical] -> String -> Report.Report
 ambiguousName source region maybePrefix name possibleHomes thing =
-  let
-    givenName =
-      maybe N.toString toQualString maybePrefix name
-
-    homeToYellowDoc (ModuleName.Canonical _ home) =
-      H.dullyellow (H.nameToDoc home)
-
-    bothOrAll =
-      if length possibleHomes == 2 then "both" else "all"
-  in
   Report.Report "AMBIGUOUS NAME" region [] $
-    Report.toCodeSnippet source region Nothing
-      (
-        H.reflow $ "This usage of `" ++ givenName ++ "` is ambiguous."
-      ,
-        H.stack
-          [ H.reflow $ "The following modules " ++ bothOrAll ++ " export this " ++ thing ++ ":"
-          , H.indent 4 $ H.vcat $ map homeToYellowDoc possibleHomes
-          , H.reflowLink "Read" "imports" "to learn how to clarify which one you want."
-          ]
-      )
+    Report.toCodeSnippet source region Nothing $
+      case maybePrefix of
+        Nothing ->
+          let
+            homeToYellowDoc (ModuleName.Canonical _ home) =
+              H.dullyellow (H.nameToDoc home)
+
+            bothOrAll =
+              if length possibleHomes == 2 then "both" else "all"
+          in
+          (
+            H.reflow $ "This usage of `" ++ N.toString name ++ "` is ambiguous."
+          ,
+            H.stack
+              [ H.reflow $
+                  "Check your imports. The following modules " ++ bothOrAll
+                  ++ " expose a `" ++ N.toString name ++ "` " ++ thing ++ ":"
+              , H.indent 4 $ H.vcat $ map homeToYellowDoc possibleHomes
+              , H.reflowLink "Read" "imports" "to learn how to clarify which one you want."
+              ]
+          )
+
+        Just prefix ->
+          let
+            homeToYellowDoc (ModuleName.Canonical _ home) =
+              if prefix == home then
+                H.blue "import" <+> H.dullyellow (H.nameToDoc home)
+              else
+                H.blue "import" <+> H.dullyellow (H.nameToDoc home) <+> H.blue "as" <+> H.dullyellow (H.nameToDoc prefix)
+
+            eitherOrAny =
+              if length possibleHomes == 2 then "either" else "any"
+          in
+          (
+            H.reflow $ "This usage of `" ++ toQualString prefix name ++ "` is ambiguous."
+          ,
+            H.stack
+              [ H.reflow $
+                  "It could refer to a " ++ thing ++ " from "
+                  ++ eitherOrAny ++ " of these imports:"
+              , H.indent 4 $ H.vcat $ map homeToYellowDoc possibleHomes
+              , H.reflowLink "Read" "imports" "to learn how to clarify which one you want."
+              ]
+          )
 
 
 
