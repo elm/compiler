@@ -17,7 +17,6 @@ import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Type.Occurs as Occurs
-import Type.Constraint as Con
 import Type.Type as Type
 import qualified Type.Unify as Unify
 import qualified Type.UnionFind as UF
@@ -92,7 +91,7 @@ solve env rank pools state constraint =
                   return $ addError state $
                     Error.Mismatch
                       (Error.BadExpr region category actualType)
-                      (Con.typeReplace expectation expectedType)
+                      (Error.typeReplace expectation expectedType)
 
     CLocal region name expectation ->
       do  actual <- makeCopy rank pools (env ! name)
@@ -108,7 +107,7 @@ solve env rank pools state constraint =
                   return $ addError state $
                     Error.Mismatch
                       (Error.BadLocal region name actualType)
-                      (Con.typeReplace expectation expectedType)
+                      (Error.typeReplace expectation expectedType)
 
     CForeign region name (Can.Forall freeVars srcType) expectation ->
       do  actual <- srcTypeToVariable rank pools freeVars srcType
@@ -124,7 +123,7 @@ solve env rank pools state constraint =
                   return $ addError state $
                     Error.Mismatch
                       (Error.BadForeign region name actualType)
-                      (Con.typeReplace expectation expectedType)
+                      (Error.typeReplace expectation expectedType)
 
     CPattern region category tipe expectation ->
       do  actual <- typeToVariable rank pools tipe
@@ -139,7 +138,7 @@ solve env rank pools state constraint =
               do  introduce rank pools vars
                   return $ addError state $
                     Error.BadPattern region category actualType
-                      (Con.ptypeReplace expectation expectedType)
+                      (Error.ptypeReplace expectation expectedType)
 
     CAnd constraints ->
       foldM (solve env rank pools) state constraints
@@ -225,28 +224,28 @@ isGeneric var =
 -- EXPECTATIONS TO VARIABLE
 
 
-expectedToVariable :: Int -> Pools -> Expected Type -> IO Variable
+expectedToVariable :: Int -> Pools -> Error.Expected Type -> IO Variable
 expectedToVariable rank pools expectation =
   typeToVariable rank pools $
     case expectation of
-      NoExpectation tipe ->
+      Error.NoExpectation tipe ->
         tipe
 
-      FromContext _ _ tipe ->
+      Error.FromContext _ _ tipe ->
         tipe
 
-      FromAnnotation _ _ _ tipe ->
+      Error.FromAnnotation _ _ _ tipe ->
         tipe
 
 
-patternExpectationToVariable :: Int -> Pools -> PExpected Type -> IO Variable
+patternExpectationToVariable :: Int -> Pools -> Error.PExpected Type -> IO Variable
 patternExpectationToVariable rank pools expectation =
   typeToVariable rank pools $
     case expectation of
-      PNoExpectation tipe ->
+      Error.PNoExpectation tipe ->
         tipe
 
-      PFromContext _ _ tipe ->
+      Error.PFromContext _ _ tipe ->
         tipe
 
 
@@ -268,10 +267,10 @@ occurs state (_name, A.At _region variable) =
   do  hasOccurred <- Occurs.occurs variable
       if hasOccurred
         then
-          do  overallType <- Type.toSrcType variable
+          do  errorType <- Type.toErrorType variable
               (Descriptor _ rank mark copy) <- UF.get variable
-              UF.set variable (Descriptor (Error "∞") rank mark copy)
-              return $ state { _errors = Error.InfiniteType overallType : _errors state }
+              UF.set variable (Descriptor Error rank mark copy)
+              return $ state { _errors = Error.InfiniteType errorType : _errors state }
         else
           return state
 
@@ -412,7 +411,7 @@ adjustRankContent youngMark visitMark groupRank content =
           -- THEORY: anything in the realVar would be outermostRank
           foldM (\rank (_, argVar) -> max rank <$> go argVar) outermostRank args
 
-      Error _ ->
+      Error ->
           return groupRank
 
 
@@ -620,7 +619,7 @@ makeCopyHelp maxRank pools variable =
                         UF.set copy $ makeDescriptor (Alias home name newArgs newRealType)
                         return copy
 
-                  Error _ ->
+                  Error ->
                     return copy
 
 
@@ -685,7 +684,7 @@ restoreContent content =
       do  mapM_ (traverse restore) args
           restore var
 
-    Error _ ->
+    Error ->
         return ()
 
 

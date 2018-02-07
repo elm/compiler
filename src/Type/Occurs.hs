@@ -76,5 +76,5 @@ occursHelp seen var foundCycle =
           Alias _ _ args _ ->
               foldrM (occursHelp (var:seen)) foundCycle (map snd args)
 
-          Error _ ->
+          Error ->
               return foundCycle

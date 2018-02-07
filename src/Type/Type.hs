@@ -1,7 +1,9 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Type.Type
-  ( Variable
+  ( Constraint(..)
+  , exists
+  , Variable
   , FlatType(..)
   , Type(..)
   , Descriptor(Descriptor)
@@ -21,8 +23,8 @@ module Type.Type
   , unnamedFlexSuper
   , nameToFlex
   , nameToRigid
-  , toSrcType
   , toAnnotation
+  , toErrorType
   )
   where
 
@@ -37,7 +39,42 @@ import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Utils.Type as Type
 import qualified Elm.Name as N
+import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Type as E
+import qualified Reporting.Region as R
 import qualified Type.UnionFind as UF
+
+
+
+-- CONSTRAINTS
+
+
+data Constraint
+  = CTrue
+  | CSaveTheEnvironment
+  | CEqual R.Region E.Category Type (E.Expected Type)
+  | CLocal R.Region N.Name (E.Expected Type)
+  | CForeign R.Region N.Name Can.Annotation (E.Expected Type)
+  | CPattern R.Region E.PCategory Type (E.PExpected Type)
+  | CAnd [Constraint]
+  | CBranch
+      { _a :: Type
+      , _b :: Type
+      , _eq :: Constraint
+      , _neq :: IO Constraint
+      }
+  | CLet
+      { _rigidVars :: [Variable]
+      , _flexVars :: [Variable]
+      , _header :: Map.Map N.Name (A.Located Type)
+      , _headerCon :: Constraint
+      , _bodyCon :: Constraint
+      }
+
+
+exists :: [Variable] -> Constraint -> Constraint
+exists flexVars constraint =
+  CLet [] flexVars Map.empty constraint CTrue
 
 
 
@@ -89,7 +126,7 @@ data Content
     | RigidSuper SuperType N.Name
     | Structure FlatType
     | Alias ModuleName.Canonical N.Name [(N.Name,Variable)] Variable
-    | Error N.Name
+    | Error
 
 
 data SuperType
@@ -300,117 +337,219 @@ toSuper name =
 
 
 
--- TO SOURCE TYPES
+-- TO TYPE ANNOTATION
 
 
--- TODO: Attach resulting type to the descriptor so that you
--- never have to do extra work, particularly nice for aliased types
 toAnnotation :: Variable -> IO Can.Annotation
 toAnnotation variable =
   do  userNames <- getVarNames variable Map.empty
       (tipe, NameState allNames _ _ _ _ _) <-
-        State.runStateT (variableToSrcType variable) (makeNameState userNames)
-      return $ Can.Forall (Map.map (\_ -> ()) allNames) tipe
+        State.runStateT (variableToCanType variable) (makeNameState userNames)
+      return $ Can.Forall (Map.map (const ()) allNames) tipe
 
 
-toSrcType :: Variable -> IO Can.Type
-toSrcType variable =
-  do  userNames <- getVarNames variable Map.empty
-      State.evalStateT (variableToSrcType variable) (makeNameState userNames)
+variableToCanType :: Variable -> StateT NameState IO Can.Type
+variableToCanType variable =
+  do  (Descriptor content _ _ _) <- liftIO $ UF.get variable
+      case content of
+        Structure term ->
+            termToCanType term
 
-
-variableToSrcType :: Variable -> StateT NameState IO Can.Type
-variableToSrcType variable =
-  do  descriptor <- liftIO $ UF.get variable
-      let mark = _mark descriptor
-      if mark == occursMark
-        then
-          return (Can.TVar "∞")
-
-        else
-          do  liftIO $ UF.modify variable (\desc -> desc { _mark = occursMark })
-              srcType <- contentToSrcType variable (_content descriptor)
-              liftIO $ UF.modify variable (\desc -> desc { _mark = mark })
-              return srcType
-
-
-contentToSrcType :: Variable -> Content -> StateT NameState IO Can.Type
-contentToSrcType variable content =
-  case content of
-    Structure term ->
-        termToSrcType term
-
-    FlexVar maybeName ->
-      case maybeName of
-        Just name ->
-          return (Can.TVar name)
-
-        Nothing ->
-          do  name <- getFreshVarName
-              liftIO $ UF.modify variable (\desc -> desc { _content = FlexVar (Just name) })
+        FlexVar maybeName ->
+          case maybeName of
+            Just name ->
               return (Can.TVar name)
 
-    FlexSuper super maybeName ->
-      case maybeName of
-        Just name ->
-          return (Can.TVar name)
+            Nothing ->
+              do  name <- getFreshVarName
+                  liftIO $ UF.modify variable (\desc -> desc { _content = FlexVar (Just name) })
+                  return (Can.TVar name)
 
-        Nothing ->
-          do  name <- getFreshSuperName super
-              liftIO $ UF.modify variable (\desc -> desc { _content = FlexSuper super (Just name) })
+        FlexSuper super maybeName ->
+          case maybeName of
+            Just name ->
               return (Can.TVar name)
 
-    RigidVar name ->
-        return (Can.TVar name)
+            Nothing ->
+              do  name <- getFreshSuperName super
+                  liftIO $ UF.modify variable (\desc -> desc { _content = FlexSuper super (Just name) })
+                  return (Can.TVar name)
 
-    RigidSuper _ name ->
-        return (Can.TVar name)
+        RigidVar name ->
+            return (Can.TVar name)
 
-    Alias home name args realVariable ->
-        do  srcArgs <- traverse (traverse variableToSrcType) args
-            srcType <- variableToSrcType realVariable
-            return (Can.TAlias home name srcArgs (Can.Filled srcType))
+        RigidSuper _ name ->
+            return (Can.TVar name)
 
-    Error name ->
-        return (Can.TVar name)
+        Alias home name args realVariable ->
+            do  canArgs <- traverse (traverse variableToCanType) args
+                canType <- variableToCanType realVariable
+                return (Can.TAlias home name canArgs (Can.Filled canType))
+
+        Error ->
+            error "cannot handle Error types in variableToCanType"
 
 
-termToSrcType :: FlatType -> StateT NameState IO Can.Type
-termToSrcType term =
+termToCanType :: FlatType -> StateT NameState IO Can.Type
+termToCanType term =
   case term of
     App1 home name args ->
-      Can.TType home name <$> traverse variableToSrcType args
+      Can.TType home name <$> traverse variableToCanType args
 
     Fun1 a b ->
       Can.TLambda
-        <$> variableToSrcType a
-        <*> variableToSrcType b
+        <$> variableToCanType a
+        <*> variableToCanType b
 
     EmptyRecord1 ->
       return $ Can.TRecord Map.empty Nothing
 
     Record1 fields extension ->
-      do  srcFields <- traverse variableToSrcType fields
-          srcExt <- Type.iteratedDealias <$> variableToSrcType extension
+      do  canFields <- traverse variableToCanType fields
+          canExt <- Type.iteratedDealias <$> variableToCanType extension
           return $
-              case srcExt of
+              case canExt of
                 Can.TRecord subFields subExt ->
-                    Can.TRecord (Map.union subFields srcFields) subExt
+                    Can.TRecord (Map.union subFields canFields) subExt
 
                 Can.TVar _ ->
-                    Can.TRecord srcFields (Just srcExt)
+                    Can.TRecord canFields (Just canExt)
 
                 _ ->
-                    error "Used toSrcType on a type that is not well-formed"
+                    error "Used toAnnotation on a type that is not well-formed"
 
     Unit1 ->
       return Can.TUnit
 
     Tuple1 a b maybeC ->
       Can.TTuple
-        <$> variableToSrcType a
-        <*> variableToSrcType b
-        <*> traverse variableToSrcType maybeC
+        <$> variableToCanType a
+        <*> variableToCanType b
+        <*> traverse variableToCanType maybeC
+
+
+
+-- TO ERROR TYPE
+
+
+toErrorType :: Variable -> IO E.Type
+toErrorType variable =
+  do  userNames <- getVarNames variable Map.empty
+      State.evalStateT (variableToErrorType variable) (makeNameState userNames)
+
+
+variableToErrorType :: Variable -> StateT NameState IO E.Type
+variableToErrorType variable =
+  do  descriptor <- liftIO $ UF.get variable
+      let mark = _mark descriptor
+      if mark == occursMark
+        then
+          return E.Infinite
+
+        else
+          do  liftIO $ UF.modify variable (\desc -> desc { _mark = occursMark })
+              errType <- contentToErrorType variable (_content descriptor)
+              liftIO $ UF.modify variable (\desc -> desc { _mark = mark })
+              return errType
+
+
+contentToErrorType :: Variable -> Content -> StateT NameState IO E.Type
+contentToErrorType variable content =
+  case content of
+    Structure term ->
+        termToErrorType term
+
+    FlexVar maybeName ->
+      case maybeName of
+        Just name ->
+          return (E.FlexVar name)
+
+        Nothing ->
+          do  name <- getFreshVarName
+              liftIO $ UF.modify variable (\desc -> desc { _content = FlexVar (Just name) })
+              return (E.FlexVar name)
+
+    FlexSuper super maybeName ->
+      case maybeName of
+        Just name ->
+          return (E.FlexSuper name)
+
+        Nothing ->
+          do  name <- getFreshSuperName super
+              liftIO $ UF.modify variable (\desc -> desc { _content = FlexSuper super (Just name) })
+              return (E.FlexSuper name)
+
+    RigidVar name ->
+        return (E.RigidVar name)
+
+    RigidSuper _ name ->
+        return (E.RigidSuper name)
+
+    Alias home name args realVariable ->
+        do  errArgs <- traverse (traverse variableToErrorType) args
+            errType <- variableToErrorType realVariable
+            return (E.Alias home name errArgs errType)
+
+    Error ->
+        return E.Error
+
+
+termToErrorType :: FlatType -> StateT NameState IO E.Type
+termToErrorType term =
+  case term of
+    App1 home name args ->
+      E.Type home name <$> traverse variableToErrorType args
+
+    Fun1 a b ->
+      do  arg <- variableToErrorType a
+          result <- variableToErrorType b
+          return $
+            case result of
+              E.Lambda arg2 others ->
+                E.Lambda arg (arg2:others)
+
+              _ ->
+                E.Lambda arg [result]
+
+    EmptyRecord1 ->
+      return $ E.Record Map.empty E.Closed
+
+    Record1 fields extension ->
+      do  errFields <- traverse variableToErrorType fields
+          errExt <- iteratedErrorTypeDealias <$> variableToErrorType extension
+          return $
+              case errExt of
+                E.Record subFields subExt ->
+                    E.Record (Map.union subFields errFields) subExt
+
+                E.FlexVar ext ->
+                    E.Record errFields (E.FlexOpen ext)
+
+                E.RigidVar ext ->
+                    E.Record errFields (E.RigidOpen ext)
+
+                _ ->
+                    error "Used toErrorType on a type that is not well-formed"
+
+    Unit1 ->
+      return E.Unit
+
+    Tuple1 a b maybeC ->
+      E.Tuple
+        <$> variableToErrorType a
+        <*> variableToErrorType b
+        <*> traverse variableToErrorType maybeC
+
+
+iteratedErrorTypeDealias :: E.Type -> E.Type
+iteratedErrorTypeDealias tipe =
+  case tipe of
+    E.Alias _ _ _ realType ->
+      iteratedErrorTypeDealias realType
+
+    _ ->
+      tipe
+
 
 
 
@@ -516,7 +655,7 @@ getVarNames var takenNames =
         else
         do  UF.set var (Descriptor content rank getVarNamesMark copy)
             case content of
-              Error _ ->
+              Error ->
                 return takenNames
 
               FlexVar maybeName ->

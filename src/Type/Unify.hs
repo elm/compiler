@@ -9,9 +9,9 @@ module Type.Unify
 
 import qualified Data.Map.Strict as Map
 
-import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
 import qualified Elm.Name as N
+import qualified Reporting.Error.Type as Error
 import qualified Type.Occurs as Occurs
 import Type.Type as Type
 import qualified Type.UnionFind as UF
@@ -23,7 +23,7 @@ import qualified Type.UnionFind as UF
 
 data Answer
   = Ok [Variable]
-  | Err [Variable] Can.Type Can.Type
+  | Err [Variable] Error.Type Error.Type
 
 
 unify :: Variable -> Variable -> IO Answer
@@ -31,8 +31,8 @@ unify v1 v2 =
   case guardedUnify v1 v2 of
     Unify k ->
       k [] onSuccess $ \vars () ->
-        do  t1 <- Type.toSrcType v1
-            t2 <- Type.toSrcType v2
+        do  t1 <- Type.toErrorType v1
+            t2 <- Type.toErrorType v2
             UF.union v1 v2 errorDescriptor
             return (Err vars t1 t2)
 
@@ -45,7 +45,7 @@ onSuccess vars () =
 {-# NOINLINE errorDescriptor #-}
 errorDescriptor :: Descriptor
 errorDescriptor =
-  Descriptor (Error "?") noRank noMark Nothing
+  Descriptor Error noRank noMark Nothing
 
 
 
@@ -212,7 +212,7 @@ actuallyUnify context@(Context _ (Descriptor firstContent _ _ _) _ (Descriptor s
     Structure flatType ->
         unifyStructure context flatType firstContent secondContent
 
-    Error _ ->
+    Error ->
         -- If there was an error, just pretend it is okay. This lets us avoid
         -- "cascading" errors where one problem manifests as multiple message.
         return ()
@@ -225,7 +225,7 @@ actuallyUnify context@(Context _ (Descriptor firstContent _ _ _) _ (Descriptor s
 unifyFlex :: Context -> Content -> Content -> Unify ()
 unifyFlex context content otherContent =
   case otherContent of
-    Error _ ->
+    Error ->
         return ()
 
     -- TODO see if wildcarding makes a noticable perf difference
@@ -288,7 +288,7 @@ unifyRigid context maybeSuper content otherContent =
     Structure _ ->
         mismatch
 
-    Error _ ->
+    Error ->
         return ()
 
 
@@ -346,7 +346,7 @@ unifyFlexSuper context super content otherContent =
     Alias _ _ _ realVar ->
         subUnify (_first context) realVar
 
-    Error _ ->
+    Error ->
         return ()
 
 
@@ -488,7 +488,7 @@ unifyAlias context home name args realVar otherContent =
     Structure _ ->
       subUnify realVar (_second context)
 
-    Error _ ->
+    Error ->
       return ()
 
 
@@ -592,7 +592,7 @@ unifyStructure context flatType content otherContent =
           _ ->
               mismatch
 
-    Error _ ->
+    Error ->
         return ()
 
 

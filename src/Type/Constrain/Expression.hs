@@ -15,8 +15,9 @@ import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Type as E
+import Reporting.Error.Type (Expected(..), Context(..), SubContext(..), MaybeName(..), Category(..), PExpected(..), PContext(..))
 import qualified Reporting.Region as R
-import Type.Constraint as C
 import qualified Type.Constrain.Pattern as Pattern
 import qualified Type.Instantiate as Instantiate
 import Type.Type as Type hiding (Descriptor(..))
@@ -69,7 +70,7 @@ constrain rtv (A.At region expression) expected =
 
     Can.Int _ ->
       do  var <- mkFlexNumber
-          return $ exists [var] $ CEqual region C.Number (VarN var) expected
+          return $ exists [var] $ CEqual region E.Number (VarN var) expected
 
     Can.Float _ ->
       return $ CEqual region Float Type.float expected
@@ -81,7 +82,7 @@ constrain rtv (A.At region expression) expected =
       do  numberVar <- mkFlexNumber
           let numberType = VarN numberVar
           numberCon <- constrain rtv expr (FromContext region Negate numberType)
-          let negateCon = CEqual region C.Number numberType expected
+          let negateCon = CEqual region E.Number numberType expected
           return $ exists [numberVar] $ CAnd [ numberCon, negateCon ]
 
     Can.Binop op _ _ annotation leftExpr rightExpr ->
@@ -143,7 +144,7 @@ constrain rtv (A.At region expression) expected =
       constrainRecord rtv region fields expected
 
     Can.Unit ->
-      return $ CEqual region Unit UnitN expected
+      return $ CEqual region UnitExpr UnitN expected
 
     Can.Tuple a b maybeC ->
       constrainTuple rtv region a b maybeC expected
@@ -173,7 +174,7 @@ constrainLambda rtv region args body expected =
               , _headerCon = CAnd (reverse revCons)
               , _bodyCon = bodyCon
               }
-          , CEqual region Lambda tipe expected
+          , CEqual region LambdaExpr tipe expected
           ]
 
 
@@ -402,7 +403,7 @@ constrainRecord rtv region fields expected =
 
       let getType (_, t, _) = t
       let recordType = RecordN (Map.map getType dict) EmptyRecordN
-      let recordCon = CEqual region Record recordType expected
+      let recordCon = CEqual region RecordExpr recordType expected
 
       let vars = Map.foldr (\(v,_,_) vs -> v:vs) [] dict
       let cons = Map.foldr (\(_,_,c) cs -> c:cs) [recordCon] dict
@@ -436,7 +437,7 @@ constrainUpdate rtv region expr fields expected =
 
       let getType (_, t, _) = t
       let newRecordType = RecordN (Map.map getType newDict) sharedType
-      let newCon = CEqual region Record newRecordType expected
+      let newCon = CEqual region RecordExpr newRecordType expected
 
       let vars = Map.foldr (\(v,_,_) vs -> v:vs) (sharedVar : Map.elems oldVars) newDict
       let cons = Map.foldr (\(_,_,c) cs -> c:cs) [newCon] newDict
@@ -461,7 +462,7 @@ constrainTuple rtv region a b maybeC expected =
       case maybeC of
         Nothing ->
           do  let tupleType = TupleN aType bType Nothing
-              let tupleCon = CEqual region Tuple tupleType expected
+              let tupleCon = CEqual region TupleExpr tupleType expected
               return $ exists [ aVar, bVar ] $ CAnd [ aCon, bCon, tupleCon ]
 
         Just c ->
@@ -471,7 +472,7 @@ constrainTuple rtv region a b maybeC expected =
               cCon <- constrain rtv c (NoExpectation cType)
 
               let tupleType = TupleN aType bType (Just cType)
-              let tupleCon = CEqual region Tuple tupleType expected
+              let tupleCon = CEqual region TupleExpr tupleType expected
 
               return $ exists [ aVar, bVar, cVar ] $ CAnd [ aCon, bCon, cCon, tupleCon ]
 
