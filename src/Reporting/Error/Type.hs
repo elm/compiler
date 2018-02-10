@@ -28,6 +28,7 @@ import qualified Elm.Name as N
 import qualified Reporting.Helpers as H
 import qualified Reporting.Region as R
 import qualified Reporting.Render.Code as Code
+import qualified Reporting.Render.Type as RT
 import qualified Reporting.Report as Report
 import qualified Type.Error as T
 
@@ -1091,5 +1092,5 @@ typeComparison localizer actual expected ( iAmSeeing, insteadOf, soHereAreSomeTh
 
 indentType :: T.Localizer -> T.Type -> H.Doc
 indentType localizer tipe =
-  H.indent 4 (H.dullyellow (error "TODO Type.toDoc" localizer tipe))
+  H.indent 4 (H.dullyellow (T.toDoc localizer RT.None tipe))
 
