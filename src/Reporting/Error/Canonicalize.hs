@@ -1110,10 +1110,19 @@ aliasToUnionDoc name args tipe =
 typeToDoc :: RT.Context -> Src.Type -> Doc
 typeToDoc context (A.At _ tipe) =
   case tipe of
-    Src.TLambda a b ->
-      RT.lambda context
-        (typeToDoc RT.Func a)
-        (map (typeToDoc RT.Func) (collectArgs b))
+    Src.TLambda arg1 next ->
+      case next of
+        A.At _ (Src.TLambda arg2 result) ->
+          RT.lambda context
+            (typeToDoc RT.Func arg1)
+            (typeToDoc RT.Func arg2)
+            (map (typeToDoc RT.Func) (collectArgs result))
+
+        _ ->
+          RT.lambda context
+            (typeToDoc RT.Func arg1)
+            (typeToDoc RT.Func next)
+            []
 
     Src.TVar name ->
       H.nameToDoc name
@@ -1143,6 +1152,13 @@ typeToDoc context (A.At _ tipe) =
         (map (typeToDoc RT.None) cs)
 
 
+fieldToDocs :: (A.Located N.Name, Src.Type) -> (Doc, Doc)
+fieldToDocs (A.At _ fieldName, fieldType) =
+  ( H.nameToDoc fieldName
+  , typeToDoc RT.None fieldType
+  )
+
+
 collectArgs :: Src.Type -> [Src.Type]
 collectArgs tipe =
   case tipe of
@@ -1151,10 +1167,3 @@ collectArgs tipe =
 
     _ ->
       [tipe]
-
-
-fieldToDocs :: (A.Located N.Name, Src.Type) -> (Doc, Doc)
-fieldToDocs (A.At _ fieldName, fieldType) =
-  ( H.nameToDoc fieldName
-  , typeToDoc RT.None fieldType
-  )

@@ -25,11 +25,11 @@ data Context
   | App
 
 
-lambda :: Context -> Doc -> [Doc] -> Doc
-lambda context arg args =
+lambda :: Context -> Doc -> Doc -> [Doc] -> Doc
+lambda context arg1 arg2 args =
   let
     lambdaDoc =
-      H.sep (arg : map ("->" <+>) args)
+      H.sep (arg1 : map ("->" <+>) (arg2:args))
   in
   case context of
     None -> lambdaDoc

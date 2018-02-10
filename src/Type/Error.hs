@@ -1,16 +1,22 @@
+{-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Type.Error
   ( Type(..)
   , Extension(..)
   , iteratedDealias
   , Localizer
+  , toDoc
   )
   where
 
 
 import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
 
 import qualified AST.Module.Name as ModuleName
 import qualified Elm.Name as N
+import qualified Reporting.Helpers as H
+import qualified Reporting.Render.Type as RT
 
 
 
@@ -49,11 +55,77 @@ iteratedDealias tipe =
 
 
 
--- LOCALIZE
+-- TO DOC
 
 
-type Localizer = Map.Map N.Name ()
+type Localizer = Map.Map (ModuleName.Canonical, N.Name) (Maybe N.Name)
 
+
+toDoc :: Localizer -> RT.Context -> Type -> H.Doc
+toDoc localizer context tipe =
+  case tipe of
+    Lambda a b cs ->
+      RT.lambda context
+        (toDoc localizer RT.Func a)
+        (toDoc localizer RT.Func b)
+        (map (toDoc localizer RT.Func) cs)
+
+    Infinite ->
+      "∞"
+
+    Error ->
+      "?"
+
+    FlexVar name ->
+      H.nameToDoc name
+
+    FlexSuper name ->
+      H.nameToDoc name
+
+    RigidVar name ->
+      H.nameToDoc name
+
+    RigidSuper name ->
+      H.nameToDoc name
+
+    Type home name args ->
+      RT.apply context
+        (toLocal localizer home name)
+        (map (toDoc localizer RT.App) args)
+
+    Record fields ext ->
+      let
+        entryToDocs (fieldName, fieldType) =
+          ( H.nameToDoc fieldName, toDoc localizer RT.None fieldType )
+
+        fieldDocs =
+          map entryToDocs (Map.toList fields)
+      in
+      RT.record fieldDocs $
+        case ext of
+          Closed -> Nothing
+          FlexOpen x -> Just (H.nameToDoc x)
+          RigidOpen x -> Just (H.nameToDoc x)
+
+
+    Unit ->
+      "()"
+
+    Tuple a b maybeC ->
+      RT.tuple
+        (toDoc localizer RT.None a)
+        (toDoc localizer RT.None b)
+        (map (toDoc localizer RT.None) (Maybe.maybeToList maybeC))
+
+    Alias home name args _ ->
+      RT.apply context
+        (toLocal localizer home name)
+        (map (toDoc localizer RT.App . snd) args)
+
+
+toLocal :: Localizer -> ModuleName.Canonical -> N.Name -> H.Doc
+toLocal localizer home name =
+  error "TODO toLocal" localizer home name
 
 
 
