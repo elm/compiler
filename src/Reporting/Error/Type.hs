@@ -230,7 +230,7 @@ toMismatchReport source localizer exprRegion category tipe expected =
             )
         )
 
-    FromAnnotation name arity subContext expectedType ->
+    FromAnnotation name _arity subContext expectedType ->
       Report.toCodeSnippet source exprRegion Nothing
         (
           H.reflow $
@@ -259,39 +259,33 @@ toMismatchReport source localizer exprRegion category tipe expected =
             ,
               "But the type annotation on `" <> N.toString name <> "` says it should be:"
             ,
-              [ error "TODO check for arity issues. Suggest that an arg is unlisted." arity
-              --, problem
-              ]
+              []
             )
         )
 
     FromContext region context expectedType ->
       case context of
         ListEntry index ->
-          if Index.toHuman index == 2 then
-            error "TODO 1st vs 2nd list entry"
-          else
-            Report.toCodeSnippet source region (Just exprRegion)
-              (
-                H.reflow $
-                  "The " <> H.ordinalize (Index.toHuman index) <> " element of this list does not match all the previous elements:"
-              ,
-                typeComparison localizer tipe expectedType
-                  (
-                    toDescription category $
-                      "The " <> H.ordinalize (Index.toHuman index) <> " element is"
-                  ,
-                    "But all the previous elements in the list are:"
-                  ,
-                    [ H.toSimpleHint $
-                        "Everything in the list needs to be the same type of value.\
-                        \ This way you never run into unexpected values partway through.\
-                        \ To mix different types in a single list, create a \"union type\" as\
-                        \ described in: <http://guide.elm-lang.org/types/union_types.html>"
-                    --, problem
-                    ]
-                  )
-              )
+          Report.toCodeSnippet source region (Just exprRegion)
+            (
+              H.reflow $
+                "The " <> H.ordinalize (Index.toHuman index) <> " element of this list does not match all the previous elements:"
+            ,
+              typeComparison localizer tipe expectedType
+                (
+                  toDescription category $
+                    "The " <> H.ordinalize (Index.toHuman index) <> " element is"
+                ,
+                  "But all the previous elements in the list are:"
+                ,
+                  [ H.toSimpleHint $
+                      "Everything in the list needs to be the same type of value.\
+                      \ This way you never run into unexpected values partway through.\
+                      \ To mix different types in a single list, create a \"union type\" as\
+                      \ described in: <http://guide.elm-lang.org/types/union_types.html>"
+                  ]
+                )
+            )
 
         Negate ->
           Report.toCodeSnippet source region (Just exprRegion)
@@ -337,57 +331,48 @@ toMismatchReport source localizer exprRegion category tipe expected =
             )
 
         IfBranch index ->
-          if Index.toHuman index == 2 then
-            error "TODO 1st vs 2nd if branches"
-            -- error "TODO if with no chaining"
-          else
-            Report.toCodeSnippet source region (Just exprRegion)
-              (
-                H.reflow $
-                  "The " <> H.ordinalize (Index.toHuman index) <> " branch of this `if` does not match all the previous branches:"
-              ,
-                typeComparison localizer tipe expectedType
-                  (
-                    toDescription category $
-                      "The " <> H.ordinalize (Index.toHuman index) <> " branch is"
-                  ,
-                    "But all the previous branches result in:"
-                  ,
-                    [ H.link "Hint"
-                        "All branches in an `if` must produce the same type of values. This way, no\
-                        \ matter which branch we take, the result is always a consistent shape. Read"
-                        "union-types"
-                        "to learn how to “mix” types."
-                    --, problem
-                    ]
-                  )
-              )
+          Report.toCodeSnippet source region (Just exprRegion)
+            (
+              H.reflow $
+                "The " <> H.ordinalize (Index.toHuman index) <> " branch of this `if` does not match all the previous branches:"
+            ,
+              typeComparison localizer tipe expectedType
+                (
+                  toDescription category $
+                    "The " <> H.ordinalize (Index.toHuman index) <> " branch is"
+                ,
+                  "But all the previous branches result in:"
+                ,
+                  [ H.link "Hint"
+                      "All branches in an `if` must produce the same type of values. This way, no\
+                      \ matter which branch we take, the result is always a consistent shape. Read"
+                      "union-types"
+                      "to learn how to “mix” types."
+                  ]
+                )
+            )
 
         CaseBranch index ->
-          if Index.toHuman index == 2 then
-            error "TODO 1st vs 2nd case branches"
-          else
-            Report.toCodeSnippet source region (Just exprRegion)
-              (
-                H.reflow $
-                  "The " <> H.ordinalize (Index.toHuman index) <> " branch of this `case` does not match all the previous branches:"
-              ,
-                typeComparison localizer tipe expectedType
-                  (
-                    toDescription category $
-                      "The " <> H.ordinalize (Index.toHuman index) <> " branch is"
-                  ,
-                    "But all the previous branches result in:"
-                  ,
-                    [ H.link "Hint"
-                        "All branches in a `case` must produce the same type of values. This way, no\
-                        \ matter which branch we take, the result is always a consistent shape. Read"
-                        "union-types"
-                        "to learn how to “mix” types."
-                    --, problem
-                    ]
-                  )
-              )
+          Report.toCodeSnippet source region (Just exprRegion)
+            (
+              H.reflow $
+                "The " <> H.ordinalize (Index.toHuman index) <> " branch of this `case` does not match all the previous branches:"
+            ,
+              typeComparison localizer tipe expectedType
+                (
+                  toDescription category $
+                    "The " <> H.ordinalize (Index.toHuman index) <> " branch is"
+                ,
+                  "But all the previous branches result in:"
+                ,
+                  [ H.link "Hint"
+                      "All branches in a `case` must produce the same type of values. This way, no\
+                      \ matter which branch we take, the result is always a consistent shape. Read"
+                      "union-types"
+                      "to learn how to “mix” types."
+                  ]
+                )
+            )
 
         CallArg maybeFuncName index ->
           let
@@ -508,7 +493,7 @@ toMismatchReport source localizer exprRegion category tipe expected =
 
         RecordAccess field ->
           Report.toCodeSnippet source region (Just exprRegion) $
-            case error "TODO figure out record things" tipe of
+            case tipe of
               T.Record _ _ ->
                 (
                   H.reflow $
@@ -521,62 +506,38 @@ toMismatchReport source localizer exprRegion category tipe expected =
                     , H.reflow $
                         "So maybe the ." <> N.toString field <> " field access is misspelled?"
                     ]
-                    ++
-                      case error "TODO closeNames" of
-                        [] ->
-                          []
-
-                        [name] ->
-                          [ H.toFancyHint $
-                              ["It","may","also","be","a","typo","in","the","record","itself."
-                              ,"Perhaps","the",H.dullyellow name,"field","is","misspelled?"
-                              ]
-                          ]
-
-                        names ->
-                          [ H.toFancyHint $
-                              ["It","may","also","be","a","typo","in","the","record","itself."
-                              ,"Perhaps","the"
-                              ]
-                              ++ H.commaSep "or" H.dullyellow names
-                              ++ ["field","is","misspelled?"]
-                          ]
-                )
-
-              T.Lambda _ _ _ ->
-                (
-                  H.reflow $
-                    "I cannot access field `" <> N.toString field <> "` of this " <> whatever <> ":"
-                ,
-                  H.stack
-                    [ H.reflow $
-                        "The " <> whatever <> " is not a record! It is actually a function:"
-                    , indentType localizer tipe
-                    , H.toSimpleHint "Maybe it is missing some arguments?"
-                    ]
                 )
 
               _ ->
                 (
                   H.reflow $
-                    "I cannot access field `" <> N.toString field <> "` of this " <> whatever <> ":"
+                    "This is not a record, so it has no fields to access!"
                 ,
                   H.stack
-                    [ H.reflow $
-                        "The " <> whatever <> " is not a record though! It is a:"
+                    [ H.reflow $ toDescription category "It is"
                     , indentType localizer tipe
+                    , H.fillSep
+                        ["But","I","need","a","record","with","a",H.dullyellow (H.nameToDoc field),"field!"]
                     ]
                 )
 
         RecordUpdate ->
-          case error "TODO figure out record things" tipe of
+          case tipe of
             T.Record _ _ ->
-              Report.toCodeSnippet source region Nothing
+              Report.toCodeSnippet source region Nothing $
                 (
                   H.reflow $
                     "I think there is a typo in one of these field names:"
                 ,
-                  error "TODO record update field name typo"
+                  typeComparison localizer tipe expectedType
+                    (
+                      "The record you want to update has type:"
+                    ,
+                      "But you are saying it should have these fields:"
+                    ,
+                      [ H.reflow "Maybe there is some typo?"
+                      ]
+                    )
                 )
 
             _ ->
@@ -585,14 +546,27 @@ toMismatchReport source localizer exprRegion category tipe expected =
                   "The record update syntax does not work with this value:"
                 ,
                   H.stack
-                    [ H.reflow $
-                        "I can only update records, but this appears to be a " <> whatever <> ":"
+                    [ H.reflow $ toDescription category "It is"
                     , indentType localizer tipe
+                    , H.reflow $ "But I need some kind of record here!"
                     ]
                 )
 
         Destructure ->
-          error "TODO Destructure"
+          Report.toCodeSnippet source region Nothing
+            (
+              H.reflow $
+                "I cannot destructure "
+            ,
+              typeComparison localizer tipe expectedType
+                (
+                  toDescription category "You are defining"
+                ,
+                  "But then trying to destructure it as:"
+                ,
+                  []
+                )
+            )
 
 
 
@@ -618,15 +592,15 @@ opLeftToDocs localizer category op tipe expectedType =
   case op of
     "+"
       | isString tipe -> badStringAdd
-      | isList tipe   -> badListAdd localizer "left" tipe
-      | otherwise     -> badMath localizer "Addition" "left" "+" tipe []
+      | isList tipe   -> badListAdd localizer category "left" tipe
+      | otherwise     -> badMath localizer category "Addition" "left" "+" tipe []
 
     "*"
-      | isList tipe  -> badListMul localizer "left" tipe
-      | otherwise    -> badMath localizer "Multiplication" "left" "*" tipe []
+      | isList tipe  -> badListMul localizer category "left" tipe
+      | otherwise    -> badMath localizer category "Multiplication" "left" "*" tipe []
 
-    "-"  -> badMath localizer "Subtraction" "left" "-" tipe []
-    "^"  -> badMath localizer "Exponentiation" "left" "^" tipe []
+    "-"  -> badMath localizer category "Subtraction" "left" "-" tipe []
+    "^"  -> badMath localizer category "Exponentiation" "left" "^" tipe []
     "/"  -> badFDiv localizer "left" tipe
     "//" -> badIDiv localizer "left" tipe
     "&&" -> badBool localizer "&&" "left" tipe
@@ -640,18 +614,9 @@ opLeftToDocs localizer category op tipe expectedType =
       ( "The left side of (<|) needs to be a function so I can pipe arguments to it!"
       ,
         H.stack
-          [ H.reflow $
-              "Instead of a function, I am seeing " <> whatever <> ":"
+          [ H.reflow $ toDescription category "I am seeing"
           , indentType localizer tipe
-          , error "TODO"
-            {-
-            case category of
-              Call ->
-                "Maybe you gave " <> funcName <> " too many arguments already?"
-
-              _ ->
-                []
-            -}
+          , H.reflow $ "This needs to be some kind of function though!"
           ]
       )
 
@@ -687,24 +652,24 @@ opRightToDocs localizer category op tipe expectedType =
       | isInt tipe    -> badCast op FloatInt
       | isFloat tipe  -> badCast op IntFloat
       | isString tipe -> EmphRight $ badStringAdd
-      | isList tipe   -> EmphRight $ badListAdd localizer "right" tipe
-      | otherwise     -> EmphRight $ badMath localizer "Addition" "right" "+" tipe []
+      | isList tipe   -> EmphRight $ badListAdd localizer category "right" tipe
+      | otherwise     -> EmphRight $ badMath localizer category "Addition" "right" "+" tipe []
 
     "*"
       | isInt tipe   -> badCast op FloatInt
       | isFloat tipe -> badCast op IntFloat
-      | isList tipe  -> EmphRight $ badListMul localizer "right" tipe
-      | otherwise    -> EmphRight $ badMath localizer "Multiplication" "right" "*" tipe []
+      | isList tipe  -> EmphRight $ badListMul localizer category "right" tipe
+      | otherwise    -> EmphRight $ badMath localizer category "Multiplication" "right" "*" tipe []
 
     "-"
       | isInt tipe   -> badCast op FloatInt
       | isFloat tipe -> badCast op IntFloat
-      | otherwise    -> EmphRight $ badMath localizer "Subtraction" "right" "-" tipe []
+      | otherwise    -> EmphRight $ badMath localizer category "Subtraction" "right" "-" tipe []
 
     "^"
       | isInt tipe   -> badCast op FloatInt
       | isFloat tipe -> badCast op IntFloat
-      | otherwise    -> EmphRight $ badMath localizer "Exponentiation" "right" "^" tipe []
+      | otherwise    -> EmphRight $ badMath localizer category "Exponentiation" "right" "^" tipe []
 
     "/"  -> EmphRight $ badFDiv localizer "right" tipe
     "//" -> EmphRight $ badIDiv localizer "right" tipe
@@ -724,7 +689,7 @@ opRightToDocs localizer category op tipe expectedType =
       EmphRight
         (
           H.reflow $
-            "I cannot pipe this " <> whatever <> " in as the final argument:"
+            "I cannot send this through the (<|) pipe:"
         ,
           typeComparison localizer tipe expectedType
             (
@@ -732,9 +697,7 @@ opRightToDocs localizer category op tipe expectedType =
             ,
               "But (<|) is piping it a function that expects:"
             ,
-              [ "Maybe an argument is missing?"
---              , problem
-              ]
+              []
             )
         )
 
@@ -743,29 +706,15 @@ opRightToDocs localizer category op tipe expectedType =
         (T.Lambda expectedArgType _ _, T.Lambda argType _ _) ->
           EmphRight
             (
-              -- TODO try to say the function name instead of "this function"
-              "I cannot pipe the argument through to this function:"
+              "This function cannot handle the argument sent through the (|>) pipe:"
             ,
               typeComparison localizer argType expectedArgType
                 (
                   "You are providing an argument of type:"
                 ,
                   "But (|>) is piping it a function that expects its next argument to be:"
-                  {-
-                  case maybeName of
-                    Nothing ->
-                      "But (|>) is piping it a function that expects the next argument to be:"
-
-                    Just (FuncName name) ->
-                      "But (|>) is piping it to `" <> N.toString name <> "` which expects the next argument to be:"
-
-                    Just (OpName op) ->
-                      "But (|>) is piping it to (" <> N.toString op <> ") which expects the next argument to be:"
-                  -}
                 ,
-                  [ "Maybe an argument is missing?"
---                  , problem
-                  ]
+                  []
                 )
             )
 
@@ -775,18 +724,9 @@ opRightToDocs localizer category op tipe expectedType =
               "The right side of (|>) needs to be a function so I can pipe arguments to it!"
             ,
               H.stack
-                [ H.reflow $
-                    "Instead of a function, I am seeing " <> whatever <> ":"
+                [ H.reflow $ toDescription category $
+                    "Instead of a function, I am seeing "
                 , indentType localizer tipe
-                , error "TODO"
-                  {-
-                  case category of
-                    Call ->
-                      "Maybe you gave " <> funcName <> " too many arguments already?"
-
-                    _ ->
-                      []
-                  -}
                 ]
             )
 
@@ -802,12 +742,11 @@ opRightToDocs localizer category op tipe expectedType =
             ,
               "But (" <> N.toString op <> ") needs the right argument to be:"
             ,
-              error "TODO"
-              {-
-              [ problem
-              , binopHint home op leftType rightType
+              [ H.toSimpleHint $
+                  "With operators like (" ++ N.toString op ++ ") I always check the left\
+                  \ side first. If it seems fine, I assume it is correct and check the right\
+                  \ side. So the problem may be in how the left and right arguments interact!"
               ]
-              -}
             )
         )
 
@@ -851,11 +790,6 @@ isList tipe =
 
     _ ->
       False
-
-
-whatever :: String
-whatever =
-  error "TODO whatever"
 
 
 
@@ -920,14 +854,14 @@ badStringAdd =
   )
 
 
-badListAdd :: T.Localizer -> String -> T.Type -> (H.Doc, H.Doc)
-badListAdd localizer direction tipe =
+badListAdd :: T.Localizer -> Category -> String -> T.Type -> (H.Doc, H.Doc)
+badListAdd localizer category direction tipe =
   (
     "I cannot do addition with lists:"
   ,
     H.stack
-      [ H.reflow $
-          "The " <> direction <> " side of (+) is " <> whatever <> ":"
+      [ H.reflow $ toDescription category $
+          "The " <> direction <> " side of (+) is"
       , indentType localizer tipe
       , H.fillSep
           ["But","(+)","only","works","with",H.dullyellow "Int","and",H.dullyellow "Float","values."
@@ -939,9 +873,9 @@ badListAdd localizer direction tipe =
   )
 
 
-badListMul :: T.Localizer -> String -> T.Type -> (H.Doc, H.Doc)
-badListMul localizer direction tipe =
-  badMath localizer "Multiplication" direction "*" tipe
+badListMul :: T.Localizer -> Category -> String -> T.Type -> (H.Doc, H.Doc)
+badListMul localizer category direction tipe =
+  badMath localizer category "Multiplication" direction "*" tipe
     [
       H.toFancyHint
         [ "Maybe", "you", "want"
@@ -951,21 +885,20 @@ badListMul localizer direction tipe =
     ]
 
 
-badMath :: T.Localizer -> String -> String -> String -> T.Type -> [H.Doc] -> (H.Doc, H.Doc)
-badMath localizer operation direction op tipe otherHints =
+badMath :: T.Localizer -> Category -> String -> String -> String -> T.Type -> [H.Doc] -> (H.Doc, H.Doc)
+badMath localizer category operation direction op tipe otherHints =
   (
     H.reflow $
       operation ++ " does not work with this value:"
   ,
     H.stack $
-      [ H.reflow $
-          "The " <> direction <> " side of (" <> op <> ") is a " <> whatever <> ":"
+      [ H.reflow $ toDescription category $
+          "The " <> direction <> " side of (" <> op <> ") is"
       , indentType localizer tipe
       , H.fillSep
           ["But","(" <> H.text op <> ")","only","works","with"
           ,H.dullyellow "Int","and",H.dullyellow "Float","values."
           ]
-      , error "TODO check for missing arguments"
       ]
       ++ otherHints
   )
@@ -1136,8 +1069,6 @@ badEquality localizer op tipe expectedType =
             [ H.reflow $
                 "Different types can never be equal though! Which side is messed up?"
             ]
---          else
---            error "TODO detect problems here instead?"
         )
     )
 
