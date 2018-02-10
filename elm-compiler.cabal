@@ -128,6 +128,7 @@ Library
         Reporting.Helpers,
         Reporting.Region,
         Reporting.Render.Code,
+        Reporting.Render.Type,
         Reporting.Report,
         Reporting.Result,
         Reporting.Warning,

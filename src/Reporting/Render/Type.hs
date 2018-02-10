@@ -1,505 +1,102 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Reporting.Render.Type
-  ( Localizer
-  , decl
-  , annotation
-  , toDoc
-  , diffToDocs
-  , Style(..)
+  ( Context(..)
+  , lambda
+  , apply
+  , tuple
+  , record
+  , recordSnippet
   )
   where
 
-import Control.Arrow ((***), first)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import Data.Text (Text)
 
-import qualified AST.Helpers as Help
-import qualified AST.Type as Type
-import qualified AST.Variable as Var
-import qualified Reporting.Helpers as Help
-import Reporting.Helpers ( Doc, (<+>), cat, dullyellow, hang, hsep, parens, sep, text, vcat )
+import qualified Reporting.Helpers as H
+import Reporting.Helpers ( Doc, (<+>) )
 
 
 
--- PUBLIC API FOR CREATING DOCS
-
-
-toDoc :: Localizer -> Type.Canonical -> Doc
-toDoc localizer tipe =
-  docType localizer None tipe
-
-
-diffToDocs :: Localizer -> Type.Canonical -> Type.Canonical -> (Doc,Doc)
-diffToDocs localizer leftType rightType =
-  case diff localizer None leftType rightType of
-    Same doc ->
-        (doc, doc)
-
-    Diff leftDoc rightDoc ->
-        (leftDoc, rightDoc)
-
-
-decl :: Localizer -> Text -> [Text] -> [(Text, [Type.Canonical])] -> Doc
-decl localizer name vars tags =
-  let
-    docTag (tag, args) =
-      hang 2 (sep (text tag : map (docType localizer App) args))
-  in
-    hang 4 $ vcat $
-      (hsep ("type" : map text (name : vars)))
-      :
-      zipWith (<+>) ("=" : repeat "|") (map docTag tags)
-
-
-annotation :: Localizer -> Text -> Type.Canonical -> Doc
-annotation localizer name tipe =
-  let
-    docName =
-      if Help.isOp name then parens (text name) else text name
-  in
-    case Type.collectLambdas tipe of
-      parts@(_ : _ : _) ->
-          hang 4 $ sep $
-            docName
-            : zipWith (<+>)
-                (":" : repeat "->")
-                (map (docType localizer Func) parts)
-
-      _ ->
-          hang 4 $ sep $
-            [ docName <+> ":"
-            , docType localizer None tipe
-            ]
-
-
-
--- LOCALIZE TYPES
-
-
-type Localizer =
-  Map.Map Var.Canonical Text
-
-
-varToDoc :: Localizer -> Var.Canonical -> Doc
-varToDoc localizer var =
-  let
-    name =
-      Var.toText var
-  in
-    if name == Help.zeroTuple then
-      text "()"
-
-    else
-      text (maybe name id (Map.lookup var localizer))
-
-
-
--- DIFF BUILDER
-
-
-data Diff a
-    = Diff a a
-    | Same a
-
-
-instance Functor Diff where
-  fmap func d =
-    case d of
-      Diff left right ->
-          Diff (func left) (func right)
-
-      Same both ->
-          Same (func both)
-
-
-instance Applicative Diff where
-  pure a =
-    Same a
-
-  (<*>) function argument =
-    case (function, argument) of
-      (Diff leftFunc rightFunc, Diff leftArg rightArg) ->
-          Diff (leftFunc leftArg) (rightFunc rightArg)
-
-      (Diff leftFunc rightFunc, Same arg) ->
-          Diff (leftFunc arg) (rightFunc arg)
-
-      (Same func, Diff leftArg rightArg) ->
-          Diff (func leftArg) (func rightArg)
-
-      (Same func, Same arg) ->
-          Same (func arg)
-
-
-partitionDiffs :: Map.Map k (Diff a) -> ( [(k, (a,a))], [(k, a)] )
-partitionDiffs dict =
-  let
-    collect key value (diffKeys, sameKeys) =
-      case value of
-        Diff left right ->
-            ( (key, (left, right)) : diffKeys
-            , sameKeys
-            )
-
-        Same both ->
-            ( diffKeys
-            , (key, both) : sameKeys
-            )
-  in
-    Map.foldrWithKey collect ([],[]) dict
-
-
-
--- DOC DIFF
+-- TO DOC
 
 
 data Context
-    = None
-    | Func
-    | App
+  = None
+  | Func
+  | App
 
 
-diff :: Localizer -> Context -> Type.Canonical -> Type.Canonical -> Diff Doc
-diff localizer context leftType rightType =
+lambda :: Context -> Doc -> [Doc] -> Doc
+lambda context arg args =
   let
-    go = diff localizer
+    lambdaDoc =
+      H.sep (arg : map ("->" <+>) args)
   in
-  case (leftType, rightType) of
-    (Type.Aliased leftName leftArgs _, Type.Aliased rightName rightArgs _) | leftName == rightName ->
-        docAppHelp localizer context leftName
-          <$> sequenceA (zipWith (go App) (map snd leftArgs) (map snd rightArgs))
-
-    (Type.Lambda _ _, _) ->
-        diffLambda localizer context leftType rightType
-
-    (_, Type.Lambda _ _) ->
-        diffLambda localizer context leftType rightType
-
-    (Type.Var x, Type.Var y) | x == y ->
-        pure (text x)
-
-    (Type.Type leftName leftArgs, Type.Type rightName rightArgs) ->
-        if leftName /= rightName || length leftArgs /= length rightArgs then
-            difference
-              (docApp localizer context leftName leftArgs)
-              (docApp localizer context rightName rightArgs)
-
-        else
-            let
-              subContext =
-                if Var.isTuple leftName then None else App
-            in
-              docAppHelp localizer context leftName
-                <$> sequenceA (zipWith (go subContext) leftArgs rightArgs)
-
-    (Type.Record outerLeftFields outerLeftExt, Type.Record outerRightFields outerRightExt) ->
-        let
-          (leftFields, leftExt) =
-            flattenRecord outerLeftFields outerLeftExt
-
-          (rightFields, rightExt) =
-            flattenRecord outerRightFields outerRightExt
-        in
-          diffRecord localizer leftFields leftExt rightFields rightExt
-
-    (_, _) ->
-        difference
-          (docType localizer context leftType)
-          (docType localizer context rightType)
-
-
-difference :: Doc -> Doc -> Diff Doc
-difference leftDoc rightDoc =
-  Diff (dullyellow leftDoc) (dullyellow rightDoc)
-
-
-
--- FUNCTION DIFFS
-
-
-diffLambda :: Localizer -> Context -> Type.Canonical -> Type.Canonical -> Diff Doc
-diffLambda localizer context leftType rightType =
-  let
-    leftArgs = reverse $ Type.collectLambdas leftType
-    rightArgs = reverse $ Type.collectLambdas rightType
-
-    extraToDoc types =
-      map (dullyellow . docType localizer Func) types
-
-    extraLefts = reverse $ extraToDoc $ drop (length rightArgs) leftArgs
-    extraRights = reverse $ extraToDoc $ drop (length leftArgs) rightArgs
-
-    alignedArgDiff =
-      reverse <$> sequenceA (zipWith (diff localizer Func) leftArgs rightArgs)
-  in
-    docLambda context <$>
-      case (extraLefts, extraRights, alignedArgDiff) of
-        ([], [], _) ->
-          alignedArgDiff
-
-        (_, _, Same docs) ->
-          Diff (extraLefts ++ docs) (extraRights ++ docs)
-
-        (_, _, Diff lefts rights) ->
-          Diff (extraLefts ++ lefts) (extraRights ++ rights)
-
-
-
--- RECORD DIFFS
-
-
-diffRecord :: Localizer -> Fields -> Maybe Text -> Fields -> Maybe Text -> Diff Doc
-diffRecord localizer leftFields leftExt rightFields rightExt =
-  let
-    (leftOnly, both, rightOnly) =
-      vennDiagram leftFields rightFields
-  in
-    if Map.null leftOnly && Map.null rightOnly then
-        let
-          fieldDiffs =
-            Map.map (uncurry (diff localizer None)) both
-        in
-          case partitionDiffs fieldDiffs of
-            ([], sames) ->
-                let
-                  mkRecord =
-                    docRecord Full (map (first text) sames)
-                in
-                  if leftExt == rightExt then
-                      Same (mkRecord (fmap text leftExt))
-
-                  else
-                      Diff
-                        (mkRecord (fmap (dullyellow . text) leftExt))
-                        (mkRecord (fmap (dullyellow . text) rightExt))
-
-            (diffs, sames) ->
-                let
-                  (lefts, rights) = unzipDiffs diffs
-                  style = if null sames then Full else Elide
-                in
-                  Diff
-                    (docRecord style lefts (fmap text leftExt))
-                    (docRecord style rights (fmap text rightExt))
-
-    else
-        let
-          (lefts, rights) =
-            analyzeFields (Map.keys leftOnly) (Map.keys rightOnly)
-
-          style =
-            if Map.null both then Full else Elide
-        in
-          Diff
-            (docRecord style lefts (fmap text leftExt))
-            (docRecord style rights (fmap text rightExt))
-
-
-unzipDiffs :: [(Text, (Doc, Doc))] -> ( [(Doc, Doc)], [(Doc, Doc)] )
-unzipDiffs diffPairs =
-  let
-    unzipHelp (name, (left, right)) =
-      (,) (text name, left) (text name, right)
-  in
-    unzip (map unzipHelp diffPairs)
-
-
-
--- RECORD DIFFS HELPERS
-
-
-analyzeFields :: [Text] -> [Text] -> ( [(Doc, Doc)], [(Doc, Doc)] )
-analyzeFields leftOnly rightOnly =
-  let
-    typoPairs =
-      Help.findTypoPairs leftOnly rightOnly
-
-    mkField func name =
-      ( func (text name), text "..." )
-
-    mkFieldWith counts name =
-      mkField (if Set.member name counts then dullyellow else id) name
-  in
-    case Help.vetTypos typoPairs of
-      Just (leftTypos, rightTypos) ->
-        ( map (mkFieldWith leftTypos) leftOnly
-        , map (mkFieldWith rightTypos) rightOnly
-        )
-
-      Nothing ->
-        ( map (mkField dullyellow) leftOnly
-        , map (mkField dullyellow) rightOnly
-        )
-
-
-type Fields =
-  Map.Map Text Type.Canonical
-
-
-type DoubleFields =
-  Map.Map Text (Type.Canonical,Type.Canonical)
-
-
-vennDiagram :: Fields -> Fields -> (Fields, DoubleFields, Fields)
-vennDiagram leftFields rightFields =
-  ( Map.difference leftFields rightFields
-  , Map.intersectionWith (,) leftFields rightFields
-  , Map.difference rightFields leftFields
-  )
-
-
-flattenRecord
-    :: [(Text, Type.Canonical)]
-    -> Maybe Type.Canonical
-    -> (Fields, Maybe Text)
-flattenRecord fields ext =
-  first Map.fromList (flattenRecordHelp fields ext)
-
-
-flattenRecordHelp
-    :: [(Text, Type.Canonical)]
-    -> Maybe Type.Canonical
-    -> ([(Text, Type.Canonical)], Maybe Text)
-flattenRecordHelp fields ext =
-  case ext of
-    Nothing ->
-        (fields, Nothing)
-
-    Just (Type.Var x) ->
-        (fields, Just x)
-
-    Just (Type.Record subFields subExt) ->
-        flattenRecordHelp (fields ++ subFields) subExt
-
-    Just (Type.Aliased _ args tipe) ->
-        flattenRecordHelp fields (Just (Type.dealias args tipe))
-
-    _ ->
-        error "Trying to flatten ill-formed record."
-
-
-
--- TYPES TO DOCS
-
-
-docType :: Localizer -> Context -> Type.Canonical -> Doc
-docType localizer context tipe =
-  case tipe of
-    Type.Lambda _ _ ->
-        docLambda context (map (docType localizer Func) (Type.collectLambdas tipe))
-
-    Type.Var x ->
-        text x
-
-    Type.Type name args ->
-        docApp localizer context name args
-
-    Type.Record outerFields outerExt ->
-        let
-          (fields, ext) =
-            flattenRecordHelp outerFields outerExt
-        in
-          docRecord Full
-            (map (text *** docType localizer None) fields)
-            (fmap text ext)
-
-    Type.Aliased name args _ ->
-        docApp localizer context name (map snd args)
-
-
-
-docLambda :: Context -> [Doc] -> Doc
-docLambda context docs =
-  case docs of
+  case context of
+    None -> lambdaDoc
+    Func -> H.cat [ "(", lambdaDoc, ")" ]
+    App  -> H.cat [ "(", lambdaDoc, ")" ]
+
+
+apply :: Context -> Doc -> [Doc] -> Doc
+apply context name args =
+  case args of
     [] ->
-        error "cannot call docLambda with an empty list"
+      name
 
-    arg:rest ->
-        case context of
-          None ->
-              sep (arg : map ("->" <+>) rest)
-
-          _ ->
-              cat
-                [ "("
-                , sep (arg : map ("->" <+>) rest)
-                , ")"
-                ]
+    _:_ ->
+      let
+        applyDoc =
+          H.hang 4 (H.sep (name : args))
+      in
+      case context of
+        App  -> H.cat [ "(", applyDoc, ")" ]
+        Func -> applyDoc
+        None -> applyDoc
 
 
-
-docApp :: Localizer -> Context -> Var.Canonical -> [Type.Canonical] -> Doc
-docApp localizer context name args =
+tuple :: Doc -> Doc -> Maybe Doc -> Doc
+tuple a b maybeC =
   let
-    argContext =
-      if Var.isTuple name then None else App
+    entries =
+      case maybeC of
+        Nothing -> [ "(" <+> a, "," <+> b ]
+        Just c  -> [ "(" <+> a, "," <+> b, "," <+> c ]
   in
-    docAppHelp localizer context name (map (docType localizer argContext) args)
-
-
-docAppHelp :: Localizer -> Context -> Var.Canonical -> [Doc] -> Doc
-docAppHelp localizer context name arguments =
-  case arguments of
-    [] ->
-      if Var.isTuple name then "()" else varToDoc localizer name
-
-    arg : args ->
-      if Var.isTuple name then
-        sep
-          [ cat ("(" <+> arg : map ("," <+>) args)
-          , ")"
-          ]
-
-      else
-        case context of
-          App ->
-            cat [ "(", hang 4 (sep (varToDoc localizer name : arg : args)), ")" ]
-
-          _ ->
-            hang 4 (sep (varToDoc localizer name : arg : args))
+  H.sep [ H.cat entries, ")" ]
 
 
 
-data Style
-    = Elide
-    | Full
-
-
-docRecord :: Style -> [(Doc,Doc)] -> Maybe Doc -> Doc
-docRecord style fields maybeExt =
-  let
-    docField (name, tipe) =
-      hang 4 (sep [ name <+> ":", tipe ])
-
-    elision =
-      case style of
-        Full ->
-            []
-
-        Elide ->
-            [ text "..." ]
-
-    fieldDocs =
-      elision ++ map docField fields
-  in
-  case (fieldDocs, maybeExt) of
+record :: [(Doc, Doc)] -> Maybe Doc -> Doc
+record entries maybeExt =
+  case (map entryToDoc entries, maybeExt) of
     ([], Nothing) ->
-        text "{}"
+        "{}"
 
-    (_, Nothing) ->
-        sep
-          [ cat (zipWith (<+>) ("{" : repeat ",") fieldDocs)
+    (fields, Nothing) ->
+        H.sep
+          [ H.cat (zipWith (<+>) ("{" : repeat ",") fields)
           , "}"
           ]
 
-    (_, Just ext) ->
-        sep
-          [ hang 4 $ sep $
+    (fields, Just ext) ->
+        H.sep
+          [ H.hang 4 $ H.sep $
               [ "{" <+> ext
-              , cat (zipWith (<+>) (text "|" : repeat ",") fieldDocs)
+              , H.cat (zipWith (<+>) ("|" : repeat ",") fields)
               ]
           , "}"
           ]
 
+
+entryToDoc :: (Doc, Doc) -> Doc
+entryToDoc (fieldName, fieldType) =
+  H.hang 4 (H.sep [ fieldName <+> ":", fieldType ])
+
+
+recordSnippet :: (Doc, Doc) -> [(Doc, Doc)] -> Doc
+recordSnippet entry entries =
+  let
+    field  = "{" <+> entryToDoc entry
+    fields = zipWith (<+>) (repeat ",") (map entryToDoc entries ++ ["..."])
+  in
+  H.sep [ H.cat (field:fields), "}" ]
