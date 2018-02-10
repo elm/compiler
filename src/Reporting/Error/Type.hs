@@ -168,14 +168,195 @@ toReport source localizer err =
       toExprReport source localizer region category actualType expected
 
     BadPattern region category tipe expected ->
-      error "TODO" region category tipe expected
+      toPatternReport source localizer region category tipe expected
 
     InfiniteType overallType ->
       error "TODO" source localizer overallType
 
 
 
--- HELPERS
+-- TO PATTERN REPORT
+
+
+toPatternReport :: Code.Source -> T.Localizer -> R.Region -> PCategory -> T.Type -> PExpected T.Type -> Report.Report
+toPatternReport source localizer patternRegion category tipe expected =
+  Report.Report "TYPE MISMATCH" patternRegion [] $
+  case expected of
+    PNoExpectation expectedType ->
+      Report.toCodeSnippet source patternRegion Nothing $
+        (
+          "This pattern is being used in an unexpected way:"
+        ,
+          patternTypeComparison localizer tipe expectedType
+            (
+              toPatternDescription category "It is"
+            ,
+              "But it needs to match values of type:"
+            ,
+              []
+            )
+        )
+
+    PFromContext region context expectedType ->
+      Report.toCodeSnippet source region (Just patternRegion) $
+        case context of
+          PTypedArg name index ->
+            (
+              H.reflow $
+                "The " <> H.ordinalize (Index.toHuman index) <> " argument to `" <> N.toString name <> "` is weird."
+            ,
+              patternTypeComparison localizer tipe expectedType
+                (
+                  toPatternDescription category $
+                    "The argument is a pattern that matches"
+                ,
+                  "But the type annotation on `" <> N.toString name <> "` says the " <> H.ordinalize (Index.toHuman index) <> " argument should be:"
+                ,
+                  []
+                )
+            )
+
+          PCaseMatch index ->
+            if index == Index.first then
+              (
+                H.reflow $
+                  "The 1st pattern in this `case` causing a mismatch:"
+              ,
+                patternTypeComparison localizer tipe expectedType
+                  (
+                    toPatternDescription category "The first pattern is trying to match"
+                  ,
+                    "But it is supposed to match an expression of type:"
+                  ,
+                    [ H.reflow $
+                        "Is the pattern the problem? Or is it the expression you are trying to match on?"
+                    ]
+                  )
+              )
+            else
+              (
+                H.reflow $
+                  "The " <> H.ordinalize (Index.toHuman index) <> " pattern in this `case` does not match the previous ones."
+              ,
+                patternTypeComparison localizer tipe expectedType
+                  (
+                    toPatternDescription category $
+                      "The " <> H.ordinalize (Index.toHuman index) <> " pattern is trying to match"
+                  ,
+                    "But all the previous patterns match values of type:"
+                  ,
+                    []
+                  )
+              )
+
+          PCtorArg name index ->
+            (
+              H.reflow $
+                "The " <> H.ordinalize (Index.toHuman index) <> " argument to `" <> N.toString name <> "` is weird."
+            ,
+              patternTypeComparison localizer tipe expectedType
+                (
+                  toPatternDescription category "It is trying to match"
+                ,
+                  "But `" <> N.toString name <> "` needs its " <> H.ordinalize (Index.toHuman index) <> " argument to be:"
+                ,
+                  []
+                )
+            )
+
+          PListEntry index ->
+            (
+              H.reflow $
+                "The " <> H.ordinalize (Index.toHuman index) <> " pattern in this list does not match all the previous ones:"
+            ,
+              patternTypeComparison localizer tipe expectedType
+                (
+                  toPatternDescription category $
+                    "The " <> H.ordinalize (Index.toHuman index) <> " pattern is trying to match"
+                ,
+                  "But all the previous patterns in the list are:"
+                ,
+                  [ H.toSimpleHint $
+                      "Everything in the list needs to be the same type of value.\
+                      \ This way you never run into unexpected values partway through.\
+                      \ To mix different types in a single list, create a \"union type\" as\
+                      \ described in: <http://guide.elm-lang.org/types/union_types.html>"
+                  ]
+                )
+            )
+
+          PTail ->
+            (
+              H.reflow $
+                "The pattern after (::) is causing issues."
+            ,
+              patternTypeComparison localizer tipe expectedType
+                (
+                  toPatternDescription category $
+                    "The pattern after (::) is trying to match"
+                ,
+                  "But it needs to match lists like this:"
+                ,
+                  []
+                )
+            )
+
+
+
+-- PATTERN HELPERS
+
+
+patternTypeComparison :: T.Localizer -> T.Type -> T.Type -> ( String, String, [H.Doc] ) -> H.Doc
+patternTypeComparison localizer actual expected ( iAmSeeing, insteadOf, soHereAreSomeThoughts ) =
+  let
+    (actualDoc, expectedDoc) =
+      error "TODO diff" localizer actual expected
+  in
+  H.stack $
+    [ H.reflow iAmSeeing
+    , H.indent 4 actualDoc
+    , H.reflow insteadOf
+    , H.indent 4 expectedDoc
+    ]
+    ++ soHereAreSomeThoughts
+
+
+toPatternDescription :: PCategory -> String -> String
+toPatternDescription category iAmTryingToMatch =
+  iAmTryingToMatch <>
+    case category of
+      PRecord -> " record values of type:"
+      PUnit -> " unit values:"
+      PTuple -> " tuples of type:"
+      PList -> " lists of type:"
+      PCtor name -> " `" <> N.toString name <> "` values of type:"
+      PInt -> " integers:"
+      PStr -> " strings:"
+      PChr -> " characters:"
+
+
+
+-- EXPR HELPERS
+
+
+typeComparison :: T.Localizer -> T.Type -> T.Type -> ( String, String, [H.Doc] ) -> H.Doc
+typeComparison localizer actual expected ( iAmSeeing, insteadOf, soHereAreSomeThoughts ) =
+  let
+    (actualDoc, expectedDoc) =
+      error "TODO diff" localizer actual expected
+  in
+  H.stack $
+    [ H.reflow iAmSeeing
+    , H.indent 4 actualDoc
+    , H.reflow insteadOf
+    , H.indent 4 expectedDoc
+    ]
+    ++ soHereAreSomeThoughts
+
+
+indentType :: T.Localizer -> T.Type -> H.Doc
+indentType localizer tipe =
+  H.indent 4 (H.dullyellow (T.toDoc localizer RT.None tipe))
 
 
 toDescription :: Category -> String -> String
@@ -1069,28 +1250,3 @@ badEquality localizer op tipe expectedType =
             ]
         )
     )
-
-
-
--- DIFF TYPES
-
-
-typeComparison :: T.Localizer -> T.Type -> T.Type -> ( String, String, [H.Doc] ) -> H.Doc
-typeComparison localizer actual expected ( iAmSeeing, insteadOf, soHereAreSomeThoughts ) =
-  let
-    (actualDoc, expectedDoc) =
-      error "TODO diff" localizer actual expected
-  in
-  H.stack $
-    [ H.reflow iAmSeeing
-    , H.indent 4 actualDoc
-    , H.reflow insteadOf
-    , H.indent 4 expectedDoc
-    ]
-    ++ soHereAreSomeThoughts
-
-
-indentType :: T.Localizer -> T.Type -> H.Doc
-indentType localizer tipe =
-  H.indent 4 (H.dullyellow (T.toDoc localizer RT.None tipe))
-
