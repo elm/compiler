@@ -682,9 +682,6 @@ opRightToDocs localizer category op tipe expectedType =
     "==" -> badEquality localizer "==" tipe expectedType
     "/=" -> badEquality localizer "/=" tipe expectedType
 
-    "::" ->
-      error "TODO see if people want ++ instead?"
-
     "<|" ->
       EmphRight
         (
