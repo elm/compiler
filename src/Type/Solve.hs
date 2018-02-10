@@ -89,9 +89,8 @@ solve env rank pools state constraint =
             Unify.Err vars actualType expectedType ->
               do  introduce rank pools vars
                   return $ addError state $
-                    Error.Mismatch
-                      (Error.BadExpr region category actualType)
-                      (Error.typeReplace expectation expectedType)
+                    Error.Mismatch region category actualType $
+                      Error.typeReplace expectation expectedType
 
     CLocal region name expectation ->
       do  actual <- makeCopy rank pools (env ! name)
@@ -105,9 +104,8 @@ solve env rank pools state constraint =
             Unify.Err vars actualType expectedType ->
               do  introduce rank pools vars
                   return $ addError state $
-                    Error.Mismatch
-                      (Error.BadLocal region name actualType)
-                      (Error.typeReplace expectation expectedType)
+                    Error.Mismatch region (Error.Local name) actualType $
+                      Error.typeReplace expectation expectedType
 
     CForeign region name (Can.Forall freeVars srcType) expectation ->
       do  actual <- srcTypeToVariable rank pools freeVars srcType
@@ -121,9 +119,8 @@ solve env rank pools state constraint =
             Unify.Err vars actualType expectedType ->
               do  introduce rank pools vars
                   return $ addError state $
-                    Error.Mismatch
-                      (Error.BadForeign region name actualType)
-                      (Error.typeReplace expectation expectedType)
+                    Error.Mismatch region (Error.Foreign name) actualType $
+                      Error.typeReplace expectation expectedType
 
     CPattern region category tipe expectation ->
       do  actual <- typeToVariable rank pools tipe

@@ -144,7 +144,7 @@ constrain rtv (A.At region expression) expected =
       constrainRecord rtv region fields expected
 
     Can.Unit ->
-      return $ CEqual region UnitExpr UnitN expected
+      return $ CEqual region Unit UnitN expected
 
     Can.Tuple a b maybeC ->
       constrainTuple rtv region a b maybeC expected
@@ -174,7 +174,7 @@ constrainLambda rtv region args body expected =
               , _headerCon = CAnd (reverse revCons)
               , _bodyCon = bodyCon
               }
-          , CEqual region LambdaExpr tipe expected
+          , CEqual region Lambda tipe expected
           ]
 
 
@@ -403,7 +403,7 @@ constrainRecord rtv region fields expected =
 
       let getType (_, t, _) = t
       let recordType = RecordN (Map.map getType dict) EmptyRecordN
-      let recordCon = CEqual region RecordExpr recordType expected
+      let recordCon = CEqual region Record recordType expected
 
       let vars = Map.foldr (\(v,_,_) vs -> v:vs) [] dict
       let cons = Map.foldr (\(_,_,c) cs -> c:cs) [recordCon] dict
@@ -437,7 +437,7 @@ constrainUpdate rtv region expr fields expected =
 
       let getType (_, t, _) = t
       let newRecordType = RecordN (Map.map getType newDict) sharedType
-      let newCon = CEqual region RecordExpr newRecordType expected
+      let newCon = CEqual region Record newRecordType expected
 
       let vars = Map.foldr (\(v,_,_) vs -> v:vs) (sharedVar : Map.elems oldVars) newDict
       let cons = Map.foldr (\(_,_,c) cs -> c:cs) [newCon] newDict
@@ -462,7 +462,7 @@ constrainTuple rtv region a b maybeC expected =
       case maybeC of
         Nothing ->
           do  let tupleType = TupleN aType bType Nothing
-              let tupleCon = CEqual region TupleExpr tupleType expected
+              let tupleCon = CEqual region Tuple tupleType expected
               return $ exists [ aVar, bVar ] $ CAnd [ aCon, bCon, tupleCon ]
 
         Just c ->
@@ -472,7 +472,7 @@ constrainTuple rtv region a b maybeC expected =
               cCon <- constrain rtv c (NoExpectation cType)
 
               let tupleType = TupleN aType bType (Just cType)
-              let tupleCon = CEqual region TupleExpr tupleType expected
+              let tupleCon = CEqual region Tuple tupleType expected
 
               return $ exists [ aVar, bVar, cVar ] $ CAnd [ aCon, bCon, cCon, tupleCon ]
 

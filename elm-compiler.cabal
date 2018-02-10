@@ -134,6 +134,7 @@ Library
         Type.Constrain.Expression,
         Type.Constrain.Module,
         Type.Constrain.Pattern,
+        Type.Error,
         Type.Instantiate,
         Type.Occurs,
         Type.Solve,

@@ -11,7 +11,7 @@ import qualified Data.Map.Strict as Map
 
 import qualified AST.Module.Name as ModuleName
 import qualified Elm.Name as N
-import qualified Reporting.Error.Type as Error
+import qualified Type.Error as Error
 import qualified Type.Occurs as Occurs
 import Type.Type as Type
 import qualified Type.UnionFind as UF

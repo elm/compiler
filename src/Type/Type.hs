@@ -42,6 +42,7 @@ import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as E
 import qualified Reporting.Region as R
+import qualified Type.Error as ET
 import qualified Type.UnionFind as UF
 
 
@@ -432,19 +433,19 @@ termToCanType term =
 -- TO ERROR TYPE
 
 
-toErrorType :: Variable -> IO E.Type
+toErrorType :: Variable -> IO ET.Type
 toErrorType variable =
   do  userNames <- getVarNames variable Map.empty
       State.evalStateT (variableToErrorType variable) (makeNameState userNames)
 
 
-variableToErrorType :: Variable -> StateT NameState IO E.Type
+variableToErrorType :: Variable -> StateT NameState IO ET.Type
 variableToErrorType variable =
   do  descriptor <- liftIO $ UF.get variable
       let mark = _mark descriptor
       if mark == occursMark
         then
-          return E.Infinite
+          return ET.Infinite
 
         else
           do  liftIO $ UF.modify variable (\desc -> desc { _mark = occursMark })
@@ -453,7 +454,7 @@ variableToErrorType variable =
               return errType
 
 
-contentToErrorType :: Variable -> Content -> StateT NameState IO E.Type
+contentToErrorType :: Variable -> Content -> StateT NameState IO ET.Type
 contentToErrorType variable content =
   case content of
     Structure term ->
@@ -462,94 +463,83 @@ contentToErrorType variable content =
     FlexVar maybeName ->
       case maybeName of
         Just name ->
-          return (E.FlexVar name)
+          return (ET.FlexVar name)
 
         Nothing ->
           do  name <- getFreshVarName
               liftIO $ UF.modify variable (\desc -> desc { _content = FlexVar (Just name) })
-              return (E.FlexVar name)
+              return (ET.FlexVar name)
 
     FlexSuper super maybeName ->
       case maybeName of
         Just name ->
-          return (E.FlexSuper name)
+          return (ET.FlexSuper name)
 
         Nothing ->
           do  name <- getFreshSuperName super
               liftIO $ UF.modify variable (\desc -> desc { _content = FlexSuper super (Just name) })
-              return (E.FlexSuper name)
+              return (ET.FlexSuper name)
 
     RigidVar name ->
-        return (E.RigidVar name)
+        return (ET.RigidVar name)
 
     RigidSuper _ name ->
-        return (E.RigidSuper name)
+        return (ET.RigidSuper name)
 
     Alias home name args realVariable ->
         do  errArgs <- traverse (traverse variableToErrorType) args
             errType <- variableToErrorType realVariable
-            return (E.Alias home name errArgs errType)
+            return (ET.Alias home name errArgs errType)
 
     Error ->
-        return E.Error
+        return ET.Error
 
 
-termToErrorType :: FlatType -> StateT NameState IO E.Type
+termToErrorType :: FlatType -> StateT NameState IO ET.Type
 termToErrorType term =
   case term of
     App1 home name args ->
-      E.Type home name <$> traverse variableToErrorType args
+      ET.Type home name <$> traverse variableToErrorType args
 
     Fun1 a b ->
       do  arg <- variableToErrorType a
           result <- variableToErrorType b
           return $
             case result of
-              E.Lambda arg2 others ->
-                E.Lambda arg (arg2:others)
+              ET.Lambda arg1 arg2 others ->
+                ET.Lambda arg arg1 (arg2:others)
 
               _ ->
-                E.Lambda arg [result]
+                ET.Lambda arg result []
 
     EmptyRecord1 ->
-      return $ E.Record Map.empty E.Closed
+      return $ ET.Record Map.empty ET.Closed
 
     Record1 fields extension ->
       do  errFields <- traverse variableToErrorType fields
-          errExt <- iteratedErrorTypeDealias <$> variableToErrorType extension
+          errExt <- ET.iteratedDealias <$> variableToErrorType extension
           return $
               case errExt of
-                E.Record subFields subExt ->
-                    E.Record (Map.union subFields errFields) subExt
+                ET.Record subFields subExt ->
+                    ET.Record (Map.union subFields errFields) subExt
 
-                E.FlexVar ext ->
-                    E.Record errFields (E.FlexOpen ext)
+                ET.FlexVar ext ->
+                    ET.Record errFields (ET.FlexOpen ext)
 
-                E.RigidVar ext ->
-                    E.Record errFields (E.RigidOpen ext)
+                ET.RigidVar ext ->
+                    ET.Record errFields (ET.RigidOpen ext)
 
                 _ ->
                     error "Used toErrorType on a type that is not well-formed"
 
     Unit1 ->
-      return E.Unit
+      return ET.Unit
 
     Tuple1 a b maybeC ->
-      E.Tuple
+      ET.Tuple
         <$> variableToErrorType a
         <*> variableToErrorType b
         <*> traverse variableToErrorType maybeC
-
-
-iteratedErrorTypeDealias :: E.Type -> E.Type
-iteratedErrorTypeDealias tipe =
-  case tipe of
-    E.Alias _ _ _ realType ->
-      iteratedErrorTypeDealias realType
-
-    _ ->
-      tipe
-
 
 
 

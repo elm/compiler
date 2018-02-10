@@ -3,7 +3,6 @@
 module Reporting.Error.Type
   ( Error(..)
   -- expectations
-  , Origin(..)
   , Expected(..)
   , Context(..)
   , SubContext(..)
@@ -14,10 +13,6 @@ module Reporting.Error.Type
   , PCategory(..)
   , typeReplace
   , ptypeReplace
-  -- error types
-  , Type(..)
-  , Extension(..)
-  , Localizer
   -- make reports
   , toReport
   )
@@ -29,12 +24,12 @@ import Data.Monoid ((<>))
 
 import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
-import qualified Data.Map as Map
 import qualified Elm.Name as N
 import qualified Reporting.Helpers as H
 import qualified Reporting.Region as R
 import qualified Reporting.Render.Code as Code
 import qualified Reporting.Report as Report
+import qualified Type.Error as T
 
 
 
@@ -42,19 +37,13 @@ import qualified Reporting.Report as Report
 
 
 data Error
-  = Mismatch Origin (Expected Type)
-  | BadPattern R.Region PCategory Type (PExpected Type)
-  | InfiniteType Type
+  = Mismatch R.Region Category T.Type (Expected T.Type)
+  | BadPattern R.Region PCategory T.Type (PExpected T.Type)
+  | InfiniteType T.Type
 
 
 
 -- EXPRESSION EXPECTATIONS
-
-
-data Origin
-  = BadExpr R.Region Category Type
-  | BadLocal R.Region N.Name Type
-  | BadForeign R.Region N.Name Type
 
 
 data Expected tipe
@@ -100,14 +89,16 @@ data Category
   | If
   | Case
   | CallResult MaybeName
-  | LambdaExpr
+  | Lambda
   | Accessor N.Name
   | Access N.Name
-  | RecordExpr
-  | TupleExpr
-  | UnitExpr
+  | Record
+  | Tuple
+  | Unit
   | Shader
   | Effects
+  | Local N.Name
+  | Foreign N.Name
 
 
 
@@ -166,47 +157,14 @@ ptypeReplace expectation tipe =
 
 
 
--- ERROR TYPES
-
-
-data Type
-  = Lambda Type [Type]
-  | Infinite
-  | Error
-  | FlexVar N.Name
-  | FlexSuper N.Name
-  | RigidVar N.Name
-  | RigidSuper N.Name
-  | Type ModuleName.Canonical N.Name [Type]
-  | Record (Map.Map N.Name Type) Extension
-  | Unit
-  | Tuple Type Type (Maybe Type)
-  | Alias ModuleName.Canonical N.Name [(N.Name, Type)] Type
-
-
-data Extension
-  = Closed
-  | FlexOpen N.Name
-  | RigidOpen N.Name
-
-
-
 -- TO REPORT
 
 
-toReport :: Code.Source -> Localizer -> Error -> Report.Report
+toReport :: Code.Source -> T.Localizer -> Error -> Report.Report
 toReport source localizer err =
   case err of
-    Mismatch origin expected ->
-      case origin of
-        BadForeign region name tipe ->
-          toMismatchReport source localizer region (Var name) tipe expected
-
-        BadLocal region name tipe ->
-          toMismatchReport source localizer region (Var name) tipe expected
-
-        BadExpr region category tipe ->
-          toMismatchReport source localizer region (Category category) tipe expected
+    Mismatch region category actualType expected ->
+      toMismatchReport source localizer region category actualType expected
 
     BadPattern region category tipe expected ->
       error "TODO" region category tipe expected
@@ -219,48 +177,40 @@ toReport source localizer err =
 -- HELPERS
 
 
-data Thing
-  = Var N.Name
-  | Category Category
-
-
-toDescription :: Thing -> String -> String
-toDescription thing thatThingIs =
-  case thing of
-    Var name ->
-      "This `" <> N.toString name <> "` value has type:"
-
-    Category category ->
-      case category of
-        List -> thatThingIs <> " a list of type:"
-        Number -> thatThingIs <> " a number of type:"
-        Float -> thatThingIs <> " a float of type:"
-        String -> thatThingIs <> " a string of type:"
-        Char -> thatThingIs <> " a character of type:"
-        If -> "This `if` expression produces a value of type:"
-        Case -> "This `case` expression produces a value of type:"
-        LambdaExpr -> thatThingIs <> " an anonymous function of type:"
-        Accessor field -> "This ." <> N.toString field <> " field access function has type:"
-        Access field -> "The value at ." <> N.toString field <> " has type:"
-        RecordExpr -> thatThingIs <> " a record of type:"
-        TupleExpr -> thatThingIs <> " a tuple of type:"
-        UnitExpr -> thatThingIs <> " a unit value:"
-        Shader -> thatThingIs <> " a GLSL shader of type:"
-        Effects -> thatThingIs <> " a thing for CORE LIBRARIES ONLY."
-        CallResult maybeName ->
-          case maybeName of
-            NoName -> thatThingIs <> ":"
-            FuncName name -> "This `" <> N.toString name <> "` call produces:"
-            CtorName name -> "This `" <> N.toString name <> "` call produces:"
-            OpName _ -> thatThingIs <> ":"
+toDescription :: Category -> String -> String
+toDescription category thatThingIs =
+  case category of
+    Local name -> "This `" <> N.toString name <> "` value has type:"
+    Foreign name -> "This `" <> N.toString name <> "` value has type:"
+    Access field -> "The value at ." <> N.toString field <> " has type:"
+    Accessor field -> "This ." <> N.toString field <> " field access function has type:"
+    If -> "This `if` expression produces a value of type:"
+    Case -> "This `case` expression produces a value of type:"
+    List -> thatThingIs <> " a list of type:"
+    Number -> thatThingIs <> " a number of type:"
+    Float -> thatThingIs <> " a float of type:"
+    String -> thatThingIs <> " a string of type:"
+    Char -> thatThingIs <> " a character of type:"
+    Lambda -> thatThingIs <> " an anonymous function of type:"
+    Record -> thatThingIs <> " a record of type:"
+    Tuple -> thatThingIs <> " a tuple of type:"
+    Unit -> thatThingIs <> " a unit value:"
+    Shader -> thatThingIs <> " a GLSL shader of type:"
+    Effects -> thatThingIs <> " a thing for CORE LIBRARIES ONLY."
+    CallResult maybeName ->
+      case maybeName of
+        NoName -> thatThingIs <> ":"
+        FuncName name -> "This `" <> N.toString name <> "` call produces:"
+        CtorName name -> "This `" <> N.toString name <> "` call produces:"
+        OpName _ -> thatThingIs <> ":"
 
 
 
 -- TO MISMATCH REPORT
 
 
-toMismatchReport :: Code.Source -> Localizer -> R.Region -> Thing -> Type -> Expected Type -> Report.Report
-toMismatchReport source localizer exprRegion thing tipe expected =
+toMismatchReport :: Code.Source -> T.Localizer -> R.Region -> Category -> T.Type -> Expected T.Type -> Report.Report
+toMismatchReport source localizer exprRegion category tipe expected =
   Report.Report "TYPE MISMATCH" exprRegion [] $
   case expected of
     NoExpectation expectedType ->
@@ -270,7 +220,7 @@ toMismatchReport source localizer exprRegion thing tipe expected =
         ,
           typeComparison localizer tipe expectedType
             (
-              toDescription thing "It is"
+              toDescription category "It is"
             ,
               "But you are trying to use it as:"
             ,
@@ -296,7 +246,7 @@ toMismatchReport source localizer exprRegion thing tipe expected =
         ,
           typeComparison localizer tipe expectedType
             (
-              toDescription thing $
+              toDescription category $
                 case subContext of
                   TypedIfBranch index ->
                     "The " <> H.ordinalize (Index.toHuman index) <> " branch is"
@@ -328,7 +278,7 @@ toMismatchReport source localizer exprRegion thing tipe expected =
               ,
                 typeComparison localizer tipe expectedType
                   (
-                    toDescription thing $
+                    toDescription category $
                       "The " <> H.ordinalize (Index.toHuman index) <> " element is"
                   ,
                     "But all the previous elements in the list are:"
@@ -349,7 +299,7 @@ toMismatchReport source localizer exprRegion thing tipe expected =
               "I do not know how to negate this type of value:"
             ,
               H.stack
-                [ H.reflow $ toDescription thing "It is"
+                [ H.reflow $ toDescription category "It is"
                 , indentType localizer tipe
                 , H.fillSep
                     ["But","I","only","now","how","to","negate"
@@ -361,10 +311,10 @@ toMismatchReport source localizer exprRegion thing tipe expected =
 
         OpLeft op ->
           Report.toCodeSnippet source region (Just exprRegion) $
-            opLeftToDocs localizer thing op tipe expectedType
+            opLeftToDocs localizer category op tipe expectedType
 
         OpRight op ->
-          case opRightToDocs localizer thing op tipe expectedType of
+          case opRightToDocs localizer category op tipe expectedType of
             EmphBoth details ->
               Report.toCodeSnippet source region Nothing details
 
@@ -377,7 +327,7 @@ toMismatchReport source localizer exprRegion thing tipe expected =
               "This `if` condition does not evaluate to a boolean value, True or False."
             ,
               H.stack
-              [ H.reflow $ toDescription thing "It is"
+              [ H.reflow $ toDescription category "It is"
               , indentType localizer tipe
               , H.fillSep ["But","I","need","this","`if`","condition","to","be","a",H.dullyellow "Bool","value."]
               , H.toSimpleHint $
@@ -398,7 +348,7 @@ toMismatchReport source localizer exprRegion thing tipe expected =
               ,
                 typeComparison localizer tipe expectedType
                   (
-                    toDescription thing $
+                    toDescription category $
                       "The " <> H.ordinalize (Index.toHuman index) <> " branch is"
                   ,
                     "But all the previous branches result in:"
@@ -424,7 +374,7 @@ toMismatchReport source localizer exprRegion thing tipe expected =
               ,
                 typeComparison localizer tipe expectedType
                   (
-                    toDescription thing $
+                    toDescription category $
                       "The " <> H.ordinalize (Index.toHuman index) <> " branch is"
                   ,
                     "But all the previous branches result in:"
@@ -463,7 +413,7 @@ toMismatchReport source localizer exprRegion thing tipe expected =
             ,
               typeComparison localizer tipe expectedType
                 (
-                  toDescription thing "This argument is"
+                  toDescription category "This argument is"
                 ,
                   "But " <> thisFunction <> " needs the " <> H.ordinalize (Index.toHuman index)
                   <> " argument to be:"
@@ -559,7 +509,7 @@ toMismatchReport source localizer exprRegion thing tipe expected =
         RecordAccess field ->
           Report.toCodeSnippet source region (Just exprRegion) $
             case error "TODO figure out record things" tipe of
-              Record _ _ ->
+              T.Record _ _ ->
                 (
                   H.reflow $
                     "This record does not have a `" <> N.toString field <> "` field:"
@@ -593,7 +543,7 @@ toMismatchReport source localizer exprRegion thing tipe expected =
                           ]
                 )
 
-              Lambda _ _ ->
+              T.Lambda _ _ _ ->
                 (
                   H.reflow $
                     "I cannot access field `" <> N.toString field <> "` of this " <> whatever <> ":"
@@ -620,7 +570,7 @@ toMismatchReport source localizer exprRegion thing tipe expected =
 
         RecordUpdate ->
           case error "TODO figure out record things" tipe of
-            Record _ _ ->
+            T.Record _ _ ->
               Report.toCodeSnippet source region Nothing
                 (
                   H.reflow $
@@ -649,11 +599,11 @@ toMismatchReport source localizer exprRegion thing tipe expected =
 -- COUNT ARGS
 
 
-countArgs :: Type -> Int
+countArgs :: T.Type -> Int
 countArgs tipe =
   case tipe of
-    Lambda _ stuff ->
-      length stuff
+    T.Lambda _ _ stuff ->
+      1 + length stuff
 
     _ ->
       0
@@ -663,8 +613,8 @@ countArgs tipe =
 -- OP LEFT
 
 
-opLeftToDocs :: Localizer -> Thing -> N.Name -> Type -> Type -> (H.Doc, H.Doc)
-opLeftToDocs localizer thing op tipe expectedType =
+opLeftToDocs :: T.Localizer -> Category -> N.Name -> T.Type -> T.Type -> (H.Doc, H.Doc)
+opLeftToDocs localizer category op tipe expectedType =
   case op of
     "+"
       | isString tipe -> badStringAdd
@@ -681,10 +631,10 @@ opLeftToDocs localizer thing op tipe expectedType =
     "//" -> badIDiv localizer "left" tipe
     "&&" -> badBool localizer "&&" "left" tipe
     "||" -> badBool localizer "||" "left" tipe
-    "<"  -> badCompLeft localizer thing "<" "left" tipe
-    ">"  -> badCompLeft localizer thing ">" "left" tipe
-    "<=" -> badCompLeft localizer thing "<=" "left" tipe
-    ">=" -> badCompLeft localizer thing ">=" "left" tipe
+    "<"  -> badCompLeft localizer category "<" "left" tipe
+    ">"  -> badCompLeft localizer category ">" "left" tipe
+    "<=" -> badCompLeft localizer category "<=" "left" tipe
+    ">=" -> badCompLeft localizer category ">=" "left" tipe
 
     "<|" ->
       ( "The left side of (<|) needs to be a function so I can pipe arguments to it!"
@@ -712,7 +662,7 @@ opLeftToDocs localizer thing op tipe expectedType =
       ,
         typeComparison localizer tipe expectedType
           (
-            toDescription thing "The left argument is"
+            toDescription category "The left argument is"
           ,
             "But (" <> N.toString op <> ") needs the left argument to be:"
           ,
@@ -730,8 +680,8 @@ data RightDocs
   | EmphRight (H.Doc, H.Doc)
 
 
-opRightToDocs :: Localizer -> Thing -> N.Name -> Type -> Type -> RightDocs
-opRightToDocs localizer thing op tipe expectedType =
+opRightToDocs :: T.Localizer -> Category -> N.Name -> T.Type -> T.Type -> RightDocs
+opRightToDocs localizer category op tipe expectedType =
   case op of
     "+"
       | isInt tipe    -> badCast op FloatInt
@@ -778,7 +728,7 @@ opRightToDocs localizer thing op tipe expectedType =
         ,
           typeComparison localizer tipe expectedType
             (
-              toDescription thing "You are providing"
+              toDescription category "You are providing"
             ,
               "But (<|) is piping it a function that expects:"
             ,
@@ -790,9 +740,10 @@ opRightToDocs localizer thing op tipe expectedType =
 
     "|>" ->
       case (tipe, expectedType) of
-        (Lambda expectedArgType _, Lambda argType _) ->
+        (T.Lambda expectedArgType _ _, T.Lambda argType _ _) ->
           EmphRight
             (
+              -- TODO try to say the function name instead of "this function"
               "I cannot pipe the argument through to this function:"
             ,
               typeComparison localizer argType expectedArgType
@@ -847,7 +798,7 @@ opRightToDocs localizer thing op tipe expectedType =
         ,
           typeComparison localizer tipe expectedType
             (
-              toDescription thing "The right argument is"
+              toDescription category "The right argument is"
             ,
               "But (" <> N.toString op <> ") needs the right argument to be:"
             ,
@@ -862,40 +813,40 @@ opRightToDocs localizer thing op tipe expectedType =
 
 
 
-isInt :: Type -> Bool
+isInt :: T.Type -> Bool
 isInt tipe =
   case tipe of
-    Type home name [] ->
+    T.Type home name [] ->
       home == ModuleName.basics && name == N.int
 
     _ ->
       False
 
 
-isFloat :: Type -> Bool
+isFloat :: T.Type -> Bool
 isFloat tipe =
   case tipe of
-    Type home name [] ->
+    T.Type home name [] ->
       home == ModuleName.basics && name == N.float
 
     _ ->
       False
 
 
-isString :: Type -> Bool
+isString :: T.Type -> Bool
 isString tipe =
   case tipe of
-    Type home name [] ->
+    T.Type home name [] ->
       home == ModuleName.string && name == N.string
 
     _ ->
       False
 
 
-isList :: Type -> Bool
+isList :: T.Type -> Bool
 isList tipe =
   case tipe of
-    Type home name [_] ->
+    T.Type home name [_] ->
       home == ModuleName.list && name == N.list
 
     _ ->
@@ -969,7 +920,7 @@ badStringAdd =
   )
 
 
-badListAdd :: Localizer -> String -> Type -> (H.Doc, H.Doc)
+badListAdd :: T.Localizer -> String -> T.Type -> (H.Doc, H.Doc)
 badListAdd localizer direction tipe =
   (
     "I cannot do addition with lists:"
@@ -988,7 +939,7 @@ badListAdd localizer direction tipe =
   )
 
 
-badListMul :: Localizer -> String -> Type -> (H.Doc, H.Doc)
+badListMul :: T.Localizer -> String -> T.Type -> (H.Doc, H.Doc)
 badListMul localizer direction tipe =
   badMath localizer "Multiplication" direction "*" tipe
     [
@@ -1000,7 +951,7 @@ badListMul localizer direction tipe =
     ]
 
 
-badMath :: Localizer -> String -> String -> String -> Type -> [H.Doc] -> (H.Doc, H.Doc)
+badMath :: T.Localizer -> String -> String -> String -> T.Type -> [H.Doc] -> (H.Doc, H.Doc)
 badMath localizer operation direction op tipe otherHints =
   (
     H.reflow $
@@ -1020,7 +971,7 @@ badMath localizer operation direction op tipe otherHints =
   )
 
 
-badFDiv :: Localizer -> H.Doc -> Type -> (H.Doc, H.Doc)
+badFDiv :: T.Localizer -> H.Doc -> T.Type -> (H.Doc, H.Doc)
 badFDiv localizer direction tipe =
   (
     H.reflow $
@@ -1053,7 +1004,7 @@ badFDiv localizer direction tipe =
   )
 
 
-badIDiv :: Localizer -> H.Doc -> Type -> (H.Doc, H.Doc)
+badIDiv :: T.Localizer -> H.Doc -> T.Type -> (H.Doc, H.Doc)
 badIDiv localizer direction tipe =
   (
     H.reflow $
@@ -1092,7 +1043,7 @@ badIDiv localizer direction tipe =
 -- BAD BOOLS
 
 
-badBool :: Localizer -> H.Doc -> H.Doc -> Type -> (H.Doc, H.Doc)
+badBool :: T.Localizer -> H.Doc -> H.Doc -> T.Type -> (H.Doc, H.Doc)
 badBool localizer op direction tipe =
   (
     H.reflow $
@@ -1115,14 +1066,14 @@ badBool localizer op direction tipe =
 -- BAD COMPARISON
 
 
-badCompLeft :: Localizer -> Thing -> String -> String -> Type -> (H.Doc, H.Doc)
-badCompLeft localizer thing op direction tipe =
+badCompLeft :: T.Localizer -> Category -> String -> String -> T.Type -> (H.Doc, H.Doc)
+badCompLeft localizer category op direction tipe =
   (
     H.reflow $
       "I cannot do a comparison with this value:"
   ,
     H.stack
-      [ H.reflow $ toDescription thing $
+      [ H.reflow $ toDescription category $
           "The " <> direction <> " side of (" <> op <> ") is"
       , indentType localizer tipe
       , H.fillSep
@@ -1139,7 +1090,7 @@ badCompLeft localizer thing op direction tipe =
   )
 
 
-badCompRight :: Localizer -> String -> Type -> Type -> RightDocs
+badCompRight :: T.Localizer -> String -> T.Type -> T.Type -> RightDocs
 badCompRight localizer op tipe expectedType =
   EmphBoth
     (
@@ -1163,7 +1114,7 @@ badCompRight localizer op tipe expectedType =
 -- BAD EQUALITY
 
 
-badEquality :: Localizer -> String -> Type -> Type -> RightDocs
+badEquality :: T.Localizer -> String -> T.Type -> T.Type -> RightDocs
 badEquality localizer op tipe expectedType =
   EmphBoth
     (
@@ -1195,10 +1146,7 @@ badEquality localizer op tipe expectedType =
 -- DIFF TYPES
 
 
-type Localizer = Map.Map N.Name ()
-
-
-typeComparison :: Localizer -> Type -> Type -> ( String, String, [H.Doc] ) -> H.Doc
+typeComparison :: T.Localizer -> T.Type -> T.Type -> ( String, String, [H.Doc] ) -> H.Doc
 typeComparison localizer actual expected ( iAmSeeing, insteadOf, soHereAreSomeThoughts ) =
   let
     (actualDoc, expectedDoc) =
@@ -1213,7 +1161,7 @@ typeComparison localizer actual expected ( iAmSeeing, insteadOf, soHereAreSomeTh
     ++ soHereAreSomeThoughts
 
 
-indentType :: Localizer -> Type -> H.Doc
+indentType :: T.Localizer -> T.Type -> H.Doc
 indentType localizer tipe =
   H.indent 4 (H.dullyellow (error "TODO Type.toDoc" localizer tipe))
 
