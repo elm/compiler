@@ -38,7 +38,7 @@ import qualified Type.Error as T
 
 
 data Error
-  = Mismatch R.Region Category T.Type (Expected T.Type)
+  = BadExpr R.Region Category T.Type (Expected T.Type)
   | BadPattern R.Region PCategory T.Type (PExpected T.Type)
   | InfiniteType T.Type
 
@@ -164,8 +164,8 @@ ptypeReplace expectation tipe =
 toReport :: Code.Source -> T.Localizer -> Error -> Report.Report
 toReport source localizer err =
   case err of
-    Mismatch region category actualType expected ->
-      toMismatchReport source localizer region category actualType expected
+    BadExpr region category actualType expected ->
+      toExprReport source localizer region category actualType expected
 
     BadPattern region category tipe expected ->
       error "TODO" region category tipe expected
@@ -207,11 +207,11 @@ toDescription category thatThingIs =
 
 
 
--- TO MISMATCH REPORT
+-- TO EXPR REPORT
 
 
-toMismatchReport :: Code.Source -> T.Localizer -> R.Region -> Category -> T.Type -> Expected T.Type -> Report.Report
-toMismatchReport source localizer exprRegion category tipe expected =
+toExprReport :: Code.Source -> T.Localizer -> R.Region -> Category -> T.Type -> Expected T.Type -> Report.Report
+toExprReport source localizer exprRegion category tipe expected =
   Report.Report "TYPE MISMATCH" exprRegion [] $
   case expected of
     NoExpectation expectedType ->

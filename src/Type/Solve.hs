@@ -89,7 +89,7 @@ solve env rank pools state constraint =
             Unify.Err vars actualType expectedType ->
               do  introduce rank pools vars
                   return $ addError state $
-                    Error.Mismatch region category actualType $
+                    Error.BadExpr region category actualType $
                       Error.typeReplace expectation expectedType
 
     CLocal region name expectation ->
@@ -104,7 +104,7 @@ solve env rank pools state constraint =
             Unify.Err vars actualType expectedType ->
               do  introduce rank pools vars
                   return $ addError state $
-                    Error.Mismatch region (Error.Local name) actualType $
+                    Error.BadExpr region (Error.Local name) actualType $
                       Error.typeReplace expectation expectedType
 
     CForeign region name (Can.Forall freeVars srcType) expectation ->
@@ -119,7 +119,7 @@ solve env rank pools state constraint =
             Unify.Err vars actualType expectedType ->
               do  introduce rank pools vars
                   return $ addError state $
-                    Error.Mismatch region (Error.Foreign name) actualType $
+                    Error.BadExpr region (Error.Foreign name) actualType $
                       Error.typeReplace expectation expectedType
 
     CPattern region category tipe expectation ->
