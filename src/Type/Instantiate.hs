@@ -69,4 +69,4 @@ fromSrcType freeVars sourceType =
               return EmptyRecordN
 
             Just ext ->
-              fromSrcType freeVars ext
+              return (freeVars ! ext)

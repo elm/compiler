@@ -527,7 +527,10 @@ srcTypeToVar rank pools flexVars srcType =
 
     Can.TRecord fields maybeExt ->
       do  fieldVars <- traverse go fields
-          extVar <- maybe (register rank pools emptyRecord1) go maybeExt
+          extVar <-
+            case maybeExt of
+              Nothing -> register rank pools emptyRecord1
+              Just ext -> return (flexVars ! ext)
           register rank pools (Structure (Record1 fieldVars extVar))
 
     Can.TUnit ->

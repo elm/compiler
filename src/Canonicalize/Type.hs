@@ -64,9 +64,8 @@ canonicalize env (A.At typeRegion tipe) =
 
     Src.TRecord fields ext ->
         do  fieldDict <- Dups.checkFields fields
-            Can.TRecord
-              <$> traverse (canonicalize env) fieldDict
-              <*> traverse (canonicalize env) ext
+            cfields <- traverse (canonicalize env) fieldDict
+            return $ Can.TRecord cfields (fmap A.toValue ext)
 
     Src.TUnit ->
         Result.ok Can.TUnit
@@ -133,7 +132,7 @@ addFreeVars freeVars tipe =
       Map.foldl addFreeVars freeVars fields
 
     Can.TRecord fields (Just ext) ->
-      Map.foldl addFreeVars (addFreeVars freeVars ext) fields
+      Map.foldl addFreeVars (Map.insert ext () freeVars) fields
 
     Can.TUnit ->
       freeVars

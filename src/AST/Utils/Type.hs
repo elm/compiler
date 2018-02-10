@@ -55,9 +55,7 @@ dealiasHelp typeTable tipe =
       Map.findWithDefault tipe x typeTable
 
     TRecord fields ext ->
-      TRecord
-        (Map.map (dealiasHelp typeTable) fields)
-        (fmap (dealiasHelp typeTable) ext)
+      TRecord (Map.map (dealiasHelp typeTable) fields) ext
 
     TAlias home name args t' ->
       TAlias home name (map (fmap (dealiasHelp typeTable)) args) t'
@@ -89,7 +87,7 @@ deepDealias tipe =
       tipe
 
     TRecord fields ext ->
-      TRecord (Map.map deepDealias fields) (fmap deepDealias ext)
+      TRecord (Map.map deepDealias fields) ext
 
     TAlias _ _ args tipe' ->
       deepDealias (dealias args tipe')

@@ -37,7 +37,7 @@ data Type
     = Lambda Type Type
     | Var N.Name
     | Type N.Name [Type]
-    | Record [(N.Name, Type)] (Maybe Type)
+    | Record [(N.Name, Type)] (Maybe N.Name)
     | Unit
     | Tuple Type Type [Type]
 
@@ -127,29 +127,31 @@ toDoc context tipe =
                 _ ->
                   application
 
-    Record _ _ ->
-        case flattenRecord tipe of
-            ([], Nothing) ->
-                P.text "{}"
+    Record [] Nothing ->
+      "{}"
 
-            (fields, Nothing) ->
-                P.sep
-                  [ P.cat (zipWith (<+>) ("{" : repeat ",") (map prettyField fields))
-                  , "}"
-                  ]
+    Record fields ext ->
+      case ext of
+        Nothing ->
+          P.sep
+            [ P.cat (zipWith (<+>) ("{" : repeat ",") (map entryToDoc fields))
+            , "}"
+            ]
 
-            (fields, Just x) ->
-                P.hang
-                    ("{" <+> P.text (N.toString x) <+> "|")
-                    4
-                    (P.sep
-                      [ P.sep (P.punctuate "," (map prettyField fields))
-                      , "}"
-                      ]
-                    )
-          where
-            prettyField (field, fieldType) =
-                P.text (N.toString field) <+> ":" <+> toDoc None fieldType
+        Just x ->
+          P.hang
+              ("{" <+> P.text (N.toString x) <+> "|")
+              4
+              (P.sep
+                [ P.sep (P.punctuate "," (map entryToDoc fields))
+                , "}"
+                ]
+              )
+
+
+entryToDoc :: (N.Name, Type) -> P.Doc
+entryToDoc (field, fieldType) =
+  P.text (N.toString field) <+> ":" <+> toDoc None fieldType
 
 
 collectLambdas :: Type -> [Type]
@@ -157,24 +159,6 @@ collectLambdas tipe =
   case tipe of
     Lambda arg body -> arg : collectLambdas body
     _ -> [tipe]
-
-
-flattenRecord :: Type -> ( [(N.Name, Type)], Maybe N.Name )
-flattenRecord tipe =
-  case tipe of
-    Var x ->
-      ([], Just x)
-
-    Record fields Nothing ->
-      (fields, Nothing)
-
-    Record fields (Just ext) ->
-      let (fields',ext') = flattenRecord ext
-      in
-          (fields' ++ fields, ext')
-
-    _ ->
-      error "Trying to flatten ill-formed record."
 
 
 
@@ -225,7 +209,7 @@ fromRawType (A.At _ astType) =
         let fromField (A.At _ field, tipe) = (field, fromRawType tipe) in
         Record
           (map fromField fields)
-          (fmap fromRawType ext)
+          (fmap A.toValue ext)
 
 
 

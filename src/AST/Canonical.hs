@@ -183,7 +183,7 @@ data Type
   = TLambda Type Type
   | TVar N.Name
   | TType ModuleName.Canonical N.Name [Type]
-  | TRecord (Map.Map N.Name Type) (Maybe Type)
+  | TRecord (Map.Map N.Name Type) (Maybe N.Name)
   | TUnit
   | TTuple Type Type (Maybe Type)
   | TAlias ModuleName.Canonical N.Name [(N.Name, Type)] AliasType

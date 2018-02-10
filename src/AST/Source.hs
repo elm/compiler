@@ -109,7 +109,7 @@ data Type_
   | TVar N.Name
   | TType R.Region N.Name [Type]
   | TTypeQual R.Region N.Name N.Name [Type]
-  | TRecord [(A.Located N.Name, Type)] (Maybe Type)
+  | TRecord [(A.Located N.Name, Type)] (Maybe (A.Located N.Name))
   | TUnit
   | TTuple Type Type [Type]
 

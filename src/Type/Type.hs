@@ -413,8 +413,8 @@ termToCanType term =
                 Can.TRecord subFields subExt ->
                     Can.TRecord (Map.union subFields canFields) subExt
 
-                Can.TVar _ ->
-                    Can.TRecord canFields (Just canExt)
+                Can.TVar name ->
+                    Can.TRecord canFields (Just name)
 
                 _ ->
                     error "Used toAnnotation on a type that is not well-formed"

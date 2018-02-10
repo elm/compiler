@@ -53,9 +53,8 @@ extract astType =
         <*> traverse extract args
 
     Can.TRecord fields ext ->
-      T.Record
-        <$> fmap Map.toList (traverse extract fields)
-        <*> traverse extract ext
+      do  efields <- fmap Map.toList (traverse extract fields)
+          pure (T.Record efields ext)
 
     Can.TUnit ->
       pure T.Unit

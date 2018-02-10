@@ -190,7 +190,7 @@ record start =
                             firstField <- field
                             fields <- chompFields [firstField]
                             end <- getPosition
-                            return (A.at start end (Src.TRecord fields (Just (A.map Src.TVar var))))
+                            return (A.at start end (Src.TRecord fields (Just var)))
                       , do  Symbol.hasType
                             spaces
                             (tipe, _, nextPos) <- expression
