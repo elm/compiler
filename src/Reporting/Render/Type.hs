@@ -54,16 +54,13 @@ apply context name args =
         None -> applyDoc
 
 
-tuple :: Doc -> Doc -> Maybe Doc -> Doc
-tuple a b maybeC =
+tuple :: Doc -> Doc -> [Doc] -> Doc
+tuple a b cs =
   let
     entries =
-      case maybeC of
-        Nothing -> [ "(" <+> a, "," <+> b ]
-        Just c  -> [ "(" <+> a, "," <+> b, "," <+> c ]
+      zipWith (<+>) ("(" : repeat ",") (a:b:cs)
   in
   H.sep [ H.cat entries, ")" ]
-
 
 
 record :: [(Doc, Doc)] -> Maybe Doc -> Doc

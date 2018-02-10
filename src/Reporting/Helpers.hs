@@ -11,7 +11,7 @@ module Reporting.Helpers
   , findPotentialTypos, findTypoPairs, vetTypos
   , nearbyNames, distance
   -- re-exports
-  , Doc, (<+>), (<>), black, cat, dullyellow, fillSep, green, hang, hardline
+  , Doc, (<+>), (<>), black, blue, cat, dullyellow, fillSep, green, hang, hardline
   , hcat, hsep, indent, magenta, parens, sep, text, underline, vcat
   )
   where
@@ -21,8 +21,9 @@ import Data.Function (on)
 import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Map as Map
-import Data.Monoid ((<>))
+import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
+import Data.Monoid ((<>))
 import qualified Data.Text as Text
 import Data.Text (Text)
 import qualified Elm.Name as N
@@ -218,16 +219,24 @@ vetTypos potentialTypos =
 -- NEARBY NAMES
 
 
-nearbyNames :: String -> [String] -> [String]
-nearbyNames name names =
+nearbyNames :: (a -> String) -> a -> [a] -> [a]
+nearbyNames toString value possibleValues =
   let
+    name =
+      toString value
+
     editDistance =
       if length name < 3 then 1 else 2
+
+    getDistance pValue =
+      let
+        dist = abs (distance name (toString pValue))
+      in
+      if dist <= editDistance then Just (dist, pValue) else Nothing
   in
   map snd $
-    filter ( (<= editDistance) . abs . fst ) $
-      List.sortBy (compare `on` fst) $
-        map (\x -> (distance name x, x)) names
+    List.sortBy (compare `on` fst) $
+      Maybe.mapMaybe getDistance possibleValues
 
 
 distance :: String -> String -> Int

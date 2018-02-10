@@ -25,6 +25,7 @@ import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 import qualified Reporting.Render.Code as Code
+import qualified Reporting.Render.Type as RT
 import qualified Reporting.Report as Report
 import qualified Reporting.Helpers as H
 import Reporting.Helpers ( Doc, (<+>), (<>) )
@@ -310,7 +311,8 @@ toReport source err =
     ExportNotFound region kind rawName possibleNames ->
       let
         suggestions =
-          take 4 (H.nearbyNames (N.toString rawName) (map N.toString possibleNames))
+          map N.toString $ take 4 $
+            H.nearbyNames N.toString rawName possibleNames
       in
       Report.Report "UNKNOWN EXPORT" region suggestions $
         let (a, thing, name) = toKindInfo kind rawName in
@@ -395,7 +397,8 @@ toReport source err =
     ImportExposingNotFound region (ModuleName.Canonical _ home) value possibleNames ->
       let
         suggestions =
-          take 4 $ H.nearbyNames (N.toString home) (map N.toString possibleNames)
+          map N.toString $ take 4 $
+            H.nearbyNames N.toString home possibleNames
       in
       Report.Report "BAD IMPORT" region suggestions $
         Report.toCodeSnippet source region Nothing
@@ -467,7 +470,8 @@ toReport source err =
       else
         let
           suggestions =
-            take 2 $ H.nearbyNames (N.toString op) (map N.toString (Set.toList locals))
+            map N.toString $ take 2 $
+              H.nearbyNames N.toString op (Set.toList locals)
 
           format altOp =
             H.dullyellow $ "(" <> altOp <> ")"
@@ -889,7 +893,7 @@ notFound source region maybePrefix name thing (PossibleNames locals quals) =
       Map.foldrWithKey addQuals (map N.toString (Set.toList locals)) quals
 
     nearbyNames =
-      take 4 (H.nearbyNames givenName possibleNames)
+      take 4 (H.nearbyNames id givenName possibleNames)
 
     toDetails noSuggestionDetails yesSuggestionDetails =
       case nearbyNames of
@@ -1066,7 +1070,7 @@ aliasRecursionReport source region name args tipe others =
                   "When I expand a recursive type alias, it just keeps getting bigger and bigger.\
                   \ So dealiasing results in an infinitely large type! Try this instead:"
               , H.indent 4 $
-                  error "TODO alias to doc" name args tipe
+                  aliasToUnionDoc name args tipe
               , H.link "Hint"
                   "This is kind of a subtle distinction. I suggested the naive fix, but I recommend reading"
                   "recursive-alias"
@@ -1089,3 +1093,68 @@ aliasRecursionReport source region name args tipe others =
                   "to learn why this `type` vs `type alias` distinction matters. It is subtle but important!"
               ]
           )
+
+
+aliasToUnionDoc :: N.Name -> [N.Name] -> Src.Type -> Doc
+aliasToUnionDoc name args tipe =
+  H.vcat
+    [ H.dullyellow $
+        "type" <+> H.nameToDoc name <+> (foldr (<+>) "=" (map H.nameToDoc args))
+    , H.green $
+        H.indent 4 (H.nameToDoc name)
+    , H.dullyellow $
+        H.indent 8 (typeToDoc RT.App tipe)
+    ]
+
+
+typeToDoc :: RT.Context -> Src.Type -> Doc
+typeToDoc context (A.At _ tipe) =
+  case tipe of
+    Src.TLambda a b ->
+      RT.lambda context
+        (typeToDoc RT.Func a)
+        (map (typeToDoc RT.Func) (collectArgs b))
+
+    Src.TVar name ->
+      H.nameToDoc name
+
+    Src.TType _ name args ->
+      RT.apply context
+        (H.nameToDoc name)
+        (map (typeToDoc RT.App) args)
+
+    Src.TTypeQual _ home name args ->
+      RT.apply context
+        (H.nameToDoc home <> "." <> H.nameToDoc name)
+        (map (typeToDoc RT.App) args)
+
+    Src.TRecord fields ext ->
+      RT.record
+        (map fieldToDocs fields)
+        (fmap (H.nameToDoc . A.toValue) ext)
+
+    Src.TUnit ->
+      "()"
+
+    Src.TTuple a b cs ->
+      RT.tuple
+        (typeToDoc RT.None a)
+        (typeToDoc RT.None b)
+        (map (typeToDoc RT.None) cs)
+
+
+collectArgs :: Src.Type -> [Src.Type]
+collectArgs tipe =
+  case tipe of
+    A.At _ (Src.TLambda a b) ->
+      a : collectArgs b
+
+    _ ->
+      [tipe]
+
+
+fieldToDocs :: (A.Located N.Name, Src.Type) -> (Doc, Doc)
+fieldToDocs (A.At _ fieldName, fieldType) =
+  ( H.nameToDoc fieldName
+  , typeToDoc RT.None fieldType
+  )
