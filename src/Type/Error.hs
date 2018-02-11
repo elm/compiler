@@ -12,6 +12,7 @@ module Type.Error
 
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
+import Data.Monoid ((<>))
 
 import qualified AST.Module.Name as ModuleName
 import qualified Elm.Name as N
@@ -58,7 +59,17 @@ iteratedDealias tipe =
 -- TO DOC
 
 
-type Localizer = Map.Map (ModuleName.Canonical, N.Name) (Maybe N.Name)
+type Localizer = Map.Map (ModuleName.Canonical, N.Name) String
+
+
+nameToDoc :: Localizer -> ModuleName.Canonical -> N.Name -> H.Doc
+nameToDoc localizer home@(ModuleName.Canonical _ moduleName) name =
+  case Map.lookup (home, name) localizer of
+    Nothing ->
+      H.nameToDoc moduleName <> "." <> H.nameToDoc name
+
+    Just string ->
+      H.text string
 
 
 toDoc :: Localizer -> RT.Context -> Type -> H.Doc
@@ -90,7 +101,7 @@ toDoc localizer context tipe =
 
     Type home name args ->
       RT.apply context
-        (toLocal localizer home name)
+        (nameToDoc localizer home name)
         (map (toDoc localizer RT.App) args)
 
     Record fields ext ->
@@ -119,13 +130,8 @@ toDoc localizer context tipe =
 
     Alias home name args _ ->
       RT.apply context
-        (toLocal localizer home name)
+        (nameToDoc localizer home name)
         (map (toDoc localizer RT.App . snd) args)
-
-
-toLocal :: Localizer -> ModuleName.Canonical -> N.Name -> H.Doc
-toLocal localizer home name =
-  error "TODO toLocal" localizer home name
 
 
 
