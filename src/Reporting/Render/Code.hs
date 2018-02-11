@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Reporting.Render.Code
   ( Source
   , toSource
@@ -9,13 +10,11 @@ module Reporting.Render.Code
   where
 
 
-import Data.Text (Text)
+import qualified Data.List as List
 import qualified Data.Text as Text
-import Text.PrettyPrint.ANSI.Leijen
-  ( Doc, (<>), hardline, dullred, empty, text )
+import Text.PrettyPrint.ANSI.Leijen (Doc, (<>), hardline, dullred, empty, text)
 
 import qualified Reporting.Region as R
-import qualified Reporting.Helpers as H
 
 
 
@@ -84,7 +83,7 @@ makeUnderline width realEndLine (R.Region (R.Position start c1) (R.Position end 
       Just (text spaces <> dullred (text zigzag))
 
 
-drawLines :: Bool -> Int -> R.Region -> [(Int, Text)] -> Doc -> Doc
+drawLines :: Bool -> Int -> R.Region -> [(Int, Text.Text)] -> Doc -> Doc
 drawLines addZigZag width (R.Region start end) sourceLines finalLine =
   let
     (R.Position startLine _) = start
@@ -94,9 +93,9 @@ drawLines addZigZag width (R.Region start end) sourceLines finalLine =
       map (drawLine addZigZag width startLine endLine) sourceLines
 
 
-drawLine :: Bool -> Int -> Int -> Int -> (Int, Text) -> Doc
+drawLine :: Bool -> Int -> Int -> Int -> (Int, Text.Text) -> Doc
 drawLine addZigZag width startLine endLine (n, line) =
-  addLineNumber addZigZag width startLine endLine n (H.textToDoc line)
+  addLineNumber addZigZag width startLine endLine n (text (Text.unpack line))
 
 
 addLineNumber :: Bool -> Int -> Int -> Int -> Int -> Doc -> Doc
@@ -110,9 +109,9 @@ addLineNumber addZigZag width start end n line =
 
     spacer =
       if addZigZag && start <= n && n <= end then
-        dullred (text ">")
+        dullred ">"
       else
-        text " "
+        " "
   in
     text lineNumber <> spacer <> line
 
@@ -127,5 +126,28 @@ data CodePair
 
 
 renderPair :: Source -> R.Region -> R.Region -> CodePair
-renderPair source r1 r2 =
-  error "TODO" source r1 r2
+renderPair source@(Source sourceLines) region1 region2 =
+  let
+    (R.Region (R.Position startRow1 startCol1) (R.Position endRow1 endCol1)) = region1
+    (R.Region (R.Position startRow2 startCol2) (R.Position endRow2 endCol2)) = region2
+  in
+  if startRow1 == endRow1 && endRow1 == startRow2 && startRow2 == endRow2 then
+    let
+      lineNumber = show startRow1
+      spaces1 = replicate (startCol1 + length lineNumber + 1) ' '
+      zigzag1 = replicate (endCol1 - startCol1) '^'
+      spaces2 = replicate (startCol2 - endCol1) ' '
+      zigzag2 = replicate (endCol2 - startCol2) '^'
+
+      (Just line) = List.lookup startRow1 sourceLines
+    in
+    OneLine $
+      text lineNumber <> "|" <> text (Text.unpack line)
+      <> hardline
+      <> text spaces1 <> dullred (text zigzag1)
+      <> text spaces2 <> dullred (text zigzag2)
+
+  else
+    TwoChunks
+      (render source region1 Nothing)
+      (render source region2 Nothing)
