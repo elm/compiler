@@ -7,13 +7,18 @@ module Reporting.Error.Main
   where
 
 
+import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
+import Data.Monoid ((<>))
+
 import qualified AST.Canonical as Can
+import qualified AST.Module.Name as ModuleName
 import qualified Elm.Name as N
 import qualified Reporting.Error.Canonicalize as E
 import qualified Reporting.Helpers as H
 import qualified Reporting.Region as R
 import qualified Reporting.Render.Code as Code
-import qualified Reporting.Render.Type as RenderType
+import qualified Reporting.Render.Type as RT
 import qualified Reporting.Report as Report
 
 
@@ -31,8 +36,8 @@ data Error
 -- TO REPORT
 
 
-toReport :: Code.Source -> RenderType.Localizer -> Error -> Report.Report
-toReport source localizer err =
+toReport :: Code.Source -> Error -> Report.Report
+toReport source err =
   case err of
     BadType region tipe ->
       Report.Report "BAD MAIN TYPE" region [] $
@@ -42,7 +47,7 @@ toReport source localizer err =
           ,
             H.stack
               [ "The type of `main` value I am seeing is:"
-              , H.indent 4 (RenderType.toDoc localizer tipe)
+              , H.indent 4 $ H.dullyellow $ typeToDoc RT.None tipe
               , H.reflow $
                   "I only know how to handle Html, Svg, and Programs\
                   \ though. Modify `main` to be one of those types of values!"
@@ -120,3 +125,65 @@ toReport source localizer err =
                     \ everything with encoders and decoders for more control and better errors."
                 ]
             )
+
+
+
+-- TYPE TO DOC
+
+
+typeToDoc :: RT.Context -> Can.Type -> H.Doc
+typeToDoc context tipe =
+  case tipe of
+    Can.TLambda arg1 result ->
+      let
+        (arg2, rest) = collectArgs result
+      in
+      RT.lambda context
+        (typeToDoc RT.Func arg1)
+        (typeToDoc RT.Func arg2)
+        (map (typeToDoc RT.Func) rest)
+
+    Can.TVar name ->
+      H.nameToDoc name
+
+    Can.TType (ModuleName.Canonical _ home) name args ->
+      RT.apply context
+        (H.nameToDoc home <> "." <> H.nameToDoc name)
+        (map (typeToDoc RT.App) args)
+
+    Can.TRecord fields ext ->
+      RT.record
+        (map entryToDocs (Map.toList fields))
+        (fmap H.nameToDoc ext)
+
+    Can.TUnit ->
+      "()"
+
+    Can.TTuple a b maybeC ->
+      RT.tuple
+        (typeToDoc RT.None a)
+        (typeToDoc RT.None b)
+        (map (typeToDoc RT.None) (Maybe.maybeToList maybeC))
+
+    Can.TAlias (ModuleName.Canonical _ home) name args _ ->
+      RT.apply context
+        (H.nameToDoc home <> "." <> H.nameToDoc name)
+        (map (typeToDoc RT.App . snd) args)
+
+
+entryToDocs :: (N.Name, Can.Type) -> (H.Doc, H.Doc)
+entryToDocs (name, tipe) =
+  (H.nameToDoc name, typeToDoc RT.None tipe)
+
+
+collectArgs :: Can.Type -> (Can.Type, [Can.Type])
+collectArgs tipe =
+  case tipe of
+    Can.TLambda a rest ->
+      let
+        (b, cs) = collectArgs rest
+      in
+      (a, b:cs)
+
+    _ ->
+      (tipe, [])
