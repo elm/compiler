@@ -13,8 +13,8 @@ module Reporting.Error.Syntax
 
 
 import Data.Monoid ((<>))
+import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Text (Text)
 
 import qualified Elm.Name as N
 import qualified Reporting.Region as R
@@ -59,7 +59,7 @@ data Problem
   | BadNumberHex
   | BadNumberZero
   | FloatInPattern
-  | BadShader Text
+  | BadShader Text.Text
   | BadUnderscore Int
   | BadOp BadOp ContextStack
   | Theories ContextStack [Theory]
@@ -76,9 +76,9 @@ data BadOp = HasType | Equals | Arrow | Pipe | Dot
 
 
 data Theory
-  = Keyword String
+  = Expecting Next
+  | Keyword String
   | Symbol String
-  | Expecting Next
   | LowVar
   | CapVar
   | InfixOp
@@ -497,7 +497,7 @@ problemToDocs problem =
         H.reflow $
           "Something went wrong while parsing " <> contextToString "your code" "" stack <> "."
       ,
-        case allTheories of
+        case Set.toList (Set.fromList allTheories) of
           [] ->
             H.stack
               [ H.reflow $
