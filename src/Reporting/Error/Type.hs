@@ -40,7 +40,7 @@ import qualified Type.Error as T
 data Error
   = BadExpr R.Region Category T.Type (Expected T.Type)
   | BadPattern R.Region PCategory T.Type (PExpected T.Type)
-  | InfiniteType T.Type
+  | InfiniteType R.Region N.Name T.Type
 
 
 
@@ -170,8 +170,8 @@ toReport source localizer err =
     BadPattern region category tipe expected ->
       toPatternReport source localizer region category tipe expected
 
-    InfiniteType overallType ->
-      error "TODO" source localizer overallType
+    InfiniteType region name overallType ->
+      toInfiniteReport source localizer region name overallType
 
 
 
@@ -1250,3 +1250,28 @@ badEquality localizer op tipe expectedType =
             ]
         )
     )
+
+
+
+-- INFINITE TYPES
+
+
+toInfiniteReport :: Code.Source -> T.Localizer -> R.Region -> N.Name -> T.Type -> Report.Report
+toInfiniteReport source localizer region name overallType =
+  Report.Report "INFINITE TYPE" region [] $
+    Report.toCodeSnippet source region Nothing
+      (
+        H.reflow $
+          "I am inferring a weird self-referential type for " <> N.toString name <> ":"
+      ,
+        H.stack
+          [ H.reflow $
+              "Here is my best effort at writing down the type. You will see ∞ for\
+              \ parts of the type that repeat something already printed out infinitely."
+          , indentType localizer overallType
+          , H.reflowLink
+              "Staring at the type is usually not so helpful, so I recommend reading the hints at"
+              "infinite-type"
+              "to get unstuck."
+          ]
+      )

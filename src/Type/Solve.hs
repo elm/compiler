@@ -260,14 +260,14 @@ addError (State savedEnv rank errors) err =
 
 
 occurs :: State -> (N.Name, A.Located Variable) -> IO State
-occurs state (_name, A.At _region variable) =
+occurs state (name, A.At region variable) =
   do  hasOccurred <- Occurs.occurs variable
       if hasOccurred
         then
           do  errorType <- Type.toErrorType variable
               (Descriptor _ rank mark copy) <- UF.get variable
               UF.set variable (Descriptor Error rank mark copy)
-              return $ state { _errors = Error.InfiniteType errorType : _errors state }
+              return $ state { _errors = Error.InfiniteType region name errorType : _errors state }
         else
           return state
 
