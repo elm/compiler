@@ -188,7 +188,7 @@ data Problem
   = FieldMismatch [N.Name] [N.Name]
   | IntFloat
   | MissingArgs Int
-  | ReturnMismatch Int Int
+  | ReturnMismatch
   | TupleMismatch
   | BadFlexSuper N.Name Type
   | BadRigidVar N.Name Type
@@ -316,7 +316,7 @@ diffLambda dict ctx types1 types2 =
       Different
         (RT.lambda ctx x1 y1 zs1)
         (RT.lambda ctx x2 y2 zs2)
-        (Bag.append (Bag.one (ReturnMismatch numArgs1 numArgs2)) problems)
+        (Bag.append (Bag.one ReturnMismatch) problems)
 
 
 --

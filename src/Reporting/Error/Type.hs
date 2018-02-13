@@ -309,8 +309,8 @@ toPatternReport source localizer patternRegion category tipe expected =
 patternTypeComparison :: T.Localizer -> T.Type -> T.Type -> ( String, String, [H.Doc] ) -> H.Doc
 patternTypeComparison localizer actual expected ( iAmSeeing, insteadOf, soHereAreSomeThoughts ) =
   let
-    (actualDoc, expectedDoc) =
-      error "TODO diff" localizer actual expected
+    (actualDoc, expectedDoc, problems) =
+      T.toDiffDocs localizer actual expected
   in
   H.stack $
     [ H.reflow iAmSeeing
@@ -319,6 +319,7 @@ patternTypeComparison localizer actual expected ( iAmSeeing, insteadOf, soHereAr
     , H.indent 4 expectedDoc
     ]
     ++ soHereAreSomeThoughts
+    ++ map problemToHints problems
 
 
 toPatternDescription :: PCategory -> String -> String
@@ -342,8 +343,8 @@ toPatternDescription category iAmTryingToMatch =
 typeComparison :: T.Localizer -> T.Type -> T.Type -> ( String, String, [H.Doc] ) -> H.Doc
 typeComparison localizer actual expected ( iAmSeeing, insteadOf, soHereAreSomeThoughts ) =
   let
-    (actualDoc, expectedDoc) =
-      error "TODO diff" localizer actual expected
+    (actualDoc, expectedDoc, problems) =
+      T.toDiffDocs localizer actual expected
   in
   H.stack $
     [ H.reflow iAmSeeing
@@ -352,6 +353,7 @@ typeComparison localizer actual expected ( iAmSeeing, insteadOf, soHereAreSomeTh
     , H.indent 4 expectedDoc
     ]
     ++ soHereAreSomeThoughts
+    ++ map problemToHints problems
 
 
 indentType :: T.Localizer -> T.Type -> H.Doc
@@ -385,6 +387,21 @@ toDescription category thatThingIs =
         FuncName name -> "This `" <> N.toString name <> "` call produces:"
         CtorName name -> "This `" <> N.toString name <> "` call produces:"
         OpName _ -> thatThingIs <> ":"
+
+
+-- TODO be sure to avoid duplicate Problems (e.g. two instances of BadRigidVar)
+--
+problemToHints :: T.Problem -> H.Doc
+problemToHints problem =
+  case problem of
+    T.FieldMismatch leftOnly rightOnly -> error "TODO FieldMismatch" leftOnly rightOnly
+    T.IntFloat -> error "TODO IntFloat"
+    T.MissingArgs numMissing -> error "TODO MissingArgs" numMissing
+    T.ReturnMismatch -> error "TODO ReturnMismatch"
+    T.TupleMismatch -> error "TODO TupleMismatch"
+    T.BadFlexSuper x tipe -> error "TODO BadFlexSuper" x tipe
+    T.BadRigidVar x tipe -> error "TODO BadRigidVar" x tipe
+    T.BadRigidSuper x tipe -> error "TODO BadRigidSuper" x tipe
 
 
 
