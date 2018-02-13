@@ -6,6 +6,8 @@ module Type.Error
   , iteratedDealias
   , Localizer
   , toDoc
+  , toDiffDocs
+  , Problem(..)
   )
   where
 
@@ -15,6 +17,7 @@ import qualified Data.Maybe as Maybe
 import Data.Monoid ((<>))
 
 import qualified AST.Module.Name as ModuleName
+import qualified Data.Bag as Bag
 import qualified Elm.Name as N
 import qualified Reporting.Helpers as H
 import qualified Reporting.Render.Type as RT
@@ -63,8 +66,8 @@ type Localizer = Map.Map (ModuleName.Canonical, N.Name) String
 
 
 nameToDoc :: Localizer -> ModuleName.Canonical -> N.Name -> H.Doc
-nameToDoc localizer home@(ModuleName.Canonical _ moduleName) name =
-  case Map.lookup (home, name) localizer of
+nameToDoc dict home@(ModuleName.Canonical _ moduleName) name =
+  case Map.lookup (home, name) dict of
     Nothing ->
       H.nameToDoc moduleName <> "." <> H.nameToDoc name
 
@@ -73,13 +76,13 @@ nameToDoc localizer home@(ModuleName.Canonical _ moduleName) name =
 
 
 toDoc :: Localizer -> RT.Context -> Type -> H.Doc
-toDoc localizer context tipe =
+toDoc dict ctx tipe =
   case tipe of
     Lambda a b cs ->
-      RT.lambda context
-        (toDoc localizer RT.Func a)
-        (toDoc localizer RT.Func b)
-        (map (toDoc localizer RT.Func) cs)
+      RT.lambda ctx
+        (toDoc dict RT.Func a)
+        (toDoc dict RT.Func b)
+        (map (toDoc dict RT.Func) cs)
 
     Infinite ->
       "∞"
@@ -100,14 +103,14 @@ toDoc localizer context tipe =
       H.nameToDoc name
 
     Type home name args ->
-      RT.apply context
-        (nameToDoc localizer home name)
-        (map (toDoc localizer RT.App) args)
+      RT.apply ctx
+        (nameToDoc dict home name)
+        (map (toDoc dict RT.App) args)
 
     Record fields ext ->
       let
         entryToDocs (fieldName, fieldType) =
-          ( H.nameToDoc fieldName, toDoc localizer RT.None fieldType )
+          ( H.nameToDoc fieldName, toDoc dict RT.None fieldType )
 
         fieldDocs =
           map entryToDocs (Map.toList fields)
@@ -124,112 +127,278 @@ toDoc localizer context tipe =
 
     Tuple a b maybeC ->
       RT.tuple
-        (toDoc localizer RT.None a)
-        (toDoc localizer RT.None b)
-        (map (toDoc localizer RT.None) (Maybe.maybeToList maybeC))
+        (toDoc dict RT.None a)
+        (toDoc dict RT.None b)
+        (map (toDoc dict RT.None) (Maybe.maybeToList maybeC))
 
     Alias home name args _ ->
-      RT.apply context
-        (nameToDoc localizer home name)
-        (map (toDoc localizer RT.App . snd) args)
+      RT.apply ctx
+        (nameToDoc dict home name)
+        (map (toDoc dict RT.App . snd) args)
 
 
 
-{-- DIFF
+-- DIFF
 
 
-data Diff
-  = TooFewArgs
-  |
+toDiffDocs :: Localizer -> Type -> Type -> (H.Doc, H.Doc, [Problem])
+toDiffDocs dict a b =
+  case diff dict RT.None a b of
+    Similar aDoc bDoc ->
+      (aDoc, bDoc, [])
+
+    Different aDoc bDoc problems ->
+      (aDoc, bDoc, Bag.toList problems)
+
+
+data Diff a
+  = Similar a a
+  | Different a a (Bag.Bag Problem)
+
+
+instance Functor Diff where
+  fmap func d =
+    case d of
+      Similar   a b    -> Similar   (func a) (func b)
+      Different a b ps -> Different (func a) (func b) ps
+
+
+instance Applicative Diff where
+  pure a =
+    Similar a a
+
+  (<*>) dFunc dArg =
+    case dFunc of
+      Similar aFunc bFunc ->
+        case dArg of
+          Similar   a b     -> Similar   (aFunc a) (bFunc b)
+          Different a b ps  -> Different (aFunc a) (bFunc b) ps
+
+      Different aFunc bFunc ps ->
+        case dArg of
+          Similar   a b     -> Different (aFunc a) (bFunc b) ps
+          Different a b ps2 -> Different (aFunc a) (bFunc b) (Bag.append ps ps2)
 
 
 
-
--- DETECT MISSING ARGS
-
-
-detectMissingArgs :: Type -> Type -> Maybe (Type, [Type])
-detectMissingArgs actual expected =
-  detectMissingArgsHelp (reverseArgs actual) (reverseArgs expected)
+-- PROBLEMS
 
 
-detectMissingArgsHelp :: [Type] -> [Type] -> Maybe (Type, [Type])
-detectMissingArgsHelp actuals expecteds =
-  case (actuals, expecteds) of
-    (x:xs, y:ys) -> if isMatchy x y then detectMissingArgsHelp xs ys else Nothing
-    (x:xs, [])   -> Just (x, xs)
-    ([], [])     -> Nothing
-    ([], _:_)    -> Nothing
+data Problem
+  = IntFloat
+  | MissingArgs Int
+  | ReturnMismatch Int Int
+  | TupleMismatch
+  | BadFlexSuper N.Name Type
+  | BadRigidVar N.Name Type
+  | BadRigidSuper N.Name Type
 
 
-reverseArgs :: Type -> [Type]
-reverseArgs tipe =
-  case tipe of
-    Lambda a b cs -> reverse (a:b:cs)
-    Infinite      -> [tipe]
-    Error         -> [tipe]
-    FlexVar _     -> [tipe]
-    FlexSuper _   -> [tipe]
-    RigidVar _    -> [tipe]
-    RigidSuper _  -> [tipe]
-    Type _ _ _    -> [tipe]
-    Record _ _    -> [tipe]
-    Unit          -> [tipe]
-    Tuple _ _ _   -> [tipe]
-    Alias _ _ _ t -> reverseArgs t
+
+-- COMPUTE DIFF
 
 
-isMatchy :: Type -> Type -> Bool
-isMatchy t1 t2 =
-  case (t1, t2) of
-    (Lambda a b cs, Lambda x y zs) ->
-      isMatchy a x && isMatchy b y && length cs == length zs && and (zipWith isMatchy cs zs)
+diff :: Localizer -> RT.Context -> Type -> Type -> Diff H.Doc
+diff dict ctx tipe1 tipe2 =
+  case (tipe1, tipe2) of
+    (FlexVar    x, FlexVar    y) | x == y -> pure (H.nameToDoc x)
+    (FlexSuper  x, FlexSuper  y) | x == y -> pure (H.nameToDoc x)
+    (RigidVar   x, RigidVar   y) | x == y -> pure (H.nameToDoc x)
+    (RigidSuper x, RigidSuper y) | x == y -> pure (H.nameToDoc x)
 
-    (Infinite, Infinite) ->
-      True
+    (Infinite, Infinite) -> pure "∞"
+    (Error, Error) -> pure "?"
+    (Unit, Unit) -> pure "()"
 
-    (Error, Error) ->
-      True
+    (Tuple a b maybeC, Tuple x y maybeZ) ->
+        RT.tuple
+          <$> diff dict RT.None a x
+          <*> diff dict RT.None b y
+          <*>
+            case (maybeC, maybeZ) of
+              (Nothing, Nothing) -> pure []
+              (Just c , Nothing) -> Different [H.dullyellow (toDoc dict RT.None c)] [] (Bag.one TupleMismatch)
+              (Nothing, Just z ) -> Different [] [H.dullyellow (toDoc dict RT.None z)] (Bag.one TupleMismatch)
+              (Just c , Just z ) -> (:[]) <$> diff dict RT.None c z
 
-    (FlexVar _, _) ->
-      True
+    (Record fields1 ext1, Record fields2 ext2) -> diffRecord dict fields1 ext1 fields2 ext2
 
-    (_, FlexVar _) ->
-      True
+    (Type home1 name1 args1, Type home2 name2 args2) | home1 == home2 && name1 == name2 ->
+      RT.apply ctx (nameToDoc dict home1 name1) <$>
+        sequenceA (zipWith (diff dict RT.App) args1 args2)
 
-    (FlexSuper x, FlexSuper y) ->
-      x == y
+    (Alias home1 name1 args1 _, Alias home2 name2 args2 _) | home1 == home2 && name1 == name2 ->
+      RT.apply ctx (nameToDoc dict home1 name1) <$>
+        sequenceA (zipWith (diff dict RT.App) (map snd args1) (map snd args2))
 
-    (RigidVar x, RigidVar y) ->
-      x == y
+    (Alias _ _ _ alias1, other) -> diff dict ctx alias1 other
+    (other, Alias _ _ _ alias2) -> diff dict ctx other alias2
 
-    (RigidSuper x, RigidSuper y) ->
-      x == y
+    (Lambda a b cs, Lambda x y zs) -> diffLambda dict ctx (a:b:cs) (x:y:zs)
+    (Lambda a b cs, result       ) -> diffLambda dict ctx (a:b:cs) [result]
+    (result       , Lambda x y zs) -> diffLambda dict ctx [result] (x:y:zs)
 
-    (Type home1 name1 args1, Type home2 name2 args2) ->
-      home1 == home2 && name1 == name2 && and (zipWith isMatchy args1 args2)
+    (FlexVar x, other) -> Similar (H.nameToDoc x) (toDoc dict ctx other)
+    (other, FlexVar x) -> Similar (toDoc dict ctx other) (H.nameToDoc x)
 
-    (Record fields1 ext1, Record fields2 ext2) ->
-      isMatchRecord
-        (Map.size (Map.difference fields1 fields2))
-        (Map.intersectionWith isMatchy fields1 fields2)
-        (Map.size (Map.difference fields2 fields1))
+    pair ->
+      let
+        doc1 = H.dullyellow (toDoc dict ctx tipe1)
+        doc2 = H.dullyellow (toDoc dict ctx tipe2)
+      in
+      Different doc1 doc2 $
+        case pair of
+          (RigidVar   x, other) -> Bag.one $ BadRigidVar x other
+          (FlexSuper  x, other) -> Bag.one $ BadFlexSuper x other
+          (RigidSuper x, other) -> Bag.one $ BadRigidSuper x other
+          (other, RigidVar   x) -> Bag.one $ BadRigidVar x other
+          (other, FlexSuper  x) -> Bag.one $ BadFlexSuper x other
+          (other, RigidSuper x) -> Bag.one $ BadRigidSuper x other
 
-    (Unit, Unit) ->
-      True
+          (Type home1 name1 [], Type home2 name2 []) | isIntFloat home1 name1 home2 name2 -> Bag.one IntFloat
 
-    (Tuple a b Nothing, Tuple x y Nothing) ->
-      isMatchy a x && isMatchy b y
+          (_, _) -> Bag.empty
 
-    (Tuple a b (Just c), Tuple x y (Just z)) ->
-      isMatchy a x && isMatchy b y && isMatchy c z
 
-    (Alias _ _ _ alias1, tipe2) ->
-      isMatchy alias1 tipe2
+isIntFloat :: ModuleName.Canonical -> N.Name -> ModuleName.Canonical -> N.Name -> Bool
+isIntFloat home1 name1 home2 name2 =
+  home1 == ModuleName.basics
+  &&
+  home2 == ModuleName.basics
+  &&
+  (
+    (name1 == N.int && name2 == N.float)
+    ||
+    (name1 == N.float && name2 == N.int)
+  )
 
-    (tipe1, Alias _ _ _ alias2) ->
-      isMatchy tipe1 alias2
 
-    (_, _) ->
-      False
--}
+
+-- DIFF LAMBDAS
+
+
+--
+-- INVARIANT: notNull types1 && notNull types2
+--
+diffLambda :: Localizer -> RT.Context -> [Type] -> [Type] -> Diff H.Doc
+diffLambda dict ctx types1 types2 =
+  let
+    (result1:revArgs1) = reverse types1
+    (result2:revArgs2) = reverse types2
+
+    numArgs1 = length revArgs1
+    numArgs2 = length revArgs2
+
+    resultDiff = diff dict RT.Func result1 result2
+  in
+  case resultDiff of
+    Similar resultDoc1 resultDoc2 ->
+      if numArgs1 == numArgs2 then
+        (\resultDoc revArgsDoc ->
+            let (x:y:zs) = reverse (resultDoc:revArgsDoc) in
+            RT.lambda ctx x y zs
+        )
+          <$> resultDiff
+          <*> sequenceA (zipWith (diff dict RT.Func) revArgs1 revArgs2)
+
+      else if numArgs1 < numArgs2 then
+        diffArgMismatch dict ctx revArgs1 resultDoc1 revArgs2 resultDoc2
+
+      else
+        diffArgMismatch dict ctx revArgs2 resultDoc2 revArgs1 resultDoc1
+
+    Different resultDoc1 resultDoc2 problems ->
+      let
+        (x1:y1:zs1) = reverse (resultDoc1 : map (toDoc dict RT.Func) revArgs1)
+        (x2:y2:zs2) = reverse (resultDoc2 : map (toDoc dict RT.Func) revArgs2)
+      in
+      Different
+        (RT.lambda ctx x1 y1 zs1)
+        (RT.lambda ctx x2 y2 zs2)
+        (Bag.append (Bag.one (ReturnMismatch numArgs1 numArgs2)) problems)
+
+
+--
+-- INVARIANT: notNull shortRevArgs && notNull longRevArgs
+--
+diffArgMismatch :: Localizer -> RT.Context -> [Type] -> H.Doc -> [Type] -> H.Doc -> Diff H.Doc
+diffArgMismatch dict ctx shortRevArgs shortResult longRevArgs longResult =
+  case toGreedyMatch dict shortRevArgs longRevArgs (GreedyMatch [] []) of
+    Just (GreedyMatch shortRevArgDocs longRevArgDocs) ->
+      let
+        (a:b:cs) = reverse (shortResult:shortRevArgDocs)
+        (x:y:zs) = reverse (longResult:longRevArgDocs)
+      in
+      Different
+        (RT.lambda ctx a b cs)
+        (RT.lambda ctx x y zs)
+        (Bag.one (MissingArgs (length longRevArgs - length shortRevArgs)))
+
+    Nothing ->
+      case toGreedyMatch dict (reverse shortRevArgs) (reverse longRevArgs) (GreedyMatch [] []) of
+        Just (GreedyMatch shortArgDocs longArgDocs) ->
+          let
+            (a:b:cs) = shortArgDocs ++ [shortResult]
+            (x:y:zs) = longArgDocs  ++ [longResult ]
+          in
+          Different
+            (RT.lambda ctx a b cs)
+            (RT.lambda ctx x y zs)
+            (Bag.one (MissingArgs (length longRevArgs - length shortRevArgs)))
+
+        Nothing ->
+          let
+            toYellowDoc tipe =
+              H.dullyellow (toDoc dict RT.Func tipe)
+
+            (a:b:cs) = reverse (shortResult : map toYellowDoc shortRevArgs)
+            (x:y:zs) = reverse (longResult  : map toYellowDoc longRevArgs )
+          in
+          Different
+            (RT.lambda ctx a b cs)
+            (RT.lambda ctx x y zs)
+            (Bag.one (MissingArgs (length longRevArgs - length shortRevArgs)))
+
+
+
+-- GREEDY ARG MATCHER
+
+
+data GreedyMatch =
+  GreedyMatch [H.Doc] [H.Doc]
+
+
+toGreedyMatch :: Localizer -> [Type] -> [Type] -> GreedyMatch -> Maybe GreedyMatch
+toGreedyMatch dict shorterArgs longerArgs match@(GreedyMatch shorterDocs longerDocs) =
+  let
+    toYellowDoc tipe =
+      H.dullyellow (toDoc dict RT.Func tipe)
+  in
+  case (shorterArgs, longerArgs) of
+    (x:xs, y:ys) ->
+      case diff dict RT.Func x y of
+        Similar a b ->
+          toGreedyMatch dict xs ys $
+            GreedyMatch (a:shorterDocs) (b:longerDocs)
+
+        Different _ _ _ ->
+          toGreedyMatch dict shorterArgs ys $
+            GreedyMatch shorterDocs (toYellowDoc y : longerDocs)
+
+    ([], []) ->
+      Just match
+
+    ([], _:_) ->
+      Just (GreedyMatch shorterDocs (map toYellowDoc longerArgs))
+
+    (_:_, []) ->
+      Nothing
+
+
+
+-- RECORD DIFFS
+
+
+diffRecord :: Localizer -> Map.Map N.Name Type -> Extension -> Map.Map N.Name Type -> Extension -> Diff H.Doc
+diffRecord dict fields1 ext1 fields2 ext2 =
+  error "TODO" dict fields1 ext1 fields2 ext2
