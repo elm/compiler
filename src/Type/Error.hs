@@ -185,7 +185,8 @@ instance Applicative Diff where
 
 
 data Problem
-  = IntFloat
+  = FieldMismatch [N.Name] [N.Name]
+  | IntFloat
   | MissingArgs Int
   | ReturnMismatch Int Int
   | TupleMismatch
@@ -323,7 +324,7 @@ diffLambda dict ctx types1 types2 =
 --
 diffArgMismatch :: Localizer -> RT.Context -> [Type] -> H.Doc -> [Type] -> H.Doc -> Diff H.Doc
 diffArgMismatch dict ctx shortRevArgs shortResult longRevArgs longResult =
-  case toGreedyMatch dict shortRevArgs longRevArgs (GreedyMatch [] []) of
+  case toGreedyMatch dict shortRevArgs longRevArgs of
     Just (GreedyMatch shortRevArgDocs longRevArgDocs) ->
       let
         (a:b:cs) = reverse (shortResult:shortRevArgDocs)
@@ -335,7 +336,7 @@ diffArgMismatch dict ctx shortRevArgs shortResult longRevArgs longResult =
         (Bag.one (MissingArgs (length longRevArgs - length shortRevArgs)))
 
     Nothing ->
-      case toGreedyMatch dict (reverse shortRevArgs) (reverse longRevArgs) (GreedyMatch [] []) of
+      case toGreedyMatch dict (reverse shortRevArgs) (reverse longRevArgs) of
         Just (GreedyMatch shortArgDocs longArgDocs) ->
           let
             (a:b:cs) = shortArgDocs ++ [shortResult]
@@ -368,8 +369,16 @@ data GreedyMatch =
   GreedyMatch [H.Doc] [H.Doc]
 
 
-toGreedyMatch :: Localizer -> [Type] -> [Type] -> GreedyMatch -> Maybe GreedyMatch
-toGreedyMatch dict shorterArgs longerArgs match@(GreedyMatch shorterDocs longerDocs) =
+--
+-- INVARIANT: length shorterArgs < length longerArgs
+--
+toGreedyMatch :: Localizer -> [Type] -> [Type] -> Maybe GreedyMatch
+toGreedyMatch dict shorterArgs longerArgs =
+  toGreedyMatchHelp dict shorterArgs longerArgs (GreedyMatch [] [])
+
+
+toGreedyMatchHelp :: Localizer -> [Type] -> [Type] -> GreedyMatch -> Maybe GreedyMatch
+toGreedyMatchHelp dict shorterArgs longerArgs match@(GreedyMatch shorterDocs longerDocs) =
   let
     toYellowDoc tipe =
       H.dullyellow (toDoc dict RT.Func tipe)
@@ -378,11 +387,11 @@ toGreedyMatch dict shorterArgs longerArgs match@(GreedyMatch shorterDocs longerD
     (x:xs, y:ys) ->
       case diff dict RT.Func x y of
         Similar a b ->
-          toGreedyMatch dict xs ys $
+          toGreedyMatchHelp dict xs ys $
             GreedyMatch (a:shorterDocs) (b:longerDocs)
 
         Different _ _ _ ->
-          toGreedyMatch dict shorterArgs ys $
+          toGreedyMatchHelp dict shorterArgs ys $
             GreedyMatch shorterDocs (toYellowDoc y : longerDocs)
 
     ([], []) ->
@@ -401,4 +410,145 @@ toGreedyMatch dict shorterArgs longerArgs match@(GreedyMatch shorterDocs longerD
 
 diffRecord :: Localizer -> Map.Map N.Name Type -> Extension -> Map.Map N.Name Type -> Extension -> Diff H.Doc
 diffRecord dict fields1 ext1 fields2 ext2 =
-  error "TODO" dict fields1 ext1 fields2 ext2
+  let
+    only1 = Map.keys (Map.difference fields1 fields2)
+    only2 = Map.keys (Map.difference fields2 fields1)
+  in
+  if null only1 && null only2 then
+    case findBadOverlaps dict fields1 fields2 of
+      [] ->
+        case diffExt ext1 ext2 of
+          Similar _ _ ->
+            Similar (toBoringRecord fields1 ext1) (toBoringRecord fields2 ext2)
+
+          Different dExt1 dExt2 problems ->
+            Different (RT.record [] dExt1) (RT.record [] dExt2) problems
+
+      overlaps@(bad:bads) ->
+        if length overlaps < Map.size fields1 then
+          Different
+            (RT.recordSnippet (toOverlapDoc _doc1 bad) (map (toOverlapDoc _doc1) bads))
+            (RT.recordSnippet (toOverlapDoc _doc2 bad) (map (toOverlapDoc _doc2) bads))
+            (foldr Bag.append Bag.empty (map _problems overlaps))
+        else
+          Different
+            (toOverlapRecord _doc1 bad bads ext1)
+            (toOverlapRecord _doc2 bad bads ext2)
+            (foldr Bag.append Bag.empty (map _problems overlaps))
+
+  else
+    Different
+      (toMissingDoc fields1 only1 ext1)
+      (toMissingDoc fields2 only2 ext2)
+      (Bag.one (FieldMismatch only1 only2))
+
+
+toOverlapDoc :: (BadOverlap -> H.Doc) -> BadOverlap -> (H.Doc, H.Doc)
+toOverlapDoc getDoc overlap@(BadOverlap field _ _ _) =
+  (H.nameToDoc field, getDoc overlap)
+
+
+toOverlapRecord :: (BadOverlap -> H.Doc) -> BadOverlap -> [BadOverlap] -> Extension -> H.Doc
+toOverlapRecord getDoc bad bads ext =
+  let go = toOverlapDoc getDoc in
+  case ext of
+    Closed      -> RT.record (map go (bad:bads)) Nothing
+    FlexOpen  _ -> RT.recordSnippet (go bad) (map go bads)
+    RigidOpen _ -> RT.recordSnippet (go bad) (map go bads)
+
+
+toMissingDoc :: Map.Map N.Name t -> [N.Name] -> Extension -> H.Doc
+toMissingDoc allFields uniqueFields ext =
+  case map emphasizeFieldName uniqueFields of
+    [] ->
+      toBoringRecord allFields ext
+
+    doc:docs ->
+      if length uniqueFields < Map.size allFields then
+        RT.recordSnippet doc docs
+      else
+        case ext of
+          Closed      -> RT.record (doc:docs) Nothing
+          FlexOpen _  -> RT.recordSnippet doc docs
+          RigidOpen _ -> RT.recordSnippet doc docs
+
+
+emphasizeFieldName :: N.Name -> (H.Doc, H.Doc)
+emphasizeFieldName field =
+  ( H.dullyellow (H.nameToDoc field), "..." )
+
+
+toBoringRecord :: Map.Map N.Name t -> Extension -> H.Doc
+toBoringRecord fields ext =
+  case ext of
+    Closed      -> if Map.null fields then "{}" else "{ ... }"
+    FlexOpen _  -> "{ ... }"
+    RigidOpen _ -> "{ ... }"
+
+
+
+-- DIFF RECORD EXTENSION
+
+
+diffExt :: Extension -> Extension -> Diff (Maybe H.Doc)
+diffExt ext1 ext2 =
+  let
+    normal = Just . H.nameToDoc
+    yellow = Just . H.dullyellow . H.nameToDoc
+
+    different x y = Different x y Bag.empty
+  in
+  case ext1 of
+    Closed ->
+      case ext2 of
+        Closed      -> Similar Nothing Nothing
+        FlexOpen  y -> different Nothing (yellow y)
+        RigidOpen y -> different Nothing (yellow y)
+
+    FlexOpen x ->
+      case ext2 of
+        Closed      -> different (yellow x) Nothing
+        FlexOpen  y -> Similar (normal x) (normal y)
+        RigidOpen y -> Similar (normal x) (normal y)
+
+    RigidOpen x ->
+      case ext2 of
+        Closed      -> different (yellow x) Nothing
+        FlexOpen  y -> Similar (normal x) (normal y)
+        RigidOpen y ->
+          if x == y then
+            Similar (normal x) (normal y)
+          else
+            Different (yellow x) (yellow y) (Bag.one (BadRigidVar x (RigidVar y)))
+
+
+
+-- BAD OVERLAP
+
+
+data BadOverlap =
+  BadOverlap
+    { _field :: N.Name
+    , _doc1 :: H.Doc
+    , _doc2 :: H.Doc
+    , _problems :: Bag.Bag Problem
+    }
+
+
+findBadOverlaps :: Localizer -> Map.Map N.Name Type -> Map.Map N.Name Type -> [BadOverlap]
+findBadOverlaps dict fields1 fields2 =
+  findBadOverlapsHelp [] $ Map.toList $
+    Map.intersectionWith (diff dict RT.None) fields1 fields2
+
+
+findBadOverlapsHelp :: [BadOverlap] -> [(N.Name, Diff H.Doc)] -> [BadOverlap]
+findBadOverlapsHelp badOverlaps fieldPairs =
+  case fieldPairs of
+    [] ->
+      badOverlaps
+
+    (_, Similar _ _) : otherFieldPairs ->
+      findBadOverlapsHelp badOverlaps otherFieldPairs
+
+    (field, Different aDoc bDoc problems) : otherFieldPairs ->
+      findBadOverlapsHelp (BadOverlap field aDoc bDoc problems : badOverlaps) otherFieldPairs
