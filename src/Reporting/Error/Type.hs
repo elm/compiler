@@ -476,9 +476,9 @@ problemToHint problem =
         T.Infinite       -> []
         T.Error          -> []
         T.FlexVar _      -> []
-        T.FlexSuper s _  -> badDoubleFlexSuper super s
+        T.FlexSuper s _  -> badFlexFlexSuper super s
         T.RigidVar y     -> badRigidVar y (toASuperThing super)
-        T.RigidSuper s _ -> error "TODO"
+        T.RigidSuper s _ -> badRigidSuper s (toASuperThing super)
         T.Type _ _ _     -> badFlexSuper super
         T.Record _ _     -> badFlexSuper super
         T.Unit           -> badFlexSuper super
@@ -506,7 +506,7 @@ problemToHint problem =
         T.Infinite       -> []
         T.Error          -> []
         T.FlexVar _      -> []
-        T.FlexSuper s _  -> error "TODO"
+        T.FlexSuper s _  -> badRigidSuper super (toASuperThing s)
         T.RigidVar y     -> badDoubleRigid x y
         T.RigidSuper _ y -> badDoubleRigid x y
         T.Type _ n _     -> badRigidSuper super ("a `" ++ N.toString n ++ "` value")
@@ -516,15 +516,8 @@ problemToHint problem =
         T.Alias _ n _ _  -> badRigidSuper super ("a `" ++ N.toString n ++ "` value")
 
 
-badFlexSuper :: T.Super -> [H.Doc]
-badFlexSuper super =
-  case super of
-    T.Comparable -> [ H.toSimpleHint "Only ints, floats, chars, strings, lists, and tuples are comparable." ]
-    T.Appendable -> [ H.toSimpleHint "Only strings and lists are appendable." ]
-    T.CompAppend -> [ H.toSimpleHint "Only strings and lists are both comparable and appendable." ]
-    T.Number ->
-      [ H.toFancyHint ["Only",H.green "Int","and",H.green "Float","values","work","as","numbers."]
-      ]
+
+-- BAD RIGID HINTS
 
 
 badRigidVar :: N.Name -> String -> [H.Doc]
@@ -538,6 +531,17 @@ badRigidVar name aThing =
   ]
 
 
+badDoubleRigid :: N.Name -> N.Name -> [H.Doc]
+badDoubleRigid x y =
+  [ H.toSimpleHint $
+      "Your type annotation uses `" ++ N.toString x ++ "` and `" ++ N.toString y ++
+      "` as separate type variables. Your code seems to be saying they are the\
+      \ same though! Maybe they should be the same in your type annotation?\
+      \ Maybe your code uses them in a weird way?"
+  , H.reflowLink "Read" "type-annotations" "for more advice!"
+  ]
+
+
 toASuperThing :: T.Super -> String
 toASuperThing super =
   case super of
@@ -547,20 +551,19 @@ toASuperThing super =
     T.Appendable -> "an `appendable` value"
 
 
-badDoubleFlexSuper :: T.Super -> T.Super -> [H.Doc]
-badDoubleFlexSuper s1 s2 =
-  let
-    likeThis super =
-      case super of
-        T.Number -> "a number"
-        T.Comparable -> "comparable"
-        T.CompAppend -> "a compappend"
-        T.Appendable -> "appendable"
-  in
-    [ H.toSimpleHint $
-        "There are no values in Elm that are both"
-        ++ likeThis s1 ++ " and " ++ likeThis s2 ++ "."
-    ]
+
+-- BAD SUPER HINTS
+
+
+badFlexSuper :: T.Super -> [H.Doc]
+badFlexSuper super =
+  case super of
+    T.Comparable -> [ H.toSimpleHint "Only ints, floats, chars, strings, lists, and tuples are comparable." ]
+    T.Appendable -> [ H.toSimpleHint "Only strings and lists are appendable." ]
+    T.CompAppend -> [ H.toSimpleHint "Only strings and lists are both comparable and appendable." ]
+    T.Number ->
+      [ H.toFancyHint ["Only",H.green "Int","and",H.green "Float","values","work","as","numbers."]
+      ]
 
 
 badRigidSuper :: T.Super -> String -> [H.Doc]
@@ -582,15 +585,20 @@ badRigidSuper super aThing =
   ]
 
 
-badDoubleRigid :: N.Name -> N.Name -> [H.Doc]
-badDoubleRigid x y =
-  [ H.toSimpleHint $
-      "Your type annotation uses `" ++ N.toString x ++ "` and `" ++ N.toString y ++
-      "` as separate type variables. Your code seems to be saying they are the\
-      \ same though! Maybe they should be the same in your type annotation?\
-      \ Maybe your code uses them in a weird way?"
-  , H.reflowLink "Read" "type-annotations" "for more advice!"
-  ]
+badFlexFlexSuper :: T.Super -> T.Super -> [H.Doc]
+badFlexFlexSuper s1 s2 =
+  let
+    likeThis super =
+      case super of
+        T.Number -> "a number"
+        T.Comparable -> "comparable"
+        T.CompAppend -> "a compappend"
+        T.Appendable -> "appendable"
+  in
+    [ H.toSimpleHint $
+        "There are no values in Elm that are both"
+        ++ likeThis s1 ++ " and " ++ likeThis s2 ++ "."
+    ]
 
 
 
