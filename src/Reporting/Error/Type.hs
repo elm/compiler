@@ -472,48 +472,48 @@ problemToHint problem =
 
     T.BadFlexSuper super _ tipe ->
       case tipe of
-        T.Lambda _ _ _     -> badFlexSuper super
-        T.Infinite         -> []
-        T.Error            -> []
-        T.FlexVar _        -> []
-        T.FlexSuper s _    -> badDoubleFlexSuper super s
-        T.RigidVar _y      -> error "TODO"
-        T.RigidSuper _s _y -> error "TODO"
-        T.Type _ _ _       -> badFlexSuper super
-        T.Record _ _       -> badFlexSuper super
-        T.Unit             -> badFlexSuper super
-        T.Tuple _ _ _      -> badFlexSuper super
-        T.Alias _ _ _ _    -> badFlexSuper super
+        T.Lambda _ _ _   -> badFlexSuper super
+        T.Infinite       -> []
+        T.Error          -> []
+        T.FlexVar _      -> []
+        T.FlexSuper s _  -> badDoubleFlexSuper super s
+        T.RigidVar y     -> badRigidVar y (toASuperThing super)
+        T.RigidSuper s _ -> error "TODO"
+        T.Type _ _ _     -> badFlexSuper super
+        T.Record _ _     -> badFlexSuper super
+        T.Unit           -> badFlexSuper super
+        T.Tuple _ _ _    -> badFlexSuper super
+        T.Alias _ _ _ _  -> badFlexSuper super
 
     T.BadRigidVar x tipe ->
       case tipe of
-        T.Lambda _ _ _     -> badRigidVar x "a function"
-        T.Infinite         -> []
-        T.Error            -> []
-        T.FlexVar _        -> []
-        T.FlexSuper _s _y  -> error "TODO"
-        T.RigidVar y       -> badDoubleRigid x y
-        T.RigidSuper _ y   -> badDoubleRigid x y
-        T.Type _ name _    -> badRigidVar x ("a `" ++ N.toString name ++ "` value")
-        T.Record _ _       -> badRigidVar x "a record"
-        T.Unit             -> badRigidVar x "a unit value"
-        T.Tuple _ _ _      -> badRigidVar x "a tuple"
-        T.Alias _ name _ _ -> badRigidVar x ("a `" ++ N.toString name ++ "` value")
+        T.Lambda _ _ _   -> badRigidVar x "a function"
+        T.Infinite       -> []
+        T.Error          -> []
+        T.FlexVar _      -> []
+        T.FlexSuper s _  -> badRigidVar x (toASuperThing s)
+        T.RigidVar y     -> badDoubleRigid x y
+        T.RigidSuper _ y -> badDoubleRigid x y
+        T.Type _ n _     -> badRigidVar x ("a `" ++ N.toString n ++ "` value")
+        T.Record _ _     -> badRigidVar x "a record"
+        T.Unit           -> badRigidVar x "a unit value"
+        T.Tuple _ _ _    -> badRigidVar x "a tuple"
+        T.Alias _ n _ _  -> badRigidVar x ("a `" ++ N.toString n ++ "` value")
 
     T.BadRigidSuper super x tipe ->
       case tipe of
-        T.Lambda _ _ _     -> badRigidSuper super "a function"
-        T.Infinite         -> []
-        T.Error            -> []
-        T.FlexVar _        -> []
-        T.FlexSuper _s _y  -> error "TODO"
-        T.RigidVar y       -> badDoubleRigid x y
-        T.RigidSuper _ y   -> badDoubleRigid x y
-        T.Type _ name _    -> badRigidSuper super ("a `" ++ N.toString name ++ "` value")
-        T.Record _ _       -> badRigidSuper super "a record"
-        T.Unit             -> badRigidSuper super "a unit value"
-        T.Tuple _ _ _      -> badRigidSuper super "a tuple"
-        T.Alias _ name _ _ -> badRigidSuper super ("a `" ++ N.toString name ++ "` value")
+        T.Lambda _ _ _   -> badRigidSuper super "a function"
+        T.Infinite       -> []
+        T.Error          -> []
+        T.FlexVar _      -> []
+        T.FlexSuper s _  -> error "TODO"
+        T.RigidVar y     -> badDoubleRigid x y
+        T.RigidSuper _ y -> badDoubleRigid x y
+        T.Type _ n _     -> badRigidSuper super ("a `" ++ N.toString n ++ "` value")
+        T.Record _ _     -> badRigidSuper super "a record"
+        T.Unit           -> badRigidSuper super "a unit value"
+        T.Tuple _ _ _    -> badRigidSuper super "a tuple"
+        T.Alias _ n _ _  -> badRigidSuper super ("a `" ++ N.toString n ++ "` value")
 
 
 badFlexSuper :: T.Super -> [H.Doc]
@@ -538,19 +538,29 @@ badRigidVar name aThing =
   ]
 
 
+toASuperThing :: T.Super -> String
+toASuperThing super =
+  case super of
+    T.Number     -> "a `number` value"
+    T.Comparable -> "a `comparable` value"
+    T.CompAppend -> "a `compappend` value"
+    T.Appendable -> "an `appendable` value"
+
+
 badDoubleFlexSuper :: T.Super -> T.Super -> [H.Doc]
 badDoubleFlexSuper s1 s2 =
   let
-    whatever =
-      [ H.toSimpleHint $
-          "There are no "
-      ]
+    likeThis super =
+      case super of
+        T.Number -> "a number"
+        T.Comparable -> "comparable"
+        T.CompAppend -> "a compappend"
+        T.Appendable -> "appendable"
   in
-  case s1 of
-    T.Number -> error "TODO" whatever s1 s2
-    T.Comparable -> error "TODO" whatever s1 s2
-    T.Appendable -> error "TODO" whatever s1 s2
-    T.CompAppend -> error "TODO" whatever s1 s2
+    [ H.toSimpleHint $
+        "There are no values in Elm that are both"
+        ++ likeThis s1 ++ " and " ++ likeThis s2 ++ "."
+    ]
 
 
 badRigidSuper :: T.Super -> String -> [H.Doc]
@@ -564,8 +574,8 @@ badRigidSuper super aThing =
         T.CompAppend -> ("compappend", "strings AND lists")
   in
   [ H.toSimpleHint $
-      "The `" ++ superType ++ "` in your type annotation is saying that " ++
-      manyThings ++ " can flow through, but your code is saying it specifically wants "
+      "The `" ++ superType ++ "` in your type annotation is saying that "
+      ++ manyThings ++ " can flow through, but your code is saying it specifically wants "
       ++ aThing ++ ". Maybe change your type annotation to\
       \ be more specific? Maybe change the code to be more general?"
   , H.reflowLink "Read" "type-annotations" "for more advice!"
