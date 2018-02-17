@@ -5,7 +5,7 @@ module Reporting.Helpers
   , nameToDoc
   , args, moreArgs
   , toSimpleNote, toSimpleHint, toFancyHint
-  , link, reflowLink, makeLink
+  , link, fancyLink, reflowLink, makeLink
   , stack, reflow
   , commaSep, capitalize, ordinalize, drawCycle
   , findPotentialTypos, findTypoPairs, vetTypos
@@ -85,6 +85,12 @@ link word before fileName after =
     : map text (words before)
     ++ P.text (makeLink fileName)
     : map text (words after)
+
+
+fancyLink :: Doc -> [Doc] -> String -> [Doc] -> Doc
+fancyLink word before fileName after =
+  fillSep $
+    (underline word <> ":") : before ++ P.text (makeLink fileName) : after
 
 
 makeLink :: String -> String

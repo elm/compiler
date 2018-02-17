@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Type.Error
   ( Type(..)
+  , Super(..)
   , Extension(..)
   , iteratedDealias
   , Localizer
@@ -32,14 +33,21 @@ data Type
   | Infinite
   | Error
   | FlexVar N.Name
-  | FlexSuper N.Name
+  | FlexSuper Super N.Name
   | RigidVar N.Name
-  | RigidSuper N.Name
+  | RigidSuper Super N.Name
   | Type ModuleName.Canonical N.Name [Type]
   | Record (Map.Map N.Name Type) Extension
   | Unit
   | Tuple Type Type (Maybe Type)
   | Alias ModuleName.Canonical N.Name [(N.Name, Type)] Type
+
+
+data Super
+  = Number
+  | Comparable
+  | Appendable
+  | CompAppend
 
 
 data Extension
@@ -93,13 +101,13 @@ toDoc dict ctx tipe =
     FlexVar name ->
       H.nameToDoc name
 
-    FlexSuper name ->
+    FlexSuper _ name ->
       H.nameToDoc name
 
     RigidVar name ->
       H.nameToDoc name
 
-    RigidSuper name ->
+    RigidSuper _ name ->
       H.nameToDoc name
 
     Type home name args ->
@@ -120,7 +128,6 @@ toDoc dict ctx tipe =
           Closed -> Nothing
           FlexOpen x -> Just (H.nameToDoc x)
           RigidOpen x -> Just (H.nameToDoc x)
-
 
     Unit ->
       "()"
@@ -187,12 +194,18 @@ instance Applicative Diff where
 data Problem
   = FieldMismatch [N.Name] [N.Name]
   | IntFloat
+  | StringFromInt
+  | StringFromFloat
+  | StringToInt
+  | StringToFloat
+  | AnythingToBool
+  | AnythingFromMaybe
+  | AnythingToList
   | MissingArgs Int
   | ReturnMismatch
-  | TupleMismatch
-  | BadFlexSuper N.Name Type
+  | BadFlexSuper Super N.Name Type
   | BadRigidVar N.Name Type
-  | BadRigidSuper N.Name Type
+  | BadRigidSuper Super N.Name Type
 
 
 
@@ -202,10 +215,10 @@ data Problem
 diff :: Localizer -> RT.Context -> Type -> Type -> Diff H.Doc
 diff dict ctx tipe1 tipe2 =
   case (tipe1, tipe2) of
-    (FlexVar    x, FlexVar    y) | x == y -> pure (H.nameToDoc x)
-    (FlexSuper  x, FlexSuper  y) | x == y -> pure (H.nameToDoc x)
-    (RigidVar   x, RigidVar   y) | x == y -> pure (H.nameToDoc x)
-    (RigidSuper x, RigidSuper y) | x == y -> pure (H.nameToDoc x)
+    (FlexVar      x, FlexVar      y) | x == y -> pure (H.nameToDoc x)
+    (FlexSuper _  x, FlexSuper _  y) | x == y -> pure (H.nameToDoc x)
+    (RigidVar     x, RigidVar     y) | x == y -> pure (H.nameToDoc x)
+    (RigidSuper _ x, RigidSuper _ y) | x == y -> pure (H.nameToDoc x)
 
     (Infinite, Infinite) -> pure "∞"
     (Error, Error) -> pure "?"
@@ -218,8 +231,8 @@ diff dict ctx tipe1 tipe2 =
           <*>
             case (maybeC, maybeZ) of
               (Nothing, Nothing) -> pure []
-              (Just c , Nothing) -> Different [H.dullyellow (toDoc dict RT.None c)] [] (Bag.one TupleMismatch)
-              (Nothing, Just z ) -> Different [] [H.dullyellow (toDoc dict RT.None z)] (Bag.one TupleMismatch)
+              (Just c , Nothing) -> Different [H.dullyellow (toDoc dict RT.None c)] [] Bag.empty
+              (Nothing, Just z ) -> Different [] [H.dullyellow (toDoc dict RT.None z)] Bag.empty
               (Just c , Just z ) -> (:[]) <$> diff dict RT.None c z
 
     (Record fields1 ext1, Record fields2 ext2) -> diffRecord dict fields1 ext1 fields2 ext2
@@ -243,35 +256,81 @@ diff dict ctx tipe1 tipe2 =
     (other, FlexVar x) -> Similar (toDoc dict ctx other) (H.nameToDoc x)
 
     pair ->
-      let
-        doc1 = H.dullyellow (toDoc dict ctx tipe1)
-        doc2 = H.dullyellow (toDoc dict ctx tipe2)
-      in
-      Different doc1 doc2 $
-        case pair of
-          (RigidVar   x, other) -> Bag.one $ BadRigidVar x other
-          (FlexSuper  x, other) -> Bag.one $ BadFlexSuper x other
-          (RigidSuper x, other) -> Bag.one $ BadRigidSuper x other
-          (other, RigidVar   x) -> Bag.one $ BadRigidVar x other
-          (other, FlexSuper  x) -> Bag.one $ BadFlexSuper x other
-          (other, RigidSuper x) -> Bag.one $ BadRigidSuper x other
+      case pair of
+        (Type home name [t1], t2) | isMaybe home name && isSimilar t1 t2 ->
+          Different (yellowApply dict ctx home name t1) (toDoc dict ctx t2) (Bag.one AnythingFromMaybe)
 
-          (Type home1 name1 [], Type home2 name2 []) | isIntFloat home1 name1 home2 name2 -> Bag.one IntFloat
+        (t1, Type home name [t2]) | isList home name && isSimilar t1 t2 ->
+          Different (toDoc dict ctx t1) (yellowApply dict ctx home name t2) (Bag.one AnythingToList)
 
-          (_, _) -> Bag.empty
+        _ ->
+          let
+            doc1 = H.dullyellow (toDoc dict ctx tipe1)
+            doc2 = H.dullyellow (toDoc dict ctx tipe2)
+          in
+          Different doc1 doc2 $
+            case pair of
+              (RigidVar     x, other) -> Bag.one $ BadRigidVar x other
+              (FlexSuper  s x, other) -> Bag.one $ BadFlexSuper s x other
+              (RigidSuper s x, other) -> Bag.one $ BadRigidSuper s x other
+              (other, RigidVar     x) -> Bag.one $ BadRigidVar x other
+              (other, FlexSuper  s x) -> Bag.one $ BadFlexSuper s x other
+              (other, RigidSuper s x) -> Bag.one $ BadRigidSuper s x other
+
+              (Type home1 name1 [], Type home2 name2 [])
+                | isInt   home1 name1 && isFloat  home2 name2 -> Bag.one IntFloat
+                | isFloat home1 name1 && isInt    home2 name2 -> Bag.one IntFloat
+                | isInt   home1 name1 && isString home2 name2 -> Bag.one StringFromInt
+                | isFloat home1 name1 && isString home2 name2 -> Bag.one StringFromFloat
+                | isString home1 name1 && isInt   home2 name2 -> Bag.one StringToInt
+                | isString home1 name1 && isFloat home2 name2 -> Bag.one StringToFloat
+                | isBool home2 name2 -> Bag.one AnythingToBool
+
+              (_, _) -> Bag.empty
 
 
-isIntFloat :: ModuleName.Canonical -> N.Name -> ModuleName.Canonical -> N.Name -> Bool
-isIntFloat home1 name1 home2 name2 =
-  home1 == ModuleName.basics
-  &&
-  home2 == ModuleName.basics
-  &&
-  (
-    (name1 == N.int && name2 == N.float)
-    ||
-    (name1 == N.float && name2 == N.int)
-  )
+isBool :: ModuleName.Canonical -> N.Name -> Bool
+isBool home name =
+  home == ModuleName.basics && name == N.bool
+
+
+isInt :: ModuleName.Canonical -> N.Name -> Bool
+isInt home name =
+  home == ModuleName.basics && name == N.int
+
+
+isFloat :: ModuleName.Canonical -> N.Name -> Bool
+isFloat home name =
+  home == ModuleName.basics && name == N.float
+
+
+isString :: ModuleName.Canonical -> N.Name -> Bool
+isString home name =
+  home == ModuleName.string && name == N.string
+
+
+isMaybe :: ModuleName.Canonical -> N.Name -> Bool
+isMaybe home name =
+  home == ModuleName.maybe && name == N.maybe
+
+
+isList :: ModuleName.Canonical -> N.Name -> Bool
+isList home name =
+  home == ModuleName.list && name == N.list
+
+
+isSimilar :: Type -> Type -> Bool
+isSimilar tipe1 tipe2 =
+  case diff Map.empty RT.None tipe1 tipe2 of
+    Similar _ _ -> True
+    Different _ _ _ -> False
+
+
+yellowApply :: Localizer -> RT.Context -> ModuleName.Canonical -> N.Name -> Type -> H.Doc
+yellowApply dict ctx home name tipe =
+  RT.apply ctx
+    (H.dullyellow (nameToDoc dict home name))
+    [toDoc dict RT.App tipe]
 
 
 

@@ -473,18 +473,18 @@ contentToErrorType variable content =
     FlexSuper super maybeName ->
       case maybeName of
         Just name ->
-          return (ET.FlexSuper name)
+          return (ET.FlexSuper (superToSuper super) name)
 
         Nothing ->
           do  name <- getFreshSuperName super
               liftIO $ UF.modify variable (\desc -> desc { _content = FlexSuper super (Just name) })
-              return (ET.FlexSuper name)
+              return (ET.FlexSuper (superToSuper super) name)
 
     RigidVar name ->
         return (ET.RigidVar name)
 
-    RigidSuper _ name ->
-        return (ET.RigidSuper name)
+    RigidSuper super name ->
+        return (ET.RigidSuper (superToSuper super) name)
 
     Alias home name args realVariable ->
         do  errArgs <- traverse (traverse variableToErrorType) args
@@ -493,6 +493,15 @@ contentToErrorType variable content =
 
     Error ->
         return ET.Error
+
+
+superToSuper :: SuperType -> ET.Super
+superToSuper super =
+  case super of
+    Number -> ET.Number
+    Comparable -> ET.Comparable
+    Appendable -> ET.Appendable
+    CompAppend -> ET.CompAppend
 
 
 termToErrorType :: FlatType -> StateT NameState IO ET.Type
