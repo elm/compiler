@@ -320,7 +320,8 @@ unifyFlexSuper context super content otherContent =
           case otherSuper of
             Number     -> merge context content
             Comparable -> merge context content
-            _          -> mismatch
+            Appendable -> mismatch
+            CompAppend -> mismatch
 
         Comparable ->
           case otherSuper of
