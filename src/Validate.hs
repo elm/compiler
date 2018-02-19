@@ -69,11 +69,11 @@ vsdHelp decls stuff =
     A.At region decl : otherDecls ->
       case decl of
         Src.Union name tvars ctors ->
-          do  let union = Valid.Union name tvars ctors
+          do  let union = Valid.Union region name tvars ctors
               vsdHelp otherDecls $ stuff { _unions = union : _unions stuff }
 
         Src.Alias name tvars tipe ->
-          do  let alias = Valid.Alias name tvars tipe
+          do  let alias = Valid.Alias region name tvars tipe
               vsdHelp otherDecls $ stuff { _aliases = alias : _aliases stuff }
 
         Src.Binop op assoc prec val ->

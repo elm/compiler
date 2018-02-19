@@ -100,8 +100,8 @@ toEffectDups effects =
 addTypes :: Valid.Module -> Env.Env -> Result i w Env.Env
 addTypes (Valid.Module _ _ _ _ _ _ unions aliases _ _) (Env.Env home vs ts cs bs qvs qts qcs) =
   let
-    addAliasDups dups (Valid.Alias (A.At region name) _ _) = Dups.insert name region () dups
-    addUnionDups dups (Valid.Union (A.At region name) _ _) = Dups.insert name region () dups
+    addAliasDups dups (Valid.Alias _ (A.At region name) _ _) = Dups.insert name region () dups
+    addUnionDups dups (Valid.Union _ (A.At region name) _ _) = Dups.insert name region () dups
     typeNameDups =
       List.foldl' addUnionDups (List.foldl' addAliasDups Dups.none aliases) unions
   in
@@ -111,7 +111,7 @@ addTypes (Valid.Module _ _ _ _ _ _ unions aliases _ _) (Env.Env home vs ts cs bs
 
 
 addUnion :: ModuleName.Canonical -> Env.Exposed Env.Type -> Valid.Union -> Result i w (Env.Exposed Env.Type)
-addUnion home types union@(Valid.Union (A.At _ name) _ _) =
+addUnion home types union@(Valid.Union _ (A.At _ name) _ _) =
   do  arity <- checkUnionFreeVars union
       let one = Map.singleton home (Env.Union arity home)
       Result.ok $ Map.insert name one types
@@ -133,7 +133,7 @@ addAliases aliases env =
 addAlias :: Env.Env -> Graph.SCC Valid.Alias -> Result i w Env.Env
 addAlias env@(Env.Env home vs ts cs bs qvs qts qcs) scc =
   case scc of
-    Graph.AcyclicSCC alias@(Valid.Alias (A.At _ name) _ tipe) ->
+    Graph.AcyclicSCC alias@(Valid.Alias _ (A.At _ name) _ tipe) ->
       do  args <- checkAliasFreeVars alias
           ctype <- Type.canonicalize env tipe
           let one = Map.singleton home (Env.Alias (length args) home args ctype)
@@ -143,9 +143,9 @@ addAlias env@(Env.Env home vs ts cs bs qvs qts qcs) scc =
     Graph.CyclicSCC [] ->
       Result.ok env
 
-    Graph.CyclicSCC (alias@(Valid.Alias (A.At region name1) _ tipe) : others) ->
+    Graph.CyclicSCC (alias@(Valid.Alias _ (A.At region name1) _ tipe) : others) ->
       do  args <- checkAliasFreeVars alias
-          let toName (Valid.Alias (A.At _ name) _ _) = name
+          let toName (Valid.Alias _ (A.At _ name) _ _) = name
           Result.throw (Error.RecursiveAlias region name1 args tipe (map toName others))
 
 
@@ -154,7 +154,7 @@ addAlias env@(Env.Env home vs ts cs bs qvs qts qcs) scc =
 
 
 toNode :: Valid.Alias -> (Valid.Alias, N.Name, [N.Name])
-toNode alias@(Valid.Alias (A.At _ name) _ tipe) =
+toNode alias@(Valid.Alias _ (A.At _ name) _ tipe) =
   ( alias, name, getEdges [] tipe )
 
 
@@ -188,7 +188,7 @@ getEdges edges (A.At _ tipe) =
 
 
 checkUnionFreeVars :: Valid.Union -> Result i w Int
-checkUnionFreeVars (Valid.Union (A.At unionRegion name) args ctors) =
+checkUnionFreeVars (Valid.Union unionRegion (A.At _ name) args ctors) =
   let
     addArg (A.At region arg) dict =
       Dups.insert arg region region dict
@@ -202,14 +202,13 @@ checkUnionFreeVars (Valid.Union (A.At unionRegion name) args ctors) =
         [] ->
           Result.ok (length args)
 
-        unbound ->
-          let toLoc (arg, region) = A.At region arg in
+        unbound:unbounds ->
           Result.throw $
-            Error.TypeVarsUnboundInUnion unionRegion name (map A.toValue args) (map toLoc unbound)
+            Error.TypeVarsUnboundInUnion unionRegion name (map A.toValue args) unbound unbounds
 
 
 checkAliasFreeVars :: Valid.Alias -> Result i w [N.Name]
-checkAliasFreeVars (Valid.Alias (A.At aliasRegion name) args tipe) =
+checkAliasFreeVars (Valid.Alias aliasRegion (A.At _ name) args tipe) =
   let
     addArg (A.At region arg) dict =
       Dups.insert arg region region dict
@@ -294,7 +293,7 @@ type CtorDups = Dups.Dict (Map.Map ModuleName.Canonical Env.Ctor)
 
 
 canonicalizeAlias :: Env.Env -> Valid.Alias -> Result i w ( (N.Name, Can.Alias), CtorDups )
-canonicalizeAlias env@(Env.Env home _ _ _ _ _ _ _) (Valid.Alias (A.At region name) args tipe) =
+canonicalizeAlias env@(Env.Env home _ _ _ _ _ _ _) (Valid.Alias _ (A.At region name) args tipe) =
   case tipe of
     A.At _ (Src.TRecord fields Nothing) ->
       do  cfields <- traverse (traverse (Type.canonicalize env)) fields
@@ -324,7 +323,7 @@ canonicalizeAlias env@(Env.Env home _ _ _ _ _ _ _) (Valid.Alias (A.At region nam
 
 
 canonicalizeUnion :: Env.Env -> Valid.Union -> Result i w ( (N.Name, Can.Union), CtorDups )
-canonicalizeUnion env@(Env.Env home _ _ _ _ _ _ _) (Valid.Union (A.At _ name) avars ctors) =
+canonicalizeUnion env@(Env.Env home _ _ _ _ _ _ _) (Valid.Union _ (A.At _ name) avars ctors) =
   do  cctors <- Index.indexedTraverse (canonicalizeCtor env) ctors
       let vars = map A.toValue avars
       let alts = map A.toValue cctors

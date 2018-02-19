@@ -88,8 +88,8 @@ data Module =
 
 
 data Decl = Decl (A.Located N.Name) [Src.Pattern] Expr (Maybe Src.Type)
-data Union = Union (A.Located N.Name) [A.Located N.Name] [(A.Located N.Name, [Src.Type])]
-data Alias = Alias (A.Located N.Name) [A.Located N.Name] Src.Type
+data Union = Union R.Region (A.Located N.Name) [A.Located N.Name] [(A.Located N.Name, [Src.Type])]
+data Alias = Alias R.Region (A.Located N.Name) [A.Located N.Name] Src.Type
 data Binop = Binop N.Name Binop.Associativity Binop.Precedence N.Name
 
 

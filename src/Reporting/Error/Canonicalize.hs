@@ -72,7 +72,7 @@ data Error
   | RecursiveLet (A.Located N.Name) [N.Name]
   | Shadowing N.Name R.Region R.Region
   | TupleLargerThanThree R.Region
-  | TypeVarsUnboundInUnion R.Region N.Name [N.Name] [A.Located N.Name]
+  | TypeVarsUnboundInUnion R.Region N.Name [N.Name] (N.Name, R.Region) [(N.Name, R.Region)]
   | TypeVarsMessedUpInAlias R.Region N.Name [N.Name] [A.Located N.Name] [A.Located N.Name]
 
 
@@ -735,12 +735,51 @@ toReport source err =
               ]
           )
 
-    TypeVarsUnboundInUnion _ _ _ _ ->
-      error "TODO TypeVarsUnboundInUnion"
+    TypeVarsUnboundInUnion unionRegion tipe allVars (unboundVar, varRegion) unboundVars ->
+      let
+        backQuote name =
+          "`" <> H.nameToDoc name <> "`"
+
+        (title, subRegion, overview) =
+          case map fst unboundVars of
+            [] ->
+              ( "UNBOUND TYPE VARIABLE"
+              , Just varRegion
+              , ["The",backQuote tipe,"type","uses","an","unbound","type","variable"
+                ,H.dullyellow (backQuote unboundVar),"in","its","definition:"
+                ]
+              )
+
+            vars ->
+              ( "UNBOUND TYPE VARIABLES"
+              , Nothing
+              , ["Type","variables"]
+                ++ H.commaSep "and" H.dullyellow (H.nameToDoc unboundVar : map H.nameToDoc vars)
+                ++ ["are","unbound","in","the",backQuote tipe,"type","definition:"]
+              )
+      in
+      Report.Report title unionRegion [] $
+        Report.toCodeSnippet source unionRegion subRegion
+          (
+            H.fillSep overview
+          ,
+            H.stack
+              [ H.reflow $
+                  "You probably need to change the type declaration to something like this:"
+              , H.indent 4 $ H.hsep $
+                  ["type", H.nameToDoc tipe]
+                  ++ map H.nameToDoc allVars
+                  ++ map (H.green . H.nameToDoc) (unboundVar : map fst unboundVars)
+                  ++ ["=", "..."]
+              , H.reflow $
+                  "Why? Well, imagine one `" ++ N.toString tipe ++ "` where `" ++ N.toString unboundVar ++
+                  "` is an Int and another where it is a Bool. When we explicitly list the type\
+                  \ variables, the type checker can see that they are actually different types."
+              ]
+          )
 
     TypeVarsMessedUpInAlias _ _ _ _ _ ->
       error "TODO TypeVarsMessedUpInAlias"
-
 
 
 
