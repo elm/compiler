@@ -1084,7 +1084,7 @@ opRightToDocs localizer category op tipe expected =
     "==" -> badEquality localizer "==" tipe expected
     "/=" -> badEquality localizer "/=" tipe expected
 
-    "::" -> error "TODO"
+    "::" -> badConsRight localizer category tipe expected
     "++" -> badAppendRight localizer category tipe expected
 
     "<|" ->
@@ -1133,25 +1133,29 @@ opRightToDocs localizer category op tipe expected =
             )
 
     _ ->
-      EmphRight
-        (
-          H.reflow $
-            "The right argument of (" <> N.toString op <> ") is causing problems."
-        ,
-          typeComparison localizer tipe expected
-            (
-              toDescription category "The right argument is"
-            ,
-              "But (" <> N.toString op <> ") needs the right argument to be:"
-            ,
-              [ H.toSimpleHint $
-                  "With operators like (" ++ N.toString op ++ ") I always check the left\
-                  \ side first. If it seems fine, I assume it is correct and check the right\
-                  \ side. So the problem may be in how the left and right arguments interact!"
-              ]
-            )
-        )
+      badOpRightFallback localizer category op tipe expected
 
+
+badOpRightFallback :: T.Localizer -> Category -> N.Name -> T.Type -> T.Type -> RightDocs
+badOpRightFallback localizer category op tipe expected =
+  EmphRight
+    (
+      H.reflow $
+        "The right argument of (" <> N.toString op <> ") is causing problems."
+    ,
+      typeComparison localizer tipe expected
+        (
+          toDescription category "The right argument is"
+        ,
+          "But (" <> N.toString op <> ") needs the right argument to be:"
+        ,
+          [ H.toSimpleHint $
+              "With operators like (" ++ N.toString op ++ ") I always check the left\
+              \ side first. If it seems fine, I assume it is correct and check the right\
+              \ side. So the problem may be in how the left and right arguments interact!"
+          ]
+        )
+    )
 
 
 isInt :: T.Type -> Bool
@@ -1192,6 +1196,59 @@ isList tipe =
 
     _ ->
       False
+
+
+
+-- BAD CONS
+
+
+badConsRight :: T.Localizer -> Category -> T.Type -> T.Type -> RightDocs
+badConsRight localizer category tipe expected =
+  case tipe of
+    T.Type home1 name1 [actualElement] | T.isList home1 name1 ->
+      case expected of
+        T.Type home2 name2 [expectedElement] | T.isList home2 name2 ->
+          EmphBoth
+            (
+              H.reflow "I am having trouble with this (::) operator:"
+            ,
+              typeComparison localizer expectedElement actualElement
+                (
+                  "The left side of (::) is an element of type:"
+                ,
+                  "But the right side is a list filled with elements of type:"
+                ,
+                  case expectedElement of
+                    T.Type home name [_] | T.isList home name ->
+                      [ H.toSimpleHint
+                          "Are you trying to append two lists? The (++) operator\
+                          \ appends lists, whereas the (::) operator is only for\
+                          \ adding ONE element to a list."
+                      ]
+
+                    _ ->
+                      [ H.reflow
+                          "Lists need ALL elements to be the same type though."
+                      ]
+                )
+            )
+
+        _ ->
+          badOpRightFallback localizer category "::" tipe expected
+
+    _ ->
+      EmphRight
+        (
+          H.reflow "The (::) operator can only add elements onto lists."
+        ,
+          loneType localizer tipe expected
+            (
+              H.reflow $ toDescription category "The right side is"
+            ,
+              [H.fillSep ["But","(::)","needs","a",H.dullyellow "List","on","the","right."]
+              ]
+            )
+        )
 
 
 
