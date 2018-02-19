@@ -9,6 +9,10 @@ module Type.Error
   , toDoc
   , toDiffDocs
   , Problem(..)
+  , isInt
+  , isFloat
+  , isString
+  , isList
   )
   where
 

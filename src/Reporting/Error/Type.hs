@@ -22,7 +22,6 @@ module Reporting.Error.Type
 import Prelude hiding (round)
 import Data.Monoid ((<>))
 
-import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
 import qualified Elm.Name as N
 import qualified Reporting.Helpers as H
@@ -1009,7 +1008,7 @@ opLeftToDocs localizer category op tipe expected =
     "<=" -> badCompLeft localizer category "<=" "left" tipe expected
     ">=" -> badCompLeft localizer category ">=" "left" tipe expected
 
-    "++" -> badAppend localizer category "left" tipe expected
+    "++" -> badAppendLeft localizer category tipe expected
 
     "<|" ->
       ( "The left side of (<|) needs to be a function so I can pipe arguments to it!"
@@ -1086,7 +1085,7 @@ opRightToDocs localizer category op tipe expected =
     "/=" -> badEquality localizer "/=" tipe expected
 
     "::" -> error "TODO"
-    "++" -> EmphRight $ badAppend localizer category "right" tipe expected
+    "++" -> badAppendRight localizer category tipe expected
 
     "<|" ->
       EmphRight
@@ -1159,7 +1158,7 @@ isInt :: T.Type -> Bool
 isInt tipe =
   case tipe of
     T.Type home name [] ->
-      home == ModuleName.basics && name == N.int
+      T.isInt home name
 
     _ ->
       False
@@ -1169,7 +1168,7 @@ isFloat :: T.Type -> Bool
 isFloat tipe =
   case tipe of
     T.Type home name [] ->
-      home == ModuleName.basics && name == N.float
+      T.isFloat home name
 
     _ ->
       False
@@ -1179,7 +1178,7 @@ isString :: T.Type -> Bool
 isString tipe =
   case tipe of
     T.Type home name [] ->
-      home == ModuleName.string && name == N.string
+      T.isString home name
 
     _ ->
       False
@@ -1189,7 +1188,7 @@ isList :: T.Type -> Bool
 isList tipe =
   case tipe of
     T.Type home name [_] ->
-      home == ModuleName.list && name == N.list
+      T.isList home name
 
     _ ->
       False
@@ -1199,51 +1198,133 @@ isList tipe =
 -- BAD APPEND
 
 
-badAppend :: T.Localizer -> Category -> String -> T.Type -> T.Type -> (H.Doc, H.Doc)
-badAppend localizer category direction tipe expected =
-  let
-    maybeDetails =
-      case tipe of
-        T.Type home name []
-          | ModuleName.basics == home && name == N.int   -> Just ("ints", "String.fromInt")
-          | ModuleName.basics == home && name == N.float -> Just ("floats", "String.fromFloat")
+data AppendType
+  = ANumber H.Doc H.Doc
+  | AString
+  | AList
+  | AOther
 
-        T.FlexSuper T.Number _ ->
-          Just ("numbers", "String.fromInt")
 
-        _ ->
-          Nothing
-  in
-  case maybeDetails of
-    Just (things, stringFromThing) ->
+toAppendType :: T.Type -> AppendType
+toAppendType tipe =
+  case tipe of
+    T.Type home name _
+      | T.isInt    home name -> ANumber "Int" "String.fromInt"
+      | T.isFloat  home name -> ANumber "Float" "String.fromFloat"
+      | T.isString home name -> AString
+      | T.isList   home name -> AList
+
+    T.FlexSuper T.Number _ -> ANumber "number" "String.fromInt"
+
+    _ -> AOther
+
+
+badAppendLeft :: T.Localizer -> Category -> T.Type -> T.Type -> (H.Doc, H.Doc)
+badAppendLeft localizer category tipe expected =
+  case toAppendType tipe of
+    ANumber thing stringFromThing ->
       (
         H.fillSep
-          ["The","(++)","operator","is","for","appending",H.dullyellow "List","and"
-          ,H.dullyellow "String","values,","not",H.dullyellow things,"like","this:"
+          ["The","(++)","operator","can","append"
+          ,H.dullyellow "List","and",H.dullyellow "String"
+          ,"values,","but","not",H.dullyellow thing,"values","like","this:"
           ]
       ,
         H.fillSep
-          ["Try","using",H.green stringFromThing,"to","turn","it","into","a"
-          ,H.dullyellow "String" <> "?"
+          ["Try","using",H.green stringFromThing,"to","turn","it","into","a","string?"
+          ,"Or","put","it","in","[]","to","make","it","a","list?"
+          ,"Or","switch","to","the","(::)","operator?"
           ]
       )
 
-    Nothing ->
+    _ ->
       (
         H.reflow $
           "The (++) operator cannot append this type of value:"
       ,
         loneType localizer tipe expected
-          ( H.reflow $ toDescription category $
-              "The " <> direction <> " side of (++) is"
+          ( H.reflow $ toDescription category "I am seeing"
           ,
             [ H.fillSep
                 ["But","the","(++)","operator","is","only","for","appending"
                 ,H.dullyellow "List","and",H.dullyellow "String","values."
+                ,"Maybe","put","this","value","in","[]","to","make","it","a","list?"
                 ]
             ]
           )
       )
+
+
+badAppendRight :: T.Localizer -> Category -> T.Type -> T.Type -> RightDocs
+badAppendRight localizer category tipe expected =
+  case (toAppendType expected, toAppendType tipe) of
+    (AString, ANumber thing stringFromThing) ->
+      EmphRight
+        (
+          H.fillSep
+            ["I","thought","I","was","appending",H.dullyellow "String","values","here,"
+            ,"not",H.dullyellow thing,"values","like","this:"
+            ]
+        ,
+          H.fillSep
+            ["Try","using",H.green stringFromThing
+            ,"to","turn","it","into","a","string?"
+            ]
+        )
+
+    (AList, ANumber thing _) ->
+      EmphRight
+        (
+          H.fillSep
+            ["I","thought","I","was","appending",H.dullyellow "List","values","here,"
+            ,"not",H.dullyellow thing,"values","like","this:"
+            ]
+        ,
+          H.reflow "Try putting it in [] to make it a list?"
+        )
+
+    (AString, AList) ->
+      EmphBoth
+        (
+          H.reflow $
+            "The (++) operator needs the same type of value on both sides:"
+        ,
+          H.fillSep
+            ["I","see","a",H.dullyellow "String","on","the","left","and","a"
+            ,H.dullyellow "List","on","the","right.","Which","should","it","be?"
+            ,"Does","the","string","need","[]","around","it","to","become","a","list?"
+            ]
+        )
+
+    (AList, AString) ->
+      EmphBoth
+        (
+          H.reflow $
+            "The (++) operator needs the same type of value on both sides:"
+        ,
+          H.fillSep
+            ["I","see","a",H.dullyellow "List","on","the","left","and","a"
+            ,H.dullyellow "String","on","the","right.","Which","should","it","be?"
+            ,"Does","the","string","need","[]","around","it","to","become","a","list?"
+            ]
+        )
+
+    (_,_) ->
+      EmphBoth
+        (
+          H.reflow $
+            "The (++) operator cannot append these two values:"
+        ,
+          typeComparison localizer tipe expected
+            (
+              "I already figured out that the left side of (++) is:"
+            ,
+              toDescription category $
+                "But this clashes with the right side, which is"
+            ,
+              []
+            )
+        )
 
 
 
