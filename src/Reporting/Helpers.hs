@@ -11,8 +11,8 @@ module Reporting.Helpers
   , findPotentialTypos, findTypoPairs, vetTypos
   , nearbyNames, distance
   -- re-exports
-  , Doc, (<+>), (<>), black, blue, cat, dullyellow, fillSep, green, hang, hardline
-  , hcat, hsep, indent, magenta, parens, sep, text, underline, vcat
+  , Doc, (<+>), (<>), black, blue, cat, dullyellow, fillSep, green, hang
+  , hardline, hcat, hsep, indent, magenta, parens, sep, text, underline, vcat
   )
   where
 
