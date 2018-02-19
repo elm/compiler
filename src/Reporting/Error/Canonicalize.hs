@@ -656,17 +656,23 @@ toReport source err =
         Report.toCodeSnippet source region Nothing $
           case names of
             [] ->
+              let
+                makeTheory question details =
+                  H.fillSep $ map (H.dullyellow . H.text) (words question) ++ map H.text (words details)
+              in
                 (
                   H.reflow $
-                    "The `" <> N.toString name <> "` value has a direct use of `" <> N.toString name <> "` in its definition."
+                    "The `" <> N.toString name <> "` value is defined directly in terms of itself, causing an infinite loop."
                 ,
-                  -- TODO see if shadowing rules out mutation attempts
                   H.stack
-                    [ H.reflow $
-                        "To know what `" <> N.toString name
-                        <> "` is, I need to know what `" <> N.toString name
-                        <> "` is. Let me recursively figure that out. Hmm, I need to know what `"
-                        <> N.toString name <> "` is..."
+                    [ makeTheory "Are you are trying to mutate a variable?" $
+                        "Elm does not have mutation, so when I see " ++ N.toString name
+                        ++ " defined in terms of " ++ N.toString name
+                        ++ ", I treat it as a recursive definition. Try giving the new value a new name!"
+                    , makeTheory "Maybe you DO want a recursive value?" $
+                        "To define " ++ N.toString name ++ " we need to know what " ++ N.toString name
+                        ++ " is, so let’s expand it. Wait, but now we need to know what " ++ N.toString name
+                        ++ " is, so let’s expand it... This will keep going infinitely!"
                     , H.link "Hint"
                         "The root problem is often a typo in some variable name, but I recommend reading"
                         "bad-recursion"
@@ -724,6 +730,7 @@ toReport source err =
                   \ the `point.x` syntax to access them."
 
               , H.link "Note" "Read" "tuples"
+
                   "for more comprehensive advice on working with large chunks of data in Elm."
               ]
           )
