@@ -219,12 +219,11 @@ checkAliasFreeVars (Valid.Alias aliasRegion (A.At _ name) args tipe) =
       if Map.size boundVars == overlap && Map.size freeVars == overlap
         then Result.ok (map A.toValue args)
         else
-          let toLoc (arg, region) = A.At region arg in
           Result.throw $
             Error.TypeVarsMessedUpInAlias aliasRegion name
               (map A.toValue args)
-              (map toLoc (Map.toList (Map.difference boundVars freeVars)))
-              (map toLoc (Map.toList (Map.difference freeVars boundVars)))
+              (Map.toList (Map.difference boundVars freeVars))
+              (Map.toList (Map.difference freeVars boundVars))
 
 
 addFreeVars :: Map.Map N.Name R.Region -> Src.Type -> Map.Map N.Name R.Region

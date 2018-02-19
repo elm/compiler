@@ -73,7 +73,7 @@ data Error
   | Shadowing N.Name R.Region R.Region
   | TupleLargerThanThree R.Region
   | TypeVarsUnboundInUnion R.Region N.Name [N.Name] (N.Name, R.Region) [(N.Name, R.Region)]
-  | TypeVarsMessedUpInAlias R.Region N.Name [N.Name] [A.Located N.Name] [A.Located N.Name]
+  | TypeVarsMessedUpInAlias R.Region N.Name [N.Name] [(N.Name, R.Region)] [(N.Name, R.Region)]
 
 
 data BadArityContext
@@ -735,114 +735,133 @@ toReport source err =
               ]
           )
 
-    TypeVarsUnboundInUnion unionRegion tipe allVars (unboundVar, varRegion) unboundVars ->
-      let
-        backQuote name =
-          "`" <> H.nameToDoc name <> "`"
+    TypeVarsUnboundInUnion unionRegion typeName allVars unbound unbounds ->
+      unboundTypeVars source unionRegion ["type"] typeName allVars unbound unbounds
 
-        (title, subRegion, overview) =
-          case map fst unboundVars of
-            [] ->
-              ( "UNBOUND TYPE VARIABLE"
-              , Just varRegion
-              , ["The",backQuote tipe,"type","uses","an","unbound","type","variable"
-                ,H.dullyellow (backQuote unboundVar),"in","its","definition:"
-                ]
+    TypeVarsMessedUpInAlias aliasRegion typeName allVars unusedVars unboundVars ->
+      case (unusedVars, unboundVars) of
+        (unused:unuseds, []) ->
+          let
+            backQuote name =
+              "`" <> H.nameToDoc name <> "`"
+
+            allUnusedNames =
+              map fst unusedVars
+
+            (title, subRegion, overview, stuff) =
+              case unuseds of
+                [] ->
+                  ("UNUSED TYPE VARIABLE"
+                  , Just (snd unused)
+                  , ["Type","alias",backQuote typeName,"does","not","use","the"
+                    ,backQuote (fst unused),"type","variable."
+                    ]
+                  , [H.dullyellow (backQuote (fst unused))]
+                  )
+
+                _:_ ->
+                  ( "UNUSED TYPE VARIABLES"
+                  , Nothing
+                  , ["Type","variables"]
+                    ++ H.commaSep "and" id (map H.nameToDoc allUnusedNames)
+                    ++ ["are","unused","in","the",backQuote typeName,"definition."]
+                  , H.commaSep "and" H.dullyellow (map H.nameToDoc allUnusedNames)
+                  )
+          in
+          Report.Report title aliasRegion [] $
+            Report.toCodeSnippet source aliasRegion subRegion
+              (
+                H.fillSep overview
+              ,
+                H.stack
+                  [ H.fillSep $
+                      ["I","recommend","removing"] ++ stuff ++ ["from","the","declaration,","like","this:"]
+                  , H.indent 4 $ H.hsep $
+                      ["type","alias",H.nameToDoc typeName]
+                      ++ map H.nameToDoc (filter (\v -> notElem v allUnusedNames) allVars)
+                      ++ ["=", "..."]
+                  , H.reflow $
+                      "Why? Well, if I allowed `type alias Height a = Float` I would need to answer\
+                      \ some weird questions. Is `Height Bool` the same as `Float`? Is `Height Bool`\
+                      \ the same as `Height Int`? My solution is to not need to ask them!"
+                  ]
               )
 
-            vars ->
-              ( "UNBOUND TYPE VARIABLES"
-              , Nothing
-              , ["Type","variables"]
-                ++ H.commaSep "and" H.dullyellow (H.nameToDoc unboundVar : map H.nameToDoc vars)
-                ++ ["are","unbound","in","the",backQuote tipe,"type","definition:"]
+        ([], unbound:unbounds) ->
+          unboundTypeVars source aliasRegion ["type","alias"] typeName allVars unbound unbounds
+
+        (_, _) ->
+          error "TODO TypeVarsMessedUpInAlias"
+          {-
+          Report.Report "TYPE VARIABLE PROBLEMS" aliasRegion [] $
+            Report.toCodeSnippet source region Nothing
+              (
+                H.reflow $
+                  "Type alias `" <> typeName <> "` has some type variable problems."
+              ,
+                H.stack
+                  [ H.reflow $
+                      "The definition uses certain type variables ("
+                      <> H.commaSep unused <> ") but they do not appear in the aliased type. "
+                      <> "Furthermore, the aliased type says it uses type variables ("
+                      <> H.commaSep unbound
+                      <> ") that do not appear in the declaration."
+                  , text "You probably need to change the declaration like this:"
+                  , H.dullyellow $ hsep $
+                      map text ("type" : "alias" : typeName : filter (`notElem` unused) givenVars ++ unbound ++ ["=", "..."])
+                  ]
               )
-      in
-      Report.Report title unionRegion [] $
-        Report.toCodeSnippet source unionRegion subRegion
-          (
-            H.fillSep overview
-          ,
-            H.stack
-              [ H.reflow $
-                  "You probably need to change the type declaration to something like this:"
-              , H.indent 4 $ H.hsep $
-                  ["type", H.nameToDoc tipe]
-                  ++ map H.nameToDoc allVars
-                  ++ map (H.green . H.nameToDoc) (unboundVar : map fst unboundVars)
-                  ++ ["=", "..."]
-              , H.reflow $
-                  "Why? Well, imagine one `" ++ N.toString tipe ++ "` where `" ++ N.toString unboundVar ++
-                  "` is an Int and another where it is a Bool. When we explicitly list the type\
-                  \ variables, the type checker can see that they are actually different types."
-              ]
+          -}
+
+
+
+-- BAD TYPE VARIABLES
+
+
+unboundTypeVars :: Code.Source -> R.Region -> [H.Doc] -> N.Name -> [N.Name] -> (N.Name, R.Region) -> [(N.Name, R.Region)] -> Report.Report
+unboundTypeVars source declRegion tipe typeName allVars (unboundVar, varRegion) unboundVars =
+  let
+    backQuote name =
+      "`" <> H.nameToDoc name <> "`"
+
+    (title, subRegion, overview) =
+      case map fst unboundVars of
+        [] ->
+          ( "UNBOUND TYPE VARIABLE"
+          , Just varRegion
+          , ["The",backQuote typeName]
+            ++ tipe
+            ++ ["uses","an","unbound","type","variable",H.dullyellow (backQuote unboundVar),"in","its","definition:"]
           )
 
-    TypeVarsMessedUpInAlias _ _ _ _ _ ->
-      error "TODO TypeVarsMessedUpInAlias"
-
-
-
---    UnboundTypeVarsInUnion typeName givenVars unbound ->
---        unboundTypeVars "type" typeName givenVars unbound
-
---    UnboundTypeVarsInAlias typeName givenVars unbound ->
---        unboundTypeVars "type alias" typeName givenVars unbound
-
---    UnusedTypeVarsInAlias typeName givenVars unused ->
---        Report.report
---          "UNUSED TYPE VARIABLES"
---          Nothing
---          ( "Type alias `" <> typeName <> "` cannot have unused type variables: "
---            <> H.commaSep unused
---          )
---          ( H.stack
---              [ text "You probably need to change the declaration like this:"
---              , H.dullyellow $ hsep $
---                  map text ("type" : "alias" : typeName : filter (`notElem` unused) givenVars ++ ["=", "..."])
---              ]
---          )
-
---    MessyTypeVarsInAlias typeName givenVars unused unbound ->
---        Report.report
---          "TYPE VARIABLE PROBLEMS"
---          Nothing
---          ( "Type alias `" <> typeName <> "` has some problems with type variables."
---          )
---          ( H.stack
---              [ H.reflow $
---                  "The declaration says it uses certain type variables ("
---                  <> H.commaSep unused <> ") but they do not appear in the aliased type. "
---                  <> "Furthermore, the aliased type says it uses type variables ("
---                  <> H.commaSep unbound
---                  <> ") that do not appear in the declaration."
---              , text "You probably need to change the declaration like this:"
---              , H.dullyellow $ hsep $
---                  map text ("type" : "alias" : typeName : filter (`notElem` unused) givenVars ++ unbound ++ ["=", "..."])
---              ]
---          )
-
-
---unboundTypeVars :: Text -> Text -> [Text] -> [Text] -> Report.Report
---unboundTypeVars declKind typeName givenVars unboundVars =
---  Report.report
---    "UNBOUND TYPE VARIABLES"
---    Nothing
---    ( H.capitalize declKind <> " `" <> typeName <> "` must declare its use of type variable"
---      <> H.commaSep unboundVars
---    )
---    ( H.stack
---        [ text "You probably need to change the declaration like this:"
---        , hsep $
---            map text (declKind : typeName : givenVars)
---            ++ map (H.dullyellow . text) unboundVars
---            ++ map text ["=", "..."]
---        , reflow $
---            "Here's why. Imagine one `" <> typeName <> "` where `" <> head unboundVars <>
---            "` is an Int and another where it is a Bool. When we explicitly list the type\
---            \ variables, the type checker can see that they are actually different types."
---        ]
---    )
+        vars ->
+          ( "UNBOUND TYPE VARIABLES"
+          , Nothing
+          , ["Type","variables"]
+            ++ H.commaSep "and" H.dullyellow (H.nameToDoc unboundVar : map H.nameToDoc vars)
+            ++ ["are","unbound","in","the",backQuote typeName] ++ tipe ++ ["definition:"]
+          )
+  in
+  Report.Report title declRegion [] $
+    Report.toCodeSnippet source declRegion subRegion
+      (
+        H.fillSep overview
+      ,
+        H.stack
+          [ H.reflow $
+              "You probably need to change the declaration to something like this:"
+          , H.indent 4 $ H.hsep $
+              tipe
+              ++ [H.nameToDoc typeName]
+              ++ map H.nameToDoc allVars
+              ++ map (H.green . H.nameToDoc) (unboundVar : map fst unboundVars)
+              ++ ["=", "..."]
+          , H.reflow $
+              "Why? Well, imagine one `" ++ N.toString typeName ++ "` where `" ++ N.toString unboundVar ++
+              "` is an Int and another where it is a Bool. When we explicitly list the type\
+              \ variables, the type checker can see that they are actually different types."
+          ]
+      )
 
 
 
@@ -918,7 +937,6 @@ ambiguousName source region maybePrefix name possibleHomes thing =
               , H.reflowLink "Read" "imports" "to learn how to clarify which one you want."
               ]
           )
-
 
 
 
