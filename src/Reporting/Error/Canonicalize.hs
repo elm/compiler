@@ -776,9 +776,9 @@ toReport source err =
                 H.stack
                   [ H.fillSep $
                       ["I","recommend","removing"] ++ stuff ++ ["from","the","declaration,","like","this:"]
-                  , H.indent 4 $ H.hsep $
+                  , H.indent 4 $ H.dullyellow $ H.hsep $
                       ["type","alias",H.nameToDoc typeName]
-                      ++ map H.nameToDoc (filter (\v -> notElem v allUnusedNames) allVars)
+                      ++ map H.nameToDoc (filter (`notElem` allUnusedNames) allVars)
                       ++ ["=", "..."]
                   , H.reflow $
                       "Why? Well, if I allowed `type alias Height a = Float` I would need to answer\
@@ -791,27 +791,35 @@ toReport source err =
           unboundTypeVars source aliasRegion ["type","alias"] typeName allVars unbound unbounds
 
         (_, _) ->
-          error "TODO TypeVarsMessedUpInAlias"
-          {-
+          let
+            unused = map fst unusedVars
+            unbound = map fst unboundVars
+            var name = "`" <> H.nameToDoc name <> "`"
+            isOrAre vars = if length vars == 1 then "is" else "are"
+            itOrThem vars = if length vars == 1 then "it" else "them"
+          in
           Report.Report "TYPE VARIABLE PROBLEMS" aliasRegion [] $
-            Report.toCodeSnippet source region Nothing
+            Report.toCodeSnippet source aliasRegion Nothing
               (
                 H.reflow $
-                  "Type alias `" <> typeName <> "` has some type variable problems."
+                  "Type alias `" <> N.toString typeName <> "` has some type variable problems."
               ,
                 H.stack
-                  [ H.reflow $
-                      "The definition uses certain type variables ("
-                      <> H.commaSep unused <> ") but they do not appear in the aliased type. "
-                      <> "Furthermore, the aliased type says it uses type variables ("
-                      <> H.commaSep unbound
-                      <> ") that do not appear in the declaration."
-                  , text "You probably need to change the declaration like this:"
-                  , H.dullyellow $ hsep $
-                      map text ("type" : "alias" : typeName : filter (`notElem` unused) givenVars ++ unbound ++ ["=", "..."])
+                  [ H.fillSep $
+                      ["The","definition","uses"]
+                      ++ H.commaSep "and" H.dullyellow (map var unbound)
+                      ++ ["but","I","do","not","see",itOrThem unbound,"declared.","Likewise,"]
+                      ++ H.commaSep "and" H.dullyellow (map var unused)
+                      ++ [isOrAre unused,"delared,","but","not","used!"]
+                  , H.reflow $
+                      "My guess is that a definition like this will work better:"
+                  , H.indent 4 $ H.hsep $
+                      ["type", "alias", H.nameToDoc typeName]
+                      ++ map H.nameToDoc (filter (`notElem` unused) allVars)
+                      ++ map (H.green . H.nameToDoc) unbound
+                      ++ ["=", "..."]
                   ]
               )
-          -}
 
 
 
