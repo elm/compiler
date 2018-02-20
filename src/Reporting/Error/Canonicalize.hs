@@ -649,7 +649,63 @@ toReport source err =
         aliasRecursionReport source region name args tipe others
 
     RecursiveDecl cyclicValueDefs ->
-        error "TODO" cyclicValueDefs
+      let
+        toName def =
+          case def of
+            Can.Def name _ _ -> name
+            Can.TypedDef name _ _ _ _ -> name
+
+        makeTheory question details =
+          H.fillSep $ map (H.dullyellow . H.text) (words question) ++ map H.text (words details)
+      in
+      case map toName cyclicValueDefs of
+        [] ->
+          error
+            "There is some compiler bug in reporting cyclic definitions.\n\
+            \Please get a <http://sscce.org/> and share the details at\n\
+            \<https://github.com/elm-lang/elm-compiler/issues>"
+
+        A.At region name : otherNames ->
+          Report.Report "CYCLIC DEFINITION" region [] $
+            Report.toCodeSnippet source region Nothing $
+              case map A.toValue otherNames of
+                [] ->
+                  (
+                    H.reflow $
+                      "The `" <> N.toString name <> "` value is defined directly in terms of itself, causing an infinite loop."
+                  ,
+                    H.stack
+                      [ makeTheory "Are you are trying to mutate a variable?" $
+                          "Elm does not have mutation, so when I see " ++ N.toString name
+                          ++ " defined in terms of " ++ N.toString name
+                          ++ ", I treat it as a recursive definition. Try giving the new value a new name!"
+                      , makeTheory "Maybe you DO want a recursive value?" $
+                          "To define " ++ N.toString name ++ " we need to know what " ++ N.toString name
+                          ++ " is, so let’s expand it. Wait, but now we need to know what " ++ N.toString name
+                          ++ " is, so let’s expand it... This will keep going infinitely!"
+                      , H.link "Hint"
+                          "The root problem is often a typo in some variable name, but I recommend reading"
+                          "bad-recursion"
+                          "for more detailed advice, especially if you actually do need a recursive value."
+                      ]
+                  )
+
+                names ->
+                  (
+                    H.reflow $
+                      "The `" <> N.toString name <> "` definition is causing a very tricky infinite loop."
+                  ,
+                    H.stack
+                      [ H.reflow $
+                          "The `" <> N.toString name
+                          <> "` value depends on itself through the following chain of definitions:"
+                      , H.indent 4 $ H.drawCycle (name:names)
+                      , H.link "Hint"
+                          "The root problem is often a typo in some variable name, but I recommend reading"
+                          "bad-recursion"
+                          "for more detailed advice, especially if you actually do want mutually recursive values."
+                      ]
+                  )
 
     RecursiveLet (A.At region name) names ->
       Report.Report "CYCLIC VALUE" region [] $
