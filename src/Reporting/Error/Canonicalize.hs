@@ -794,9 +794,32 @@ toReport source err =
           let
             unused = map fst unusedVars
             unbound = map fst unboundVars
-            var name = "`" <> H.nameToDoc name <> "`"
-            isOrAre vars = if length vars == 1 then "is" else "are"
-            itOrThem vars = if length vars == 1 then "it" else "them"
+
+            theseAreUsed =
+              case unbound of
+                [x] ->
+                  ["Type","variable",H.dullyellow ("`" <> H.nameToDoc x <> "`"),"appears"
+                  ,"in","the","definition,","but","I","do","not","see","it","declared."
+                  ]
+
+                _ ->
+                  ["Type","variables"]
+                  ++ H.commaSep "and" H.dullyellow (map H.nameToDoc unbound)
+                  ++ ["are","used","in","the","definition,","but","I","do","not","see","them","declared."]
+
+            butTheseAreUnused =
+              case unused of
+                [x] ->
+                  ["Likewise,","type","variable"
+                  ,H.dullyellow ("`" <> H.nameToDoc x <> "`")
+                  ,"is","delared,","but","not","used."
+                  ]
+
+                _ ->
+                  ["Likewise,","type","variables"]
+                  ++ H.commaSep "and" H.dullyellow (map H.nameToDoc unused)
+                  ++ ["are","delared,","but","not","used."]
+
           in
           Report.Report "TYPE VARIABLE PROBLEMS" aliasRegion [] $
             Report.toCodeSnippet source aliasRegion Nothing
@@ -805,12 +828,7 @@ toReport source err =
                   "Type alias `" <> N.toString typeName <> "` has some type variable problems."
               ,
                 H.stack
-                  [ H.fillSep $
-                      ["The","definition","uses"]
-                      ++ H.commaSep "and" H.dullyellow (map var unbound)
-                      ++ ["but","I","do","not","see",itOrThem unbound,"declared.","Likewise,"]
-                      ++ H.commaSep "and" H.dullyellow (map var unused)
-                      ++ [isOrAre unused,"delared,","but","not","used!"]
+                  [ H.fillSep $ theseAreUsed ++ butTheseAreUnused
                   , H.reflow $
                       "My guess is that a definition like this will work better:"
                   , H.indent 4 $ H.hsep $
