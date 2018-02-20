@@ -776,8 +776,8 @@ toReport source err =
                 H.stack
                   [ H.fillSep $
                       ["I","recommend","removing"] ++ stuff ++ ["from","the","declaration,","like","this:"]
-                  , H.indent 4 $ H.dullyellow $ H.hsep $
-                      ["type","alias",H.nameToDoc typeName]
+                  , H.indent 4 $ H.hsep $
+                      ["type","alias",H.green (H.nameToDoc typeName)]
                       ++ map H.nameToDoc (filter (`notElem` allUnusedNames) allVars)
                       ++ ["=", "..."]
                   , H.reflow $
