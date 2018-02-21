@@ -11,6 +11,7 @@ module Elm.Docs
   , Binop(..)
   , Binop.Associativity(..)
   , Binop.Precedence(..)
+  , Error(..)
   , decoder
   , encode
   )
@@ -108,7 +109,7 @@ encode (Module name comment unions aliases values binops) =
 
 
 data Error
-  = BadAssociativity
+  = BadAssociativity Text.Text
   | BadName
   | BadType
 
@@ -265,7 +266,7 @@ assocDecoder =
         "left"  -> D.succeed Binop.Left
         "non"   -> D.succeed Binop.Non
         "right" -> D.succeed Binop.Right
-        _       -> D.fail BadAssociativity
+        _       -> D.fail (BadAssociativity txt)
 
 
 
