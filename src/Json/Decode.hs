@@ -46,8 +46,11 @@ import qualified Reporting.Render.Code as Code
 parse :: FilePath -> String -> (e -> [H.Doc]) -> Json.Decoder e a -> B.ByteString -> Either H.Doc a
 parse path rootName userErrorToDocs (Json.Decoder run) bytestring =
   let
+    source =
+      Code.toSource (Text.replace "\t" " " (Text.decodeUtf8 bytestring))
+
     toDoc err =
-      J.toDoc path rootName (Code.toSource (Text.decodeUtf8 bytestring)) userErrorToDocs err
+      J.toDoc path rootName source userErrorToDocs err
   in
   case P.run jsonFile bytestring of
     Left err ->
