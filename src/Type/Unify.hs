@@ -360,24 +360,27 @@ combineRigidSupers rigid flex =
 
 atomMatchesSuper :: SuperType -> ModuleName.Canonical -> N.Name -> Bool
 atomMatchesSuper super home name =
-  home == ModuleName.basics
-  &&
   case super of
     Number ->
-      name == N.int
-      || name == N.float
+      isNumber home name
 
     Comparable ->
-      name == N.int
-      || name == N.float
-      || name == N.string
-      || name == N.char
+      isNumber home name
+      || Error.isString home name
+      || Error.isChar home name
 
     Appendable ->
-      name == N.string
+      Error.isString home name
 
     CompAppend ->
-      name == N.string
+      Error.isString home name
+
+
+isNumber :: ModuleName.Canonical -> N.Name -> Bool
+isNumber home name =
+  home == ModuleName.basics
+  &&
+  (name == N.int || name == N.float)
 
 
 unifyFlexSuperStructure :: Context -> SuperType -> FlatType -> Unify ()

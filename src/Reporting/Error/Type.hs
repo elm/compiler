@@ -471,18 +471,18 @@ problemToHint problem =
 
     T.BadFlexSuper super _ tipe ->
       case tipe of
-        T.Lambda _ _ _   -> badFlexSuper super
+        T.Lambda _ _ _   -> badFlexSuper super tipe
         T.Infinite       -> []
         T.Error          -> []
         T.FlexVar _      -> []
         T.FlexSuper s _  -> badFlexFlexSuper super s
         T.RigidVar y     -> badRigidVar y (toASuperThing super)
         T.RigidSuper s _ -> badRigidSuper s (toASuperThing super)
-        T.Type _ _ _     -> badFlexSuper super
-        T.Record _ _     -> badFlexSuper super
-        T.Unit           -> badFlexSuper super
-        T.Tuple _ _ _    -> badFlexSuper super
-        T.Alias _ _ _ _  -> badFlexSuper super
+        T.Type h n _     -> badFlexSuper super tipe
+        T.Record _ _     -> badFlexSuper super tipe
+        T.Unit           -> badFlexSuper super tipe
+        T.Tuple _ _ _    -> badFlexSuper super tipe
+        T.Alias _ _ _ _  -> badFlexSuper super tipe
 
     T.BadRigidVar x tipe ->
       case tipe of
@@ -554,15 +554,44 @@ toASuperThing super =
 -- BAD SUPER HINTS
 
 
-badFlexSuper :: T.Super -> [H.Doc]
-badFlexSuper super =
+badFlexSuper :: T.Super -> T.Type -> [H.Doc]
+badFlexSuper super tipe =
   case super of
-    T.Comparable -> [ H.toSimpleHint "Only ints, floats, chars, strings, lists, and tuples are comparable." ]
-    T.Appendable -> [ H.toSimpleHint "Only strings and lists are appendable." ]
-    T.CompAppend -> [ H.toSimpleHint "Only strings and lists are both comparable and appendable." ]
-    T.Number ->
-      [ H.toFancyHint ["Only",H.green "Int","and",H.green "Float","values","work","as","numbers."]
+    T.Comparable ->
+      [ H.toSimpleHint "Only ints, floats, chars, strings, lists, and tuples are comparable."
       ]
+
+    T.Appendable ->
+      case tipe of
+        T.Type home name _ | T.isInt home name ->
+          [ H.toFancyHint ["Try","using",H.green"String.fromInt","to","convert","it","to","a","string?"]
+          ]
+
+        T.Type home name _ | T.isFloat home name ->
+          [ H.toFancyHint ["Try","using",H.green"String.fromFloat","to","convert","it","to","a","string?"]
+          ]
+
+        T.FlexSuper T.Number _ ->
+          [ H.toFancyHint ["Try","using",H.green"String.fromInt","to","convert","it","to","a","string?"]
+          ]
+
+        _ ->
+          [ H.toFancyHint ["Only","strings","and","lists","are","appendable.","Put","it","in",H.green "[]","to","make","it","a","list?"]
+          ]
+
+    T.CompAppend ->
+      [ H.toSimpleHint "Only strings and lists are both comparable and appendable."
+      ]
+
+    T.Number ->
+      case tipe of
+        T.Type home name _ | T.isString home name ->
+          [ H.toFancyHint ["Try","using",H.green"String.toInt","to","convert","it","to","a","number?"]
+          ]
+
+        _ ->
+          [ H.toFancyHint ["Only",H.green "Int","and",H.green "Float","values","work","as","numbers."]
+          ]
 
 
 badRigidSuper :: T.Super -> String -> [H.Doc]
@@ -1282,8 +1311,7 @@ badAppendLeft localizer category tipe expected =
     ANumber thing stringFromThing ->
       (
         H.fillSep
-          ["The","(++)","operator","can","append"
-          ,H.dullyellow "List","and",H.dullyellow "String"
+          ["The","(++)","operator","can","append","List","and","String"
           ,"values,","but","not",H.dullyellow thing,"values","like","this:"
           ]
       ,

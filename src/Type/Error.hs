@@ -12,6 +12,7 @@ module Type.Error
   , isInt
   , isFloat
   , isString
+  , isChar
   , isList
   )
   where
@@ -311,6 +312,11 @@ isFloat home name =
 isString :: ModuleName.Canonical -> N.Name -> Bool
 isString home name =
   home == ModuleName.string && name == N.string
+
+
+isChar :: ModuleName.Canonical -> N.Name -> Bool
+isChar home name =
+  home == ModuleName.char && name == N.char
 
 
 isMaybe :: ModuleName.Canonical -> N.Name -> Bool
