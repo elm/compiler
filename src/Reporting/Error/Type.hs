@@ -1372,7 +1372,7 @@ badAppendRight localizer category tipe expected =
           H.reflow $
             "The (++) operator cannot append these two values:"
         ,
-          typeComparison localizer tipe expected
+          typeComparison localizer expected tipe
             (
               "I already figured out that the left side of (++) is:"
             ,
