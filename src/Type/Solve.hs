@@ -501,8 +501,15 @@ unit1 =
 srcTypeToVariable :: Int -> Pools -> Map.Map N.Name () -> Can.Type -> IO Variable
 srcTypeToVariable rank pools freeVars srcType =
   let
+    nameToContent name
+      | N.startsWith "number"     name = FlexSuper Number (Just name)
+      | N.startsWith "comparable" name = FlexSuper Comparable (Just name)
+      | N.startsWith "appendable" name = FlexSuper Appendable (Just name)
+      | N.startsWith "compappend" name = FlexSuper CompAppend (Just name)
+      | otherwise                      = FlexVar (Just name)
+
     makeVar name _ =
-      UF.fresh (Descriptor (FlexVar (Just name)) rank noMark Nothing)
+      UF.fresh (Descriptor (nameToContent name) rank noMark Nothing)
   in
   do  flexVars <- Map.traverseWithKey makeVar freeVars
       MVector.modify pools (Map.elems flexVars ++) rank
