@@ -1613,8 +1613,9 @@ badCompLeft localizer category op direction tipe expected =
             ,H.dullyellow "Char" <> ","
             ,"and"
             ,H.dullyellow "String"
-            ,"values.","If","you","want","to","get","crazy,","it","will","work","on"
-            ,"lists","and","tuples","of","comparable","values","as","well."
+            ,"values.","It","can","work","on","lists","and","tuples"
+            ,"of","comparable","values","as","well,","but","it","is"
+            ,"usually","better","to","find","a","different","path."
             ]
         ]
       )
