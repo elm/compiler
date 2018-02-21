@@ -2,6 +2,8 @@
 module Reporting.Region
   ( Region(..)
   , Position(..)
+  , zero
+  , one
   , merge
   , encode
   )
@@ -35,6 +37,18 @@ data Position =
 merge :: Region -> Region -> Region
 merge (Region start _) (Region _ end) =
   Region start end
+
+
+{-# NOINLINE zero #-}
+zero :: Region
+zero =
+  Region (Position 0 0) (Position 0 0)
+
+
+{-# NOINLINE one #-}
+one :: Region
+one =
+  Region (Position 1 1) (Position 1 1)
 
 
 

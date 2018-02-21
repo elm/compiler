@@ -2,9 +2,8 @@
 {-# LANGUAGE BangPatterns, MagicHash, OverloadedStrings, UnboxedTuples #-}
 module Json.Decode
   ( parse
-  , Failure(..)
   -- re-export from Json.Decode.Internals
-  , Json.Decoder, Json.Error(..), Json.Type(..)
+  , Json.Decoder
   , Json.string, Json.text, Json.name, Json.bool, Json.int
   , Json.list, Json.dict, Json.pairs, Json.maybe
   , Json.field, Json.at
@@ -34,28 +33,30 @@ import qualified Parse.Primitives.Keyword as Keyword
 import qualified Parse.Primitives.Number as Number
 import qualified Parse.Primitives.Symbol as Symbol
 import qualified Reporting.Error.Syntax as E
+import qualified Reporting.Error.Json as J
+import qualified Reporting.Helpers as H
 import qualified Reporting.Region as R
+import qualified Reporting.Render.Code as Code
 
 
 
 -- PARSE
 
 
-data Failure e
-  = BadJson E.Error
-  | BadContent (Json.Error e)
-
-
-parse :: Json.Decoder e a -> B.ByteString -> Either (Failure e) a
-parse (Json.Decoder run) bytestring =
+parse :: FilePath -> String -> (e -> [H.Doc]) -> Json.Decoder e a -> B.ByteString -> Either H.Doc a
+parse path rootName userErrorToDocs (Json.Decoder run) bytestring =
+  let
+    toDoc err =
+      J.toDoc path rootName (Code.toSource (Text.decodeUtf8 bytestring)) userErrorToDocs err
+  in
   case P.run jsonFile bytestring of
     Left err ->
-      Left (BadJson err)
+      Left (toDoc (J.BadJson err))
 
     Right value ->
       case run value of
         Left err ->
-          Left (BadContent err)
+          Left (toDoc (J.BadContent err))
 
         Right answer ->
           Right answer

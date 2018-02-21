@@ -157,8 +157,8 @@ data Import =
 
 
 data Docs
-  = NoDocs R.Position R.Position
-  | YesDocs R.Position R.Position B.ByteString
+  = NoDocs R.Region
+  | YesDocs R.Region B.ByteString
 
 
 data Effects

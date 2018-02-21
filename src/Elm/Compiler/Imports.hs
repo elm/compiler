@@ -47,12 +47,7 @@ defaults =
 
 import_ :: Module.Canonical -> Maybe N.Name -> Src.Exposing -> Src.Import
 import_ (Module.Canonical _ name) maybeAlias exposing =
-  Src.Import (A.At zero name) maybeAlias exposing
-
-
-zero :: R.Region
-zero =
-  R.Region (R.Position 0 0) (R.Position 0 0)
+  Src.Import (A.At R.zero name) maybeAlias exposing
 
 
 
@@ -66,14 +61,14 @@ closed =
 
 typeOpen :: N.Name -> Src.Exposing
 typeOpen name =
-  Src.Explicit [ A.At zero (Src.Upper name Src.Public) ]
+  Src.Explicit [ A.At R.zero (Src.Upper name Src.Public) ]
 
 
 typeClosed :: N.Name -> Src.Exposing
 typeClosed name =
-  Src.Explicit [ A.At zero (Src.Upper name Src.Private) ]
+  Src.Explicit [ A.At R.zero (Src.Upper name Src.Private) ]
 
 
 operator :: N.Name -> Src.Exposing
 operator op =
-  Src.Explicit [ A.At zero (Src.Operator op) ]
+  Src.Explicit [ A.At R.zero (Src.Operator op) ]

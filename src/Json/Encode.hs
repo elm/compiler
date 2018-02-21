@@ -5,7 +5,7 @@ module Json.Encode
   , encode
   , writeUgly
   , encodeUgly
-  , Value
+  , Value(..)
   , array
   , object
   , text

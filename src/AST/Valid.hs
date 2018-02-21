@@ -112,9 +112,9 @@ defaultModule :: Map.Map N.Name Text -> [Src.Import] -> [A.Located Decl] -> [Uni
 defaultModule docs imports decls unions aliases binop =
   Module
     { _name     = "Main"
-    , _overview = Src.NoDocs zero zero
+    , _overview = Src.NoDocs R.one
     , _docs     = docs
-    , _exports  = A.at zero zero Src.Open
+    , _exports  = A.At R.one Src.Open
     , _imports  = imports
     , _decls    = decls
     , _unions   = unions
@@ -122,8 +122,3 @@ defaultModule docs imports decls unions aliases binop =
     , _binop    = binop
     , _effects  = NoEffects
     }
-
-
-zero :: R.Position
-zero =
-  R.Position 1 1

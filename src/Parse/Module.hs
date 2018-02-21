@@ -165,8 +165,8 @@ chompDocComment =
         [ do  doc <- W.docComment
               docEnd <- P.getPosition
               freshLine
-              return (Src.YesDocs nextStart docEnd doc)
-        , return (Src.NoDocs endOfExposing nextStart)
+              return (Src.YesDocs (R.Region nextStart docEnd) doc)
+        , return (Src.NoDocs (R.Region endOfExposing nextStart))
         ]
 
 

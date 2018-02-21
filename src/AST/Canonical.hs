@@ -240,10 +240,9 @@ data Ctor =
 
 
 data Docs
-  = NoDocs R.Position R.Position
+  = NoDocs R.Region
   | YesDocs
-      { _start :: R.Position
-      , _end :: R.Position
+      { _region :: R.Region
       , _overview :: B.ByteString
       , _comments :: Map.Map N.Name Text
       }

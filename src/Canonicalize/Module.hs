@@ -71,11 +71,11 @@ canonicalize pkg importDict interfaces module_@(Valid.Module name _ _ exports im
 toDocs :: Valid.Module -> Can.Docs
 toDocs (Valid.Module _ docs comments _ _ _ _ _ _ _) =
   case docs of
-    Src.NoDocs start end ->
-      Can.NoDocs start end
+    Src.NoDocs region ->
+      Can.NoDocs region
 
-    Src.YesDocs start end overview ->
-      Can.YesDocs start end overview comments
+    Src.YesDocs region overview ->
+      Can.YesDocs region overview comments
 
 
 

@@ -75,20 +75,14 @@ letPort name port_ makeConstraint =
     Can.Incoming freeVars _ srcType ->
       do  vars <- traverse (\_ -> mkFlexVar) freeVars
           tipe <- Instantiate.fromSrcType (Map.map VarN vars) srcType
-          let header = Map.singleton name (A.At zero tipe)
+          let header = Map.singleton name (A.At R.zero tipe)
           CLet (Map.elems vars) [] header CTrue <$> makeConstraint
 
     Can.Outgoing freeVars _ srcType ->
       do  vars <- traverse (\_ -> mkFlexVar) freeVars
           tipe <- Instantiate.fromSrcType (Map.map VarN vars) srcType
-          let header = Map.singleton name (A.At zero tipe)
+          let header = Map.singleton name (A.At R.zero tipe)
           CLet (Map.elems vars) [] header CTrue <$> makeConstraint
-
-
-{-# NOINLINE zero #-}
-zero :: R.Region
-zero =
-  R.Region (R.Position 0 0) (R.Position 0 0)
 
 
 
@@ -100,7 +94,7 @@ letCmd home tipe constraint =
   do  msgVar <- mkFlexVar
       let msg = VarN msgVar
       let cmdType = FunN (AppN home tipe [msg]) (AppN ModuleName.cmd N.cmd [msg])
-      let header = Map.singleton "command" (A.At zero cmdType)
+      let header = Map.singleton "command" (A.At R.zero cmdType)
       return $ CLet [msgVar] [] header CTrue constraint
 
 
@@ -109,7 +103,7 @@ letSub home tipe constraint =
   do  msgVar <- mkFlexVar
       let msg = VarN msgVar
       let subType = FunN (AppN home tipe [msg]) (AppN ModuleName.sub N.sub [msg])
-      let header = Map.singleton "subscription" (A.At zero subType)
+      let header = Map.singleton "subscription" (A.At R.zero subType)
       return $ CLet [msgVar] [] header CTrue constraint
 
 
@@ -181,7 +175,7 @@ checkMap name home tipe constraint =
   do  a <- mkFlexVar
       b <- mkFlexVar
       let mapType = toMapType home tipe (VarN a) (VarN b)
-      let mapCon = CLocal zero name (E.NoExpectation mapType)
+      let mapCon = CLocal R.zero name (E.NoExpectation mapType)
       return $ CLet [a,b] [] Map.empty mapCon constraint
 
 

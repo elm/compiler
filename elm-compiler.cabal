@@ -121,6 +121,7 @@ Library
         Reporting.Error,
         Reporting.Error.Canonicalize,
         Reporting.Error.Docs,
+        Reporting.Error.Json,
         Reporting.Error.Main,
         Reporting.Error.Pattern,
         Reporting.Error.Syntax,

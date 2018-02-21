@@ -12,7 +12,7 @@ module Reporting.Helpers
   , nearbyNames, distance
   -- re-exports
   , Doc, (<+>), (<>), black, blue, cat, dullyellow, fillSep, green, hang
-  , hardline, hcat, hsep, indent, magenta, parens, sep, text, underline, vcat
+  , hardline, hcat, hsep, indent, magenta, parens, red, sep, text, underline, vcat
   )
   where
 
