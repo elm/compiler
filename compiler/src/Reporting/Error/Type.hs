@@ -478,7 +478,7 @@ problemToHint problem =
         T.FlexSuper s _  -> badFlexFlexSuper super s
         T.RigidVar y     -> badRigidVar y (toASuperThing super)
         T.RigidSuper s _ -> badRigidSuper s (toASuperThing super)
-        T.Type h n _     -> badFlexSuper super tipe
+        T.Type _ _ _     -> badFlexSuper super tipe
         T.Record _ _     -> badFlexSuper super tipe
         T.Unit           -> badFlexSuper super tipe
         T.Tuple _ _ _    -> badFlexSuper super tipe
