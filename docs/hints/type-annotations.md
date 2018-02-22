@@ -58,9 +58,3 @@ This case is very unfortunate because all the type annotations are correct, but 
 
 For now the best route is to leave off the inner annotation. It is unfortunate, and hopefully we will be able to do a nicer thing in future releases.
 
-
-
-
-
-
-
