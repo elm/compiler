@@ -1,16 +1,14 @@
 #!/bin/sh
 # Run the following command to create an installer:
 #
-#     bash make-installer.sh 0.13
+#     bash make-installer.sh
 #
-# This will work iff the version you give is defined in BuildFromSource.hs
+
 
 
 #### SETUP ####
 
 set -e
-
-version=$1
 
 # Create directory structure for new pkgs
 pkg_root=$(mktemp -d -t package-artifacts)
@@ -23,20 +21,10 @@ mkdir -p $pkg_scripts
 usr_binaries=/usr/local/bin
 
 
-#### BUILD ELM PLATFORM ####
+#### BUILD ASSETS ####
 
-runhaskell ../BuildFromSource.hs $version
-
-platform=Elm-Platform/$version
-
-
-#### COPY BINARIES ####
-
-# Copy executables into pkg_binaries directory
-for exe in elm elm-package elm-make elm-repl elm-reactor
-do
-    cp $platform/.cabal-sandbox/bin/$exe $pkg_binaries/$exe
-done
+(cd ../.. ; cabal sandbox init ; cabal install)
+cp ../../.cabal-sandbox/bin/elm $pkg_binaries/elm
 
 cp $(pwd)/preinstall $pkg_scripts
 cp $(pwd)/postinstall $pkg_scripts
@@ -50,15 +38,15 @@ pkgbuild \
     binaries.pkg
 
 
-#### CREATE PACKAGE ####
+#### BUNDLE ASSETS ####
 
-rm -f Elm-Platform-$version.pkg
+rm -f Elm-Platform.pkg
 
 productbuild \
     --distribution Distribution.xml \
     --package-path . \
     --resources Resources \
-    Elm-Platform-$version.pkg
+    Elm-Platform.pkg
 
 
 #### CLEAN UP ####
