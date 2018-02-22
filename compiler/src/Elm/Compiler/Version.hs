@@ -2,7 +2,7 @@
 module Elm.Compiler.Version (version) where
 
 import qualified Data.Version as Version
-import qualified Paths_elm_compiler as This
+import qualified Paths_elm
 import Elm.Package (Version(Version))
 
 
@@ -12,7 +12,7 @@ import Elm.Package (Version(Version))
 
 version :: Version
 version =
-  case map fromIntegral (Version.versionBranch This.version) of
+  case map fromIntegral (Version.versionBranch Paths_elm.version) of
     major : minor : patch : _ ->
         Version major minor patch
 

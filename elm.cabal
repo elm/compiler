@@ -41,14 +41,15 @@ Executable elm
         ghc-options: -O2 -fsimpl-tick-factor=200
 
     Hs-Source-Dirs:
-        compiler/src
         builder/src
-        cli/src
+        compiler/src
+        terminal/src
 
     Main-Is:
         Main.hs
 
-    exposed-modules:
+    other-modules:
+        -- shared from compiler/
         Elm.Compiler,
         Elm.Compiler.Module,
         Elm.Compiler.Objects,
@@ -60,9 +61,8 @@ Executable elm
         Elm.Package,
         Elm.Utils,
         Json.Decode,
-        Json.Encode
-
-    other-modules:
+        Json.Encode,
+        -- private from compiler/
         AST.Canonical,
         AST.Optimized,
         AST.Source,
@@ -145,7 +145,7 @@ Executable elm
         Type.Unify,
         Type.UnionFind,
         Validate,
-        Paths_elm_compiler
+        Paths_elm
 
     Build-depends:
         ansi-terminal >= 0.7 && < 0.8,
