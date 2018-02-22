@@ -1,4 +1,0 @@
-
-s = " " "
-
-main = plainText s
