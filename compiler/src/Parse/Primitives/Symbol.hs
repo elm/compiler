@@ -21,7 +21,7 @@ import Foreign.ForeignPtr (ForeignPtr)
 import GHC.Word (Word8)
 
 import qualified Elm.Name as N
-import Parse.Primitives.Internals (Parser(..), State(..), expect, noError, oneOf)
+import Parse.Primitives.Internals (Parser(..), State(..), expect, noError)
 import qualified Parse.Primitives.Internals as I
 import qualified Parse.Primitives.Variable as Var
 import qualified Reporting.Error.Syntax as E
@@ -184,7 +184,7 @@ minus =
 {-# NOINLINE lambda #-}
 lambda :: Parser ()
 lambda =
-  oneOf [ symbol "\\", symbol "\x03BB" ]
+  symbol "\\"
 
 
 
