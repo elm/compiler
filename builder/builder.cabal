@@ -1,0 +1,123 @@
+Name: builder
+Version: 0.19.0
+
+Synopsis:
+    Library to download and build Elm projects
+Description:
+    Solves dependencies, crawls Elm files, parallelizes downloads,
+    parallelizes compilation, reports coherent errors, etc.
+
+Homepage:
+    http://github.com/evancz/builder
+
+License: BSD3
+License-file: LICENSE
+
+Author:     Evan Czaplicki
+Maintainer: info@elm-lang.org
+Copyright:  Copyright: (c) 2013-present Evan Czaplicki
+
+Category: Language
+
+Build-type: Simple
+Cabal-version: >=1.9
+
+source-repository head
+    type:     git
+    location: git://github.com/evancz/builder.git
+
+Flag dev {
+    Description: Turn off optimization and make warnings errors
+    Default: False
+}
+
+
+Library
+    if flag(dev)
+        ghc-options: -O0 -Wall -Werror
+    else
+        ghc-options: -threaded -O2 -fsimpl-tick-factor=140
+
+    Hs-Source-Dirs:
+        src
+
+    exposed-modules:
+        Elm.Bump,
+        Elm.Diff,
+        Elm.Install,
+        Elm.PerUserCache,
+        Elm.Project,
+        Elm.Project.Constraint,
+        Elm.Project.Flags,
+        Elm.Project.Json,
+        Elm.Project.Licenses,
+        Elm.Publish,
+        File.IO,
+        Reporting.Progress.Repl,
+        Reporting.Progress.Terminal,
+        Reporting.Task
+
+    other-modules:
+        Deps.Diff,
+        Deps.Explorer,
+        Deps.Get,
+        Deps.Solver,
+        Deps.Verify,
+        Deps.Website,
+        Elm.Project.Root,
+        Elm.Project.Summary,
+        File.Args,
+        File.Artifacts,
+        File.Compile,
+        File.Crawl,
+        File.Find,
+        File.Hash,
+        File.Header,
+        File.Plan,
+        Generate.Functions,
+        Generate.Output,
+        Reporting.Error,
+        Reporting.Error.Assets,
+        Reporting.Error.Bump,
+        Reporting.Error.Compile,
+        Reporting.Error.Crawl,
+        Reporting.Error.Deps,
+        Reporting.Error.Diff,
+        Reporting.Error.Help,
+        Reporting.Error.Http,
+        Reporting.Error.Publish,
+        Reporting.Progress,
+        Reporting.Progress.Bar,
+        Reporting.Task.Http,
+        Stuff.Paths,
+        Stuff.Verify
+
+    Build-depends:
+        ansi-wl-pprint >= 0.6.7.3,
+        base >=4.2 && <5,
+        binary >= 0.8 && < 0.9,
+        blaze-html,
+        blaze-markup,
+        containers >= 0.3 && < 0.6,
+        bytestring >= 0.9 && < 0.11,
+        directory >= 1.2.3.0 && < 2.0,
+        elm-compiler == 0.19.0,
+        filepath >= 1 && < 2.0,
+        fsnotify >= 0.2.1,
+        HTTP >= 4000.2.5 && < 4000.4,
+        http-client >= 0.5 && < 0.6,
+        http-client-tls >= 0.3 && < 0.4,
+        http-types >= 0.9 && < 1.0,
+        logict,
+        mtl >= 2.2.1 && < 3,
+        pretty,
+        process,
+        raw-strings-qq,
+        scientific,
+        semigroups,
+        SHA,
+        text,
+        time,
+        unordered-containers,
+        vector,
+        zip-archive
