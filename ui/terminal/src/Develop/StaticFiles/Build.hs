@@ -25,7 +25,7 @@ import qualified Reporting.Progress.Terminal as Terminal
 
 readAsset :: FilePath -> IO BS.ByteString
 readAsset path =
-  BS.readFile ("ui" </> "assets" </> path)
+  BS.readFile ("ui" </> "browser" </> "assets" </> path)
 
 
 
