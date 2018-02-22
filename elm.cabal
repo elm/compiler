@@ -41,14 +41,81 @@ Executable elm
         ghc-options: -O2 -fsimpl-tick-factor=200
 
     Hs-Source-Dirs:
-        builder/src
         compiler/src
-        terminal/src
+        builder/src
+        ui/terminal/src
 
     Main-Is:
         Main.hs
 
     other-modules:
+        Bump
+        CommandLine.Args
+        CommandLine.Args.Internal
+        Develop
+        Develop.Compile
+        Develop.Generate.Help
+        Develop.Generate.Index
+        Develop.Generate.NotFound
+        Develop.StaticFiles
+        Develop.StaticFiles.Build
+        Diff
+        Install
+        Make
+        Publish
+        Repl
+
+        -- shared from builder/
+        Elm.Bump,
+        Elm.Diff,
+        Elm.Install,
+        Elm.PerUserCache,
+        Elm.Project,
+        Elm.Project.Constraint,
+        Elm.Project.Flags,
+        Elm.Project.Json,
+        Elm.Project.Licenses,
+        Elm.Publish,
+        File.IO,
+        Reporting.Progress.Repl,
+        Reporting.Progress.Terminal,
+        Reporting.Task,
+
+        -- private from builder/
+        Deps.Diff,
+        Deps.Explorer,
+        Deps.Get,
+        Deps.Solver,
+        Deps.Verify,
+        Deps.Website,
+        Elm.Project.Root,
+        Elm.Project.Summary,
+        File.Args,
+        File.Artifacts,
+        File.Compile,
+        File.Crawl,
+        File.Find,
+        File.Hash,
+        File.Header,
+        File.Plan,
+        Generate.Functions,
+        Generate.Output,
+        Reporting.Error2,
+        Reporting.Error.Assets,
+        Reporting.Error.Bump,
+        Reporting.Error.Compile,
+        Reporting.Error.Crawl,
+        Reporting.Error.Deps,
+        Reporting.Error.Diff,
+        Reporting.Error.Help,
+        Reporting.Error.Http,
+        Reporting.Error.Publish,
+        Reporting.Progress,
+        Reporting.Progress.Bar,
+        Reporting.Task.Http,
+        Stuff.Paths,
+        Stuff.Verify,
+
         -- shared from compiler/
         Elm.Compiler,
         Elm.Compiler.Module,
@@ -62,6 +129,7 @@ Executable elm
         Elm.Utils,
         Json.Decode,
         Json.Encode,
+
         -- private from compiler/
         AST.Canonical,
         AST.Optimized,
