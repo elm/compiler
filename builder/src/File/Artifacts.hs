@@ -25,7 +25,7 @@ import qualified Json.Encode as Encode
 
 import File.Compile (Answer(..))
 import qualified Reporting.Error.Compile as E
-import qualified Reporting.Error as Error
+import qualified Reporting.Error2 as Error
 import qualified Reporting.Task as Task
 import qualified Stuff.Paths as Path
 

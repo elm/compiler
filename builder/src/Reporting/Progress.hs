@@ -16,7 +16,7 @@ import Control.Concurrent.MVar (MVar, readMVar)
 import qualified Elm.Compiler.Module as Module
 import Deps.Diff (Magnitude)
 import Elm.Package (Name, Version)
-import Reporting.Error (Error)
+import Reporting.Error2 (Error)
 
 
 

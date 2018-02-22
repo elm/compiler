@@ -36,7 +36,7 @@ import qualified File.Compile as Compile
 import qualified File.Crawl as Crawl
 import qualified File.IO as IO
 import qualified File.Plan as Plan
-import qualified Reporting.Error as Error
+import qualified Reporting.Error2 as Error
 import qualified Reporting.Error.Deps as E
 import qualified Reporting.Progress as Progress
 import qualified Reporting.Task as Task

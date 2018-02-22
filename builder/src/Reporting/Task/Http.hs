@@ -24,7 +24,7 @@ import qualified Network.HTTP.Client as Http
 
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Package as Pkg
-import qualified Reporting.Error as Error
+import qualified Reporting.Error2 as Error
 import qualified Reporting.Error.Http as E
 import qualified Reporting.Progress as Progress
 import qualified Reporting.Task as Task

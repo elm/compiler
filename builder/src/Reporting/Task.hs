@@ -31,7 +31,7 @@ import qualified System.IO as IO
 import Elm.Package (Name, Version)
 import qualified Elm.Package as Pkg
 import qualified Elm.PerUserCache as PerUserCache
-import qualified Reporting.Error as Error
+import qualified Reporting.Error2 as Error
 import qualified Reporting.Progress as Progress
 
 

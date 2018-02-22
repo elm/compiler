@@ -9,7 +9,7 @@ import Control.Concurrent (forkIO)
 import Control.Concurrent.Chan (Chan, newChan, readChan)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar)
 
-import qualified Reporting.Error as Error
+import qualified Reporting.Error2 as Error
 import qualified Reporting.Progress as Progress
 
 

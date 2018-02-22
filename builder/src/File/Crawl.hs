@@ -29,7 +29,7 @@ import qualified File.Args as Args
 import qualified File.Find as Find
 import qualified File.Header as Header
 import qualified File.IO as IO
-import qualified Reporting.Error as Error
+import qualified Reporting.Error2 as Error
 import qualified Reporting.Error.Crawl as E
 import qualified Reporting.Task as Task
 

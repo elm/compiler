@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Reporting.Error
+module Reporting.Error2
   ( Error(..)
   , toString
   , toStderr

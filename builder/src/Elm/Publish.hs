@@ -22,7 +22,7 @@ import qualified Elm.Package as Pkg
 import qualified Elm.Project as Project
 import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Summary as Summary
-import qualified Reporting.Error as Error
+import qualified Reporting.Error2 as Error
 import qualified Reporting.Error.Publish as E
 import qualified Reporting.Progress as Progress
 import qualified Reporting.Task as Task

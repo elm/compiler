@@ -20,7 +20,7 @@ import Elm.Project.Json (Project(..), PkgInfo(..))
 import Elm.Project.Summary (Summary)
 import qualified Elm.PerUserCache as PerUserCache
 import qualified File.IO as IO
-import qualified Reporting.Error as Error
+import qualified Reporting.Error2 as Error
 import qualified Reporting.Task as Task
 import qualified Stuff.Verify as Verify
 import qualified Json.Encode as Encode

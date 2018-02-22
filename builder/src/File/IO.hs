@@ -30,7 +30,7 @@ import qualified System.FilePath as FP
 import qualified System.IO as IO
 import System.IO.Error (ioeGetErrorType, annotateIOError, modifyIOError)
 
-import qualified Reporting.Error as Error
+import qualified Reporting.Error2 as Error
 import qualified Reporting.Error.Assets as E
 import qualified Reporting.Task as Task
 

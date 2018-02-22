@@ -25,7 +25,7 @@ import qualified Elm.Project.Json as Project
 import Elm.Project.Json (Project)
 import Elm.Project.Summary (Summary(..))
 import qualified File.IO as IO
-import qualified Reporting.Error as Error
+import qualified Reporting.Error2 as Error
 import qualified Reporting.Error.Crawl as E
 import qualified Reporting.Task as Task
 

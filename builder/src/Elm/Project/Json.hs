@@ -41,7 +41,7 @@ import qualified Elm.Project.Constraint as Con
 import qualified Elm.Project.Licenses as Licenses
 import qualified Json.Decode as D
 import qualified Json.Encode as E
-import qualified Reporting.Error as Error
+import qualified Reporting.Error2 as Error
 import qualified Reporting.Error.Assets as E
 import qualified Reporting.Task as Task
 
