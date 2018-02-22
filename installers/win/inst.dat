@@ -1,0 +1,11 @@
+SetOutPath "$INSTDIR\bin"
+File "${FILES_SOURCE_PATH}\bin\elm.exe"
+File "${FILES_SOURCE_PATH}\bin\elm-make.exe"
+File "${FILES_SOURCE_PATH}\bin\elm-package.exe"
+File "${FILES_SOURCE_PATH}\bin\elm-repl.exe"
+File "${FILES_SOURCE_PATH}\bin\elm-reactor.exe"
+
+SetOutPath "$INSTDIR"
+File "file.ico"
+File "updatepath.vbs"
+File "removefrompath.vbs"
