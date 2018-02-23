@@ -16,8 +16,8 @@ module Elm.Compiler.Type
 
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import qualified Text.PrettyPrint as P
-import Text.PrettyPrint ((<+>))
+import qualified Text.PrettyPrint.ANSI.Leijen as P
+import Text.PrettyPrint.ANSI.Leijen ((<+>))
 
 import qualified AST.Source as Src
 import qualified Elm.Name as N
@@ -63,15 +63,12 @@ data Format = OneLine | MultiLine
 
 toString :: Format -> Type -> String
 toString format tipe =
-  let
-    mode =
-      case format of
-        OneLine ->
-          P.OneLineMode
-        MultiLine ->
-          P.PageMode
-  in
-    P.renderStyle (P.Style mode 80 1.0) (toDoc None tipe)
+  case format of
+    OneLine ->
+      P.displayS (P.renderPretty 1.0 maxBound (toDoc None tipe)) ""
+
+    MultiLine ->
+      P.displayS (P.renderPretty 1.0 80 (toDoc None tipe)) ""
 
 
 data Context = None | InType | InFunction
@@ -114,11 +111,11 @@ toDoc context tipe =
 
           _ ->
             let
+              docName =
+                P.text (N.toString name)
+
               application =
-                P.hang
-                    (P.text (N.toString name))
-                    2
-                    (P.sep $ map (toDoc InType) args)
+                P.hang 2 $ P.sep (docName : map (toDoc InType) args)
             in
               case context of
                 InType ->
@@ -139,14 +136,12 @@ toDoc context tipe =
             ]
 
         Just x ->
-          P.hang
-              ("{" <+> P.text (N.toString x) <+> "|")
-              4
-              (P.sep
-                [ P.sep (P.punctuate "," (map entryToDoc fields))
-                , "}"
-                ]
-              )
+          P.hang 4 $
+            P.sep
+              [ "{" <+> P.text (N.toString x) <+> "|"
+              , P.sep (P.punctuate "," (map entryToDoc fields))
+              , "}"
+              ]
 
 
 entryToDoc :: (N.Name, Type) -> P.Doc
