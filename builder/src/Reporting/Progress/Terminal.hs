@@ -215,19 +215,19 @@ makeBullet name version outcome =
 goodMark :: P.Doc
 goodMark =
   P.green $ P.text $
-    if System.os == "windows" then "+" else "●"
+    if System.os == "mingw32" then "+" else "●"
 
 
 badMark :: P.Doc
 badMark =
   P.red $ P.text $
-    if System.os == "windows" then "X" else "✗"
+    if System.os == "mingw32" then "X" else "✗"
 
 
 waitingMark :: P.Doc
 waitingMark =
   P.dullyellow $ P.text $
-    if System.os == "windows" then "-" else "→"
+    if System.os == "mingw32" then "-" else "→"
 
 
 
