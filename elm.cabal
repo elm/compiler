@@ -255,6 +255,4 @@ Executable elm
         unordered-containers,
         utf8-string,
         vector,
-        websockets,
-        websockets-snap,
         zip-archive
