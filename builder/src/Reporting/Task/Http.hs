@@ -136,7 +136,7 @@ runHelp chan manager tell fetch =
 
 packageDomain :: String
 packageDomain =
-  "http://localhost:8000"
+  "http://159.89.227.162:8000"
 
 
 makePackageUrl :: String -> [(String,String)] -> String
