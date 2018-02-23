@@ -268,7 +268,7 @@ githubCommit :: Name -> Version -> Task.Task String
 githubCommit name version =
   let
     endpoint =
-      "https://api.github.com/repos/" ++ Pkg.toUrl name ++ "/git/refs/tags/temp-" ++ Pkg.versionToString version
+      "https://api.github.com/repos/" ++ Pkg.toUrl name ++ "/git/refs/tags/alpha-" ++ Pkg.versionToString version
 
     headers =
       [ ( Http.hUserAgent, "elm-cli" )
@@ -297,7 +297,7 @@ githubDownload :: Name -> Version -> FilePath -> Task.Task Sha
 githubDownload name version dir =
   let
     endpoint =
-      "https://github.com/" ++ Pkg.toUrl name ++ "/zipball/temp-" ++ Pkg.versionToString version ++ "/"
+      "https://github.com/" ++ Pkg.toUrl name ++ "/zipball/alpha-" ++ Pkg.versionToString version ++ "/"
   in
     Http.run $ Http.anything endpoint $ \request manager ->
       Client.withResponse request manager (githubDownloadHelp dir)

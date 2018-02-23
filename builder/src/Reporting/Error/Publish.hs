@@ -184,8 +184,8 @@ toReport err =
             , "To tag the most recent commit and push it to GitHub, run this:"
             ]
         , P.indent 4 $ P.dullyellow $ P.vcat $ map P.text $
-            [ "git tag -a " ++ vsn ++ " -m \"release version " ++ vsn ++ "\""
-            , "git push origin " ++ vsn
+            [ "git tag -a alpha-" ++ vsn ++ " -m \"preparing for Elm 0.19\""
+            , "git push origin alpha-" ++ vsn
             ]
         , "The -m flag is for a helpful message. Try to make it more informative!"
         ]
