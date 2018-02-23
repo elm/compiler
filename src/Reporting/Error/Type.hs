@@ -658,7 +658,7 @@ toExprReport source localizer exprRegion category tipe expected =
           H.reflow $
             case subContext of
               TypedIfBranch index ->
-                "Something is off with the " <> H.ordinalize (Index.toHuman index) <> " branch of this `if` experssion:"
+                "Something is off with the " <> H.ordinalize (Index.toHuman index) <> " branch of this `if` expression:"
 
               TypedCaseBranch index ->
                 "Something is off with the " <> H.ordinalize (Index.toHuman index) <> " branch of this `case` expression:"
