@@ -69,7 +69,7 @@ compile flag pkg importDict interfaces source =
         Optimize.optimize annotations canonical
 
       documentation <-
-        genaretaDocs flag canonical
+        genarateDocs flag canonical
 
       Result.ok $
         Artifacts
@@ -114,8 +114,8 @@ exhaustivenessCheck canonical =
 data DocsFlag = YesDocs | NoDocs
 
 
-genaretaDocs :: DocsFlag -> Can.Module -> Result.Result i w Error.Error (Maybe Docs.Module)
-genaretaDocs flag modul =
+genarateDocs :: DocsFlag -> Can.Module -> Result.Result i w Error.Error (Maybe Docs.Module)
+genarateDocs flag modul =
   case flag of
     NoDocs ->
       Result.ok Nothing
