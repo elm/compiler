@@ -6,7 +6,8 @@ import qualified Elm.Package.Solution as S
 import qualified Elm.Package as Package
 
 
-data Plan = Plan
+data Plan =
+  Plan
     { installs :: Map.Map Package.Name Package.Version
     , upgrades :: Map.Map Package.Name (Package.Version, Package.Version)
     , removals :: Map.Map Package.Name Package.Version
@@ -15,7 +16,7 @@ data Plan = Plan
 
 create :: S.Solution -> S.Solution -> Plan
 create old new =
-    Plan
+  Plan
     { installs = Map.difference new old
     , upgrades = discardNoOps (Map.intersectionWith (,) old new)
     , removals = Map.difference old new
