@@ -77,8 +77,7 @@ compileForRepl source maybeName =
 
 generateDocs :: Summary.Summary -> Task.Task Docs.Documentation
 generateDocs summary@(Summary.Summary root project _ _ _) =
-  do  Path.removeStuff root
-      args <- Args.fromSummary summary
+  do  args <- Args.fromSummary summary
       graph <- Crawl.crawl summary args
       (dirty, ifaces) <- Plan.plan summary graph
       answers <- Compile.compile project ifaces dirty
