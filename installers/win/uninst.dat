@@ -1,0 +1,11 @@
+Delete "$INSTDIR\bin\elm.exe"
+Delete "$INSTDIR\bin\elm-make.exe"
+Delete "$INSTDIR\bin\elm-package.exe"
+Delete "$INSTDIR\bin\elm-repl.exe"
+Delete "$INSTDIR\bin\elm-reactor.exe"
+RmDir "$INSTDIR\bin"
+
+Delete "$INSTDIR\file.ico"
+Delete "$INSTDIR\updatepath.vbs"
+Delete "$INSTDIR\removefrompath.vbs"
+RmDir "$INSTDIR"

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<installer-script minSpecVersion="1.000000" authoringTool="com.apple.PackageMaker" authoringToolVersion="3.0.6" authoringToolBuild="201">
+    <title>Elm Platform</title>
+    <options customize="allow" allow-external-scripts="no"/>
+    <domains enable_localSystem="true"/>
+    <volume-check script="pm_volume_check();"/>
+    <script>
+
+
+function pm_volume_check() {
+  if(!(my.target.systemVersion &amp;&amp; /* >= */ system.compareVersions(my.target.systemVersion.ProductVersion, '10.6.0') >= 0)) {
+    my.result.title = 'Failure';
+    my.result.message = 'This version of Elm Platform requires Mac OS X 10.6 or later.';
+    my.result.type = 'Fatal';
+    return false;
+  }
+  return true;
+}
+
+</script>
+    <background file="background.png" alignment="bottomleft" scaling="none" mime-type="image/png"/>
+    <welcome mime-type="text/rtf" file="welcome.rtf" />
+    <conclusion mime-type="text/rtf" file="conclusion.rtf" />
+    <choices-outline>
+        <line choice="choice2"/>
+    </choices-outline>
+    <choice id="choice2" title="Elm Platform ">
+        <pkg-ref id="org.elm-lang.binaries.pkg"/>
+    </choice>
+    <pkg-ref id="org.elm-lang.binaries.pkg" installKBytes="19444" version="1" auth="Root">binaries.pkg</pkg-ref>
+</installer-script>

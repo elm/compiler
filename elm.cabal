@@ -1,0 +1,258 @@
+
+Name: elm
+Version: 0.19.0
+
+Synopsis:
+    The `elm` command line interface.
+
+Description:
+    This includes commands like `elm make`, `elm repl`, and many others
+    for helping make Elm developers happy and productive.
+
+Homepage: http://elm-lang.org
+
+License: BSD3
+License-file: LICENSE
+
+Author:     Evan Czaplicki
+Maintainer: info@elm-lang.org
+Copyright:  Copyright (c) 2011-present, Evan Czaplicki
+
+Category: Compiler, Language
+
+Cabal-version: >=1.9
+Build-type: Simple
+
+source-repository head
+    type:     git
+    location: git://github.com/elm-lang/elm-compiler.git
+
+
+Flag dev {
+  Description: Turn off optimization and make warnings errors
+  Default: False
+}
+
+
+Executable elm
+    if flag(dev)
+        ghc-options: -O0 -Wall -Werror
+    else
+        ghc-options: -O2 -fsimpl-tick-factor=200
+
+    Hs-Source-Dirs:
+        compiler/src
+        builder/src
+        ui/terminal/src
+
+    other-extensions:
+        TemplateHaskell
+
+    Main-Is:
+        Main.hs
+
+    other-modules:
+        Bump
+        CommandLine.Args
+        CommandLine.Args.Internal
+        Develop
+        Develop.Compile
+        Develop.Generate.Help
+        Develop.Generate.Index
+        Develop.Generate.NotFound
+        Develop.StaticFiles
+        Develop.StaticFiles.Build
+        Diff
+        Install
+        Make
+        Publish
+        Repl
+
+        -- shared from builder/
+        Elm.Bump,
+        Elm.Diff,
+        Elm.Install,
+        Elm.PerUserCache,
+        Elm.Project,
+        Elm.Project.Constraint,
+        Elm.Project.Flags,
+        Elm.Project.Json,
+        Elm.Project.Licenses,
+        Elm.Publish,
+        File.IO,
+        Reporting.Progress.Repl,
+        Reporting.Progress.Terminal,
+        Reporting.Task,
+
+        -- private from builder/
+        Deps.Diff,
+        Deps.Explorer,
+        Deps.Get,
+        Deps.Solver,
+        Deps.Verify,
+        Deps.Website,
+        Elm.Project.Root,
+        Elm.Project.Summary,
+        File.Args,
+        File.Artifacts,
+        File.Compile,
+        File.Crawl,
+        File.Find,
+        File.Hash,
+        File.Header,
+        File.Plan,
+        Generate.Functions,
+        Generate.Output,
+        Reporting.Error2,
+        Reporting.Error.Assets,
+        Reporting.Error.Bump,
+        Reporting.Error.Compile,
+        Reporting.Error.Crawl,
+        Reporting.Error.Deps,
+        Reporting.Error.Diff,
+        Reporting.Error.Help,
+        Reporting.Error.Http,
+        Reporting.Error.Publish,
+        Reporting.Progress,
+        Reporting.Progress.Bar,
+        Reporting.Task.Http,
+        Stuff.Paths,
+        Stuff.Verify,
+
+        -- shared from compiler/
+        Elm.Compiler,
+        Elm.Compiler.Module,
+        Elm.Compiler.Objects,
+        Elm.Compiler.Type,
+        Elm.Docs,
+        Elm.Kernel,
+        Elm.Header,
+        Elm.Name,
+        Elm.Package,
+        Elm.Utils,
+        Json.Decode,
+        Json.Encode,
+
+        -- private from compiler/
+        AST.Canonical,
+        AST.Optimized,
+        AST.Source,
+        AST.Module.Name,
+        AST.Utils.Binop,
+        AST.Utils.Shader,
+        AST.Utils.Type,
+        AST.Valid,
+        Canonicalize.Effects,
+        Canonicalize.Environment,
+        Canonicalize.Environment.Dups,
+        Canonicalize.Environment.Foreign,
+        Canonicalize.Environment.Local,
+        Canonicalize.Expression,
+        Canonicalize.Module,
+        Canonicalize.Pattern,
+        Canonicalize.Type,
+        Compile,
+        Data.Bag,
+        Data.Index,
+        Data.OneOrMore,
+        Elm.Compiler.Imports,
+        Elm.Compiler.Type.Extract,
+        Elm.Compiler.Version,
+        Elm.Interface,
+        Generate.JavaScript,
+        Generate.JavaScript.Builder,
+        Generate.JavaScript.Expression,
+        Generate.JavaScript.Name,
+        Json.Decode.Internals,
+        Nitpick.PatternMatches,
+        Optimize.Case,
+        Optimize.DecisionTree,
+        Optimize.Expression,
+        Optimize.Module,
+        Optimize.Names,
+        Optimize.Port,
+        Parse.Declaration,
+        Parse.Expression,
+        Parse.Module,
+        Parse.Parse,
+        Parse.Pattern,
+        Parse.Primitives,
+        Parse.Primitives.Internals,
+        Parse.Primitives.Kernel,
+        Parse.Primitives.Keyword,
+        Parse.Primitives.Number,
+        Parse.Primitives.Shader,
+        Parse.Primitives.Symbol,
+        Parse.Primitives.Utf8,
+        Parse.Primitives.Variable,
+        Parse.Primitives.Whitespace,
+        Parse.Repl,
+        Parse.Shader,
+        Parse.Type,
+        Reporting.Annotation,
+        Reporting.Error,
+        Reporting.Error.Canonicalize,
+        Reporting.Error.Docs,
+        Reporting.Error.Json,
+        Reporting.Error.Main,
+        Reporting.Error.Pattern,
+        Reporting.Error.Syntax,
+        Reporting.Error.Type,
+        Reporting.Helpers,
+        Reporting.Region,
+        Reporting.Render.Code,
+        Reporting.Render.Type,
+        Reporting.Report,
+        Reporting.Result,
+        Reporting.Warning,
+        Type.Constrain.Expression,
+        Type.Constrain.Module,
+        Type.Constrain.Pattern,
+        Type.Error,
+        Type.Instantiate,
+        Type.Occurs,
+        Type.Solve,
+        Type.Type,
+        Type.Unify,
+        Type.UnionFind,
+        Validate,
+        Paths_elm
+
+    Build-depends:
+        ansi-terminal >= 0.7 && < 0.8,
+        ansi-wl-pprint >= 0.6.7 && < 0.7,
+        base >=4.8 && <5,
+        binary >= 0.8 && < 0.9,
+        blaze-html,
+        blaze-markup,
+        bytestring >= 0.9 && < 0.11,
+        containers >= 0.5.8.2 && < 0.6,
+        directory >= 1.2.3.0 && < 2.0,
+        edit-distance >= 0.2 && < 0.3,
+        file-embed,
+        filepath >= 1 && < 2.0,
+        ghc-prim,
+        haskeline,
+        HTTP >= 4000.2.5 && < 4000.4,
+        http-client >= 0.5 && < 0.6,
+        http-client-tls >= 0.3 && < 0.4,
+        http-types >= 0.9 && < 1.0,
+        language-glsl >= 0.0.2 && < 0.3,
+        logict,
+        mtl >= 2.2.1 && < 3,
+        network >= 2.4 && < 2.7,
+        parsec,
+        process,
+        raw-strings-qq,
+        scientific,
+        semigroups,
+        SHA,
+        snap-core,
+        snap-server,
+        template-haskell,
+        text >= 1 && < 2,
+        time,
+        unordered-containers,
+        utf8-string,
+        vector,
+        zip-archive
