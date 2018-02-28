@@ -1,0 +1,1 @@
+echo "The npm installation of Elm did not complete successfully! Please try reinstalling Elm through npm. If you still see this message even after reinstalling, please file a bug at https://github.com/elm-lang/elm-platform/issues to let us know. You can find manual installers at http://elm-lang.org/install"

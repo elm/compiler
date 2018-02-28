@@ -1,0 +1,22 @@
+{
+    "type": "browser",
+    "source-directories": [
+        "src"
+    ],
+    "elm-version": "0.19.0",
+    "dependencies": {
+        "elm-explorations/markdown": "1.0.0",
+        "elm-lang/core": "6.0.0",
+        "elm-lang/html": "3.0.0",
+        "elm-lang/http": "2.0.0",
+        "elm-lang/json": "1.0.0",
+        "elm-lang/project-metadata-utils": "1.0.0",
+        "elm-lang/svg": "3.0.0"
+    },
+    "test-dependencies": {},
+    "do-not-edit-this-by-hand": {
+        "transitive-dependencies": {
+            "elm-lang/virtual-dom": "3.0.0"
+        }
+    }
+}
