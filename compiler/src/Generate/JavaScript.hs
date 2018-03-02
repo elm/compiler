@@ -17,6 +17,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
@@ -90,7 +91,7 @@ print interfaces home name =
     value = Name.toBuilder (Name.fromGlobal home name)
     toString = Name.toBuilder (Name.fromKernel N.debug "toString")
     annotation = I._types (interfaces ! home) ! name
-    tipe = Type.toString Type.MultiLine $ Extract.fromAnnotation annotation
+    tipe = P.displayS (P.renderPretty 1.0 80 (Type.toDoc Type.None (Extract.fromAnnotation annotation))) ""
   in
     "var _value = " <> toString <> "(" <> value <> ");\n" <>
     "var _type = '" <> B.stringUtf8 (show tipe) <> "';\n\

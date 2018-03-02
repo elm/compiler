@@ -2,8 +2,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Elm.Compiler.Type
   ( Type(..)
-  , Format(..)
-  , toString
+  , Context(..)
+  , toDoc
   , DebugMetadata(..)
   , Alias(..)
   , Union(..)
@@ -55,20 +55,7 @@ data Union = Union N.Name [N.Name] [(N.Name, [Type])]
 
 
 
--- TO STRING
-
-
-data Format = OneLine | MultiLine
-
-
-toString :: Format -> Type -> String
-toString format tipe =
-  case format of
-    OneLine ->
-      P.displayS (P.renderPretty 1.0 maxBound (toDoc None tipe)) ""
-
-    MultiLine ->
-      P.displayS (P.renderPretty 1.0 80 (toDoc None tipe)) ""
+-- TO DOC
 
 
 data Context = None | InType | InFunction
@@ -162,7 +149,8 @@ collectLambdas tipe =
 
 encode :: Type -> Encode.Value
 encode tipe =
-  Encode.text (Text.pack (toString OneLine tipe))
+  Encode.text $ Text.pack $
+    P.displayS (P.renderPretty 1.0 (maxBound `div` 2) (toDoc None tipe)) ""
 
 
 decoder :: Decode.Decoder () Type

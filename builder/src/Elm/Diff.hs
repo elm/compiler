@@ -252,7 +252,7 @@ aliasToDoc name (Docs.Alias _ tvars tipe) =
 
 valueToDoc :: N.Name -> Docs.Value -> P.Doc
 valueToDoc name (Docs.Value _ tipe) =
-  nameToDoc name <+> P.colon <+> typeDoc tipe
+  P.hang 4 $ P.sep [ nameToDoc name <+> P.colon, typeDoc tipe ]
 
 
 binopToDoc :: N.Name -> Docs.Binop -> P.Doc
@@ -271,7 +271,7 @@ binopToDoc name (Docs.Binop _ tipe associativity (Docs.Precedence n)) =
 
 typeDoc :: Type.Type -> P.Doc
 typeDoc tipe =
-  P.text (Type.toString Type.OneLine tipe)
+  Type.toDoc Type.None tipe
 
 
 nameToDoc :: N.Name -> P.Doc
