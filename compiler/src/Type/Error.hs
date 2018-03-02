@@ -254,8 +254,6 @@ diff dict ctx tipe1 tipe2 =
     (other, Alias _ _ _ alias2) -> diff dict ctx other alias2
 
     (Lambda a b cs, Lambda x y zs) -> diffLambda dict ctx (a:b:cs) (x:y:zs)
-    (Lambda a b cs, result       ) -> diffLambda dict ctx (a:b:cs) [result]
-    (result       , Lambda x y zs) -> diffLambda dict ctx [result] (x:y:zs)
 
     (FlexVar x, other) -> Similar (H.nameToDoc x) (toDoc dict ctx other)
     (other, FlexVar x) -> Similar (toDoc dict ctx other) (H.nameToDoc x)
@@ -348,7 +346,7 @@ yellowApply dict ctx home name tipe =
 
 
 --
--- INVARIANT: notNull types1 && notNull types2
+-- INVARIANT: length types1 >= 2 && length types2 >= 2
 --
 diffLambda :: Localizer -> RT.Context -> [Type] -> [Type] -> Diff H.Doc
 diffLambda dict ctx types1 types2 =
@@ -389,7 +387,7 @@ diffLambda dict ctx types1 types2 =
 
 
 --
--- INVARIANT: notNull shortRevArgs && notNull longRevArgs
+-- INVARIANT: length shortRevArgs >= 2 && length longRevArgs >= 2
 --
 diffArgMismatch :: Localizer -> RT.Context -> [Type] -> H.Doc -> [Type] -> H.Doc -> Diff H.Doc
 diffArgMismatch dict ctx shortRevArgs shortResult longRevArgs longResult =
