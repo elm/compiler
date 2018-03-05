@@ -33,6 +33,7 @@ toDoc filePath (Report title _ _ message) =
   messageBar title filePath
   <> hardline <> hardline <>
   message
+  <> hardline <> hardline
 
 
 messageBar :: String -> FilePath -> Doc
@@ -58,7 +59,6 @@ toCodeSnippet source region highlight (preHint, postHint) =
   Code.render source region highlight
   <> hardline <>
   postHint
-  <> hardline <> hardline
 
 
 toCodePair :: Code.Source -> R.Region -> R.Region -> (Doc, Doc) -> (Doc, Doc, Doc) -> Doc
