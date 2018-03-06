@@ -410,7 +410,7 @@ toReport source err =
           ,
             case map H.text suggestions of
               [] ->
-                "I cannot find an super similar exposed names. Maybe it is private?"
+                "I cannot find any super similar exposed names. Maybe it is private?"
 
               [alt] ->
                 H.fillSep ["Maybe","you","want",H.dullyellow alt,"instead?"]
