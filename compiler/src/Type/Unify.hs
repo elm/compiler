@@ -215,7 +215,7 @@ actuallyUnify context@(Context _ (Descriptor firstContent _ _ _) _ (Descriptor s
     Error ->
         -- If there was an error, just pretend it is okay. This lets us avoid
         -- "cascading" errors where one problem manifests as multiple message.
-        return ()
+        merge context Error
 
 
 
@@ -226,7 +226,7 @@ unifyFlex :: Context -> Content -> Content -> Unify ()
 unifyFlex context content otherContent =
   case otherContent of
     Error ->
-        return ()
+        merge context Error
 
     -- TODO see if wildcarding makes a noticable perf difference
 
@@ -289,7 +289,7 @@ unifyRigid context maybeSuper content otherContent =
         mismatch
 
     Error ->
-        return ()
+        merge context Error
 
 
 
@@ -348,7 +348,7 @@ unifyFlexSuper context super content otherContent =
         subUnify (_first context) realVar
 
     Error ->
-        return ()
+        merge context Error
 
 
 combineRigidSupers :: SuperType -> SuperType -> Bool
@@ -493,7 +493,7 @@ unifyAlias context home name args realVar otherContent =
       subUnify realVar (_second context)
 
     Error ->
-      return ()
+      merge context Error
 
 
 unifyAliasArgs :: [Variable] -> Context -> [(N.Name,Variable)] -> [(N.Name,Variable)] -> ([Variable] -> () -> IO r) -> ([Variable] -> () -> IO r) -> IO r
@@ -597,7 +597,7 @@ unifyStructure context flatType content otherContent =
               mismatch
 
     Error ->
-        return ()
+        merge context Error
 
 
 
