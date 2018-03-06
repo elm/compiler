@@ -38,7 +38,7 @@ myUpdate : Update record     -- record -> Int -> record
 myRecord : Persisted record  -- { record | id : Int }
 ```
 
-The trouble is that it's the same `record` in both of these types! The `myUpdate` function wants t take a `record` and produce a `record`, but it is being given `{ record | id : Int }`. Type checking is going to say, "well, if `record` is actually an infinite sequence of `{ { ... | id : Int } | id : Int }` then they *can* be equal!" While that is true and very clever, it is not the intent of this code.
+The trouble is that it's the same `record` in both of these types! The `myUpdate` function wants to take a `record` and produce a `record`, but it is being given `{ record | id : Int }`. Type checking is going to say, "well, if `record` is actually an infinite sequence of `{ { ... | id : Int } | id : Int }` then they *can* be equal!" While that is true and very clever, it is not the intent of this code.
 
 So the fix for this person was to add one thing into the `Updatable` type:
 
@@ -56,7 +56,7 @@ Notice the new `Persisted` in the `Update` part. That was the fix!
 
 There is a relatively obscure package called `evancz/automaton` that captures state and functionality using callbacks. So far, it does not seem to be extremely useful idea given its downsides, but it did lead to quite a tough infinite type.
 
-Here is a snippet of code that combines two bacic automatons into one. The resulting automaton takes in either a `Left` or `Right` value. If it is a `Left` we will use the left automaton, if it is a `Right` we will use the right one.
+Here is a snippet of code that combines two basic automatons into one. The resulting automaton takes in either a `Left` or `Right` value. If it is a `Left` we will use the left automaton, if it is a `Right` we will use the right one.
 
 ```elm
 type Either a b = Left a | Right b
