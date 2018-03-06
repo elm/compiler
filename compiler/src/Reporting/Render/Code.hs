@@ -142,7 +142,7 @@ renderPair source@(Source sourceLines) region1 region2 =
       (Just line) = List.lookup startRow1 sourceLines
     in
     OneLine $
-      text lineNumber <> "|" <> text (Text.unpack line)
+      text lineNumber <> "| " <> text (Text.unpack line)
       <> hardline
       <> text spaces1 <> dullred (text zigzag1)
       <> text spaces2 <> dullred (text zigzag2)
