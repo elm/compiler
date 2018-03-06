@@ -147,7 +147,7 @@ toReport source err =
   case err of
     AnnotationTooShort region name index leftovers ->
       let
-        numTypeArgs = Index.toHuman index
+        numTypeArgs = Index.toMachine index
         numDefArgs = numTypeArgs + leftovers
       in
       Report.Report "BAD TYPE ANNOTATION" region [] $
