@@ -44,7 +44,7 @@ chomp =
     , "bump" ==> Route Bump noArgs noFlags
     , "diff" ==> Route Diff diffArgs noFlags
     , "repl" ==> Route Repl noArgs replFlags
-    , "develop" ==> Route Dev noArgs devFlags
+    , "reactor" ==> Route Dev noArgs devFlags
     ]
 
 
