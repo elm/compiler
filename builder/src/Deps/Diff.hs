@@ -259,22 +259,18 @@ isEquivalentRenaming varPairs =
         False
 
       Just verifiedRenamings ->
-        all compatableVars verifiedRenamings
+        all compatibleVars verifiedRenamings
         &&
         allUnique (map snd verifiedRenamings)
 
 
-compatableVars :: (N.Name, N.Name) -> Bool
-compatableVars (old, new) =
+compatibleVars :: (N.Name, N.Name) -> Bool
+compatibleVars (old, new) =
   case (categorizeVar old, categorizeVar new) of
     (CompAppend, CompAppend) -> True
     (Comparable, Comparable) -> True
     (Appendable, Appendable) -> True
     (Number    , Number    ) -> True
-
-    (Comparable, CompAppend) -> True
-    (Appendable, CompAppend) -> True
-    (Number    , CompAppend) -> True
     (Number    , Comparable) -> True
 
     (_, Var) -> True
