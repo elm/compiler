@@ -62,7 +62,7 @@ data MakeFlags =
     { _warn :: Bool
     , _debug :: Bool
     , _output :: Maybe Flags.Output
-    , _server :: Bool
+--    , _server :: Bool
     }
 
 
@@ -72,7 +72,7 @@ makeFlags =
     |-- onOff "warn" "Report warnings to improve code quality."
     |-- onOff "debug" "Generate programs in debug mode."
     |-- flag "output" output "Specify the name of the resulting JS file (use --output=/dev/null for no output)"
-    |-- onOff "server" "Generate JS for server-side rendering."
+--    |-- onOff "server" "Generate JS for server-side rendering."
 
 
 output :: Parser Flags.Output

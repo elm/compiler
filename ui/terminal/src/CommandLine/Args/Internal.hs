@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedStrings #-}
 module CommandLine.Args.Internal
   ( get
   , Flags, noFlags, flags, (|--)
@@ -12,16 +13,15 @@ module CommandLine.Args.Internal
   )
   where
 
+
+import Data.Monoid ((<>))
 import qualified Data.Char as Char
 import qualified Data.List as List
 import GHC.IO.Handle (hIsTerminalDevice)
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
 import System.IO (hPutStrLn, stderr)
-import Text.PrettyPrint.ANSI.Leijen
-  ( Doc, (<>), comma, displayIO, fillSep, green
-  , plain, red, renderPretty, text, vcat
-  )
+import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import Elm.Utils (nearbyNames)
 
@@ -667,23 +667,21 @@ failure :: Error -> IO a
 failure err =
   do  let doc = toDoc err
       isTerminal <- hIsTerminalDevice stderr
-      displayIO stderr $ renderPretty 1 80 $
-        if isTerminal then doc else plain doc
+      P.displayIO stderr $ P.renderPretty 1 80 $
+        if isTerminal then doc else P.plain doc
       hPutStrLn stderr ""
       exitFailure
 
 
-toDoc :: Error -> Doc
+toDoc :: Error -> P.Doc
 toDoc err =
   case err of
     BadCommand badName suggestions lastSuggestion ->
-      fillSep $
-        [ text "There is no"
-        , code badName
-        , text "command."
-        , text "Did you mean"
+      P.fillSep $
+        ["There","is","no",toRed badName,"command.","Try"
         ]
-        ++ oxfordify (map code suggestions) "or" (code lastSuggestion <> text "?")
+        ++ oxfordify (map toGreen suggestions) "or" (toGreen lastSuggestion)
+        ++ ["instead?"]
 
     NoCommand (BadArgs argError) ->
       argErrorToDoc Nothing argError
@@ -698,31 +696,41 @@ toDoc err =
       flagErrorToDoc (Just name) flagError
 
 
+toRed :: String -> P.Doc
+toRed str =
+  P.red (P.text str)
+
+
+toGreen :: String -> P.Doc
+toGreen str =
+  P.green (P.text str)
+
+
 
 -- ARG FAILURE
 
 
-argErrorToDoc :: Maybe String -> ArgError -> Doc
+argErrorToDoc :: Maybe String -> ArgError -> P.Doc
 argErrorToDoc maybeCommand argError =
   case argError of
     NoneOf argErrors ->
-      text $ "TODO - " ++ show (map (argErrorToDoc maybeCommand) argErrors)
+      P.text $ "TODO - " ++ show (map (argErrorToDoc maybeCommand) argErrors)
 
     MissingArg (ParserInfo tipe) ->
-      text $ "TODO - " ++ tipe
+      P.text $ "TODO - " ++ tipe
 
     BadArg chunk _parserError ->
-      text $ "TODO - " ++ chunk
+      P.text $ "TODO - " ++ chunk
 
     ExtraArgs extraChunks ->
-      text $ "TODO - " ++ show extraChunks
+      P.text $ "TODO - " ++ show extraChunks
 
 
 
 -- FLAG FAILURE
 
 
-flagErrorToDoc :: Maybe String -> FlagError -> Doc
+flagErrorToDoc :: Maybe String -> FlagError -> P.Doc
 flagErrorToDoc maybeCommand flagError =
   case flagError of
     BadOnOff name value ->
@@ -731,121 +739,108 @@ flagErrorToDoc maybeCommand flagError =
           "--" ++ name ++ "=" ++ value
       in
         if null value then
-          flagErrorToDocHelp "This on/off flag has a trailing equals sign:" chunk
-            [ fillSep
-                [ text "Just get rid of the equals sign, like this:"
-                , green (text ("--" ++ name))
+          flagErrorToDocHelp
+            "This on/off flag has a trailing equals sign:"
+            chunk
+            [ P.fillSep
+                ["Just","get","rid","of","the","equals","sign,","like","this:"
+                , toGreen ("--" ++ name)
                 ]
             ]
 
         else
-          flagErrorToDocHelp "This on/off flag was given a value:" chunk
-            [ text "An on/off flag either exists or not, no need for an equals sign and value."
-            , text "Maybe you want this instead?"
-            , text ""
-            , text "    " <> green (text ("--" ++ name))
-            , text ""
+          flagErrorToDocHelp
+            "This on/off flag was given a value:"
+            chunk
+            [ "An on/off flag either exists or not, no need for an equals sign and value.\n\
+              \Maybe you want this instead?"
+            , P.indent 4 (toGreen ("--" ++ name))
             ]
 
     BadFlag name (ParserInfo tipe) Nothing ->
       flagErrorToDocHelp
         "This flag cannot appear without a value:"
         ("--" ++ name)
-        [ text $ "It needs a " ++ tipe ++ " value."
+        [ P.fillSep ["It","needs","a",toGreen tipe,"value."]
         ]
 
     BadFlag name (ParserInfo tipe) (Just (value, parserError)) ->
       flagErrorToDocHelp
         "This flag was given a bad value:"
         ("--" ++ name ++ "=" ++ value)
-        [ fillSep $ map text $ words $
-            "I need a " ++ tipe ++ " value, but "
+        [ P.fillSep $
+            ["I","need","a",toGreen tipe,"value,","but"
+            ]
             ++
               case parserError of
                 Expecting expectedType ->
-                  value ++ " is not a valid " ++ expectedType ++ "."
+                  [P.text value,"is","not","a","valid",P.text expectedType <> "."]
         ]
 
     Unrecognized chunk [] ->
-      let
-        explanation =
-          case maybeCommand of
-            Nothing ->
-              "I am not expecting any flags."
+      flagErrorToDocHelp
+        "Get rid of this flag:"
+        chunk
+        [ P.fillSep $ map P.text $ words $
+            case maybeCommand of
+              Nothing ->
+                "I am not expecting any flags."
 
-            Just command ->
-              "The `" ++ command ++ "` command does not expect any flags."
-      in
-        flagErrorToDocHelp "Get rid of this flag:" chunk $
-          [ fillSep (map text (words explanation))
+              Just command ->
+                "The `" ++ command ++ "` command does not expect any flags."
           ]
 
     Unrecognized chunk info ->
       case takeWhile ('=' /=) (dropWhile ('-' ==) chunk) of
         "" ->
-          flagErrorToDocHelp "This is not a valid flag:" chunk
-            [ text "Valid flags look like --output=FILE"
+          flagErrorToDocHelp
+            "This is not a valid flag:"
+            chunk
+            [ P.fillSep ["Valid","flags","look","like",P.green "--output=FILE"]
             ]
 
         name ->
           let
-            suggestions =
-              nearbyNames id name (map fst info)
+            closeNames = nearbyNames id name (map fst info)
+            suggestions = if null closeNames then map fst info else closeNames
+            toFlag str = toGreen ("--" ++ str)
           in
-            flagErrorToDocHelp "I do not recognize this flag:" chunk $
-              unrecognizedExplanation $
-                if null suggestions then map fst info else suggestions
+          flagErrorToDocHelp
+            "I do not recognize this flag:"
+            chunk
+            (
+              case suggestions of
+                [] ->
+                  []
+
+                [suggestion] ->
+                  [ P.fillSep ["Looks","like","a","typo.","Maybe","you","want",toFlag suggestion,"instead?"]
+                  ]
+
+                _ ->
+                  [ P.fillSep ["Maybe","you","want","one","of","these","instead?"]
+                  , P.indent 4 (P.vcat (map toFlag suggestions))
+                  ]
+            )
 
 
-flagErrorToDocHelp :: String -> String -> [Doc] -> Doc
+flagErrorToDocHelp :: String -> String -> [P.Doc] -> P.Doc
 flagErrorToDocHelp summary original explanation =
-  vcat $
-    [ text summary
-    , text ""
-    , text "    " <> red (text original)
-    , text ""
+  P.vcat $ concatMap (\d -> [d,""]) $
+    [ P.fillSep (map P.text (words summary))
+    , P.indent 4 (toRed original)
     ]
     ++ explanation
 
 
-unrecognizedExplanation :: [String] -> [Doc]
-unrecognizedExplanation suggestions =
-  let
-    toBullet name =
-      text "    " <> green (text ("--" ++ name))
-  in
-    case suggestions of
-      [] ->
-        []
-
-      [suggestion] ->
-        [ text "Looks like a typo. Maybe you want:"
-        , text ""
-        , toBullet suggestion
-        , text ""
-        ]
-
-      _ ->
-        [ text "Maybe you want one of these?"
-        , text ""
-        ]
-        ++ map toBullet suggestions
-        ++ [ text "" ]
-
-
-code :: String -> Doc
-code str =
-  red (text str)
-
-
-oxfordify :: [Doc] -> String -> Doc -> [Doc]
+oxfordify :: [P.Doc] -> String -> P.Doc -> [P.Doc]
 oxfordify chunks conjuction lastChunk =
   case chunks of
     [] ->
       [ lastChunk ]
 
     [chunk] ->
-      [ chunk, text conjuction, lastChunk ]
+      [ chunk, P.text conjuction, lastChunk ]
 
     _ ->
-      map (<> comma) chunks ++ [ text conjuction, lastChunk ]
+      map (<> P.comma) chunks ++ [ P.text conjuction, lastChunk ]

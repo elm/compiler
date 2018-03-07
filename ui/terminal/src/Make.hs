@@ -27,9 +27,9 @@ run paths flags =
 
 -- TODO figure out --warn flag
 toOptions :: Args.MakeFlags -> Flags.Options
-toOptions (Args.MakeFlags _warn debug output server) =
+toOptions (Args.MakeFlags _warn debug output) =
   let
     mode = if debug then Obj.Debug else Obj.Prod
-    target = if server then Obj.Server else Obj.Client
+    target = if False then Obj.Server else Obj.Client
   in
   Flags.Options mode target output
