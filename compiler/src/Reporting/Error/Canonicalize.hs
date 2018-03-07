@@ -188,10 +188,10 @@ toReport source err =
           Report.toCodeSnippet source region Nothing
             (
               H.reflow $
-                "The `" <> N.toString name <> "` " <> thing <> " needs "
-                <> H.args expected <> ", but I only see " <> show actual <> ":"
+                "The `" <> N.toString name <> "` " <> thing <> " was given " <> H.args actual <> ":"
             ,
-              "What is missing? Is there some typo?"
+              H.reflow $
+                "But it needs " <> H.args expected <> ". What is missing? Are some parentheses misplaced?"
             )
 
       else
