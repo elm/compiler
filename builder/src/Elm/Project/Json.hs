@@ -185,7 +185,7 @@ encode project =
   case project of
     App (AppInfo elm srcDirs deps tests trans) ->
       E.object
-        [ "type" ==> E.text "browser"
+        [ "type" ==> E.text "application"
         , "source-directories" ==> E.list (E.text . Text.pack) srcDirs
         , "elm-version" ==> encodeVersion elm
         , "dependencies" ==> encodeDeps encodeVersion deps
@@ -301,7 +301,7 @@ decoder :: Decoder Project
 decoder =
   do  tipe <- D.field "type" D.text
       case tipe of
-        "browser" ->
+        "application" ->
           D.map App appDecoder
 
         "package" ->
