@@ -32,7 +32,7 @@ toReport err =
   case err of
     Application ->
       Help.report "UNBUMPABLE" (Just "elm.json")
-        "Your elm.json says this is a browser project. That means it cannot be published\
+        "Your elm.json says this is an application. That means it cannot be published\
         \ on <https://package.elm-lang.org> and therefore has no version to bump!"
         []
 

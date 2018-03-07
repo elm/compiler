@@ -149,7 +149,7 @@ badContentToDocs badContent =
   case badContent of
     BadType _ ->
       ["The","only","valid","types","of","elm.json","are"
-      ,P.green "\"browser\"","and",P.green "\"package\"" <> "."
+      ,P.green "\"application\"","and",P.green "\"package\"" <> "."
       ]
 
     BadPkgName problem ->
