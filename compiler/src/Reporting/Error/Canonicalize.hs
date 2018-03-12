@@ -461,7 +461,7 @@ toReport source err =
           Report.toCodeSnippet source region Nothing
             (
               H.reflow $
-                "I do not recognize this (**) operator:"
+                "I do not recognize the (**) operator:"
             ,
               H.reflow $
                 "Switch to (^) for exponentiation. Or switch to (*) for multiplication."
@@ -474,13 +474,13 @@ toReport source err =
               H.nearbyNames N.toString op (Set.toList locals)
 
           format altOp =
-            H.dullyellow $ "(" <> altOp <> ")"
+            H.green $ "(" <> altOp <> ")"
         in
         Report.Report "UNKNOWN OPERATOR" region suggestions $
           Report.toCodeSnippet source region Nothing
             (
               H.reflow $
-                "I do not recognize this (" ++ N.toString op ++ ") operator."
+                "I do not recognize the (" ++ N.toString op ++ ") operator."
             ,
               H.fillSep $
                 ["Is","there","an","`import`","and","`exposing`","entry","for","it?"]
