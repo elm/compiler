@@ -200,7 +200,7 @@ exitWithOverview intro outro interfaces =
 
 
 toSummary :: String -> Interface -> Maybe P.Doc
-toSummary exeName (Interface name summary _ _ _ _) =
+toSummary exeName (Interface name summary _ (Args (args:_)) _ _) =
   case summary of
     Uncommon ->
       Nothing
@@ -208,7 +208,7 @@ toSummary exeName (Interface name summary _ _ _ _) =
     Common summaryString ->
       Just $
         P.vcat
-          [ P.dullcyan $ P.text $ exeName ++ " " ++ name
+          [ P.dullcyan $ argsToDoc (exeName ++ " " ++ name) args
           , P.indent 4 $ reflow summaryString
           ]
 
