@@ -14,7 +14,7 @@ import System.FilePath ((</>))
 
 import qualified Elm.Compiler.Objects as Obj
 import qualified Elm.Project as Project
-import qualified Elm.Project.Flags as Flags
+import qualified Generate.Output as Output
 import qualified Reporting.Task as Task
 import qualified Reporting.Progress.Terminal as Terminal
 
@@ -50,10 +50,10 @@ compile =
       return result
 
 
-options :: Flags.Options
+options :: Output.Options
 options =
-  Flags.Options Obj.Prod Obj.Client $
-    Just (Flags.Custom Nothing tempFileName)
+  Output.Options False Obj.Prod Obj.Client $
+    Just (Output.Custom Nothing tempFileName)
 
 
 tempFileName :: FilePath
