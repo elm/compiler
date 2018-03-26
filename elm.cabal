@@ -53,8 +53,6 @@ Executable elm
 
     other-modules:
         Bump
-        CommandLine.Args
-        CommandLine.Args.Internal
         Develop
         Develop.Compile
         Develop.Generate.Help
@@ -68,6 +66,13 @@ Executable elm
         Publish
         Repl
 
+        -- terminal args
+        Terminal.Args
+        Terminal.Args.Chomp
+        Terminal.Args.Error
+        Terminal.Args.Helpers
+        Terminal.Args.Internal
+
         -- shared from builder/
         Elm.Bump,
         Elm.Diff,
@@ -75,7 +80,6 @@ Executable elm
         Elm.PerUserCache,
         Elm.Project,
         Elm.Project.Constraint,
-        Elm.Project.Flags,
         Elm.Project.Json,
         Elm.Project.Licenses,
         Elm.Publish,
