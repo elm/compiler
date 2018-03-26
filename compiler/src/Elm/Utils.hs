@@ -2,6 +2,7 @@
 module Elm.Utils
   ( drawCycle
   , nearbyNames
+  , distance
   , Entry(..)
   , parseEntry
   )
@@ -9,5 +10,5 @@ module Elm.Utils
 
 
 import Parse.Repl (Entry(..), parseEntry)
-import Reporting.Helpers (drawCycle, nearbyNames)
+import Reporting.Helpers (drawCycle, nearbyNames, distance)
 
