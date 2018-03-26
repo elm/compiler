@@ -15,7 +15,6 @@ import System.FilePath ((</>))
 
 import qualified Elm.Docs as Docs
 import qualified Elm.Name as N
-import qualified Elm.Project.Flags as Flags
 import qualified Elm.Project.Root as Root
 import qualified Elm.Project.Summary as Summary
 import Elm.Project.Summary (Summary)
@@ -47,7 +46,7 @@ getRootWithReplFallback =
 -- COMPILE
 
 
-compile :: Flags.Options -> Summary -> [FilePath] -> Task.Task ()
+compile :: Output.Options -> Summary -> [FilePath] -> Task.Task ()
 compile options summary@(Summary.Summary root project _ _ _) paths =
   do  args <- Args.fromPaths summary paths
       graph <- Crawl.crawl summary args

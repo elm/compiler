@@ -3,6 +3,9 @@
 module Generate.Output
   ( generate
   , generateReplFile
+  , Options(..)
+  , Output(..)
+  , output
   )
   where
 
@@ -12,6 +15,8 @@ import qualified Data.ByteString.Builder as B
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Map as Map
 import Data.Monoid ((<>))
+import qualified System.Directory as Dir
+import qualified System.FilePath as FP
 import System.FilePath ((</>))
 
 import qualified Elm.Compiler.Module as Module
@@ -19,7 +24,6 @@ import qualified Elm.Compiler.Objects as Obj
 import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 
-import qualified Elm.Project.Flags as Flags
 import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Summary as Summary
 import qualified File.Args as Args
@@ -28,13 +32,23 @@ import qualified File.IO as IO
 import qualified Generate.Functions as Functions
 import qualified Reporting.Task as Task
 import qualified Stuff.Paths as Paths
+import Terminal.Args (Parser(..), suggestFiles)
 
 
 
 -- GENERATE
 
 
-generate :: Flags.Options -> Summary.Summary -> Crawl.Result -> Task.Task ()
+data Options =
+  Options
+    { _warn :: Bool
+    , _mode :: Obj.Mode
+    , _target :: Obj.Target
+    , _output :: Maybe Output
+    }
+
+
+generate :: Options -> Summary.Summary -> Crawl.Result -> Task.Task ()
 generate options summary graph@(Crawl.Graph args _ _ _ _) =
   case args of
     Args.Pkg _ ->
@@ -48,8 +62,8 @@ generate options summary graph@(Crawl.Graph args _ _ _ _) =
 -- GENERATE MONOLITH
 
 
-generateMonolith :: Flags.Options -> Summary.Summary -> Crawl.Result -> [Module.Raw] -> Task.Task ()
-generateMonolith (Flags.Options debug target output) summary@(Summary.Summary _ project _ ifaces _) graph names =
+generateMonolith :: Options -> Summary.Summary -> Crawl.Result -> [Module.Raw] -> Task.Task ()
+generateMonolith (Options _ debug target output_) summary@(Summary.Summary _ project _ ifaces _) graph names =
   do
       objectGraph <- organize summary graph
       let pkg = Project.getName project
@@ -59,15 +73,15 @@ generateMonolith (Flags.Options debug target output) summary@(Summary.Summary _ 
             "(function(scope){\n'use strict';" <> Functions.functions <> builder <> "}(this));"
 
       liftIO $
-        case output of
+        case output_ of
           Nothing ->
             IO.writeBuilder "elm.js" monolith
 
-          Just Flags.None ->
+          Just None ->
             return ()
 
-          Just (Flags.Custom maybeDir fileName) ->
-            do  path <- Flags.safeCustomPath maybeDir fileName
+          Just (Custom maybeDir fileName) ->
+            do  path <- safeCustomPath maybeDir fileName
                 IO.writeBuilder path monolith
 
 
@@ -115,3 +129,67 @@ loadPackageObj ( name, (version,_) ) =
   do  dir <- Task.getPackageCacheDirFor name version
       IO.readBinary (dir </> "objs.dat")
 
+
+
+-- OUTPUT
+
+
+data Output
+  = None
+  | Custom (Maybe FilePath) FilePath
+
+
+safeCustomPath :: Maybe FilePath -> FilePath -> IO FilePath
+safeCustomPath maybeDirectory fileName =
+  case maybeDirectory of
+    Nothing ->
+      do  return fileName
+
+    Just dir ->
+      do  Dir.createDirectoryIfMissing True dir
+          return (dir </> fileName)
+
+
+
+-- OUTPUT PARSER
+
+
+output :: Parser Output
+output =
+  Parser
+    { _singular = "output file"
+    , _plural = "output files"
+    , _parser = parseOutput
+    , _suggest = suggestFiles ["js","html"]
+    , _examples = exampleOutput
+    }
+
+
+parseOutput :: String -> Maybe Output
+parseOutput string =
+    if string == "/dev/null" || string == "NUL" || string == "$null" then
+      Just None
+
+    else if FP.takeExtension string == "js" then
+      toCustom string
+
+    else
+      Nothing
+
+
+toCustom :: String -> Maybe Output
+toCustom string =
+  case FP.splitPath string of
+    [] ->
+      Nothing
+
+    [name] ->
+      Just $ Custom Nothing name
+
+    segments ->
+      Just $ Custom (Just (FP.joinPath (init segments))) (last segments)
+
+
+exampleOutput :: String -> IO [String]
+exampleOutput _ =
+  return [ "elm.js", "index.html", "/dev/null" ]
