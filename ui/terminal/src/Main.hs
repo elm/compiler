@@ -48,15 +48,16 @@ intro :: P.Doc
 intro =
   P.vcat
     [ P.fillSep
-        ["Hi,","thank","you","for","trying","out","Elm"
+        ["Hi,","thank","you","for","trying","out"
+        ,P.green "Elm"
         ,P.green (P.text (Pkg.versionToString Compiler.version)) <> "."
         ,"I hope you like it!"
         ]
     , ""
-    , P.dullblack "-------------------------------------------------------------------------------"
-    , P.dullblack "I highly recommend working through <https://guide.elm-lang.org> to get started."
-    , P.dullblack "It teaches many important concepts, including how to use `elm` in the terminal."
-    , P.dullblack "-------------------------------------------------------------------------------"
+    , P.black "-------------------------------------------------------------------------------"
+    , P.black "I highly recommend working through <https://guide.elm-lang.org> to get started."
+    , P.black "It teaches many important concepts, including how to use `elm` in the terminal."
+    , P.black "-------------------------------------------------------------------------------"
     ]
 
 
