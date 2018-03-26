@@ -13,7 +13,7 @@ import qualified Reporting.Progress.Terminal as Terminal
 -- RUN
 
 
-run :: Diff.Args -> IO ()
-run args =
+run :: Diff.Args -> () -> IO ()
+run args () =
   do  reporter <- Terminal.create
       void $ Task.run reporter $ Diff.diff args

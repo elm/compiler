@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 module Bump (run) where
 
 
@@ -14,8 +13,8 @@ import qualified Reporting.Progress.Terminal as Terminal
 -- RUN
 
 
-run :: IO ()
-run =
+run :: () -> () -> IO ()
+run () () =
   do  reporter <- Terminal.create
       void $ Task.run reporter $
         do  summary <- Project.getRoot

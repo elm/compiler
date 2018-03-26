@@ -1,23 +1,32 @@
-{-# OPTIONS_GHC -Wall #-}
-module Make (run) where
+module Make
+  ( Flags(..)
+  , run
+  )
+  where
 
 
 import Control.Monad (void)
 
 import qualified Elm.Compiler.Objects as Obj
 import qualified Elm.Project as Project
-import qualified Elm.Project.Flags as Flags
+import qualified Generate.Output as Output
 import qualified Reporting.Task as Task
 import qualified Reporting.Progress.Terminal as Terminal
-
-import qualified CommandLine.Args as Args
 
 
 
 -- RUN
 
 
-run :: [FilePath] -> Args.MakeFlags -> IO ()
+data Flags =
+  Flags
+    { _warn :: Bool
+    , _debug :: Bool
+    , _output :: Maybe Output.Output
+    }
+
+
+run :: [FilePath] -> Flags -> IO ()
 run paths flags =
   do  reporter <- Terminal.create
       void $ Task.run reporter $
@@ -26,10 +35,10 @@ run paths flags =
 
 
 -- TODO figure out --warn flag
-toOptions :: Args.MakeFlags -> Flags.Options
-toOptions (Args.MakeFlags _warn debug output) =
+toOptions :: Flags -> Output.Options
+toOptions (Flags warn debug output) =
   let
     mode = if debug then Obj.Debug else Obj.Prod
     target = if False then Obj.Server else Obj.Client
   in
-  Flags.Options mode target output
+  Output.Options warn mode target output

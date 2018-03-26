@@ -1,6 +1,9 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Develop (run) where
+module Develop
+  ( Flags(..)
+  , run
+  )
+  where
 
 import Control.Applicative ((<|>))
 import Control.Concurrent (threadDelay)
@@ -16,7 +19,6 @@ import Snap.Util.FileServe
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 
-import qualified CommandLine.Args as Args
 import qualified Develop.Compile as Compile
 import qualified Develop.Generate.Help as Generate
 import qualified Develop.Generate.Index as Index
@@ -28,8 +30,14 @@ import qualified Develop.StaticFiles as StaticFiles
 -- RUN THE DEV SERVER
 
 
-run :: Args.DevFlags -> IO ()
-run (Args.DevFlags maybePort) =
+data Flags =
+  Flags
+    { _port :: Maybe Int
+    }
+
+
+run :: () -> Flags -> IO ()
+run () (Flags maybePort) =
   -- TODO get `elm reactor` running again
   if True then
     putStrLn $

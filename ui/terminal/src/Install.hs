@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 module Install (run) where
 
 
@@ -14,8 +13,8 @@ import qualified Reporting.Progress.Terminal as Terminal
 -- RUN
 
 
-run :: Pkg.Name -> IO ()
-run pkg =
+run :: Pkg.Name -> () -> IO ()
+run pkg () =
   do  reporter <- Terminal.create
       void $ Task.run reporter $
         Install.install pkg

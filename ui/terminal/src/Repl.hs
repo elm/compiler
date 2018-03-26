@@ -1,6 +1,9 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Repl where
+module Repl
+  ( Flags(..)
+  , run
+  )
+  where
 
 
 import Prelude hiding (lines, read)
@@ -8,7 +11,6 @@ import Control.Applicative ((<|>))
 import Control.Monad.RWS (lift, liftIO)
 import qualified Control.Monad.RWS as RWS
 import qualified Data.ByteString.Builder as B
-import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -31,15 +33,19 @@ import qualified Elm.Utils as Elm
 import qualified Reporting.Task as Task
 import qualified Reporting.Progress.Repl as Repl
 
-import qualified CommandLine.Args as Args
-
 
 
 -- RUN
 
 
-run :: Args.ReplFlags -> IO ()
-run (Args.ReplFlags maybeAlternateInterpreter) =
+data Flags =
+  Flags
+    { _interpreter :: Maybe FilePath
+    }
+
+
+run :: () -> Flags -> IO ()
+run () (Flags maybeAlternateInterpreter) =
   do  interpreter <- getInterpreter maybeAlternateInterpreter
       _ <- Project.getRootWithReplFallback
       putStrLn welcomeMessage
@@ -129,11 +135,6 @@ eval input =
 
               Elm.Port ->
                 report "I cannot handle port declarations."
-
-
-toUtf8 :: String -> BS.ByteString
-toUtf8 string =
-  LBS.toStrict (B.toLazyByteString (B.stringUtf8 string))
 
 
 report :: String -> Runner (Maybe a)
