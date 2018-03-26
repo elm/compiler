@@ -107,7 +107,7 @@ allPkgsDecoder =
 
         (key, versions) : rest ->
           case Pkg.fromText key of
-            Left msg ->
+            Left (msg, _) ->
               D.fail (E.BadAllPkg key msg)
 
             Right pkg ->

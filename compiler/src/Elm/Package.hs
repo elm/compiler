@@ -51,7 +51,7 @@ import qualified Json.Encode as Encode
 
 data Name =
   Name
-    { _user :: !Text
+    { _author :: !Text
     , _project :: !Text
     }
     deriving (Eq, Ord)
@@ -70,8 +70,8 @@ data Package =
 
 
 isKernel :: Name -> Bool
-isKernel (Name user _) =
-  user == "elm-lang" || user == "elm-explorations"
+isKernel (Name author _) =
+  author == "elm-lang" || author == "elm-explorations"
 
 
 toString :: Name -> String
@@ -80,52 +80,90 @@ toString name =
 
 
 toText :: Name -> Text
-toText (Name user project) =
-    user <> "/" <> project
+toText (Name author project) =
+    author <> "/" <> project
 
 
 toUrl :: Name -> String
-toUrl (Name user project) =
-    Text.unpack user ++ "/" ++ Text.unpack project
+toUrl (Name author project) =
+    Text.unpack author ++ "/" ++ Text.unpack project
 
 
 toFilePath :: Name -> FilePath
-toFilePath (Name user project) =
-    Text.unpack user </> Text.unpack project
+toFilePath (Name author project) =
+    Text.unpack author </> Text.unpack project
 
 
-fromText :: Text -> Either String Name
+fromText :: Text -> Either (String, [String]) Name
 fromText text =
   case Text.splitOn "/" text of
-    [ user, project ] | not (Text.null user || Text.null project) ->
-      Name user <$> validateProjectName project
+    [ author, project ] | not (Text.null author || Text.null project) ->
+      Name author <$> validateProjectName project
 
     _ ->
-      Left "A valid project name looks like `user/project`"
+      Left
+        ( "A valid package name looks like \"author/project\" requiring the author and project name together."
+        , []
+        )
 
 
-validateProjectName :: Text -> Either String Text
+validateProjectName :: Text -> Either (String, [String]) Text
 validateProjectName text =
   if Text.isInfixOf "--" text then
-    Left "There is a double dash -- in your package name. It must be a single dash."
+    Left $ thisCannot "have two dashes in a row" text (Text.replace "--" "-" text)
 
   else if Text.isInfixOf "_" text then
-    Left "Underscores are not allowed in package names."
+    Left $ thisCannot "have underscores" text (Text.replace "_" "-" text)
 
   else if Text.isInfixOf "." text then
-    Left "Dots are not allowed in package names."
+    Left $ thisCannot "have dots" text (Text.replace "." "-" text)
 
   else if Text.any Char.isUpper text then
-    Left "Upper case characters are not allowed in package names."
+    Left $ thisCannot "have upper case letters" text (decap text)
 
   else if not (Char.isLetter (Text.head text)) then
-    Left "Package names must start with a letter."
+    Left
+      ( "The project name \"" ++ Text.unpack text ++ "\" must start with a letter. Is there another name that captures what your package is for?"
+      , []
+      )
 
   else if Text.isSuffixOf "-" text then
-    Left "Package names cannot end with a dash."
+    Left $ thisCannot "end with a dash" text (Text.dropEnd 1 text)
 
   else
     Right text
+
+
+thisCannot :: String -> Text -> Text -> (String, [String])
+thisCannot beLikeThis problemName suggestedName =
+  let name = Text.unpack suggestedName in
+  (
+    "The project name \"" ++ Text.unpack problemName ++ "\" cannot "
+    ++ beLikeThis ++ ". Try something like \"" ++ name ++ "\" instead?"
+  ,
+    [name]
+  )
+
+
+decap :: Text -> Text
+decap text =
+  let
+    chunks =
+      uncurry (:) (Text.foldr gatherCaps ([],[]) text)
+  in
+  Text.pack $
+    if any (\c -> length c == 1) chunks then
+      concat chunks
+    else
+      List.intercalate "-" chunks
+
+
+gatherCaps :: Char -> (String, [String]) -> (String, [String])
+gatherCaps char (buffer, chunks) =
+  if Char.isUpper char then
+    ( [], (Char.toLower char : buffer) : chunks )
+  else
+    (char:buffer, chunks)
 
 
 
@@ -135,7 +173,7 @@ validateProjectName text =
 {-# NOINLINE dummyName #-}
 dummyName :: Name
 dummyName =
-  Name "user" "project"
+  Name "author" "project"
 
 
 {-# NOINLINE kernel #-}
@@ -316,8 +354,8 @@ instance Binary Name where
   get =
     liftM2 Name get get
 
-  put (Name user project) =
-    do  put user
+  put (Name author project) =
+    do  put author
         put project
 
 
@@ -363,7 +401,7 @@ decoder =
         Right name ->
           Decode.succeed name
 
-        Left msg ->
+        Left (msg, _) ->
           Decode.fail msg
 
 
