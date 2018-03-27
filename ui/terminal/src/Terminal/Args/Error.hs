@@ -20,7 +20,7 @@ import GHC.IO.Handle (hIsTerminalDevice)
 import qualified System.Environment as Env
 import qualified System.Exit as Exit
 import qualified System.FilePath as FP
-import System.IO (stderr)
+import System.IO (hPutStrLn, stderr)
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import Elm.Utils (nearbyNames, distance)
@@ -76,6 +76,7 @@ exitWith code docs =
       let adjust = if isTerminal then id else P.plain
       P.displayIO stderr $ P.renderPretty 1 80 $
         adjust $ P.vcat $ concatMap (\d -> [d,""]) docs
+      hPutStrLn stderr ""
       Exit.exitWith code
 
 
@@ -98,12 +99,13 @@ reflow string =
 -- HELP
 
 
-exitWithHelp :: Maybe String -> String -> Args args -> Flags flags -> IO a
-exitWithHelp maybeCommand details (Args args) flags =
+exitWithHelp :: Maybe String -> String -> P.Doc -> Args args -> Flags flags -> IO a
+exitWithHelp maybeCommand details example (Args args) flags =
   do  command <- toCommand maybeCommand
       exitSuccess $
         [ reflow details
-        , P.indent 4 $ P.dullcyan $ P.vcat $ map (argsToDoc command) args
+        , P.indent 4 $ P.cyan $ P.vcat $ map (argsToDoc command) args
+        , example
         ]
         ++
           case flagsToDocs flags [] of
@@ -111,7 +113,7 @@ exitWithHelp maybeCommand details (Args args) flags =
               []
 
             docs@(_:_) ->
-              [ "It also accepts the following flags to customize its behavior:"
+              [ "You can customize this command with the following flags:"
               , P.indent 4 $ stack docs
               ]
 
@@ -200,7 +202,7 @@ exitWithOverview intro outro interfaces =
 
 
 toSummary :: String -> Interface -> Maybe P.Doc
-toSummary exeName (Interface name summary _ (Args (args:_)) _ _) =
+toSummary exeName (Interface name summary _ _ (Args (args:_)) _ _) =
   case summary of
     Uncommon ->
       Nothing
@@ -208,7 +210,7 @@ toSummary exeName (Interface name summary _ (Args (args:_)) _ _) =
     Common summaryString ->
       Just $
         P.vcat
-          [ P.dullcyan $ argsToDoc (exeName ++ " " ++ name) args
+          [ P.cyan $ argsToDoc (exeName ++ " " ++ name) args
           , P.indent 4 $ reflow summaryString
           ]
 

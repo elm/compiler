@@ -3,7 +3,6 @@ module Terminal.Args.Internal
   ( Interface(..)
   , toName
   , Summary(..)
-  , Details(..)
   , Flags(..)
   , Flag(..)
   , Parser(..)
@@ -14,6 +13,9 @@ module Terminal.Args.Internal
   where
 
 
+import Text.PrettyPrint.ANSI.Leijen (Doc)
+
+
 
 -- INTERFACE
 
@@ -22,7 +24,8 @@ data Interface where
   Interface
     :: String
     -> Summary
-    -> Details
+    -> String
+    -> Doc
     -> Args args
     -> Flags flags
     -> (args -> flags -> IO ())
@@ -30,7 +33,7 @@ data Interface where
 
 
 toName :: Interface -> String
-toName (Interface name _ _ _ _ _) =
+toName (Interface name _ _ _ _ _ _) =
   name
 
 
@@ -41,12 +44,6 @@ it to two or three lines. If you say it is `Uncommon` you can rely on `Details`
 for a more complete explanation.
 -}
 data Summary = Common String | Uncommon
-
-
-{-| When you run `elm command --help` this is the first thing people will read.
-Say what the command does.
--}
-newtype Details = Details String
 
 
 

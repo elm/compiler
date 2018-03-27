@@ -6,6 +6,7 @@ module Main
 
 
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
+import qualified Data.List as List
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 import Text.PrettyPrint.ANSI.Leijen ((<>))
 import Text.Read (readMaybe)
@@ -81,13 +82,19 @@ repl =
       \ expressions and it will tell you what they evaluate to."
 
     details =
-      Details $ error "TODO"
+      "The `repl` command opens up an interactive programming session:"
+
+    example =
+      reflow
+        "Start working through <https://guide.elm-lang.org> to learn how to use this!\
+        \ It has a whole chapter that uses the REPL for everything, so that is probably\
+        \ the quickest way to get started."
 
     replFlags =
       flags Repl.Flags
         |-- flag "interpreter" interpreter "Path to a alternate JS interpreter, like node or nodejs."
   in
-  Interface "repl" (Common summary) details noArgs replFlags Repl.run
+  Interface "repl" (Common summary) details example noArgs replFlags Repl.run
 
 
 interpreter :: Parser String
@@ -113,13 +120,20 @@ reactor =
       \ click on an Elm file, it compiles it and shows the result."
 
     details =
-      Details $ error "TODO"
+      "The `reactor` command starts a local server on your computer:"
+
+    example =
+      reflow
+        "After running that command, you would have a server at <http://localhost:8000>\
+        \ that helps with development. It shows your files like a file viewer. If you\
+        \ click on an Elm file, it will compile it for you! And you can just press\
+        \ the refresh button in the browser to recompile things."
 
     reactorFlags =
       flags Develop.Flags
         |-- flag "port" port_ "The port of the server (default: 8000)"
   in
-  Interface "reactor" (Common summary) details noArgs reactorFlags Develop.run
+  Interface "reactor" (Common summary) details example noArgs reactorFlags Develop.run
 
 
 port_ :: Parser Int
@@ -145,7 +159,17 @@ make =
       \ will probably want this level of control during development."
 
     details =
-      Details $ error "TODO"
+      "The `make` command compiles Elm code into JS or HTML:"
+
+    example =
+      stack
+        [ reflow
+            "For example:"
+        , P.indent 4 $ P.green "elm make src/Main.elm"
+        , reflow
+            "This tries to compile an Elm file named src/Main.elm, putting the resulting\
+            \ JavaScript code in an elm.js file."
+        ]
 
     makeFlags =
       flags Make.Flags
@@ -153,7 +177,7 @@ make =
         |-- onOff "debug" "Generate programs in debug mode."
         |-- flag "output" Output.output "Specify the name of the resulting JS file (use --output=/dev/null for no output)"
   in
-  Interface "make" (Common summary) details (zeroOrMore elmFile) makeFlags Make.run
+  Interface "make" (Common summary) details example (zeroOrMore elmFile) makeFlags Make.run
 
 
 
@@ -168,9 +192,25 @@ install =
       \ independent, so you can use different versions in different projects."
 
     details =
-      Details $ error "TODO"
+      "The `install` command fetches packages from <https://package.elm-lang.org> for\
+      \ use in your project:"
+
+    example =
+      stack
+        [ reflow
+            "For example, if you want to get packages for HTTP and JSON, you would say:"
+        , P.indent 4 $ P.green $ P.vcat $
+              [ "elm install elm-lang/http"
+              , "elm install elm-lang/json"
+              ]
+        , reflow
+            "Those commands would allow you to say `import Http` or `import Json.Decode` in\
+            \ your project. And every project is independent, so it is no problem if one\
+            \ project uses version 1.0.0 and another uses 2.0.0. No need to worry about\
+            \ that sort of thing!"
+        ]
   in
-  Interface "install" (Common summary) details (required package) noFlags Install.run
+  Interface "install" (Common summary) details example (required package) noFlags Install.run
 
 
 
@@ -181,9 +221,33 @@ publish :: Interface
 publish =
   let
     details =
-      Details $ error "TODO"
+      "The `publish` command publishes your package on <https://package.elm-lang.org>\
+      \ so that anyone in the Elm community can use it."
+
+    example =
+      stack
+        [ reflow
+            "Think hard if you are ready to publish NEW packages though!"
+        , reflow
+            "Part of what makes Elm great is the packages ecosystem. The fact that\
+            \ there is usually one option (usually very well done) makes it way\
+            \ easier to pick packages and become productive. So having a million\
+            \ packages would be a failure in Elm. We do not need twenty of\
+            \ everything, all coded in a single weekend."
+        , reflow
+            "So as community members gain wisdom through experience, we want\
+            \ them to share that through thoughtful API design and excellent\
+            \ documentation. It is more about sharing ideas and insights than\
+            \ just sharing code! The first step may be asking for advice from\
+            \ people you respect, or in community forums. The second step may\
+            \ be using it at work to see if it is as nice as you think. Maybe\
+            \ it ends up as an experiment on GitHub only. Point is, try to be\
+            \ respectful of the community and package ecosystem!"
+        , reflow
+            "Check out <TODO> for guidance on how to create great packages!"
+        ]
   in
-  Interface "publish" Uncommon details noArgs noFlags Publish.run
+  Interface "publish" Uncommon details example noArgs noFlags Publish.run
 
 
 
@@ -194,9 +258,16 @@ bump :: Interface
 bump =
   let
     details =
-      Details $ error "TODO"
+      "The `bump` command figures out the next version number based on API changes:"
+
+    example =
+      reflow
+        "Say you just published version 1.0.0, but then decided to remove a function.\
+        \ I will compare the published API to what you have locally, figure out that\
+        \ it is a MAJOR change, and bump your version number to 2.0.0. I do this with\
+        \ all packages, so there cannot be MAJOR changes hiding in PATCH releases in Elm!"
   in
-  Interface "bump" Uncommon details noArgs noFlags Bump.run
+  Interface "bump" Uncommon details example noArgs noFlags Bump.run
 
 
 
@@ -207,9 +278,18 @@ diff :: Interface
 diff =
   let
     details =
-      Details $
-        "The `diff` command detects API changes. Every Elm package has a known public\
-        \ API, so I can tell you exactly what changed from version to version."
+      "The `diff` command detects API changes:"
+
+    example =
+      stack
+        [ reflow
+            "For example, to see what changed in the HTML package between\
+            \ versions 1.0.0 and 2.0.0, you can say:"
+        , P.indent 4 $ P.green $ "elm diff elm-lang/html 1.0.0 2.0.0"
+        , reflow
+            "Sometimes a MAJOR change is not actually very big, so\
+            \ this can help you plan your upgrade timelines."
+        ]
 
     diffArgs =
       oneOf
@@ -219,4 +299,18 @@ diff =
         , require3 Diff.GlobalInquiry package version version
         ]
   in
-  Interface "diff" Uncommon details diffArgs noFlags Diff.run
+  Interface "diff" Uncommon details example diffArgs noFlags Diff.run
+
+
+
+-- HELPERS
+
+
+stack :: [P.Doc] -> P.Doc
+stack docs =
+  P.vcat $ List.intersperse "" docs
+
+
+reflow :: String -> P.Doc
+reflow string =
+  P.fillSep $ map P.text $ words string

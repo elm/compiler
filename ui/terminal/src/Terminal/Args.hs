@@ -2,7 +2,6 @@ module Terminal.Args
   ( simple
   , Interface(..)
   , Summary(..)
-  , Details(..)
   , complex
   , Flags, noFlags, flags, (|--)
   , Flag, flag, onOff
@@ -34,8 +33,8 @@ import qualified Terminal.Args.Error as Error
 -- GET
 
 
-simple :: String -> Args args -> Flags flags -> (args -> flags -> IO ()) -> IO ()
-simple details args_ flags_ callback =
+simple :: String -> P.Doc -> Args args -> Flags flags -> (args -> flags -> IO ()) -> IO ()
+simple details example args_ flags_ callback =
   do  argStrings <- Env.getArgs
       case argStrings of
         "<autocomplete>" : number : chunks ->
@@ -44,7 +43,7 @@ simple details args_ flags_ callback =
 
         chunks ->
           if elem "--help" chunks then
-            Error.exitWithHelp Nothing details args_ flags_
+            Error.exitWithHelp Nothing details example args_ flags_
 
           else
             case snd $ Chomp.chomp Nothing chunks args_ flags_ of
@@ -71,9 +70,9 @@ complex intro outro interfaces =
             Nothing ->
               Error.exitWithUnknown command (map toName interfaces)
 
-            Just (Interface _ _ (Details details) args_ flags_ callback) ->
+            Just (Interface _ _ details example args_ flags_ callback) ->
               if elem "--help" chunks then
-                Error.exitWithHelp (Just command) details args_ flags_
+                Error.exitWithHelp (Just command) details example args_ flags_
 
               else
                 case snd $ Chomp.chomp Nothing chunks args_ flags_ of
@@ -109,7 +108,7 @@ complexSuggest index strings interfaces =
         Nothing ->
           return (map toName interfaces)
 
-        Just (Interface _ _ _ args_ flags_ _) ->
+        Just (Interface _ _ _ _ args_ flags_ _) ->
           fst $ Chomp.chomp (Just (index-1)) chunks args_ flags_
 
 
