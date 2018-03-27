@@ -24,6 +24,8 @@ import System.FilePath ((</>))
 import System.IO (hPutStrLn, stdout)
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 
+import qualified Elm.Compiler as Compiler
+import qualified Elm.Package as Pkg
 import Terminal.Args.Internal
 import qualified Terminal.Args.Chomp as Chomp
 import qualified Terminal.Args.Error as Error
@@ -40,6 +42,10 @@ simple details example args_ flags_ callback =
         "<autocomplete>" : number : chunks ->
           attemptAutoComplete number $ \index ->
             fst $ Chomp.chomp (Just index) chunks args_ flags_
+
+        ["--version"] ->
+          do  hPutStrLn stdout (Pkg.versionToString Compiler.version)
+              Exit.exitSuccess
 
         chunks ->
           if elem "--help" chunks then
@@ -60,6 +66,13 @@ complex intro outro interfaces =
       case argStrings of
         [] ->
           Error.exitWithOverview intro outro interfaces
+
+        ["--help"] ->
+          Error.exitWithOverview intro outro interfaces
+
+        ["--version"] ->
+          do  hPutStrLn stdout (Pkg.versionToString Compiler.version)
+              Exit.exitSuccess
 
         "<autocomplete>" : number : chunks ->
           attemptAutoComplete number $ \index ->
