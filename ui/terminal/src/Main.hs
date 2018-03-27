@@ -204,10 +204,11 @@ install =
               , "elm install elm-lang/json"
               ]
         , reflow
-            "Those commands would allow you to say `import Http` or `import Json.Decode` in\
-            \ your project. And every project is independent, so it is no problem if one\
-            \ project uses version 1.0.0 and another uses 2.0.0. No need to worry about\
-            \ that sort of thing!"
+            "Notice that you must say the AUTHOR name and PROJECT name! After running those\
+            \ commands, you could say `import Http` or `import Json.Decode` in your code."
+        , reflow
+            "What if two projects use different versions of the same package? No problem!\
+            \ Each project is independent, so there cannot be conflics like that!"
         ]
   in
   Interface "install" (Common summary) details example (required package) noFlags Install.run
