@@ -1,7 +1,6 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Reporting.Error.Assets
-  ( Error(..)
+module Reporting.Exit.Assets
+  ( Exit(..)
   , ElmJsonProblem(..)
   , toReport
   , BadElmJsonContent(..)
@@ -15,14 +14,14 @@ import qualified Data.Text as Text
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import qualified Elm.Package as Pkg
-import qualified Reporting.Error.Help as Help
+import qualified Reporting.Exit.Help as Help
 
 
 
--- ERRORS
+-- EXITS
 
 
-data Error
+data Exit
   = BadElmJson ElmJsonProblem
   | CorruptElmJson Pkg.Name Pkg.Version
   | CorruptDocumentation Pkg.Name Pkg.Version
@@ -43,9 +42,9 @@ data ElmJsonProblem
 -- TO REPORT
 
 
-toReport :: Error -> Help.Report
-toReport err =
-  case err of
+toReport :: Exit -> Help.Report
+toReport exit =
+  case exit of
     CorruptElmJson pkg vsn ->
       corruptJsonToReport "elm.json" pkg vsn
 

@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 module Reporting.Progress.Terminal
   ( create
   , newPackageOverview
@@ -17,8 +16,8 @@ import qualified Elm.Package as Pkg
 import Elm.Package (Name, Version)
 
 import qualified Deps.Diff as Diff
-import qualified Reporting.Error2 as Error
-import qualified Reporting.Error.Help as Help
+import qualified Reporting.Exit as Exit
+import qualified Reporting.Exit.Help as Help
 import Reporting.Progress (Msg(..), Progress(..), Outcome(..), PublishPhase(..), BumpPhase(..))
 import qualified Reporting.Progress as Progress
 import qualified Reporting.Progress.Bar as Bar
@@ -56,8 +55,8 @@ loop :: Chan Msg -> State -> IO ()
 loop chan state =
   do  msg <- readChan chan
       case msg of
-        End (Just err) ->
-          Error.toStderr err
+        End (Just exit) ->
+          Exit.toStderr exit
 
         End Nothing ->
           return ()

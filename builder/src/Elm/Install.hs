@@ -24,7 +24,7 @@ import Elm.Project.Constraint (Constraint)
 import qualified Elm.Project.Constraint as Con
 import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Root as Root
-import qualified Reporting.Error2 as Error
+import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
 
 
@@ -146,7 +146,7 @@ addToApp pkg info@(Project.AppInfo _ _ deps tests trans) =
 
           Nothing ->
             do  badNames <- filterM isBadElm (pkg : Map.keys old)
-                lift $ Task.throw (Error.NoSolution badNames)
+                lift $ Task.throw (Exit.NoSolution badNames)
 
 
 addToAppHelp :: Name -> Project.AppInfo -> Solver.Solver (Map Name Version)
@@ -186,7 +186,7 @@ addToPkg pkg info@(Project.PkgInfo _ _ _ _ _ deps tests _) =
           Nothing ->
             do  let pkgs = Map.keys deps ++ Map.keys tests
                 badNames <- filterM isBadElm (pkg : pkgs)
-                lift $ Task.throw (Error.NoSolution badNames)
+                lift $ Task.throw (Exit.NoSolution badNames)
 
 
 addToPkgHelp :: Name -> Project.PkgInfo -> Solver.Solver (Map Name Constraint)

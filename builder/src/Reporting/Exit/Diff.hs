@@ -1,7 +1,6 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Reporting.Error.Diff
-  ( Error(..)
+module Reporting.Exit.Diff
+  ( Exit(..)
   , toReport
   )
   where
@@ -10,14 +9,14 @@ import qualified Data.List as List
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import qualified Elm.Package as Pkg
-import qualified Reporting.Error.Help as Help
+import qualified Reporting.Exit.Help as Help
 
 
 
--- ERRORS
+-- EXITS
 
 
-data Error
+data Exit
   = Application
   | UnknownPackage Pkg.Name [Pkg.Name]
   | UnknownVersion Pkg.Name Pkg.Version [Pkg.Version]
@@ -27,9 +26,9 @@ data Error
 -- TO DOC
 
 
-toReport :: Error -> Help.Report
-toReport err =
-  case err of
+toReport :: Exit -> Help.Report
+toReport exit =
+  case exit of
     Application ->
       Help.report "CANNOT DIFF APPLICATIONS" Nothing
         "I cannot perform diffs on applications, only packages! If you are\

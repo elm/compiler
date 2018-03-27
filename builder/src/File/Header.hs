@@ -25,8 +25,8 @@ import qualified Elm.Project.Json as Project
 import Elm.Project.Json (Project)
 import Elm.Project.Summary (Summary(..))
 import qualified File.IO as IO
-import qualified Reporting.Error2 as Error
-import qualified Reporting.Error.Crawl as E
+import qualified Reporting.Exit as Exit
+import qualified Reporting.Exit.Crawl as E
 import qualified Reporting.Task as Task
 
 
@@ -43,7 +43,7 @@ data Info =
     }
 
 
-atRoot :: Task.Task_ E.Problem a -> Task.Task_ E.Error a
+atRoot :: Task.Task_ E.Problem a -> Task.Task_ E.Exit a
 atRoot task =
   Task.mapError (\problem -> E.DependencyProblems problem []) task
 
@@ -78,12 +78,12 @@ checkName path expectedName maybeName =
 
 readOneFile :: Summary -> FilePath -> Task.Task (Maybe Module.Raw, Info)
 readOneFile summary path =
-  Task.mapError Error.Crawl $
+  Task.mapError Exit.Crawl $
   do  (time, source) <- readOneHelp path
       atRoot $ parse (_project summary) path time source
 
 
-readOneHelp :: FilePath -> Task.Task_ E.Error (Time.UTCTime, BS.ByteString)
+readOneHelp :: FilePath -> Task.Task_ E.Exit (Time.UTCTime, BS.ByteString)
 readOneHelp path =
   do  exists <- IO.exists path
       if exists
@@ -97,7 +97,7 @@ readOneHelp path =
 
 readManyFiles :: Summary -> NonEmpty FilePath -> Task.Task (NonEmpty (Module.Raw, Info))
 readManyFiles summary files =
-  Task.mapError Error.Crawl $
+  Task.mapError Exit.Crawl $
   do  infos <- traverse (readManyFilesHelp summary) files
       let insert (name, info) dict = Map.insertWith (<>) name (info :| []) dict
       let nameTable = foldr insert Map.empty infos
@@ -105,7 +105,7 @@ readManyFiles summary files =
       return infos
 
 
-readManyFilesHelp :: Summary -> FilePath -> Task.Task_ E.Error (Module.Raw, Info)
+readManyFilesHelp :: Summary -> FilePath -> Task.Task_ E.Exit (Module.Raw, Info)
 readManyFilesHelp summary path =
   do  (time, source) <- readOneHelp path
       (maybeName, info) <- atRoot $ parse (_project summary) path time source
@@ -117,7 +117,7 @@ readManyFilesHelp summary path =
           return (name, info)
 
 
-detectDuplicateNames :: Module.Raw -> NonEmpty Info -> Task.Task_ E.Error ()
+detectDuplicateNames :: Module.Raw -> NonEmpty Info -> Task.Task_ E.Exit ()
 detectDuplicateNames name (info :| otherInfos) =
   case otherInfos of
     [] ->
@@ -134,7 +134,7 @@ detectDuplicateNames name (info :| otherInfos) =
 
 readSource :: Project -> BS.ByteString -> Task.Task (Maybe Module.Raw, Info)
 readSource project source =
-  Task.mapError Error.Crawl $
+  Task.mapError Exit.Crawl $
     atRoot $ parse project "elm" fakeTime source
 
 

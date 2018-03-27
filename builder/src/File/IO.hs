@@ -30,8 +30,8 @@ import qualified System.FilePath as FP
 import qualified System.IO as IO
 import System.IO.Error (ioeGetErrorType, annotateIOError, modifyIOError)
 
-import qualified Reporting.Error2 as Error
-import qualified Reporting.Error.Assets as E
+import qualified Reporting.Exit as Exit
+import qualified Reporting.Exit.Assets as E
 import qualified Reporting.Task as Task
 
 
@@ -64,7 +64,7 @@ readBinary path =
 
 throwCorruptBinary :: FilePath -> Task.Task a
 throwCorruptBinary filePath =
-  Task.throw (Error.Assets (E.CorruptBinary filePath))
+  Task.throw (Exit.Assets (E.CorruptBinary filePath))
 
 
 

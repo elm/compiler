@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Reporting.Error.Compile
-  ( Error(..)
+module Reporting.Exit.Compile
+  ( Exit(..)
   , toDoc
   )
   where
@@ -18,11 +18,11 @@ import qualified Elm.Compiler.Module as Module
 
 
 
--- ERRORS
+-- EXITS
 
 
-data Error =
-  Error
+data Exit =
+  Exit
     { _name :: Module.Raw
     , _path :: FilePath
     , _time :: Time.UTCTime
@@ -35,25 +35,25 @@ data Error =
 -- TO DOC
 
 
-toDoc :: Error -> [Error] -> P.Doc
+toDoc :: Exit -> [Exit] -> P.Doc
 toDoc e es =
   case NonEmpty.sortWith _time (e :| es) of
-    err :| errors ->
-      P.vcat (toDocHelp err errors)
+    exit :| exits ->
+      P.vcat (toDocHelp exit exits)
 
 
-toDocHelp :: Error -> [Error] -> [P.Doc]
-toDocHelp e1 errs =
-  case errs of
+toDocHelp :: Exit -> [Exit] -> [P.Doc]
+toDocHelp e1 exits =
+  case exits of
     [] ->
-      [errorToDoc e1]
+      [exitToDoc e1]
 
     e2 : otherErrors ->
-      errorToDoc e1 : separator (_name e1) (_name e2) : toDocHelp e2 otherErrors
+      exitToDoc e1 : separator (_name e1) (_name e2) : toDocHelp e2 otherErrors
 
 
-errorToDoc :: Error -> P.Doc
-errorToDoc (Error _name path _time source errors) =
+exitToDoc :: Exit -> P.Doc
+exitToDoc (Exit _name path _time source errors) =
   Compiler.errorsToDoc path source errors
 
 

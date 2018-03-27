@@ -1,7 +1,6 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Reporting.Error.Crawl
-  ( Error(..)
+module Reporting.Exit.Crawl
+  ( Exit(..)
   , Problem(..)
   , Origin(..)
   , toReport
@@ -19,14 +18,14 @@ import Text.PrettyPrint.ANSI.Leijen ((<+>), (<>))
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Compiler.Module as Module
 import qualified Elm.Package as Pkg
-import qualified Reporting.Error.Help as Help
+import qualified Reporting.Exit.Help as Help
 
 
 
--- ERROR
+-- EXIT
 
 
-data Error
+data Exit
   = RootFileNotFound FilePath
   | RootModuleNameDuplicate Module.Raw [FilePath]
   | RootNameless FilePath
@@ -58,9 +57,9 @@ data Origin
 -- TO REPORT
 
 
-toReport :: Error -> Help.Report
-toReport err =
-  case err of
+toReport :: Exit -> Help.Report
+toReport exit =
+  case exit of
     RootFileNotFound path ->
       Help.report "FILE NOT FOUND" Nothing
         "You want me to compile this file:"

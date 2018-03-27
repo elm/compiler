@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Reporting.Task
   ( Task, Task_, run, throw, mapError
@@ -31,7 +30,7 @@ import qualified System.IO as IO
 import Elm.Package (Name, Version)
 import qualified Elm.Package as Pkg
 import qualified Elm.PerUserCache as PerUserCache
-import qualified Reporting.Error2 as Error
+import qualified Reporting.Exit as Exit
 import qualified Reporting.Progress as Progress
 
 
@@ -40,7 +39,7 @@ import qualified Reporting.Progress as Progress
 
 
 type Task =
-  Task_ Error.Error
+  Task_ Exit.Exit
 
 
 type Task_ e =
@@ -184,7 +183,7 @@ initPool size =
 -- HTTP
 
 
-runHttp :: (Http.Manager -> (Progress.Progress -> IO ()) -> IO (Either Error.Error a)) -> Task a
+runHttp :: (Http.Manager -> (Progress.Progress -> IO ()) -> IO (Either Exit.Exit a)) -> Task a
 runHttp fetcher =
   do  (Env _ _ manager tell) <- ask
       result <- liftIO $ fetcher manager tell

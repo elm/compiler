@@ -22,8 +22,8 @@ import qualified Elm.Package as Pkg
 import qualified Elm.Project as Project
 import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Summary as Summary
-import qualified Reporting.Error2 as Error
-import qualified Reporting.Error.Publish as E
+import qualified Reporting.Exit as Exit
+import qualified Reporting.Exit.Publish as E
 import qualified Reporting.Progress as Progress
 import qualified Reporting.Task as Task
 import qualified Stuff.Paths as Path
@@ -62,9 +62,9 @@ publish summary@(Summary.Summary root project _ _ _) =
           Task.report Progress.PublishEnd
 
 
-throw :: E.Error -> Task.Task a
-throw err =
-  Task.throw (Error.Publish err)
+throw :: E.Exit -> Task.Task a
+throw exit =
+  Task.throw (Exit.Publish exit)
 
 
 
@@ -191,9 +191,9 @@ phase :: Progress.PublishPhase -> Task.Task a -> Task.Task a
 phase publishPhase task =
   do  Task.report $ Progress.PublishProgress publishPhase Nothing
 
-      result <- task `catchError` \err ->
+      result <- task `catchError` \exit ->
         do  Task.report $ Progress.PublishProgress publishPhase (Just Progress.Bad)
-            Task.throw err
+            Task.throw exit
 
       Task.report $ Progress.PublishProgress publishPhase (Just Progress.Good)
 
@@ -225,9 +225,9 @@ verifyVersion name version docs maybePublishedVersions =
             do  (old, magnitude) <- verifyBump name version docs publishedVersions
                 reportBumpPhase (Progress.GoodBump old magnitude)
 
-  `catchError` \err ->
+  `catchError` \exit ->
     do  reportBumpPhase Progress.BadBump
-        Task.throw err
+        Task.throw exit
 
 
 verifyBump :: Pkg.Name -> Pkg.Version -> Docs.Documentation -> [Pkg.Version] -> Task.Task (Pkg.Version, Diff.Magnitude)

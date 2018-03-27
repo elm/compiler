@@ -28,8 +28,8 @@ import qualified Deps.Website as Website
 import qualified Elm.Project.Json as Project
 import qualified Elm.Utils as Utils
 import qualified File.IO as IO
-import qualified Reporting.Error2 as Error
-import qualified Reporting.Error.Assets as E
+import qualified Reporting.Exit as Exit
+import qualified Reporting.Exit.Assets as E
 import qualified Reporting.Progress as Progress
 import qualified Reporting.Task as Task
 import qualified Json.Decode as Decode
@@ -129,7 +129,7 @@ info name version =
 
         Left _ ->
           do  IO.remove elmJson
-              Task.throw $ Error.Assets $ E.CorruptElmJson name version
+              Task.throw $ Exit.Assets $ E.CorruptElmJson name version
 
 
 
@@ -157,7 +157,7 @@ docs name version =
 
         Left _ ->
           do  IO.remove docsJson
-              Task.throw $ Error.Assets $ E.CorruptDocumentation name version
+              Task.throw $ Exit.Assets $ E.CorruptDocumentation name version
 
 
 errorToDocs :: Docs.Error -> [P.Doc]

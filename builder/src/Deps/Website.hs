@@ -35,7 +35,7 @@ import Elm.Package (Name, Version)
 import qualified Elm.Package as Pkg
 import qualified Json.Decode as D
 
-import qualified Reporting.Error.Http as E
+import qualified Reporting.Exit.Http as E
 import qualified Reporting.Progress as Progress
 import qualified Reporting.Task as Task
 import qualified Reporting.Task.Http as Http
@@ -188,7 +188,7 @@ endpointDecoder =
 -- DOWNLOAD ZIP ARCHIVE
 
 
-downloadArchive :: FilePath -> Name -> Version -> String -> Client.Response Client.BodyReader -> IO (Either E.Error ())
+downloadArchive :: FilePath -> Name -> Version -> String -> Client.Response Client.BodyReader -> IO (Either E.Exit ())
 downloadArchive cache name version expectedHash response =
   do  result <- readArchive (Client.responseBody response) initialArchiveState
       case result of
@@ -222,7 +222,7 @@ initialArchiveState =
 type Sha = SHA.Digest SHA.SHA1State
 
 
-readArchive :: Client.BodyReader -> ArchiveState -> IO (Either E.Error (Sha, Zip.Archive))
+readArchive :: Client.BodyReader -> ArchiveState -> IO (Either E.Exit (Sha, Zip.Archive))
 readArchive body (AS len sha zip) =
   case zip of
     Binary.Fail _ _ _ ->
@@ -303,7 +303,7 @@ githubDownload name version dir =
       Client.withResponse request manager (githubDownloadHelp dir)
 
 
-githubDownloadHelp :: FilePath -> Client.Response Client.BodyReader -> IO (Either E.Error Sha)
+githubDownloadHelp :: FilePath -> Client.Response Client.BodyReader -> IO (Either E.Exit Sha)
 githubDownloadHelp targetDir response =
   do  result <- readArchive (Client.responseBody response) initialArchiveState
       case result of

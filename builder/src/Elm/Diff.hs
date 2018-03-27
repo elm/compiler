@@ -25,9 +25,9 @@ import qualified Elm.Package as Pkg
 import qualified Elm.Project as Project
 import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Summary as Summary
-import qualified Reporting.Error2 as Error
-import qualified Reporting.Error.Diff as E
-import qualified Reporting.Error.Help as Help
+import qualified Reporting.Exit as Exit
+import qualified Reporting.Exit.Diff as E
+import qualified Reporting.Exit.Help as Help
 import qualified Reporting.Task as Task
 
 
@@ -75,9 +75,9 @@ diff args =
           writeDoc (toDoc (Diff.diff oldDocs newDocs))
 
 
-throw :: E.Error -> Task.Task a
-throw err =
-  Task.throw $ Error.Diff err
+throw :: E.Exit -> Task.Task a
+throw exit =
+  Task.throw $ Exit.Diff exit
 
 
 

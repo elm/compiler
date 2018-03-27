@@ -1,7 +1,6 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Reporting.Error.Deps
-  ( Error(..)
+module Reporting.Exit.Deps
+  ( Exit(..)
   , toReport
   )
   where
@@ -12,14 +11,14 @@ import qualified Text.PrettyPrint.ANSI.Leijen as P
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Package as Pkg
 import qualified Elm.Project.Constraint as Con
-import qualified Reporting.Error.Help as Help
+import qualified Reporting.Exit.Help as Help
 
 
 
--- ERRORS
+-- EXITS
 
 
-data Error
+data Exit
   = CorruptVersionCache Pkg.Name
   | PackageNotFound Pkg.Name [Pkg.Name]
   -- verify
@@ -33,9 +32,9 @@ data Error
 -- TO DOC
 
 
-toReport :: Error -> Help.Report
-toReport err =
-  case err of
+toReport :: Exit -> Help.Report
+toReport exit =
+  case exit of
     CorruptVersionCache pkg ->
       Help.report "CORRUPT CACHE" Nothing
         ( "I ran into an unknown package while exploring dependencies:"

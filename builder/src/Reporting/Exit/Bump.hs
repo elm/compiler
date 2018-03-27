@@ -1,7 +1,6 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Reporting.Error.Bump
-  ( Error(..)
+module Reporting.Exit.Bump
+  ( Exit(..)
   , toReport
   )
   where
@@ -11,14 +10,14 @@ import Data.Monoid ((<>))
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import qualified Elm.Package as Pkg
-import qualified Reporting.Error.Help as Help
+import qualified Reporting.Exit.Help as Help
 
 
 
--- ERRORS
+-- EXITS
 
 
-data Error
+data Exit
   = Application
   | Unbumpable Pkg.Version [Pkg.Version]
 
@@ -27,9 +26,9 @@ data Error
 -- TO REPORT
 
 
-toReport :: Error -> Help.Report
-toReport err =
-  case err of
+toReport :: Exit -> Help.Report
+toReport exit =
+  case exit of
     Application ->
       Help.report "UNBUMPABLE" (Just "elm.json")
         "Your elm.json says this is an application. That means it cannot be published\

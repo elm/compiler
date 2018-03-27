@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Elm.Project.Root
   ( get
@@ -20,7 +19,7 @@ import Elm.Project.Json (Project(..), PkgInfo(..))
 import Elm.Project.Summary (Summary)
 import qualified Elm.PerUserCache as PerUserCache
 import qualified File.IO as IO
-import qualified Reporting.Error2 as Error
+import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
 import qualified Stuff.Verify as Verify
 import qualified Json.Encode as Encode
@@ -55,7 +54,7 @@ moveToRoot =
               return root
 
         Nothing ->
-          Task.throw Error.NoElmJson
+          Task.throw Exit.NoElmJson
 
 
 

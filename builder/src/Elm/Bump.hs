@@ -17,9 +17,9 @@ import qualified Elm.Package as Pkg
 import qualified Elm.Project as Project
 import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Summary as Summary
-import qualified Reporting.Error2 as Error
-import qualified Reporting.Error.Bump as E
-import qualified Reporting.Error.Help as Help
+import qualified Reporting.Exit as Exit
+import qualified Reporting.Exit.Bump as E
+import qualified Reporting.Exit.Help as Help
 import qualified Reporting.Progress.Terminal as Terminal
 import qualified Reporting.Task as Task
 
@@ -32,7 +32,7 @@ bump :: Summary.Summary -> Task.Task ()
 bump summary@(Summary.Summary root project _ _ _) =
   case project of
     Project.App _ ->
-      Task.throw (Error.Bump E.Application)
+      Task.throw (Exit.Bump E.Application)
 
     Project.Pkg info@(Project.PkgInfo name _ _ version _ _ _ _) ->
       do  pkgs <- Get.all Get.RequireLatest
@@ -48,7 +48,7 @@ bump summary@(Summary.Summary root project _ _ _) =
                 if elem version bumpableVersions then
                   suggestVersion summary info
                 else
-                  Task.throw $ Error.Bump $ E.Unbumpable version $
+                  Task.throw $ Exit.Bump $ E.Unbumpable version $
                     map head (List.group (List.sort bumpableVersions))
 
 

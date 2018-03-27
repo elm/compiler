@@ -1,45 +1,48 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Reporting.Error2
-  ( Error(..)
+module Reporting.Exit
+  ( Exit(..)
   , toString
   , toStderr
+  , toJson
   )
   where
 
 
+import qualified Data.ByteString.Builder as B
+import System.IO (stderr)
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Compiler.Module as Module
 import qualified Elm.Package as Pkg
 import qualified Elm.Utils as Utils
-import qualified Reporting.Error.Assets as Asset
-import qualified Reporting.Error.Bump as Bump
-import qualified Reporting.Error.Compile as Compile
-import qualified Reporting.Error.Crawl as Crawl
-import qualified Reporting.Error.Deps as Deps
-import qualified Reporting.Error.Diff as Diff
-import qualified Reporting.Error.Help as Help
-import qualified Reporting.Error.Http as Http
-import qualified Reporting.Error.Publish as Publish
+import qualified Json.Encode as Encode
+import qualified Reporting.Exit.Assets as Asset
+import qualified Reporting.Exit.Bump as Bump
+import qualified Reporting.Exit.Compile as Compile
+import qualified Reporting.Exit.Crawl as Crawl
+import qualified Reporting.Exit.Deps as Deps
+import qualified Reporting.Exit.Diff as Diff
+import qualified Reporting.Exit.Help as Help
+import qualified Reporting.Exit.Http as Http
+import qualified Reporting.Exit.Publish as Publish
 
 
 
 -- ALL POSSIBLE ERRORS
 
 
-data Error
+data Exit
   = NoElmJson
-  | Assets Asset.Error
-  | Bump Bump.Error
-  | Compile Compile.Error [Compile.Error]
-  | Crawl Crawl.Error
+  | Assets Asset.Exit
+  | Bump Bump.Exit
+  | Compile Compile.Exit [Compile.Exit]
+  | Crawl Crawl.Exit
   | Cycle [Module.Raw] -- TODO write docs to help with this scenario
-  | Deps Deps.Error
-  | Diff Diff.Error
-  | Publish Publish.Error
-  | BadHttp String Http.Error
+  | Deps Deps.Exit
+  | Diff Diff.Exit
+  | Publish Publish.Exit
+  | BadHttp String Http.Exit
 
   -- install
   | NoSolution [Pkg.Name]
@@ -50,19 +53,24 @@ data Error
 -- RENDERERS
 
 
-toString :: Error -> String
-toString err =
-  Help.toString (Help.reportToDoc (toReport err))
+toString :: Exit -> String
+toString exit =
+  Help.toString (Help.reportToDoc (toReport exit))
 
 
-toStderr :: Error -> IO ()
-toStderr err =
-  Help.toStderr (Help.reportToDoc (toReport err))
+toStderr :: Exit -> IO ()
+toStderr exit =
+  Help.toStderr (Help.reportToDoc (toReport exit))
 
 
-toReport :: Error -> Help.Report
-toReport err =
-  case err of
+toJson :: Exit -> IO ()
+toJson exit =
+  B.hPutBuilder stderr $ Encode.encodeUgly $ Help.reportToJson (toReport exit)
+
+
+toReport :: Exit -> Help.Report
+toReport exit =
+  case exit of
     NoElmJson ->
       Help.report "WELCOME" Nothing
         "It looks like you are trying to start a new Elm project. Very exciting! :D"

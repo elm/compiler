@@ -1,7 +1,6 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Reporting.Error.Http
-  ( Error(..)
+module Reporting.Exit.Http
+  ( Exit(..)
   , toReport
   , BadJson(..)
   , badJsonToDocs
@@ -13,14 +12,14 @@ import qualified Data.Text as Text
 import Text.PrettyPrint.ANSI.Leijen ((<>))
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 
-import qualified Reporting.Error.Help as Help
+import qualified Reporting.Exit.Help as Help
 
 
 
--- ERRORS
+-- EXITS
 
 
-data Error
+data Exit
   = Unknown String
   | BadJson P.Doc
   | BadZipData
@@ -31,13 +30,13 @@ data Error
 -- TO REPORT
 
 
-toReport :: String -> Error -> Help.Report
-toReport url err =
+toReport :: String -> Exit -> Help.Report
+toReport url exit =
   let
     urlDoc =
       P.indent 4 $ P.dullyellow $ "<" <> P.text url <> ">"
   in
-  case err of
+  case exit of
     Unknown message ->
       Help.report "HTTP PROBLEM" Nothing "The following HTTP request failed:"
         [ urlDoc

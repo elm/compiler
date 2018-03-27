@@ -29,8 +29,8 @@ import qualified File.Args as Args
 import qualified File.Find as Find
 import qualified File.Header as Header
 import qualified File.IO as IO
-import qualified Reporting.Error2 as Error
-import qualified Reporting.Error.Crawl as E
+import qualified Reporting.Exit as Exit
+import qualified Reporting.Exit.Crawl as E
 import qualified Reporting.Task as Task
 
 
@@ -121,7 +121,7 @@ depthFirstSearch summary unvisited startGraph =
               return $ Graph args locals kernels foreigns ()
 
         problem : otherProblems ->
-          Task.throw (Error.Crawl (E.DependencyProblems problem otherProblems))
+          Task.throw (Exit.Crawl (E.DependencyProblems problem otherProblems))
 
 
 
@@ -147,7 +147,7 @@ checkComponent scc =
       return ()
 
     Graph.CyclicSCC names ->
-      Task.throw (Error.Cycle names)
+      Task.throw (Exit.Cycle names)
 
 
 
@@ -270,7 +270,7 @@ readKContent importDict path =
           return content
 
         Left _ ->
-          Task.throw (Error.Crawl (E.BadKernelHeader path))
+          Task.throw (Exit.Crawl (E.BadKernelHeader path))
 
 
 

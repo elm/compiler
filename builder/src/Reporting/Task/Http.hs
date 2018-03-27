@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Reporting.Task.Http
@@ -24,8 +23,8 @@ import qualified Network.HTTP.Client as Http
 
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Package as Pkg
-import qualified Reporting.Error2 as Error
-import qualified Reporting.Error.Http as E
+import qualified Reporting.Exit as Exit
+import qualified Reporting.Exit.Http as E
 import qualified Reporting.Progress as Progress
 import qualified Reporting.Task as Task
 
@@ -43,7 +42,7 @@ data Fetch a where
 
 
 type Handler a =
-  Http.Request -> Http.Manager -> IO (Either E.Error a)
+  Http.Request -> Http.Manager -> IO (Either E.Exit a)
 
 
 package :: String -> [(String,String)] -> Handler a -> Fetch a
@@ -83,7 +82,7 @@ run fetch =
         readMVar =<< runHelp chan manager tell fetch
 
 
-runHelp :: Chan (IO ()) -> Http.Manager -> (Progress.Progress -> IO ()) -> Fetch a -> IO (MVar (Either Error.Error a))
+runHelp :: Chan (IO ()) -> Http.Manager -> (Progress.Progress -> IO ()) -> Fetch a -> IO (MVar (Either Exit.Exit a))
 runHelp chan manager tell fetch =
   case fetch of
     Package path params handler ->
@@ -162,13 +161,13 @@ versionParam =
 -- HTTP HELP
 
 
-fetchSafe :: String -> Http.Manager -> Handler a -> IO (Either Error.Error a)
+fetchSafe :: String -> Http.Manager -> Handler a -> IO (Either Exit.Exit a)
 fetchSafe url manager handler =
   fetchUnsafe url manager handler
     `catch` \e -> handleAnyError url (e :: SomeException)
 
 
-fetchUnsafe :: String -> Http.Manager -> Handler a -> IO (Either Error.Error a)
+fetchUnsafe :: String -> Http.Manager -> Handler a -> IO (Either Exit.Exit a)
 fetchUnsafe url manager handler =
   do  request <- Http.parseUrlThrow url
       result <- handler request manager
@@ -177,9 +176,9 @@ fetchUnsafe url manager handler =
           return (Right value)
 
         Left problem ->
-          return (Left (Error.BadHttp url problem))
+          return (Left (Exit.BadHttp url problem))
 
 
-handleAnyError :: (Exception e) => String -> e -> IO (Either Error.Error a)
+handleAnyError :: (Exception e) => String -> e -> IO (Either Exit.Exit a)
 handleAnyError url exception =
-  return $ Left $ Error.BadHttp url $ E.Unknown $ show exception
+  return $ Left $ Exit.BadHttp url $ E.Unknown $ show exception

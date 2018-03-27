@@ -41,8 +41,8 @@ import qualified Elm.Project.Constraint as Con
 import qualified Elm.Project.Licenses as Licenses
 import qualified Json.Decode as D
 import qualified Json.Encode as E
-import qualified Reporting.Error2 as Error
-import qualified Reporting.Error.Assets as E
+import qualified Reporting.Exit as Exit
+import qualified Reporting.Exit.Assets as E
 import qualified Reporting.Task as Task
 
 
@@ -268,7 +268,7 @@ read path =
 
 throwBadJson :: E.ElmJsonProblem -> Task.Task a
 throwBadJson problem =
-  Task.throw (Error.Assets (E.BadElmJson problem))
+  Task.throw (Exit.Assets (E.BadElmJson problem))
 
 
 checkOverlap :: String -> String -> Map Name a -> Map Name a -> Task.Task ()

@@ -16,7 +16,7 @@ import Control.Concurrent.MVar (MVar, readMVar)
 import qualified Elm.Compiler.Module as Module
 import Deps.Diff (Magnitude)
 import Elm.Package (Name, Version)
-import Reporting.Error2 (Error)
+import Reporting.Exit (Exit)
 
 
 
@@ -26,7 +26,7 @@ import Reporting.Error2 (Error)
 data Reporter =
   Reporter
     { _tell :: Progress -> IO ()
-    , _end :: Maybe Error -> IO ()
+    , _end :: Maybe Exit -> IO ()
     }
 
 
@@ -47,7 +47,7 @@ makeReporter chan mvar =
 -- MESSAGES
 
 
-data Msg = Progress Progress | End (Maybe Error)
+data Msg = Progress Progress | End (Maybe Exit)
 
 
 data Progress

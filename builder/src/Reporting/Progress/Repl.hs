@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 module Reporting.Progress.Repl
   ( create
   )
@@ -9,7 +8,7 @@ import Control.Concurrent (forkIO)
 import Control.Concurrent.Chan (Chan, newChan, readChan)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar)
 
-import qualified Reporting.Error2 as Error
+import qualified Reporting.Exit as Exit
 import qualified Reporting.Progress as Progress
 
 
@@ -36,10 +35,10 @@ loop chan =
         Progress.Progress _ ->
           loop chan
 
-        Progress.End maybeError ->
-          case maybeError of
-            Just err ->
-              Error.toStderr err
+        Progress.End maybeExit ->
+          case maybeExit of
+            Just exit ->
+              Exit.toStderr exit
 
             Nothing ->
               return ()

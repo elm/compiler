@@ -1,7 +1,6 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Reporting.Error.Publish
-  ( Error(..)
+module Reporting.Exit.Publish
+  ( Exit(..)
   , toReport
   )
   where
@@ -12,14 +11,14 @@ import Text.PrettyPrint.ANSI.Leijen ((<>))
 
 import Deps.Diff (Magnitude, magnitudeToString)
 import qualified Elm.Package as Pkg
-import qualified Reporting.Error.Help as Help
+import qualified Reporting.Exit.Help as Help
 
 
 
--- ERRORS
+-- EXITS
 
 
-data Error
+data Exit
   = Application
   | NotInitialVersion Pkg.Version
   | AlreadyPublished Pkg.Version
@@ -39,9 +38,9 @@ data Error
 -- TO REPORT
 
 
-toReport :: Error -> Help.Report
-toReport err =
-  case err of
+toReport :: Exit -> Help.Report
+toReport exit =
+  case exit of
     Application ->
       Help.report "UNPUBLISHABLE" Nothing "I cannot publish applications, only packages!" []
 

@@ -1,11 +1,11 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Reporting.Error.Help
+module Reporting.Exit.Help
   ( Report
   , report
   , docReport
   , compilerReport
   , reportToDoc
+  , reportToJson
   , hintLink
   , stack
   , reflow
@@ -16,7 +16,9 @@ module Reporting.Error.Help
   )
   where
 
+
 import qualified Data.List as List
+import qualified Data.Text as Text
 import GHC.IO.Handle (hIsTerminalDevice)
 import System.IO (Handle, hPutStr, stderr, stdout)
 import qualified Text.PrettyPrint.ANSI.Leijen as P
@@ -24,6 +26,7 @@ import Text.PrettyPrint.ANSI.Leijen ((<>),(<+>))
 
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Package as Pkg
+import qualified Json.Encode as Encode
 
 
 
@@ -31,37 +34,40 @@ import qualified Elm.Package as Pkg
 
 
 data Report
-  = FromCompiler P.Doc
+  = CompileErrors
   | Report
       { _title :: String
       , _path :: Maybe FilePath
-      , _start :: P.Doc
-      , _others :: [P.Doc]
+      , _message :: P.Doc
       }
 
 
 report :: String -> Maybe FilePath -> String -> [P.Doc] -> Report
-report title maybePath startString others =
-  Report title maybePath (P.text startString) others
+report title path startString others =
+  Report title path $ stack (reflow startString:others)
 
 
 docReport :: String -> Maybe FilePath -> P.Doc -> [P.Doc] -> Report
-docReport =
-  Report
+docReport title path startDoc others =
+  Report title path $ stack (startDoc:others)
 
 
 compilerReport :: P.Doc -> Report
 compilerReport =
-  FromCompiler
+  error "TODO compilerReport"
+
+
+
+-- TO DOC
 
 
 reportToDoc :: Report -> P.Doc
 reportToDoc report_ =
   case report_ of
-    FromCompiler doc ->
-      doc
+    CompileErrors ->
+      error "TODO reportToDoc"
 
-    Report title maybePath start others ->
+    Report title maybePath message ->
       let
         makeDashes n =
           replicate (max 1 (80 - n)) '-'
@@ -78,7 +84,30 @@ reportToDoc report_ =
           P.dullcyan $
             "--" <+> P.text title <+> P.text errorBarEnd
       in
-        stack (errorBar : start : others ++ [""])
+        stack [errorBar, message, ""]
+
+
+
+-- TO JSON
+
+
+reportToJson :: Report -> Encode.Value
+reportToJson report_ =
+  case report_ of
+    CompileErrors ->
+      error "TODO reportToJson"
+
+    Report title maybePath message ->
+      let
+        messageString =
+          P.displayS (P.renderPretty 1 80 message) ""
+      in
+      Encode.object
+        [ ("type", Encode.text "error")
+        , ("path", maybe Encode.null (Encode.text . Text.pack) maybePath)
+        , ("title", Encode.text (Text.pack title))
+        , ("message", Encode.text (Text.pack messageString))
+        ]
 
 
 

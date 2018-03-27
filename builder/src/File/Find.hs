@@ -18,7 +18,7 @@ import qualified Elm.Package as Pkg
 
 import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Summary as Summary
-import qualified Reporting.Error.Crawl as E
+import qualified Reporting.Exit.Crawl as E
 import qualified Reporting.Task as Task
 
 
