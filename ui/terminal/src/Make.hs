@@ -1,5 +1,6 @@
 module Make
   ( Flags(..)
+  , ReportType(..)
   , run
   )
   where
@@ -11,6 +12,7 @@ import qualified Elm.Compiler.Objects as Obj
 import qualified Elm.Project as Project
 import qualified Generate.Output as Output
 import qualified Reporting.Task as Task
+import qualified Reporting.Progress.Json as Json
 import qualified Reporting.Progress.Terminal as Terminal
 
 
@@ -20,25 +22,34 @@ import qualified Reporting.Progress.Terminal as Terminal
 
 data Flags =
   Flags
-    { _warn :: Bool
-    , _debug :: Bool
+    { _debug :: Bool
     , _output :: Maybe Output.Output
+    , _report :: Maybe ReportType
     }
 
 
+data ReportType
+  = Json
+
+
 run :: [FilePath] -> Flags -> IO ()
-run paths flags =
-  do  reporter <- Terminal.create
+run paths (Flags debug output report) =
+  let
+    mode =
+      if debug then Obj.Debug else Obj.Prod
+
+    outputOptions =
+      Output.Options mode Obj.Client output
+
+    makeReporter =
+      case report of
+        Nothing ->
+          Terminal.create
+
+        Just Json ->
+          Json.create
+  in
+  do  reporter <- makeReporter
       void $ Task.run reporter $
         do  summary <- Project.getRoot
-            Project.compile (toOptions flags) summary paths
-
-
--- TODO figure out --warn flag
-toOptions :: Flags -> Output.Options
-toOptions (Flags warn debug output) =
-  let
-    mode = if debug then Obj.Debug else Obj.Prod
-    target = if False then Obj.Server else Obj.Client
-  in
-  Output.Options warn mode target output
+            Project.compile outputOptions summary paths
