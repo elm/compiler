@@ -173,9 +173,9 @@ make =
 
     makeFlags =
       flags Make.Flags
-        |-- onOff "warn" "Report warnings to improve code quality."
-        |-- onOff "debug" "Generate programs in debug mode."
-        |-- flag "output" Output.output "Specify the name of the resulting JS file (use --output=/dev/null for no output)"
+        |-- onOff "debug" "Turn on debug mode. This allows you to (1) use functions like Debug.log and Debug.crash and (2) use the interactive debugger to rewind your programs."
+        |-- flag "output" Output.output "Specify the name of the resulting JS file. For example --output=assets/elm.js to generate the JS at assets/elm.js or --output=/dev/null to generate no output at all!"
+        |-- flag "report" Make.reportType "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
   in
   Interface "make" (Common summary) details example (zeroOrMore elmFile) makeFlags Make.run
 

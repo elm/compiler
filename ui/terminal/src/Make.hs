@@ -1,7 +1,8 @@
 module Make
   ( Flags(..)
-  , ReportType(..)
   , run
+  , ReportType(..)
+  , reportType
   )
   where
 
@@ -14,6 +15,7 @@ import qualified Generate.Output as Output
 import qualified Reporting.Task as Task
 import qualified Reporting.Progress.Json as Json
 import qualified Reporting.Progress.Terminal as Terminal
+import Terminal.Args (Parser(..))
 
 
 
@@ -26,10 +28,6 @@ data Flags =
     , _output :: Maybe Output.Output
     , _report :: Maybe ReportType
     }
-
-
-data ReportType
-  = Json
 
 
 run :: [FilePath] -> Flags -> IO ()
@@ -53,3 +51,22 @@ run paths (Flags debug output report) =
       void $ Task.run reporter $
         do  summary <- Project.getRoot
             Project.compile outputOptions summary paths
+
+
+
+-- REPORT
+
+
+data ReportType
+  = Json
+
+
+reportType :: Parser ReportType
+reportType =
+  Parser
+    { _singular = "report type"
+    , _plural = "report types"
+    , _parser = \string -> if string == "json" then Just Json else Nothing
+    , _suggest = \_ -> return ["json"]
+    , _examples = \_ -> return ["json"]
+    }
