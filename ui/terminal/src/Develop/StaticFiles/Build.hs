@@ -52,7 +52,7 @@ compile =
 
 options :: Output.Options
 options =
-  Output.Options False Obj.Prod Obj.Client $
+  Output.Options Obj.Prod Obj.Client $
     Just (Output.Custom Nothing tempFileName)
 
 
