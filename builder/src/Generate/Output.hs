@@ -41,8 +41,7 @@ import Terminal.Args (Parser(..), suggestFiles)
 
 data Options =
   Options
-    { _warn :: Bool
-    , _mode :: Obj.Mode
+    { _mode :: Obj.Mode
     , _target :: Obj.Target
     , _output :: Maybe Output
     }
@@ -63,7 +62,7 @@ generate options summary graph@(Crawl.Graph args _ _ _ _) =
 
 
 generateMonolith :: Options -> Summary.Summary -> Crawl.Result -> [Module.Raw] -> Task.Task ()
-generateMonolith (Options _ debug target output_) summary@(Summary.Summary _ project _ ifaces _) graph names =
+generateMonolith (Options debug target output_) summary@(Summary.Summary _ project _ ifaces _) graph names =
   do
       objectGraph <- organize summary graph
       let pkg = Project.getName project
