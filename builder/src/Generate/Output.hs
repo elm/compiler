@@ -169,7 +169,7 @@ parseOutput string =
     if string == "/dev/null" || string == "NUL" || string == "$null" then
       Just None
 
-    else if FP.takeExtension string == "js" then
+    else if FP.takeExtension string == ".js" then
       toCustom string
 
     else

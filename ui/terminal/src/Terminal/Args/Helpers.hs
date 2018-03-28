@@ -74,7 +74,7 @@ elmFile =
 
 parseElmFile :: String -> Maybe FilePath
 parseElmFile string =
-  if FP.takeExtension string == "elm" then
+  if FP.takeExtension string == ".elm" then
     Just string
   else
     Nothing
