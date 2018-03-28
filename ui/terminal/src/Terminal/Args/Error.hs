@@ -259,8 +259,8 @@ exitWithUnknown unknown knowns =
 -- ERROR TO DOC
 
 
-exitWithError :: Maybe String -> Error -> IO a
-exitWithError maybeCommand err =
+exitWithError :: Error -> IO a
+exitWithError err =
   exitFailure =<<
     case err of
       BadFlag flagError ->
@@ -271,8 +271,8 @@ exitWithError maybeCommand err =
           [] ->
             error "TODO no possible args"
 
-          [(args, argError)] ->
-            argErrorToDocs maybeCommand args argError
+          [(_args, argError)] ->
+            argErrorToDocs argError
 
           _:_:_ ->
             error "TODO show possible arg configurations"
@@ -297,54 +297,43 @@ toRed str =
 -- ARG ERROR TO DOC
 
 
-argErrorHelp :: Maybe String -> CompleteArgs a -> [P.Doc] -> IO [P.Doc]
-argErrorHelp maybeCommand args details =
-  do  command <- toCommand maybeCommand
-      return $
-        [ "I was expecting arguments like this:"
-        , P.indent 4 $ P.dullcyan $ argsToDoc command args
+argErrorToDocs :: ArgError -> IO [P.Doc]
+argErrorToDocs argError =
+  case argError of
+    ArgMissing (Expectation tipe makeExamples) ->
+      do  examples <- makeExamples
+          return
+            [ P.fillSep
+                ["The","arguments","you","have","are","fine,","but","in","addition,","I","was"
+                ,"expecting","a",toYellow (toToken tipe),"value.","For","example:"
+                ]
+            , P.indent 4 $ P.green $ P.vcat $ map P.text examples
+            ]
+
+    ArgBad string (Expectation tipe makeExamples) ->
+      do  examples <- makeExamples
+          return
+            [ "I am having trouble with this argument:"
+            , P.indent 4 $ toRed string
+            , P.fillSep
+                ["It","is","supposed","to","be","a"
+                ,toYellow (toToken tipe),"value,","like","this:"
+                ]
+            , P.indent 4 $ P.green $ P.vcat $ map P.text examples
+            ]
+
+    ArgExtras extras ->
+      let
+        (these, them) =
+          case extras of
+            [_] -> ("this argument", "it")
+            _ -> ("these arguments", "them")
+      in
+      return
+        [ reflow $ "I was not expecting " ++ these ++ ":"
+        , P.indent 4 $ P.red $ P.vcat $ map P.text extras
+        , reflow $ "Try removing " ++ them ++ "?"
         ]
-        ++ details
-
-
-argErrorToDocs :: Maybe String -> CompleteArgs a -> ArgError -> IO [P.Doc]
-argErrorToDocs maybeCommand args argError =
-  argErrorHelp maybeCommand args =<<
-    case argError of
-      ArgMissing (Expectation tipe makeExamples) ->
-        do  examples <- makeExamples
-            return
-              [ P.fillSep
-                  ["Everything","you","have","is","fine,","but","in","addition,","I","was"
-                  ,"expecting","a",toYellow (toToken tipe),"value.","For","example:"
-                  ]
-              , P.indent 4 $ P.green $ P.vcat $ map P.text examples
-              ]
-
-      ArgBad string (Expectation tipe makeExamples) ->
-        do  examples <- makeExamples
-            return
-              [ "I am having trouble with this argument though:"
-              , P.indent 4 $ toRed string
-              , P.fillSep
-                  ["It","is","supposed","to","be","a"
-                  ,toYellow (toToken tipe),"value,","like","this:"
-                  ]
-              , P.indent 4 $ P.green $ P.vcat $ map P.text examples
-              ]
-
-      ArgExtras extras ->
-        let
-          (these, them) =
-            case extras of
-              [_] -> ("this extra argument", "it")
-              _ -> ("these extra arguments", "them")
-        in
-        return
-          [ reflow $ "That worked, but I did not know what to do with " ++ these ++ ":"
-          , P.indent 4 $ P.red $ P.vcat $ map P.text extras
-          , reflow $ "Try removing " ++ them ++ "?"
-          ]
 
 
 

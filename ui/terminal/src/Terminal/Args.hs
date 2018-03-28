@@ -57,7 +57,7 @@ simple details example args_ flags_ callback =
                 callback argsValue flagValue
 
               Left err ->
-                Error.exitWithError Nothing err
+                Error.exitWithError err
 
 
 complex :: P.Doc -> P.Doc -> [Interface] -> IO ()
@@ -93,7 +93,7 @@ complex intro outro interfaces =
                     callback argsValue flagValue
 
                   Left err ->
-                    Error.exitWithError (Just command) err
+                    Error.exitWithError err
 
 
 
