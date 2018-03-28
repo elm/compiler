@@ -1,4 +1,4 @@
-# The Elm Compiler [![Build Status](https://travis-ci.org/elm-lang/elm-compiler.svg?branch=master)](https://travis-ci.org/elm-lang/elm-compiler)
+# The Elm Compiler
 
 Learn about the Elm programming language at [elm-lang.org](http://elm-lang.org/).
 
