@@ -24,8 +24,8 @@ import qualified Elm.Docs as Docs
 import qualified Json.Encode as Encode
 
 import File.Compile (Answer(..))
-import qualified Reporting.Error.Compile as E
-import qualified Reporting.Error2 as Error
+import qualified Reporting.Exit.Compile as E
+import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
 import qualified Stuff.Paths as Path
 
@@ -88,7 +88,7 @@ gather onGood answers =
 
       case summary of
         Left (err :| errors) ->
-          Task.throw (Error.Compile err errors)
+          Task.throw (Exit.Compile err errors)
 
         Right results ->
           return results
@@ -104,7 +104,7 @@ gatherHelp onGood summary (name, answer) =
       return summary
 
     Bad path time src errors ->
-      do  let err = E.Error name path time (Text.decodeUtf8 src) errors
+      do  let err = E.Exit name path time (Text.decodeUtf8 src) errors
           return (addErr err summary)
 
     Good result ->
@@ -117,7 +117,7 @@ gatherHelp onGood summary (name, answer) =
 
 
 type Summary a =
-  Either (NonEmpty E.Error) (Map Module.Raw a)
+  Either (NonEmpty E.Exit) (Map Module.Raw a)
 
 
 addOk :: Module.Raw -> a -> Summary a -> Summary a
@@ -130,7 +130,7 @@ addOk name result acc =
       Right (Map.insert name result results)
 
 
-addErr :: E.Error -> Summary a -> Summary a
+addErr :: E.Exit -> Summary a -> Summary a
 addErr err acc =
   case acc of
     Left errors ->
