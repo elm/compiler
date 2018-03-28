@@ -25,6 +25,7 @@ import qualified Data.Vector as Vector
 import Foreign.ForeignPtr (ForeignPtr)
 import GHC.Word (Word8(..))
 
+import qualified Json.Decode.Error as DecodeError
 import qualified Json.Decode.Internals as Json
 import qualified Parse.Primitives as P
 import qualified Parse.Primitives.Internals as I
@@ -33,7 +34,6 @@ import qualified Parse.Primitives.Keyword as Keyword
 import qualified Parse.Primitives.Number as Number
 import qualified Parse.Primitives.Symbol as Symbol
 import qualified Reporting.Error.Syntax as E
-import qualified Reporting.Error.Json as J
 import qualified Reporting.Helpers as H
 import qualified Reporting.Region as R
 import qualified Reporting.Render.Code as Code
@@ -43,23 +43,23 @@ import qualified Reporting.Render.Code as Code
 -- PARSE
 
 
-parse :: FilePath -> String -> (e -> [H.Doc]) -> Json.Decoder e a -> B.ByteString -> Either H.Doc a
-parse path rootName userErrorToDocs (Json.Decoder run) bytestring =
+parse :: String -> (e -> [H.Doc]) -> Json.Decoder e a -> B.ByteString -> Either H.Doc a
+parse rootName userErrorToDocs (Json.Decoder run) bytestring =
   let
     source =
       Code.toSource (Text.replace "\t" " " (Text.decodeUtf8 bytestring))
 
     toDoc err =
-      J.toDoc path rootName source userErrorToDocs err
+      DecodeError.toDoc rootName source userErrorToDocs err
   in
   case P.run jsonFile bytestring of
     Left err ->
-      Left (toDoc (J.BadJson err))
+      Left (toDoc (DecodeError.BadJson err))
 
     Right value ->
       case run value of
         Left err ->
-          Left (toDoc (J.BadContent err))
+          Left (toDoc (DecodeError.BadContent err))
 
         Right answer ->
           Right answer

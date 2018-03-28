@@ -3,6 +3,7 @@ module Reporting.Exit.Help
   ( Report
   , report
   , docReport
+  , jsonReport
   , compilerReport
   , reportToDoc
   , reportToJson
@@ -27,6 +28,7 @@ import Text.PrettyPrint.ANSI.Leijen ((<>),(<+>))
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Package as Pkg
 import qualified Json.Encode as Encode
+import qualified Reporting.Exit.Compile as Compile
 
 
 
@@ -34,7 +36,7 @@ import qualified Json.Encode as Encode
 
 
 data Report
-  = CompileErrors
+  = CompilerReport Compile.Exit [Compile.Exit]
   | Report
       { _title :: String
       , _path :: Maybe FilePath
@@ -52,9 +54,14 @@ docReport title path startDoc others =
   Report title path $ stack (startDoc:others)
 
 
-compilerReport :: P.Doc -> Report
+jsonReport :: String -> Maybe FilePath -> P.Doc -> Report
+jsonReport =
+  Report
+
+
+compilerReport :: Compile.Exit -> [Compile.Exit] -> Report
 compilerReport =
-  error "TODO compilerReport"
+  CompilerReport
 
 
 
@@ -64,8 +71,8 @@ compilerReport =
 reportToDoc :: Report -> P.Doc
 reportToDoc report_ =
   case report_ of
-    CompileErrors ->
-      error "TODO reportToDoc"
+    CompilerReport e es ->
+      Compile.toDoc e es
 
     Report title maybePath message ->
       let
@@ -94,8 +101,11 @@ reportToDoc report_ =
 reportToJson :: Report -> Encode.Value
 reportToJson report_ =
   case report_ of
-    CompileErrors ->
-      error "TODO reportToJson"
+    CompilerReport e es ->
+      Encode.object
+        [ ("type", Encode.text "compile-errors")
+        , ("errors", Encode.list Compile.toJson (e:es))
+        ]
 
     Report title maybePath message ->
       let

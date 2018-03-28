@@ -88,8 +88,8 @@ corruptJsonToReport path pkg vsn =
 elmJsonProblemToReport :: ElmJsonProblem -> Help.Report
 elmJsonProblemToReport problem =
   case problem of
-    BadJson jsonErrorDoc ->
-      Help.compilerReport jsonErrorDoc
+    BadJson doc ->
+      Help.jsonReport "BAD JSON" (Just "elm.json") doc
 
     BadSrcDir dir ->
       Help.report "BAD JSON" (Just "elm.json")

@@ -133,12 +133,12 @@ fetchJson rootName errorToDocs decoder path =
   Http.package path [] $ \request manager ->
     do  response <- Client.httpLbs request manager
         let bytes = LBS.toStrict (Client.responseBody response)
-        case D.parse path rootName errorToDocs decoder bytes of
+        case D.parse rootName errorToDocs decoder bytes of
           Right value ->
             return $ Right value
 
           Left jsonProblem ->
-            return $ Left $ E.BadJson jsonProblem
+            return $ Left $ E.BadJson path jsonProblem
 
 
 
@@ -281,12 +281,12 @@ githubCommit name version =
     Http.run $ Http.anything endpoint $ \request manager ->
       do  response <- Client.httpLbs (request { Client.requestHeaders = headers }) manager
           let bytes = LBS.toStrict (Client.responseBody response)
-          case D.parse "github.json" "github" id decoder bytes of
+          case D.parse "github" id decoder bytes of
             Right value ->
               return $ Right value
 
             Left jsonProblem ->
-              return $ Left $ E.BadJson jsonProblem
+              return $ Left $ E.BadJson "github.json" jsonProblem
 
 
 

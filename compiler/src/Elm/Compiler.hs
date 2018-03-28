@@ -79,14 +79,15 @@ errorsToDoc filePath source errors =
 -- ERRORS TO JSON
 
 
-errorsToJson :: FilePath -> Text.Text -> [Error.Error] -> Encode.Value
-errorsToJson filePath source errors =
+errorsToJson :: M.Raw -> FilePath -> Text.Text -> [Error.Error] -> Encode.Value
+errorsToJson moduleName filePath source errors =
   let
     reports =
       concatMap (Error.toReports (Code.toSource source) Map.empty) errors
   in
   Encode.object
     [ ("path", Encode.text (Text.pack filePath))
+    , ("name", Encode.name moduleName)
     , ("errors", Encode.array (map reportToJson reports))
     ]
 

@@ -21,7 +21,7 @@ import qualified Reporting.Exit.Help as Help
 
 data Exit
   = Unknown String
-  | BadJson P.Doc
+  | BadJson String P.Doc
   | BadZipData
   | BadZipSha String String
 
@@ -46,8 +46,8 @@ toReport url exit =
             ]
         ]
 
-    BadJson jsonErrorDoc ->
-      Help.compilerReport jsonErrorDoc
+    BadJson path doc ->
+      Help.jsonReport "UNEXPECTED JSON" (Just path) doc
 
     BadZipData ->
       Help.report "CORRUPT ZIP" Nothing "I could not unzip the file downloaded from:"

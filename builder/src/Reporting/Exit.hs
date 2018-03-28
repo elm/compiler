@@ -96,7 +96,7 @@ toReport exit =
       Bump.toReport bumpError
 
     Compile e es ->
-      Help.compilerReport $ Compile.toDoc e es
+      Help.compilerReport e es
 
     Crawl crawlError ->
       Crawl.toReport crawlError

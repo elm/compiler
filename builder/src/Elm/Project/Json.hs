@@ -250,7 +250,7 @@ encodeVersion version =
 read :: FilePath -> Task.Task Project
 read path =
   do  bytes <- liftIO $ BS.readFile path
-      case D.parse path "project" E.badContentToDocs decoder bytes of
+      case D.parse "project" E.badContentToDocs decoder bytes of
         Left err ->
           throwBadJson (E.BadJson err)
 

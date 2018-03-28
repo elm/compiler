@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Reporting.Exit.Compile
   ( Exit(..)
+  , toJson
   , toDoc
   )
   where
@@ -15,6 +16,7 @@ import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Compiler.Module as Module
+import qualified Json.Encode as Encode
 
 
 
@@ -29,6 +31,15 @@ data Exit =
     , _source :: Text.Text
     , _errors :: [Compiler.Error]
     }
+
+
+
+-- TO JSON
+
+
+toJson :: Exit -> Encode.Value
+toJson (Exit name path _ source errors) =
+  Compiler.errorsToJson name path source errors
 
 
 

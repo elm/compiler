@@ -123,7 +123,7 @@ info name version =
                 liftIO (BS.writeFile elmJson bits)
                 return bits
 
-      case Decode.parse "elm.json" "project" E.badContentToDocs Project.pkgDecoder json of
+      case Decode.parse "project" E.badContentToDocs Project.pkgDecoder json of
         Right pkgInfo ->
           return pkgInfo
 
@@ -151,7 +151,7 @@ docs name version =
                 liftIO (BS.writeFile docsJson bits)
                 return bits
 
-      case Decode.parse "docs.json" "docs" errorToDocs (Docs.toDict <$> Decode.list Docs.decoder) json of
+      case Decode.parse "docs" errorToDocs (Docs.toDict <$> Decode.list Docs.decoder) json of
         Right pkgInfo ->
           return pkgInfo
 

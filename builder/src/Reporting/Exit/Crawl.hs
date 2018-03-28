@@ -12,12 +12,14 @@ import qualified Data.ByteString as BS
 import qualified Data.Char as Char
 import qualified Data.Map as Map
 import qualified Data.Text.Encoding as Text
+import qualified Data.Time.Clock as Time
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 import Text.PrettyPrint.ANSI.Leijen ((<+>), (<>))
 
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Compiler.Module as Module
 import qualified Elm.Package as Pkg
+import qualified Reporting.Exit.Compile as Compile
 import qualified Reporting.Exit.Help as Help
 
 
@@ -36,7 +38,7 @@ data Exit
 data Problem
   = ModuleNotFound Origin Module.Raw -- TODO suggest other names
   | ModuleAmbiguous Origin Module.Raw [FilePath] [Pkg.Package]
-  | BadHeader FilePath BS.ByteString Compiler.Error
+  | BadHeader FilePath Time.UTCTime BS.ByteString Compiler.Error
   | ModuleNameReservedForKernel Origin Module.Raw
   | ModuleNameMissing FilePath Module.Raw
   | ModuleNameMismatch
@@ -117,9 +119,12 @@ problemToReport problem =
     ModuleAmbiguous origin child paths pkgs ->
       ambiguousToDoc origin child paths pkgs
 
-    BadHeader path source compilerError ->
-      Help.compilerReport $
-        Compiler.errorsToDoc path (Text.decodeUtf8 source) [compilerError]
+    BadHeader path time source compilerError ->
+      let
+        compilerExit =
+          Compile.Exit "???" path time (Text.decodeUtf8 source) [compilerError]
+      in
+      Help.compilerReport compilerExit []
 
     ModuleNameMissing path name ->
       namelessToDoc path name

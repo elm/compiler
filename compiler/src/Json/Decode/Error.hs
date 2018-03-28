@@ -1,7 +1,5 @@
-{-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Reporting.Error.Json
+module Json.Decode.Error
   ( Error(..)
   , toDoc
   )
@@ -20,7 +18,6 @@ import qualified Json.Decode.Internals as Json
 import qualified Json.Encode as E
 import qualified Reporting.Error.Syntax as Syntax
 import qualified Reporting.Helpers as H
-import qualified Reporting.Region as R
 import qualified Reporting.Render.Code as Code
 import qualified Reporting.Report as Report
 
@@ -38,15 +35,15 @@ data Error e
 -- TO DOC
 
 
-toDoc :: FilePath -> String -> Code.Source -> (e -> [H.Doc]) -> Error e -> H.Doc
-toDoc path rootName source userErrorToDocs err =
-  Report.toDoc path $
+toDoc :: String -> Code.Source -> (e -> [H.Doc]) -> Error e -> H.Doc
+toDoc rootName source userErrorToDocs err =
   case err of
     BadJson syntaxError ->
-      Syntax.toReport source syntaxError
+      case Syntax.toReport source syntaxError of
+        Report.Report _ _ _ doc ->
+          doc
 
     BadContent jsonError ->
-      Report.Report "BAD JSON" R.zero [] $
       case flatten jsonError of
         [] ->
           H.reflow
