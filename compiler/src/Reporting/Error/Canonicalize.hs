@@ -467,6 +467,25 @@ toReport source err =
                 "Switch to (^) for exponentiation. Or switch to (*) for multiplication."
             )
 
+      else if op == "%" then
+        Report.Report "UNKNOWN OPERATOR" region [] $
+          Report.toCodeSnippet source region Nothing
+            (
+              H.reflow $
+                "Elm does not use (%) as the remainder operator:"
+            ,
+              H.stack
+                [ H.reflow $
+                    "If you want the behavior of (%) like in JavaScript, switch to:\
+                    \ <https://package.elm-lang.org/packages/elm-lang/core/latest/Basics#remainderBy>"
+                , H.reflow $
+                    "If you want modular arithmatic like in math, switch to:\
+                    \ <https://package.elm-lang.org/packages/elm-lang/core/latest/Basics#modBy>"
+                , H.reflow $
+                    "The difference is how things work when negative numbers are involved."
+                ]
+            )
+
       else
         let
           suggestions =
