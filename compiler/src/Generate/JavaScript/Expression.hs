@@ -511,6 +511,7 @@ generateBasicsCall mode home name args =
             "or"   -> JS.Infix JS.OpLOr         left right
             "and"  -> JS.Infix JS.OpLAnd        left right
             "xor"  -> JS.Infix JS.OpStrictNEq   left right
+            "remainderBy" -> JS.Infix JS.OpMod right left
             _      -> generateGlobalCall home name [left, right]
 
     _ ->
