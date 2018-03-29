@@ -39,22 +39,20 @@ import qualified Reporting.Helpers as H
 data Mode = Debug | Prod
 
 
-generate :: Mode -> Name.Target -> I.Interfaces -> Opt.Graph -> [ModuleName.Canonical] -> Either [ModuleName.Canonical] B.Builder
+generate :: Mode -> Name.Target -> I.Interfaces -> Opt.Graph -> [ModuleName.Canonical] -> Maybe B.Builder
 generate mode target interfaces (Opt.Graph mains graph fields) roots =
   let
     rootSet = Set.fromList roots
     rootMap = Map.restrictKeys mains rootSet
   in
-  if Map.size rootMap == Set.size rootSet then
+  if Map.null rootMap then
+    Nothing
+  else
     let
       realMode = toRealMode mode target fields
       state = Map.foldrWithKey (addMain realMode graph) emptyState rootMap
     in
-    Right $ stateToBuilder state <> toMainExports realMode interfaces rootMap
-
-  else
-    Left $ Set.toList $
-      Set.intersection rootSet (Map.keysSet mains)
+    Just $ stateToBuilder state <> toMainExports realMode interfaces rootMap
 
 
 addMain :: Name.Mode -> Graph -> ModuleName.Canonical -> main -> State -> State

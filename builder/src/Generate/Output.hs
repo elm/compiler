@@ -63,25 +63,30 @@ generate options summary graph@(Crawl.Graph args _ _ _ _) =
 
 generateMonolith :: Options -> Summary.Summary -> Crawl.Result -> [Module.Raw] -> Task.Task ()
 generateMonolith (Options debug target output_) summary@(Summary.Summary _ project _ ifaces _) graph names =
-  do
-      objectGraph <- organize summary graph
-      let pkg = Project.getName project
+  do  let pkg = Project.getName project
       let roots = map (Module.Canonical pkg) names
-      let (Right builder) = Obj.generate debug target ifaces objectGraph roots
-      let monolith =
-            "(function(scope){\n'use strict';" <> Functions.functions <> builder <> "}(this));"
+      objectGraph <- organize summary graph
+      case Obj.generate debug target ifaces objectGraph roots of
+        Nothing ->
+          return ()
 
-      liftIO $
-        case output_ of
-          Nothing ->
-            IO.writeBuilder "elm.js" monolith
+        Just builder ->
+          let
+            monolith =
+              "(function(scope){\n'use strict';"
+              <> Functions.functions <> builder <> "}(this));"
+          in
+          liftIO $
+            case output_ of
+              Nothing ->
+                IO.writeBuilder "elm.js" monolith
 
-          Just None ->
-            return ()
+              Just None ->
+                return ()
 
-          Just (Custom maybeDir fileName) ->
-            do  path <- safeCustomPath maybeDir fileName
-                IO.writeBuilder path monolith
+              Just (Custom maybeDir fileName) ->
+                do  path <- safeCustomPath maybeDir fileName
+                    IO.writeBuilder path monolith
 
 
 
