@@ -73,8 +73,8 @@ exists name =
         Right _ ->
           return ()
 
-        Left allPkgs ->
-          throwError (Exit.Deps (E.PackageNotFound name allPkgs))
+        Left suggestions ->
+          throwError (Exit.Deps (E.PackageNotFound name suggestions))
 
 
 
@@ -88,7 +88,7 @@ getVersions name =
         Right versions ->
           return versions
 
-        Left _allPkgs ->
+        Left _suggestions ->
           throwError (Exit.Deps (E.CorruptVersionCache name))
 
 

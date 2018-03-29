@@ -136,17 +136,20 @@ toReport exit =
 
         _:_ ->
           Help.report "OLD DEPENDENCIES" (Just "elm.json")
-            ( "You are using Elm " ++ Pkg.versionToString Compiler.version
-              ++ ", but the following packages have not been updated for this version yet:"
+            ( "The following packages do not work with Elm " ++ Pkg.versionToString Compiler.version ++ " right now:"
             )
-            [ P.vcat $ map (P.red . P.text . Pkg.toString) badPackages
+            [ P.indent 4 $ P.vcat $ map (P.red . P.text . Pkg.toString) badPackages
+            , Help.reflow $
+                "This may be because it is not upgraded yet. It may be because a\
+                \ better solution came along, so there was no need to upgrade it.\
+                \ Etc. Try asking around on Slack to learn more about the topic."
             , Help.note
-                "Please be kind to the relevant package authors! Having friendly interactions\
-                \ with users is great motivation, and conversely, getting berated by strangers\
-                \ on the internet sucks your soul dry. Furthermore, package authors are humans\
-                \ with families, friends, jobs, vacations, responsibilities, goals, etc. They\
-                \ face obstacles outside of their technical work you will never know about,\
-                \ so please assume the best and try to be patient and supportive!"
+                "Whatever the case, please be kind to the relevant package authors! Having\
+                \ friendly interactions with users is great motivation, and conversely, getting\
+                \ berated by strangers on the internet sucks your soul dry. Furthermore, package\
+                \ authors are humans with families, friends, jobs, vacations, responsibilities,\
+                \ goals, etc. They face obstacles outside of their technical work you will never\
+                \ know about, so please assume the best and try to be patient and supportive!"
             ]
 
     CannotMakeNothing ->

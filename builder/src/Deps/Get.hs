@@ -14,15 +14,18 @@ module Deps.Get
 import Prelude hiding (all)
 import Control.Monad.Except (catchError, liftIO)
 import qualified Data.ByteString as BS
+import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import Data.Map (Map)
+import qualified Data.Text as Text
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import qualified Elm.Docs as Docs
 import qualified Elm.Package as Pkg
+import qualified Elm.Utils as Utils
 
 import qualified Deps.Website as Website
 import qualified Elm.Project.Json as Project
@@ -100,7 +103,34 @@ versions name (AllPackages pkgs) =
       Right vsns
 
     Nothing ->
-      Left (Map.keys pkgs)
+      Left (nearbyNames name (Map.keys pkgs))
+
+
+nearbyNames :: Pkg.Name -> [Pkg.Name] -> [Pkg.Name]
+nearbyNames (Pkg.Name author1 project1) possibleNames =
+  let
+    authorDist = authorDistance (Text.unpack author1)
+    projectDist = projectDistance (Text.unpack project1)
+
+    addDistance name@(Pkg.Name author2 project2) =
+      ( authorDist author2 + projectDist project2, name )
+  in
+  map snd $ take 4 $
+    List.sortBy (compare `on` fst) $
+      map addDistance possibleNames
+
+
+authorDistance :: String -> Text.Text -> Int
+authorDistance bad possibility =
+  abs (Utils.distance bad (Text.unpack possibility))
+
+
+projectDistance :: String -> Text.Text -> Int
+projectDistance bad possibility =
+  if possibility == "elm-lang" || possibility == "elm-explorations" then
+    0
+  else
+    abs (Utils.distance bad (Text.unpack possibility))
 
 
 

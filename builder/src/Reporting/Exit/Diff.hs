@@ -38,24 +38,12 @@ toReport exit =
 
     UnknownPackage pkg suggestions ->
       Help.report "UNKNOWN PACKAGE" Nothing
-        ( "You are trying to diff against this package:"
+        ( "I cannot find a package called:"
         )
         [ P.indent 4 $ P.red $ P.text $ Pkg.toString pkg
-        , Help.stack $
-            case suggestions of
-              [] ->
-                [ "I cannot find that package though! Maybe there is a typo?"
-                ]
-
-              [suggestion] ->
-                [ "I cannot find that package though! Maybe you want this one instead?"
-                , P.indent 4 $ P.dullyellow $ P.text (Pkg.toString suggestion)
-                ]
-
-              _ ->
-                [ "I cannot find that package though! Maybe you want one of these instead?"
-                , P.indent 4 $ P.dullyellow $ P.vcat $ map (P.text . Pkg.toString) suggestions
-                ]
+        , "Maybe you want one of these instead?"
+        , P.indent 4 $ P.dullyellow $ P.vcat $ map (P.text . Pkg.toString) suggestions
+        , "But check <https://package.elm-lang.org> to see all possibilities!"
         ]
 
     UnknownVersion _pkg vsn realVersions ->
