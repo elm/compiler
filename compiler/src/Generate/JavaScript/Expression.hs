@@ -1008,7 +1008,7 @@ generateMain :: Mode -> I.Interfaces -> ModuleName.Canonical -> Opt.Main -> JS.E
 generateMain mode interfaces home main =
   case main of
     Opt.Static ->
-      JS.Ref (Name.fromKernel "VirtualDom" "init")
+      JS.Ref (Name.fromKernel N.virtualDom "init")
         # JS.Ref (Name.fromGlobal home "main")
         # JS.Int 0
         # JS.Int 0

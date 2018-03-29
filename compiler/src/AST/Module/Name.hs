@@ -111,7 +111,7 @@ sub = Canonical Pkg.core "Platform.Sub"
 
 {-# NOINLINE virtualDom #-}
 virtualDom :: Canonical
-virtualDom = Canonical Pkg.virtualDom "VirtualDom"
+virtualDom = Canonical Pkg.virtualDom N.virtualDom
 
 
 {-# NOINLINE debug #-}

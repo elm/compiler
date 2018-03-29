@@ -25,6 +25,7 @@ import qualified File.Crawl as Crawl
 import qualified File.Plan as Plan
 import qualified Generate.Output as Output
 import qualified Reporting.Task as Task
+import qualified Stuff.Paths as Path
 
 
 
@@ -76,7 +77,7 @@ compileForRepl source maybeName =
 
 generateDocs :: Summary.Summary -> Task.Task Docs.Documentation
 generateDocs summary@(Summary.Summary root project _ _ _) =
-  do  let docsPath = root </> "docs.json"
+  do  let docsPath = root </> Path.docs
       args <- Args.fromSummary summary
       graph <- Crawl.crawl summary args
       (dirty, ifaces) <- Plan.plan (Just docsPath) summary graph
