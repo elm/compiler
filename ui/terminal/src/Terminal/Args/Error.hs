@@ -171,7 +171,7 @@ flagsToDocs flags docs =
           P.vcat $
             case flag of
               Flag name (Parser singular _ _ _ _) description ->
-                [ P.dullcyan $ P.text $ "--" ++ name ++ "=<" ++ singular ++ ">"
+                [ P.dullcyan $ P.text $ "--" ++ name ++ "=" ++ toToken singular
                 , P.indent 4 $ reflow description
                 ]
 
