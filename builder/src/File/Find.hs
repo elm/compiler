@@ -71,7 +71,7 @@ findElm srcDirs exposed origin name =
             return (Foreign pkg)
 
         ([], Nothing) ->
-            Task.throw $ E.ModuleNotFound origin name
+            Task.throw $ E.ModuleNotFound origin name srcDirs
 
         (_, maybePkgs) ->
             Task.throw $ E.ModuleAmbiguous origin name paths (maybe [] id maybePkgs)
@@ -96,4 +96,4 @@ findKernel srcDir origin name =
       server <- liftIO $ Dir.doesFileExist serverPath
       if client
         then return $ Kernel clientPath (if server then Just serverPath else Nothing)
-        else Task.throw $ E.ModuleNotFound origin name
+        else Task.throw $ E.ModuleNotFound origin name [srcDir]

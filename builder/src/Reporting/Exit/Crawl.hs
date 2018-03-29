@@ -36,7 +36,7 @@ data Exit
 
 
 data Problem
-  = ModuleNotFound Origin Module.Raw -- TODO suggest other names
+  = ModuleNotFound Origin Module.Raw [FilePath]
   | ModuleAmbiguous Origin Module.Raw [FilePath] [Pkg.Package]
   | BadHeader FilePath Time.UTCTime BS.ByteString Compiler.Error
   | ModuleNameReservedForKernel Origin Module.Raw
@@ -113,8 +113,8 @@ toReport exit =
 problemToReport :: Problem -> Help.Report
 problemToReport problem =
   case problem of
-    ModuleNotFound origin name ->
-      notFoundToDoc origin name
+    ModuleNotFound origin name dirs ->
+      notFoundToDoc origin name dirs
 
     ModuleAmbiguous origin child paths pkgs ->
       ambiguousToDoc origin child paths pkgs
@@ -194,33 +194,34 @@ namelessToDoc path name =
     ]
 
 
-notFoundToDoc :: Origin -> Module.Raw -> Help.Report
-notFoundToDoc origin child =
+notFoundToDoc :: Origin -> Module.Raw -> [FilePath] -> Help.Report
+notFoundToDoc origin child dirs =
   case origin of
     ElmJson ->
-      Help.report "MODULE NOT FOUND" Nothing
+      Help.report "MODULE NOT FOUND" (Just "elm.json")
         "Your elm.json says your project has the following module:"
-        [ P.indent 4 $ P.dullyellow $ P.text $ Module.nameToString child
+        [ P.indent 4 $ P.red $ P.text $ Module.nameToString child
         , Help.reflow $
-            "I cannot find it though! Is there a typo in the module name?"
+            "When creating packages, all modules must live in the\
+            \ src/ directory, but I cannot find it there."
         ]
 
     File path ->
       Help.report "UNKNOWN IMPORT" (Just path)
         ("I cannot find a `" ++ Module.nameToString child ++ "` module to import.")
-        (notFoundDetails child)
+        (notFoundDetails child dirs)
 
     Module path parent ->
       Help.report "UNKNOWN IMPORT" (Just path)
         ("The " ++ Module.nameToString parent ++ " module has a bad import:")
-        (notFoundDetails child)
+        (notFoundDetails child dirs)
 
 
-notFoundDetails :: Module.Raw -> [P.Doc]
-notFoundDetails child =
+notFoundDetails :: Module.Raw -> [FilePath] -> [P.Doc]
+notFoundDetails child dirs =
   let
     simulatedCode =
-      P.indent 4 $ P.dullyellow $ P.text $ "import " ++ Module.nameToString child
+      P.indent 4 $ P.red $ P.text $ "import " ++ Module.nameToString child
   in
   case Map.lookup child Pkg.suggestions of
     Just pkg ->
@@ -245,8 +246,19 @@ notFoundDetails child =
               ,"that","package","yet?"
               ]
           , Help.reflow $
-              "Is it a local file? Maybe it lives in some directory, but I cannot find that\
-              \ directory unless it is listed in the \"source-directories\" field of your elm.json!"
+              case dirs of
+                [] ->
+                  "Is it a local file? I look in directories listed in the \"source-directories\"\
+                  \ field of your elm.json, so maybe you need to add a \"src\" directory there?"
+
+                [dir] ->
+                  "Is it a local file? I look in directories listed in the \"source-directories\"\
+                  \ field of your elm.json, but it is not in the " ++ dir ++ " directory."
+
+                dir:_:_ ->
+                  "Is it a local file? I look in directories listed in the \"source-directories\"\
+                  \ field of your elm.json (like the " ++ dir ++ " directory) but I do not see it\
+                  \ in any of them."
           ]
       ]
 
