@@ -10,6 +10,7 @@ module Deps.Get
   )
   where
 
+
 import Prelude hiding (all)
 import Control.Monad.Except (catchError, liftIO)
 import qualified Data.ByteString as BS
@@ -22,11 +23,9 @@ import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import qualified Elm.Docs as Docs
 import qualified Elm.Package as Pkg
-import Elm.Package (Name, Version)
 
 import qualified Deps.Website as Website
 import qualified Elm.Project.Json as Project
-import qualified Elm.Utils as Utils
 import qualified File.IO as IO
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Assets as E
@@ -42,7 +41,7 @@ import qualified Json.Decode as Decode
 data Mode = RequireLatest | AllowOffline
 
 
-newtype AllPackages = AllPackages (Map Name [Version])
+newtype AllPackages = AllPackages (Map Pkg.Name [Pkg.Version])
 
 
 all :: Mode -> Task.Task AllPackages
@@ -85,7 +84,7 @@ fetchNew versionsFile mode =
               return (AllPackages newAllPkgs)
 
 
-addNew :: Map Name [Version] -> (Name, Version) -> Map Name [Version]
+addNew :: Map Pkg.Name [Pkg.Version] -> (Pkg.Name, Pkg.Version) -> Map Pkg.Name [Pkg.Version]
 addNew packages (name, version) =
   Map.insertWith (++) name [version] packages
 
@@ -94,21 +93,21 @@ addNew packages (name, version) =
 -- VERSIONS
 
 
-versions :: Name -> AllPackages -> Either [Name] [Version]
+versions :: Pkg.Name -> AllPackages -> Either [Pkg.Name] [Pkg.Version]
 versions name (AllPackages pkgs) =
   case Map.lookup name pkgs of
     Just vsns ->
       Right vsns
 
     Nothing ->
-      Left (Utils.nearbyNames Pkg.toString name (Map.keys pkgs))
+      Left (Map.keys pkgs)
 
 
 
 -- PACKAGE INFO
 
 
-info :: Name -> Version -> Task.Task Project.PkgInfo
+info :: Pkg.Name -> Pkg.Version -> Task.Task Project.PkgInfo
 info name version =
   do  dir <- Task.getPackageCacheDirFor name version
       let elmJson = dir </> "elm.json"
@@ -136,7 +135,7 @@ info name version =
 -- DOCS
 
 
-docs :: Name -> Version -> Task.Task Docs.Documentation
+docs :: Pkg.Name -> Pkg.Version -> Task.Task Docs.Documentation
 docs name version =
   do  dir <- Task.getPackageCacheDirFor name version
       let docsJson = dir </> "docs.json"

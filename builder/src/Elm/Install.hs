@@ -138,7 +138,8 @@ keepNew change =
 addToApp :: Name -> Project.AppInfo -> Task.Task (Map Name (Change Version))
 addToApp pkg info@(Project.AppInfo _ _ deps tests trans) =
   Explorer.run $
-    do  let old = Map.unions [ deps, tests, trans ]
+    do  Explorer.exists pkg
+        let old = Map.unions [ deps, tests, trans ]
         result <- Solver.run (addToAppHelp pkg info)
         case result of
           Just new ->
@@ -177,7 +178,8 @@ addToAppHelp pkg (Project.AppInfo _ _ deps tests trans) =
 addToPkg :: Name -> Project.PkgInfo -> Task.Task (Map Name (Change Constraint))
 addToPkg pkg info@(Project.PkgInfo _ _ _ _ _ deps tests _) =
   Explorer.run $
-    do  let old = Map.union deps tests
+    do  Explorer.exists pkg
+        let old = Map.union deps tests
         result <- Solver.run (addToPkgHelp pkg info)
         case result of
           Just new ->

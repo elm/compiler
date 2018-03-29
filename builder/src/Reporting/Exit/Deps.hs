@@ -5,12 +5,17 @@ module Reporting.Exit.Deps
   )
   where
 
+
+import Data.Function (on)
+import qualified Data.List as List
+import qualified Data.Text as Text
 import Text.PrettyPrint.ANSI.Leijen ((<>))
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Package as Pkg
 import qualified Elm.Project.Constraint as Con
+import qualified Elm.Utils as Utils
 import qualified Reporting.Exit.Help as Help
 
 
@@ -46,12 +51,21 @@ toReport exit =
             \ so you can delete it and see if that fixes the issue."
         ]
 
-    PackageNotFound package suggestions ->
-      Help.report "PACKAGE NOT FOUND" Nothing
-        ( "Could not find any packages named " ++ Pkg.toString package
+    PackageNotFound package allPackages ->
+      let
+        suggestions =
+          nearbyNames package allPackages
+      in
+      Help.docReport "PACKAGE NOT FOUND" Nothing
+        ( P.fillSep
+            ["I","cannot","find","a"
+            ,P.red (P.text (Pkg.toString package))
+            ,"package","on","the","package","website."
+            ]
         )
-        [ P.text $ "Maybe you want one of these instead?"
-        , P.indent 4 $ P.vcat $ map (P.text . Pkg.toString) suggestions
+        [ "Maybe you want one of these instead?"
+        , P.indent 4 $ P.dullyellow $ P.vcat $ map (P.text . Pkg.toString) suggestions
+        , "But check <https://package.elm-lang.org> to see all possibilities!"
         ]
 
     AppBadElm version ->
@@ -97,3 +111,34 @@ toReport exit =
             "This probably means the downloaded files got corrupted somehow.\
             \ Maybe try deleting your ELM_HOME and see if that resolves the issue?"
         ]
+
+
+
+-- NEARBY NAMES
+
+
+nearbyNames :: Pkg.Name -> [Pkg.Name] -> [Pkg.Name]
+nearbyNames (Pkg.Name author1 project1) possibleNames =
+  let
+    authorDist = authorDistance (Text.unpack author1)
+    projectDist = projectDistance (Text.unpack project1)
+
+    addDistance name@(Pkg.Name author2 project2) =
+      ( authorDist author2 + projectDist project2, name )
+  in
+  map snd $ take 4 $
+    List.sortBy (compare `on` fst) $
+      map addDistance possibleNames
+
+
+authorDistance :: String -> Text.Text -> Int
+authorDistance bad possibility =
+  abs (Utils.distance bad (Text.unpack possibility))
+
+
+projectDistance :: String -> Text.Text -> Int
+projectDistance bad possibility =
+  if possibility == "elm-lang" || possibility == "elm-explorations" then
+    0
+  else
+    abs (Utils.distance bad (Text.unpack possibility))

@@ -4,6 +4,7 @@ module Deps.Explorer
   , Metadata
   , Info(..)
   , run
+  , exists
   , getVersions
   , getConstraints
   )
@@ -62,6 +63,21 @@ run explorer =
 
 
 
+-- EXISTS
+
+
+exists :: Name -> Explorer ()
+exists name =
+  do  pkgs <- gets _vsns
+      case Get.versions name pkgs of
+        Right _ ->
+          return ()
+
+        Left allPkgs ->
+          throwError (Exit.Deps (E.PackageNotFound name allPkgs))
+
+
+
 -- VERSIONS
 
 
@@ -72,7 +88,7 @@ getVersions name =
         Right versions ->
           return versions
 
-        Left _suggestions ->
+        Left _allPkgs ->
           throwError (Exit.Deps (E.CorruptVersionCache name))
 
 
