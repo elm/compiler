@@ -62,8 +62,8 @@ write root answers =
         liftIO $ traverse readMVar mvars
 
 
-writeDocs :: FilePath -> Map Module.Raw Compiler.Artifacts -> Task.Task Docs.Documentation
-writeDocs path results =
+writeDocs :: Map Module.Raw Compiler.Artifacts -> FilePath -> Task.Task Docs.Documentation
+writeDocs results path =
   let
     getDocs (Compiler.Artifacts _ _ docs) =
       docs

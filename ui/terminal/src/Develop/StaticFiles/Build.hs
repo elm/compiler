@@ -40,7 +40,7 @@ compile =
       reporter <- Terminal.create
       void $ Task.run reporter $
         do  summary <- Project.getRoot
-            Project.compile options summary rootPaths
+            Project.compile options Nothing summary rootPaths
 
       result <- BS.readFile tempFileName
       seq (BS.length result) (Dir.removeFile tempFileName)

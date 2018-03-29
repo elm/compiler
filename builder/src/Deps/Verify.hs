@@ -234,14 +234,15 @@ getIface name version info infos depIfaces =
         then IO.readBinary (root </> "ifaces.dat")
         else
           do  Paths.removeStuff root
+              let docsPath = root </> "docs.json"
 
               let summary = Summary.cheapInit root info infos depIfaces
               args <- Args.fromSummary summary
               graph <- Crawl.crawl summary args
-              (dirty, cachedIfaces) <- Plan.plan summary graph
-              answers <- Compile.compile (Pkg info) cachedIfaces dirty
+              (dirty, cachedIfaces) <- Plan.plan (Just docsPath) summary graph
+              answers <- Compile.compile (Pkg info) (Just docsPath) cachedIfaces dirty
               results <- Artifacts.ignore answers
-              _ <- Artifacts.writeDocs (root </> "docs.json") results
+              _ <- Artifacts.writeDocs results docsPath
 
               Paths.removeStuff root
 

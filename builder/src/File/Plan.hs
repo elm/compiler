@@ -35,11 +35,11 @@ import qualified Stuff.Paths
 type Dict value = Map.Map Module.Raw value
 
 
-plan :: Summary.Summary -> Crawl.Result -> Task.Task (Dict Info, Module.Interfaces)
-plan (Summary.Summary root project _ ifaces _) (Crawl.Graph _ locals _ foreigns _) =
+plan :: Maybe FilePath -> Summary.Summary -> Crawl.Result -> Task.Task (Dict Info, Module.Interfaces)
+plan docs (Summary.Summary root project _ ifaces _) (Crawl.Graph _ locals _ foreigns _) =
   liftIO $
   do  queue <- newChan
-      let env = Env queue root (Project.getName project)
+      let env = Env queue root (Project.getName project) docs
 
       mvar <- newEmptyMVar
       statusMVars <- Map.traverseWithKey (getStatus env mvar foreigns) locals
@@ -57,6 +57,7 @@ data Env =
     { _queue :: Chan Msg
     , _root :: FilePath
     , _pkg :: Pkg.Name
+    , _docs :: Maybe FilePath
     }
 
 
@@ -99,21 +100,29 @@ getStatus env statusMVars foreigns name (Header.Info path time src deps) =
             info <- foldM (addDep statuses foreigns) (Info path time src [] [] []) deps
 
             let elmi = Stuff.Paths.elmi (_root env) name
+            let docs = Stuff.Paths.moduleDocs (_root env) name
 
             case _dirty info of
               _ : _ ->
                 do  remove elmi
+                    remove docs
                     return (Just info)
 
               [] ->
-                do  fresh <- isFresh time elmi
-                    if fresh
+                do  freshElmi <- isFresh time elmi
+                    freshDocs <-
+                      case _docs env of
+                        Nothing -> return True
+                        Just _ -> isFresh time docs
+
+                    if freshElmi && freshDocs
                       then
                         do  let canonical = Module.Canonical (_pkg env) name
                             writeChan (_queue env) (Get canonical elmi)
                             return Nothing
                       else
                         do  remove elmi
+                            remove docs
                             return (Just info)
 
       return mvar
@@ -145,11 +154,11 @@ addDep locals foreigns info name =
 
 
 isFresh :: Time.UTCTime -> FilePath -> IO Bool
-isFresh srcTime elmi =
+isFresh srcTime cachedFile =
   andM
-    [ Dir.doesFileExist elmi
-    , do  elmiTime <- Dir.getModificationTime elmi
-          return (elmiTime >= srcTime)
+    [ Dir.doesFileExist cachedFile
+    , do  cacheTime <- Dir.getModificationTime cachedFile
+          return (cacheTime >= srcTime)
     ]
 
 

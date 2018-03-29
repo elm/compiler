@@ -14,7 +14,6 @@ module Elm.Project.Json
   -- queries
   , appSolution
   , isPlatformPackage
-  , isPackageRoot
   , get
   , getName
   , getExposed
@@ -125,21 +124,6 @@ isPlatformPackage project =
           _pkg_name info
       in
         user == "elm-lang" || user == "elm-explorations"
-
-
-isPackageRoot :: Module.Raw -> Project -> Bool
-isPackageRoot name project =
-  case project of
-    App _ ->
-      False
-
-    Pkg info ->
-      case _pkg_exposed info of
-        ExposedList modules ->
-          elem name modules
-
-        ExposedDict chunks ->
-          elem name (concatMap snd chunks)
 
 
 get :: (AppInfo -> a) -> (PkgInfo -> a) -> Project -> a

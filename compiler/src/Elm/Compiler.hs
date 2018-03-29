@@ -2,6 +2,7 @@
 module Elm.Compiler
   ( version
   , Context(..)
+  , Compile.DocsFlag(..)
   , Compile.Artifacts(..)
   , compile
   , Error.Error
@@ -47,18 +48,14 @@ version =
 data Context =
   Context
     { _package :: Pkg.Name
-    , _exposed :: Bool
+    , _docsFlag :: Compile.DocsFlag
     , _imports :: Map.Map M.Raw M.Canonical
     , _interfaces :: M.Interfaces
     }
 
 
 compile :: Context -> BS.ByteString -> ([Warning.Warning], Either [Error.Error] Compile.Artifacts)
-compile (Context pkg exposed importDict interfaces) source =
-  let
-    docsFlag =
-      if exposed then Compile.YesDocs else Compile.NoDocs
-  in
+compile (Context pkg docsFlag importDict interfaces) source =
   Result.run $ Compile.compile docsFlag pkg importDict interfaces source
 
 

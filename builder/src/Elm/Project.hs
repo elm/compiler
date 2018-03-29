@@ -25,7 +25,6 @@ import qualified File.Crawl as Crawl
 import qualified File.Plan as Plan
 import qualified Generate.Output as Output
 import qualified Reporting.Task as Task
-import qualified Stuff.Paths as Path
 
 
 
@@ -46,13 +45,14 @@ getRootWithReplFallback =
 -- COMPILE
 
 
-compile :: Output.Options -> Summary -> [FilePath] -> Task.Task ()
-compile options summary@(Summary.Summary root project _ _ _) paths =
+compile :: Output.Options -> Maybe FilePath -> Summary -> [FilePath] -> Task.Task ()
+compile options docs summary@(Summary.Summary root project _ _ _) paths =
   do  args <- Args.fromPaths summary paths
       graph <- Crawl.crawl summary args
-      (dirty, ifaces) <- Plan.plan summary graph
-      answers <- Compile.compile project ifaces dirty
+      (dirty, ifaces) <- Plan.plan docs summary graph
+      answers <- Compile.compile project docs ifaces dirty
       results <- Artifacts.write root answers
+      _ <- traverse (Artifacts.writeDocs results) docs
       Output.generate options summary graph
 
 
@@ -64,9 +64,9 @@ compileForRepl :: BS.ByteString -> Maybe N.Name -> Task.Task (Maybe FilePath)
 compileForRepl source maybeName =
   do  summary@(Summary.Summary root project _ _ _) <- getRoot
       graph <- Crawl.crawlFromSource summary source
-      (dirty, ifaces) <- Plan.plan summary graph
-      answers <- Compile.compile project ifaces dirty
-      results <- Artifacts.write root answers
+      (dirty, ifaces) <- Plan.plan Nothing summary graph
+      answers <- Compile.compile project Nothing ifaces dirty
+      _results <- Artifacts.write root answers
       traverse (Output.generateReplFile summary graph) maybeName
 
 
@@ -76,9 +76,10 @@ compileForRepl source maybeName =
 
 generateDocs :: Summary.Summary -> Task.Task Docs.Documentation
 generateDocs summary@(Summary.Summary root project _ _ _) =
-  do  args <- Args.fromSummary summary
+  do  let docsPath = root </> "docs.json"
+      args <- Args.fromSummary summary
       graph <- Crawl.crawl summary args
-      (dirty, ifaces) <- Plan.plan summary graph
-      answers <- Compile.compile project ifaces dirty
+      (dirty, ifaces) <- Plan.plan (Just docsPath) summary graph
+      answers <- Compile.compile project (Just docsPath) ifaces dirty
       results <- Artifacts.ignore answers
-      Artifacts.writeDocs (root </> Path.docs) results
+      Artifacts.writeDocs results docsPath

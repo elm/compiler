@@ -7,6 +7,7 @@ module Stuff.Paths
   , removeStuff
   , elmi
   , elmo
+  , moduleDocs
   , temp
   )
   where
@@ -77,6 +78,11 @@ elmi root name =
 elmo :: FilePath -> Module.Raw -> FilePath
 elmo root name =
   toArtifactPath root name "elmo"
+
+
+moduleDocs :: FilePath -> Module.Raw -> FilePath
+moduleDocs root name =
+  toArtifactPath root name "json"
 
 
 toArtifactPath :: FilePath -> Module.Raw -> String -> FilePath

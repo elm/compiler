@@ -26,8 +26,8 @@ import qualified Reporting.Task as Task
 -- COMPILE
 
 
-compile :: Project -> Module.Interfaces -> Dict Plan.Info -> Task.Task (Dict Answer)
-compile project ifaces modules =
+compile :: Project -> Maybe FilePath -> Module.Interfaces -> Dict Plan.Info -> Task.Task (Dict Answer)
+compile project maybeDocsPath ifaces modules =
   do  Task.report (Progress.CompileStart (Map.size modules))
 
       tell <- Task.getReporter
@@ -35,7 +35,7 @@ compile project ifaces modules =
       answers <- liftIO $
         do  mvar <- newEmptyMVar
             iMVar <- newMVar ifaces
-            answerMVars <- Map.traverseWithKey (compileModule tell project mvar iMVar) modules
+            answerMVars <- Map.traverseWithKey (compileModule tell project maybeDocsPath mvar iMVar) modules
             putMVar mvar answerMVars
             traverse readMVar answerMVars
 
@@ -64,12 +64,13 @@ type Dict a = Map.Map Module.Raw a
 compileModule
   :: (Progress.Progress -> IO ())
   -> Project
+  -> Maybe FilePath
   -> MVar (Dict (MVar Answer))
   -> MVar Module.Interfaces
   -> Module.Raw
   -> Plan.Info
   -> IO (MVar Answer)
-compileModule tell project answersMVar ifacesMVar name info =
+compileModule tell project maybeDocsPath answersMVar ifacesMVar name info =
   do  mvar <- newEmptyMVar
 
       void $ forkIO $
@@ -80,10 +81,10 @@ compileModule tell project answersMVar ifacesMVar name info =
               else
                 do  tell (Progress.CompileFileStart name)
                     let pkg = Project.getName project
-                    let isExposed = Project.isPackageRoot name project
+                    let docs = toDocsFlag name project maybeDocsPath
                     let imports = makeImports project info
                     ifaces <- readMVar ifacesMVar
-                    let context = Compiler.Context pkg isExposed imports ifaces
+                    let context = Compiler.Context pkg docs imports ifaces
                     let source = Plan._src info
                     case Compiler.compile context source of
                       (_warnings, Left errors) ->
@@ -100,6 +101,38 @@ compileModule tell project answersMVar ifacesMVar name info =
                             putMVar mvar (Good result)
 
       return mvar
+
+
+
+-- TO DOCS FLAG
+
+
+toDocsFlag :: Module.Raw -> Project -> Maybe FilePath -> Compiler.DocsFlag
+toDocsFlag name project maybeDocsPath =
+  case maybeDocsPath of
+    Nothing ->
+      Compiler.NoDocs
+
+    Just _ ->
+      case project of
+        Project.App _ ->
+          Compiler.NoDocs
+
+        Project.Pkg info ->
+          if isExposed name (Project._pkg_exposed info) then
+            Compiler.YesDocs
+          else
+            Compiler.NoDocs
+
+
+isExposed :: Module.Raw -> Project.Exposed -> Bool
+isExposed name exposed =
+  case exposed of
+    Project.ExposedList modules ->
+      elem name modules
+
+    Project.ExposedDict chunks ->
+      elem name (concatMap snd chunks)
 
 
 
