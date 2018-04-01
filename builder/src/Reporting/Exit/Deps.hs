@@ -12,7 +12,6 @@ import qualified Text.PrettyPrint.ANSI.Leijen as P
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Package as Pkg
 import qualified Elm.Project.Constraint as Con
-import qualified Elm.Utils as Utils
 import qualified Reporting.Exit.Help as Help
 
 
