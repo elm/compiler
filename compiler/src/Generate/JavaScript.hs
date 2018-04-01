@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Generate.JavaScript
   ( Mode(..)
@@ -19,6 +18,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 
+import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
@@ -74,25 +74,25 @@ toRealMode mode target fields =
 -- GENERATE FOR REPL
 
 
-generateForRepl :: I.Interfaces -> Opt.Graph -> ModuleName.Canonical -> N.Name -> B.Builder
-generateForRepl interfaces (Opt.Graph _ graph _) home name =
+generateForRepl :: Opt.Graph -> I.Interface -> ModuleName.Canonical -> N.Name -> B.Builder
+generateForRepl (Opt.Graph _ graph _) iface home name =
   let
     mode = Name.Debug Name.Server
-    eval = addGlobal mode graph emptyState (Opt.Global home name)
+    debugState = addGlobal mode graph emptyState (Opt.Global ModuleName.debug "toString")
+    evalState = addGlobal mode graph debugState (Opt.Global home name)
   in
-  stateToBuilder eval <> print interfaces home name
+  stateToBuilder evalState <> print home name (I._types iface ! name)
 
 
-print :: I.Interfaces -> ModuleName.Canonical -> N.Name -> B.Builder
-print interfaces home name =
+print :: ModuleName.Canonical -> N.Name -> Can.Annotation -> B.Builder
+print home name annotation =
   let
     value = Name.toBuilder (Name.fromGlobal home name)
     toString = Name.toBuilder (Name.fromKernel N.debug "toString")
-    annotation = I._types (interfaces ! home) ! name
     tipe = P.displayS (P.renderPretty 1.0 80 (Type.toDoc Type.None (Extract.fromAnnotation annotation))) ""
   in
     "var _value = " <> toString <> "(" <> value <> ");\n" <>
-    "var _type = '" <> B.stringUtf8 (show tipe) <> "';\n\
+    "var _type = " <> B.stringUtf8 (show tipe) <> ";\n\
     \if (_value.length + 3 + _type.length >= 80 || _type.indexOf('\\n') >= 0) {\n\
     \    console.log(_value + '\\n    : ' + _type.split('\\n').join('\\n      '));\n\
     \} else {\n\

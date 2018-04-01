@@ -228,7 +228,7 @@ compile :: Output -> State -> Task.Task (Maybe FilePath)
 compile output (State count imports types defs tricks) =
   let
     elmSourceCode =
-      (<>) "module ElmRepl exposing (..)\n\n" $
+      (<>) "module Elm_Repl exposing (..)\n\n" $
         addLines imports $ addLines types $ addLines defs $
           List.foldr (<>) mempty (map Text.encodeUtf8Builder tricks)
   in
@@ -253,7 +253,7 @@ compile output (State count imports types defs tricks) =
 
 addLines :: Map.Map N.Name Text.Text -> B.Builder -> B.Builder
 addLines dict builder =
-  Map.foldr (\text b -> Text.encodeUtf8Builder text <> b) builder dict
+  Map.foldr (\text b -> Text.encodeUtf8Builder text <> "\n" <> b) builder dict
 
 
 evaluate :: B.Builder -> Maybe N.Name -> Task.Task (Maybe FilePath)

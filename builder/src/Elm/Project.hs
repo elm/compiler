@@ -11,8 +11,10 @@ module Elm.Project
 
 
 import qualified Data.ByteString as BS
+import Data.Map ((!))
 import System.FilePath ((</>))
 
+import qualified Elm.Compiler as Compiler
 import qualified Elm.Docs as Docs
 import qualified Elm.Name as N
 import qualified Elm.Project.Root as Root
@@ -67,8 +69,9 @@ compileForRepl source maybeName =
       graph <- Crawl.crawlFromSource summary source
       (dirty, ifaces) <- Plan.plan Nothing summary graph
       answers <- Compile.compile project Nothing ifaces dirty
-      _results <- Artifacts.write root answers
-      traverse (Output.generateReplFile summary graph) maybeName
+      results <- Artifacts.write root answers
+      let (Compiler.Artifacts elmi _ _) = results ! "Elm_Repl"
+      traverse (Output.generateReplFile summary graph elmi) maybeName
 
 
 

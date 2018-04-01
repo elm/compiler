@@ -21,6 +21,7 @@ import System.FilePath ((</>))
 
 import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Objects as Obj
+import qualified Elm.Interface as I
 import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 
@@ -93,13 +94,13 @@ generateMonolith (Options debug target output_) summary@(Summary.Summary _ proje
 -- GENERATE REPL MONOLITH
 
 
-generateReplFile :: Summary.Summary -> Crawl.Result -> N.Name -> Task.Task FilePath
-generateReplFile summary@(Summary.Summary _ project _ ifaces _) graph name =
+generateReplFile :: Summary.Summary -> Crawl.Result -> I.Interface -> N.Name -> Task.Task FilePath
+generateReplFile summary@(Summary.Summary _ project _ _ _) graph iface name =
   do
       objectGraph <- organize summary graph
 
-      let home = Module.Canonical (Project.getName project) "ElmRepl"
-      let builder = Obj.generateForRepl ifaces objectGraph home name
+      let home = Module.Canonical (Project.getName project) "Elm_Repl"
+      let builder = Obj.generateForRepl objectGraph iface home name
 
       liftIO $ IO.writeBuilder Paths.temp $
         replRecovery <> "(function(){\n'use strict';" <> Functions.functions <> builder <> "}());"
