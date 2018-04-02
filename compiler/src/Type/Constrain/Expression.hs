@@ -198,14 +198,13 @@ constrainCall rtv region func@(A.At funcRegion _) args expected =
 
       let arityType = foldr FunN resultType argTypes
       let category = CallResult maybeName
-      let resultCon = CEqual region category resultType expected
 
       return $ exists (funcVar:resultVar:argVars) $
         CAnd
           [ funcCon
           , CEqual funcRegion category funcType (FromContext region (CallArity maybeName (length args)) arityType)
           , CAnd argCons
-          , resultCon
+          , CEqual region category resultType expected
           ]
 
 
