@@ -239,27 +239,19 @@ notFoundDetails child dirs =
     Nothing ->
       [ simulatedCode
       , "I cannot find that module! Is there a typo in the module name?"
-      , P.vcat
-          [ P.fillSep
-              ["Is","it","defined","in","a","package?","Did","you"
-              ,P.green "elm install"
-              ,"that","package","yet?"
-              ]
-          , Help.reflow $
-              case dirs of
-                [] ->
-                  "Is it a local file? I look in directories listed in the \"source-directories\"\
-                  \ field of your elm.json, so maybe you need to add a \"src\" directory there?"
+      , Help.reflow $
+          case dirs of
+            [] ->
+              "The \"source-directories\" field of your elm.json is empty, so I only\
+              \ searched in packages. Maybe you need to add a \"src\" directory there?"
 
-                [dir] ->
-                  "Is it a local file? I look in directories listed in the \"source-directories\"\
-                  \ field of your elm.json, but it is not in the " ++ dir ++ " directory."
+            [dir] ->
+              "The \"source-directories\" field of your elm.json tells me to only look in the "
+              ++ dir ++ " directory, but it is not there. Maybe it is in a package that is not installed yet?"
 
-                dir:_:_ ->
-                  "Is it a local file? I look in directories listed in the \"source-directories\"\
-                  \ field of your elm.json (like the " ++ dir ++ " directory) but I do not see it\
-                  \ in any of them."
-          ]
+            dir:_:_ ->
+              "The \"source-directories\" field of your elm.json tells me to look in directories like "
+              ++ dir ++ ", but it is not in any of them. Maybe it is in a package that is not installed yet?"
       ]
 
 

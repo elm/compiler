@@ -9,6 +9,7 @@ module File.Find
 import Control.Monad.Except (liftIO)
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
+import qualified System.FilePath as FP
 import qualified System.Directory as Dir
 import System.FilePath ((</>), (<.>))
 
@@ -38,20 +39,22 @@ data Asset
 
 find :: Summary.Summary -> E.Origin -> Module.Raw -> Task.Task_ E.Problem Asset
 find (Summary.Summary root project exposed _ _) origin name =
-  case project of
-    Project.App info ->
-      do  let srcDirs = map (root </>) (Project._app_source_dirs info)
-          findElm srcDirs exposed origin name
+  do  here <- liftIO Dir.getCurrentDirectory
+      let toRoot dir = FP.makeRelative here (root </> dir)
+      case project of
+        Project.App info ->
+          do  let srcDirs = map toRoot (Project._app_source_dirs info)
+              findElm srcDirs exposed origin name
 
-    Project.Pkg _ ->
-      if N.startsWith "Elm.Kernel." name then
-        if Project.isPlatformPackage project then
-          findKernel (root </> "src") origin name
-        else
-          Task.throw $ E.ModuleNameReservedForKernel origin name
+        Project.Pkg _ ->
+          if N.startsWith "Elm.Kernel." name then
+            if Project.isPlatformPackage project then
+              findKernel (toRoot "src") origin name
+            else
+              Task.throw $ E.ModuleNameReservedForKernel origin name
 
-      else
-        findElm [ root </> "src" ] exposed origin name
+          else
+            findElm [ toRoot "src" ] exposed origin name
 
 
 
