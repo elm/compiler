@@ -4,12 +4,11 @@ module Index.Skeleton exposing
   , readmeBox
   )
 
-import Color exposing (Color, darkGrey)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Markdown
 
-import TempFontAwesome as FA
+import Index.Icon as Icon
 
 
 
@@ -71,5 +70,5 @@ boxFooter maybeFooter =
       a [ href path
         , title description
         ]
-        [ div [ class "box-footer" ] [ FA.plus darkGrey 14 ]
+        [ div [ class "box-footer" ] [ Icon.plus ]
         ]
