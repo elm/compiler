@@ -31,6 +31,7 @@ import qualified File.Args as Args
 import qualified File.Crawl as Crawl
 import qualified File.IO as IO
 import qualified Generate.Functions as Functions
+import qualified Generate.Html as Html
 import qualified Reporting.Task as Task
 import qualified Stuff.Paths as Paths
 import Terminal.Args (Parser(..), suggestFiles)
@@ -63,31 +64,40 @@ generate options summary graph@(Crawl.Graph args _ _ _ _) =
 
 
 generateMonolith :: Options -> Summary.Summary -> Crawl.Result -> [Module.Raw] -> Task.Task ()
-generateMonolith (Options debug target output_) summary@(Summary.Summary _ project _ ifaces _) graph names =
+generateMonolith (Options debug target maybeOutput) summary@(Summary.Summary _ project _ ifaces _) graph rootNames =
   do  let pkg = Project.getName project
-      let roots = map (Module.Canonical pkg) names
+      let roots = map (Module.Canonical pkg) rootNames
       objectGraph <- organize summary graph
       case Obj.generate debug target ifaces objectGraph roots of
-        Nothing ->
+        Obj.None ->
           return ()
 
-        Just builder ->
+        Obj.Some name names builder ->
           let
             monolith =
               "(function(scope){\n'use strict';"
               <> Functions.functions <> builder <> "}(this));"
           in
           liftIO $
-            case output_ of
-              Nothing ->
-                IO.writeBuilder "elm.js" monolith
+          case maybeOutput of
+            Nothing ->
+              IO.writeBuilder "elm.js" monolith
 
-              Just None ->
-                return ()
+            Just None ->
+              return ()
 
-              Just (Custom maybeDir fileName) ->
-                do  path <- safeCustomPath maybeDir fileName
-                    IO.writeBuilder path monolith
+            Just (JavaScript maybeDir fileName) ->
+              do  path <- toWritablePath maybeDir fileName
+                  IO.writeBuilder path monolith
+
+            Just (Html maybeDir fileName) ->
+              case names of
+                [] ->
+                  do  path <- toWritablePath maybeDir fileName
+                      IO.writeBuilder path (Html.sandwich name monolith)
+
+                _:_ ->
+                  return ()
 
 
 
@@ -141,12 +151,13 @@ loadPackageObj ( name, (version,_) ) =
 
 data Output
   = None
-  | Custom (Maybe FilePath) FilePath
+  | Html (Maybe FilePath) FilePath
+  | JavaScript (Maybe FilePath) FilePath
 
 
-safeCustomPath :: Maybe FilePath -> FilePath -> IO FilePath
-safeCustomPath maybeDirectory fileName =
-  case maybeDirectory of
+toWritablePath :: Maybe FilePath -> FilePath -> IO FilePath
+toWritablePath maybeDir fileName =
+  case maybeDir of
     Nothing ->
       do  return fileName
 
@@ -175,24 +186,27 @@ parseOutput string =
     if string == "/dev/null" || string == "NUL" || string == "$null" then
       Just None
 
-    else if FP.takeExtension string == ".js" then
-      toCustom string
+    else if FP.takeExtension string == ".html" && length string > 5 then
+      splitOutput Html string
+
+    else if FP.takeExtension string == ".js" && length string > 3 then
+      splitOutput JavaScript string
 
     else
       Nothing
 
 
-toCustom :: String -> Maybe Output
-toCustom string =
+splitOutput :: (Maybe FilePath -> FilePath -> Output) -> String -> Maybe Output
+splitOutput toOutput string =
   case FP.splitPath string of
     [] ->
       Nothing
 
     [name] ->
-      Just $ Custom Nothing name
+      Just $ toOutput Nothing name
 
     segments ->
-      Just $ Custom (Just (FP.joinPath (init segments))) (last segments)
+      Just $ toOutput (Just (FP.joinPath (init segments))) (last segments)
 
 
 exampleOutput :: String -> IO [String]

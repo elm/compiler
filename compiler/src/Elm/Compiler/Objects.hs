@@ -2,6 +2,7 @@
 module Elm.Compiler.Objects
   ( Name.Target(..)
   , JS.Mode(..)
+  , JS.Output(..)
   , JS.generate
   , JS.generateForRepl
   , Opt.Graph

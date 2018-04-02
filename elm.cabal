@@ -107,6 +107,7 @@ Executable elm
         File.Header,
         File.Plan,
         Generate.Functions,
+        Generate.Html,
         Generate.Output,
         Reporting.Exit,
         Reporting.Exit.Assets,

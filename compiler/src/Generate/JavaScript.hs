@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Generate.JavaScript
   ( Mode(..)
+  , Output(..)
   , generate
   , generateForRepl
   )
@@ -39,20 +40,28 @@ import qualified Reporting.Helpers as H
 data Mode = Debug | Prod
 
 
-generate :: Mode -> Name.Target -> I.Interfaces -> Opt.Graph -> [ModuleName.Canonical] -> Maybe B.Builder
+data Output
+  = None
+  | Some N.Name [N.Name] B.Builder
+
+
+generate :: Mode -> Name.Target -> I.Interfaces -> Opt.Graph -> [ModuleName.Canonical] -> Output
 generate mode target interfaces (Opt.Graph mains graph fields) roots =
   let
     rootSet = Set.fromList roots
     rootMap = Map.restrictKeys mains rootSet
   in
-  if Map.null rootMap then
-    Nothing
-  else
-    let
-      realMode = toRealMode mode target fields
-      state = Map.foldrWithKey (addMain realMode graph) emptyState rootMap
-    in
-    Just $ stateToBuilder state <> toMainExports realMode interfaces rootMap
+  case map ModuleName._module (Map.keys rootMap) of
+    [] ->
+      None
+
+    name:names ->
+      let
+        realMode = toRealMode mode target fields
+        state = Map.foldrWithKey (addMain realMode graph) emptyState rootMap
+        builder = stateToBuilder state <> toMainExports realMode interfaces rootMap
+      in
+      Some name names builder
 
 
 addMain :: Name.Mode -> Graph -> ModuleName.Canonical -> main -> State -> State

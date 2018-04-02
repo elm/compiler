@@ -53,7 +53,7 @@ compile =
 options :: Output.Options
 options =
   Output.Options Obj.Prod Obj.Client $
-    Just (Output.Custom Nothing tempFileName)
+    Just (Output.JavaScript Nothing tempFileName)
 
 
 tempFileName :: FilePath
