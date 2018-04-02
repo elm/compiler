@@ -16,7 +16,7 @@ import qualified Reporting.Error.Type as E
 import qualified Reporting.Region as R
 import qualified Type.Constrain.Expression as Expr
 import qualified Type.Instantiate as Instantiate
-import Type.Type (Type(..), Constraint(..), (==>), mkFlexVar, never)
+import Type.Type (Type(..), Constraint(..), (==>), mkFlexVar, nameToRigid, never)
 
 
 
@@ -73,13 +73,13 @@ letPort :: N.Name -> Can.Port -> IO Constraint -> IO Constraint
 letPort name port_ makeConstraint =
   case port_ of
     Can.Incoming freeVars _ srcType ->
-      do  vars <- traverse (\_ -> mkFlexVar) freeVars
+      do  vars <- Map.traverseWithKey (\k _ -> nameToRigid k) freeVars
           tipe <- Instantiate.fromSrcType (Map.map VarN vars) srcType
           let header = Map.singleton name (A.At R.zero tipe)
           CLet (Map.elems vars) [] header CTrue <$> makeConstraint
 
     Can.Outgoing freeVars _ srcType ->
-      do  vars <- traverse (\_ -> mkFlexVar) freeVars
+      do  vars <- Map.traverseWithKey (\k _ -> nameToRigid k) freeVars
           tipe <- Instantiate.fromSrcType (Map.map VarN vars) srcType
           let header = Map.singleton name (A.At R.zero tipe)
           CLet (Map.elems vars) [] header CTrue <$> makeConstraint
