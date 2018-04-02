@@ -344,9 +344,9 @@ toSuper name =
 toAnnotation :: Variable -> IO Can.Annotation
 toAnnotation variable =
   do  userNames <- getVarNames variable Map.empty
-      (tipe, NameState allNames _ _ _ _ _) <-
+      (tipe, NameState freeVars _ _ _ _ _) <-
         State.runStateT (variableToCanType variable) (makeNameState userNames)
-      return $ Can.Forall (Map.map (const ()) allNames) tipe
+      return $ Can.Forall freeVars tipe
 
 
 variableToCanType :: Variable -> StateT NameState IO Can.Type
@@ -557,7 +557,7 @@ termToErrorType term =
 
 data NameState =
   NameState
-    { _taken :: TakenNames
+    { _taken :: Map.Map N.Name ()
     , _normals :: Int
     , _numbers :: Int
     , _comparables :: Int
@@ -566,21 +566,41 @@ data NameState =
     }
 
 
-type TakenNames = Map.Map N.Name Variable
-
-
-makeNameState :: TakenNames -> NameState
+makeNameState :: Map.Map N.Name Variable -> NameState
 makeNameState taken =
-  NameState taken 0 0 0 0 0
+  NameState (Map.map (const ()) taken) 0 0 0 0 0
+
+
+
+-- FRESH VAR NAMES
 
 
 getFreshVarName :: (Monad m) => StateT NameState m N.Name
 getFreshVarName =
   do  index <- State.gets _normals
       taken <- State.gets _taken
-      let (uniqueName, newIndex) = getFreshNormal index taken
-      State.modify (\state -> state { _normals = newIndex })
-      return uniqueName
+      let (name, newIndex, newTaken) = getFreshVarNameHelp index taken
+      State.modify $ \state -> state { _taken = newTaken, _normals = newIndex }
+      return name
+
+
+getFreshVarNameHelp :: Int -> Map.Map N.Name () -> (N.Name, Int, Map.Map N.Name ())
+getFreshVarNameHelp index taken =
+  let
+    (postfix, letter) =
+      quotRem index 26
+
+    chr = N.fromLetter letter
+    name = if postfix <= 0 then chr else N.addIndex chr postfix
+  in
+    if Map.member name taken then
+      getFreshVarNameHelp (index + 1) taken
+    else
+      ( name, index + 1, Map.insert name () taken )
+
+
+
+-- FRESH SUPER NAMES
 
 
 getFreshSuperName :: (Monad m) => SuperType -> StateT NameState m N.Name
@@ -599,54 +619,33 @@ getFreshSuperName super =
       getFreshSuper "compappend" _compAppends (\index state -> state { _compAppends = index })
 
 
-getFreshNormal :: Int -> TakenNames -> (N.Name, Int)
-getFreshNormal index taken =
-  let
-    (postfix, letter) =
-      quotRem index 26
-
-    chr = N.fromLetter letter
-    name = if postfix <= 0 then chr else N.addIndex chr postfix
-  in
-    if Map.member name taken then
-      getFreshNormal (index + 1) taken
-
-    else
-      (name, index + 1)
-
-
-getFreshSuper
-    :: (Monad m)
-    => N.Name
-    -> (NameState -> Int)
-    -> (Int -> NameState -> NameState)
-    -> StateT NameState m N.Name
-getFreshSuper name getter setter =
+getFreshSuper :: (Monad m) => N.Name -> (NameState -> Int) -> (Int -> NameState -> NameState) -> StateT NameState m N.Name
+getFreshSuper prefix getter setter =
   do  index <- State.gets getter
       taken <- State.gets _taken
-      let (uniqueName, newIndex) = getFreshSuperHelp name index taken
-      State.modify (setter newIndex)
-      return uniqueName
+      let (name, newIndex, newTaken) = getFreshSuperHelp prefix index taken
+      State.modify (\state -> setter newIndex state { _taken = newTaken })
+      return name
 
 
-getFreshSuperHelp :: N.Name -> Int -> TakenNames -> (N.Name, Int)
-getFreshSuperHelp name index taken =
+getFreshSuperHelp :: N.Name -> Int -> Map.Map N.Name () -> (N.Name, Int, Map.Map N.Name ())
+getFreshSuperHelp prefix index taken =
   let
-    newName =
-      if index <= 0 then name else N.addIndex name index
+    name =
+      if index <= 0 then prefix else N.addIndex prefix index
   in
-    if Map.member newName taken then
-      getFreshSuperHelp name (index + 1) taken
+    if Map.member name taken then
+      getFreshSuperHelp prefix (index + 1) taken
 
     else
-      (newName, index + 1)
+      ( name, index + 1, Map.insert name () taken )
 
 
 
 -- GET ALL VARIABLE NAMES
 
 
-getVarNames :: Variable -> TakenNames -> IO TakenNames
+getVarNames :: Variable -> Map.Map N.Name Variable -> IO (Map.Map N.Name Variable)
 getVarNames var takenNames =
   do  (Descriptor content rank mark copy) <- UF.get var
       if mark == getVarNamesMark
@@ -711,7 +710,7 @@ getVarNames var takenNames =
 -- REGISTER NAME / RENAME DUPLICATES
 
 
-addName :: Int -> N.Name -> Variable -> (N.Name -> Content) -> TakenNames -> IO TakenNames
+addName :: Int -> N.Name -> Variable -> (N.Name -> Content) -> Map.Map N.Name Variable -> IO (Map.Map N.Name Variable)
 addName index givenName var makeContent takenNames =
   let
     indexedName =
