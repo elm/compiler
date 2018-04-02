@@ -1,19 +1,33 @@
-module Index.Dashboard exposing
-  ( view
-  )
+module Main exposing (main)
 
 
+import Browser
+import Dict
 import Html exposing (..)
-import Html.Attributes exposing (class, href, style, title)
+import Html.Attributes exposing (class, href, src, style, title)
+import Json.Decode as D
 
-import Elm.Config as Config exposing (Config)
 import Elm.License as License
-import Elm.Repo as Repo exposing (Repo)
-import Elm.Version as Version exposing (Version)
+import Elm.Package as Package
+import Elm.Project as Project
+import Elm.Version as Version
 import Index.Icon as Icon
-import Index.Navigator as Navigator exposing ((</>))
-import Index.Project as Project exposing (Project, File(..))
 import Index.Skeleton as Skeleton
+
+
+
+-- MAIN
+
+
+main : Program () () ()
+main =
+  Browser.fullscreen
+    { init = Debug.crash "init"
+    , update = Debug.crash "update"
+    , subscriptions = Debug.crash "subscriptions"
+    , view = Debug.crash "view"
+    , onNavigation = Nothing
+    }
 
 
 
@@ -23,7 +37,7 @@ import Index.Skeleton as Skeleton
 type alias Model =
   { path : String
   , status : ProjectStatus
-  , directory : Status Directory
+  , directory : DirectoryStatus
   }
 
 
@@ -33,7 +47,7 @@ type ProjectStatus
   | ProjectIsValid
       { root : String
       , project : Project.Project
-      , exactDeps : List (Package.Name, Version.Version)
+      , exactDeps : Dict.Dict String Version.Version
       }
 
 
@@ -66,8 +80,7 @@ type alias File =
 
 decoder : D.Decoder Directory
 decoder =
-  D.map4 Directory
-    (D.field "path" (D.list D.string))
+  D.map3 Directory
     (D.field "dirs" (D.list D.string))
     (D.field "files" (D.list fileDecoder))
     (D.field "readme" (D.nullable D.string))
@@ -107,18 +120,18 @@ waiting =
 -- VIEW DIRECTORY
 
 
-viewDirectory : Project -> Directory -> Html msg
-viewDirectory project directory =
+viewDirectory : ExactDeps -> Project.Project -> Directory -> Html msg
+viewDirectory exactDeps project directory =
   Skeleton.view
-    [ Navigator.view pwd
-    , section [ class "left-column" ]
+  -- Navigator.view pwd TODO
+    [ section [ class "left-column" ]
         [ viewFiles directory.dirs directory.files
         , viewReadme directory.readme
         ]
     , section [ class "right-column" ]
         [ viewProjectSummary project
-        , viewDeps project
-        , viewTestDeps project
+        , viewDeps exactDeps project
+        , viewTestDeps exactDeps project
         ]
     , div [ style "clear" "both" ] []
     ]
@@ -170,7 +183,7 @@ viewFile {name} =
 viewProjectSummary : Project.Project -> Html msg
 viewProjectSummary project =
   case project of
-    Project.Browser info ->
+    Project.Application info ->
       Skeleton.box
         { title = "Source Directories"
         , items = List.map (\dir -> [text dir]) info.dirs
@@ -182,7 +195,7 @@ viewProjectSummary project =
       Skeleton.box
         { title = "Package Info"
         , items =
-            [ [ text ("Name: " ++ info.name) ]
+            [ [ text ("Name: " ++ Package.toString info.name) ]
             , [ text ("Version: " ++ Version.toString info.version) ]
             , [ text ("License: " ++ License.toString info.license) ]
             ]
@@ -194,12 +207,16 @@ viewProjectSummary project =
 -- VIEW DEPENDENCIES
 
 
+type alias ExactDeps =
+  Dict.Dict String Version.Version
+
+
 viewDeps : ExactDeps -> Project.Project -> Html msg
 viewDeps exactDeps project =
   let
     dependencies =
       case project of
-        Project.Browser info ->
+        Project.Application info ->
           List.map (viewDependency exactDeps) info.deps
 
         Project.Package info ->
@@ -217,7 +234,7 @@ viewTestDeps exactDeps project =
   let
     dependencies =
       case project of
-        Project.Browser info ->
+        Project.Application info ->
           List.map (viewDependency exactDeps) info.testDeps
 
         Project.Package info ->
