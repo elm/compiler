@@ -1,9 +1,8 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 module Generate.Functions (functions) where
 
-import qualified Data.ByteString.Builder as BS
+import qualified Data.ByteString.Builder as B
 import Text.RawString.QQ (r)
 
 
@@ -11,7 +10,7 @@ import Text.RawString.QQ (r)
 -- FUNCTIONS
 
 
-functions :: BS.Builder
+functions :: B.Builder
 functions = [r|
 
 function F(arity, fun, wrapper) {
