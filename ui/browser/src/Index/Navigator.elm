@@ -1,24 +1,9 @@
-module Index.Navigator exposing (view, (</>))
+module Index.Navigator exposing (view)
 
 
-import Color
 import Html exposing (..)
 import Html.Attributes exposing (..)
-
-import TempFontAwesome as FA
-
-
-
--- ADD SLASHES
-
-
-(</>) : String -> String -> String
-(</>) directory file =
-  if String.endsWith "/" directory then
-    directory ++ file
-
-  else
-    directory ++ "/" ++ file
+import Index.Icon as Icon
 
 
 
@@ -43,7 +28,7 @@ makeLinks root dirs oldPath revAnchors =
     dir :: otherDirs ->
       let
         newPath =
-          oldPath </> dir
+          oldPath ++ "/" ++ dir
 
         anchor =
           a [ href newPath ] [ text dir ]
@@ -57,7 +42,7 @@ makeLinks root dirs oldPath revAnchors =
             , title root
             , style "display" "inherit"
             ]
-            [ FA.home Color.darkGrey 36
+            [ Icon.home
             ]
       in
         case revAnchors of
