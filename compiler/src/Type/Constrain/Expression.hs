@@ -183,7 +183,7 @@ constrainLambda rtv region args body expected =
 
 
 constrainCall :: RTV -> R.Region -> Can.Expr -> [Can.Expr] -> Expected Type -> IO Constraint
-constrainCall rtv region func args expected =
+constrainCall rtv region func@(A.At funcRegion _) args expected =
   do  let maybeName = getName func
 
       funcVar <- mkFlexVar
@@ -197,17 +197,15 @@ constrainCall rtv region func args expected =
         unzip3 <$> Index.indexedTraverse (constrainArg rtv region maybeName) args
 
       let arityType = foldr FunN resultType argTypes
-      let resultCon = CEqual region (CallResult maybeName) resultType expected
+      let category = CallResult maybeName
+      let resultCon = CEqual region category resultType expected
 
       return $ exists (funcVar:resultVar:argVars) $
         CAnd
           [ funcCon
-          , CBranch
-              { _a = funcType
-              , _b = arityType
-              , _eq = CAnd [ CAnd argCons, resultCon ]
-              , _neq = constrainCallBackup rtv region maybeName func args
-              }
+          , CEqual funcRegion category funcType (FromContext region (CallArity maybeName (length args)) arityType)
+          , CAnd argCons
+          , resultCon
           ]
 
 
@@ -217,20 +215,6 @@ constrainArg rtv region maybeName index arg =
       let argType = VarN argVar
       argCon <- constrain rtv arg (FromContext region (CallArg maybeName index) argType)
       return (argVar, argType, argCon)
-
-
-constrainCallBackup :: RTV -> R.Region -> MaybeName -> Can.Expr -> [Can.Expr] -> IO Constraint
-constrainCallBackup rtv region maybeName func args =
-  do  (argVars, argTypes, argCons) <-
-        unzip3 <$> Index.indexedTraverse (constrainArg rtv region maybeName) args
-
-      resultVar <- mkFlexVar
-      let resultType = VarN resultVar
-      let arityType = foldr FunN resultType argTypes
-
-      funcCon <- constrain rtv func (FromContext region (TooManyArgs maybeName (length args)) arityType)
-
-      return $ exists (resultVar:argVars) $ CAnd [ CAnd argCons, funcCon ]
 
 
 getName :: Can.Expr -> MaybeName

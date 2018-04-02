@@ -58,12 +58,6 @@ data Constraint
   | CForeign R.Region N.Name Can.Annotation (E.Expected Type)
   | CPattern R.Region E.PCategory Type (E.PExpected Type)
   | CAnd [Constraint]
-  | CBranch
-      { _a :: Type
-      , _b :: Type
-      , _eq :: Constraint
-      , _neq :: IO Constraint
-      }
   | CLet
       { _rigidVars :: [Variable]
       , _flexVars :: [Variable]

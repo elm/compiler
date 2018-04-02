@@ -142,19 +142,6 @@ solve env rank pools state constraint =
     CAnd constraints ->
       foldM (solve env rank pools) state constraints
 
-    CBranch a b eqCon makeNotEqCon ->
-      do  aVar <- typeToVariable rank pools a
-          bVar <- typeToVariable rank pools b
-          answer <- Unify.unify aVar bVar
-          case answer of
-            Unify.Ok vars ->
-              do  introduce rank pools vars
-                  solve env rank pools state eqCon
-
-            Unify.Err vars _ _ ->
-              do  introduce rank pools vars
-                  solve env rank pools state =<< makeNotEqCon
-
     CLet [] flexs _ headerCon CTrue ->
       do  introduce rank pools flexs
           solve env rank pools state headerCon

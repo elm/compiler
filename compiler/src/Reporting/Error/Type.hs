@@ -60,6 +60,7 @@ data Context
   | IfCondition
   | IfBranch Index.ZeroBased
   | CaseBranch Index.ZeroBased
+  | CallArity MaybeName Int
   | CallArg MaybeName Index.ZeroBased
   | TooManyArgs MaybeName Int
   | RecordAccess N.Name
@@ -796,22 +797,48 @@ toExprReport source localizer exprRegion category tipe expected =
                 )
             )
 
+        CallArity maybeFuncName numArgs ->
+          case countArgs tipe of
+            0 ->
+              Report.toCodeSnippet source region (Just exprRegion)
+                ( H.reflow $
+                    case maybeFuncName of
+                      NoName        -> "This is not a function:"
+                      FuncName name -> "The `" <> N.toString name <> "` value is not a function:"
+                      CtorName name -> "The `" <> N.toString name <> "` value is not a function:"
+                      OpName op     -> "The (" <> N.toString op <> ") operator is not a function:"
+                ,
+                  H.stack $
+                    [ "It has type:"
+                    , H.indent 4 $ H.dullyellow $ T.toDoc localizer RT.None tipe
+                    , H.reflow $ "So it cannot accept arguments, but it got " <> show numArgs <> " anyway."
+                    ]
+                )
+
+            n ->
+              Report.toCodeSnippet source region (Just exprRegion)
+                ( H.reflow $
+                    case maybeFuncName of
+                      NoName        -> "This function was given too many arguments:"
+                      FuncName name -> "The `" <> N.toString name <> "` function was given too many arguments:"
+                      CtorName name -> "The `" <> N.toString name <> "` constructor was given too many arguments:"
+                      OpName op     -> "The (" <> N.toString op <> ") operator was given too many arguments:"
+                ,
+                  H.stack $
+                    [ "It has type:"
+                    , H.indent 4 $ H.dullyellow $ T.toDoc localizer RT.None tipe
+                    , H.reflow $ "So it expects " <> H.args n <> ", but it got " <> show numArgs <> " instead."
+                    ]
+                )
+
         CallArg maybeFuncName index ->
           let
             thisFunction =
               case maybeFuncName of
-                NoName ->
-                  "this function"
-
-                FuncName name ->
-                  "`" <> N.toString name <> "`"
-
-                CtorName name ->
-                  "`" <> N.toString name <> "`"
-
-                OpName op ->
-                  "(" <> N.toString op <> ")"
-
+                NoName        -> "this function"
+                FuncName name -> "`" <> N.toString name <> "`"
+                CtorName name -> "`" <> N.toString name <> "`"
+                OpName op     -> "(" <> N.toString op <> ")"
           in
           Report.toCodeSnippet source region (Just exprRegion)
             (
