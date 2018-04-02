@@ -21,14 +21,14 @@ import Svg.Attributes exposing (width, height, viewBox, d, fill)
 
 
 icon : String -> String -> String -> Html msg
-icon color size path =
+icon color size pathString =
   svg
     [ class "icon"
     , width size
     , height size
     , viewBox "0 0 1792 1792"
     ]
-    [ path [ fill color, d path ] []
+    [ path [ fill color, d pathString ] []
     ]
 
 
