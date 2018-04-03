@@ -35,19 +35,15 @@ readAsset path =
 compile :: IO BS.ByteString
 compile =
   if True then return "TODO" else
-  do  Dir.setCurrentDirectory "ui"
+  Dir.withCurrentDirectory ("ui" </> "browser") $
+    do  reporter <- Terminal.create
+        void $ Task.run reporter $
+          do  summary <- Project.getRoot
+              Project.compile options Nothing summary rootPaths
 
-      reporter <- Terminal.create
-      void $ Task.run reporter $
-        do  summary <- Project.getRoot
-            Project.compile options Nothing summary rootPaths
-
-      result <- BS.readFile tempFileName
-      seq (BS.length result) (Dir.removeFile tempFileName)
-
-      Dir.setCurrentDirectory ".."
-
-      return result
+        result <- BS.readFile tempFileName
+        seq (BS.length result) (Dir.removeFile tempFileName)
+        return result
 
 
 options :: Output.Options
