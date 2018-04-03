@@ -74,8 +74,8 @@ crawl summary args =
     Args.Roots path [] ->
       crawlHelp summary =<< Header.readOneFile summary path
 
-    Args.Roots path paths ->
-      do  (h,hs) <- Header.readManyFiles summary path paths
+    Args.Roots p ps ->
+      do  (h,hs) <- Header.readManyFiles summary p ps
           let unvisited = concatMap toUnvisited (h:hs)
           let graph = initWorkGraph (Args.Roots (fst h) (map fst hs)) (Map.fromList (h:hs))
           depthFirstSearch summary unvisited graph
