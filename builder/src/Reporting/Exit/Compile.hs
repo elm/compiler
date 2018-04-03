@@ -8,8 +8,7 @@ module Reporting.Exit.Compile
   where
 
 
-import Data.List.NonEmpty (NonEmpty((:|)))
-import qualified Data.List.NonEmpty as NonEmpty
+import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Time.Clock as Time
 import qualified Text.PrettyPrint.ANSI.Leijen as P
@@ -48,9 +47,10 @@ toJson (Exit name path _ source errors) =
 
 toDoc :: Exit -> [Exit] -> P.Doc
 toDoc e es =
-  case NonEmpty.sortWith _time (e :| es) of
-    exit :| exits ->
-      P.vcat (toDocHelp exit exits)
+  let
+    (exit, exits) = sortByTime e es
+  in
+  P.vcat (toDocHelp exit exits)
 
 
 toDocHelp :: Exit -> [Exit] -> [P.Doc]
@@ -81,3 +81,25 @@ separator beforeName afterName =
       , P.empty
       , P.empty
       ]
+
+
+
+-- SORT BY TIME
+
+
+sortByTime :: Exit -> [Exit] -> (Exit, [Exit])
+sortByTime exit exits =
+  case List.sortBy timeCompare exits of
+    [] ->
+      (exit, [])
+
+    e:es ->
+      if _time exit < _time e then
+        (exit, e:es)
+      else
+        (e, List.insertBy timeCompare exit es)
+
+
+timeCompare :: Exit -> Exit -> Ordering
+timeCompare e1 e2 =
+  compare (_time e1) (_time e2)
