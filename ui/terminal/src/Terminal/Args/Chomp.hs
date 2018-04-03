@@ -440,7 +440,7 @@ suggestFlag unknownFlags flags targetIndex =
 
     Chunk index _ : otherUnknownFlags ->
       if index == targetIndex then
-        Just (return (getFlagNames flags []))
+        Just (return (map ("--" ++) (getFlagNames flags [])))
       else
         suggestFlag otherUnknownFlags flags targetIndex
 
