@@ -13,8 +13,6 @@ import Control.Monad (foldM)
 import Control.Monad.Except (liftIO)
 import qualified Data.ByteString as BS
 import qualified Data.Graph as Graph
-import qualified Data.List.NonEmpty as NonEmpty
-import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -73,14 +71,13 @@ crawl summary args =
           let graph = initWorkGraph (Args.Pkg names) Map.empty
           depthFirstSearch summary roots graph
 
-    Args.Roots (path :| []) ->
+    Args.Roots path [] ->
       crawlHelp summary =<< Header.readOneFile summary path
 
-    Args.Roots paths ->
-      do  headers <- Header.readManyFiles summary paths
-          let names = NonEmpty.map fst headers
-          let unvisited = concatMap toUnvisited (NonEmpty.toList headers)
-          let graph = initWorkGraph (Args.Roots names) (Map.fromList (NonEmpty.toList headers))
+    Args.Roots path paths ->
+      do  (h,hs) <- Header.readManyFiles summary path paths
+          let unvisited = concatMap toUnvisited (h:hs)
+          let graph = initWorkGraph (Args.Roots (fst h) (map fst hs)) (Map.fromList (h:hs))
           depthFirstSearch summary unvisited graph
       where
         toUnvisited (name, Header.Info path _ _ deps) =
@@ -96,10 +93,9 @@ crawlFromSource summary@(Summary _ project _ _ _) source =
 crawlHelp :: Summary -> ( Maybe Module.Raw, Header.Info ) -> Task.Task Result
 crawlHelp summary ( maybeName, info@(Header.Info path _ _ deps) ) =
   do  let name = maybe "Main" id maybeName
-      let args = Args.Roots (name :| [])
       let toUnvisited dep = Unvisited (maybe (E.File path) (E.Module path) maybeName) dep
       let roots = map toUnvisited deps
-      let graph = initWorkGraph args (Map.singleton name info)
+      let graph = initWorkGraph (Args.Roots name []) (Map.singleton name info)
       depthFirstSearch summary roots graph
 
 

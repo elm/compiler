@@ -7,7 +7,6 @@ module File.Args
   where
 
 
-import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Elm.Compiler.Module as Module
 import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Summary as Summary
@@ -15,9 +14,9 @@ import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
 
 
-data Args roots
+data Args root
   = Pkg [Module.Raw]
-  | Roots (NonEmpty roots)
+  | Roots root [root]
 
 
 fromPaths :: Summary.Summary -> [FilePath] -> Task.Task (Args FilePath)
@@ -27,7 +26,7 @@ fromPaths summary paths =
       fromSummary summary
 
     first : rest ->
-      return $ Roots (first :| rest)
+      return $ Roots first rest
 
 
 fromSummary :: Summary.Summary -> Task.Task (Args a)

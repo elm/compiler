@@ -95,14 +95,15 @@ readOneHelp path =
 -- READ MANY FILES
 
 
-readManyFiles :: Summary -> NonEmpty FilePath -> Task.Task (NonEmpty (Module.Raw, Info))
-readManyFiles summary files =
+readManyFiles :: Summary -> FilePath -> [FilePath] -> Task.Task ((Module.Raw, Info), [(Module.Raw, Info)])
+readManyFiles summary file files =
   Task.mapError Exit.Crawl $
-  do  infos <- traverse (readManyFilesHelp summary) files
+  do  info <- readManyFilesHelp summary file
+      infos <- traverse (readManyFilesHelp summary) files
       let insert (name, info) dict = Map.insertWith (<>) name (info :| []) dict
-      let nameTable = foldr insert Map.empty infos
+      let nameTable = foldr insert Map.empty (info:infos)
       _ <- Map.traverseWithKey detectDuplicateNames nameTable
-      return infos
+      return (info, infos)
 
 
 readManyFilesHelp :: Summary -> FilePath -> Task.Task_ E.Exit (Module.Raw, Info)

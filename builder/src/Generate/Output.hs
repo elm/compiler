@@ -12,7 +12,6 @@ module Generate.Output
 
 import Control.Monad.Trans (liftIO)
 import qualified Data.ByteString.Builder as B
-import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Map as Map
 import Data.Monoid ((<>))
 import qualified System.Directory as Dir
@@ -55,8 +54,8 @@ generate options summary graph@(Crawl.Graph args _ _ _ _) =
     Args.Pkg _ ->
       return ()
 
-    Args.Roots names ->
-      generateMonolith options summary graph (NonEmpty.toList names)
+    Args.Roots name names ->
+      generateMonolith options summary graph (name:names)
 
 
 
@@ -64,11 +63,11 @@ generate options summary graph@(Crawl.Graph args _ _ _ _) =
 
 
 generateMonolith :: Options -> Summary.Summary -> Crawl.Result -> [Module.Raw] -> Task.Task ()
-generateMonolith (Options debug target maybeOutput) summary@(Summary.Summary _ project _ ifaces _) graph rootNames =
+generateMonolith (Options mode target maybeOutput) summary@(Summary.Summary _ project _ ifaces _) graph rootNames =
   do  let pkg = Project.getName project
       let roots = map (Module.Canonical pkg) rootNames
       objectGraph <- organize summary graph
-      case Obj.generate debug target ifaces objectGraph roots of
+      case Obj.generate mode target ifaces objectGraph roots of
         Obj.None ->
           return ()
 
