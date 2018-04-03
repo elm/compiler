@@ -26,7 +26,7 @@ import Terminal.Args (Parser(..), suggestFiles)
 
 data Flags =
   Flags
-    { _debug :: Bool
+    { _optimize :: Bool
     , _output :: Maybe Output.Output
     , _report :: Maybe ReportType
     , _docs :: Maybe FilePath
@@ -34,10 +34,10 @@ data Flags =
 
 
 run :: [FilePath] -> Flags -> IO ()
-run paths (Flags debug output report docs) =
+run paths (Flags optimize output report docs) =
   let
     mode =
-      if debug then Obj.Debug else Obj.Prod
+      if optimize then Obj.Prod else Obj.Dev
 
     outputOptions =
       Output.Options mode Obj.Client output

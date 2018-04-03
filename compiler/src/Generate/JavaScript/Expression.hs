@@ -58,7 +58,7 @@ generate mode expression =
     Opt.Chr char ->
       JsExpr $
         case mode of
-          Name.Debug _ ->
+          Name.Dev _ ->
             JS.Call toChar [ JS.String (Text.encodeUtf8Builder char) ]
 
           Name.Prod _ _ ->
@@ -81,7 +81,7 @@ generate mode expression =
 
     Opt.VarEnum (Opt.Global home name) index ->
       case mode of
-        Name.Debug _ ->
+        Name.Dev _ ->
           JsExpr $ JS.Ref (Name.fromGlobal home name)
 
         Name.Prod _ _ ->
@@ -90,7 +90,7 @@ generate mode expression =
     Opt.VarBox (Opt.Global home name) ->
       JsExpr $ JS.Ref $
         case mode of
-          Name.Debug _  -> Name.fromGlobal home name
+          Name.Dev _  -> Name.fromGlobal home name
           Name.Prod _ _ -> Name.fromGlobal ModuleName.basics N.identity
 
     Opt.VarCycle home name ->
@@ -161,7 +161,7 @@ generate mode expression =
 
     Opt.Unit ->
       case mode of
-        Name.Debug _ ->
+        Name.Dev _ ->
           JsExpr $ JS.Ref (Name.fromKernel N.utils "Tuple0")
 
         Name.Prod _ _ ->
@@ -261,7 +261,7 @@ generateCtor mode name index arity =
 
     ctorTag =
       case mode of
-        Name.Debug _ -> JS.String (N.toBuilder name)
+        Name.Dev _ -> JS.String (N.toBuilder name)
         Name.Prod _ _ -> JS.Int (Index.toMachine index)
   in
   generateFunction argNames $ JsExpr $ JS.Object $
@@ -363,7 +363,7 @@ generateCall mode func args =
 
     Opt.VarBox _ ->
       case mode of
-        Name.Debug _ ->
+        Name.Dev _ ->
           generateCallHelp mode func args
 
         Name.Prod _ _ ->
@@ -744,7 +744,7 @@ generatePath mode path =
 
     Opt.Unbox subPath ->
       case mode of
-        Name.Debug _ ->
+        Name.Dev _ ->
           JS.Access (generatePath mode subPath) (Name.fromIndex Index.first)
 
         Name.Prod _ _ ->
@@ -872,7 +872,7 @@ generateIfTest mode root (path, test) =
     DT.IsCtor name index _ _ ->
       strictEq (JS.Access value Name.dollar) $
         case mode of
-          Name.Debug _ -> JS.String (N.toBuilder name)
+          Name.Dev _ -> JS.String (N.toBuilder name)
           Name.Prod _ _ -> JS.Int (Index.toMachine index)
 
     DT.IsInt int ->
@@ -881,7 +881,7 @@ generateIfTest mode root (path, test) =
     DT.IsChr char ->
       strictEq (JS.String (Text.encodeUtf8Builder char)) $
         case mode of
-          Name.Debug _ -> JS.Call (JS.Access value (Name.fromLocal "valueOf")) []
+          Name.Dev _ -> JS.Call (JS.Access value (Name.fromLocal "valueOf")) []
           Name.Prod _ _ -> value
 
     DT.IsStr string ->
@@ -911,7 +911,7 @@ generateCaseValue mode test =
   case test of
     DT.IsCtor name index _ _ ->
       case mode of
-        Name.Debug _ -> JS.String (N.toBuilder name)
+        Name.Dev _ -> JS.String (N.toBuilder name)
         Name.Prod _ _ -> JS.Int (Index.toMachine index)
 
     DT.IsInt int ->
@@ -941,7 +941,7 @@ generateCaseTest mode root path exampleTest =
   case exampleTest of
     DT.IsCtor _ _ _ opts ->
       case mode of
-        Name.Debug _ ->
+        Name.Dev _ ->
           JS.Access value Name.dollar
 
         Name.Prod _ _ ->
@@ -963,7 +963,7 @@ generateCaseTest mode root path exampleTest =
 
     DT.IsChr _ ->
       case mode of
-        Name.Debug _ ->
+        Name.Dev _ ->
           JS.Call (JS.Access value (Name.fromLocal "valueOf")) []
 
         Name.Prod _ _ ->
@@ -991,7 +991,7 @@ pathToJsExpr mode root path =
 
     DT.Unbox subPath ->
       case mode of
-        Name.Debug _ ->
+        Name.Dev _ ->
           JS.Access (pathToJsExpr mode root subPath) (Name.fromIndex Index.first)
 
         Name.Prod _ _ ->
@@ -1031,7 +1031,7 @@ toDebugMetadata mode interfaces msgType =
     Name.Prod _ _ ->
       JS.Int 0
 
-    Name.Debug _ ->
+    Name.Dev _ ->
       JS.Json $ Encode.object $
         [ ("versions", Encode.object [ ("elm", Pkg.encodeVersion Version.version) ])
         , ("types", Type.encodeMetadata (Extract.fromMsg interfaces msgType))

@@ -53,7 +53,7 @@ newtype Name =
 
 
 data Mode
-  = Debug Target
+  = Dev Target
   | Prod Target ShortFieldNames
 
 
@@ -67,7 +67,7 @@ type ShortFieldNames =
 isServer :: Mode -> Bool
 isServer mode =
   case mode of
-    Debug target -> isServerHelp target
+    Dev target -> isServerHelp target
     Prod target _ -> isServerHelp target
 
 
@@ -124,7 +124,7 @@ fromKernel home name =
 fromField :: Mode -> N.Name -> Name
 fromField mode name =
   case mode of
-    Debug _ ->
+    Dev _ ->
       Name (N.toBuilder name)
 
     Prod _ fields ->

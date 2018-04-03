@@ -37,7 +37,7 @@ import qualified Reporting.Helpers as H
 -- GENERATE MAINS
 
 
-data Mode = Debug | Prod
+data Mode = Dev | Prod
 
 
 data Output
@@ -72,8 +72,8 @@ addMain mode graph home _ state =
 toRealMode :: Mode -> Name.Target -> Map.Map N.Name Int -> Name.Mode
 toRealMode mode target fields =
   case mode of
-    Debug ->
-      Name.Debug target
+    Dev ->
+      Name.Dev target
 
     Prod ->
       Name.Prod target (Name.shortenFieldNames fields)
@@ -86,7 +86,7 @@ toRealMode mode target fields =
 generateForRepl :: Opt.Graph -> I.Interface -> ModuleName.Canonical -> N.Name -> B.Builder
 generateForRepl (Opt.Graph _ graph _) iface home name =
   let
-    mode = Name.Debug Name.Server
+    mode = Name.Dev Name.Server
     debugState = addGlobal mode graph emptyState (Opt.Global ModuleName.debug "toString")
     evalState = addGlobal mode graph debugState (Opt.Global home name)
   in
@@ -239,7 +239,7 @@ generateCycle mode (Opt.Global home _) cycle =
     Name.Prod _ _ ->
       block
 
-    Name.Debug _ ->
+    Name.Dev _ ->
       JS.Try block Name.dollar $ JS.Throw $ JS.String $
         "The following top-level definitions are causing infinite recursion:\\n"
         <> drawCycle (map fst cycle)
@@ -311,7 +311,7 @@ addChunk mode builder chunk =
 
     Opt.Debug ->
       case mode of
-        Name.Debug _ ->
+        Name.Dev _ ->
           builder
 
         Name.Prod _ _ ->
@@ -319,7 +319,7 @@ addChunk mode builder chunk =
 
     Opt.Prod ->
       case mode of
-        Name.Debug _ ->
+        Name.Dev _ ->
           "_UNUSED" <> builder
 
         Name.Prod _ _ ->
@@ -335,7 +335,7 @@ generateEnum mode (Opt.Global home name) ctorName index =
   let
     definition =
       case mode of
-        Name.Debug _ ->
+        Name.Dev _ ->
           Expr.codeToExpr (Expr.generateCtor mode ctorName index 0)
 
         Name.Prod _ _ ->
@@ -353,7 +353,7 @@ generateBox mode (Opt.Global home name) ctorName =
   let
     definition =
       case mode of
-        Name.Debug _ ->
+        Name.Dev _ ->
           Expr.codeToExpr (Expr.generateCtor mode ctorName Index.first 1)
 
         Name.Prod _ _ ->

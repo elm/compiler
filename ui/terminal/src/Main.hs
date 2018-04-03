@@ -173,7 +173,7 @@ make =
 
     makeFlags =
       flags Make.Flags
-        |-- onOff "debug" "Turn on debug mode. This allows you to (1) use functions like Debug.log and Debug.crash and (2) use the interactive debugger to rewind your programs."
+        |-- onOff "optimize" "Turn on optimizations to make code smaller and faster. For example, the compiler renames record fields to be as short as possible and unboxes values to reduce allocation."
         |-- flag "output" Output.output "Specify the name of the resulting JS file. For example --output=assets/elm.js to generate the JS at assets/elm.js or --output=/dev/null to generate no output at all!"
         |-- flag "report" Make.reportType "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
         |-- flag "docs" Make.docsFile "Generate a JSON file of documentation for your project. Eventually it will be possible to preview docs with `reactor` because it is quite hard to deal with these JSON files directly."
