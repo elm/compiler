@@ -65,7 +65,7 @@ moreArgs n =
 
 toSimpleNote :: String -> Doc
 toSimpleNote message =
-  fillSep ((underline (text "Note") <> ":") : map text (words message))
+  fillSep ((underline "Note" <> ":") : map text (words message))
 
 
 toSimpleHint :: String -> Doc
