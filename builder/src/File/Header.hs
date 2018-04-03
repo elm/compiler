@@ -11,9 +11,7 @@ module File.Header
 
 import Control.Monad.Except (liftIO)
 import qualified Data.ByteString as BS
-import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.Map as Map
-import Data.Semigroup ((<>))
 import qualified Data.Time.Calendar as Day
 import qualified Data.Time.Clock as Time
 import qualified System.Directory as Dir
@@ -100,10 +98,12 @@ readManyFiles summary file files =
   Task.mapError Exit.Crawl $
   do  info <- readManyFilesHelp summary file
       infos <- traverse (readManyFilesHelp summary) files
-      let insert (name, info) dict = Map.insertWith (<>) name (info :| []) dict
       let nameTable = foldr insert Map.empty (info:infos)
       _ <- Map.traverseWithKey detectDuplicateNames nameTable
       return (info, infos)
+  where
+    append (x,xs) (y,ys) = (x, xs ++ y : ys)
+    insert (k,v) dict = Map.insertWith append k (v, []) dict
 
 
 readManyFilesHelp :: Summary -> FilePath -> Task.Task_ E.Exit (Module.Raw, Info)
@@ -118,8 +118,8 @@ readManyFilesHelp summary path =
           return (name, info)
 
 
-detectDuplicateNames :: Module.Raw -> NonEmpty Info -> Task.Task_ E.Exit ()
-detectDuplicateNames name (info :| otherInfos) =
+detectDuplicateNames :: Module.Raw -> (Info, [Info]) -> Task.Task_ E.Exit ()
+detectDuplicateNames name (info, otherInfos) =
   case otherInfos of
     [] ->
       return ()

@@ -11,8 +11,6 @@ import Control.Concurrent.MVar (newEmptyMVar, putMVar, readMVar)
 import Control.Monad (foldM, void)
 import Control.Monad.Except (liftIO)
 import qualified Data.Binary as Binary
-import qualified Data.List.NonEmpty as NonEmpty
-import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
@@ -87,7 +85,7 @@ gather onGood answers =
         foldM (gatherHelp onGood) (Right Map.empty) (Map.toList answers)
 
       case summary of
-        Left (err :| errors) ->
+        Left (err, errors) ->
           Task.throw (Exit.Compile err errors)
 
         Right results ->
@@ -117,7 +115,7 @@ gatherHelp onGood summary (name, answer) =
 
 
 type Summary a =
-  Either (NonEmpty E.Exit) (Map Module.Raw a)
+  Either (E.Exit, [E.Exit]) (Map Module.Raw a)
 
 
 addOk :: Module.Raw -> a -> Summary a -> Summary a
@@ -133,8 +131,8 @@ addOk name result acc =
 addErr :: E.Exit -> Summary a -> Summary a
 addErr err acc =
   case acc of
-    Left errors ->
-      Left (NonEmpty.cons err errors)
+    Left (e, es) ->
+      Left (err, e:es)
 
     Right _ ->
-      Left (err :| [])
+      Left (err, [])

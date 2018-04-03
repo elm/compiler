@@ -251,7 +251,6 @@ Executable elm
         process,
         raw-strings-qq,
         scientific,
-        semigroups,
         SHA,
         snap-core,
         snap-server,
