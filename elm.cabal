@@ -108,6 +108,7 @@ Executable elm
         File.Plan,
         Generate.Functions,
         Generate.Html,
+        Generate.Nitpick,
         Generate.Output,
         Reporting.Exit,
         Reporting.Exit.Assets,

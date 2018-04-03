@@ -3,6 +3,7 @@
 module Generate.Output
   ( generate
   , generateReplFile
+  , noDebugUsesInPackage
   , Options(..)
   , Output(..)
   , output
@@ -31,6 +32,8 @@ import qualified File.Crawl as Crawl
 import qualified File.IO as IO
 import qualified Generate.Functions as Functions
 import qualified Generate.Html as Html
+import qualified Generate.Nitpick as Nitpick
+import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
 import qualified Stuff.Paths as Paths
 import Terminal.Args (Parser(..), suggestFiles)
@@ -55,19 +58,24 @@ generate options summary graph@(Crawl.Graph args _ _ _ _) =
       return ()
 
     Args.Roots name names ->
-      generateMonolith options summary graph (name:names)
+      do  objectGraph <- organize summary graph
+
+          case _mode options of
+            Obj.Dev -> return ()
+            Obj.Prod -> noDebugUses summary objectGraph
+
+          generateMonolith options summary objectGraph (name:names)
 
 
 
 -- GENERATE MONOLITH
 
 
-generateMonolith :: Options -> Summary.Summary -> Crawl.Result -> [Module.Raw] -> Task.Task ()
-generateMonolith (Options mode target maybeOutput) summary@(Summary.Summary _ project _ ifaces _) graph rootNames =
+generateMonolith :: Options -> Summary.Summary -> Obj.Graph -> [Module.Raw] -> Task.Task ()
+generateMonolith (Options mode target maybeOutput) (Summary.Summary _ project _ ifaces _) graph rootNames =
   do  let pkg = Project.getName project
       let roots = map (Module.Canonical pkg) rootNames
-      objectGraph <- organize summary graph
-      case Obj.generate mode target ifaces objectGraph roots of
+      case Obj.generate mode target ifaces graph roots of
         Obj.None ->
           return ()
 
@@ -142,6 +150,25 @@ loadPackageObj :: ( Pkg.Name, (Pkg.Version, deps) ) -> Task.Task Obj.Graph
 loadPackageObj ( name, (version,_) ) =
   do  dir <- Task.getPackageCacheDirFor name version
       IO.readBinary (dir </> "objs.dat")
+
+
+
+-- NO DEBUG USES
+
+
+noDebugUses :: Summary.Summary -> Obj.Graph -> Task.Task ()
+noDebugUses (Summary.Summary _ project _ _ _) graph =
+  case Nitpick.findDebugUses (Project.getName project) graph of
+    [] ->
+      return ()
+
+    m:ms ->
+      Task.throw (Exit.CannotOptimizeDebug m ms)
+
+
+noDebugUsesInPackage :: Summary.Summary -> Crawl.Result -> Task.Task ()
+noDebugUsesInPackage summary graph =
+  noDebugUses summary =<< organize summary graph
 
 
 

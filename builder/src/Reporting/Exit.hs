@@ -9,6 +9,7 @@ module Reporting.Exit
 
 
 import qualified Data.ByteString.Builder as B
+import Data.Monoid ((<>))
 import System.IO (stderr)
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 
@@ -44,9 +45,10 @@ data Exit
   | Publish Publish.Exit
   | BadHttp String Http.Exit
 
-  -- install
+  -- misc
   | NoSolution [Pkg.Name]
   | CannotMakeNothing
+  | CannotOptimizeDebug Module.Raw [Module.Raw]
 
 
 
@@ -162,3 +164,30 @@ toReport exit =
         , Help.reflow
             "However many files you give, I will create one JS file out of them."
         ]
+
+    CannotOptimizeDebug m ms ->
+      Help.report "DEBUG REMNANTS" Nothing
+      "There are uses of the `Debug` module in the following modules:"
+        [ P.indent 4 $ P.red $ P.vcat $ map (P.text . Module.nameToString) (m:ms)
+        , Help.reflow "But the --optimize flag only works if all `Debug` functions are removed!"
+        , toSimpleNote $
+            "The issue is that --optimize strips out info needed by `Debug` functions.\
+            \ Here are two examples:"
+        , P.indent 4 $ Help.reflow $
+            "(1) It shortens record field names. This makes the generated JavaScript is\
+            \ smaller, but `Debug.toString` cannot know the real field names anymore."
+        , P.indent 4 $ Help.reflow $
+            "(2) Values like `type Height = Height Float` are unboxed. This reduces\
+            \ allocation, but it also means that `Debug.toString` cannot tell if it is\
+            \ looking at a `Height` or `Float` value."
+        , Help.reflow $
+            "There are a few other cases like that, and it will be much worse once we start\
+            \ inlining code. That optimization could move `Debug.log` and `Debug.todo` calls,\
+            \ resulting in unpredictable behavior. I hope that clarifies why this restriction\
+            \ exists!"
+        ]
+
+
+toSimpleNote :: String -> P.Doc
+toSimpleNote message =
+  P.fillSep ((P.underline "Note" <> ":") : map P.text (words message))

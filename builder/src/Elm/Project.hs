@@ -86,4 +86,5 @@ generateDocs summary@(Summary.Summary root project _ _ _) =
       (dirty, ifaces) <- Plan.plan (Just docsPath) summary graph
       answers <- Compile.compile project (Just docsPath) ifaces dirty
       results <- Artifacts.ignore answers
+      Output.noDebugUsesInPackage summary graph
       Artifacts.writeDocs results docsPath
