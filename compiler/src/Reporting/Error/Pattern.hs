@@ -84,7 +84,7 @@ toReport source err =
                   , H.reflow $
                       "I would have to crash if I saw one of those. Add branches for them!"
                   , H.link "Hint"
-                      "If you want to write the code for each branch later, use `Debug.crash` as a placeholder. Read"
+                      "If you want to write the code for each branch later, use `Debug.todo` as a placeholder. Read"
                       "missing-patterns"
                       "for more guidance on this workflow."
                   ]

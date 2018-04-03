@@ -287,18 +287,18 @@ generateRecord mode fields =
 
 generateDebug :: N.Name -> ModuleName.Canonical -> R.Region -> Maybe N.Name -> JS.Expr
 generateDebug name (ModuleName.Canonical _ home) region unhandledValueName =
-  if name /= "crash" then
+  if name /= "todo" then
     JS.Ref (Name.fromGlobal ModuleName.debug name)
   else
     case unhandledValueName of
       Nothing ->
-        JS.Call (JS.Ref (Name.fromKernel N.utils "crash")) $
+        JS.Call (JS.Ref (Name.fromKernel N.debug "todo")) $
           [ JS.String (N.toBuilder home)
           , regionToJsExpr region
           ]
 
       Just valueName ->
-        JS.Call (JS.Ref (Name.fromKernel N.utils "crashCase")) $
+        JS.Call (JS.Ref (Name.fromKernel N.debug "todoCase")) $
           [ JS.String (N.toBuilder home)
           , regionToJsExpr region
           , JS.Ref (Name.fromLocal valueName)
