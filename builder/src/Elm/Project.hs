@@ -85,6 +85,6 @@ generateDocs summary@(Summary.Summary root project _ _ _) =
       graph <- Crawl.crawl summary args
       (dirty, ifaces) <- Plan.plan (Just docsPath) summary graph
       answers <- Compile.compile project (Just docsPath) ifaces dirty
-      results <- Artifacts.ignore answers
+      results <- Artifacts.write root answers
       Output.noDebugUsesInPackage summary graph
       Artifacts.writeDocs results docsPath
