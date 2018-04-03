@@ -39,7 +39,7 @@ simple :: String -> P.Doc -> Args args -> Flags flags -> (args -> flags -> IO ()
 simple details example args_ flags_ callback =
   do  argStrings <- Env.getArgs
       case argStrings of
-        "<autocomplete>" : number : chunks ->
+        "autocomplete" : number : chunks ->
           attemptAutoComplete number $ \index ->
             fst $ Chomp.chomp (Just index) chunks args_ flags_
 
@@ -74,7 +74,7 @@ complex intro outro interfaces =
           do  hPutStrLn stdout (Pkg.versionToString Compiler.version)
               Exit.exitSuccess
 
-        "<autocomplete>" : number : chunks ->
+        "autocomplete" : number : chunks ->
           attemptAutoComplete number $ \index ->
             complexSuggest index chunks interfaces
 
