@@ -22,7 +22,6 @@ import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 import qualified Develop.Compile as Compile
 import qualified Develop.Generate.Help as Generate
 import qualified Develop.Generate.Index as Index
-import qualified Develop.Generate.NotFound as NotFound
 import qualified Develop.StaticFiles as StaticFiles
 
 
@@ -38,14 +37,6 @@ data Flags =
 
 run :: () -> Flags -> IO ()
 run () (Flags maybePort) =
-  -- TODO get `elm reactor` running again
-  if True then
-    putStrLn $
-      "The reactor is not available in the ALPHA period.\n\
-      \\n\
-      \The goal is for package authors to get code updated and give early feedback.\n\
-      \Professionals and hobbyists should NOT be ugrading at this time!\n"
-  else
   let
     port =
       maybe 8000 id maybePort
@@ -111,7 +102,11 @@ error404 :: Snap ()
 error404 =
   do  modifyResponse $ setResponseStatus 404 "Not Found"
       modifyResponse $ setContentType "text/html; charset=utf-8"
-      writeBuilder (Blaze.renderHtmlBuilder NotFound.html)
+      writeBuilder $ Blaze.renderHtmlBuilder $
+        Generate.makeHtml
+          "Page Not Found"
+          ("/" ++ StaticFiles.elmPath)
+          "Elm.NotFound.fullscreen();"
 
 
 

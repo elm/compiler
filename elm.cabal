@@ -57,7 +57,6 @@ Executable elm
         Develop.Compile
         Develop.Generate.Help
         Develop.Generate.Index
-        Develop.Generate.NotFound
         Develop.StaticFiles
         Develop.StaticFiles.Build
         Diff
