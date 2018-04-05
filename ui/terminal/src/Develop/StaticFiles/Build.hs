@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Develop.StaticFiles.Build
   ( readAsset
@@ -34,7 +33,6 @@ readAsset path =
 
 compile :: IO BS.ByteString
 compile =
-  if True then return "TODO" else
   Dir.withCurrentDirectory ("ui" </> "browser") $
     do  reporter <- Terminal.create
         void $ Task.run reporter $
@@ -61,6 +59,5 @@ rootPaths :: [FilePath]
 rootPaths =
   [ "src" </> "Errors.elm"
   , "src" </> "Index.elm"
-  , "src" </> "Start.elm"
   , "src" </> "NotFound.elm"
   ]
