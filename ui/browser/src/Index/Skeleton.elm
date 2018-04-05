@@ -1,6 +1,5 @@
 module Index.Skeleton exposing
-  ( view
-  , box
+  ( box
   , readmeBox
   )
 
@@ -9,18 +8,6 @@ import Html.Attributes exposing (..)
 import Markdown
 
 import Index.Icon as Icon
-
-
-
--- VIEW
-
-
-view : List (Html msg) -> Html msg
-view content =
-  div []
-    [ header [ class "header" ] []
-    , div [class "content"] content
-    ]
 
 
 
