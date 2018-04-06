@@ -44,11 +44,8 @@ run paths (Flags optimize output report docs) =
 
     makeReporter =
       case report of
-        Nothing ->
-          Terminal.create
-
-        Just Json ->
-          Json.create
+        Nothing -> Terminal.create
+        Just Json -> return Json.reporter
   in
   do  reporter <- makeReporter
       void $ Task.run reporter $
