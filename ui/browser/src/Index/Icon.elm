@@ -11,9 +11,8 @@ module Index.Icon exposing
 
 import Dict
 import Html exposing (Html)
-import Html.Attributes exposing (class)
 import Svg exposing (..)
-import Svg.Attributes exposing (width, height, viewBox, d, fill)
+import Svg.Attributes exposing (class, width, height, viewBox, d, fill)
 
 
 
