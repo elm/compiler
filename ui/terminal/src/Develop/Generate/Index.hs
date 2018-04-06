@@ -1,50 +1,52 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Develop.Generate.Index
-  ( toHtml
-  , getProject
-  , moveToRoot
+  ( get
   )
   where
 
+
 import Control.Monad (filterM)
 import qualified Data.ByteString.Builder as B
-import qualified Data.ByteString.Lazy.UTF8 as Utf8
-import qualified Data.List as List
+import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import qualified System.Directory as Dir
-import System.FilePath ((</>), joinPath, splitDirectories, takeExtension)
-import qualified Text.Blaze.Html5 as H
+import System.FilePath ((</>), splitDirectories, takeExtension)
 
 import qualified Develop.Generate.Help as Help
-import qualified Develop.StaticFiles as StaticFiles
+import qualified Elm.Package as Pkg
+import qualified Elm.Project.Json as Project
+import qualified Elm.Project.Summary as Summary
 import qualified Json.Encode as E
+import qualified Reporting.Progress as Progress
+import qualified Reporting.Task as Task
+import qualified Stuff.Verify as Verify
 
 
 
--- PROJECT
+-- GET
 
 
-data Project =
-  Project
+get :: FilePath -> FilePath -> IO B.Builder
+get root pwd =
+  do  flags <- getFlags root pwd
+      return $ Help.makePageHtml "Index" (E.encode (encode flags))
+
+
+
+-- FLAGS
+
+
+data Flags =
+  Flags
     { _root :: FilePath
-    , _info :: PerhapsInfo
-    }
-
-
-data PerhapsInfo
-  = Bad (Maybe FilePath)
-  | Good Info
-
-
-data Info =
-  Info
-    { _pwd :: [String]
+    , _pwd :: [String]
     , _dirs :: [FilePath]
     , _files :: [(FilePath, Bool)]
     , _readme :: Maybe Text.Text
-    , _config :: Text.Text
+    , _project :: Maybe Project.Project
+    , _exactDeps :: Map.Map Pkg.Name Pkg.Version
     }
 
 
@@ -52,17 +54,17 @@ data Info =
 -- JSON
 
 
-goodToJson :: FilePath -> Info -> String
-goodToJson root (Info pwd dirs files readme config) =
-  Utf8.toString $ B.toLazyByteString $ E.encodeUgly $
-    E.object
-      [ ( "root", encodeFilePath root )
-      , ( "pwd", E.list encodeFilePath pwd )
-      , ( "dirs", E.list encodeFilePath dirs )
-      , ( "files", E.list encodeFile files )
-      , ( "readme", maybe E.null E.text readme )
-      , ( "config", E.text config )
-      ]
+encode :: Flags -> E.Value
+encode (Flags root pwd dirs files readme project exactDeps) =
+  E.object
+    [ ( "root", encodeFilePath root )
+    , ( "pwd", E.list encodeFilePath pwd )
+    , ( "dirs", E.list encodeFilePath dirs )
+    , ( "files", E.list encodeFile files )
+    , ( "readme", maybe E.null E.text readme )
+    , ( "project", maybe E.null Project.encode project )
+    , ( "exactDeps", E.dict Pkg.toText Pkg.encodeVersion exactDeps)
+    ]
 
 
 encodeFilePath :: FilePath -> E.Value
@@ -72,100 +74,35 @@ encodeFilePath filePath =
 
 encodeFile :: (FilePath, Bool) -> E.Value
 encodeFile (file, hasMain) =
-  E.array [ encodeFilePath file, E.bool hasMain ]
-
-
-badJson :: FilePath -> Maybe FilePath -> String
-badJson root potentialRoot =
-  Utf8.toString $ B.toLazyByteString $ E.encodeUgly $
-    E.object
-      [ ( "root", encodeFilePath root )
-      , ( "suggestion", maybe E.null encodeFilePath potentialRoot )
-      ]
+  E.object
+    [ ("name", encodeFilePath file)
+    , ("runnable", E.bool hasMain)
+    ]
 
 
 
--- GENERATE HTML
+-- GET FLAGS
 
 
-toHtml :: Project -> H.Html
-toHtml (Project root perhapsInfo) =
-  case perhapsInfo of
-    Good info@(Info pwd _ _ _ _) ->
-      Help.makeHtml
-        (List.intercalate "/" ("~" : pwd))
-        ("/" ++ StaticFiles.elmPath)
-        ("Elm.Index.fullscreen(" ++ goodToJson root info ++ ");")
+getFlags :: FilePath -> FilePath -> IO Flags
+getFlags root pwd =
+  do  (dirs, files) <- getDirsAndFiles pwd
+      readme <- getReadme pwd
 
-    Bad suggestion ->
-      Help.makeHtml
-        (maybe "New Project!" (const "Existing Project?") suggestion)
-        ("/" ++ StaticFiles.elmPath)
-        ("Elm.Start.fullscreen(" ++ badJson root suggestion ++ ");")
+      maybeSummary <-
+        Task.run Progress.silentReporter $
+          Verify.verify root =<< Project.read "elm.json"
 
-
-
--- GET PROJECT
-
-
-getProject :: FilePath -> IO Project
-getProject directory =
-  do  root <- Dir.getCurrentDirectory
-      exists <- Dir.doesFileExist "elm.json"
-      Project root <$>
-        case exists of
-          False ->
-            Bad <$> findNearestConfig (splitDirectories root)
-
-          True ->
-            do  json <- Text.readFile "elm.json"
-                Good <$> getInfo json directory
-
-
-findNearestConfig :: [String] -> IO (Maybe FilePath)
-findNearestConfig dirs =
-  if null dirs then
-    return Nothing
-
-  else
-    do  exists <- Dir.doesFileExist (joinPath dirs </> "elm.json")
-        if exists
-          then return (Just (joinPath dirs))
-          else findNearestConfig (init dirs)
-
-
-moveToRoot :: IO ()
-moveToRoot =
-  do  subDir <- Dir.getCurrentDirectory
-      maybeRoot <- findNearestConfig (splitDirectories subDir)
-      case maybeRoot of
-        Nothing ->
-          return ()
-
-        Just root ->
-          Dir.setCurrentDirectory root
-
-
-
--- GET INFO
-
-
-getInfo :: Text.Text -> FilePath -> IO Info
-getInfo config directory =
-  do  (dirs, files) <- getDirectoryInfo directory
-      readme <- getReadme directory
       return $
-        Info
-          { _pwd = dropWhile ("." ==) (splitDirectories directory)
+        Flags
+          { _root = root
+          , _pwd = dropWhile ("." ==) (splitDirectories pwd)
           , _dirs = dirs
           , _files = files
           , _readme = readme
-          , _config = config
+          , _project = fmap Summary._project maybeSummary
+          , _exactDeps = maybe Map.empty (Map.map fst . Summary._depsGraph) maybeSummary
           }
-
-
-
--- README
 
 
 getReadme :: FilePath -> IO (Maybe Text.Text)
@@ -177,28 +114,21 @@ getReadme dir =
         else return Nothing
 
 
-
--- DIRECTORIES / FILES
-
-
-getDirectoryInfo :: FilePath -> IO ([FilePath], [(FilePath, Bool)])
-getDirectoryInfo dir =
-  do  contents <- Dir.getDirectoryContents dir
-
-      allDirs <- filterM (Dir.doesDirectoryExist . (dir </>)) contents
-      rawFiles <- filterM (Dir.doesFileExist . (dir </>)) contents
-
-      files <- mapM (inspectFile dir) rawFiles
-
-      return (allDirs, files)
+getDirsAndFiles :: FilePath -> IO ([FilePath], [(FilePath, Bool)])
+getDirsAndFiles pwd =
+  do  contents <- Dir.getDirectoryContents pwd
+      dirs <- filterM (Dir.doesDirectoryExist . (pwd </>)) contents
+      filePaths <- filterM (Dir.doesFileExist . (pwd </>)) contents
+      files <- mapM (inspectFile pwd) filePaths
+      return (dirs, files)
 
 
 inspectFile :: FilePath -> FilePath -> IO (FilePath, Bool)
-inspectFile dir filePath =
-  if takeExtension filePath == ".elm" then
-    do  source <- Text.readFile (dir </> filePath)
+inspectFile pwd path =
+  if takeExtension path == ".elm" then
+    do  source <- Text.readFile (pwd </> path)
         let hasMain = Text.isInfixOf "\nmain " source
-        return (filePath, hasMain)
+        return (path, hasMain)
 
   else
-    return (filePath, False)
+    return (path, False)

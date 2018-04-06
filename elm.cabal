@@ -54,7 +54,6 @@ Executable elm
     other-modules:
         Bump
         Develop
-        Develop.Compile
         Develop.Generate.Help
         Develop.Generate.Index
         Develop.StaticFiles
@@ -229,8 +228,6 @@ Executable elm
         ansi-wl-pprint >= 0.6.7 && < 0.7,
         base >=4.8 && <5,
         binary >= 0.8 && < 0.9,
-        blaze-html,
-        blaze-markup,
         bytestring >= 0.9 && < 0.11,
         containers >= 0.5.8.2 && < 0.6,
         directory >= 1.2.3.0 && < 2.0,

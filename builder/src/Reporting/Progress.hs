@@ -2,6 +2,7 @@
 module Reporting.Progress
   ( Reporter(..)
   , makeReporter
+  , silentReporter
   , Msg(..)
   , Progress(..)
   , Outcome(..)
@@ -41,6 +42,13 @@ makeReporter chan mvar =
           readMVar mvar
   in
     Reporter tell end
+
+
+silentReporter :: Reporter
+silentReporter =
+  Reporter
+    (\_ -> return ())
+    (\_ -> return ())
 
 
 

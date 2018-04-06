@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 module Develop.StaticFiles
   ( lookup
@@ -22,7 +23,7 @@ import qualified Develop.StaticFiles.Build as Build
 
 
 type MimeType =
-  String
+  BS.ByteString
 
 
 lookup :: FilePath -> Maybe (BS.ByteString, MimeType)

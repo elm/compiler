@@ -6,20 +6,18 @@ module Develop
   where
 
 import Control.Applicative ((<|>))
-import Control.Concurrent (threadDelay)
 import Control.Monad (guard)
 import Control.Monad.Trans (MonadIO(liftIO))
+import qualified Data.ByteString.Builder as B
+import qualified Data.ByteString as BS
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.ByteString.Char8 as BSC
-import System.Directory
+import Data.Monoid ((<>))
+import qualified System.Directory as Dir
 import System.FilePath
 import Snap.Core
 import Snap.Http.Server
 import Snap.Util.FileServe
-import qualified Text.Blaze.Html5 as H
-import qualified Text.Blaze.Html.Renderer.Utf8 as Blaze
 
-import qualified Develop.Compile as Compile
 import qualified Develop.Generate.Help as Generate
 import qualified Develop.Generate.Index as Index
 import qualified Develop.StaticFiles as StaticFiles
@@ -41,13 +39,10 @@ run () (Flags maybePort) =
     port =
       maybe 8000 id maybePort
   in
-    do  putStrLn (startupMessage port)
+    do  putStrLn $ "Go to <http://localhost:" ++ show port ++ "> to see your project dashboard."
 
         httpServe (config port) $
           serveFiles
-          <|> route [ ("_compile", compile) ]
-          <|> route [ ("_elm/move-to-root", moveToRoot)]
-          <|> route [ ("_elm/create-new-project", createNewProject)]
           <|> serveDirectoryWith directoryConfig "."
           <|> serveAssets
           <|> error404
@@ -68,21 +63,18 @@ config port =
 
 
 
--- HELPERS
-
-
-startupMessage :: Int -> String
-startupMessage port =
-  "Go to <http://localhost:" ++ show port ++ "> to see your project dashboard."
+-- INDEX
 
 
 directoryConfig :: MonadSnap m => DirectoryConfig m
 directoryConfig =
   let
-    customGenerator directory =
-      do  project <- liftIO (Index.getProject directory)
-          modifyResponse $ setContentType "text/html; charset=utf-8"
-          writeBuilder (Blaze.renderHtmlBuilder (Index.toHtml project))
+    customGenerator pwd =
+      do  modifyResponse $ setContentType "text/html; charset=utf-8"
+          html <- liftIO $
+            do  root <- Dir.getCurrentDirectory
+                Index.get root pwd
+          writeBuilder html
   in
     fancyDirectoryConfig
       { indexFiles = []
@@ -90,38 +82,32 @@ directoryConfig =
       }
 
 
-compile :: Snap ()
-compile =
+
+-- COMPILE
+
+
+_compile :: Snap ()
+_compile =
   do  file <- getSafePath
-      guard =<< liftIO (doesFileExist file)
+      guard =<< liftIO (Dir.doesFileExist file)
       modifyResponse (setContentType "text/javascript")
-      writeBS =<< liftIO (Compile.toJavaScript file)
+      writeBS =<< liftIO (toJavaScript file)
+
+
+toJavaScript :: FilePath -> IO BS.ByteString
+toJavaScript filePath =
+  error "TODO toJavaScript" filePath
+
+
+
+-- NOT FOUND
 
 
 error404 :: Snap ()
 error404 =
   do  modifyResponse $ setResponseStatus 404 "Not Found"
       modifyResponse $ setContentType "text/html; charset=utf-8"
-      writeBuilder $ Blaze.renderHtmlBuilder $
-        Generate.makeHtml
-          "Page Not Found"
-          ("/" ++ StaticFiles.elmPath)
-          "Elm.NotFound.fullscreen();"
-
-
-
--- CREATE NEW PROJECT
-
-
-createNewProject :: Snap ()
-createNewProject =
-  do  liftIO $ threadDelay (2 * 1000 * 1000)
-      return ()
-
-
-moveToRoot :: Snap ()
-moveToRoot =
-  liftIO Index.moveToRoot
+      writeBuilder $ Generate.makePageHtml "NotFound" ""
 
 
 
@@ -131,14 +117,8 @@ moveToRoot =
 serveFiles :: Snap ()
 serveFiles =
   do  file <- getSafePath
-      guard =<< liftIO (doesFileExist file)
+      guard =<< liftIO (Dir.doesFileExist file)
       serveElm file <|> serveFilePretty file
-
-
-serveHtml :: MonadSnap m => H.Html -> m ()
-serveHtml html =
-  do  modifyResponse (setContentType "text/html")
-      writeBuilder (Blaze.renderHtmlBuilder html)
 
 
 
@@ -170,8 +150,10 @@ getSubExts fullExtension =
 
 serveCode :: String -> Snap ()
 serveCode file =
-  do  code <- liftIO (readFile file)
-      serveHtml $ Generate.makeCodeHtml ('~' : '/' : file) code
+  do  code <- liftIO (BS.readFile file)
+      modifyResponse (setContentType "text/html")
+      writeBuilder $
+        Generate.makeCodeHtml ('~' : '/' : file) (B.byteString code)
 
 
 
@@ -181,7 +163,8 @@ serveCode file =
 serveElm :: FilePath -> Snap ()
 serveElm file =
   do  guard (takeExtension file == ".elm")
-      serveHtml (Generate.makeElmHtml file)
+      modifyResponse (setContentType "text/html")
+      writeBuilder (error "TODO")
 
 
 
@@ -196,7 +179,7 @@ serveAssets =
           pass
 
         Just (content, mimeType) ->
-          do  modifyResponse (setContentType $ BSC.pack (mimeType ++ ";charset=utf-8"))
+          do  modifyResponse (setContentType (mimeType <> ";charset=utf-8"))
               writeBS content
 
 
@@ -204,7 +187,7 @@ serveAssets =
 -- MIME TYPES
 
 
-lookupMimeType :: FilePath -> Maybe BSC.ByteString
+lookupMimeType :: FilePath -> Maybe BS.ByteString
 lookupMimeType ext =
   HashMap.lookup ext mimeTypeDict
 
@@ -214,7 +197,7 @@ lookupMimeType ext =
   (a, b)
 
 
-mimeTypeDict :: HashMap.HashMap FilePath BSC.ByteString
+mimeTypeDict :: HashMap.HashMap FilePath BS.ByteString
 mimeTypeDict =
   HashMap.fromList
     [ ".asc"     ==> "text/plain"
