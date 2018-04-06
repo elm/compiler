@@ -91,10 +91,10 @@ type alias Model =
 view : Model -> Browser.View msg
 view model =
   case model of
-    Err _ ->
+    Err error ->
       { title = "???"
       , body =
-          [ text "Something went wrong!"
+          [ text (D.errorToString error)
           ]
       }
 
