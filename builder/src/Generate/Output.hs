@@ -119,10 +119,10 @@ generateReplFile summary@(Summary.Summary _ project _ _ _) graph iface name =
       let home = Module.Canonical (Project.getName project) "Elm_Repl"
       let builder = Obj.generateForRepl objectGraph iface home name
 
-      liftIO $ IO.writeBuilder Paths.temp $
+      liftIO $ IO.writeBuilder (Paths.temp "js") $
         replRecovery <> "(function(){\n'use strict';" <> Functions.functions <> builder <> "}());"
 
-      return Paths.temp
+      return (Paths.temp "js")
 
 
 replRecovery :: B.Builder

@@ -94,6 +94,6 @@ toArtifactPath root name ext =
 -- TEMP
 
 
-temp :: FilePath
-temp =
-  stuff </> "temp.js"
+temp :: String -> FilePath
+temp ext =
+  stuff </> "temp" <.> ext
