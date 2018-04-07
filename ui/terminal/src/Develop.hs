@@ -5,22 +5,32 @@ module Develop
   )
   where
 
+
 import Control.Applicative ((<|>))
-import Control.Monad (guard)
+import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
+import Control.Monad (guard, void)
 import Control.Monad.Trans (MonadIO(liftIO))
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString as BS
 import qualified Data.HashMap.Strict as HashMap
 import Data.Monoid ((<>))
 import qualified System.Directory as Dir
-import System.FilePath
+import System.FilePath as FP
 import Snap.Core
 import Snap.Http.Server
 import Snap.Util.FileServe
 
+import qualified Elm.Compiler.Objects as Obj
+import qualified Elm.Project as Project
 import qualified Develop.Generate.Help as Generate
 import qualified Develop.Generate.Index as Index
 import qualified Develop.StaticFiles as StaticFiles
+import qualified Generate.Output as Output
+import qualified Json.Encode as Encode
+import qualified Reporting.Exit as Exit
+import qualified Reporting.Progress as Progress
+import qualified Reporting.Task as Task
+import qualified Stuff.Paths as Path
 
 
 
@@ -80,23 +90,6 @@ directoryConfig =
       { indexFiles = []
       , indexGenerator = customGenerator
       }
-
-
-
--- COMPILE
-
-
-_compile :: Snap ()
-_compile =
-  do  file <- getSafePath
-      guard =<< liftIO (Dir.doesFileExist file)
-      modifyResponse (setContentType "text/javascript")
-      writeBS =<< liftIO (toJavaScript file)
-
-
-toJavaScript :: FilePath -> IO BS.ByteString
-toJavaScript filePath =
-  error "TODO toJavaScript" filePath
 
 
 
@@ -163,8 +156,35 @@ serveCode file =
 serveElm :: FilePath -> Snap ()
 serveElm file =
   do  guard (takeExtension file == ".elm")
-      modifyResponse (setContentType "text/html")
-      writeBuilder (error "TODO")
+
+      result <- liftIO $
+        do  mvar <- newEmptyMVar
+
+            let reporter = Progress.Reporter (\_ -> return ()) (putMVar mvar)
+
+            void $ Task.run reporter $
+              do  summary <- Project.getRoot
+                  Project.compile options Nothing summary [file]
+
+            takeMVar mvar
+
+      case result of
+        Just exit ->
+          do  modifyResponse (setContentType "text/html")
+              writeBuilder $
+                Generate.makePageHtml "Errors" (Encode.encode (Exit.toJson exit))
+
+        Nothing ->
+          serveFileAs "text/html" (Path.temp "html")
+
+
+options :: Output.Options
+options =
+  let
+    (directory, filePath) = FP.splitFileName (Path.temp "html")
+    output = Output.Html (Just directory) filePath
+  in
+  Output.Options Obj.Dev Obj.Client (Just output)
 
 
 
