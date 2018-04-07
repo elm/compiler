@@ -11,11 +11,11 @@ module Reporting.Exit.Compile
 import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Time.Clock as Time
-import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Compiler.Module as Module
 import qualified Json.Encode as Encode
+import qualified Reporting.Doc as D
 
 
 
@@ -45,15 +45,15 @@ toJson (Exit name path _ source errors) =
 -- TO DOC
 
 
-toDoc :: Exit -> [Exit] -> P.Doc
+toDoc :: Exit -> [Exit] -> D.Doc
 toDoc e es =
   let
     (exit, exits) = sortByTime e es
   in
-  P.vcat (toDocHelp exit exits)
+  D.vcat (toDocHelp exit exits)
 
 
-toDocHelp :: Exit -> [Exit] -> [P.Doc]
+toDocHelp :: Exit -> [Exit] -> [D.Doc]
 toDocHelp e1 exits =
   case exits of
     [] ->
@@ -63,23 +63,23 @@ toDocHelp e1 exits =
       exitToDoc e1 : separator (_name e1) (_name e2) : toDocHelp e2 otherErrors
 
 
-exitToDoc :: Exit -> P.Doc
+exitToDoc :: Exit -> D.Doc
 exitToDoc (Exit _name path _time source errors) =
   Compiler.errorsToDoc path source errors
 
 
-separator :: Module.Raw -> Module.Raw -> P.Doc
+separator :: Module.Raw -> Module.Raw -> D.Doc
 separator beforeName afterName =
   let
     before = Module.nameToString beforeName ++ "  ↑    "
     after  = "    ↓  " ++  Module.nameToString afterName
   in
-    P.dullred $ P.vcat $
-      [ P.indent (80 - length before) (P.text before)
+    D.dullred $ D.vcat $
+      [ D.indent (80 - length before) (D.fromString before)
       , "====o======================================================================o===="
-      , P.text after
-      , P.empty
-      , P.empty
+      , D.fromString after
+      , D.empty
+      , D.empty
       ]
 
 

@@ -13,12 +13,12 @@ import qualified Data.Char as Char
 import qualified Data.Map as Map
 import qualified Data.Text.Encoding as Text
 import qualified Data.Time.Clock as Time
-import qualified Text.PrettyPrint.ANSI.Leijen as P
-import Text.PrettyPrint.ANSI.Leijen ((<+>), (<>))
 
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Compiler.Module as Module
 import qualified Elm.Package as Pkg
+import Reporting.Doc ((<+>), (<>))
+import qualified Reporting.Doc as D
 import qualified Reporting.Exit.Compile as Compile
 import qualified Reporting.Exit.Help as Help
 
@@ -65,18 +65,18 @@ toReport exit =
     RootFileNotFound path ->
       Help.report "FILE NOT FOUND" Nothing
         "You want me to compile this file:"
-        [ P.indent 4 $ P.dullyellow $ P.text path
+        [ D.indent 4 $ D.dullyellow $ D.fromString path
         , "I cannot find it though! Is there a typo?"
         ]
 
     RootModuleNameDuplicate name paths ->
       Help.report "DUPLICATE NAMES" Nothing
         "I am trying to compile multiple modules with the same name:"
-        [ P.indent 4 $ P.dullyellow $ P.vcat $
-            map P.text paths
-        , P.fillSep $
+        [ D.indent 4 $ D.dullyellow $ D.vcat $
+            map D.fromString paths
+        , D.fillSep $
             [ "These", "modules", if length paths == 2 then "both" else "all", "claim"
-            , "to", "be", "named", P.dullyellow (P.text (Module.nameToString name)) <> "."
+            , "to", "be", "named", D.dullyellow (D.fromString (Module.nameToString name)) <> "."
             , "Change", "them", "to", "have", "unique", "names", "and", "you"
             , "should", "be", "all", "set!"
             ]
@@ -97,8 +97,8 @@ toReport exit =
     BadKernelHeader filePath ->
       Help.report "BAD KERNEL HEADER" Nothing
         "I ran into a bad header in this file:"
-        [ P.indent 4 $ P.dullyellow $ P.text filePath
-        , Help.reflow $
+        [ D.indent 4 $ D.dullyellow $ D.fromString filePath
+        , D.reflow $
             "NOTE: Kernel code is only available to core Elm libraries to ensure\
             \ the portability and security of the Elm ecosystem. This restriction\
             \ also makes it possible to improve code gen (i.e. performance) without\
@@ -133,9 +133,9 @@ problemToReport problem =
       Help.report "MODULE NAME MISMATCH" (Just path)
         ( "The file at " ++ path ++ " has a typo in the module name. It says:"
         )
-        [ P.indent 4 $ P.dullyellow $ "module" <+> P.red (P.text (Module.nameToString actual)) <+> "exposing (..)"
+        [ D.indent 4 $ D.dullyellow $ "module" <+> D.red (D.fromString (Module.nameToString actual)) <+> "exposing (..)"
         , "Looks like a typo or copy/paste error. Instead it needs to say:"
-        , P.indent 4 $ P.dullyellow $ "module" <+> P.green (P.text (Module.nameToString expected)) <+> "exposing (..)"
+        , D.indent 4 $ D.dullyellow $ "module" <+> D.green (D.fromString (Module.nameToString expected)) <+> "exposing (..)"
         , "Make the change and you should be all set!"
         ]
 
@@ -159,16 +159,16 @@ badTagToDoc path name tag hintName summary =
     ("UNEXPECTED " ++ map Char.toUpper tag ++ " MODULE")
     (Just path)
     summary
-    [ P.fillSep $
+    [ D.fillSep $
         [ "Get", "rid", "of", "all", "the"
-        , P.red (P.text tag)
+        , D.red (D.fromString tag)
         , "stuff", "in"
-        , P.dullyellow (P.text (Module.nameToString name))
+        , D.dullyellow (D.fromString (Module.nameToString name))
         , "to", "proceed."
         ]
-    , Help.note $
+    , D.toSimpleNote $
         "You can learn the reasoning behind this design choice at "
-        ++ Help.hintLink hintName
+        ++ D.makeLink hintName
     ]
 
 
@@ -182,11 +182,11 @@ namelessToDoc path name =
     ( "The `" ++ Module.nameToString name
       ++ "` module must start with a line like this:"
     )
-    [ P.indent 4 $ P.dullyellow $ P.text $
+    [ D.indent 4 $ D.dullyellow $ D.fromString $
         "module " ++ Module.nameToString name ++ " exposing (..)"
-    , Help.reflow $
+    , D.reflow $
         "Try adding that as the first line of your file!"
-    , Help.note $
+    , D.toSimpleNote $
         "It is best to replace (..) with an explicit list of types and\
         \ functions you want to expose. If you know a value is only used\
         \ WITHIN this module, it is extra easy to refactor. This kind of\
@@ -200,8 +200,8 @@ notFoundToDoc origin child dirs =
     ElmJson ->
       Help.report "MODULE NOT FOUND" (Just "elm.json")
         "Your elm.json says your project has the following module:"
-        [ P.indent 4 $ P.red $ P.text $ Module.nameToString child
-        , Help.reflow $
+        [ D.indent 4 $ D.red $ D.fromString $ Module.nameToString child
+        , D.reflow $
             "When creating packages, all modules must live in the\
             \ src/ directory, but I cannot find it there."
         ]
@@ -217,20 +217,20 @@ notFoundToDoc origin child dirs =
         (notFoundDetails child dirs)
 
 
-notFoundDetails :: Module.Raw -> [FilePath] -> [P.Doc]
+notFoundDetails :: Module.Raw -> [FilePath] -> [D.Doc]
 notFoundDetails child dirs =
   let
     simulatedCode =
-      P.indent 4 $ P.red $ P.text $ "import " ++ Module.nameToString child
+      D.indent 4 $ D.red $ D.fromString $ "import " ++ Module.nameToString child
   in
   case Map.lookup child Pkg.suggestions of
     Just pkg ->
       [ simulatedCode
-      , Help.reflow $
+      , D.reflow $
           "Do you want the one from the " ++ Pkg.toString pkg
           ++ " package? If so, run this command to add that dependency to your elm.json file:"
-      , P.indent 4 $ P.green $ P.text $ "elm install " ++ Pkg.toString pkg
-      , Help.reflow $
+      , D.indent 4 $ D.green $ D.fromString $ "elm install " ++ Pkg.toString pkg
+      , D.reflow $
           "If you want a local file, make sure the directory that contains the `"
           ++ Module.nameToString child
           ++ "` module is listed in your elm.json \"source-directories\" field."
@@ -239,7 +239,7 @@ notFoundDetails child dirs =
     Nothing ->
       [ simulatedCode
       , "I cannot find that module! Is there a typo in the module name?"
-      , Help.reflow $
+      , D.reflow $
           case dirs of
             [] ->
               "The \"source-directories\" field of your elm.json is empty, so I only\
@@ -263,12 +263,12 @@ ambiguousToDoc origin child paths pkgs =
 
     makeReport maybePath summary yellowString =
       Help.report "AMBIGUOUS IMPORT" maybePath summary
-        [ P.indent 4 $ P.dullyellow $ P.text yellowString
-        , Help.reflow $
+        [ D.indent 4 $ D.dullyellow $ D.fromString yellowString
+        , D.reflow $
             "I found multiple module with that name though:"
-        , P.indent 4 $ P.dullyellow $ P.vcat $
-            map P.text $ paths ++ map pkgToString pkgs
-        , Help.reflow $
+        , D.indent 4 $ D.dullyellow $ D.vcat $
+            map D.fromString $ paths ++ map pkgToString pkgs
+        , D.reflow $
             if null paths then
               "It looks like the name clash is in your dependencies, which is\
               \ out of your control. Elm does not support this scenario right\
@@ -319,8 +319,8 @@ kernelNameToDoc origin kernelName =
           )
   in
   Help.report "BAD MODULE NAME" maybePath statement
-    [ P.indent 4 $ P.dullyellow $ P.text $ Module.nameToString kernelName
-    , Help.reflow $
+    [ D.indent 4 $ D.dullyellow $ D.fromString $ Module.nameToString kernelName
+    , D.reflow $
         "But names like that are reserved for internal use.\
         \ Switch to a name outside of the Elm/Kernel/ namespace."
     ]

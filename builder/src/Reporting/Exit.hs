@@ -8,9 +8,6 @@ module Reporting.Exit
   where
 
 
-import Data.Monoid ((<>))
-import qualified Text.PrettyPrint.ANSI.Leijen as P
-
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Compiler.Module as Module
 import qualified Elm.Package as Pkg
@@ -74,18 +71,18 @@ toReport exit =
     NoElmJson ->
       Help.report "WELCOME" Nothing
         "It looks like you are trying to start a new Elm project. Very exciting! :D"
-        [ P.fillSep
+        [ D.fillSep
             ["I","very","highly","recommend","working","through"
-            ,P.green "<https://guide.elm-lang.org>","which","will","teach","you","the"
+            ,D.green "<https://guide.elm-lang.org>","which","will","teach","you","the"
             ,"basics","of","Elm,","including","how","to","start","new","projects."
             ]
-        , P.fillSep
+        , D.fillSep
             ["For","folks","who","have","already","built","stuff","with","Elm,","the"
-            ,"problem","is","just","that","there","is","no",P.dullyellow "elm.json","yet."
+            ,"problem","is","just","that","there","is","no",D.dullyellow "elm.json","yet."
             ,"If","you","want","to","work","from","an","example,","check","out","the"
             ,"one","at","<https://github.com/evancz/elm-todomvc/blob/master/elm.json>"
             ]
-        , Help.reflow
+        , D.reflow
             "Whatever your scenario, I hope you have a lovely time using Elm!"
         ]
 
@@ -105,9 +102,9 @@ toReport exit =
       Help.report "IMPORT CYCLE" Nothing
         "Your module imports form a cycle:"
         [ D.cycle 4 names
-        , Help.reflow $
+        , D.reflow $
             "Learn more about why this is disallowed and how to break cycles here:"
-            ++ Help.hintLink "import-cycles"
+            ++ D.makeLink "import-cycles"
         ]
 
     Deps depsError ->
@@ -129,8 +126,8 @@ toReport exit =
             "This usually happens if you try to modify dependency constraints by\
             \ hand. I recommend deleting any dependency you added recently (or all\
             \ of them if things are bad) and then adding them again with:"
-            [ P.indent 4 $ P.green "elm install"
-            , Help.reflow $
+            [ D.indent 4 $ D.green "elm install"
+            , D.reflow $
                 "And do not be afaid to ask for help on Slack if you get stuck!"
             ]
 
@@ -138,12 +135,12 @@ toReport exit =
           Help.report "OLD DEPENDENCIES" (Just "elm.json")
             ( "The following packages do not work with Elm " ++ Pkg.versionToString Compiler.version ++ " right now:"
             )
-            [ P.indent 4 $ P.vcat $ map (P.red . P.text . Pkg.toString) badPackages
-            , Help.reflow $
+            [ D.indent 4 $ D.vcat $ map (D.red . D.fromString . Pkg.toString) badPackages
+            , D.reflow $
                 "This may be because it is not upgraded yet. It may be because a\
                 \ better solution came along, so there was no need to upgrade it.\
                 \ Etc. Try asking around on Slack to learn more about the topic."
-            , Help.note
+            , D.toSimpleNote
                 "Whatever the case, please be kind to the relevant package authors! Having\
                 \ friendly interactions with users is great motivation, and conversely, getting\
                 \ berated by strangers on the internet sucks your soul dry. Furthermore, package\
@@ -155,37 +152,32 @@ toReport exit =
     CannotMakeNothing ->
       Help.report "NO INPUT" Nothing
         "What should I make though? I need more information, like:"
-        [ P.vcat
-            [ P.indent 4 $ P.green "elm make MyThing.elm"
-            , P.indent 4 $ P.green "elm make This.elm That.elm"
+        [ D.vcat
+            [ D.indent 4 $ D.green "elm make MyThing.elm"
+            , D.indent 4 $ D.green "elm make This.elm That.elm"
             ]
-        , Help.reflow
+        , D.reflow
             "However many files you give, I will create one JS file out of them."
         ]
 
     CannotOptimizeDebug m ms ->
       Help.report "DEBUG REMNANTS" Nothing
       "There are uses of the `Debug` module in the following modules:"
-        [ P.indent 4 $ P.red $ P.vcat $ map (P.text . Module.nameToString) (m:ms)
-        , Help.reflow "But the --optimize flag only works if all `Debug` functions are removed!"
-        , toSimpleNote $
+        [ D.indent 4 $ D.red $ D.vcat $ map (D.fromString . Module.nameToString) (m:ms)
+        , D.reflow "But the --optimize flag only works if all `Debug` functions are removed!"
+        , D.toSimpleNote $
             "The issue is that --optimize strips out info needed by `Debug` functions.\
             \ Here are two examples:"
-        , P.indent 4 $ Help.reflow $
+        , D.indent 4 $ D.reflow $
             "(1) It shortens record field names. This makes the generated JavaScript is\
             \ smaller, but `Debug.toString` cannot know the real field names anymore."
-        , P.indent 4 $ Help.reflow $
+        , D.indent 4 $ D.reflow $
             "(2) Values like `type Height = Height Float` are unboxed. This reduces\
             \ allocation, but it also means that `Debug.toString` cannot tell if it is\
             \ looking at a `Height` or `Float` value."
-        , Help.reflow $
+        , D.reflow $
             "There are a few other cases like that, and it will be much worse once we start\
             \ inlining code. That optimization could move `Debug.log` and `Debug.todo` calls,\
             \ resulting in unpredictable behavior. I hope that clarifies why this restriction\
             \ exists!"
         ]
-
-
-toSimpleNote :: String -> P.Doc
-toSimpleNote message =
-  P.fillSep ((P.underline "Note" <> ":") : map P.text (words message))

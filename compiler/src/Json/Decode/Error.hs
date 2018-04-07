@@ -11,11 +11,10 @@ import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Text as Text
-import Text.PrettyPrint.ANSI.Leijen ((<+>), (<>))
-import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import qualified Json.Decode.Internals as Json
 import qualified Json.Encode as E
+import Reporting.Doc ((<+>), (<>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Error.Syntax as Syntax
 import qualified Reporting.Render.Code as Code
@@ -57,7 +56,7 @@ toDoc rootName source userErrorToDocs err =
         flatErrors ->
           let
             toNumberedDoc index flatErr =
-              P.dullcyan ("(" <> P.int index <> ")") <+> flatErrorToDoc rootName [] userErrorToDocs flatErr
+              D.dullcyan ("(" <> D.fromInt index <> ")") <+> flatErrorToDoc rootName [] userErrorToDocs flatErr
           in
           D.stack $
             [ D.reflow $
@@ -116,7 +115,7 @@ flatErrorToDoc rootName starter userErrorToDocs (FlatError accesses json theory 
 
 accessToDoc :: String -> [String] -> D.Doc
 accessToDoc rootName accesses =
-  P.dullyellow (P.text (rootName ++ concat accesses))
+  D.dullyellow (D.fromString (rootName ++ concat accesses))
 
 
 actualThing :: E.Value -> [D.Doc]
@@ -126,7 +125,7 @@ actualThing json =
     E.Object  _ -> [D.red "object"]
     E.String  _ -> [D.red "string"]
     E.Boolean b -> [D.red (if b then "true" else "false"),"value"]
-    E.Integer n -> ["number",D.red (D.fromString (show n))]
+    E.Integer n -> ["number",D.red (D.fromInt n)]
     E.Number  _ -> [D.red "number"]
     E.Null      -> [D.red "null","value"]
 
@@ -134,16 +133,16 @@ actualThing json =
 anExpectedThing :: Json.Type -> [D.Doc]
 anExpectedThing tipe =
   case tipe of
-    Json.TObject -> ["an", P.green "OBJECT" <> "."]
-    Json.TArray -> ["an", P.green "ARRAY" <> "."]
-    Json.TString -> ["a", P.green "STRING" <> "."]
-    Json.TBool -> ["a", P.green "BOOLEAN" <> "."]
-    Json.TInt -> ["an", P.green "INT" <> "."]
-    Json.TObjectWith field -> ["an",P.green "OBJECT","with","a",P.green ("\"" <> P.text (Text.unpack field) <> "\""),"field."]
+    Json.TObject -> ["an", D.green "OBJECT" <> "."]
+    Json.TArray -> ["an", D.green "ARRAY" <> "."]
+    Json.TString -> ["a", D.green "STRING" <> "."]
+    Json.TBool -> ["a", D.green "BOOLEAN" <> "."]
+    Json.TInt -> ["an", D.green "INT" <> "."]
+    Json.TObjectWith field -> ["an",D.green "OBJECT","with","a",D.green ("\"" <> D.fromString (Text.unpack field) <> "\""),"field."]
     Json.TArrayWith i len ->
-      ["a",D.green "longer",P.green "ARRAY" <> "."
-      ,"I","need","index",P.text (show i) <> ",","but","this","array"
-      ,"only","has",P.text (show len),"elements."
+      ["a",D.green "longer",D.green "ARRAY" <> "."
+      ,"I","need","index",D.fromInt i <> ",","but","this","array"
+      ,"only","has",D.fromInt len,"elements."
       ]
 
 

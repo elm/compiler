@@ -3,10 +3,12 @@
 module Reporting.Doc
   ( P.Doc
   , (P.<+>), (<>)
-  , P.cat, P.empty, P.fillSep, P.hang, P.hcat, P.hsep, P.indent, P.sep, P.vcat
-  , P.black, P.blue, P.green, P.magenta, P.dullyellow, P.red, P.dullred
+  , P.cat, P.empty, P.fill, P.fillSep, P.hang
+  , P.hcat, P.hsep, P.indent, P.sep, P.vcat
+  , P.red, P.magenta, P.green, P.blue, P.black
+  , P.dullred, P.dullcyan, P.dullyellow
 
-  , fromString, fromText, fromName
+  , fromString, fromText, fromName, fromInt
   , toAnsi, toString, toLine
   , encode
 
@@ -54,6 +56,11 @@ fromName name =
   P.text (N.toString name)
 
 
+fromInt :: Int -> P.Doc
+fromInt n =
+  P.text (show n)
+
+
 
 -- TO STRING
 
@@ -65,12 +72,12 @@ toAnsi handle doc =
 
 toString :: P.Doc -> String
 toString doc =
-  P.displayS (P.renderPretty 1 80 doc) ""
+  P.displayS (P.renderPretty 1 80 (P.plain doc)) ""
 
 
 toLine :: P.Doc -> String
 toLine doc =
-  P.displayS (P.renderPretty 1 (div maxBound 2) doc) ""
+  P.displayS (P.renderPretty 1 (div maxBound 2) (P.plain doc)) ""
 
 
 
@@ -224,22 +231,22 @@ noStyle =
 
 
 data Color
-  = D_Red
-  | V_Red
-  | D_Magenta
-  | V_Magenta
-  | D_Yellow
-  | V_Yellow
-  | D_Green
-  | V_Green
-  | D_Cyan
-  | V_Cyan
-  | D_Blue
-  | V_Blue
-  | D_Black
-  | V_Black
-  | D_White
-  | V_White
+  = Red
+  | RED
+  | Magenta
+  | MAGENTA
+  | Yellow
+  | YELLOW
+  | Green
+  | GREEN
+  | Cyan
+  | CYAN
+  | Blue
+  | BLUE
+  | Black
+  | BLACK
+  | White
+  | WHITE
 
 
 toJsonHelp :: Style -> [TB.Builder] -> P.SimpleDoc -> [E.Value]
@@ -322,14 +329,14 @@ toColor layer intensity color =
       in
       Just $
         case color of
-          Ansi.Red     -> pick D_Red     V_Red
-          Ansi.Magenta -> pick D_Magenta V_Magenta
-          Ansi.Yellow  -> pick D_Yellow  V_Yellow
-          Ansi.Green   -> pick D_Green   V_Green
-          Ansi.Cyan    -> pick D_Cyan    V_Cyan
-          Ansi.Blue    -> pick D_Blue    V_Blue
-          Ansi.White   -> pick D_White   V_White
-          Ansi.Black   -> pick D_Black   V_Black
+          Ansi.Red     -> pick Red     RED
+          Ansi.Magenta -> pick Magenta MAGENTA
+          Ansi.Yellow  -> pick Yellow  YELLOW
+          Ansi.Green   -> pick Green   GREEN
+          Ansi.Cyan    -> pick Cyan    CYAN
+          Ansi.Blue    -> pick Blue    BLUE
+          Ansi.White   -> pick White   WHITE
+          Ansi.Black   -> pick Black   BLACK
 
 
 encodeChunks :: Style -> [TB.Builder] -> E.Value
@@ -361,19 +368,19 @@ encodeColor :: Color -> E.Value
 encodeColor color =
   E.text $
     case color of
-      D_Red -> "red"
-      V_Red -> "RED"
-      D_Magenta -> "magenta"
-      V_Magenta -> "MAGENTA"
-      D_Yellow -> "yellow"
-      V_Yellow -> "YELLOW"
-      D_Green -> "green"
-      V_Green -> "GREEN"
-      D_Cyan -> "cyan"
-      V_Cyan -> "CYAN"
-      D_Blue -> "blue"
-      V_Blue -> "BLUE"
-      D_Black -> "black"
-      V_Black -> "BLACK"
-      D_White -> "white"
-      V_White -> "WHITE"
+      Red -> "red"
+      RED -> "RED"
+      Magenta -> "magenta"
+      MAGENTA -> "MAGENTA"
+      Yellow -> "yellow"
+      YELLOW -> "YELLOW"
+      Green -> "green"
+      GREEN -> "GREEN"
+      Cyan -> "cyan"
+      CYAN -> "CYAN"
+      Blue -> "blue"
+      BLUE -> "BLUE"
+      Black -> "black"
+      BLACK -> "BLACK"
+      White -> "white"
+      WHITE -> "WHITE"

@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Elm.Install
   ( install
   )
@@ -9,9 +10,7 @@ import Control.Monad.Except (catchError, lift, liftIO)
 import Data.Map (Map, (!))
 import qualified Data.Map as Map
 import qualified Data.Map.Merge.Lazy as Map
-import qualified System.IO as IO
-import Text.PrettyPrint.ANSI.Leijen ((<>), (<+>))
-import qualified Text.PrettyPrint.ANSI.Leijen as P
+import System.IO (stdout)
 
 import qualified Elm.Package as Pkg
 import Elm.Package (Name, Version)
@@ -24,6 +23,8 @@ import Elm.Project.Constraint (Constraint)
 import qualified Elm.Project.Constraint as Con
 import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Root as Root
+import Reporting.Doc ((<>), (<+>))
+import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
 
@@ -226,9 +227,6 @@ withApproval toString changes attemptInstall =
 
     changeDocs =
       Map.foldrWithKey (addChange toString widths) (Docs [] [] []) changes
-
-    printDoc doc =
-      P.displayIO IO.stdout $ P.renderPretty 1 80 doc
   in
     case changeDocs of
       Docs [] [] [] ->
@@ -236,13 +234,13 @@ withApproval toString changes attemptInstall =
 
       Docs inserts [] [] ->
         do  liftIO $ putStrLn "Adding the following dependencies:\n"
-            liftIO $ printDoc $ P.indent 2 (P.vcat (reverse inserts))
+            liftIO $ D.toAnsi stdout $ D.indent 2 (D.vcat (reverse inserts))
             liftIO $ putStrLn "\n"
             attemptInstall
 
       Docs _ _ _ ->
         do  liftIO $ putStrLn "Here is my plan:"
-            liftIO $ printDoc $ viewChangeDocs changeDocs
+            liftIO $ D.toAnsi stdout $ viewChangeDocs changeDocs
             liftIO $ putStrLn "\nDo you approve? [Y/n]: "
             Task.withApproval attemptInstall
 
@@ -253,29 +251,29 @@ withApproval toString changes attemptInstall =
 
 data ChangeDocs =
   Docs
-    { _doc_inserts :: [P.Doc]
-    , _doc_changes :: [P.Doc]
-    , _doc_removes :: [P.Doc]
+    { _doc_inserts :: [D.Doc]
+    , _doc_changes :: [D.Doc]
+    , _doc_removes :: [D.Doc]
     }
 
 
-viewChangeDocs :: ChangeDocs -> P.Doc
+viewChangeDocs :: ChangeDocs -> D.Doc
 viewChangeDocs (Docs inserts changes removes) =
-  P.indent 2 $ P.vcat $ concat $
+  D.indent 2 $ D.vcat $ concat $
     [ viewNonZero "Add:"    inserts
     , viewNonZero "Change:" changes
     , viewNonZero "Remove:" removes
     ]
 
 
-viewNonZero :: String -> [P.Doc] -> [P.Doc]
+viewNonZero :: String -> [D.Doc] -> [D.Doc]
 viewNonZero title entries =
   if null entries then
     []
   else
-    [ P.text ""
-    , P.text title
-    , P.indent 2 (P.vcat (reverse entries))
+    [ ""
+    , D.fromString title
+    , D.indent 2 (D.vcat (reverse entries))
     ]
 
 
@@ -296,34 +294,34 @@ addChange toString widths name change (Docs inserts changes removes) =
       Docs inserts changes (viewRemove toString widths name old : removes)
 
 
-viewInsert :: (a -> String) -> Widths -> Name -> a -> P.Doc
+viewInsert :: (a -> String) -> Widths -> Name -> a -> D.Doc
 viewInsert toString (Widths nameWidth leftWidth _) name new =
   viewName nameWidth name <+> pad leftWidth (toString new)
 
 
-viewChange :: (a -> String) -> Widths -> Name -> a -> a -> P.Doc
+viewChange :: (a -> String) -> Widths -> Name -> a -> a -> D.Doc
 viewChange toString (Widths nameWidth leftWidth rightWidth) name old new =
-  P.hsep
+  D.hsep
     [ viewName nameWidth name
     , pad leftWidth (toString old)
-    , P.text "=>"
+    , "=>"
     , pad rightWidth (toString new)
     ]
 
 
-viewRemove :: (a -> String) -> Widths -> Name -> a -> P.Doc
+viewRemove :: (a -> String) -> Widths -> Name -> a -> D.Doc
 viewRemove toString (Widths nameWidth leftWidth _) name old =
   viewName nameWidth name <+> pad leftWidth (toString old)
 
 
-viewName :: Int -> Name -> P.Doc
+viewName :: Int -> Name -> D.Doc
 viewName width name =
-  P.fill (width + 3) (P.text (Pkg.toString name))
+  D.fill (width + 3) (D.fromText (Pkg.toText name))
 
 
-pad :: Int -> String -> P.Doc
+pad :: Int -> String -> D.Doc
 pad width string =
-  P.text (replicate (width - length string) ' ') <> P.text string
+  D.fromString (replicate (width - length string) ' ') <> D.fromString string
 
 
 

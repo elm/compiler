@@ -13,6 +13,7 @@ module Deps.Website
   )
   where
 
+
 import Prelude hiding (zip)
 import qualified Codec.Archive.Zip as Zip
 import Control.Monad (void)
@@ -29,12 +30,12 @@ import qualified Network.HTTP.Client.MultipartFormData as Multi
 import qualified Network.HTTP.Types as Http
 import qualified System.Directory as Dir
 import System.FilePath ((</>), splitFileName)
-import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import Elm.Package (Name, Version)
 import qualified Elm.Package as Pkg
 import qualified Json.Decode as D
 
+import qualified Reporting.Doc as D
 import qualified Reporting.Exit.Http as E
 import qualified Reporting.Progress as Progress
 import qualified Reporting.Task as Task
@@ -128,7 +129,7 @@ fetchByteString path =
         return $ Right $ LBS.toStrict $ Client.responseBody response
 
 
-fetchJson :: String -> (e -> [P.Doc]) -> D.Decoder e a -> String -> Http.Fetch a
+fetchJson :: String -> (e -> [D.Doc]) -> D.Decoder e a -> String -> Http.Fetch a
 fetchJson rootName errorToDocs decoder path =
   Http.package path [] $ \request manager ->
     do  response <- Client.httpLbs request manager

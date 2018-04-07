@@ -6,12 +6,11 @@ module Reporting.Exit.Deps
   where
 
 
-import Text.PrettyPrint.ANSI.Leijen ((<>))
-import qualified Text.PrettyPrint.ANSI.Leijen as P
-
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Package as Pkg
 import qualified Elm.Project.Constraint as Con
+import Reporting.Doc ((<>))
+import qualified Reporting.Doc as D
 import qualified Reporting.Exit.Help as Help
 
 
@@ -40,8 +39,8 @@ toReport exit =
       Help.report "CORRUPT CACHE" Nothing
         ( "I ran into an unknown package while exploring dependencies:"
         )
-        [ P.indent 4 $ P.dullyellow $ P.text $ Pkg.toString pkg
-        , Help.reflow $
+        [ D.indent 4 $ D.dullyellow $ D.fromString $ Pkg.toString pkg
+        , D.reflow $
             "This suggests that your ELM_HOME directory has been corrupted.\
             \ Maybe some program is messing with it? It is just cached files,\
             \ so you can delete it and see if that fixes the issue."
@@ -49,25 +48,25 @@ toReport exit =
 
     PackageNotFound package suggestions ->
       Help.docReport "PACKAGE NOT FOUND" Nothing
-        ( P.fillSep
+        ( D.fillSep
             ["I","cannot","find","a"
-            ,P.red (P.text (Pkg.toString package))
+            ,D.red (D.fromString (Pkg.toString package))
             ,"package","on","the","package","website."
             ]
         )
         [ "Maybe you want one of these instead?"
-        , P.indent 4 $ P.dullyellow $ P.vcat $ map (P.text . Pkg.toString) suggestions
+        , D.indent 4 $ D.dullyellow $ D.vcat $ map (D.fromString . Pkg.toString) suggestions
         , "But check <https://package.elm-lang.org> to see all possibilities!"
         ]
 
     AppBadElm version ->
       Help.report "ELM VERSION MISMATCH" Nothing
         "Your elm.json says this application needs a different version of Elm."
-        [ P.fillSep
+        [ D.fillSep
             [ "It", "requires"
-            , P.green (P.text (Pkg.versionToString version)) <> ","
+            , D.green (D.fromString (Pkg.versionToString version)) <> ","
             , "but", "you", "are", "using"
-            , P.red (P.text (Pkg.versionToString Compiler.version))
+            , D.red (D.fromString (Pkg.versionToString Compiler.version))
             , "right", "now."
             ]
         ]
@@ -75,10 +74,10 @@ toReport exit =
     PkgBadElm constraint ->
       Help.report "ELM VERSION MISMATCH" Nothing
         "Your elm.json says this package needs a version of Elm in this range:"
-        [ P.indent 4 $ P.dullyellow $ P.text $ Con.toString constraint
-        , P.fillSep
+        [ D.indent 4 $ D.dullyellow $ D.fromString $ Con.toString constraint
+        , D.fillSep
             [ "But", "you", "are", "using", "Elm"
-            , P.red (P.text (Pkg.versionToString Compiler.version))
+            , D.red (D.fromString (Pkg.versionToString Compiler.version))
             , "right", "now."
             ]
         ]
@@ -86,11 +85,11 @@ toReport exit =
     BadDeps ->
       Help.report "CLASHING PACKAGE DEPENDENCIES" Nothing
         "The dependencies in your elm.json are not compatible."
-        [ Help.reflow $
+        [ D.reflow $
             "Did you change them by hand? Try to change it back! It is much\
             \ better to add dependencies with commands like this:"
-        , P.indent 4 $ P.dullyellow $ P.text $ "elm install elm-lang/http"
-        , Help.reflow $
+        , D.indent 4 $ D.dullyellow "elm install elm-lang/http"
+        , D.reflow $
             "Please ask for help on the Elm slack <http://elmlang.herokuapp.com/> if\
             \ you are running into something that seems trickier than this."
         ]
@@ -98,8 +97,8 @@ toReport exit =
     BuildFailure pkg vsn ->
       Help.report "CORRUPT DEPENDENCY" Nothing
         "I ran into a problem while building the following package:"
-        [ P.indent 4 $ P.dullyellow $ P.text $ Pkg.toString pkg ++ " " ++ Pkg.versionToString vsn
-        , Help.reflow $
+        [ D.indent 4 $ D.dullyellow $ D.fromString $ Pkg.toString pkg ++ " " ++ Pkg.versionToString vsn
+        , D.reflow $
             "This probably means the downloaded files got corrupted somehow.\
             \ Maybe try deleting your ELM_HOME and see if that resolves the issue?"
         ]

@@ -6,10 +6,9 @@ module Reporting.Exit.Bump
   where
 
 
-import Data.Monoid ((<>))
-import qualified Text.PrettyPrint.ANSI.Leijen as P
-
 import qualified Elm.Package as Pkg
+import Reporting.Doc ((<>))
+import qualified Reporting.Doc as D
 import qualified Reporting.Exit.Help as Help
 
 
@@ -37,16 +36,16 @@ toReport exit =
 
     Unbumpable vsn versions ->
       Help.docReport "UNBUMPABLE" (Just "elm.json")
-        ( P.fillSep
+        ( D.fillSep
             ["Your","elm.json","says","I","should","bump","relative","to","version"
-            ,P.red (P.text (Pkg.versionToString vsn)) <> ","
+            ,D.red (D.fromText (Pkg.versionToText vsn)) <> ","
             ,"but","I","cannot","find","that","version","on","<https://package.elm-lang.org>."
             ,"That","means","there","is","no","API","for","me","to","diff","against","and"
             ,"figure","out","if","these","are","MAJOR,","MINOR,","or","PATCH","changes."
             ]
         )
-        [ P.fillSep $
-            ["Try","bumping","again","after","changing","the",P.dullyellow "\"version\"","in","elm.json"]
+        [ D.fillSep $
+            ["Try","bumping","again","after","changing","the",D.dullyellow "\"version\"","in","elm.json"]
             ++ if length versions == 1 then ["to:"] else ["to","one","of","these:"]
-        , P.vcat $ map (P.green . P.text . Pkg.versionToString) versions
+        , D.vcat $ map (D.green . D.fromText . Pkg.versionToText) versions
         ]

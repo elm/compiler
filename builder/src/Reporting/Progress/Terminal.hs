@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Reporting.Progress.Terminal
   ( create
   , newPackageOverview
@@ -10,12 +11,12 @@ import Control.Concurrent.Chan (Chan, newChan, readChan)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar)
 import qualified System.Info as System
 import System.IO (hFlush, hPutStr, stdout)
-import Text.PrettyPrint.ANSI.Leijen ((<>), (<+>))
-import qualified Text.PrettyPrint.ANSI.Leijen as P
 import qualified Elm.Package as Pkg
 import Elm.Package (Name, Version)
 
 import qualified Deps.Diff as Diff
+import Reporting.Doc ((<>), (<+>))
+import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Help as Help
 import Reporting.Progress (Msg(..), Progress(..), Outcome(..), PublishPhase(..), BumpPhase(..))
@@ -185,7 +186,7 @@ loopHelp chan progress state@(State total good bad) =
 
     UnableToLoadLatestPackages ->
       do  putStrLn ""
-          Help.toStdout $ P.dullyellow (P.text "WARNING:") <+> P.text "I normally check <https://package.elm-lang.org> for new packages\n"
+          Help.toStdout $ D.dullyellow "WARNING:" <+> "I normally check <https://package.elm-lang.org> for new packages\n"
           putStrLn "here, but my request failed. Are you offline? I will try to continue anyway.\n"
           loop chan state
 
@@ -194,38 +195,35 @@ loopHelp chan progress state@(State total good bad) =
 -- BULLETS
 
 
-makeBullet :: Name -> Version -> Outcome -> P.Doc
+makeBullet :: Name -> Version -> Outcome -> D.Doc
 makeBullet name version outcome =
   let
-    nm =
-      P.text (Pkg.toString name)
-
-    vsn =
-      P.text (Pkg.versionToString version)
+    nm = D.fromText (Pkg.toText name)
+    vsn = D.fromText (Pkg.versionToText version)
 
     bullet =
       case outcome of
         Good -> goodMark
         Bad -> badMark
   in
-    P.indent 2 $ bullet <+> nm <+> vsn <> P.text "\n"
+    D.indent 2 $ bullet <+> nm <+> vsn <> "\n"
 
 
-goodMark :: P.Doc
+goodMark :: D.Doc
 goodMark =
-  P.green $ P.text $
+  D.green $
     if System.os == "mingw32" then "+" else "●"
 
 
-badMark :: P.Doc
+badMark :: D.Doc
 badMark =
-  P.red $ P.text $
+  D.red $
     if System.os == "mingw32" then "X" else "✗"
 
 
-waitingMark :: P.Doc
+waitingMark :: D.Doc
 waitingMark =
-  P.dullyellow $ P.text $
+  D.dullyellow $
     if System.os == "mingw32" then "-" else "→"
 
 
@@ -257,7 +255,7 @@ newPackageOverview =
 -- CHECKLIST
 
 
-toChecklistDoc :: Maybe Outcome -> ChecklistMessages -> P.Doc
+toChecklistDoc :: Maybe Outcome -> ChecklistMessages -> D.Doc
 toChecklistDoc status (ChecklistMessages waiting success failure) =
   let
     padded message =
@@ -265,13 +263,13 @@ toChecklistDoc status (ChecklistMessages waiting success failure) =
   in
     case status of
       Nothing ->
-        P.text "  " <> waitingMark <+> P.text waiting
+        "  " <> waitingMark <+> D.fromString waiting
 
       Just Good ->
-        P.text "\r  " <> goodMark <+> P.text (padded success ++ "\n")
+        "\r  " <> goodMark <+> D.fromString (padded success ++ "\n")
 
       Just Bad ->
-        P.text "\r  " <> badMark <+> P.text (padded failure ++ "\n\n")
+        "\r  " <> badMark <+> D.fromString (padded failure ++ "\n\n")
 
 
 data ChecklistMessages =
@@ -326,7 +324,7 @@ toChecklistMessages phase =
 -- BUMP PHASE
 
 
-bumpPhaseToChecklistDoc :: Pkg.Version -> BumpPhase -> P.Doc
+bumpPhaseToChecklistDoc :: Pkg.Version -> BumpPhase -> D.Doc
 bumpPhaseToChecklistDoc version bumpPhase =
   let
     mkMsgs success =

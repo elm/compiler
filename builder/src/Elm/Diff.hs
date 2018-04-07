@@ -11,8 +11,6 @@ import Control.Monad.Except (liftIO)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
-import Text.PrettyPrint.ANSI.Leijen ((<>), (<+>))
-import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import Deps.Diff (PackageChanges(..), ModuleChanges(..), Changes(..), Magnitude(..))
 import qualified Deps.Diff as Diff
@@ -25,6 +23,8 @@ import qualified Elm.Package as Pkg
 import qualified Elm.Project as Project
 import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Summary as Summary
+import Reporting.Doc ((<>), (<+>))
+import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Diff as E
 import qualified Reporting.Exit.Help as Help
@@ -109,7 +109,7 @@ getPackageInfo =
 -- WRITE DOC
 
 
-writeDoc :: P.Doc -> Task.Task ()
+writeDoc :: D.Doc -> Task.Task ()
 writeDoc doc =
   liftIO $ Help.toStdout (doc <> "\n")
 
@@ -118,57 +118,57 @@ writeDoc doc =
 -- TO DOC
 
 
-toDoc :: PackageChanges -> P.Doc
+toDoc :: PackageChanges -> D.Doc
 toDoc changes@(PackageChanges added changed removed) =
   if null added && Map.null changed && null removed then
-    "No API changes detected, so this is a" <+> P.green "PATCH" <+> "change."
+    "No API changes detected, so this is a" <+> D.green "PATCH" <+> "change."
   else
     let
       magDoc =
-        P.text (Diff.magnitudeToString (Diff.toMagnitude changes))
+        D.fromString (Diff.magnitudeToString (Diff.toMagnitude changes))
 
       header =
-        "This is a" <+> P.green magDoc <+> "change."
+        "This is a" <+> D.green magDoc <+> "change."
 
       addedChunk =
         if null added then [] else
           [ Chunk "ADDED MODULES" MINOR $
-              P.vcat $ map (P.text . Module.nameToString) added
+              D.vcat $ map (D.fromString . Module.nameToString) added
           ]
 
       removedChunk =
         if null removed then [] else
           [ Chunk "REMOVED MODULES" MAJOR $
-              P.vcat $ map (P.text . Module.nameToString) removed
+              D.vcat $ map (D.fromString . Module.nameToString) removed
           ]
 
       chunks =
         addedChunk ++ removedChunk ++ map changesToChunk (Map.toList changed)
     in
-      P.vcat (header : "" : map chunkToDoc chunks)
+      D.vcat (header : "" : map chunkToDoc chunks)
 
 
 data Chunk =
   Chunk
     { _title :: String
     , _magnitude :: Magnitude
-    , _details :: P.Doc
+    , _details :: D.Doc
     }
 
 
-chunkToDoc :: Chunk -> P.Doc
+chunkToDoc :: Chunk -> D.Doc
 chunkToDoc (Chunk title magnitude details) =
   let
     magDoc =
       Diff.magnitudeToString magnitude
 
     header =
-      "----" <+> P.text title <+> "-" <+> P.text magDoc <+> "----"
+      "----" <+> D.fromString title <+> "-" <+> D.fromString magDoc <+> "----"
   in
-    P.vcat
-      [ P.dullcyan header
+    D.vcat
+      [ D.dullcyan header
       , ""
-      , P.indent 4 details
+      , D.indent 4 details
       , ""
       , ""
       ]
@@ -193,21 +193,21 @@ changesToChunk (name, changes@(ModuleChanges unions aliases values binops)) =
       changesToDocTriple binopToDoc binops
   in
     Chunk (N.toString name) magnitude $
-      P.vcat $ List.intersperse "" $ Maybe.catMaybes $
+      D.vcat $ List.intersperse "" $ Maybe.catMaybes $
         [ changesToDoc "Added" unionAdd aliasAdd valueAdd binopAdd
         , changesToDoc "Removed" unionRemove aliasRemove valueRemove binopRemove
         , changesToDoc "Changed" unionChange aliasChange valueChange binopChange
         ]
 
 
-changesToDocTriple :: (k -> v -> P.Doc) -> Changes k v -> ([P.Doc], [P.Doc], [P.Doc])
+changesToDocTriple :: (k -> v -> D.Doc) -> Changes k v -> ([D.Doc], [D.Doc], [D.Doc])
 changesToDocTriple entryToDoc (Changes added changed removed) =
   let
     indented (name, value) =
-      P.indent 4 (entryToDoc name value)
+      D.indent 4 (entryToDoc name value)
 
     diffed (name, (oldValue, newValue)) =
-      P.vcat
+      D.vcat
         [ "  - " <> entryToDoc name oldValue
         , "  + " <> entryToDoc name newValue
         , ""
@@ -219,48 +219,48 @@ changesToDocTriple entryToDoc (Changes added changed removed) =
     )
 
 
-changesToDoc :: String -> [P.Doc] -> [P.Doc] -> [P.Doc] -> [P.Doc] -> Maybe P.Doc
+changesToDoc :: String -> [D.Doc] -> [D.Doc] -> [D.Doc] -> [D.Doc] -> Maybe D.Doc
 changesToDoc categoryName unions aliases values binops =
   if null unions && null aliases && null values && null binops then
     Nothing
 
   else
-    Just $ P.vcat $
-      P.text categoryName <> ":" : unions ++ aliases ++ binops ++ values
+    Just $ D.vcat $
+      D.fromString categoryName <> ":" : unions ++ aliases ++ binops ++ values
 
 
-unionToDoc :: N.Name -> Docs.Union -> P.Doc
+unionToDoc :: N.Name -> Docs.Union -> D.Doc
 unionToDoc name (Docs.Union _ tvars ctors) =
   let
     setup =
-      "type" <+> nameToDoc name <+> P.hsep (map nameToDoc tvars)
+      "type" <+> D.fromName name <+> D.hsep (map D.fromName tvars)
 
     ctorDoc (ctor, tipes) =
       typeDoc (Type.Type ctor tipes)
   in
-    P.hang 4 (P.sep (setup : zipWith (<+>) ("=" : repeat "|") (map ctorDoc ctors)))
+    D.hang 4 (D.sep (setup : zipWith (<+>) ("=" : repeat "|") (map ctorDoc ctors)))
 
 
-aliasToDoc :: N.Name -> Docs.Alias -> P.Doc
+aliasToDoc :: N.Name -> Docs.Alias -> D.Doc
 aliasToDoc name (Docs.Alias _ tvars tipe) =
   let
     declaration =
-      "type" <+> "alias" <+> P.hsep (map nameToDoc (name:tvars)) <+> "="
+      "type" <+> "alias" <+> D.hsep (map D.fromName (name:tvars)) <+> "="
   in
-    P.hang 4 (P.sep [ declaration, typeDoc tipe ])
+    D.hang 4 (D.sep [ declaration, typeDoc tipe ])
 
 
-valueToDoc :: N.Name -> Docs.Value -> P.Doc
+valueToDoc :: N.Name -> Docs.Value -> D.Doc
 valueToDoc name (Docs.Value _ tipe) =
-  P.hang 4 $ P.sep [ nameToDoc name <+> P.colon, typeDoc tipe ]
+  D.hang 4 $ D.sep [ D.fromName name <+> ":", typeDoc tipe ]
 
 
-binopToDoc :: N.Name -> Docs.Binop -> P.Doc
+binopToDoc :: N.Name -> Docs.Binop -> D.Doc
 binopToDoc name (Docs.Binop _ tipe associativity (Docs.Precedence n)) =
-    "(" <> nameToDoc name <> ")" <+> P.colon <+> typeDoc tipe <> P.black details
+    "(" <> D.fromName name <> ")" <+> ":" <+> typeDoc tipe <> D.black details
   where
     details =
-      "    (" <> nameToDoc assoc <> "/" <> P.int n <> ")"
+      "    (" <> D.fromName assoc <> "/" <> D.fromInt n <> ")"
 
     assoc =
       case associativity of
@@ -269,11 +269,6 @@ binopToDoc name (Docs.Binop _ tipe associativity (Docs.Precedence n)) =
         Docs.Right -> "right"
 
 
-typeDoc :: Type.Type -> P.Doc
+typeDoc :: Type.Type -> D.Doc
 typeDoc tipe =
   Type.toDoc Type.None tipe
-
-
-nameToDoc :: N.Name -> P.Doc
-nameToDoc name =
-  P.text (N.toString name)

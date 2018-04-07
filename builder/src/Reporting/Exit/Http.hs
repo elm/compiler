@@ -9,9 +9,9 @@ module Reporting.Exit.Http
 
 
 import qualified Data.Text as Text
-import Text.PrettyPrint.ANSI.Leijen ((<>))
-import qualified Text.PrettyPrint.ANSI.Leijen as P
 
+import Reporting.Doc ((<>))
+import qualified Reporting.Doc as D
 import qualified Reporting.Exit.Help as Help
 
 
@@ -21,7 +21,7 @@ import qualified Reporting.Exit.Help as Help
 
 data Exit
   = Unknown String
-  | BadJson String P.Doc
+  | BadJson String D.Doc
   | BadZipData
   | BadZipSha String String
 
@@ -34,15 +34,15 @@ toReport :: String -> Exit -> Help.Report
 toReport url exit =
   let
     urlDoc =
-      P.indent 4 $ P.dullyellow $ "<" <> P.text url <> ">"
+      D.indent 4 $ D.dullyellow $ "<" <> D.fromString url <> ">"
   in
   case exit of
     Unknown message ->
       Help.report "HTTP PROBLEM" Nothing "The following HTTP request failed:"
         [ urlDoc
-        , Help.stack
+        , D.stack
             [ "Here is the error message I was able to extract:"
-            , P.indent 4 $ Help.reflow message
+            , D.indent 4 $ D.reflow message
             ]
         ]
 
@@ -52,7 +52,7 @@ toReport url exit =
     BadZipData ->
       Help.report "CORRUPT ZIP" Nothing "I could not unzip the file downloaded from:"
         [ urlDoc
-        , Help.reflow $
+        , D.reflow $
             "If it is a transient issue, it should be fixed if you try this\
             \ again. If it seems like an Elm problem, please report it though!"
         ]
@@ -60,10 +60,10 @@ toReport url exit =
     BadZipSha expectedHash actualHash ->
       Help.report "CORRUPT ZIP" Nothing "I got an unexpected zip file from:"
         [ urlDoc
-        , Help.reflow $
+        , D.reflow $
             "I was expecting the hash of content to be " ++ expectedHash
             ++ ", but it is " ++ actualHash
-        , Help.reflow $
+        , D.reflow $
             "Most likely the package author may have moved the version\
             \ tag, so report it to them and see if that is the issue."
         ]
@@ -79,23 +79,23 @@ data BadJson
   | BadAllVsn Text.Text
 
 
-badJsonToDocs :: BadJson -> [P.Doc]
+badJsonToDocs :: BadJson -> [D.Doc]
 badJsonToDocs badJson =
   case badJson of
     BadNewPkg txt ->
-      ["I","ran","into",P.red (P.text (show txt)) <> ","
+      ["I","ran","into",D.red (D.fromString (show txt)) <> ","
       ,"but","I","need","entries","like"
-      ,P.green "\"elm-lang/core@6.0.0\"" <> "."
+      ,D.green "\"elm-lang/core@6.0.0\"" <> "."
       ]
 
     BadAllPkg txt suggestion ->
-      ["The",P.red (P.text (show txt)),"value","is","not","a","valid","package","name."
+      ["The",D.red (D.fromString (show txt)),"value","is","not","a","valid","package","name."
       ]
-      ++ map P.text (words suggestion)
+      ++ map D.fromString (words suggestion)
 
     BadAllVsn txt ->
-      ["You","provided",P.red (P.text (show txt))
+      ["You","provided",D.red (D.fromString (show txt))
       ,"which","is","not","a","valid","version.","I","need","something","like"
-      ,P.green "\"1.0.0\"","or",P.green "\"2.0.4\"" <> "."
+      ,D.green "\"1.0.0\"","or",D.green "\"2.0.4\"" <> "."
       ]
 

@@ -8,8 +8,6 @@ module Elm.Bump
 
 import Control.Monad.Trans (liftIO)
 import qualified Data.List as List
-import Text.PrettyPrint.ANSI.Leijen ((<>), (<+>))
-import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import qualified Deps.Diff as Diff
 import qualified Deps.Get as Get
@@ -17,6 +15,8 @@ import qualified Elm.Package as Pkg
 import qualified Elm.Project as Project
 import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Summary as Summary
+import Reporting.Doc ((<>), (<+>))
+import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Bump as E
 import qualified Reporting.Exit.Help as Help
@@ -92,7 +92,7 @@ checkNewPackage root info@(Project.PkgInfo _ _ _ version _ _ _ _) =
           changeVersion root info Pkg.initialVersion $
             "It looks like the version in elm.json has been changed though!\n\
             \Would you like me to change it back to "
-            <> P.text (Pkg.versionToString Pkg.initialVersion) <> "? [Y/n] "
+            <> D.fromText (Pkg.versionToText Pkg.initialVersion) <> "? [Y/n] "
 
 
 
@@ -107,11 +107,11 @@ suggestVersion summary@(Summary.Summary root _ _ _ _) info@(Project.PkgInfo name
       let newVersion = Diff.bump changes version
       changeVersion root info newVersion $
         let
-          old = P.text $ Pkg.versionToString version
-          new = P.text $ Pkg.versionToString newVersion
-          mag = P.text $ Diff.magnitudeToString (Diff.toMagnitude changes)
+          old = D.fromText $ Pkg.versionToText version
+          new = D.fromText $ Pkg.versionToText newVersion
+          mag = D.fromString $ Diff.magnitudeToString (Diff.toMagnitude changes)
         in
-          "Based on your new API, this should be a" <+> P.green mag <+> "change (" <> old <> " => " <> new <> ")\n"
+          "Based on your new API, this should be a" <+> D.green mag <+> "change (" <> old <> " => " <> new <> ")\n"
           <> "Bail out of this command and run 'elm diff' for a full explanation.\n"
           <> "\n"
           <> "Should I perform the update (" <> old <> " => " <> new <> ") in elm.json? [Y/n] "
@@ -121,7 +121,7 @@ suggestVersion summary@(Summary.Summary root _ _ _ _) info@(Project.PkgInfo name
 -- CHANGE VERSION
 
 
-changeVersion :: FilePath -> Project.PkgInfo -> Pkg.Version -> P.Doc -> Task.Task ()
+changeVersion :: FilePath -> Project.PkgInfo -> Pkg.Version -> D.Doc -> Task.Task ()
 changeVersion root info targetVersion explanation =
   do  liftIO $ Help.toStdout explanation
       approved <- Task.getApproval
@@ -135,5 +135,5 @@ changeVersion root info targetVersion explanation =
 
               liftIO $ Help.toStdout $
                 "Version changed to "
-                <> P.green (P.text (Pkg.versionToString targetVersion))
+                <> D.green (D.fromText (Pkg.versionToText targetVersion))
                 <> "!\n"

@@ -9,11 +9,11 @@ module Reporting.Exit.Assets
   where
 
 
-import Data.Monoid ((<>))
 import qualified Data.Text as Text
-import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import qualified Elm.Package as Pkg
+import Reporting.Doc ((<>))
+import qualified Reporting.Doc as D
 import qualified Reporting.Exit.Help as Help
 
 
@@ -33,7 +33,7 @@ data Exit
 
 
 data ElmJsonProblem
-  = BadJson P.Doc
+  = BadJson D.Doc
   | BadDepDup String String Pkg.Name [Pkg.Name]
   | BadSrcDir FilePath
 
@@ -54,7 +54,7 @@ toReport exit =
     CorruptBinary path ->
       Help.report "CORRUPT BINARY" (Just path)
         ("The binary data at " ++ path ++ " is corrupt.")
-        [ Help.reflow $
+        [ D.reflow $
             "Maybe a program is modifying your elm-stuff/ or ELM_HOME\
             \ directory in unexpected ways? Both of those are just caches, so\
             \ you can try deleting them and they will be rebuilt from scratch."
@@ -74,7 +74,7 @@ corruptJsonToReport path pkg vsn =
     ( "The " ++ path ++ " for " ++ Pkg.toString pkg
       ++ " " ++ Pkg.versionToString vsn ++ " got corrupted somehow."
     )
-    [ Help.reflow $
+    [ D.reflow $
         "I removed it from my file cache, so if it was some transient\
         \ error it should be fixed if you try the same thing again.\
         \ Please report this if it seems like an Elm problem though!"
@@ -94,8 +94,8 @@ elmJsonProblemToReport problem =
     BadSrcDir dir ->
       Help.report "BAD JSON" (Just "elm.json")
         "The \"source-directories\" in your elm.json lists the following directory:"
-        [ P.indent 4 (P.dullyellow (P.text dir))
-        , Help.reflow "I cannot find that directory though! Is it missing? Is there a typo?"
+        [ D.indent 4 (D.dullyellow (D.fromString dir))
+        , D.reflow "I cannot find that directory though! Is it missing? Is there a typo?"
         ]
 
     BadDepDup field1 field2 dup dups ->
@@ -116,13 +116,13 @@ elmJsonProblemToReport problem =
             else
               "The following packages appear twice in your elm.json file:"
           )
-          [ P.dullyellow $ P.indent 4 $ P.vcat $
-              map (P.text . Pkg.toString) (dup:dups)
-          , Help.reflow $
+          [ D.dullyellow $ D.indent 4 $ D.vcat $
+              map (D.fromString . Pkg.toString) (dup:dups)
+          , D.reflow $
               "The " ++ packagesAre ++ " available in \"" ++ field1
               ++ "\", so it is redundant to list it again in \"" ++ field2
               ++ "\". It is already available! " ++ advice
-          , Help.reflow "More help at <https://github.com/elm-lang/elm-package/blob/master/TODO>"
+          , D.reflow "More help at <https://github.com/elm-lang/elm-package/blob/master/TODO>"
           ]
 
 
@@ -143,49 +143,49 @@ data BadElmJsonContent
   | BadSummaryTooLong
 
 
-badContentToDocs :: BadElmJsonContent -> [P.Doc]
+badContentToDocs :: BadElmJsonContent -> [D.Doc]
 badContentToDocs badContent =
   case badContent of
     BadType _ ->
       ["The","only","valid","types","of","elm.json","are"
-      ,P.green "\"application\"","and",P.green "\"package\"" <> "."
+      ,D.green "\"application\"","and",D.green "\"package\"" <> "."
       ]
 
     BadPkgName problem ->
-      map P.text (words problem)
+      map D.fromString (words problem)
 
     BadVersion txt ->
-      ["You","provided",P.red (P.text (show txt))
+      ["You","provided",D.red (D.fromString (show txt))
       ,"which","is","not","a","valid","version.","I","need","something","like"
-      ,P.green "\"1.0.0\"","or",P.green "\"2.0.4\"" <> "."
+      ,D.green "\"1.0.0\"","or",D.green "\"2.0.4\"" <> "."
       ]
 
     BadConstraint problem ->
-      map P.text (words ("It is not a valid constraint. " ++ problem))
+      map D.fromString (words ("It is not a valid constraint. " ++ problem))
 
     BadModuleName name ->
-      ["You","provided",P.text (show name),"which","is","not","a","valid","module","name."
-      ,"I","need","something","like",P.green "\"Html.Events\"","or",P.green "\"Browser.Navigation\"" <> "."
+      ["You","provided",D.fromString (show name),"which","is","not","a","valid","module","name."
+      ,"I","need","something","like",D.green "\"Html.Events\"","or",D.green "\"Browser.Navigation\"" <> "."
       ]
 
     BadModuleHeaderTooLong header ->
-      ["The",P.text (show header),"header","is","too","long."
-      ,"I","need","it","to","be",P.green "under",P.green "20",P.green "characters"
+      ["The",D.fromString (show header),"header","is","too","long."
+      ,"I","need","it","to","be",D.green "under",D.green "20",D.green "characters"
       ,"to","ensure","that","formatting","is","nice","on","the","package","website."
       ]
 
     BadDependencyName name ->
-      ["The",P.text (show name),"entry","is","not","a","valid","package","name."
+      ["The",D.fromString (show name),"entry","is","not","a","valid","package","name."
       ,"I","recommend","deleting","it,","finding","the","package","you","want","on"
       ,"the","package","website,","and","installing","it","with","the"
-      ,P.green "`elm install`","command","instead."
+      ,D.green "`elm install`","command","instead."
       ]
 
     BadLicense _given suggestions ->
       case suggestions of
         [] ->
           ["I","need","an","OSI","approved","SPDX","license,","like"
-          ,P.green "\"BSD-3-Clause\"","or",P.green "\"MIT\".","See"
+          ,D.green "\"BSD-3-Clause\"","or",D.green "\"MIT\".","See"
           ,"<https://spdx.org/licenses/>","for","a","full","list","of","options."
           ]
 
@@ -195,20 +195,20 @@ badContentToDocs badContent =
           ++ ["See","<https://spdx.org/licenses/>","for","a","full","list","of","options."]
 
     BadDirectoryNotString ->
-      ["I","need","a",P.green "STRING","that","points","to","a","directory","of","Elm","code."
+      ["I","need","a",D.green "STRING","that","points","to","a","directory","of","Elm","code."
       ]
 
     BadSummaryTooLong ->
       ["Your","summary","is","too","long.","I","need","it","to"
-      ,"be",P.green "under",P.green "80",P.green "characters."
+      ,"be",D.green "under",D.green "80",D.green "characters."
       ]
 
 
-oneOf :: Text.Text -> [Text.Text] -> [P.Doc]
+oneOf :: Text.Text -> [Text.Text] -> [D.Doc]
 oneOf code codes =
   let
     toDoc spdx =
-      P.green (P.text (show spdx))
+      D.green (D.fromString (show spdx))
   in
   case codes of
     [] ->

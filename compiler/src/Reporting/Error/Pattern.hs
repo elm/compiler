@@ -123,7 +123,7 @@ patternToDoc context pattern =
           D.fromText ("\"" <> str <> "\"")
 
         P.Int int ->
-          D.fromString (show int)
+          D.fromInt int
 
     NonList (P.Ctor _ "#0" []) ->
       "()"

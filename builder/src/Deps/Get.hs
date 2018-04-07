@@ -21,7 +21,6 @@ import Data.Map (Map)
 import qualified Data.Text as Text
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
-import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import qualified Elm.Docs as Docs
 import qualified Elm.Package as Pkg
@@ -29,12 +28,13 @@ import qualified Elm.Package as Pkg
 import qualified Deps.Website as Website
 import qualified Elm.Project.Json as Project
 import qualified File.IO as IO
-import qualified Reporting.Suggest as Suggest
+import qualified Json.Decode as Decode
+import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Assets as E
 import qualified Reporting.Progress as Progress
+import qualified Reporting.Suggest as Suggest
 import qualified Reporting.Task as Task
-import qualified Json.Decode as Decode
 
 
 
@@ -189,13 +189,13 @@ docs name version =
               Task.throw $ Exit.Assets $ E.CorruptDocumentation name version
 
 
-errorToDocs :: Docs.Error -> [P.Doc]
+errorToDocs :: Docs.Error -> [D.Doc]
 errorToDocs err =
   let
     details =
       case err of
         Docs.BadAssociativity txt ->
-          ["Binary","operators","cannot","have",P.red (P.text (show txt)),"as","their","associativity."]
+          ["Binary","operators","cannot","have",D.red (D.fromString (show txt)),"as","their","associativity."]
 
         Docs.BadName ->
           ["It","is","not","a","valid","module","name."]
