@@ -33,8 +33,8 @@ import Parse.Primitives.Internals (Parser(..), State(..), noError)
 import qualified Parse.Primitives.Keyword as Keyword
 import qualified Parse.Primitives.Number as Number
 import qualified Parse.Primitives.Symbol as Symbol
+import qualified Reporting.Doc as D
 import qualified Reporting.Error.Syntax as E
-import qualified Reporting.Helpers as H
 import qualified Reporting.Region as R
 import qualified Reporting.Render.Code as Code
 
@@ -43,7 +43,7 @@ import qualified Reporting.Render.Code as Code
 -- PARSE
 
 
-parse :: String -> (e -> [H.Doc]) -> Json.Decoder e a -> B.ByteString -> Either H.Doc a
+parse :: String -> (e -> [D.Doc]) -> Json.Decoder e a -> B.ByteString -> Either D.Doc a
 parse rootName userErrorToDocs (Json.Decoder run) bytestring =
   let
     source =

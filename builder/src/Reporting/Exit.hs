@@ -8,16 +8,14 @@ module Reporting.Exit
   where
 
 
-import qualified Data.ByteString.Builder as B
 import Data.Monoid ((<>))
-import System.IO (stderr)
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Compiler.Module as Module
 import qualified Elm.Package as Pkg
-import qualified Elm.Utils as Utils
 import qualified Json.Encode as Encode
+import qualified Reporting.Doc as D
 import qualified Reporting.Exit.Assets as Asset
 import qualified Reporting.Exit.Bump as Bump
 import qualified Reporting.Exit.Compile as Compile
@@ -65,9 +63,9 @@ toStderr exit =
   Help.toStderr (Help.reportToDoc (toReport exit))
 
 
-toJson :: Exit -> IO ()
+toJson :: Exit -> Encode.Value
 toJson exit =
-  B.hPutBuilder stderr $ Encode.encodeUgly $ Help.reportToJson (toReport exit)
+  Help.reportToJson (toReport exit)
 
 
 toReport :: Exit -> Help.Report
@@ -106,7 +104,7 @@ toReport exit =
     Cycle names ->
       Help.report "IMPORT CYCLE" Nothing
         "Your module imports form a cycle:"
-        [ P.indent 4 (Utils.drawCycle names)
+        [ D.cycle 4 names
         , Help.reflow $
             "Learn more about why this is disallowed and how to break cycles here:"
             ++ Help.hintLink "import-cycles"

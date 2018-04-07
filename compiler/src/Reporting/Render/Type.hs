@@ -21,8 +21,8 @@ import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
 import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
-import qualified Reporting.Helpers as H
-import Reporting.Helpers ( Doc, (<+>), (<>) )
+import qualified Reporting.Doc as D
+import Reporting.Doc ( Doc, (<+>), (<>) )
 
 
 
@@ -39,12 +39,12 @@ lambda :: Context -> Doc -> Doc -> [Doc] -> Doc
 lambda context arg1 arg2 args =
   let
     lambdaDoc =
-      H.sep (arg1 : map ("->" <+>) (arg2:args))
+      D.sep (arg1 : map ("->" <+>) (arg2:args))
   in
   case context of
     None -> lambdaDoc
-    Func -> H.cat [ "(", lambdaDoc, ")" ]
-    App  -> H.cat [ "(", lambdaDoc, ")" ]
+    Func -> D.cat [ "(", lambdaDoc, ")" ]
+    App  -> D.cat [ "(", lambdaDoc, ")" ]
 
 
 apply :: Context -> Doc -> [Doc] -> Doc
@@ -56,10 +56,10 @@ apply context name args =
     _:_ ->
       let
         applyDoc =
-          H.hang 4 (H.sep (name : args))
+          D.hang 4 (D.sep (name : args))
       in
       case context of
-        App  -> H.cat [ "(", applyDoc, ")" ]
+        App  -> D.cat [ "(", applyDoc, ")" ]
         Func -> applyDoc
         None -> applyDoc
 
@@ -70,7 +70,7 @@ tuple a b cs =
     entries =
       zipWith (<+>) ("(" : repeat ",") (a:b:cs)
   in
-  H.sep [ H.cat entries, ")" ]
+  D.sep [ D.cat entries, ")" ]
 
 
 record :: [(Doc, Doc)] -> Maybe Doc -> Doc
@@ -80,16 +80,16 @@ record entries maybeExt =
         "{}"
 
     (fields, Nothing) ->
-        H.sep
-          [ H.cat (zipWith (<+>) ("{" : repeat ",") fields)
+        D.sep
+          [ D.cat (zipWith (<+>) ("{" : repeat ",") fields)
           , "}"
           ]
 
     (fields, Just ext) ->
-        H.sep
-          [ H.hang 4 $ H.sep $
+        D.sep
+          [ D.hang 4 $ D.sep $
               [ "{" <+> ext
-              , H.cat (zipWith (<+>) ("|" : repeat ",") fields)
+              , D.cat (zipWith (<+>) ("|" : repeat ",") fields)
               ]
           , "}"
           ]
@@ -97,7 +97,7 @@ record entries maybeExt =
 
 entryToDoc :: (Doc, Doc) -> Doc
 entryToDoc (fieldName, fieldType) =
-  H.hang 4 (H.sep [ fieldName <+> ":", fieldType ])
+  D.hang 4 (D.sep [ fieldName <+> ":", fieldType ])
 
 
 recordSnippet :: (Doc, Doc) -> [(Doc, Doc)] -> Doc
@@ -106,7 +106,7 @@ recordSnippet entry entries =
     field  = "{" <+> entryToDoc entry
     fields = zipWith (<+>) (repeat ",") (map entryToDoc entries ++ ["..."])
   in
-  H.sep [ H.cat (field:fields), "}" ]
+  D.sep [ D.cat (field:fields), "}" ]
 
 
 
@@ -126,22 +126,22 @@ srcToDoc context (A.At _ tipe) =
         (map (srcToDoc Func) rest)
 
     Src.TVar name ->
-      H.nameToDoc name
+      D.fromName name
 
     Src.TType _ name args ->
       apply context
-        (H.nameToDoc name)
+        (D.fromName name)
         (map (srcToDoc App) args)
 
     Src.TTypeQual _ home name args ->
       apply context
-        (H.nameToDoc home <> "." <> H.nameToDoc name)
+        (D.fromName home <> "." <> D.fromName name)
         (map (srcToDoc App) args)
 
     Src.TRecord fields ext ->
       record
         (map fieldToDocs fields)
-        (fmap (H.nameToDoc . A.toValue) ext)
+        (fmap (D.fromName . A.toValue) ext)
 
     Src.TUnit ->
       "()"
@@ -155,7 +155,7 @@ srcToDoc context (A.At _ tipe) =
 
 fieldToDocs :: (A.Located N.Name, Src.Type) -> (Doc, Doc)
 fieldToDocs (A.At _ fieldName, fieldType) =
-  ( H.nameToDoc fieldName
+  ( D.fromName fieldName
   , srcToDoc None fieldType
   )
 
@@ -190,17 +190,17 @@ canToDoc context tipe =
         (map (canToDoc Func) rest)
 
     Can.TVar name ->
-      H.nameToDoc name
+      D.fromName name
 
     Can.TType (ModuleName.Canonical _ home) name args ->
       apply context
-        (H.nameToDoc home <> "." <> H.nameToDoc name)
+        (D.fromName home <> "." <> D.fromName name)
         (map (canToDoc App) args)
 
     Can.TRecord fields ext ->
       record
         (map entryToDocs (Map.toList fields))
-        (fmap H.nameToDoc ext)
+        (fmap D.fromName ext)
 
     Can.TUnit ->
       "()"
@@ -213,13 +213,13 @@ canToDoc context tipe =
 
     Can.TAlias (ModuleName.Canonical _ home) name args _ ->
       apply context
-        (H.nameToDoc home <> "." <> H.nameToDoc name)
+        (D.fromName home <> "." <> D.fromName name)
         (map (canToDoc App . snd) args)
 
 
 entryToDocs :: (N.Name, Can.Type) -> (Doc, Doc)
 entryToDocs (name, tipe) =
-  (H.nameToDoc name, canToDoc None tipe)
+  (D.fromName name, canToDoc None tipe)
 
 
 collectArgs :: Can.Type -> (Can.Type, [Can.Type])

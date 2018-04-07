@@ -17,10 +17,10 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 
 import qualified Elm.Name as N
+import qualified Reporting.Doc as D
 import qualified Reporting.Region as R
 import qualified Reporting.Render.Code as Code
 import qualified Reporting.Report as Report
-import qualified Reporting.Helpers as H
 
 
 
@@ -144,7 +144,7 @@ toReport source err =
           (
             "This documentation comment is not followed by anything."
           ,
-            H.reflow $
+            D.reflow $
               "All documentation comments need to be right above the declaration they\
               \ describe. Maybe some code got deleted or commented out by accident? Or\
               \ maybe this comment is here by accident?"
@@ -154,12 +154,12 @@ toReport source err =
       Report.Report "BAD PORT" region [] $
         Report.toCodeSnippet source region Nothing
           (
-            H.reflow $
+            D.reflow $
               "You are declaring port `" <> N.toString name <> "` in a normal module."
           ,
-            H.stack
+            D.stack
               [ "It needs to be in a `port` module."
-              , H.link "Hint"
+              , D.link "Hint"
                   "Ports are not a traditional FFI for calling JS functions directly. They need a different mindset! Read"
                   "ports"
                   "to learn how to use ports effectively."
@@ -170,17 +170,17 @@ toReport source err =
       Report.Report "ANNOTATION MISMATCH" region [] $
         Report.toCodeSnippet source region Nothing
           (
-            H.reflow $
+            D.reflow $
               "I see a `" <> N.toString annName
               <> "` annotation, but it is followed by a `"
               <> N.toString defName <> "` definition."
           ,
-            H.fillSep
+            D.fillSep
               ["The","annotation","and","definition","names","must","match!"
               ,"Is","there","a","typo","between"
-              , H.dullyellow (H.nameToDoc annName)
+              , D.dullyellow (D.fromName annName)
               ,"and"
-              , H.dullyellow (H.nameToDoc defName) <> "?"
+              , D.dullyellow (D.fromName defName) <> "?"
               ]
           )
 
@@ -188,12 +188,12 @@ toReport source err =
       Report.Report "MISSING DEFINITION" region [] $
         Report.toCodeSnippet source region Nothing
           (
-            H.reflow $
+            D.reflow $
               "There is a type annotation for `" <> N.toString name
               <> "` but there is no corresponding definition!"
           ,
             "Directly below the type annotation, put a definition like:\n\n"
-            <> "    " <> H.nameToDoc name <> " = 42"
+            <> "    " <> D.fromName name <> " = 42"
           )
 
     Parse region subRegion problem ->
@@ -206,7 +206,7 @@ toReport source err =
 -- PARSE ERROR TO DOCS
 
 
-problemToDocs :: Problem -> (H.Doc, H.Doc)
+problemToDocs :: Problem -> (D.Doc, D.Doc)
 problemToDocs problem =
   case problem of
     Tab ->
@@ -220,11 +220,11 @@ problemToDocs problem =
       (
         "I got to the end of the file while parsing a multi-line comment."
       ,
-        H.stack
-          [ H.reflow $
+        D.stack
+          [ D.reflow $
               "Multi-line comments look like {- comment -}, and it looks like\
               \ you are missing the closing marker."
-          , H.toSimpleHint $
+          , D.toSimpleHint $
               "Nested multi-line comments like {- this {- and this -} -} are allowed.\
               \ The opening and closing markers must be balanced though, just\
               \ like parentheses in normal code. Maybe that is the problem?"
@@ -235,7 +235,7 @@ problemToDocs problem =
       (
         "I got to the end of the file while parsing a GLSL block."
       ,
-        H.reflow $
+        D.reflow $
           "A shader should be defined in a block like this: [glsl| ... |]"
       )
 
@@ -243,7 +243,7 @@ problemToDocs problem =
       (
         "I got to the end of the file while parsing a string."
       ,
-        H.reflow $
+        D.reflow $
           "Strings look like \"this\" with double quotes on each end.\
           \ Is the closing double quote missing in your code?"
       )
@@ -252,7 +252,7 @@ problemToDocs problem =
       (
         "I got to the end of the file while parsing a multi-line string."
       ,
-        H.reflow $
+        D.reflow $
           "Multi-line strings look like \"\"\"this\"\"\" with three double quotes on each\
           \ end. Is the closing triple quote missing in your code?"
       )
@@ -261,7 +261,7 @@ problemToDocs problem =
       (
         "I got to the end of the file while parsing a character."
       ,
-        H.reflow $
+        D.reflow $
           "Characters look like 'c' with single quotes on each end.\
           \ Is the closing single quote missing in your code?"
       )
@@ -270,10 +270,10 @@ problemToDocs problem =
       (
         "This string is missing the closing quote."
       ,
-        H.stack
-          [ H.reflow $
+        D.stack
+          [ D.reflow $
               "Elm strings like \"this\" cannot contain newlines."
-          , H.toSimpleHint $
+          , D.toSimpleHint $
               "For strings that CAN contain newlines, say \"\"\"this\"\"\" for Elm’s\
               \ multi-line string syntax. It allows unescaped newlines and double quotes."
           ]
@@ -292,10 +292,10 @@ problemToDocs problem =
         UnknownEscape ->
           (
             "Backslashes always start escaped characters, but I do not recognize this one:"
-          , H.stack
+          , D.stack
               [ "Maybe there is some typo?"
-              , H.toSimpleHint "Valid escape characters include:"
-              , H.indent 4 $ H.vcat $
+              , D.toSimpleHint "Valid escape characters include:"
+              , D.indent 4 $ D.vcat $
                   [ "\\n"
                   , "\\r"
                   , "\\t"
@@ -304,7 +304,7 @@ problemToDocs problem =
                   , "\\\\"
                   , "\\u{03BB}"
                   ]
-              , H.reflow $
+              , D.reflow $
                   "The last one lets encode ANY character by its Unicode code\
                   \ point, so use that for anything outside the ordinary six."
               ]
@@ -314,15 +314,15 @@ problemToDocs problem =
           (
             "I ran into an invalid Unicode escape character:"
           ,
-            H.stack
+            D.stack
               [ "Here are some examples of valid Unicode escape characters:"
-              , H.indent 4 $ H.vcat $
+              , D.indent 4 $ D.vcat $
                   [ "\\u{0041}"
                   , "\\u{03BB}"
                   , "\\u{6728}"
                   , "\\u{1F60A}"
                   ]
-              , H.reflow $
+              , D.reflow $
                   "Notice that the code point is always surrounded by curly\
                   \ braces. They are required!"
               ]
@@ -342,18 +342,18 @@ problemToDocs problem =
             ,
               let
                 goodCode = replicate (4 - numDigits) '0' ++ badCode
-                escape = "\\u{" <> H.text goodCode <> "}"
+                escape = "\\u{" <> D.fromString goodCode <> "}"
               in
-              H.hsep [ "Try", H.dullyellow escape, "instead?" ]
+              D.hsep [ "Try", D.dullyellow escape, "instead?" ]
             )
 
           else
             (
               "This Unicode code point has too many digits:"
             ,
-              H.fillSep
+              D.fillSep
                 ["Valid","code","points","are","between"
-                , H.dullyellow "\\u{0000}", "and", H.dullyellow "\\u{10FFFF}"
+                , D.dullyellow "\\u{0000}", "and", D.dullyellow "\\u{10FFFF}"
                 ,"so","it","must","have","between","four","and","six","digits."
                 ]
             )
@@ -362,12 +362,12 @@ problemToDocs problem =
       (
         "Ran into a bad use of single quotes."
       ,
-        H.stack
-          [ H.reflow $
+        D.stack
+          [ D.reflow $
               "If you want to create a string, switch to double quotes:"
-          , H.indent 4 $
-              H.dullyellow "'this'" <> " => " <> H.green "\"this\""
-          , H.toSimpleHint $
+          , D.indent 4 $
+              D.dullyellow "'this'" <> " => " <> D.green "\"this\""
+          , D.toSimpleHint $
               "Unlike JavaScript, Elm distinguishes between strings like \"hello\"\
               \ and individual characters like 'A' and '3'. If you really do want\
               \ a character though, something went wrong and I did not find the\
@@ -381,16 +381,16 @@ problemToDocs problem =
       ,
         let
           number =
-            H.text (show numberBeforeDot)
+            D.fromString (show numberBeforeDot)
         in
-        "Saying " <> H.green number <> " or " <> H.green (number <> ".0") <> " will work though!"
+        "Saying " <> D.green number <> " or " <> D.green (number <> ".0") <> " will work though!"
       )
 
     BadNumberEnd ->
       (
         "Numbers cannot have letters or underscores in them."
       ,
-        H.reflow $
+        D.reflow $
           "Maybe a space is missing between a number and a variable?"
       )
 
@@ -398,7 +398,7 @@ problemToDocs problem =
       (
         "If you put the letter E in a number, it should followed by more digits."
       ,
-        H.reflow $
+        D.reflow $
           "If you want to say 1000, you can also say 1e3.\
           \ You cannot just end it with an E though!"
       )
@@ -407,7 +407,7 @@ problemToDocs problem =
       (
         "I see the start of a hex number, but not the end."
       ,
-        H.reflow $
+        D.reflow $
           "A hex number looks like 0x123ABC, where the 0x is followed by hexidecimal\
           \ digits. Valid hexidecimal digits include: 0123456789abcdefABCDEF"
       )
@@ -416,7 +416,7 @@ problemToDocs problem =
       (
         "Normal numbers cannot start with zeros. Take the zeros off the front."
       ,
-        H.reflow $
+        D.reflow $
           "Only numbers like 0x0040 or 0.25 can start with a zero."
       )
 
@@ -424,7 +424,7 @@ problemToDocs problem =
       (
         "I cannot pattern match with floating point numbers:"
       ,
-        H.reflow $
+        D.reflow $
           "Equality on floats can be unreliable, so you usually want to check that they\
           \ are nearby with some sort of (abs (actual - expected) < 0.001) check."
       )
@@ -433,14 +433,14 @@ problemToDocs problem =
       (
         "I ran into a problem while parsing this GLSL block."
       ,
-        H.reflow (Text.unpack msg)
+        D.reflow (Text.unpack msg)
       )
 
     BadUnderscore _ ->
       (
         "A variable name cannot start with an underscore:"
       ,
-        H.reflow $
+        D.reflow $
           "You can (1) use a wildcard like _ to ignore the value or you can (2) use\
           \ a name that starts with a letter to access the value later. Pick one!"
       )
@@ -454,7 +454,7 @@ problemToDocs problem =
 
         Equals ->
           (
-            H.reflow $
+            D.reflow $
               "I was not expecting this equals sign"
               <> contextToString " here" " while parsing " stack <> "."
           ,
@@ -466,7 +466,7 @@ problemToDocs problem =
             (
               "I ran into a stray arrow while parsing this `case` expression."
             ,
-              H.reflow $
+              D.reflow $
                 "All branches in a `case` must be indented the exact\
                 \ same amount, so the patterns are vertically\
                 \ aligned. Maybe this branch is indented too much?"
@@ -486,7 +486,7 @@ problemToDocs problem =
           (
             "I was not expecting this dot."
           ,
-            H.reflow $
+            D.reflow $
               "Dots are for record access and decimal points, so\
               \ they cannot float around on their own. Maybe\
               \ there is some extra whitespace?"
@@ -494,27 +494,27 @@ problemToDocs problem =
 
     Theories stack allTheories ->
       (
-        H.reflow $
+        D.reflow $
           "Something went wrong while parsing " <> contextToString "your code" "" stack <> "."
       ,
         case Set.toList (Set.fromList allTheories) of
           [] ->
-            H.stack
-              [ H.reflow $
+            D.stack
+              [ D.reflow $
                   "I do not have any suggestions though!"
-              , H.reflow $
+              , D.reflow $
                   "Can you get it down to a <http://sscce.org> and share it at\
                   \ <https://github.com/elm-lang/error-message-catalog/issues>?\
                   \ That way we can figure out how to give better advice!"
               ]
 
           [theory] ->
-            H.reflow $
+            D.reflow $
               "I was expecting to see "
               <> addPeriod (theoryToString stack theory)
 
           theories ->
-            H.vcat $
+            D.vcat $
               [ "I was expecting:"
               , ""
               ]
@@ -526,33 +526,33 @@ problemToDocs problem =
 -- BAD OP HELPERS
 
 
-badOp :: ContextStack -> String -> String -> String -> String -> ( H.Doc, H.Doc )
+badOp :: ContextStack -> String -> String -> String -> String -> ( D.Doc, D.Doc )
 badOp stack article opName setting hint =
   (
-    H.reflow $
+    D.reflow $
       "I was not expecting this " <> opName
       <> contextToString " here" " while parsing " stack <> "."
   ,
-    H.reflow $
+    D.reflow $
       article <> " " <> opName <> " should only appear in "
       <> setting <> ". " <> hint
   )
 
 
-toBadEqualsHint :: ContextStack -> H.Doc
+toBadEqualsHint :: ContextStack -> D.Doc
 toBadEqualsHint stack =
   case stack of
     [] ->
-      H.reflow $
+      D.reflow $
         "Maybe you want == instead? Or maybe something is indented too much?"
 
     (ExprRecord, _) : _ ->
-      H.reflow $
+      D.reflow $
         "Records look like { x = 3, y = 4 } with the equals sign right\
         \ after the field name. Maybe you forgot a comma?"
 
     (Definition _, _) : rest ->
-      H.reflow $
+      D.reflow $
         "Maybe this is supposed to be a separate definition? If so, it\
         \ is indented too far. "
         <>
@@ -634,9 +634,9 @@ getAnchor stack =
 -- THEORY HELPERS
 
 
-bullet :: String -> H.Doc
+bullet :: String -> D.Doc
 bullet point =
-  H.hang 4 ("  - " <> H.fillSep (map H.text (words point)))
+  D.hang 4 ("  - " <> D.fillSep (map D.fromString (words point)))
 
 
 addPeriod :: String -> String

@@ -23,7 +23,7 @@ import qualified System.FilePath as FP
 import System.IO (hPutStrLn, stderr)
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 
-import Elm.Utils (nearbyNames, distance)
+import Reporting.Suggest as Suggest
 import Terminal.Args.Internal
 
 
@@ -235,7 +235,7 @@ exitWithUnknown :: String -> [String] -> IO a
 exitWithUnknown unknown knowns =
   let
     suggestions =
-      case map toGreen (nearbyNames id unknown knowns) of
+      case map toGreen (Suggest.nearbyNames id unknown knowns) of
         [] ->
           []
 
@@ -434,7 +434,11 @@ getNearbyFlagsHelp :: String -> Flag a -> (Int, String)
 getNearbyFlagsHelp unknown flag =
   case flag of
     OnOff flagName _ ->
-      ( distance unknown flagName, "--" ++ flagName )
+      ( Suggest.distance unknown flagName
+      , "--" ++ flagName
+      )
 
     Flag flagName (Parser singular _ _ _ _) _ ->
-      ( distance unknown flagName, "--" ++ flagName ++ "=" ++ toToken singular )
+      ( Suggest.distance unknown flagName
+      , "--" ++ flagName ++ "=" ++ toToken singular
+      )

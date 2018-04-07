@@ -25,7 +25,7 @@ import Data.Monoid ((<>))
 import qualified AST.Module.Name as ModuleName
 import qualified Data.Bag as Bag
 import qualified Elm.Name as N
-import qualified Reporting.Helpers as H
+import qualified Reporting.Doc as D
 import qualified Reporting.Render.Type as RT
 
 
@@ -78,17 +78,17 @@ iteratedDealias tipe =
 type Localizer = Map.Map (ModuleName.Canonical, N.Name) String
 
 
-nameToDoc :: Localizer -> ModuleName.Canonical -> N.Name -> H.Doc
+nameToDoc :: Localizer -> ModuleName.Canonical -> N.Name -> D.Doc
 nameToDoc dict home@(ModuleName.Canonical _ moduleName) name =
   case Map.lookup (home, name) dict of
     Nothing ->
-      H.nameToDoc moduleName <> "." <> H.nameToDoc name
+      D.fromName moduleName <> "." <> D.fromName name
 
     Just string ->
-      H.text string
+      D.fromString string
 
 
-toDoc :: Localizer -> RT.Context -> Type -> H.Doc
+toDoc :: Localizer -> RT.Context -> Type -> D.Doc
 toDoc dict ctx tipe =
   case tipe of
     Lambda a b cs ->
@@ -104,16 +104,16 @@ toDoc dict ctx tipe =
       "?"
 
     FlexVar name ->
-      H.nameToDoc name
+      D.fromName name
 
     FlexSuper _ name ->
-      H.nameToDoc name
+      D.fromName name
 
     RigidVar name ->
-      H.nameToDoc name
+      D.fromName name
 
     RigidSuper _ name ->
-      H.nameToDoc name
+      D.fromName name
 
     Type home name args ->
       RT.apply ctx
@@ -123,7 +123,7 @@ toDoc dict ctx tipe =
     Record fields ext ->
       let
         entryToDocs (fieldName, fieldType) =
-          ( H.nameToDoc fieldName, toDoc dict RT.None fieldType )
+          ( D.fromName fieldName, toDoc dict RT.None fieldType )
 
         fieldDocs =
           map entryToDocs (Map.toList fields)
@@ -131,8 +131,8 @@ toDoc dict ctx tipe =
       RT.record fieldDocs $
         case ext of
           Closed -> Nothing
-          FlexOpen x -> Just (H.nameToDoc x)
-          RigidOpen x -> Just (H.nameToDoc x)
+          FlexOpen x -> Just (D.fromName x)
+          RigidOpen x -> Just (D.fromName x)
 
     Unit ->
       "()"
@@ -153,7 +153,7 @@ toDoc dict ctx tipe =
 -- DIFF
 
 
-toDiffDocs :: Localizer -> Type -> Type -> (H.Doc, H.Doc, [Problem])
+toDiffDocs :: Localizer -> Type -> Type -> (D.Doc, D.Doc, [Problem])
 toDiffDocs dict a b =
   case diff dict RT.None a b of
     Similar aDoc bDoc ->
@@ -217,13 +217,13 @@ data Problem
 -- COMPUTE DIFF
 
 
-diff :: Localizer -> RT.Context -> Type -> Type -> Diff H.Doc
+diff :: Localizer -> RT.Context -> Type -> Type -> Diff D.Doc
 diff dict ctx tipe1 tipe2 =
   case (tipe1, tipe2) of
-    (FlexVar      x, FlexVar      y) | x == y -> pure (H.nameToDoc x)
-    (FlexSuper _  x, FlexSuper _  y) | x == y -> pure (H.nameToDoc x)
-    (RigidVar     x, RigidVar     y) | x == y -> pure (H.nameToDoc x)
-    (RigidSuper _ x, RigidSuper _ y) | x == y -> pure (H.nameToDoc x)
+    (FlexVar      x, FlexVar      y) | x == y -> pure (D.fromName x)
+    (FlexSuper _  x, FlexSuper _  y) | x == y -> pure (D.fromName x)
+    (RigidVar     x, RigidVar     y) | x == y -> pure (D.fromName x)
+    (RigidSuper _ x, RigidSuper _ y) | x == y -> pure (D.fromName x)
 
     (Infinite, Infinite) -> pure "∞"
     (Error, Error) -> pure "?"
@@ -236,8 +236,8 @@ diff dict ctx tipe1 tipe2 =
           <*>
             case (maybeC, maybeZ) of
               (Nothing, Nothing) -> pure []
-              (Just c , Nothing) -> Different [H.dullyellow (toDoc dict RT.None c)] [] Bag.empty
-              (Nothing, Just z ) -> Different [] [H.dullyellow (toDoc dict RT.None z)] Bag.empty
+              (Just c , Nothing) -> Different [D.dullyellow (toDoc dict RT.None c)] [] Bag.empty
+              (Nothing, Just z ) -> Different [] [D.dullyellow (toDoc dict RT.None z)] Bag.empty
               (Just c , Just z ) -> (:[]) <$> diff dict RT.None c z
 
     (Record fields1 ext1, Record fields2 ext2) -> diffRecord dict fields1 ext1 fields2 ext2
@@ -255,8 +255,8 @@ diff dict ctx tipe1 tipe2 =
 
     (Lambda a b cs, Lambda x y zs) -> diffLambda dict ctx (a:b:cs) (x:y:zs)
 
-    (FlexVar x, other) -> Similar (H.nameToDoc x) (toDoc dict ctx other)
-    (other, FlexVar x) -> Similar (toDoc dict ctx other) (H.nameToDoc x)
+    (FlexVar x, other) -> Similar (D.fromName x) (toDoc dict ctx other)
+    (other, FlexVar x) -> Similar (toDoc dict ctx other) (D.fromName x)
 
     pair ->
       case pair of
@@ -268,8 +268,8 @@ diff dict ctx tipe1 tipe2 =
 
         _ ->
           let
-            doc1 = H.dullyellow (toDoc dict ctx tipe1)
-            doc2 = H.dullyellow (toDoc dict ctx tipe2)
+            doc1 = D.dullyellow (toDoc dict ctx tipe1)
+            doc2 = D.dullyellow (toDoc dict ctx tipe2)
           in
           Different doc1 doc2 $
             case pair of
@@ -334,10 +334,10 @@ isSimilar tipe1 tipe2 =
     Different _ _ _ -> False
 
 
-yellowApply :: Localizer -> RT.Context -> ModuleName.Canonical -> N.Name -> Type -> H.Doc
+yellowApply :: Localizer -> RT.Context -> ModuleName.Canonical -> N.Name -> Type -> D.Doc
 yellowApply dict ctx home name tipe =
   RT.apply ctx
-    (H.dullyellow (nameToDoc dict home name))
+    (D.dullyellow (nameToDoc dict home name))
     [toDoc dict RT.App tipe]
 
 
@@ -348,7 +348,7 @@ yellowApply dict ctx home name tipe =
 --
 -- INVARIANT: length types1 >= 2 && length types2 >= 2
 --
-diffLambda :: Localizer -> RT.Context -> [Type] -> [Type] -> Diff H.Doc
+diffLambda :: Localizer -> RT.Context -> [Type] -> [Type] -> Diff D.Doc
 diffLambda dict ctx types1 types2 =
   let
     (result1:revArgs1) = reverse types1
@@ -389,7 +389,7 @@ diffLambda dict ctx types1 types2 =
 --
 -- INVARIANT: length shortRevArgs >= 2 && length longRevArgs >= 2
 --
-diffArgMismatch :: Localizer -> RT.Context -> [Type] -> H.Doc -> [Type] -> H.Doc -> Diff H.Doc
+diffArgMismatch :: Localizer -> RT.Context -> [Type] -> D.Doc -> [Type] -> D.Doc -> Diff D.Doc
 diffArgMismatch dict ctx shortRevArgs shortResult longRevArgs longResult =
   case toGreedyMatch dict shortRevArgs longRevArgs of
     Just (GreedyMatch shortRevArgDocs longRevArgDocs) ->
@@ -417,7 +417,7 @@ diffArgMismatch dict ctx shortRevArgs shortResult longRevArgs longResult =
         Nothing ->
           let
             toYellowDoc tipe =
-              H.dullyellow (toDoc dict RT.Func tipe)
+              D.dullyellow (toDoc dict RT.Func tipe)
 
             (a:b:cs) = reverse (shortResult : map toYellowDoc shortRevArgs)
             (x:y:zs) = reverse (longResult  : map toYellowDoc longRevArgs )
@@ -433,7 +433,7 @@ diffArgMismatch dict ctx shortRevArgs shortResult longRevArgs longResult =
 
 
 data GreedyMatch =
-  GreedyMatch [H.Doc] [H.Doc]
+  GreedyMatch [D.Doc] [D.Doc]
 
 
 --
@@ -448,7 +448,7 @@ toGreedyMatchHelp :: Localizer -> [Type] -> [Type] -> GreedyMatch -> Maybe Greed
 toGreedyMatchHelp dict shorterArgs longerArgs match@(GreedyMatch shorterDocs longerDocs) =
   let
     toYellowDoc tipe =
-      H.dullyellow (toDoc dict RT.Func tipe)
+      D.dullyellow (toDoc dict RT.Func tipe)
   in
   case (shorterArgs, longerArgs) of
     (x:xs, y:ys) ->
@@ -475,7 +475,7 @@ toGreedyMatchHelp dict shorterArgs longerArgs match@(GreedyMatch shorterDocs lon
 -- RECORD DIFFS
 
 
-diffRecord :: Localizer -> Map.Map N.Name Type -> Extension -> Map.Map N.Name Type -> Extension -> Diff H.Doc
+diffRecord :: Localizer -> Map.Map N.Name Type -> Extension -> Map.Map N.Name Type -> Extension -> Diff D.Doc
 diffRecord dict fields1 ext1 fields2 ext2 =
   let
     only1 = Map.keys (Map.difference fields1 fields2)
@@ -510,12 +510,12 @@ diffRecord dict fields1 ext1 fields2 ext2 =
       (Bag.one (FieldMismatch only1 only2))
 
 
-toOverlapDoc :: (BadOverlap -> H.Doc) -> BadOverlap -> (H.Doc, H.Doc)
+toOverlapDoc :: (BadOverlap -> D.Doc) -> BadOverlap -> (D.Doc, D.Doc)
 toOverlapDoc getDoc overlap@(BadOverlap field _ _ _) =
-  (H.nameToDoc field, getDoc overlap)
+  (D.fromName field, getDoc overlap)
 
 
-toOverlapRecord :: (BadOverlap -> H.Doc) -> BadOverlap -> [BadOverlap] -> Extension -> H.Doc
+toOverlapRecord :: (BadOverlap -> D.Doc) -> BadOverlap -> [BadOverlap] -> Extension -> D.Doc
 toOverlapRecord getDoc bad bads ext =
   let go = toOverlapDoc getDoc in
   case ext of
@@ -524,7 +524,7 @@ toOverlapRecord getDoc bad bads ext =
     RigidOpen _ -> RT.recordSnippet (go bad) (map go bads)
 
 
-toMissingDoc :: Map.Map N.Name t -> [N.Name] -> Extension -> H.Doc
+toMissingDoc :: Map.Map N.Name t -> [N.Name] -> Extension -> D.Doc
 toMissingDoc allFields uniqueFields ext =
   case map emphasizeFieldName uniqueFields of
     [] ->
@@ -540,12 +540,12 @@ toMissingDoc allFields uniqueFields ext =
           RigidOpen _ -> RT.recordSnippet doc docs
 
 
-emphasizeFieldName :: N.Name -> (H.Doc, H.Doc)
+emphasizeFieldName :: N.Name -> (D.Doc, D.Doc)
 emphasizeFieldName field =
-  ( H.dullyellow (H.nameToDoc field), "..." )
+  ( D.dullyellow (D.fromName field), "..." )
 
 
-toBoringRecord :: Map.Map N.Name t -> Extension -> H.Doc
+toBoringRecord :: Map.Map N.Name t -> Extension -> D.Doc
 toBoringRecord fields ext =
   case ext of
     Closed      -> if Map.null fields then "{}" else "{ ... }"
@@ -557,11 +557,11 @@ toBoringRecord fields ext =
 -- DIFF RECORD EXTENSION
 
 
-diffExt :: Extension -> Extension -> Diff (Maybe H.Doc)
+diffExt :: Extension -> Extension -> Diff (Maybe D.Doc)
 diffExt ext1 ext2 =
   let
-    normal = Just . H.nameToDoc
-    yellow = Just . H.dullyellow . H.nameToDoc
+    normal = Just . D.fromName
+    yellow = Just . D.dullyellow . D.fromName
 
     different x y = Different x y Bag.empty
   in
@@ -596,8 +596,8 @@ diffExt ext1 ext2 =
 data BadOverlap =
   BadOverlap
     { _field :: N.Name
-    , _doc1 :: H.Doc
-    , _doc2 :: H.Doc
+    , _doc1 :: D.Doc
+    , _doc2 :: D.Doc
     , _problems :: Bag.Bag Problem
     }
 
@@ -608,7 +608,7 @@ findBadOverlaps dict fields1 fields2 =
     Map.intersectionWith (diff dict RT.None) fields1 fields2
 
 
-findBadOverlapsHelp :: [BadOverlap] -> [(N.Name, Diff H.Doc)] -> [BadOverlap]
+findBadOverlapsHelp :: [BadOverlap] -> [(N.Name, Diff D.Doc)] -> [BadOverlap]
 findBadOverlapsHelp badOverlaps fieldPairs =
   case fieldPairs of
     [] ->

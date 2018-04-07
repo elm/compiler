@@ -9,10 +9,10 @@ module Reporting.Error.Pattern
 import qualified Data.List as List
 
 import qualified Nitpick.PatternMatches as P
+import Reporting.Doc ((<>))
+import qualified Reporting.Doc as D
 import qualified Reporting.Report as Report
 import qualified Reporting.Render.Code as Code
-import qualified Reporting.Helpers as H
-import Reporting.Helpers ((<>))
 
 
 
@@ -26,10 +26,10 @@ toReport source err =
       Report.Report "REDUNDANT PATTERN" patternRegion [] $
         Report.toCodeSnippet source caseRegion (Just patternRegion)
           (
-            H.reflow $
-              "The " <> H.ordinalize index <> " pattern is redundant:"
+            D.reflow $
+              "The " <> D.ordinalize index <> " pattern is redundant:"
           ,
-            H.reflow $
+            D.reflow $
               "Any value with this shape will be handled by a previous\
               \ pattern, so it should be removed."
           )
@@ -42,10 +42,10 @@ toReport source err =
               (
                 "This pattern does not cover all possiblities:"
               ,
-                H.stack
+                D.stack
                   [ "Other possibilities include:"
                   , unhandledPatternsToDocBlock unhandled
-                  , H.reflow $
+                  , D.reflow $
                       "I would have to crash if I saw one of those! So rather than\
                       \ pattern matching in function arguments, put a `case` in\
                       \ the function body to account for all possibilities."
@@ -58,14 +58,14 @@ toReport source err =
               (
                 "This pattern does not cover all possible values:"
               ,
-                H.stack
+                D.stack
                   [ "Other possibilities include:"
                   , unhandledPatternsToDocBlock unhandled
-                  , H.reflow $
+                  , D.reflow $
                       "I would have to crash if I saw one of those! You can use\
                       \ `let` to deconstruct values only if there is ONE possiblity.\
                       \ Switch to a `case` expression to account for all possibilities."
-                  , H.toSimpleHint $
+                  , D.toSimpleHint $
                       "Are you calling a function that definitely returns values\
                       \ with a very specific shape? Try making the return type of\
                       \ that function more specific!"
@@ -78,12 +78,12 @@ toReport source err =
               (
                 "This `case` does not have branches for all possibilities:"
               ,
-                H.stack
+                D.stack
                   [ "Missing possibilities include:"
                   , unhandledPatternsToDocBlock unhandled
-                  , H.reflow $
+                  , D.reflow $
                       "I would have to crash if I saw one of those. Add branches for them!"
-                  , H.link "Hint"
+                  , D.link "Hint"
                       "If you want to write the code for each branch later, use `Debug.todo` as a placeholder. Read"
                       "missing-patterns"
                       "for more guidance on this workflow."
@@ -95,9 +95,9 @@ toReport source err =
 -- PATTERN TO DOC
 
 
-unhandledPatternsToDocBlock :: [P.Pattern] -> H.Doc
+unhandledPatternsToDocBlock :: [P.Pattern] -> D.Doc
 unhandledPatternsToDocBlock unhandledPatterns =
-  H.indent 4 $ H.dullyellow $ H.vcat $
+  D.indent 4 $ D.dullyellow $ D.vcat $
     map (patternToDoc Unambiguous) unhandledPatterns
 
 
@@ -108,7 +108,7 @@ data Context
   deriving (Eq)
 
 
-patternToDoc :: Context -> P.Pattern -> H.Doc
+patternToDoc :: Context -> P.Pattern -> D.Doc
 patternToDoc context pattern =
   case delist pattern [] of
     NonList P.Anything ->
@@ -117,13 +117,13 @@ patternToDoc context pattern =
     NonList (P.Literal literal) ->
       case literal of
         P.Chr chr ->
-          H.textToDoc ("'" <> chr <> "'")
+          D.fromText ("'" <> chr <> "'")
 
         P.Str str ->
-          H.textToDoc ("\"" <> str <> "\"")
+          D.fromText ("\"" <> str <> "\"")
 
         P.Int int ->
-          H.text (show int)
+          D.fromString (show int)
 
     NonList (P.Ctor _ "#0" []) ->
       "()"
@@ -142,7 +142,7 @@ patternToDoc context pattern =
     NonList (P.Ctor _ name args) ->
       let
         ctorDoc =
-          H.hsep (H.nameToDoc name : map (patternToDoc Arg) args)
+          D.hsep (D.fromName name : map (patternToDoc Arg) args)
       in
       if context == Arg && length args > 0 then
         "(" <> ctorDoc <> ")"
@@ -154,7 +154,7 @@ patternToDoc context pattern =
 
     FiniteList entries ->
       let entryDocs = map (patternToDoc Unambiguous) entries in
-      "[" <> H.hcat (List.intersperse "," entryDocs) <> "]"
+      "[" <> D.hcat (List.intersperse "," entryDocs) <> "]"
 
     Conses conses finalPattern ->
       let

@@ -134,7 +134,6 @@ Executable elm
         Elm.Header,
         Elm.Name,
         Elm.Package,
-        Elm.Utils,
         Json.Decode,
         Json.Encode,
 
@@ -196,6 +195,7 @@ Executable elm
         Parse.Shader,
         Parse.Type,
         Reporting.Annotation,
+        Reporting.Doc,
         Reporting.Error,
         Reporting.Error.Canonicalize,
         Reporting.Error.Docs,
@@ -203,12 +203,12 @@ Executable elm
         Reporting.Error.Pattern,
         Reporting.Error.Syntax,
         Reporting.Error.Type,
-        Reporting.Helpers,
         Reporting.Region,
         Reporting.Render.Code,
         Reporting.Render.Type,
         Reporting.Report,
         Reporting.Result,
+        Reporting.Suggest,
         Reporting.Warning,
         Type.Constrain.Expression,
         Type.Constrain.Module,
@@ -224,8 +224,8 @@ Executable elm
         Paths_elm
 
     Build-depends:
-        ansi-terminal >= 0.7 && < 0.8,
-        ansi-wl-pprint >= 0.6.7 && < 0.7,
+        ansi-terminal >= 0.8 && < 0.9,
+        ansi-wl-pprint >= 0.6.8 && < 0.7,
         base >=4.8 && <5,
         binary >= 0.8 && < 0.9,
         bytestring >= 0.9 && < 0.11,

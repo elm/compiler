@@ -12,8 +12,9 @@ module Reporting.Render.Code
 
 import qualified Data.List as List
 import qualified Data.Text as Text
-import Text.PrettyPrint.ANSI.Leijen (Doc, (<>), hardline, dullred, empty, text)
 
+import Reporting.Doc (Doc, (<>))
+import qualified Reporting.Doc as D
 import qualified Reporting.Region as R
 
 
@@ -40,11 +41,6 @@ toSource source =
   f a
 
 
-(<==>) :: Doc -> Doc -> Doc
-(<==>) a b =
-  a <> hardline <> b
-
-
 render :: Source -> R.Region -> Maybe R.Region -> Doc
 render (Source sourceLines) region@(R.Region start end) maybeSubRegion =
   let
@@ -64,7 +60,7 @@ render (Source sourceLines) region@(R.Region start end) maybeSubRegion =
   in
     case makeUnderline width endLine smallerRegion of
       Nothing ->
-        drawLines True width smallerRegion relevantLines empty
+        drawLines True width smallerRegion relevantLines D.empty
 
       Just underline ->
         drawLines False width smallerRegion relevantLines underline
@@ -80,7 +76,7 @@ makeUnderline width realEndLine (R.Region (R.Position start c1) (R.Position end 
       spaces = replicate (c1 + width + 1) ' '
       zigzag = replicate (max 1 (c2 - c1)) '^'
     in
-      Just (text spaces <> dullred (text zigzag))
+      Just (D.fromString spaces <> D.dullred (D.fromString zigzag))
 
 
 drawLines :: Bool -> Int -> R.Region -> [(Int, Text.Text)] -> Doc -> Doc
@@ -89,13 +85,14 @@ drawLines addZigZag width (R.Region start end) sourceLines finalLine =
     (R.Position startLine _) = start
     (R.Position endLine _) = end
   in
-    foldr (<==>) finalLine $
-      map (drawLine addZigZag width startLine endLine) sourceLines
+  D.vcat $
+    map (drawLine addZigZag width startLine endLine) sourceLines
+    ++ [finalLine]
 
 
 drawLine :: Bool -> Int -> Int -> Int -> (Int, Text.Text) -> Doc
 drawLine addZigZag width startLine endLine (n, line) =
-  addLineNumber addZigZag width startLine endLine n (text (Text.unpack line))
+  addLineNumber addZigZag width startLine endLine n (D.fromText line)
 
 
 addLineNumber :: Bool -> Int -> Int -> Int -> Int -> Doc -> Doc
@@ -109,11 +106,11 @@ addLineNumber addZigZag width start end n line =
 
     spacer =
       if addZigZag && start <= n && n <= end then
-        dullred ">"
+        D.dullred ">"
       else
         " "
   in
-    text lineNumber <> spacer <> line
+    D.fromString lineNumber <> spacer <> line
 
 
 
@@ -142,10 +139,11 @@ renderPair source@(Source sourceLines) region1 region2 =
       (Just line) = List.lookup startRow1 sourceLines
     in
     OneLine $
-      text lineNumber <> "| " <> text (Text.unpack line)
-      <> hardline
-      <> text spaces1 <> dullred (text zigzag1)
-      <> text spaces2 <> dullred (text zigzag2)
+      D.vcat
+        [ D.fromString lineNumber <> "| " <> D.fromText line
+        , D.fromString spaces1 <> D.dullred (D.fromString zigzag1) <>
+          D.fromString spaces2 <> D.dullred (D.fromString zigzag2)
+        ]
 
   else
     TwoChunks

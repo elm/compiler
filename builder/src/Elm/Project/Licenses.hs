@@ -13,8 +13,8 @@ import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 
-import qualified Elm.Utils as Utils
 import qualified Json.Encode as Encode
+import qualified Reporting.Suggest as Suggest
 
 
 
@@ -61,7 +61,7 @@ check rawName =
           Text.unpack suggestion
       in
       Left $ map snd $
-        Utils.nearbyNames toSuggestion (rawName, rawName) pairs
+        Suggest.nearbyNames toSuggestion (rawName, rawName) pairs
 
 
 

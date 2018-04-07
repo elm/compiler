@@ -17,7 +17,6 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
@@ -30,7 +29,7 @@ import qualified Elm.Name as N
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Expression as Expr
 import qualified Generate.JavaScript.Name as Name
-import qualified Reporting.Helpers as H
+import qualified Reporting.Doc as D
 
 
 
@@ -98,10 +97,10 @@ print home name annotation =
   let
     value = Name.toBuilder (Name.fromGlobal home name)
     toString = Name.toBuilder (Name.fromKernel N.debug "toString")
-    tipe = P.displayS (P.renderPretty 1.0 80 (Type.toDoc Type.None (Extract.fromAnnotation annotation))) ""
+    tipe = Type.toDoc Type.None (Extract.fromAnnotation annotation)
   in
     "var _value = " <> toString <> "(" <> value <> ");\n" <>
-    "var _type = " <> B.stringUtf8 (show tipe) <> ";\n\
+    "var _type = " <> B.stringUtf8 (show (D.toString tipe)) <> ";\n\
     \if (_value.length + 3 + _type.length >= 80 || _type.indexOf('\\n') >= 0) {\n\
     \    console.log(_value + '\\n    : ' + _type.split('\\n').join('\\n      '));\n\
     \} else {\n\
@@ -244,7 +243,7 @@ generateCycle mode (Opt.Global home _) cycle =
         "The following top-level definitions are causing infinite recursion:\\n"
         <> drawCycle (map fst cycle)
         <> "\\n\\nThese errors are very tricky, so read "
-        <> B.stringUtf8 (H.makeLink "halting-problem")
+        <> B.stringUtf8 (D.makeLink "halting-problem")
         <> " to learn how to fix it!"
 
 

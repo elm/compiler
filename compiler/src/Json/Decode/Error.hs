@@ -16,8 +16,8 @@ import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import qualified Json.Decode.Internals as Json
 import qualified Json.Encode as E
+import qualified Reporting.Doc as D
 import qualified Reporting.Error.Syntax as Syntax
-import qualified Reporting.Helpers as H
 import qualified Reporting.Render.Code as Code
 import qualified Reporting.Report as Report
 
@@ -35,7 +35,7 @@ data Error e
 -- TO DOC
 
 
-toDoc :: String -> Code.Source -> (e -> [H.Doc]) -> Error e -> H.Doc
+toDoc :: String -> Code.Source -> (e -> [D.Doc]) -> Error e -> D.Doc
 toDoc rootName source userErrorToDocs err =
   case err of
     BadJson syntaxError ->
@@ -46,7 +46,7 @@ toDoc rootName source userErrorToDocs err =
     BadContent jsonError ->
       case flatten jsonError of
         [] ->
-          H.reflow
+          D.reflow
             "I am not sure what is wrong with this JSON. Please create an <http://sscce.org>\
             \ and share it at <https://github.com/elm-lang/elm-compiler/issues> so I can\
             \ provide a helpful hint here!"
@@ -59,8 +59,8 @@ toDoc rootName source userErrorToDocs err =
             toNumberedDoc index flatErr =
               P.dullcyan ("(" <> P.int index <> ")") <+> flatErrorToDoc rootName [] userErrorToDocs flatErr
           in
-          H.stack $
-            [ H.reflow $
+          D.stack $
+            [ D.reflow $
                 "I have " ++ show (length flatErrors) ++ " theories on what is going wrong:"
             ]
             ++ zipWith toNumberedDoc [1..] flatErrors
@@ -70,7 +70,7 @@ toDoc rootName source userErrorToDocs err =
 -- FLAT ERROR TO DOC
 
 
-flatErrorToDoc :: String -> [H.Doc] -> (e -> [H.Doc]) -> FlatError e -> H.Doc
+flatErrorToDoc :: String -> [D.Doc] -> (e -> [D.Doc]) -> FlatError e -> D.Doc
 flatErrorToDoc rootName starter userErrorToDocs (FlatError accesses json theory theories) =
   case theories of
     [] ->
@@ -85,12 +85,12 @@ flatErrorToDoc rootName starter userErrorToDocs (FlatError accesses json theory 
       in
       case accesses of
         [] ->
-          H.fillSep (starter ++ explanation)
+          D.fillSep (starter ++ explanation)
 
         _ ->
-          H.stack
-            [ H.fillSep $ starter ++ ["The"] ++ actualThing json ++ ["at",accessToDoc rootName accesses,"is","causing","issues."]
-            , H.fillSep explanation
+          D.stack
+            [ D.fillSep $ starter ++ ["The"] ++ actualThing json ++ ["at",accessToDoc rootName accesses,"is","causing","issues."]
+            , D.fillSep explanation
             ]
 
     _:_ ->
@@ -107,31 +107,31 @@ flatErrorToDoc rootName starter userErrorToDocs (FlatError accesses json theory 
               ++ actualThing json
               ++ ["at",accessToDoc rootName accesses,"because:"]
       in
-      H.stack
-        [ H.fillSep (starter ++ introduction)
-        , H.stack (toBullet [] userErrorToDocs theory : map (toBullet ["OR"] userErrorToDocs) theories)
-        , H.reflow "I accept any of these things."
+      D.stack
+        [ D.fillSep (starter ++ introduction)
+        , D.stack (toBullet [] userErrorToDocs theory : map (toBullet ["OR"] userErrorToDocs) theories)
+        , D.reflow "I accept any of these things."
         ]
 
 
-accessToDoc :: String -> [String] -> H.Doc
+accessToDoc :: String -> [String] -> D.Doc
 accessToDoc rootName accesses =
   P.dullyellow (P.text (rootName ++ concat accesses))
 
 
-actualThing :: E.Value -> [H.Doc]
+actualThing :: E.Value -> [D.Doc]
 actualThing json =
   case json of
-    E.Array   _ -> [H.red "array"]
-    E.Object  _ -> [H.red "object"]
-    E.String  _ -> [H.red "string"]
-    E.Boolean b -> [H.red (if b then "true" else "false"),"value"]
-    E.Integer n -> ["number",H.red (H.text (show n))]
-    E.Number  _ -> [H.red "number"]
-    E.Null      -> [H.red "null","value"]
+    E.Array   _ -> [D.red "array"]
+    E.Object  _ -> [D.red "object"]
+    E.String  _ -> [D.red "string"]
+    E.Boolean b -> [D.red (if b then "true" else "false"),"value"]
+    E.Integer n -> ["number",D.red (D.fromString (show n))]
+    E.Number  _ -> [D.red "number"]
+    E.Null      -> [D.red "null","value"]
 
 
-anExpectedThing :: Json.Type -> [H.Doc]
+anExpectedThing :: Json.Type -> [D.Doc]
 anExpectedThing tipe =
   case tipe of
     Json.TObject -> ["an", P.green "OBJECT" <> "."]
@@ -141,15 +141,15 @@ anExpectedThing tipe =
     Json.TInt -> ["an", P.green "INT" <> "."]
     Json.TObjectWith field -> ["an",P.green "OBJECT","with","a",P.green ("\"" <> P.text (Text.unpack field) <> "\""),"field."]
     Json.TArrayWith i len ->
-      ["a",H.green "longer",P.green "ARRAY" <> "."
+      ["a",D.green "longer",P.green "ARRAY" <> "."
       ,"I","need","index",P.text (show i) <> ",","but","this","array"
       ,"only","has",P.text (show len),"elements."
       ]
 
 
-toBullet :: [H.Doc] -> (e -> [H.Doc]) -> Theory e -> H.Doc
+toBullet :: [D.Doc] -> (e -> [D.Doc]) -> Theory e -> D.Doc
 toBullet intro userErrorToDocs theory =
-  H.indent 4 $ H.fillSep $ (++) intro $
+  D.indent 4 $ D.fillSep $ (++) intro $
     case theory of
       Failure userError ->
         userErrorToDocs userError

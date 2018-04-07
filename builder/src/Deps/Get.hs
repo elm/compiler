@@ -25,11 +25,11 @@ import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import qualified Elm.Docs as Docs
 import qualified Elm.Package as Pkg
-import qualified Elm.Utils as Utils
 
 import qualified Deps.Website as Website
 import qualified Elm.Project.Json as Project
 import qualified File.IO as IO
+import qualified Reporting.Suggest as Suggest
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Assets as E
 import qualified Reporting.Progress as Progress
@@ -122,7 +122,7 @@ nearbyNames (Pkg.Name author1 project1) possibleNames =
 
 authorDistance :: String -> Text.Text -> Int
 authorDistance bad possibility =
-  abs (Utils.distance bad (Text.unpack possibility))
+  abs (Suggest.distance bad (Text.unpack possibility))
 
 
 projectDistance :: String -> Text.Text -> Int
@@ -130,7 +130,7 @@ projectDistance bad possibility =
   if possibility == "elm-lang" || possibility == "elm-explorations" then
     0
   else
-    abs (Utils.distance bad (Text.unpack possibility))
+    abs (Suggest.distance bad (Text.unpack possibility))
 
 
 

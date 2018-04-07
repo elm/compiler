@@ -13,11 +13,11 @@ import Data.Monoid ((<>))
 import qualified AST.Canonical as Can
 import qualified AST.Utils.Type as Type
 import qualified Elm.Name as N
+import qualified Reporting.Doc as D
 import qualified Reporting.Region as R
 import qualified Reporting.Report as Report
 import qualified Reporting.Render.Code as Code
 import qualified Reporting.Render.Type as RT
-import qualified Reporting.Helpers as H
 
 
 
@@ -44,7 +44,7 @@ toReport source warning =
       Report.Report "unused import" region [] $
         Report.toCodeSnippet source region Nothing
           (
-            H.reflow $
+            D.reflow $
               "Nothing from the `" <> N.toString moduleName <> "` module is used in this file."
           ,
             "I recommend removing unused imports."
@@ -55,14 +55,14 @@ toReport source warning =
       Report.Report title region [] $
         Report.toCodeSnippet source region Nothing
           (
-            H.reflow $
+            D.reflow $
               "You are not using `" <> N.toString name <> "` anywhere."
           ,
-            H.stack
-              [ H.reflow $
+            D.stack
+              [ D.reflow $
                   "Is there a typo? Maybe you intended to use `" <> N.toString name
                   <> "` somewhere but typed another name instead?"
-              , H.reflow $
+              , D.reflow $
                   defOrPat context
                     ( "If you are sure there is no typo, remove the definition.\
                       \ This way future readers will not have to wonder why it is there!"
@@ -77,7 +77,7 @@ toReport source warning =
         Report.Report "missing type annotation" region [] $
           Report.toCodeSnippet source region Nothing
             (
-              H.reflow $
+              D.reflow $
                 case Type.deepDealias inferredType of
                   Can.TLambda _ _ ->
                     "The `" <> N.toString name <> "` function has no type annotation."
@@ -85,10 +85,10 @@ toReport source warning =
                   _ ->
                     "The `" <> N.toString name <> "` definition has no type annotation."
             ,
-              H.stack
+              D.stack
                 [ "I inferred the type annotation myself though! You can copy it into your code:"
-                , H.green $ H.hang 4 $ H.sep $
-                    [ H.nameToDoc name <> " :"
+                , D.green $ D.hang 4 $ D.sep $
+                    [ D.fromName name <> " :"
                     , RT.canToDoc RT.None inferredType
                     ]
                 ]

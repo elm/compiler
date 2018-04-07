@@ -29,7 +29,7 @@ import qualified Elm.Name as N
 import qualified Elm.Project as Project
 import qualified Elm.Package as Pkg
 import qualified Elm.PerUserCache as PerUserCache
-import qualified Elm.Utils as Elm
+import qualified Parse.Repl as Elm
 import qualified Reporting.Task as Task
 import qualified Reporting.Progress.Repl as Repl
 

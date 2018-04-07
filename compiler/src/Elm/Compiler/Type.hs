@@ -16,14 +16,14 @@ module Elm.Compiler.Type
 
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import qualified Text.PrettyPrint.ANSI.Leijen as P
-import Text.PrettyPrint.ANSI.Leijen ((<+>))
 
 import qualified AST.Source as Src
 import qualified Elm.Name as N
 import qualified Parse.Primitives as Parse
 import qualified Parse.Type as Type
 import qualified Reporting.Annotation as A
+import qualified Reporting.Doc as D
+import Reporting.Doc ((<>), (<+>))
 import qualified Json.Decode as Decode
 import qualified Json.Encode as Encode
 import Json.Encode ((==>))
@@ -61,7 +61,7 @@ data Union = Union N.Name [N.Name] [(N.Name, [Type])]
 data Context = None | InType | InFunction
 
 
-toDoc :: Context -> Type -> P.Doc
+toDoc :: Context -> Type -> D.Doc
 toDoc context tipe =
   case tipe of
     Lambda _ _ ->
@@ -69,21 +69,21 @@ toDoc context tipe =
               map (toDoc InFunction) (collectLambdas tipe)
 
             lambda =
-              P.sep [ t, P.sep (map (P.text "->" <+>) ts) ]
+              D.sep [ t, D.sep (map ("->" <+>) ts) ]
         in
             case context of
               None -> lambda
-              _ -> P.parens lambda
+              _ -> "(" <> lambda <> ")"
 
     Var name ->
-        P.text (N.toString name)
+        D.fromName name
 
     Unit ->
         "()"
 
     Tuple a b cs ->
-        P.sep
-          [ P.cat $
+        D.sep
+          [ D.cat $
               [ "(" <+> toDoc None a
               , "," <+> toDoc None b
               ]
@@ -94,19 +94,19 @@ toDoc context tipe =
     Type name args ->
         case args of
           [] ->
-            P.text (N.toString name)
+            D.fromName name
 
           _ ->
             let
               docName =
-                P.text (N.toString name)
+                D.fromName name
 
               application =
-                P.hang 2 $ P.sep (docName : map (toDoc InType) args)
+                D.hang 2 $ D.sep (docName : map (toDoc InType) args)
             in
               case context of
                 InType ->
-                  P.parens application
+                  "(" <> application <> ")"
 
                 _ ->
                   application
@@ -117,23 +117,24 @@ toDoc context tipe =
     Record fields ext ->
       case ext of
         Nothing ->
-          P.sep
-            [ P.cat (zipWith (<+>) ("{" : repeat ",") (map entryToDoc fields))
+          D.sep
+            [ D.cat (zipWith (<+>) ("{" : repeat ",") (map entryToDoc fields))
             , "}"
             ]
 
         Just x ->
-          P.hang 4 $
-            P.sep
-              [ "{" <+> P.text (N.toString x) <+> "|"
-              , P.sep (P.punctuate "," (map entryToDoc fields))
-              , "}"
-              ]
+          D.sep
+            [ D.hang 4 $ D.sep $
+                [ "{" <+> D.fromName x
+                , D.cat (zipWith (<+>) ("|" : repeat ",") (map entryToDoc fields))
+                ]
+            , "}"
+            ]
 
 
-entryToDoc :: (N.Name, Type) -> P.Doc
+entryToDoc :: (N.Name, Type) -> D.Doc
 entryToDoc (field, fieldType) =
-  P.text (N.toString field) <+> ":" <+> toDoc None fieldType
+  D.fromName field <+> ":" <+> toDoc None fieldType
 
 
 collectLambdas :: Type -> [Type]
@@ -149,8 +150,7 @@ collectLambdas tipe =
 
 encode :: Type -> Encode.Value
 encode tipe =
-  Encode.text $ Text.pack $
-    P.displayS (P.renderPretty 1.0 (maxBound `div` 2) (toDoc None tipe)) ""
+  Encode.text $ Text.pack $ D.toLine (toDoc None tipe)
 
 
 decoder :: Decode.Decoder () Type
