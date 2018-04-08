@@ -14,7 +14,10 @@ import qualified System.FilePath as FP
 import qualified Elm.Compiler.Objects as Obj
 import qualified Elm.Project as Project
 import qualified Generate.Output as Output
+import qualified Reporting.Exit as Exit
+import qualified Reporting.Exit.Make as E
 import qualified Reporting.Task as Task
+import qualified Reporting.Progress as Progress
 import qualified Reporting.Progress.Json as Json
 import qualified Reporting.Progress.Terminal as Terminal
 import Terminal.Args (Parser(..), suggestFiles)
@@ -26,7 +29,8 @@ import Terminal.Args (Parser(..), suggestFiles)
 
 data Flags =
   Flags
-    { _optimize :: Bool
+    { _debug :: Bool
+    , _optimize :: Bool
     , _output :: Maybe Output.Output
     , _report :: Maybe ReportType
     , _docs :: Maybe FilePath
@@ -34,23 +38,29 @@ data Flags =
 
 
 run :: [FilePath] -> Flags -> IO ()
-run paths (Flags optimize output report docs) =
-  let
-    mode =
-      if optimize then Obj.Prod else Obj.Dev
-
-    outputOptions =
-      Output.Options mode Obj.Client output
-
-    makeReporter =
-      case report of
-        Nothing -> Terminal.create
-        Just Json -> return Json.reporter
-  in
-  do  reporter <- makeReporter
+run paths (Flags debug optimize output report docs) =
+  do  reporter <- toReporter report
       void $ Task.run reporter $
-        do  summary <- Project.getRoot
-            Project.compile outputOptions docs summary paths
+        do  mode <- toMode debug optimize
+            summary <- Project.getRoot
+            let options = Output.Options mode Obj.Client output
+            Project.compile options docs summary paths
+
+
+toMode :: Bool -> Bool -> Task.Task Obj.Mode
+toMode debug optimize =
+  case (debug, optimize) of
+    (True , True ) -> Task.throw $ Exit.Make E.CannotOptimizeAndDebug
+    (False, True ) -> return Obj.Prod
+    (False, False) -> return Obj.Dev
+    (True , False) -> return Obj.Debug
+
+
+toReporter :: Maybe ReportType -> IO Progress.Reporter
+toReporter report =
+  case report of
+    Nothing -> Terminal.create
+    Just Json -> return Json.reporter
 
 
 

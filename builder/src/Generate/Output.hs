@@ -34,6 +34,7 @@ import qualified Generate.Functions as Functions
 import qualified Generate.Html as Html
 import qualified Generate.Nitpick as Nitpick
 import qualified Reporting.Exit as Exit
+import qualified Reporting.Exit.Make as E
 import qualified Reporting.Task as Task
 import qualified Stuff.Paths as Paths
 import Terminal.Args (Parser(..), suggestFiles)
@@ -61,6 +62,7 @@ generate options summary graph@(Crawl.Graph args _ _ _ _) =
       do  objectGraph <- organize summary graph
 
           case _mode options of
+            Obj.Debug -> return ()
             Obj.Dev -> return ()
             Obj.Prod -> noDebugUses summary objectGraph
 
@@ -163,7 +165,7 @@ noDebugUses (Summary.Summary _ project _ _ _) graph =
       return ()
 
     m:ms ->
-      Task.throw (Exit.CannotOptimizeDebug m ms)
+      Task.throw (Exit.Make (E.CannotOptimizeDebugValues m ms))
 
 
 noDebugUsesInPackage :: Summary.Summary -> Crawl.Result -> Task.Task ()

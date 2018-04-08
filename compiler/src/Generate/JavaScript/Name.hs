@@ -4,6 +4,7 @@ module Generate.JavaScript.Name
   ( Name
   , Mode(..)
   , Target(..)
+  , Debugger(..)
   , isServer
   , toBuilder
   , fromIndex
@@ -53,11 +54,16 @@ newtype Name =
 
 
 data Mode
-  = Dev Target
+  = Dev Target Debugger
   | Prod Target ShortFieldNames
 
 
 data Target = Client | Server
+
+
+data Debugger
+  = DebuggerOn
+  | DebuggerOff
 
 
 type ShortFieldNames =
@@ -67,7 +73,7 @@ type ShortFieldNames =
 isServer :: Mode -> Bool
 isServer mode =
   case mode of
-    Dev target -> isServerHelp target
+    Dev target _ -> isServerHelp target
     Prod target _ -> isServerHelp target
 
 
@@ -124,7 +130,7 @@ fromKernel home name =
 fromField :: Mode -> N.Name -> Name
 fromField mode name =
   case mode of
-    Dev _ ->
+    Dev _ _ ->
       Name (N.toBuilder name)
 
     Prod _ fields ->

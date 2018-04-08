@@ -21,6 +21,7 @@ import qualified Reporting.Exit.Deps as Deps
 import qualified Reporting.Exit.Diff as Diff
 import qualified Reporting.Exit.Help as Help
 import qualified Reporting.Exit.Http as Http
+import qualified Reporting.Exit.Make as Make
 import qualified Reporting.Exit.Publish as Publish
 
 
@@ -37,13 +38,12 @@ data Exit
   | Cycle [Module.Raw] -- TODO write docs to help with this scenario
   | Deps Deps.Exit
   | Diff Diff.Exit
+  | Make Make.Exit
   | Publish Publish.Exit
   | BadHttp String Http.Exit
 
   -- misc
   | NoSolution [Pkg.Name]
-  | CannotMakeNothing
-  | CannotOptimizeDebug Module.Raw [Module.Raw]
 
 
 
@@ -86,17 +86,17 @@ toReport exit =
             "Whatever your scenario, I hope you have a lovely time using Elm!"
         ]
 
-    Assets assetError ->
-      Asset.toReport assetError
+    Assets assetExit ->
+      Asset.toReport assetExit
 
-    Bump bumpError ->
-      Bump.toReport bumpError
+    Bump bumpExit ->
+      Bump.toReport bumpExit
 
     Compile e es ->
       Help.compilerReport e es
 
-    Crawl crawlError ->
-      Crawl.toReport crawlError
+    Crawl crawlExit ->
+      Crawl.toReport crawlExit
 
     Cycle names ->
       Help.report "IMPORT CYCLE" Nothing
@@ -107,17 +107,20 @@ toReport exit =
             ++ D.makeLink "import-cycles"
         ]
 
-    Deps depsError ->
-      Deps.toReport depsError
+    Deps depsExit ->
+      Deps.toReport depsExit
 
-    Diff commandsError ->
-      Diff.toReport commandsError
+    Diff commandsExit ->
+      Diff.toReport commandsExit
 
-    Publish publishError ->
-      Publish.toReport publishError
+    Make makeExit ->
+      Make.toReport makeExit
 
-    BadHttp url httpError ->
-      Http.toReport url httpError
+    Publish publishExit ->
+      Publish.toReport publishExit
+
+    BadHttp url httpExit ->
+      Http.toReport url httpExit
 
     NoSolution badPackages ->
       case badPackages of
@@ -148,36 +151,3 @@ toReport exit =
                 \ goals, etc. They face obstacles outside of their technical work you will never\
                 \ know about, so please assume the best and try to be patient and supportive!"
             ]
-
-    CannotMakeNothing ->
-      Help.report "NO INPUT" Nothing
-        "What should I make though? I need more information, like:"
-        [ D.vcat
-            [ D.indent 4 $ D.green "elm make MyThing.elm"
-            , D.indent 4 $ D.green "elm make This.elm That.elm"
-            ]
-        , D.reflow
-            "However many files you give, I will create one JS file out of them."
-        ]
-
-    CannotOptimizeDebug m ms ->
-      Help.report "DEBUG REMNANTS" Nothing
-      "There are uses of the `Debug` module in the following modules:"
-        [ D.indent 4 $ D.red $ D.vcat $ map (D.fromString . Module.nameToString) (m:ms)
-        , D.reflow "But the --optimize flag only works if all `Debug` functions are removed!"
-        , D.toSimpleNote $
-            "The issue is that --optimize strips out info needed by `Debug` functions.\
-            \ Here are two examples:"
-        , D.indent 4 $ D.reflow $
-            "(1) It shortens record field names. This makes the generated JavaScript is\
-            \ smaller, but `Debug.toString` cannot know the real field names anymore."
-        , D.indent 4 $ D.reflow $
-            "(2) Values like `type Height = Height Float` are unboxed. This reduces\
-            \ allocation, but it also means that `Debug.toString` cannot tell if it is\
-            \ looking at a `Height` or `Float` value."
-        , D.reflow $
-            "There are a few other cases like that, and it will be much worse once we start\
-            \ inlining code. That optimization could move `Debug.log` and `Debug.todo` calls,\
-            \ resulting in unpredictable behavior. I hope that clarifies why this restriction\
-            \ exists!"
-        ]

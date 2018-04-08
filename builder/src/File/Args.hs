@@ -11,6 +11,7 @@ import qualified Elm.Compiler.Module as Module
 import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Summary as Summary
 import qualified Reporting.Exit as Exit
+import qualified Reporting.Exit.Make as E
 import qualified Reporting.Task as Task
 
 
@@ -36,4 +37,4 @@ fromSummary (Summary.Summary _ project _ _ _) =
       return $ Pkg (Project.getExposed info)
 
     Project.App _ ->
-      Task.throw Exit.CannotMakeNothing
+      Task.throw (Exit.Make E.CannotMakeNothing)
