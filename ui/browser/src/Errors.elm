@@ -88,10 +88,41 @@ viewProblem filePath problem =
       "-- " ++ problem.title ++ " " ++ String.padLeft leftover '-' (" " ++ filePath) ++ "\n\n"
   in
   span []
-    ( span [ style "color" "cyan" ] [ text header ]
+    ( span [ style "color" "rgb(51,187,200)" ] [ text header ]
       :: viewMessage problem.message
     )
 
+
+{-
+toDocHelp :: Exit -> [Exit] -> [D.Doc]
+toDocHelp e1 exits =
+  case exits of
+    [] ->
+      [exitToDoc e1]
+
+    e2 : otherErrors ->
+      exitToDoc e1 : separator (_name e1) (_name e2) : toDocHelp e2 otherErrors
+
+
+exitToDoc :: Exit -> D.Doc
+exitToDoc (Exit _name path _time source errors) =
+  Compiler.errorsToDoc path source errors
+
+
+separator :: Module.Raw -> Module.Raw -> D.Doc
+separator beforeName afterName =
+  let
+    before = Module.nameToString beforeName ++ "  ↑    "
+    after  = "    ↓  " ++  Module.nameToString afterName
+  in
+    D.dullred $ D.vcat $
+      [ D.indent (80 - length before) (D.fromString before)
+      , "====o======================================================================o===="
+      , D.fromString after
+      , D.empty
+      , D.empty
+      ]
+-}
 
 
 -- VIEW MESSAGE
