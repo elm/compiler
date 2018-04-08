@@ -49,14 +49,14 @@ viewError error =
     , style "display" "flex"
     , style "flex-direction" "column"
     , style "align-items" "center"
-    , style "background-color" "black"
+    , style "background-color" "rgb(39, 40, 34)"
     , style "color" "rgb(233, 235, 235)"
     , style "font-family" "monospace"
     ]
     [ div
         [ style "display" "block"
         , style "white-space" "pre-wrap"
-        , style "background-color" "rgb(39, 40, 34)"
+        , style "background-color" "black"
         , style "padding" "2em"
         ]
         (viewErrorHelp error)
@@ -92,37 +92,6 @@ viewProblem filePath problem =
       :: viewMessage problem.message
     )
 
-
-{-
-toDocHelp :: Exit -> [Exit] -> [D.Doc]
-toDocHelp e1 exits =
-  case exits of
-    [] ->
-      [exitToDoc e1]
-
-    e2 : otherErrors ->
-      exitToDoc e1 : separator (_name e1) (_name e2) : toDocHelp e2 otherErrors
-
-
-exitToDoc :: Exit -> D.Doc
-exitToDoc (Exit _name path _time source errors) =
-  Compiler.errorsToDoc path source errors
-
-
-separator :: Module.Raw -> Module.Raw -> D.Doc
-separator beforeName afterName =
-  let
-    before = Module.nameToString beforeName ++ "  ↑    "
-    after  = "    ↓  " ++  Module.nameToString afterName
-  in
-    D.dullred $ D.vcat $
-      [ D.indent (80 - length before) (D.fromString before)
-      , "====o======================================================================o===="
-      , D.fromString after
-      , D.empty
-      , D.empty
-      ]
--}
 
 
 -- VIEW MESSAGE
