@@ -16,6 +16,7 @@ module Terminal.Args
 import Control.Monad (filterM)
 import qualified Data.Char as Char
 import qualified Data.List as List
+import qualified Data.Maybe as Maybe
 import qualified System.Directory as Dir
 import qualified System.Environment as Env
 import qualified System.Exit as Exit
@@ -295,16 +296,23 @@ suggestFiles extensions string =
       FP.splitFileName string
   in
   do  content <- Dir.getDirectoryContents dir
-      filterM (isPossibleSuggestion extensions start dir) content
+      Maybe.catMaybes
+        <$> traverse (isPossibleSuggestion extensions start dir) content
 
 
-isPossibleSuggestion :: [String] -> String -> FilePath -> FilePath -> IO Bool
+isPossibleSuggestion :: [String] -> String -> FilePath -> FilePath -> IO (Maybe FilePath)
 isPossibleSuggestion extensions start dir path =
   if List.isPrefixOf start path then
     do  isDir <- Dir.doesDirectoryExist (dir </> path)
-        return (isDir || isOkayExtension path extensions)
+        return $
+          if isDir then
+            Just (path ++ "/")
+          else if isOkayExtension path extensions then
+            Just path
+          else
+            Nothing
   else
-    return False
+    return Nothing
 
 
 isOkayExtension :: FilePath -> [String] -> Bool

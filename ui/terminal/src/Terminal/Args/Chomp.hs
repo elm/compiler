@@ -438,9 +438,9 @@ suggestFlag unknownFlags flags targetIndex =
     [] ->
       Nothing
 
-    Chunk index _ : otherUnknownFlags ->
+    Chunk index string : otherUnknownFlags ->
       if index == targetIndex then
-        Just (return (map ("--" ++) (getFlagNames flags [])))
+        Just (return (filter (List.isPrefixOf string) (getFlagNames flags [])))
       else
         suggestFlag otherUnknownFlags flags targetIndex
 
@@ -464,10 +464,10 @@ getFlagName :: Flag a -> String
 getFlagName flag =
   case flag of
     Flag name _ _ ->
-      name
+      "--" ++ name ++ "="
 
     OnOff name _ ->
-      name
+      "--" ++ name
 
 
 
