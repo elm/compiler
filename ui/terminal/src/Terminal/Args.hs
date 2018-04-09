@@ -118,20 +118,18 @@ maybeAutoComplete args getSuggestions =
 getCompIndex :: String -> IO (Int, [String])
 getCompIndex line =
   do  maybePoint <- Env.lookupEnv "COMP_POINT"
-      case Read.readMaybe =<< maybePoint :: Maybe Int of
+      case Read.readMaybe =<< maybePoint of
         Nothing ->
           do  let chunks = words line
               return (length chunks, chunks)
 
         Just point ->
           let
-            isPoint (_,i) = i == point
             groups = List.groupBy grouper (zip line [0..])
             rawChunks = drop 1 (filter (all (not . isSpace . fst)) groups)
-            maybeIndex = List.findIndex (any isPoint) rawChunks
           in
           return
-            ( maybe (length rawChunks) id maybeIndex
+            ( findIndex 1 point rawChunks
             , map (map fst) rawChunks
             )
 
@@ -146,6 +144,25 @@ isSpace char =
   char == ' ' || char == '\t' || char == '\n'
 
 
+findIndex :: Int -> Int -> [[(Char,Int)]] -> Int
+findIndex index point chunks =
+  case chunks of
+    [] ->
+      index
+
+    chunk:cs ->
+      let
+        lo = snd (head chunk)
+        hi = snd (last chunk)
+      in
+      if point < lo then
+        0
+      else if point <= hi + 1 then
+        index
+      else
+        findIndex (index + 1) point cs
+
+
 complexSuggest :: [Interface] -> Int -> [String] -> IO [String]
 complexSuggest interfaces index strings =
   case strings of
@@ -153,15 +170,15 @@ complexSuggest interfaces index strings =
       return (map toName interfaces)
 
     command : chunks ->
-      case List.find (\iface -> toName iface == command) interfaces of
-        Nothing ->
-          if index == 1 then
-            return (filter (List.isPrefixOf command) (map toName interfaces))
-          else
+      if index == 1 then
+        return (filter (List.isPrefixOf command) (map toName interfaces))
+      else
+        case List.find (\iface -> toName iface == command) interfaces of
+          Nothing ->
             return []
 
-        Just (Interface _ _ _ _ args_ flags_ _) ->
-          fst $ Chomp.chomp (Just (index-1)) chunks args_ flags_
+          Just (Interface _ _ _ _ args_ flags_ _) ->
+            fst $ Chomp.chomp (Just (index-1)) chunks args_ flags_
 
 
 
