@@ -454,7 +454,7 @@ getFlagNames :: Flags a -> [String] -> [String]
 getFlagNames flags names =
   case flags of
     FDone _ ->
-      names
+      "--help" : names
 
     FMore subFlags flag ->
       getFlagNames subFlags (getFlagName flag : names)
