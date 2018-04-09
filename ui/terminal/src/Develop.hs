@@ -156,35 +156,29 @@ serveCode file =
 serveElm :: FilePath -> Snap ()
 serveElm file =
   do  guard (takeExtension file == ".elm")
+      modifyResponse (setContentType "text/html")
+      writeBuilder =<< liftIO (compileToHtmlBuilder file)
 
-      result <- liftIO $
-        do  mvar <- newEmptyMVar
 
-            let reporter = Progress.Reporter (\_ -> return ()) (putMVar mvar)
+compileToHtmlBuilder :: FilePath -> IO B.Builder
+compileToHtmlBuilder file =
+  do  mvar1 <- newEmptyMVar
+      mvar2 <- newEmptyMVar
 
-            void $ Task.run reporter $
-              do  summary <- Project.getRoot
-                  Project.compile options Nothing summary [file]
+      let reporter = Progress.Reporter (\_ -> return ()) (putMVar mvar1)
+      let options = Output.Options Obj.Dev Obj.Client (Just (Output.HtmlBuilder mvar2))
 
-            takeMVar mvar
+      void $ Task.run reporter $
+        do  summary <- Project.getRoot
+            Project.compile options Nothing summary [file]
 
+      result <- takeMVar mvar1
       case result of
         Just exit ->
-          do  modifyResponse (setContentType "text/html")
-              writeBuilder $
-                Generate.makePageHtml "Errors" (Encode.encode (Exit.toJson exit))
+          return $ Generate.makePageHtml "Errors" (Encode.encode (Exit.toJson exit))
 
         Nothing ->
-          serveFileAs "text/html" (Path.temp "html")
-
-
-options :: Output.Options
-options =
-  let
-    (directory, filePath) = FP.splitFileName (Path.temp "html")
-    output = Output.Html (Just directory) filePath
-  in
-  Output.Options Obj.Dev Obj.Client (Just output)
+          takeMVar mvar2
 
 
 

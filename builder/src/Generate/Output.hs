@@ -11,6 +11,7 @@ module Generate.Output
   where
 
 
+import Control.Concurrent.MVar (MVar, putMVar)
 import Control.Monad.Trans (liftIO)
 import qualified Data.ByteString.Builder as B
 import qualified Data.Map as Map
@@ -81,7 +82,7 @@ generateMonolith (Options mode target maybeOutput) (Summary.Summary _ project _ 
         Obj.None ->
           return ()
 
-        Obj.Some name names builder ->
+        Obj.Some name _names builder ->
           let
             monolith =
               "(function(scope){\n'use strict';"
@@ -92,21 +93,21 @@ generateMonolith (Options mode target maybeOutput) (Summary.Summary _ project _ 
             Nothing ->
               IO.writeBuilder "elm.js" monolith
 
-            Just None ->
-              return ()
+            Just output_ ->
+              case output_ of
+                None ->
+                  return ()
 
-            Just (JavaScript maybeDir fileName) ->
-              do  path <- toWritablePath maybeDir fileName
-                  IO.writeBuilder path monolith
+                JavaScript maybeDir fileName ->
+                  do  path <- toWritablePath maybeDir fileName
+                      IO.writeBuilder path monolith
 
-            Just (Html maybeDir fileName) ->
-              case names of
-                [] ->
+                HtmlBuilder mvar ->
+                  putMVar mvar (Html.sandwich name monolith)
+
+                Html maybeDir fileName ->
                   do  path <- toWritablePath maybeDir fileName
                       IO.writeBuilder path (Html.sandwich name monolith)
-
-                _:_ ->
-                  return ()
 
 
 
@@ -181,6 +182,7 @@ data Output
   = None
   | Html (Maybe FilePath) FilePath
   | JavaScript (Maybe FilePath) FilePath
+  | HtmlBuilder (MVar B.Builder)
 
 
 toWritablePath :: Maybe FilePath -> FilePath -> IO FilePath
