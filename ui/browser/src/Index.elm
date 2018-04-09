@@ -141,21 +141,25 @@ viewFiles : List String -> List File -> Html msg
 viewFiles dirs files =
   Skeleton.box
     { title = "File Navigation"
-    , items = List.map viewDir dirs ++ List.map viewFile files
+    , items = List.filterMap viewDir dirs ++ List.filterMap viewFile files
     , footer = Nothing
     }
 
 
-viewDir : String -> List (Html msg)
+viewDir : String -> Maybe (List (Html msg))
 viewDir dir =
-  [ a [ href dir ] [ Icon.folder, text dir ]
-  ]
+  if String.startsWith "." dir || dir == "elm-stuff" then
+    Nothing
+  else
+    Just [ a [ href dir ] [ Icon.folder, text dir ] ]
 
 
-viewFile : File -> List (Html msg)
+viewFile : File -> Maybe (List (Html msg))
 viewFile {name} =
-  [ a [ href name ] [ Icon.lookup name, text name ]
-  ]
+  if String.startsWith "." name then
+    Nothing
+  else
+    Just [ a [ href name ] [ Icon.lookup name, text name ] ]
 
 
 
