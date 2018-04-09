@@ -38,7 +38,7 @@ import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Make as E
 import qualified Reporting.Task as Task
 import qualified Stuff.Paths as Paths
-import Terminal.Args (Parser(..), suggestFiles)
+import Terminal.Args (Parser(..))
 
 
 
@@ -206,7 +206,7 @@ output =
     { _singular = "output file"
     , _plural = "output files"
     , _parser = parseOutput
-    , _suggest = suggestFiles ["js","html"]
+    , _suggest = \_ -> return []
     , _examples = exampleOutput
     }
 

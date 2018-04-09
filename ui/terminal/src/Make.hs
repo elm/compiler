@@ -20,7 +20,7 @@ import qualified Reporting.Task as Task
 import qualified Reporting.Progress as Progress
 import qualified Reporting.Progress.Json as Json
 import qualified Reporting.Progress.Terminal as Terminal
-import Terminal.Args (Parser(..), suggestFiles)
+import Terminal.Args (Parser(..))
 
 
 
@@ -92,6 +92,6 @@ docsFile =
     { _singular = "json file"
     , _plural = "json files"
     , _parser = \string -> if FP.takeExtension string == ".json" then Just string else Nothing
-    , _suggest = suggestFiles ["json"]
+    , _suggest = \_ -> return []
     , _examples = \_ -> return ["docs.json","documentation.json"]
     }

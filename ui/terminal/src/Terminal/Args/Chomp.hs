@@ -464,7 +464,7 @@ getFlagName :: Flag a -> String
 getFlagName flag =
   case flag of
     Flag name _ _ ->
-      "--" ++ name ++ "="
+      "--" ++ name
 
     OnOff name _ ->
       "--" ++ name

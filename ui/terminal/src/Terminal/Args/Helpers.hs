@@ -11,7 +11,7 @@ import qualified Data.Char as Char
 import qualified Data.Text as Text
 import qualified System.FilePath as FP
 
-import Terminal.Args (Parser(..), suggestFiles)
+import Terminal.Args (Parser(..))
 import qualified Elm.Package as Pkg
 
 
@@ -67,7 +67,7 @@ elmFile =
     { _singular = "elm file"
     , _plural = "elm files"
     , _parser = parseElmFile
-    , _suggest = suggestFiles ["elm"]
+    , _suggest = \_ -> return []
     , _examples = exampleElmFiles
     }
 

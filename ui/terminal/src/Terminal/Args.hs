@@ -5,7 +5,7 @@ module Terminal.Args
   , complex
   , Flags, noFlags, flags, (|--)
   , Flag, flag, onOff
-  , Parser(..), suggestFiles
+  , Parser(..)
   , Args, noArgs, required, optional, zeroOrMore, oneOrMore, oneOf
   , require0, require1, require2, require3, require4, require5
   , RequiredArgs, args, exactly, (!), (?), (...)
@@ -13,7 +13,7 @@ module Terminal.Args
   where
 
 
-import Control.Monad (filterM)
+import Control.Monad (filterM, when)
 import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
@@ -22,8 +22,9 @@ import qualified System.Environment as Env
 import qualified System.Exit as Exit
 import qualified System.FilePath as FP
 import System.FilePath ((</>))
-import System.IO (hPutStrLn, stdout)
+import System.IO (hPutStr, hPutStrLn, stdout)
 import qualified Text.PrettyPrint.ANSI.Leijen as P
+import qualified Text.Read as Read
 
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Package as Pkg
@@ -40,10 +41,6 @@ simple :: String -> P.Doc -> Args args -> Flags flags -> (args -> flags -> IO ()
 simple details example args_ flags_ callback =
   do  argStrings <- Env.getArgs
       case argStrings of
-        "autocomplete" : number : chunks ->
-          attemptAutoComplete number $ \index ->
-            fst $ Chomp.chomp (Just index) chunks args_ flags_
-
         ["--version"] ->
           do  hPutStrLn stdout (Pkg.versionToString Compiler.version)
               Exit.exitSuccess
@@ -53,12 +50,15 @@ simple details example args_ flags_ callback =
             Error.exitWithHelp Nothing details example args_ flags_
 
           else
-            case snd $ Chomp.chomp Nothing chunks args_ flags_ of
-              Right (argsValue, flagValue) ->
-                callback argsValue flagValue
+            do  maybeAutoComplete chunks $ \index cs ->
+                  fst $ Chomp.chomp (Just index) cs args_ flags_
 
-              Left err ->
-                Error.exitWithError err
+                case snd $ Chomp.chomp Nothing chunks args_ flags_ of
+                  Right (argsValue, flagValue) ->
+                    callback argsValue flagValue
+
+                  Left err ->
+                    Error.exitWithError err
 
 
 complex :: P.Doc -> P.Doc -> [Interface] -> IO ()
@@ -75,44 +75,79 @@ complex intro outro interfaces =
           do  hPutStrLn stdout (Pkg.versionToString Compiler.version)
               Exit.exitSuccess
 
-        "autocomplete" : number : chunks ->
-          attemptAutoComplete number $ \index ->
-            complexSuggest index chunks interfaces
-
         command : chunks ->
-          case List.find (\iface -> toName iface == command) interfaces of
-            Nothing ->
-              Error.exitWithUnknown command (map toName interfaces)
+          do  maybeAutoComplete argStrings (complexSuggest interfaces)
+              case List.find (\iface -> toName iface == command) interfaces of
+                Nothing ->
+                  Error.exitWithUnknown command (map toName interfaces)
 
-            Just (Interface _ _ details example args_ flags_ callback) ->
-              if elem "--help" chunks then
-                Error.exitWithHelp (Just command) details example args_ flags_
+                Just (Interface _ _ details example args_ flags_ callback) ->
+                  if elem "--help" chunks then
+                    Error.exitWithHelp (Just command) details example args_ flags_
 
-              else
-                case snd $ Chomp.chomp Nothing chunks args_ flags_ of
-                  Right (argsValue, flagValue) ->
-                    callback argsValue flagValue
+                  else
+                    case snd $ Chomp.chomp Nothing chunks args_ flags_ of
+                      Right (argsValue, flagValue) ->
+                        callback argsValue flagValue
 
-                  Left err ->
-                    Error.exitWithError err
+                      Left err ->
+                        Error.exitWithError err
 
 
 
 -- AUTO-COMPLETE
 
 
-attemptAutoComplete :: String -> (Int -> IO [String]) -> IO a
-attemptAutoComplete number getSuggestions =
-  if all Char.isDigit number then
-    do  suggestions <- getSuggestions (read number)
-        hPutStrLn stdout (List.intercalate " " suggestions)
-        Exit.exitSuccess
+maybeAutoComplete :: [String] -> (Int -> [String] -> IO [String]) -> IO ()
+maybeAutoComplete args getSuggestions =
+  if length args /= 3 then
+    return ()
   else
-    Exit.exitFailure
+    do  maybeLine <- Env.lookupEnv "COMP_LINE"
+        case maybeLine of
+          Nothing ->
+            return ()
+
+          Just line ->
+            do  (index, chunks) <- getCompIndex line
+                suggestions <- getSuggestions index chunks
+                hPutStr stdout (unlines suggestions)
+                Exit.exitFailure
 
 
-complexSuggest :: Int -> [String] -> [Interface] -> IO [String]
-complexSuggest index strings interfaces =
+getCompIndex :: String -> IO (Int, [String])
+getCompIndex line =
+  do  maybePoint <- Env.lookupEnv "COMP_POINT"
+      case Read.readMaybe =<< maybePoint :: Maybe Int of
+        Nothing ->
+          do  let chunks = words line
+              return (length chunks, chunks)
+
+        Just point ->
+          let
+            isPoint (_,i) = i == point
+            groups = List.groupBy grouper (zip line [0..])
+            rawChunks = drop 1 (filter (all (not . isSpace . fst)) groups)
+            maybeIndex = List.findIndex (any isPoint) rawChunks
+          in
+          return
+            ( maybe (length rawChunks) id maybeIndex
+            , map (map fst) rawChunks
+            )
+
+
+grouper :: (Char, Int) -> (Char, Int) -> Bool
+grouper (c1, _) (c2, _) =
+  isSpace c1 == isSpace c2
+
+
+isSpace :: Char -> Bool
+isSpace char =
+  char == ' ' || char == '\t' || char == '\n'
+
+
+complexSuggest :: [Interface] -> Int -> [String] -> IO [String]
+complexSuggest interfaces index strings =
   case strings of
     [] ->
       return (map toName interfaces)
@@ -120,7 +155,10 @@ complexSuggest index strings interfaces =
     command : chunks ->
       case List.find (\iface -> toName iface == command) interfaces of
         Nothing ->
-          return (map toName interfaces)
+          if index == 1 then
+            return (filter (List.isPrefixOf command) (map toName interfaces))
+          else
+            return []
 
         Just (Interface _ _ _ _ args_ flags_ _) ->
           fst $ Chomp.chomp (Just (index-1)) chunks args_ flags_
@@ -289,8 +327,8 @@ Notice that you can limit the suggestion by the file extension! If you need
 something more elaborate, you can implement a function like this yourself that
 does whatever you need!
 -}
-suggestFiles :: [String] -> String -> IO [String]
-suggestFiles extensions string =
+_suggestFiles :: [String] -> String -> IO [String]
+_suggestFiles extensions string =
   let
     (dir, start) =
       FP.splitFileName string
