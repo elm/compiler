@@ -30,6 +30,8 @@ import qualified Elm.Project as Project
 import qualified Elm.Package as Pkg
 import qualified Elm.PerUserCache as PerUserCache
 import qualified Parse.Repl as Elm
+import Reporting.Doc ((<+>))
+import qualified Reporting.Doc as D
 import qualified Reporting.Task as Task
 import qualified Reporting.Progress.Repl as Repl
 
@@ -48,7 +50,7 @@ run :: () -> Flags -> IO ()
 run () (Flags maybeAlternateInterpreter) =
   do  interpreter <- getInterpreter maybeAlternateInterpreter
       _ <- Project.getRootWithReplFallback
-      putStrLn welcomeMessage
+      printWelcomeMessage
       settings <- initSettings
       let manager = Repl.runInputT settings (Repl.withInterrupt loop)
       (exitCode,_,_) <- RWS.runRWST manager interpreter initalState
@@ -308,15 +310,19 @@ addMatch string isFinished name _ completions =
 -- WELCOME
 
 
-welcomeMessage :: String
-welcomeMessage =
+printWelcomeMessage :: IO ()
+printWelcomeMessage =
   let
-    starter =
-      "---- Elm " ++ elmVersion ++ " "
+    title = "Elm" <+> D.fromString elmVersion
+    dashes = replicate (70 - length elmVersion) '-'
   in
-    starter ++ replicate (80 - length starter) '-' ++ "\n"
-    ++ " :help for help, :exit to exit, more at <https://github.com/elm-lang/elm-repl>\n"
-    ++ "--------------------------------------------------------------------------------"
+  D.toAnsi IO.stdout $
+    D.vcat
+      [ D.black "----" <+> D.dullcyan title <+> D.black (D.fromString dashes)
+      , D.black " :help for help, :exit to exit, more at <https://github.com/elm-lang/elm-repl>"
+      , D.black "--------------------------------------------------------------------------------"
+      , D.empty
+      ]
 
 
 elmVersion :: String
