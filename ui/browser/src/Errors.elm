@@ -67,30 +67,60 @@ viewErrorHelp : Error.Error -> List (Html msg)
 viewErrorHelp error =
   case error of
     Error.GeneralProblem { path, title, message } ->
-      [ text title ]
+      viewHeader title path :: viewMessage message
 
     Error.ModuleProblems badModules ->
-      List.map viewBadModule badModules
+      viewBadModules badModules
+
+
+
+-- VIEW HEADER
+
+
+viewHeader : String -> String -> Html msg
+viewHeader title filePath =
+  let
+    leftover = 76 - String.length title
+    header = "-- " ++ title ++ " " ++ String.padLeft leftover '-' (" " ++ filePath) ++ "\n\n"
+  in
+  span [ style "color" "rgb(51,187,200)" ] [ text header ]
+
+
+
+-- VIEW BAD MODULES
+
+
+viewBadModules : List Error.BadModule -> List (Html msg)
+viewBadModules badModules =
+  case badModules of
+    [] ->
+      []
+
+    [badModule] ->
+      [viewBadModule badModule]
+
+    a :: b :: cs ->
+      viewBadModule a :: viewSeparator a.name b.name :: viewBadModules (b :: cs)
 
 
 viewBadModule : Error.BadModule -> Html msg
-viewBadModule { path, name, problems } =
+viewBadModule { path, problems } =
   span [] (List.map (viewProblem path) problems)
 
 
 viewProblem : String -> Error.Problem -> Html msg
 viewProblem filePath problem =
-  let
-    leftover =
-      76 - String.length problem.title
+  span [] (viewHeader problem.title filePath :: viewMessage problem.message)
 
-    header =
-      "-- " ++ problem.title ++ " " ++ String.padLeft leftover '-' (" " ++ filePath) ++ "\n\n"
-  in
-  span []
-    ( span [ style "color" "rgb(51,187,200)" ] [ text header ]
-      :: viewMessage problem.message
-    )
+
+viewSeparator : String -> String -> Html msg
+viewSeparator before after =
+  span [ style "color" "rgb(211,56,211)" ]
+    [ text <|
+        String.padLeft 80 ' ' (before ++ "  ↑    ") ++ "\n" ++
+        "====o======================================================================o====\n" ++
+        "    ↓  " ++ after ++ "\n\n\n"
+    ]
 
 
 
@@ -101,7 +131,7 @@ viewMessage : List Error.Chunk -> List (Html msg)
 viewMessage chunks =
   case chunks of
     [] ->
-      []
+      [ text "\n\n\n" ]
 
     chunk :: others ->
       let
