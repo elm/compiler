@@ -167,6 +167,7 @@ Executable elm
         Generate.JavaScript,
         Generate.JavaScript.Builder,
         Generate.JavaScript.Expression,
+        Generate.JavaScript.Mode,
         Generate.JavaScript.Name,
         Json.Decode.Error,
         Json.Decode.Internals,
