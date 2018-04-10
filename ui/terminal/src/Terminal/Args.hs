@@ -13,8 +13,6 @@ module Terminal.Args
   where
 
 
-import Control.Monad (filterM, when)
-import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 import qualified System.Directory as Dir
@@ -99,8 +97,8 @@ complex intro outro interfaces =
 
 
 maybeAutoComplete :: [String] -> (Int -> [String] -> IO [String]) -> IO ()
-maybeAutoComplete args getSuggestions =
-  if length args /= 3 then
+maybeAutoComplete argStrings getSuggestions =
+  if length argStrings /= 3 then
     return ()
   else
     do  maybeLine <- Env.lookupEnv "COMP_LINE"
