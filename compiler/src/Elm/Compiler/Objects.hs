@@ -1,8 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 module Elm.Compiler.Objects
-  ( Name.Target(..)
-  , JS.Mode(..)
-  , JS.Output(..)
+  ( JS.Output(..)
   , JS.generate
   , JS.generateForRepl
   , Opt.Graph
@@ -23,7 +21,6 @@ import qualified AST.Module.Name as ModuleName
 import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 import qualified Generate.JavaScript as JS
-import qualified Generate.JavaScript.Name as Name
 
 
 

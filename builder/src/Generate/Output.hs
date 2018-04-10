@@ -1,10 +1,11 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Generate.Output
-  ( generate
+  ( Mode(..)
+  , Mode.Target(..)
+  , generate
   , generateReplFile
   , noDebugUsesInPackage
-  , Options(..)
   , Output(..)
   , output
   )
@@ -34,6 +35,7 @@ import qualified File.IO as IO
 import qualified Generate.Functions as Functions
 import qualified Generate.Html as Html
 import qualified Generate.Nitpick as Nitpick
+import qualified Generate.JavaScript.Mode as Mode
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Make as E
 import qualified Reporting.Task as Task
@@ -45,16 +47,11 @@ import Terminal.Args (Parser(..))
 -- GENERATE
 
 
-data Options =
-  Options
-    { _mode :: Obj.Mode
-    , _target :: Obj.Target
-    , _output :: Maybe Output
-    }
+data Mode = Debug | Dev | Prod
 
 
-generate :: Options -> Summary.Summary -> Crawl.Result -> Task.Task ()
-generate options summary graph@(Crawl.Graph args _ _ _ _) =
+generate :: Mode -> Mode.Target -> Maybe Output -> Summary.Summary -> Crawl.Result -> Task.Task ()
+generate mode target maybeOutput summary graph@(Crawl.Graph args _ _ _ _) =
   case args of
     Args.Pkg _ ->
       return ()
@@ -62,23 +59,26 @@ generate options summary graph@(Crawl.Graph args _ _ _ _) =
     Args.Roots name names ->
       do  objectGraph <- organize summary graph
 
-          case _mode options of
-            Obj.Debug -> return ()
-            Obj.Dev -> return ()
-            Obj.Prod -> noDebugUses summary objectGraph
+          realMode <-
+            case mode of
+              Debug -> return (Mode.debug target (error "TODO"))
+              Dev -> return (Mode.dev target)
+              Prod ->
+                do  noDebugUses summary objectGraph
+                    return (Mode.prod target objectGraph)
 
-          generateMonolith options summary objectGraph (name:names)
+          generateMonolith realMode maybeOutput summary objectGraph (name:names)
 
 
 
 -- GENERATE MONOLITH
 
 
-generateMonolith :: Options -> Summary.Summary -> Obj.Graph -> [Module.Raw] -> Task.Task ()
-generateMonolith (Options mode target maybeOutput) (Summary.Summary _ project _ ifaces _) graph rootNames =
+generateMonolith :: Mode.Mode -> Maybe Output -> Summary.Summary -> Obj.Graph -> [Module.Raw] -> Task.Task ()
+generateMonolith mode maybeOutput (Summary.Summary _ project _ _ _) graph rootNames =
   do  let pkg = Project.getName project
       let roots = map (Module.Canonical pkg) rootNames
-      case Obj.generate mode target ifaces graph roots of
+      case Obj.generate mode graph roots of
         Obj.None ->
           return ()
 

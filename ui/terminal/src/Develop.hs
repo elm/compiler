@@ -20,7 +20,6 @@ import Snap.Core
 import Snap.Http.Server
 import Snap.Util.FileServe
 
-import qualified Elm.Compiler.Objects as Obj
 import qualified Elm.Project as Project
 import qualified Develop.Generate.Help as Generate
 import qualified Develop.Generate.Index as Index
@@ -30,7 +29,6 @@ import qualified Json.Encode as Encode
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Progress as Progress
 import qualified Reporting.Task as Task
-import qualified Stuff.Paths as Path
 
 
 
@@ -166,11 +164,11 @@ compileToHtmlBuilder file =
       mvar2 <- newEmptyMVar
 
       let reporter = Progress.Reporter (\_ -> return ()) (putMVar mvar1)
-      let options = Output.Options Obj.Dev Obj.Client (Just (Output.HtmlBuilder mvar2))
+      let output = Just (Output.HtmlBuilder mvar2)
 
       void $ Task.run reporter $
         do  summary <- Project.getRoot
-            Project.compile options Nothing summary [file]
+            Project.compile Output.Dev Output.Client output Nothing summary [file]
 
       result <- takeMVar mvar1
       case result of

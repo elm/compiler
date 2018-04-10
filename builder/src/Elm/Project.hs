@@ -48,15 +48,22 @@ getRootWithReplFallback =
 -- COMPILE
 
 
-compile :: Output.Options -> Maybe FilePath -> Summary -> [FilePath] -> Task.Task ()
-compile options docs summary@(Summary.Summary root project _ _ _) paths =
+compile
+  :: Output.Mode
+  -> Output.Target
+  -> Maybe Output.Output
+  -> Maybe FilePath
+  -> Summary
+  -> [FilePath]
+  -> Task.Task ()
+compile mode target maybeOutput docs summary@(Summary.Summary root project _ _ _) paths =
   do  args <- Args.fromPaths summary paths
       graph <- Crawl.crawl summary args
       (dirty, ifaces) <- Plan.plan docs summary graph
       answers <- Compile.compile project docs ifaces dirty
       results <- Artifacts.write root answers
       _ <- traverse (Artifacts.writeDocs results) docs
-      Output.generate options summary graph
+      Output.generate mode target maybeOutput summary graph
 
 
 

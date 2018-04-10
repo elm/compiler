@@ -11,7 +11,6 @@ module Make
 import Control.Monad (void)
 import qualified System.FilePath as FP
 
-import qualified Elm.Compiler.Objects as Obj
 import qualified Elm.Project as Project
 import qualified Generate.Output as Output
 import qualified Reporting.Exit as Exit
@@ -43,17 +42,16 @@ run paths (Flags debug optimize output report docs) =
       void $ Task.run reporter $
         do  mode <- toMode debug optimize
             summary <- Project.getRoot
-            let options = Output.Options mode Obj.Client output
-            Project.compile options docs summary paths
+            Project.compile mode Output.Client output docs summary paths
 
 
-toMode :: Bool -> Bool -> Task.Task Obj.Mode
+toMode :: Bool -> Bool -> Task.Task Output.Mode
 toMode debug optimize =
   case (debug, optimize) of
     (True , True ) -> Task.throw $ Exit.Make E.CannotOptimizeAndDebug
-    (False, True ) -> return Obj.Prod
-    (False, False) -> return Obj.Dev
-    (True , False) -> return Obj.Debug
+    (False, True ) -> return Output.Prod
+    (False, False) -> return Output.Dev
+    (True , False) -> return Output.Debug
 
 
 toReporter :: Maybe ReportType -> IO Progress.Reporter

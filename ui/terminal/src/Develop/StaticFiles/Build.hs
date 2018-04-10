@@ -11,7 +11,6 @@ import qualified Data.ByteString as BS
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
 
-import qualified Elm.Compiler.Objects as Obj
 import qualified Elm.Project as Project
 import qualified Generate.Output as Output
 import qualified Reporting.Task as Task
@@ -37,17 +36,12 @@ compile =
     do  reporter <- Terminal.create
         void $ Task.run reporter $
           do  summary <- Project.getRoot
-              Project.compile options Nothing summary rootPaths
+              let jsOutput = Just (Output.JavaScript Nothing tempFileName)
+              Project.compile Output.Prod Output.Client jsOutput Nothing summary rootPaths
 
         result <- BS.readFile tempFileName
         seq (BS.length result) (Dir.removeFile tempFileName)
         return result
-
-
-options :: Output.Options
-options =
-  Output.Options Obj.Prod Obj.Client $
-    Just (Output.JavaScript Nothing tempFileName)
 
 
 tempFileName :: FilePath
