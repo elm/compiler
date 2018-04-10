@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Generate.JavaScript
-  ( Mode(..)
-  , Output(..)
+  ( Output(..)
   , generate
   , generateForRepl
   )
@@ -29,6 +28,7 @@ import qualified Elm.Name as N
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Expression as Expr
 import qualified Generate.JavaScript.Name as Name
+import qualified Generate.JavaScript.Mode as Mode
 import qualified Reporting.Doc as D
 
 
@@ -36,16 +36,13 @@ import qualified Reporting.Doc as D
 -- GENERATE MAINS
 
 
-data Mode = Prod | Dev | Debug
-
-
 data Output
   = None
   | Some N.Name [N.Name] B.Builder
 
 
-generate :: Mode -> Name.Target -> I.Interfaces -> Opt.Graph -> [ModuleName.Canonical] -> Output
-generate mode target interfaces (Opt.Graph mains graph fields) roots =
+generate :: Mode.Mode -> Opt.Graph -> [ModuleName.Canonical] -> Output
+generate mode (Opt.Graph mains graph _fields) roots =
   let
     rootSet = Set.fromList roots
     rootMap = Map.restrictKeys mains rootSet
@@ -56,29 +53,15 @@ generate mode target interfaces (Opt.Graph mains graph fields) roots =
 
     name:names ->
       let
-        realMode = toRealMode mode target fields
-        state = Map.foldrWithKey (addMain realMode graph) emptyState rootMap
-        builder = stateToBuilder state <> toMainExports realMode interfaces rootMap
+        state = Map.foldrWithKey (addMain mode graph) emptyState rootMap
+        builder = stateToBuilder state <> toMainExports mode rootMap
       in
       Some name names builder
 
 
-addMain :: Name.Mode -> Graph -> ModuleName.Canonical -> main -> State -> State
+addMain :: Mode.Mode -> Graph -> ModuleName.Canonical -> main -> State -> State
 addMain mode graph home _ state =
   addGlobal mode graph state (Opt.Global home "main")
-
-
-toRealMode :: Mode -> Name.Target -> Map.Map N.Name Int -> Name.Mode
-toRealMode mode target fields =
-  case mode of
-    Debug ->
-      Name.Dev target Name.DebuggerOn
-
-    Dev ->
-      Name.Dev target Name.DebuggerOff
-
-    Prod ->
-      Name.Prod target (Name.shortenFieldNames fields)
 
 
 
@@ -88,7 +71,7 @@ toRealMode mode target fields =
 generateForRepl :: Opt.Graph -> I.Interface -> ModuleName.Canonical -> N.Name -> B.Builder
 generateForRepl (Opt.Graph _ graph _) iface home name =
   let
-    mode = Name.Dev Name.Server Name.DebuggerOff
+    mode = Mode.dev Mode.Server
     debugState = addGlobal mode graph emptyState (Opt.Global ModuleName.debug "toString")
     evalState = addGlobal mode graph debugState (Opt.Global home name)
   in
@@ -139,7 +122,7 @@ stateToBuilder (State revBuilders _) =
 type Graph = Map.Map Opt.Global Opt.Node
 
 
-addGlobal :: Name.Mode -> Graph -> State -> Opt.Global -> State
+addGlobal :: Mode.Mode -> Graph -> State -> Opt.Global -> State
 addGlobal mode graph state@(State builders seen) global =
   if Set.member global seen then
     state
@@ -148,7 +131,7 @@ addGlobal mode graph state@(State builders seen) global =
       State builders (Set.insert global seen)
 
 
-addGlobalHelp :: Name.Mode -> Graph -> Opt.Global -> State -> State
+addGlobalHelp :: Mode.Mode -> Graph -> Opt.Global -> State -> State
 addGlobalHelp mode graph global state =
   let
     addDeps deps someState =
@@ -184,7 +167,7 @@ addGlobalHelp mode graph global state =
 
     Opt.Kernel (Opt.KContent clientChunks clientDeps) maybeServer ->
       case maybeServer of
-        Just (Opt.KContent serverChunks serverDeps) | Name.isServer mode ->
+        Just (Opt.KContent serverChunks serverDeps) | Mode.isServer mode ->
           addBuilder (addDeps serverDeps state) (generateKernel mode serverChunks)
 
         _ ->
@@ -230,7 +213,7 @@ var (Opt.Global home name) code =
 -- GENERATE CYCLES
 
 
-generateCycle :: Name.Mode -> Opt.Global -> [(N.Name, Opt.Expr)] -> JS.Stmt
+generateCycle :: Mode.Mode -> Opt.Global -> [(N.Name, Opt.Expr)] -> JS.Stmt
 generateCycle mode (Opt.Global home _) cycle =
   let
     safeDefs = map (generateSafeCycle mode home) cycle
@@ -238,10 +221,10 @@ generateCycle mode (Opt.Global home _) cycle =
     block = JS.Block (safeDefs ++ realDefs)
   in
   case mode of
-    Name.Prod _ _ ->
+    Mode.Prod _ _ ->
       block
 
-    Name.Dev _ _ ->
+    Mode.Dev _ _ ->
       JS.Try block Name.dollar $ JS.Throw $ JS.String $
         "The following top-level definitions are causing infinite recursion:\\n"
         <> drawCycle (map fst cycle)
@@ -250,7 +233,7 @@ generateCycle mode (Opt.Global home _) cycle =
         <> " to learn how to fix it!"
 
 
-generateSafeCycle :: Name.Mode -> ModuleName.Canonical -> (N.Name, Opt.Expr) -> JS.Stmt
+generateSafeCycle :: Mode.Mode -> ModuleName.Canonical -> (N.Name, Opt.Expr) -> JS.Stmt
 generateSafeCycle mode home (name, expr) =
   JS.FunctionStmt (Name.fromCycle home name) [] $
     Expr.codeToStmtList (Expr.generate mode expr)
@@ -285,12 +268,12 @@ drawCycle names =
 -- GENERATE KERNEL
 
 
-generateKernel :: Name.Mode -> [Opt.KChunk] -> B.Builder
+generateKernel :: Mode.Mode -> [Opt.KChunk] -> B.Builder
 generateKernel mode chunks =
   List.foldl' (addChunk mode) mempty chunks
 
 
-addChunk :: Name.Mode -> B.Builder -> Opt.KChunk -> B.Builder
+addChunk :: Mode.Mode -> B.Builder -> Opt.KChunk -> B.Builder
 addChunk mode builder chunk =
   case chunk of
     Opt.JS javascript ->
@@ -303,7 +286,7 @@ addChunk mode builder chunk =
       Name.toBuilder (Name.fromKernel home name) <> builder
 
     Opt.ElmField name ->
-      Name.toBuilder (Name.fromField mode name) <> builder
+      Name.toBuilder (Expr.generateField mode name) <> builder
 
     Opt.JsField int ->
       Name.toBuilder (Name.fromInt int) <> builder
@@ -313,18 +296,18 @@ addChunk mode builder chunk =
 
     Opt.Debug ->
       case mode of
-        Name.Dev _ _ ->
+        Mode.Dev _ _ ->
           builder
 
-        Name.Prod _ _ ->
+        Mode.Prod _ _ ->
           "_UNUSED" <> builder
 
     Opt.Prod ->
       case mode of
-        Name.Dev _ _ ->
+        Mode.Dev _ _ ->
           "_UNUSED" <> builder
 
-        Name.Prod _ _ ->
+        Mode.Prod _ _ ->
           builder
 
 
@@ -332,15 +315,15 @@ addChunk mode builder chunk =
 -- GENERATE ENUM
 
 
-generateEnum :: Name.Mode -> Opt.Global -> N.Name -> Index.ZeroBased -> JS.Stmt
+generateEnum :: Mode.Mode -> Opt.Global -> N.Name -> Index.ZeroBased -> JS.Stmt
 generateEnum mode (Opt.Global home name) ctorName index =
   let
     definition =
       case mode of
-        Name.Dev _ _ ->
+        Mode.Dev _ _ ->
           Expr.codeToExpr (Expr.generateCtor mode ctorName index 0)
 
-        Name.Prod _ _ ->
+        Mode.Prod _ _ ->
           JS.Int (Index.toMachine index)
   in
   JS.Var [ (Name.fromGlobal home name, Just definition) ]
@@ -350,15 +333,15 @@ generateEnum mode (Opt.Global home name) ctorName index =
 -- GENERATE BOX
 
 
-generateBox :: Name.Mode -> Opt.Global -> N.Name -> JS.Stmt
+generateBox :: Mode.Mode -> Opt.Global -> N.Name -> JS.Stmt
 generateBox mode (Opt.Global home name) ctorName =
   let
     definition =
       case mode of
-        Name.Dev _ _ ->
+        Mode.Dev _ _ ->
           Expr.codeToExpr (Expr.generateCtor mode ctorName Index.first 1)
 
-        Name.Prod _ _ ->
+        Mode.Prod _ _ ->
           JS.Ref (Name.fromGlobal ModuleName.basics N.identity)
   in
   JS.Var [ (Name.fromGlobal home name, Just definition) ]
@@ -368,7 +351,7 @@ generateBox mode (Opt.Global home name) ctorName =
 -- GENERATE PORTS
 
 
-generatePort :: Name.Mode -> Opt.Global -> N.Name -> Opt.Expr -> JS.Stmt
+generatePort :: Mode.Mode -> Opt.Global -> N.Name -> Opt.Expr -> JS.Stmt
 generatePort mode (Opt.Global home name) makePort converter =
   let
     definition =
@@ -384,7 +367,7 @@ generatePort mode (Opt.Global home name) makePort converter =
 -- GENERATE MANAGER
 
 
-generateManager :: Name.Mode -> Graph -> Opt.Global -> Opt.EffectsType -> State -> State
+generateManager :: Mode.Mode -> Graph -> Opt.Global -> Opt.EffectsType -> State -> State
 generateManager mode graph (Opt.Global home@(ModuleName.Canonical _ moduleName) _) effectsType state =
   let
     managerLVar =
@@ -450,21 +433,17 @@ generateManagerHelp home effectsType =
 -- MAIN EXPORTS
 
 
-toMainExports :: Name.Mode -> I.Interfaces -> Map.Map ModuleName.Canonical Opt.Main -> B.Builder
-toMainExports mode interfaces mains =
+toMainExports :: Mode.Mode -> Map.Map ModuleName.Canonical Opt.Main -> B.Builder
+toMainExports mode mains =
   let
-    export =
-      Name.fromKernel N.platform "export"
-
-    exports =
-      generateExports mode interfaces $
-        Map.foldrWithKey addToTrie emptyTrie mains
+    export = Name.fromKernel N.platform "export"
+    exports = generateExports mode (Map.foldrWithKey addToTrie emptyTrie mains)
   in
   Name.toBuilder export <> "(" <> exports <> ");"
 
 
-generateExports :: Name.Mode -> I.Interfaces -> Trie -> B.Builder
-generateExports mode interfaces (Trie maybeMain subs) =
+generateExports :: Mode.Mode -> Trie -> B.Builder
+generateExports mode (Trie maybeMain subs) =
   let
     object =
       case Map.toList subs of
@@ -473,23 +452,21 @@ generateExports mode interfaces (Trie maybeMain subs) =
 
         (name, subTrie) : otherSubTries ->
           "{'" <> Text.encodeUtf8Builder name <> "':"
-          <> generateExports mode interfaces subTrie
-          <> List.foldl' (addSubTrie mode interfaces) "}" otherSubTries
+          <> generateExports mode subTrie
+          <> List.foldl' (addSubTrie mode) "}" otherSubTries
   in
   case maybeMain of
     Nothing ->
       object
 
     Just (home, main) ->
-      let initialize = Expr.generateMain mode interfaces home main in
+      let initialize = Expr.generateMain mode home main in
       JS.exprToBuilder initialize <> "(" <> object <> ")"
 
 
-addSubTrie :: Name.Mode -> I.Interfaces -> B.Builder -> (Text.Text, Trie) -> B.Builder
-addSubTrie mode interfaces end (name, trie) =
-  ",'" <> Text.encodeUtf8Builder name <> "':"
-  <> generateExports mode interfaces trie
-  <> end
+addSubTrie :: Mode.Mode -> B.Builder -> (Text.Text, Trie) -> B.Builder
+addSubTrie mode end (name, trie) =
+  ",'" <> Text.encodeUtf8Builder name <> "':" <> generateExports mode trie <> end
 
 
 
