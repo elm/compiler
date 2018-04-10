@@ -63,7 +63,7 @@ compile mode target maybeOutput docs summary@(Summary.Summary root project _ _ _
       answers <- Compile.compile project docs ifaces dirty
       results <- Artifacts.write root answers
       _ <- traverse (Artifacts.writeDocs results) docs
-      Output.generate mode target maybeOutput summary graph
+      Output.generate mode target maybeOutput summary graph results
 
 
 

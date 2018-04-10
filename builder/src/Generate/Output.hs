@@ -21,12 +21,14 @@ import qualified System.Directory as Dir
 import qualified System.FilePath as FP
 import System.FilePath ((</>))
 
+import qualified Elm.Compiler as Compiler
 import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Objects as Obj
 import qualified Elm.Interface as I
 import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 
+import qualified AST.Module.Name as ModuleName
 import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Summary as Summary
 import qualified File.Args as Args
@@ -50,8 +52,15 @@ import Terminal.Args (Parser(..))
 data Mode = Debug | Dev | Prod
 
 
-generate :: Mode -> Mode.Target -> Maybe Output -> Summary.Summary -> Crawl.Result -> Task.Task ()
-generate mode target maybeOutput summary graph@(Crawl.Graph args _ _ _ _) =
+generate
+  :: Mode
+  -> Mode.Target
+  -> Maybe Output
+  -> Summary.Summary
+  -> Crawl.Result
+  -> Map.Map Module.Raw Compiler.Artifacts
+  -> Task.Task ()
+generate mode target maybeOutput summary graph@(Crawl.Graph args _ _ _ _) artifacts =
   case args of
     Args.Pkg _ ->
       return ()
@@ -61,20 +70,40 @@ generate mode target maybeOutput summary graph@(Crawl.Graph args _ _ _ _) =
 
           realMode <-
             case mode of
-              Debug -> return (Mode.debug target (error "TODO"))
-              Dev -> return (Mode.dev target)
+              Debug ->
+                return $ Mode.debug target (getInterfaces summary artifacts)
+
+              Dev ->
+                return $ Mode.dev target
+
               Prod ->
                 do  noDebugUses summary objectGraph
-                    return (Mode.prod target objectGraph)
+                    return $ Mode.prod target objectGraph
 
           generateMonolith realMode maybeOutput summary objectGraph (name:names)
+
+
+getInterfaces :: Summary.Summary -> Map.Map Module.Raw Compiler.Artifacts -> I.Interfaces
+getInterfaces (Summary.Summary _ project _ interfaces _) artifacts =
+  let
+    pkg = Project.getName project
+    addArtifact home (Compiler.Artifacts elmi _ _) ifaces =
+      Map.insert (ModuleName.Canonical pkg home) elmi ifaces
+  in
+  Map.foldrWithKey addArtifact interfaces artifacts
 
 
 
 -- GENERATE MONOLITH
 
 
-generateMonolith :: Mode.Mode -> Maybe Output -> Summary.Summary -> Obj.Graph -> [Module.Raw] -> Task.Task ()
+generateMonolith
+  :: Mode.Mode
+  -> Maybe Output
+  -> Summary.Summary
+  -> Obj.Graph
+  -> [Module.Raw]
+  -> Task.Task ()
 generateMonolith mode maybeOutput (Summary.Summary _ project _ _ _) graph rootNames =
   do  let pkg = Project.getName project
       let roots = map (Module.Canonical pkg) rootNames
