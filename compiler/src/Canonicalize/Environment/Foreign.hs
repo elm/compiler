@@ -84,8 +84,8 @@ addImport (State vs ts cs bs qvs qts qcs) (Import home (I.Interface defs unions 
   let
     !rawTypeInfo =
       Map.union
-        (Map.mapWithKey (unionToType home) unions)
-        (Map.mapWithKey (aliasToType home) aliases)
+        (Map.mapMaybeWithKey (unionToType home) unions)
+        (Map.mapMaybeWithKey (aliasToType home) aliases)
 
     !vars = Map.map (Map.singleton home) defs
     !types = Map.map (Map.singleton home . fst) rawTypeInfo
@@ -123,11 +123,16 @@ addQualified prefix exposed qualified =
 
 
 
--- CANONICAL DATA TO ENVIRONMENT DATA
+-- UNION
 
 
-unionToType :: ModuleName.Canonical -> N.Name -> Can.Union -> (Env.Type, Env.Exposed Env.Ctor)
-unionToType home name union@(Can.Union vars ctors _ _) =
+unionToType :: ModuleName.Canonical -> N.Name -> I.Union -> Maybe (Env.Type, Env.Exposed Env.Ctor)
+unionToType home name union =
+  unionToTypeHelp home name <$> I.toPublicUnion union
+
+
+unionToTypeHelp :: ModuleName.Canonical -> N.Name -> Can.Union -> (Env.Type, Env.Exposed Env.Ctor)
+unionToTypeHelp home name union@(Can.Union vars ctors _ _) =
   let
     addCtor dict (Can.Ctor ctor index _ args) =
       Map.insert ctor (Map.singleton home (Env.Ctor home name union index args)) dict
@@ -137,8 +142,17 @@ unionToType home name union@(Can.Union vars ctors _ _) =
   )
 
 
-aliasToType :: ModuleName.Canonical -> N.Name -> Can.Alias -> (Env.Type, Env.Exposed Env.Ctor)
-aliasToType home name (Can.Alias vars tipe maybeRecordFields) =
+
+-- ALIAS
+
+
+aliasToType :: ModuleName.Canonical -> N.Name -> I.Alias -> Maybe (Env.Type, Env.Exposed Env.Ctor)
+aliasToType home name alias =
+  aliasToTypeHelp home name <$> I.toPublicAlias alias
+
+
+aliasToTypeHelp :: ModuleName.Canonical -> N.Name -> Can.Alias -> (Env.Type, Env.Exposed Env.Ctor)
+aliasToTypeHelp home name (Can.Alias vars tipe maybeRecordFields) =
   (
     Env.Alias (length vars) home vars tipe
   ,
@@ -157,6 +171,10 @@ aliasToType home name (Can.Alias vars tipe maybeRecordFields) =
         in
         Map.singleton name (Map.singleton home (Env.RecordCtor home vars alias))
   )
+
+
+
+-- BINOP
 
 
 binopToBinop :: ModuleName.Canonical -> N.Name -> I.Binop -> Map.Map ModuleName.Canonical Env.Binop

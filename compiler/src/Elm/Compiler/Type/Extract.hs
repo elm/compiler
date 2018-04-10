@@ -123,7 +123,7 @@ extractAlias :: I.Interfaces -> Opt.Global -> Extractor T.Alias
 extractAlias interfaces (Opt.Global home name) =
   let
     (I.Interface _ _ aliases _) = interfaces ! home
-    (Can.Alias args aliasType _) = aliases ! name
+    (Can.Alias args aliasType _) = I.toAliasInternals (aliases ! name)
   in
   T.Alias (toPublicName home name) args <$> extract aliasType
 
@@ -134,7 +134,7 @@ extractUnion interfaces (Opt.Global home name) =
     pname = toPublicName home name
     unions = I._unions (interfaces ! home)
   in
-  case unions ! name of
+  case I.toUnionInternals (unions ! name) of
     Can.Union vars ctors _ _ ->
       T.Union pname vars <$> traverse extractCtor ctors
 
