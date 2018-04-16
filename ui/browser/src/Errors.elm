@@ -28,7 +28,7 @@ main =
 -- VIEW
 
 
-view : Result D.Error Error.Error -> Browser.View msg
+view : Result D.Error Error.Error -> Browser.Page msg
 view result =
   { title = "Problem!"
   , body =

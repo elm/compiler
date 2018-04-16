@@ -88,7 +88,7 @@ type alias Model =
 -- VIEW
 
 
-view : Model -> Browser.View msg
+view : Model -> Browser.Page msg
 view model =
   case model of
     Err error ->
