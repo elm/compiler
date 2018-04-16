@@ -318,17 +318,17 @@ wordToBits :: Int -> [Char]
 wordToBits code =
   [ '\\' -- 0x5C -- \
   , 'u'  -- 0x75 -- u
-  , toBits code 0
+  , toBits code 12
   , toBits code 8
-  , toBits code 16
-  , toBits code 24
+  , toBits code 4
+  , toBits code 0
   ]
 
 
 toBits :: Int -> Int -> Char
 toBits code offset =
   let !n = fromIntegral (shiftR code offset .&. 0x000F) in
-  Char.chr $ if n < 10 then 0x30 + n else 0x41 + (n - 10)
+  Char.chr $ if n < 10 then 0x30 + n else 0x61 + (n - 10)
 
 
 {-# NOINLINE singleQuoteBits #-}
