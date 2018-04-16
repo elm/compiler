@@ -35,9 +35,9 @@ nodeHasDebug node =
   case node of
     Opt.Define expr _           -> hasDebug expr
     Opt.DefineTailFunc _ expr _ -> hasDebug expr
-    Opt.Ctor _ _ _              -> False
-    Opt.Enum _ _                -> False
-    Opt.Box _                   -> False
+    Opt.Ctor _ _                -> False
+    Opt.Enum _                  -> False
+    Opt.Box                     -> False
     Opt.Link _                  -> False
     Opt.Cycle defs _            -> any (hasDebug . snd) defs
     Opt.Manager _               -> False

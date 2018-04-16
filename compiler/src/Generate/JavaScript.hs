@@ -149,9 +149,9 @@ addGlobalHelp mode graph global state =
         var global (Expr.generateTailDef mode name argNames body)
       )
 
-    Opt.Ctor name index arity ->
+    Opt.Ctor index arity ->
       addStmt state (
-        var global (Expr.generateCtor mode name index arity)
+        var global (Expr.generateCtor mode global index arity)
       )
 
     Opt.Link linkedGlobal ->
@@ -176,14 +176,14 @@ addGlobalHelp mode graph global state =
           _ ->
             addBuilder (addDeps clientDeps state) (generateKernel mode clientChunks)
 
-    Opt.Enum name index ->
+    Opt.Enum index ->
       addStmt state (
-        generateEnum mode global name index
+        generateEnum mode global index
       )
 
-    Opt.Box name ->
+    Opt.Box ->
       addStmt state (
-        generateBox mode global name
+        generateBox mode global
       )
 
     Opt.PortIncoming decoder deps ->
@@ -323,13 +323,13 @@ addChunk mode builder chunk =
 -- GENERATE ENUM
 
 
-generateEnum :: Mode.Mode -> Opt.Global -> N.Name -> Index.ZeroBased -> JS.Stmt
-generateEnum mode (Opt.Global home name) ctorName index =
+generateEnum :: Mode.Mode -> Opt.Global -> Index.ZeroBased -> JS.Stmt
+generateEnum mode global@(Opt.Global home name) index =
   let
     definition =
       case mode of
         Mode.Dev _ _ ->
-          Expr.codeToExpr (Expr.generateCtor mode ctorName index 0)
+          Expr.codeToExpr (Expr.generateCtor mode global index 0)
 
         Mode.Prod _ _ ->
           JS.Int (Index.toMachine index)
@@ -341,13 +341,13 @@ generateEnum mode (Opt.Global home name) ctorName index =
 -- GENERATE BOX
 
 
-generateBox :: Mode.Mode -> Opt.Global -> N.Name -> JS.Stmt
-generateBox mode (Opt.Global home name) ctorName =
+generateBox :: Mode.Mode -> Opt.Global -> JS.Stmt
+generateBox mode global@(Opt.Global home name) =
   let
     definition =
       case mode of
         Mode.Dev _ _ ->
-          Expr.codeToExpr (Expr.generateCtor mode ctorName Index.first 1)
+          Expr.codeToExpr (Expr.generateCtor mode global Index.first 1)
 
         Mode.Prod _ _ ->
           JS.Ref (Name.fromGlobal ModuleName.basics N.identity)

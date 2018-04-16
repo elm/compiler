@@ -146,9 +146,9 @@ data Main
 data Node
   = Define Expr (Set.Set Global)
   | DefineTailFunc [N.Name] Expr (Set.Set Global)
-  | Ctor N.Name Index.ZeroBased Int
-  | Enum N.Name Index.ZeroBased
-  | Box N.Name
+  | Ctor Index.ZeroBased Int
+  | Enum Index.ZeroBased
+  | Box
   | Link Global
   | Cycle [(N.Name, Expr)] (Set.Set Global)
   | Manager EffectsType
@@ -340,9 +340,9 @@ instance Binary Node where
     case node of
       Define a b           -> putWord8  0 >> put a >> put b
       DefineTailFunc a b c -> putWord8  1 >> put a >> put b >> put c
-      Ctor a b c           -> putWord8  2 >> put a >> put b >> put c
-      Enum a b             -> putWord8  3 >> put a >> put b
-      Box a                -> putWord8  4 >> put a
+      Ctor a b             -> putWord8  2 >> put a >> put b
+      Enum a               -> putWord8  3 >> put a
+      Box                  -> putWord8  4
       Link a               -> putWord8  5 >> put a
       Cycle a b            -> putWord8  6 >> put a >> put b
       Manager a            -> putWord8  7 >> put a
@@ -355,9 +355,9 @@ instance Binary Node where
         case word of
           0  -> liftM2 Define get get
           1  -> liftM3 DefineTailFunc get get get
-          2  -> liftM3 Ctor get get get
-          3  -> liftM2 Enum get get
-          4  -> liftM  Box get
+          2  -> liftM2 Ctor get get
+          3  -> liftM  Enum get
+          4  -> return Box
           5  -> liftM  Link get
           6  -> liftM2 Cycle get get
           7  -> liftM  Manager get

@@ -73,9 +73,9 @@ addCtorNode home opts nodes (Can.Ctor name index numArgs _) =
   let
     node =
       case opts of
-        Can.Normal -> Opt.Ctor name index numArgs
-        Can.Unbox -> Opt.Box name
-        Can.Enum -> Opt.Enum name index
+        Can.Normal -> Opt.Ctor index numArgs
+        Can.Unbox -> Opt.Box
+        Can.Enum -> Opt.Enum index
   in
   Map.insert (Opt.Global home name) node nodes
 

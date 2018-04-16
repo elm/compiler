@@ -248,8 +248,8 @@ toChar =
 -- CTOR
 
 
-generateCtor :: Mode.Mode -> N.Name -> Index.ZeroBased -> Int -> Code
-generateCtor mode name index arity =
+generateCtor :: Mode.Mode -> Opt.Global -> Index.ZeroBased -> Int -> Code
+generateCtor mode (Opt.Global _ name) index arity =
   let
     argNames =
       Index.indexedMap (\i _ -> Name.fromIndex i) [1 .. arity]
