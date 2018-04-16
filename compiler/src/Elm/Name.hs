@@ -27,7 +27,7 @@ module Elm.Name
   , int, float, bool, char, string
   , maybe, result, list, array, tuple, jsArray
   , task, router, cmd, sub, platform, browser, virtualDom
-  , shader, debug, bitwise, basics
+  , shader, debug, debugger, bitwise, basics
   , utils, negate, value
   , node, program, main, dollar, identity
   )
@@ -269,6 +269,11 @@ shader = "Shader"
 {-# NOINLINE debug #-}
 debug :: Name
 debug = "Debug"
+
+
+{-# NOINLINE debugger #-}
+debugger :: Name
+debugger = "Debugger"
 
 
 {-# NOINLINE bitwise #-}

@@ -166,12 +166,15 @@ addGlobalHelp mode graph global state =
       generateManager mode graph global effectsType state
 
     Opt.Kernel (Opt.KContent clientChunks clientDeps) maybeServer ->
-      case maybeServer of
-        Just (Opt.KContent serverChunks serverDeps) | Mode.isServer mode ->
-          addBuilder (addDeps serverDeps state) (generateKernel mode serverChunks)
+      if isDebugger global && not (Mode.isDebug mode) then
+        state
+      else
+        case maybeServer of
+          Just (Opt.KContent serverChunks serverDeps) | Mode.isServer mode ->
+            addBuilder (addDeps serverDeps state) (generateKernel mode serverChunks)
 
-        _ ->
-          addBuilder (addDeps clientDeps state) (generateKernel mode clientChunks)
+          _ ->
+            addBuilder (addDeps clientDeps state) (generateKernel mode clientChunks)
 
     Opt.Enum name index ->
       addStmt state (
@@ -207,6 +210,11 @@ addBuilder (State revBuilders seen) builder =
 var :: Opt.Global -> Expr.Code -> JS.Stmt
 var (Opt.Global home name) code =
   JS.Var [ (Name.fromGlobal home name, Just (Expr.codeToExpr code)) ]
+
+
+isDebugger :: Opt.Global -> Bool
+isDebugger (Opt.Global (ModuleName.Canonical _ home) _) =
+  home == N.debugger
 
 
 

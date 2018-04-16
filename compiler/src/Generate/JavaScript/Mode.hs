@@ -4,6 +4,7 @@ module Generate.JavaScript.Mode
   , debug
   , dev
   , prod
+  , isDebug
   , isServer
   )
   where
@@ -11,6 +12,7 @@ module Generate.JavaScript.Mode
 
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
 
 import qualified AST.Optimized as Opt
 import qualified Elm.Interface as I
@@ -44,6 +46,16 @@ prod :: Target -> Opt.Graph -> Mode
 prod target (Opt.Graph _ _ fieldCounts) =
   Prod target (shortenFieldNames fieldCounts)
 
+
+
+-- IS DEBUG?
+
+
+isDebug :: Mode -> Bool
+isDebug mode =
+  case mode of
+    Dev _ mi -> Maybe.isJust mi
+    Prod _ _ -> False
 
 
 -- IS SERVER?
