@@ -3,7 +3,7 @@
 module AST.Module.Name
   ( Canonical(..)
   , basics, char, string
-  , maybe, result, list, array, tuple
+  , maybe, result, list, array, dict, tuple
   , platform, cmd, sub
   , virtualDom, debug, bitwise
   , jsonDecode, jsonEncode
@@ -79,6 +79,11 @@ list = Canonical Pkg.core N.list
 {-# NOINLINE array #-}
 array :: Canonical
 array = Canonical Pkg.core N.array
+
+
+{-# NOINLINE dict #-}
+dict :: Canonical
+dict = Canonical Pkg.core N.dict
 
 
 {-# NOINLINE tuple #-}

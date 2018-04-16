@@ -249,7 +249,7 @@ toChar =
 
 
 generateCtor :: Mode.Mode -> Opt.Global -> Index.ZeroBased -> Int -> Code
-generateCtor mode (Opt.Global _ name) index arity =
+generateCtor mode (Opt.Global home name) index arity =
   let
     argNames =
       Index.indexedMap (\i _ -> Name.fromIndex i) [1 .. arity]
@@ -257,10 +257,18 @@ generateCtor mode (Opt.Global _ name) index arity =
     ctorTag =
       case mode of
         Mode.Dev _ _ -> JS.String (N.toBuilder name)
-        Mode.Prod _ _ -> JS.Int (Index.toMachine index)
+        Mode.Prod _ _ -> JS.Int (ctorToInt home name index)
   in
   generateFunction argNames $ JsExpr $ JS.Object $
     (Name.dollar, ctorTag) : map (\n -> (n, JS.Ref n)) argNames
+
+
+ctorToInt :: ModuleName.Canonical -> N.Name -> Index.ZeroBased -> Int
+ctorToInt home name index =
+  if home == ModuleName.dict && name == "RBNode_elm_builtin" || name == "RBEmpty_elm_builtin" then
+    0 - Index.toHuman index
+  else
+    Index.toMachine index
 
 
 
@@ -875,11 +883,11 @@ generateIfTest mode root (path, test) =
     value = pathToJsExpr mode root path
   in
   case test of
-    DT.IsCtor name index _ _ ->
+    DT.IsCtor home name index _ _ ->
       strictEq (JS.Access value Name.dollar) $
         case mode of
           Mode.Dev _ _ -> JS.String (N.toBuilder name)
-          Mode.Prod _ _ -> JS.Int (Index.toMachine index)
+          Mode.Prod _ _ -> JS.Int (ctorToInt home name index)
 
     DT.IsInt int ->
       strictEq value (JS.Int int)
@@ -915,10 +923,10 @@ generateCaseBranch mode label root (test, subTree) =
 generateCaseValue :: Mode.Mode -> DT.Test -> JS.Expr
 generateCaseValue mode test =
   case test of
-    DT.IsCtor name index _ _ ->
+    DT.IsCtor home name index _ _ ->
       case mode of
         Mode.Dev _ _ -> JS.String (N.toBuilder name)
-        Mode.Prod _ _ -> JS.Int (Index.toMachine index)
+        Mode.Prod _ _ -> JS.Int (ctorToInt home name index)
 
     DT.IsInt int ->
       JS.Int int
@@ -945,7 +953,7 @@ generateCaseTest mode root path exampleTest =
     value = pathToJsExpr mode root path
   in
   case exampleTest of
-    DT.IsCtor _ _ _ opts ->
+    DT.IsCtor _ _ _ _ opts ->
       case mode of
         Mode.Dev _ _ ->
           JS.Access value Name.dollar
