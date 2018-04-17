@@ -6,7 +6,6 @@ module Develop.StaticFiles.Build
   where
 
 
-import Control.Monad (void)
 import qualified Data.ByteString as BS
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
@@ -34,7 +33,7 @@ compile :: IO BS.ByteString
 compile =
   Dir.withCurrentDirectory ("ui" </> "browser") $
     do  reporter <- Terminal.create
-        void $ Task.run reporter $
+        Task.run reporter $
           do  summary <- Project.getRoot
               let jsOutput = Just (Output.JavaScript Nothing tempFileName)
               Project.compile Output.Prod Output.Client jsOutput Nothing summary rootPaths

@@ -150,7 +150,7 @@ data Output = None | Def N.Name | Expr Text.Text
 
 interpret :: Output -> State -> Runner (Maybe a)
 interpret def state =
-  do  result <- liftIO $ Task.run Repl.reporter $ compile def state
+  do  result <- liftIO $ Task.try Repl.reporter $ compile def state
 
       case result of
         Nothing ->

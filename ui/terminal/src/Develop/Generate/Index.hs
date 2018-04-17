@@ -90,7 +90,7 @@ getFlags root pwd =
       readme <- getReadme pwd
 
       maybeSummary <-
-        Task.run Progress.silentReporter $
+        Task.try Progress.silentReporter $
           Verify.verify root =<< Project.read "elm.json"
 
       return $

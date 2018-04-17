@@ -166,7 +166,7 @@ compileToHtmlBuilder file =
       let reporter = Progress.Reporter (\_ -> return ()) (putMVar mvar1)
       let output = Just (Output.HtmlBuilder mvar2)
 
-      void $ Task.run reporter $
+      void $ Task.try reporter $
         do  summary <- Project.getRoot
             Project.compile Output.Dev Output.Client output Nothing summary [file]
 

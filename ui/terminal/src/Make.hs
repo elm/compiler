@@ -8,7 +8,6 @@ module Make
   where
 
 
-import Control.Monad (void)
 import qualified System.FilePath as FP
 
 import qualified Elm.Project as Project
@@ -39,7 +38,7 @@ data Flags =
 run :: [FilePath] -> Flags -> IO ()
 run paths (Flags debug optimize output report docs) =
   do  reporter <- toReporter report
-      void $ Task.run reporter $
+      Task.run reporter $
         do  mode <- toMode debug optimize
             summary <- Project.getRoot
             Project.compile mode Output.Client output docs summary paths

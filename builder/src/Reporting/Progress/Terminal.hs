@@ -9,7 +9,7 @@ module Reporting.Progress.Terminal
 import Control.Concurrent (forkIO)
 import Control.Concurrent.Chan (Chan, newChan, readChan)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar)
-import qualified System.Info as System
+import qualified System.Info as Info
 import System.IO (hFlush, hPutStr, stdout)
 import qualified Elm.Package as Pkg
 import Elm.Package (Name, Version)
@@ -212,19 +212,19 @@ makeBullet name version outcome =
 goodMark :: D.Doc
 goodMark =
   D.green $
-    if System.os == "mingw32" then "+" else "●"
+    if Info.os == "mingw32" then "+" else "●"
 
 
 badMark :: D.Doc
 badMark =
   D.red $
-    if System.os == "mingw32" then "X" else "✗"
+    if Info.os == "mingw32" then "X" else "✗"
 
 
 waitingMark :: D.Doc
 waitingMark =
   D.dullyellow $
-    if System.os == "mingw32" then "-" else "→"
+    if Info.os == "mingw32" then "-" else "→"
 
 
 

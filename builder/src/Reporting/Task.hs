@@ -1,6 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Reporting.Task
-  ( Task, Task_, run, throw, mapError
+  ( Task, Task_
+  , try
+  , run
+  , throw
+  , mapError
   , Env
   , getPackageCacheDir
   , getPackageCacheDirFor
@@ -23,7 +27,8 @@ import Control.Monad.Reader (ReaderT, runReaderT, ask, asks)
 import Control.Monad.Trans (liftIO)
 import qualified Network.HTTP.Client as Http
 import qualified Network.HTTP.Client.TLS as Http
-import System.Directory (createDirectoryIfMissing)
+import qualified System.Directory as Dir
+import qualified System.Exit as Exit
 import System.FilePath ((</>))
 import qualified System.IO as IO
 
@@ -55,8 +60,8 @@ data Env =
     }
 
 
-run :: Progress.Reporter -> Task a -> IO (Maybe a)
-run (Progress.Reporter tell end) task =
+try :: Progress.Reporter -> Task a -> IO (Maybe a)
+try (Progress.Reporter tell end) task =
   do  root <- PerUserCache.getPackageRoot
       pool <- initPool 4
       httpManager <- Http.newManager Http.tlsManagerSettings
@@ -70,6 +75,14 @@ run (Progress.Reporter tell end) task =
         Right answer ->
           do  end Nothing
               return (Just answer)
+
+
+run :: Progress.Reporter -> Task a -> IO ()
+run reporter task =
+  do  maybeAnswer <- try reporter task
+      case maybeAnswer of
+        Nothing -> Exit.exitFailure
+        Just _ -> return ()
 
 
 throw :: e -> Task_ e a
@@ -95,7 +108,7 @@ getPackageCacheDirFor :: Name -> Version -> Task_ e FilePath
 getPackageCacheDirFor name version =
   do  cacheDir <- getPackageCacheDir
       let dir = cacheDir </> Pkg.toFilePath name </> Pkg.versionToString version
-      liftIO (createDirectoryIfMissing True dir)
+      liftIO (Dir.createDirectoryIfMissing True dir)
       return dir
 
 
