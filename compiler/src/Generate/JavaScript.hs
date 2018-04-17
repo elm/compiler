@@ -71,7 +71,7 @@ addMain mode graph home _ state =
 generateForRepl :: Opt.Graph -> I.Interface -> ModuleName.Canonical -> N.Name -> B.Builder
 generateForRepl (Opt.Graph _ graph _) iface home name =
   let
-    mode = Mode.dev Mode.Server
+    mode = Mode.dev Mode.Client
     debugState = addGlobal mode graph emptyState (Opt.Global ModuleName.debug "toString")
     evalState = addGlobal mode graph debugState (Opt.Global home name)
   in
