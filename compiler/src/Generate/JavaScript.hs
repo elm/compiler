@@ -68,29 +68,31 @@ addMain mode graph home _ state =
 -- GENERATE FOR REPL
 
 
-generateForRepl :: Opt.Graph -> I.Interface -> ModuleName.Canonical -> N.Name -> B.Builder
-generateForRepl (Opt.Graph _ graph _) iface home name =
+generateForRepl :: Bool -> Opt.Graph -> I.Interface -> ModuleName.Canonical -> N.Name -> B.Builder
+generateForRepl ansi (Opt.Graph _ graph _) iface home name =
   let
     mode = Mode.dev Mode.Client
     debugState = addGlobal mode graph emptyState (Opt.Global ModuleName.debug "toString")
     evalState = addGlobal mode graph debugState (Opt.Global home name)
   in
-  stateToBuilder evalState <> print home name (I._types iface ! name)
+  stateToBuilder evalState <> print ansi home name (I._types iface ! name)
 
 
-print :: ModuleName.Canonical -> N.Name -> Can.Annotation -> B.Builder
-print home name annotation =
+print :: Bool -> ModuleName.Canonical -> N.Name -> Can.Annotation -> B.Builder
+print ansi home name annotation =
   let
     value = Name.toBuilder (Name.fromGlobal home name)
-    toString = Name.toBuilder (Name.fromKernel N.debug "toString")
+    toString = Name.toBuilder (Name.fromKernel N.debug "toAnsiString")
     tipe = Type.toDoc Type.None (Extract.fromAnnotation annotation)
+    bool = if ansi then "true" else "false"
   in
-    "var _value = " <> toString <> "(" <> value <> ");\n" <>
-    "var _type = " <> B.stringUtf8 (show (D.toString tipe)) <> ";\n\
+    "var _value = " <> toString <> "(" <> bool <> ", " <> value <> ");\n\
+    \var _type = " <> B.stringUtf8 (show (D.toString tipe)) <> ";\n\
+    \function _print(t) { console.log(_value + (" <> bool <> " ? '\x1b[90m' + t + '\x1b[0m' : t)); }\n\
     \if (_value.length + 3 + _type.length >= 80 || _type.indexOf('\\n') >= 0) {\n\
-    \    console.log(_value + '\\n    : ' + _type.split('\\n').join('\\n      '));\n\
+    \    _print('\\n    : ' + _type.split('\\n').join('\\n      '));\n\
     \} else {\n\
-    \    console.log(_value + ' : ' + _type);\n\
+    \    _print(' : ' + _type);\n\
     \}\n"
 
 
