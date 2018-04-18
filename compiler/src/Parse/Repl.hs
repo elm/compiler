@@ -13,6 +13,7 @@ import Data.Text (Text)
 
 import qualified AST.Source as Src
 import qualified Elm.Name as N
+import qualified Parse.Module as Module
 import Parse.Primitives
 import qualified Parse.Primitives.Keyword as Keyword
 import qualified Parse.Primitives.Symbol as Symbol
@@ -26,7 +27,7 @@ import qualified Reporting.Annotation as A
 
 
 data Entry
-  = Import N.Name Text
+  = Import N.Name (Maybe N.Name) Src.Exposing Text
   | Type N.Name Text
   | Def (Maybe N.Name) Text
   | Other Text
@@ -58,7 +59,9 @@ entryParser source =
     [ do  Keyword.import_
           spaces
           name <- Var.moduleName
-          return (Import name source)
+          alias <- tryAlias
+          exposing <- tryExposing
+          return (Import name alias exposing source)
 
     , do  Keyword.port_
           return Port
@@ -98,4 +101,28 @@ chompArgs =
           chompArgs
     , do  Symbol.equals
           return ()
+    ]
+
+
+tryAlias :: Parser (Maybe N.Name)
+tryAlias =
+  oneOf
+    [ try $
+        do  spaces
+            Keyword.as_
+            spaces
+            Just <$> Var.upper
+    , return Nothing
+    ]
+
+
+tryExposing :: Parser Src.Exposing
+tryExposing =
+  oneOf
+    [ try $
+        do  spaces
+            Keyword.exposing_
+            spaces
+            Module.exposing
+    , return (Src.Explicit [])
     ]

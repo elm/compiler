@@ -34,6 +34,7 @@ import Reporting.Doc ((<+>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Task as Task
 import qualified Reporting.Progress.Repl as Repl
+import qualified Reporting.Render.Type.Localizer as L
 
 
 
@@ -53,7 +54,7 @@ run () (Flags maybeAlternateInterpreter) =
       printWelcomeMessage
       settings <- initSettings
       let manager = Repl.runInputT settings (Repl.withInterrupt loop)
-      (exitCode,_,_) <- RWS.runRWST manager interpreter initalState
+      (exitCode,_,_) <- RWS.runRWST manager interpreter initialState
       Exit.exitWith exitCode
 
 
@@ -107,7 +108,7 @@ eval input =
       return (Just Exit.ExitSuccess)
 
     Reset ->
-      do  RWS.put initalState
+      do  RWS.put initialState
           report "<reset>"
 
     Help info ->
@@ -115,10 +116,14 @@ eval input =
 
     Code entry ->
       Repl.handleInterrupt (report "<cancelled>") $
-        do  state@(State _ imports types defs tricks) <- RWS.get
+        do  state@(State _ imports types defs tricks localizer) <- RWS.get
             case entry of
-              Elm.Import name src ->
-                interpret None $ state { _imports = Map.insert name src imports }
+              Elm.Import name alias exposing src ->
+                interpret None $
+                  state
+                    { _imports = Map.insert name src imports
+                    , _localizer = L.replAdd name alias exposing localizer
+                    }
 
               Elm.Type name src ->
                 interpret None $ state { _types = Map.insert name src types }
@@ -217,16 +222,17 @@ data State =
     , _types :: Map.Map N.Name Text.Text
     , _defs :: Map.Map N.Name Text.Text
     , _tricks :: [Text.Text]
+    , _localizer :: L.Localizer
     }
 
 
-initalState :: State
-initalState =
-  State 0 Map.empty Map.empty Map.empty []
+initialState :: State
+initialState =
+  State 0 Map.empty Map.empty Map.empty [] L.replEmpty
 
 
 compile :: Output -> State -> Task.Task (Maybe FilePath)
-compile output (State count imports types defs tricks) =
+compile output (State count imports types defs tricks localizer) =
   let
     elmSourceCode =
       (<>) "module Elm_Repl exposing (..)\n\n" $
@@ -236,12 +242,12 @@ compile output (State count imports types defs tricks) =
     case output of
       None ->
         if Map.null types && Map.null defs && null tricks then
-          evaluate (elmSourceCode <> "unit = ()") Nothing
+          evaluate localizer (elmSourceCode <> "unit = ()") Nothing
         else
-          evaluate elmSourceCode Nothing
+          evaluate localizer elmSourceCode Nothing
 
       Def name ->
-        evaluate elmSourceCode (Just name)
+        evaluate localizer elmSourceCode (Just name)
 
       Expr expr ->
         let
@@ -249,7 +255,7 @@ compile output (State count imports types defs tricks) =
           text = Text.replace "\n" "\n  " expr
           def = N.toBuilder name <> " =\n  " <> Text.encodeUtf8Builder text <> "\n"
         in
-        evaluate (elmSourceCode <> def) (Just name)
+        evaluate localizer (elmSourceCode <> def) (Just name)
 
 
 addLines :: Map.Map N.Name Text.Text -> B.Builder -> B.Builder
@@ -257,9 +263,9 @@ addLines dict builder =
   Map.foldr (\text b -> Text.encodeUtf8Builder text <> "\n" <> b) builder dict
 
 
-evaluate :: B.Builder -> Maybe N.Name -> Task.Task (Maybe FilePath)
-evaluate builder maybeName =
-  Project.compileForRepl (LBS.toStrict (B.toLazyByteString builder)) maybeName
+evaluate :: L.Localizer -> B.Builder -> Maybe N.Name -> Task.Task (Maybe FilePath)
+evaluate localizer builder maybeName =
+  Project.compileForRepl localizer (LBS.toStrict (B.toLazyByteString builder)) maybeName
 
 
 
@@ -279,7 +285,7 @@ initSettings =
 
 lookupCompletions :: String -> Runner [Repl.Completion]
 lookupCompletions string =
-    do  (State _ imports types defs _) <- RWS.get
+    do  (State _ imports types defs _ _) <- RWS.get
         return $
           addMatches string False defs $
           addMatches string False types $

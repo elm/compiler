@@ -26,6 +26,7 @@ import qualified File.Compile as Compile
 import qualified File.Crawl as Crawl
 import qualified File.Plan as Plan
 import qualified Generate.Output as Output
+import qualified Reporting.Render.Type.Localizer as L
 import qualified Reporting.Task as Task
 import qualified Stuff.Paths as Path
 
@@ -70,15 +71,15 @@ compile mode target maybeOutput docs summary@(Summary.Summary root project _ _ _
 -- COMPILE FOR REPL
 
 
-compileForRepl :: BS.ByteString -> Maybe N.Name -> Task.Task (Maybe FilePath)
-compileForRepl source maybeName =
+compileForRepl :: L.Localizer -> BS.ByteString -> Maybe N.Name -> Task.Task (Maybe FilePath)
+compileForRepl localizer source maybeName =
   do  summary@(Summary.Summary root project _ _ _) <- getRoot
       graph <- Crawl.crawlFromSource summary source
       (dirty, ifaces) <- Plan.plan Nothing summary graph
       answers <- Compile.compile project Nothing ifaces dirty
       results <- Artifacts.write root answers
       let (Compiler.Artifacts elmi _ _) = results ! "Elm_Repl"
-      traverse (Output.generateReplFile summary graph elmi) maybeName
+      traverse (Output.generateReplFile localizer summary graph elmi) maybeName
 
 
 

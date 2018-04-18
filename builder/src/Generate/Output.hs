@@ -40,6 +40,7 @@ import qualified Generate.Nitpick as Nitpick
 import qualified Generate.JavaScript.Mode as Mode
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Make as E
+import qualified Reporting.Render.Type.Localizer as L
 import qualified Reporting.Task as Task
 import qualified Stuff.Paths as Paths
 import Terminal.Args (Parser(..))
@@ -143,13 +144,19 @@ generateMonolith mode maybeOutput (Summary.Summary _ project _ _ _) graph rootNa
 -- GENERATE REPL MONOLITH
 
 
-generateReplFile :: Summary.Summary -> Crawl.Result -> I.Interface -> N.Name -> Task.Task FilePath
-generateReplFile summary@(Summary.Summary _ project _ _ _) graph iface name =
+generateReplFile
+  :: L.Localizer
+  -> Summary.Summary
+  -> Crawl.Result
+  -> I.Interface
+  -> N.Name
+  -> Task.Task FilePath
+generateReplFile localizer summary@(Summary.Summary _ project _ _ _) graph iface name =
   do
       objectGraph <- organize summary graph
 
       let home = Module.Canonical (Project.getName project) "Elm_Repl"
-      let builder = Obj.generateForRepl True objectGraph iface home name
+      let builder = Obj.generateForRepl True localizer objectGraph iface home name
 
       liftIO $ IO.writeBuilder (Paths.temp "js") $
         replRecovery <> "(function(){\n'use strict';" <> Functions.functions <> builder <> "}());"

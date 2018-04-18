@@ -4,6 +4,7 @@ module Parse.Module
   ( module_
   , chompImports
   , freshLine
+  , exposing
   )
   where
 
