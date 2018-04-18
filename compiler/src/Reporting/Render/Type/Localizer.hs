@@ -4,6 +4,7 @@ module Reporting.Render.Type.Localizer
   ( Localizer
   , toDoc
   , empty
+  , fromNames
   , fromImports
   )
   where
@@ -67,7 +68,16 @@ toDoc (Localizer localizer) home name =
 
 
 
--- MAKE
+-- FROM NAMES
+
+
+fromNames :: Map.Map N.Name a -> Localizer
+fromNames names =
+  Localizer $ Map.map (\_ -> Import Nothing All) names
+
+
+
+-- FROM IMPORTS
 
 
 fromImports :: N.Name -> [Src.Import] -> Localizer

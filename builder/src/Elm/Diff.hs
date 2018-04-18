@@ -28,6 +28,7 @@ import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Diff as E
 import qualified Reporting.Exit.Help as Help
+import qualified Reporting.Render.Type.Localizer as L
 import qualified Reporting.Task as Task
 
 
@@ -54,25 +55,25 @@ diff args =
             Right vsns ->
               do  oldDocs <- getDocs name vsns (min v1 v2)
                   newDocs <- getDocs name vsns (max v1 v2)
-                  writeDoc (toDoc (Diff.diff oldDocs newDocs))
+                  writeDiff oldDocs newDocs
 
     LocalInquiry v1 v2 ->
       do  (_, name, vsns) <- getPackageInfo
           oldDocs <- getDocs name vsns (min v1 v2)
           newDocs <- getDocs name vsns (max v1 v2)
-          writeDoc (toDoc (Diff.diff oldDocs newDocs))
+          writeDiff oldDocs newDocs
 
     CodeVsLatest ->
       do  (summary, name, vsns) <- getPackageInfo
           oldDocs <- getDocs name vsns (maximum vsns)
           newDocs <- Task.silently (Project.generateDocs summary)
-          writeDoc (toDoc (Diff.diff oldDocs newDocs))
+          writeDiff oldDocs newDocs
 
     CodeVsExactly version ->
       do  (summary, name, vsns) <- getPackageInfo
           oldDocs <- getDocs name vsns version
           newDocs <- Task.silently (Project.generateDocs summary)
-          writeDoc (toDoc (Diff.diff oldDocs newDocs))
+          writeDiff oldDocs newDocs
 
 
 throw :: E.Exit -> Task.Task a
@@ -109,17 +110,21 @@ getPackageInfo =
 -- WRITE DOC
 
 
-writeDoc :: D.Doc -> Task.Task ()
-writeDoc doc =
-  liftIO $ Help.toStdout (doc <> "\n")
+writeDiff :: Docs.Documentation -> Docs.Documentation -> Task.Task ()
+writeDiff oldDocs newDocs =
+  let
+    changes = Diff.diff oldDocs newDocs
+    localizer = L.fromNames (Map.union oldDocs newDocs)
+  in
+  liftIO $ Help.toStdout (toDoc localizer changes <> "\n")
 
 
 
 -- TO DOC
 
 
-toDoc :: PackageChanges -> D.Doc
-toDoc changes@(PackageChanges added changed removed) =
+toDoc :: L.Localizer -> PackageChanges -> D.Doc
+toDoc localizer changes@(PackageChanges added changed removed) =
   if null added && Map.null changed && null removed then
     "No API changes detected, so this is a" <+> D.green "PATCH" <+> "change."
   else
@@ -143,7 +148,7 @@ toDoc changes@(PackageChanges added changed removed) =
           ]
 
       chunks =
-        addedChunk ++ removedChunk ++ map changesToChunk (Map.toList changed)
+        addedChunk ++ removedChunk ++ map (changesToChunk localizer) (Map.toList changed)
     in
       D.vcat (header : "" : map chunkToDoc chunks)
 
@@ -174,23 +179,23 @@ chunkToDoc (Chunk title magnitude details) =
       ]
 
 
-changesToChunk :: (N.Name, ModuleChanges) -> Chunk
-changesToChunk (name, changes@(ModuleChanges unions aliases values binops)) =
+changesToChunk :: L.Localizer -> (N.Name, ModuleChanges) -> Chunk
+changesToChunk localizer (name, changes@(ModuleChanges unions aliases values binops)) =
   let
     magnitude =
       Diff.moduleChangeMagnitude changes
 
     (unionAdd, unionChange, unionRemove) =
-      changesToDocTriple unionToDoc unions
+      changesToDocTriple (unionToDoc localizer) unions
 
     (aliasAdd, aliasChange, aliasRemove) =
-      changesToDocTriple aliasToDoc aliases
+      changesToDocTriple (aliasToDoc localizer) aliases
 
     (valueAdd, valueChange, valueRemove) =
-      changesToDocTriple valueToDoc values
+      changesToDocTriple (valueToDoc localizer) values
 
     (binopAdd, binopChange, binopRemove) =
-      changesToDocTriple binopToDoc binops
+      changesToDocTriple (binopToDoc localizer) binops
   in
     Chunk (N.toString name) magnitude $
       D.vcat $ List.intersperse "" $ Maybe.catMaybes $
@@ -229,35 +234,35 @@ changesToDoc categoryName unions aliases values binops =
       D.fromString categoryName <> ":" : unions ++ aliases ++ binops ++ values
 
 
-unionToDoc :: N.Name -> Docs.Union -> D.Doc
-unionToDoc name (Docs.Union _ tvars ctors) =
+unionToDoc :: L.Localizer -> N.Name -> Docs.Union -> D.Doc
+unionToDoc localizer name (Docs.Union _ tvars ctors) =
   let
     setup =
       "type" <+> D.fromName name <+> D.hsep (map D.fromName tvars)
 
     ctorDoc (ctor, tipes) =
-      typeDoc (Type.Type ctor tipes)
+      typeDoc localizer (Type.Type ctor tipes)
   in
     D.hang 4 (D.sep (setup : zipWith (<+>) ("=" : repeat "|") (map ctorDoc ctors)))
 
 
-aliasToDoc :: N.Name -> Docs.Alias -> D.Doc
-aliasToDoc name (Docs.Alias _ tvars tipe) =
+aliasToDoc :: L.Localizer -> N.Name -> Docs.Alias -> D.Doc
+aliasToDoc localizer name (Docs.Alias _ tvars tipe) =
   let
     declaration =
       "type" <+> "alias" <+> D.hsep (map D.fromName (name:tvars)) <+> "="
   in
-    D.hang 4 (D.sep [ declaration, typeDoc tipe ])
+    D.hang 4 (D.sep [ declaration, typeDoc localizer tipe ])
 
 
-valueToDoc :: N.Name -> Docs.Value -> D.Doc
-valueToDoc name (Docs.Value _ tipe) =
-  D.hang 4 $ D.sep [ D.fromName name <+> ":", typeDoc tipe ]
+valueToDoc :: L.Localizer -> N.Name -> Docs.Value -> D.Doc
+valueToDoc localizer name (Docs.Value _ tipe) =
+  D.hang 4 $ D.sep [ D.fromName name <+> ":", typeDoc localizer tipe ]
 
 
-binopToDoc :: N.Name -> Docs.Binop -> D.Doc
-binopToDoc name (Docs.Binop _ tipe associativity (Docs.Precedence n)) =
-    "(" <> D.fromName name <> ")" <+> ":" <+> typeDoc tipe <> D.black details
+binopToDoc :: L.Localizer -> N.Name -> Docs.Binop -> D.Doc
+binopToDoc localizer name (Docs.Binop _ tipe associativity (Docs.Precedence n)) =
+    "(" <> D.fromName name <> ")" <+> ":" <+> typeDoc localizer tipe <> D.black details
   where
     details =
       "    (" <> D.fromName assoc <> "/" <> D.fromInt n <> ")"
@@ -269,6 +274,6 @@ binopToDoc name (Docs.Binop _ tipe associativity (Docs.Precedence n)) =
         Docs.Right -> "right"
 
 
-typeDoc :: Type.Type -> D.Doc
-typeDoc tipe =
-  Type.toDoc Type.None tipe
+typeDoc :: L.Localizer -> Type.Type -> D.Doc
+typeDoc localizer tipe =
+  Type.toDoc localizer Type.None tipe
