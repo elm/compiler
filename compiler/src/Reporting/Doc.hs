@@ -151,7 +151,7 @@ fancyLink word before fileName after =
 
 makeLink :: String -> String
 makeLink fileName =
-  "<https://elm-lang.org/hints/" <> Pkg.versionToString Compiler.version <> "/" <> fileName <> ">"
+  "<https://elm-lang.org/" <> Pkg.versionToString Compiler.version <> "/hints/" <> fileName <> ">"
 
 
 reflowLink :: String -> String -> String -> P.Doc
