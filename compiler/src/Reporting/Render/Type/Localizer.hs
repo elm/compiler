@@ -5,7 +5,6 @@ module Reporting.Render.Type.Localizer
   , toDoc
   , empty
   , fromImports
-
   )
   where
 
@@ -71,9 +70,10 @@ toDoc (Localizer localizer) home name =
 -- MAKE
 
 
-fromImports :: [Src.Import] -> Localizer
-fromImports imports =
-  Localizer $ Map.fromList (map toPair imports)
+fromImports :: N.Name -> [Src.Import] -> Localizer
+fromImports self imports =
+  Localizer $ Map.fromList $
+    (self, Import Nothing All) : map toPair imports
 
 
 toPair :: Src.Import -> (N.Name, Import)
