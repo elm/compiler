@@ -7,7 +7,6 @@ module Reporting.Error
   where
 
 
-import qualified Type.Error
 import qualified Reporting.Error.Canonicalize as Canonicalize
 import qualified Reporting.Error.Docs as Docs
 import qualified Reporting.Error.Main as Main
@@ -15,6 +14,7 @@ import qualified Reporting.Error.Pattern as Pattern
 import qualified Reporting.Error.Syntax as Syntax
 import qualified Reporting.Error.Type as Type
 import qualified Reporting.Render.Code as Code
+import qualified Reporting.Render.Type.Localizer as L
 import qualified Reporting.Report as Report
 
 
@@ -25,7 +25,7 @@ import qualified Reporting.Report as Report
 data Error
   = Syntax Syntax.Error
   | Canonicalize Canonicalize.Error
-  | Type [Type.Error]
+  | Type L.Localizer [Type.Error]
   | Main Main.Error
   | Pattern [Pattern.Error]
   | Docs Docs.Error
@@ -35,8 +35,8 @@ data Error
 -- TO REPORT
 
 
-toReports :: Code.Source -> Type.Error.Localizer -> Error -> [Report.Report]
-toReports source localizer err =
+toReports :: Code.Source -> Error -> [Report.Report]
+toReports source err =
   case err of
     Syntax syntaxError ->
         [Syntax.toReport source syntaxError]
@@ -44,7 +44,7 @@ toReports source localizer err =
     Canonicalize canonicalizeError ->
         [Canonicalize.toReport source canonicalizeError]
 
-    Type typeErrors ->
+    Type localizer typeErrors ->
         map (Type.toReport source localizer) typeErrors
 
     Main mainError ->
