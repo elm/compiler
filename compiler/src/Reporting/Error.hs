@@ -26,7 +26,7 @@ data Error
   = Syntax Syntax.Error
   | Canonicalize Canonicalize.Error
   | Type L.Localizer [Type.Error]
-  | Main Main.Error
+  | Main L.Localizer Main.Error
   | Pattern [Pattern.Error]
   | Docs Docs.Error
 
@@ -47,8 +47,8 @@ toReports source err =
     Type localizer typeErrors ->
         map (Type.toReport source localizer) typeErrors
 
-    Main mainError ->
-        [Main.toReport source mainError]
+    Main localizer mainError ->
+        [Main.toReport localizer source mainError]
 
     Pattern patternErrors ->
         map (Pattern.toReport source) patternErrors

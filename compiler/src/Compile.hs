@@ -10,8 +10,6 @@ module Compile
 import qualified Data.ByteString as BS
 import qualified Data.Map as Map
 
-import qualified AST.Source as Src
-import qualified AST.Valid as Valid
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
@@ -62,13 +60,15 @@ compile flag pkg importDict interfaces source =
       canonical <- Result.mapError Error.Canonicalize $
         Canonicalize.canonicalize pkg importDict interfaces valid
 
+      let localizer = L.fromModule valid -- TODO should this be strict for GC?
+
       annotations <-
-        runTypeInference (Valid._imports valid) canonical
+        runTypeInference localizer canonical
 
       () <-
         exhaustivenessCheck canonical
 
-      graph <- Result.mapError Error.Main $
+      graph <- Result.mapError (Error.Main localizer) $
         Optimize.optimize annotations canonical
 
       documentation <-
@@ -86,17 +86,13 @@ compile flag pkg importDict interfaces source =
 -- TYPE INFERENCE
 
 
-runTypeInference :: [Src.Import] -> Can.Module -> Result i (Map.Map N.Name Can.Annotation)
-runTypeInference imports canonical =
+runTypeInference :: L.Localizer -> Can.Module -> Result i (Map.Map N.Name Can.Annotation)
+runTypeInference localizer canonical =
   case unsafePerformIO (Type.run =<< Type.constrain canonical) of
     Right annotations ->
       Result.ok annotations
 
     Left errors ->
-      let
-        localizer =
-          L.fromImports (ModuleName._module (Can._name canonical)) imports
-      in
       Result.throw (Error.Type localizer errors)
 
 

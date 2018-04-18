@@ -5,7 +5,7 @@ module Reporting.Render.Type.Localizer
   , toDoc
   , empty
   , fromNames
-  , fromImports
+  , fromModule
   )
   where
 
@@ -14,6 +14,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 import qualified AST.Source as Src
+import qualified AST.Valid as Valid
 import qualified Elm.Name as N
 import Reporting.Doc ((<>))
 import qualified Reporting.Doc as D
@@ -77,13 +78,13 @@ fromNames names =
 
 
 
--- FROM IMPORTS
+-- FROM MODULE
 
 
-fromImports :: N.Name -> [Src.Import] -> Localizer
-fromImports self imports =
+fromModule :: Valid.Module -> Localizer
+fromModule (Valid.Module name _ _ _ imports _ _ _ _ _) =
   Localizer $ Map.fromList $
-    (self, Import Nothing All) : map toPair imports
+    (name, Import Nothing All) : map toPair imports
 
 
 toPair :: Src.Import -> (N.Name, Import)

@@ -18,6 +18,7 @@ import qualified Reporting.Region as R
 import qualified Reporting.Report as Report
 import qualified Reporting.Render.Code as Code
 import qualified Reporting.Render.Type as RT
+import qualified Reporting.Render.Type.Localizer as L
 
 
 
@@ -37,8 +38,8 @@ data Context = Def | Pattern
 -- TO REPORT
 
 
-toReport :: Code.Source -> Warning -> Report.Report
-toReport source warning =
+toReport :: L.Localizer -> Code.Source -> Warning -> Report.Report
+toReport localizer source warning =
   case warning of
     UnusedImport region moduleName ->
       Report.Report "unused import" region [] $
@@ -89,7 +90,7 @@ toReport source warning =
                 [ "I inferred the type annotation myself though! You can copy it into your code:"
                 , D.green $ D.hang 4 $ D.sep $
                     [ D.fromName name <> " :"
-                    , RT.canToDoc RT.None inferredType
+                    , RT.canToDoc localizer RT.None inferredType
                     ]
                 ]
             )

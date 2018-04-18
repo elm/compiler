@@ -14,6 +14,7 @@ import qualified Reporting.Error.Canonicalize as E
 import qualified Reporting.Region as R
 import qualified Reporting.Render.Code as Code
 import qualified Reporting.Render.Type as RT
+import qualified Reporting.Render.Type.Localizer as L
 import qualified Reporting.Report as Report
 
 
@@ -31,8 +32,8 @@ data Error
 -- TO REPORT
 
 
-toReport :: Code.Source -> Error -> Report.Report
-toReport source err =
+toReport :: L.Localizer -> Code.Source -> Error -> Report.Report
+toReport localizer source err =
   case err of
     BadType region tipe ->
       Report.Report "BAD MAIN TYPE" region [] $
@@ -42,7 +43,7 @@ toReport source err =
           ,
             D.stack
               [ "The type of `main` value I am seeing is:"
-              , D.indent 4 $ D.dullyellow $ RT.canToDoc RT.None tipe
+              , D.indent 4 $ D.dullyellow $ RT.canToDoc localizer RT.None tipe
               , D.reflow $
                   "I only know how to handle Html, Svg, and Programs\
                   \ though. Modify `main` to be one of those types of values!"
