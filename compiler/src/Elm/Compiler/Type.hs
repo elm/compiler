@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Elm.Compiler.Type
   ( Type(..)
-  , Context(..)
+  , RT.Context(..)
   , toDoc
   , DebugMetadata(..)
   , Alias(..)
@@ -23,7 +23,9 @@ import qualified Parse.Primitives as Parse
 import qualified Parse.Type as Type
 import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
-import Reporting.Doc ((<>), (<+>))
+import qualified Reporting.Render.Type as RT
+import qualified Reporting.Render.Type.Localizer as L
+
 import qualified Json.Decode as Decode
 import qualified Json.Encode as Encode
 import Json.Encode ((==>))
@@ -34,12 +36,12 @@ import Json.Encode ((==>))
 
 
 data Type
-    = Lambda Type Type
-    | Var N.Name
-    | Type N.Name [Type]
-    | Record [(N.Name, Type)] (Maybe N.Name)
-    | Unit
-    | Tuple Type Type [Type]
+  = Lambda Type Type
+  | Var N.Name
+  | Type N.Name [Type]
+  | Record [(N.Name, Type)] (Maybe N.Name)
+  | Unit
+  | Tuple Type Type [Type]
 
 
 data DebugMetadata =
@@ -58,90 +60,53 @@ data Union = Union N.Name [N.Name] [(N.Name, [Type])]
 -- TO DOC
 
 
-data Context = None | InType | InFunction
-
-
-toDoc :: Context -> Type -> D.Doc
-toDoc context tipe =
+toDoc :: L.Localizer -> RT.Context -> Type -> D.Doc
+toDoc localizer context tipe =
   case tipe of
     Lambda _ _ ->
-        let t:ts =
-              map (toDoc InFunction) (collectLambdas tipe)
-
-            lambda =
-              D.sep [ t, D.sep (map ("->" <+>) ts) ]
-        in
-            case context of
-              None -> lambda
-              _ -> "(" <> lambda <> ")"
+      let
+        a:b:cs =
+          map (toDoc localizer RT.Func) (collectLambdas tipe)
+      in
+      RT.lambda context a b cs
 
     Var name ->
-        D.fromName name
+      D.fromName name
 
     Unit ->
-        "()"
+      "()"
 
     Tuple a b cs ->
-        D.sep
-          [ D.cat $
-              [ "(" <+> toDoc None a
-              , "," <+> toDoc None b
-              ]
-              ++ map ("," <+>) (map (toDoc None) cs)
-          , ")"
-          ]
+      RT.tuple
+        (toDoc localizer RT.None a)
+        (toDoc localizer RT.None b)
+        (map (toDoc localizer RT.None) cs)
 
     Type name args ->
-        case args of
-          [] ->
-            D.fromName name
-
-          _ ->
-            let
-              docName =
-                D.fromName name
-
-              application =
-                D.hang 2 $ D.sep (docName : map (toDoc InType) args)
-            in
-              case context of
-                InType ->
-                  "(" <> application <> ")"
-
-                _ ->
-                  application
-
-    Record [] Nothing ->
-      "{}"
+      RT.apply
+        context
+        (D.fromName name)
+        (map (toDoc localizer RT.App) args)
 
     Record fields ext ->
-      case ext of
-        Nothing ->
-          D.sep
-            [ D.cat (zipWith (<+>) ("{" : repeat ",") (map entryToDoc fields))
-            , "}"
-            ]
-
-        Just x ->
-          D.sep
-            [ D.hang 4 $ D.sep $
-                [ "{" <+> D.fromName x
-                , D.cat (zipWith (<+>) ("|" : repeat ",") (map entryToDoc fields))
-                ]
-            , "}"
-            ]
+      RT.record
+        (map (entryToDoc localizer) fields)
+        (fmap D.fromName ext)
 
 
-entryToDoc :: (N.Name, Type) -> D.Doc
-entryToDoc (field, fieldType) =
-  D.fromName field <+> ":" <+> toDoc None fieldType
+entryToDoc :: L.Localizer -> (N.Name, Type) -> (D.Doc, D.Doc)
+entryToDoc localizer (field, fieldType) =
+  ( D.fromName field, toDoc localizer RT.None fieldType )
 
 
 collectLambdas :: Type -> [Type]
 collectLambdas tipe =
   case tipe of
-    Lambda arg body -> arg : collectLambdas body
-    _ -> [tipe]
+    Lambda arg body ->
+      arg : collectLambdas body
+
+    _ ->
+      [tipe]
 
 
 
@@ -150,7 +115,7 @@ collectLambdas tipe =
 
 encode :: Type -> Encode.Value
 encode tipe =
-  Encode.text $ Text.pack $ D.toLine (toDoc None tipe)
+  Encode.text $ Text.pack $ D.toLine (toDoc L.empty RT.None tipe)
 
 
 decoder :: Decode.Decoder () Type
