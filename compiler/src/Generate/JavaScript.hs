@@ -21,8 +21,6 @@ import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
-import qualified Elm.Compiler.Type as Type
-import qualified Elm.Compiler.Type.Extract as Extract
 import qualified Elm.Interface as I
 import qualified Elm.Name as N
 import qualified Generate.JavaScript.Builder as JS
@@ -30,6 +28,8 @@ import qualified Generate.JavaScript.Expression as Expr
 import qualified Generate.JavaScript.Name as Name
 import qualified Generate.JavaScript.Mode as Mode
 import qualified Reporting.Doc as D
+import qualified Reporting.Render.Type as RT
+import qualified Reporting.Render.Type.Localizer as L
 
 
 
@@ -68,26 +68,28 @@ addMain mode graph home _ state =
 -- GENERATE FOR REPL
 
 
-generateForRepl :: Bool -> Opt.Graph -> I.Interface -> ModuleName.Canonical -> N.Name -> B.Builder
-generateForRepl ansi (Opt.Graph _ graph _) iface home name =
+generateForRepl :: Bool -> L.Localizer -> Opt.Graph -> I.Interface -> ModuleName.Canonical -> N.Name -> B.Builder
+generateForRepl ansi localizer (Opt.Graph _ graph _) iface home name =
   let
     mode = Mode.dev Mode.Client
     debugState = addGlobal mode graph emptyState (Opt.Global ModuleName.debug "toString")
     evalState = addGlobal mode graph debugState (Opt.Global home name)
   in
-  stateToBuilder evalState <> print ansi home name (I._types iface ! name)
+  stateToBuilder evalState
+  <>
+  print ansi localizer home name (I._types iface ! name)
 
 
-print :: Bool -> ModuleName.Canonical -> N.Name -> Can.Annotation -> B.Builder
-print ansi home name annotation =
+print :: Bool -> L.Localizer -> ModuleName.Canonical -> N.Name -> Can.Annotation -> B.Builder
+print ansi localizer home name (Can.Forall _ tipe) =
   let
     value = Name.toBuilder (Name.fromGlobal home name)
     toString = Name.toBuilder (Name.fromKernel N.debug "toAnsiString")
-    tipe = Type.toDoc Type.None (Extract.fromAnnotation annotation)
+    tipeDoc = RT.canToDoc localizer RT.None tipe
     bool = if ansi then "true" else "false"
   in
     "var _value = " <> toString <> "(" <> bool <> ", " <> value <> ");\n\
-    \var _type = " <> B.stringUtf8 (show (D.toString tipe)) <> ";\n\
+    \var _type = " <> B.stringUtf8 (show (D.toString tipeDoc)) <> ";\n\
     \function _print(t) { console.log(_value + (" <> bool <> " ? '\x1b[90m' + t + '\x1b[0m' : t)); }\n\
     \if (_value.length + 3 + _type.length >= 80 || _type.indexOf('\\n') >= 0) {\n\
     \    _print('\\n    : ' + _type.split('\\n').join('\\n      '));\n\
