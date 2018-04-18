@@ -17,6 +17,7 @@ import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Reporting.Render.Type as RT
+import qualified Reporting.Render.Type.Localizer as L
 import qualified Type.Occurs as Occurs
 import Type.Type as Type
 import qualified Type.Error as ET
@@ -203,7 +204,7 @@ isGeneric var =
           do  tipe <- Type.toErrorType var
               error $
                 "You ran into a compiler bug. Here are some details for the developers:\n\n"
-                ++ "    " ++ show (ET.toDoc Map.empty RT.None tipe) ++ " [rank = " ++ show rank ++ "]\n\n"
+                ++ "    " ++ show (ET.toDoc L.empty RT.None tipe) ++ " [rank = " ++ show rank ++ "]\n\n"
                 ++
                   "Please create an <http://sscce.org/> and then report it\n\
                   \at <https://github.com/elm-lang/elm-compiler/issues>\n\n"

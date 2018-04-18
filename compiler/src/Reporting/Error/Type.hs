@@ -28,6 +28,7 @@ import qualified Reporting.Doc as D
 import qualified Reporting.Region as R
 import qualified Reporting.Render.Code as Code
 import qualified Reporting.Render.Type as RT
+import qualified Reporting.Render.Type.Localizer as L
 import qualified Reporting.Report as Report
 import qualified Type.Error as T
 
@@ -161,7 +162,7 @@ ptypeReplace expectation tipe =
 -- TO REPORT
 
 
-toReport :: Code.Source -> T.Localizer -> Error -> Report.Report
+toReport :: Code.Source -> L.Localizer -> Error -> Report.Report
 toReport source localizer err =
   case err of
     BadExpr region category actualType expected ->
@@ -178,7 +179,7 @@ toReport source localizer err =
 -- TO PATTERN REPORT
 
 
-toPatternReport :: Code.Source -> T.Localizer -> R.Region -> PCategory -> T.Type -> PExpected T.Type -> Report.Report
+toPatternReport :: Code.Source -> L.Localizer -> R.Region -> PCategory -> T.Type -> PExpected T.Type -> Report.Report
 toPatternReport source localizer patternRegion category tipe expected =
   Report.Report "TYPE MISMATCH" patternRegion [] $
   case expected of
@@ -306,7 +307,7 @@ toPatternReport source localizer patternRegion category tipe expected =
 -- PATTERN HELPERS
 
 
-patternTypeComparison :: T.Localizer -> T.Type -> T.Type -> ( String, String, [D.Doc] ) -> D.Doc
+patternTypeComparison :: L.Localizer -> T.Type -> T.Type -> ( String, String, [D.Doc] ) -> D.Doc
 patternTypeComparison localizer actual expected ( iAmSeeing, insteadOf, contextHints ) =
   let
     (actualDoc, expectedDoc, problems) =
@@ -340,7 +341,7 @@ toPatternDescription category iAmTryingToMatch =
 -- EXPR HELPERS
 
 
-typeComparison :: T.Localizer -> T.Type -> T.Type -> ( String, String, [D.Doc] ) -> D.Doc
+typeComparison :: L.Localizer -> T.Type -> T.Type -> ( String, String, [D.Doc] ) -> D.Doc
 typeComparison localizer actual expected ( iAmSeeing, insteadOf, contextHints ) =
   let
     (actualDoc, expectedDoc, problems) =
@@ -356,7 +357,7 @@ typeComparison localizer actual expected ( iAmSeeing, insteadOf, contextHints ) 
     ++ contextHints
 
 
-loneType :: T.Localizer -> T.Type -> T.Type -> ( D.Doc, [D.Doc] ) -> D.Doc
+loneType :: L.Localizer -> T.Type -> T.Type -> ( D.Doc, [D.Doc] ) -> D.Doc
 loneType localizer actual expected ( iAmSeeing, furtherDetails ) =
   let
     (actualDoc, _, problems) =
@@ -634,7 +635,7 @@ badFlexFlexSuper s1 s2 =
 -- TO EXPR REPORT
 
 
-toExprReport :: Code.Source -> T.Localizer -> R.Region -> Category -> T.Type -> Expected T.Type -> Report.Report
+toExprReport :: Code.Source -> L.Localizer -> R.Region -> Category -> T.Type -> Expected T.Type -> Report.Report
 toExprReport source localizer exprRegion category tipe expected =
   Report.Report "TYPE MISMATCH" exprRegion [] $
   case expected of
@@ -1041,7 +1042,7 @@ countArgs tipe =
 -- OP LEFT
 
 
-opLeftToDocs :: T.Localizer -> Category -> N.Name -> T.Type -> T.Type -> (D.Doc, D.Doc)
+opLeftToDocs :: L.Localizer -> Category -> N.Name -> T.Type -> T.Type -> (D.Doc, D.Doc)
 opLeftToDocs localizer category op tipe expected =
   case op of
     "+"
@@ -1101,7 +1102,7 @@ data RightDocs
   | EmphRight (D.Doc, D.Doc)
 
 
-opRightToDocs :: T.Localizer -> Category -> N.Name -> T.Type -> T.Type -> RightDocs
+opRightToDocs :: L.Localizer -> Category -> N.Name -> T.Type -> T.Type -> RightDocs
 opRightToDocs localizer category op tipe expected =
   case op of
     "+"
@@ -1192,7 +1193,7 @@ opRightToDocs localizer category op tipe expected =
       badOpRightFallback localizer category op tipe expected
 
 
-badOpRightFallback :: T.Localizer -> Category -> N.Name -> T.Type -> T.Type -> RightDocs
+badOpRightFallback :: L.Localizer -> Category -> N.Name -> T.Type -> T.Type -> RightDocs
 badOpRightFallback localizer category op tipe expected =
   EmphRight
     (
@@ -1258,7 +1259,7 @@ isList tipe =
 -- BAD CONS
 
 
-badConsRight :: T.Localizer -> Category -> T.Type -> T.Type -> RightDocs
+badConsRight :: L.Localizer -> Category -> T.Type -> T.Type -> RightDocs
 badConsRight localizer category tipe expected =
   case tipe of
     T.Type home1 name1 [actualElement] | T.isList home1 name1 ->
@@ -1332,7 +1333,7 @@ toAppendType tipe =
     _ -> AOther
 
 
-badAppendLeft :: T.Localizer -> Category -> T.Type -> T.Type -> (D.Doc, D.Doc)
+badAppendLeft :: L.Localizer -> Category -> T.Type -> T.Type -> (D.Doc, D.Doc)
 badAppendLeft localizer category tipe expected =
   case toAppendType tipe of
     ANumber thing stringFromThing ->
@@ -1367,7 +1368,7 @@ badAppendLeft localizer category tipe expected =
       )
 
 
-badAppendRight :: T.Localizer -> Category -> T.Type -> T.Type -> RightDocs
+badAppendRight :: L.Localizer -> Category -> T.Type -> T.Type -> RightDocs
 badAppendRight localizer category tipe expected =
   case (toAppendType expected, toAppendType tipe) of
     (AString, ANumber thing stringFromThing) ->
@@ -1501,7 +1502,7 @@ badStringAdd =
   )
 
 
-badListAdd :: T.Localizer -> Category -> String -> T.Type -> T.Type -> (D.Doc, D.Doc)
+badListAdd :: L.Localizer -> Category -> String -> T.Type -> T.Type -> (D.Doc, D.Doc)
 badListAdd localizer category direction tipe expected =
   (
     "I cannot do addition with lists:"
@@ -1522,7 +1523,7 @@ badListAdd localizer category direction tipe expected =
   )
 
 
-badListMul :: T.Localizer -> Category -> String -> T.Type -> T.Type -> (D.Doc, D.Doc)
+badListMul :: L.Localizer -> Category -> String -> T.Type -> T.Type -> (D.Doc, D.Doc)
 badListMul localizer category direction tipe expected =
   badMath localizer category "Multiplication" direction "*" tipe expected
     [
@@ -1534,7 +1535,7 @@ badListMul localizer category direction tipe expected =
     ]
 
 
-badMath :: T.Localizer -> Category -> String -> String -> String -> T.Type -> T.Type -> [D.Doc] -> (D.Doc, D.Doc)
+badMath :: L.Localizer -> Category -> String -> String -> String -> T.Type -> T.Type -> [D.Doc] -> (D.Doc, D.Doc)
 badMath localizer category operation direction op tipe expected otherHints =
   (
     D.reflow $
@@ -1554,7 +1555,7 @@ badMath localizer category operation direction op tipe expected otherHints =
   )
 
 
-badFDiv :: T.Localizer -> D.Doc -> T.Type -> T.Type -> (D.Doc, D.Doc)
+badFDiv :: L.Localizer -> D.Doc -> T.Type -> T.Type -> (D.Doc, D.Doc)
 badFDiv localizer direction tipe expected =
   (
     D.reflow $
@@ -1588,7 +1589,7 @@ badFDiv localizer direction tipe expected =
   )
 
 
-badIDiv :: T.Localizer -> D.Doc -> T.Type -> T.Type -> (D.Doc, D.Doc)
+badIDiv :: L.Localizer -> D.Doc -> T.Type -> T.Type -> (D.Doc, D.Doc)
 badIDiv localizer direction tipe expected =
   (
     D.reflow $
@@ -1628,7 +1629,7 @@ badIDiv localizer direction tipe expected =
 -- BAD BOOLS
 
 
-badBool :: T.Localizer -> D.Doc -> D.Doc -> T.Type -> T.Type -> (D.Doc, D.Doc)
+badBool :: L.Localizer -> D.Doc -> D.Doc -> T.Type -> T.Type -> (D.Doc, D.Doc)
 badBool localizer op direction tipe expected =
   (
     D.reflow $
@@ -1650,7 +1651,7 @@ badBool localizer op direction tipe expected =
 -- BAD COMPARISON
 
 
-badCompLeft :: T.Localizer -> Category -> String -> String -> T.Type -> T.Type -> (D.Doc, D.Doc)
+badCompLeft :: L.Localizer -> Category -> String -> String -> T.Type -> T.Type -> (D.Doc, D.Doc)
 badCompLeft localizer category op direction tipe expected =
   (
     D.reflow $
@@ -1677,7 +1678,7 @@ badCompLeft localizer category op direction tipe expected =
   )
 
 
-badCompRight :: T.Localizer -> String -> T.Type -> T.Type -> RightDocs
+badCompRight :: L.Localizer -> String -> T.Type -> T.Type -> RightDocs
 badCompRight localizer op tipe expected =
   EmphBoth
     (
@@ -1701,7 +1702,7 @@ badCompRight localizer op tipe expected =
 -- BAD EQUALITY
 
 
-badEquality :: T.Localizer -> String -> T.Type -> T.Type -> RightDocs
+badEquality :: L.Localizer -> String -> T.Type -> T.Type -> RightDocs
 badEquality localizer op tipe expected =
   EmphBoth
     (
@@ -1731,7 +1732,7 @@ badEquality localizer op tipe expected =
 -- INFINITE TYPES
 
 
-toInfiniteReport :: Code.Source -> T.Localizer -> R.Region -> N.Name -> T.Type -> Report.Report
+toInfiniteReport :: Code.Source -> L.Localizer -> R.Region -> N.Name -> T.Type -> Report.Report
 toInfiniteReport source localizer region name overallType =
   Report.Report "INFINITE TYPE" region [] $
     Report.toCodeSnippet source region Nothing

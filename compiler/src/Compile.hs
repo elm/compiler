@@ -10,6 +10,8 @@ module Compile
 import qualified Data.ByteString as BS
 import qualified Data.Map as Map
 
+import qualified AST.Source as Src
+import qualified AST.Valid as Valid
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
@@ -22,6 +24,7 @@ import qualified Nitpick.PatternMatches as PatternMatches
 import qualified Optimize.Module as Optimize
 import qualified Parse.Parse as Parse
 import qualified Reporting.Error as Error
+import qualified Reporting.Render.Type.Localizer as L
 import qualified Reporting.Result as Result
 import qualified Reporting.Warning as Warning
 import qualified Type.Constrain.Module as Type
@@ -60,7 +63,7 @@ compile flag pkg importDict interfaces source =
         Canonicalize.canonicalize pkg importDict interfaces valid
 
       annotations <-
-        runTypeInference canonical
+        runTypeInference (Valid._imports valid) canonical
 
       () <-
         exhaustivenessCheck canonical
@@ -83,11 +86,11 @@ compile flag pkg importDict interfaces source =
 -- TYPE INFERENCE
 
 
-runTypeInference :: Can.Module -> Result i (Map.Map N.Name Can.Annotation)
-runTypeInference canonical =
+runTypeInference :: [Src.Import] -> Can.Module -> Result i (Map.Map N.Name Can.Annotation)
+runTypeInference imports canonical =
   case unsafePerformIO (Type.run =<< Type.constrain canonical) of
     Left errors ->
-      Result.throw (Error.Type errors)
+      Result.throw (Error.Type (L.fromImports imports) errors)
 
     Right annotations ->
       Result.ok annotations

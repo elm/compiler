@@ -66,7 +66,7 @@ errorsToDoc :: FilePath -> Text.Text -> [Error.Error] -> D.Doc
 errorsToDoc filePath source errors =
   let
     reports =
-      concatMap (Error.toReports (Code.toSource source) Map.empty) errors
+      concatMap (Error.toReports (Code.toSource source)) errors
   in
   D.vcat $ map (Report.toDoc filePath) reports
 
@@ -79,7 +79,7 @@ errorsToJson :: M.Raw -> FilePath -> Text.Text -> [Error.Error] -> Encode.Value
 errorsToJson moduleName filePath source errors =
   let
     reports =
-      concatMap (Error.toReports (Code.toSource source) Map.empty) errors
+      concatMap (Error.toReports (Code.toSource source)) errors
   in
   Encode.object
     [ ("path", Encode.text (Text.pack filePath))
