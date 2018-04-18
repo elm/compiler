@@ -208,6 +208,7 @@ Executable elm
         Reporting.Region,
         Reporting.Render.Code,
         Reporting.Render.Type,
+        Reporting.Render.Type.Localizer,
         Reporting.Report,
         Reporting.Result,
         Reporting.Suggest,
