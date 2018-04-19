@@ -231,7 +231,8 @@ diff localizer ctx tipe1 tipe2 =
               (Nothing, Just z ) -> Different [] [D.dullyellow (toDoc localizer RT.None z)] Bag.empty
               (Just c , Just z ) -> (:[]) <$> diff localizer RT.None c z
 
-    (Record fields1 ext1, Record fields2 ext2) -> diffRecord localizer fields1 ext1 fields2 ext2
+    (Record fields1 ext1, Record fields2 ext2) ->
+      diffRecord localizer fields1 ext1 fields2 ext2
 
     (Type home1 name1 args1, Type home2 name2 args2) | home1 == home2 && name1 == name2 ->
       RT.apply ctx (nameToDoc localizer home1 name1) <$>
