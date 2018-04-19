@@ -977,7 +977,7 @@ toExprReport source localizer exprRegion category tipe expected =
                 )
 
         RecordUpdate ->
-          case tipe of
+          case T.iteratedDealias tipe of
             T.Record _ _ ->
               Report.toCodeSnippet source region Nothing $
                 (
@@ -1746,8 +1746,8 @@ toInfiniteReport source localizer region name overallType =
               \ parts of the type that repeat something already printed out infinitely."
           , D.indent 4 (D.dullyellow (T.toDoc localizer RT.None overallType))
           , D.reflowLink
-              "Staring at the type is usually not so helpful, so I recommend reading the hints at"
+              "Staring at this type is usually not so helpful, so I recommend reading the hints at"
               "infinite-type"
-              "to get unstuck."
+              "to get unstuck!"
           ]
       )
