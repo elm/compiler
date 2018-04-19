@@ -117,22 +117,6 @@ mismatch =
     err vars ()
 
 
-try2 :: Unify () -> Unify () -> Unify ()
-try2 (Unify k1) (Unify k2) =
-  Unify $ \vars ok err ->
-    let
-      ok1  vars1 () = k2 vars1 ok err
-      err1 vars1 () = k2 vars1 err err
-    in
-    k1 vars ok1 err1
-
-
-{-# INLINE try3 #-}
-try3 :: Unify () -> Unify () -> Unify () -> Unify ()
-try3 u1 u2 u3 =
-  try2 u1 (try2 u2 u3)
-
-
 
 -- UNIFICATION HELPERS
 
@@ -555,9 +539,8 @@ unifyStructure context flatType content otherContent =
                 unifyArgs vars context args otherArgs ok1 err
 
           (Fun1 arg1 res1, Fun1 arg2 res2) ->
-              do  try2
-                    (subUnify arg1 arg2)
-                    (subUnify res1 res2)
+              do  subUnify arg1 arg2
+                  subUnify res1 res2
                   merge context otherContent
 
           (EmptyRecord1, EmptyRecord1) ->
@@ -578,16 +561,14 @@ unifyStructure context flatType content otherContent =
                         k vars ok err
 
           (Tuple1 a b Nothing, Tuple1 x y Nothing) ->
-              do  try2
-                    (subUnify a x)
-                    (subUnify b y)
+              do  subUnify a x
+                  subUnify b y
                   merge context otherContent
 
           (Tuple1 a b (Just c), Tuple1 x y (Just z)) ->
-              do  try3
-                    (subUnify a x)
-                    (subUnify b y)
-                    (subUnify c z)
+              do  subUnify a x
+                  subUnify b y
+                  subUnify c z
                   merge context otherContent
 
           (Unit1, Unit1) ->
@@ -642,33 +623,29 @@ unifyRecord context (RecordStructure fields1 ext1) (RecordStructure fields2 ext2
   if Map.null uniqueFields1 then
 
     if Map.null uniqueFields2 then
-      try2
-        (subUnify ext1 ext2)
-        (unifySharedFields context sharedFields Map.empty ext1)
+      do  subUnify ext1 ext2
+          unifySharedFields context sharedFields Map.empty ext1
 
     else
       do  subRecord <- fresh context (Structure (Record1 uniqueFields2 ext2))
-          try2
-            (subUnify ext1 subRecord)
-            (unifySharedFields context sharedFields Map.empty subRecord)
+          subUnify ext1 subRecord
+          unifySharedFields context sharedFields Map.empty subRecord
 
   else
 
     if Map.null uniqueFields2 then
       do  subRecord <- fresh context (Structure (Record1 uniqueFields1 ext1))
-          try2
-            (subUnify subRecord ext2)
-            (unifySharedFields context sharedFields Map.empty subRecord)
+          subUnify subRecord ext2
+          unifySharedFields context sharedFields Map.empty subRecord
 
     else
       do  let otherFields = Map.union uniqueFields1 uniqueFields2
           ext <- fresh context Type.unnamedFlexVar
           sub1 <- fresh context (Structure (Record1 uniqueFields1 ext))
           sub2 <- fresh context (Structure (Record1 uniqueFields2 ext))
-          try3
-            (subUnify ext1 sub2)
-            (subUnify sub1 ext2)
-            (unifySharedFields context sharedFields otherFields ext)
+          subUnify ext1 sub2
+          subUnify sub1 ext2
+          unifySharedFields context sharedFields otherFields ext
 
 
 unifySharedFields :: Context -> Map.Map N.Name (Variable, Variable) -> Map.Map N.Name Variable -> Variable -> Unify ()
