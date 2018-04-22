@@ -5,9 +5,11 @@ module Type.Error
   , Super(..)
   , Extension(..)
   , iteratedDealias
+  , getFields
   , toDoc
-  , toDiffDocs
+  , Comparison(..)
   , Problem(..)
+  , toComparison
   , isInt
   , isFloat
   , isString
@@ -52,6 +54,7 @@ data Super
   | Comparable
   | Appendable
   | CompAppend
+  deriving (Eq)
 
 
 data Extension
@@ -63,11 +66,24 @@ data Extension
 iteratedDealias :: Type -> Type
 iteratedDealias tipe =
   case tipe of
-    Alias _ _ _ realType ->
-      iteratedDealias realType
+    Alias _ _ _ real ->
+      iteratedDealias real
 
     _ ->
       tipe
+
+
+getFields :: Type -> Maybe [N.Name]
+getFields tipe =
+  case tipe of
+    Alias _ _ _ real ->
+      getFields real
+
+    Record fields _ ->
+      Just (Map.keys fields)
+
+    _ ->
+      Nothing
 
 
 
@@ -144,47 +160,158 @@ toDoc localizer ctx tipe =
 -- DIFF
 
 
-toDiffDocs :: L.Localizer -> Type -> Type -> (D.Doc, D.Doc, [Problem])
-toDiffDocs localizer a b =
-  case diff localizer RT.None a b of
-    Similar aDoc bDoc ->
-      (aDoc, bDoc, [])
-
-    Different aDoc bDoc problems ->
-      (aDoc, bDoc, Bag.toList problems)
-
-
-data Diff a
-  = Similar a a
-  | Different a a (Bag.Bag Problem)
+data Diff
+  = Similar Type Type
+  | DiffLambda Aliases Diff Diff [Diff]
+  | DiffType Aliases ModuleName.Canonical N.Name [Diff]
+  | DiffRecord Aliases [N.Name] (Map.Map N.Name Diff) [N.Name] Extension Extension
+  | DiffTuple Aliases Diff Diff (Maybe Diff)
+  | Clash Type Type
 
 
-instance Functor Diff where
-  fmap func d =
-    case d of
-      Similar   a b    -> Similar   (func a) (func b)
-      Different a b ps -> Different (func a) (func b) ps
+same :: Type -> Diff
+same tipe =
+  Similar tipe tipe
 
 
-instance Applicative Diff where
-  pure a =
-    Similar a a
-
-  (<*>) dFunc dArg =
-    case dFunc of
-      Similar aFunc bFunc ->
-        case dArg of
-          Similar   a b     -> Similar   (aFunc a) (bFunc b)
-          Different a b ps  -> Different (aFunc a) (bFunc b) ps
-
-      Different aFunc bFunc ps ->
-        case dArg of
-          Similar   a b     -> Different (aFunc a) (bFunc b) ps
-          Different a b ps2 -> Different (aFunc a) (bFunc b) (Bag.append ps ps2)
+data Aliases =
+  Aliases
+    { _left :: Maybe N.Name
+    , _right :: Maybe N.Name
+    }
 
 
+{-# NOINLINE noAliases #-}
+noAliases :: Aliases
+noAliases =
+  Aliases Nothing Nothing
 
--- PROBLEMS
+
+toDiff :: Type -> Type -> Diff
+toDiff t1 t2 =
+  case (t1, t2) of
+    (Unit    , Unit    ) -> same t1
+    (Error   , Error   ) -> same t1
+    (Infinite, Infinite) -> same t1
+
+    (FlexVar      x, FlexVar      y) | x == y -> same t1
+    (FlexSuper _  x, FlexSuper _  y) | x == y -> same t1
+    (RigidVar     x, RigidVar     y) | x == y -> same t1
+    (RigidSuper _ x, RigidSuper _ y) | x == y -> same t1
+
+    (FlexVar _    , _            ) -> Similar t1 t2
+    (_            , FlexVar _    ) -> Similar t1 t2
+
+    (Lambda a1 b1 cs1, Lambda a2 b2 cs2) | length cs1 == length cs2 ->
+      let
+        a = toDiff a1 a2
+        b = toDiff b1 b2
+        cs = zipWith toDiff cs1 cs2
+      in
+      if isSimilar a && isSimilar b && all isSimilar cs
+        then Similar t1 t2
+        else DiffLambda noAliases a b cs
+
+    (Tuple a1 b1 Nothing, Tuple a2 b2 Nothing) ->
+      let
+        a = toDiff a1 a2
+        b = toDiff b1 b2
+      in
+      if isSimilar a && isSimilar b
+        then Similar t1 t2
+        else DiffTuple noAliases a b Nothing
+
+    (Tuple a1 b1 (Just c1), Tuple a2 b2 (Just c2)) ->
+      let
+        a = toDiff a1 a2
+        b = toDiff b1 b2
+        c = toDiff c1 c2
+      in
+      if isSimilar a && isSimilar b && isSimilar c
+        then Similar t1 t2
+        else DiffTuple noAliases a b (Just c)
+
+    (Record fields1 ext1, Record fields2 ext2) ->
+      let
+        left = Map.keys (Map.difference fields1 fields2)
+        both = Map.intersectionWith toDiff fields1 fields2
+        right = Map.keys (Map.difference fields2 fields1)
+      in
+      if null left && null right && all isSimilar both && isExtSimilar ext1 ext2
+        then Similar t1 t2
+        else DiffRecord noAliases left both right ext1 ext2
+
+    (Type home1 name1 args1, Type home2 name2 args2) | home1 == home2 && name1 == name2 ->
+      let
+        args = zipWith toDiff args1 args2
+      in
+      if all isSimilar args
+        then Similar t1 t2
+        else DiffType noAliases home1 name1 args
+
+    (Alias home1 name1 args1 _, Alias home2 name2 args2 _) | home1 == home2 && name1 == name2 ->
+      let
+        args = zipWith toDiff (map snd args1) (map snd args2)
+      in
+      if all isSimilar args
+        then Similar t1 t2
+        else DiffType noAliases home1 name1 args
+
+    (alias@(Alias _ name _ tipe1), tipe2) ->
+      addAlias (const alias) id (\(Aliases _ t) -> Aliases (Just name) t) (toDiff tipe1 tipe2)
+
+    (tipe1, alias@(Alias _ name _ tipe2)) ->
+      addAlias id (const alias) (\(Aliases t _) -> Aliases t (Just name)) (toDiff tipe1 tipe2)
+
+    _ ->
+      Clash t1 t2
+
+
+isSimilar :: Diff -> Bool
+isSimilar diff =
+  case diff of
+    Similar _ _            -> True
+    DiffLambda _ _ _ _     -> False
+    DiffType _ _ _ _       -> False
+    DiffRecord _ _ _ _ _ _ -> False
+    DiffTuple _ _ _ _      -> False
+    Clash _ _              -> False
+
+
+addAlias :: (Type -> Type) -> (Type -> Type) -> (Aliases -> Aliases) -> Diff -> Diff
+addAlias updateLeft updateRight updateAliases diff =
+  case diff of
+    Similar t1 t2 ->
+      Similar (updateLeft t1) (updateRight t2)
+
+    DiffLambda aliases a b cs ->
+      DiffLambda (updateAliases aliases) a b cs
+
+    DiffType aliases home name args ->
+      DiffType (updateAliases aliases) home name args
+
+    DiffRecord aliases lefts boths rights ext1 ext2 ->
+      DiffRecord (updateAliases aliases) lefts boths rights ext1 ext2
+
+    DiffTuple aliases a b maybeC ->
+      DiffTuple (updateAliases aliases) a b maybeC
+
+    Clash t1 t2 ->
+      Clash (updateLeft t1) (updateRight t2)
+
+
+
+-- COMPARISON
+
+
+data Comparison =
+  Comparison
+    { _alias1 :: Maybe N.Name
+    , _type1 :: D.Doc
+    , _alias2 :: Maybe N.Name
+    , _type2 :: D.Doc
+    , _problems :: [Problem]
+    }
 
 
 data Problem
@@ -204,66 +331,90 @@ data Problem
   | BadRigidSuper Super N.Name Type
 
 
+toComparison :: L.Localizer -> Type -> Type -> Comparison
+toComparison localizer a b =
+  let
+    diff = toDiff a b
+    (Aliases aAlias bAlias) = getAliases diff
+    (Pair aDoc bDoc problems) = diffToPair localizer RT.None diff
+  in
+  Comparison aAlias aDoc bAlias bDoc (Bag.toList problems)
 
--- COMPUTE DIFF
+
+getAliases :: Diff -> Aliases
+getAliases diff =
+  case diff of
+    Similar _ _                  -> noAliases
+    DiffLambda aliases _ _ _     -> aliases
+    DiffType aliases _ _ _       -> aliases
+    DiffRecord aliases _ _ _ _ _ -> aliases
+    DiffTuple aliases _ _ _      -> aliases
+    Clash _ _                    -> noAliases
 
 
-diff :: L.Localizer -> RT.Context -> Type -> Type -> Diff D.Doc
-diff localizer ctx tipe1 tipe2 =
-  case (tipe1, tipe2) of
-    (FlexVar      x, FlexVar      y) | x == y -> pure (D.fromName x)
-    (FlexSuper _  x, FlexSuper _  y) | x == y -> pure (D.fromName x)
-    (RigidVar     x, RigidVar     y) | x == y -> pure (D.fromName x)
-    (RigidSuper _ x, RigidSuper _ y) | x == y -> pure (D.fromName x)
 
-    (Infinite, Infinite) -> pure "∞"
-    (Error, Error) -> pure "?"
-    (Unit, Unit) -> pure "()"
+-- DIFF TO DOCS
 
-    (Tuple a b maybeC, Tuple x y maybeZ) ->
-        RT.tuple
-          <$> diff localizer RT.None a x
-          <*> diff localizer RT.None b y
-          <*>
-            case (maybeC, maybeZ) of
-              (Nothing, Nothing) -> pure []
-              (Just c , Nothing) -> Different [D.dullyellow (toDoc localizer RT.None c)] [] Bag.empty
-              (Nothing, Just z ) -> Different [] [D.dullyellow (toDoc localizer RT.None z)] Bag.empty
-              (Just c , Just z ) -> (:[]) <$> diff localizer RT.None c z
 
-    (Record fields1 ext1, Record fields2 ext2) ->
-      diffRecord localizer fields1 ext1 fields2 ext2
+data Pair a =
+  Pair a a (Bag.Bag Problem)
 
-    (Type home1 name1 args1, Type home2 name2 args2) | home1 == home2 && name1 == name2 ->
-      RT.apply ctx (nameToDoc localizer home1 name1) <$>
-        sequenceA (zipWith (diff localizer RT.App) args1 args2)
 
-    (Alias home1 name1 args1 _, Alias home2 name2 args2 _) | home1 == home2 && name1 == name2 ->
-      RT.apply ctx (nameToDoc localizer home1 name1) <$>
-        sequenceA (zipWith (diff localizer RT.App) (map snd args1) (map snd args2))
+instance Functor Pair where
+  fmap func (Pair a b ps) =
+    Pair (func a) (func b) ps
 
-    (Alias _ _ _ alias1, other) -> diff localizer ctx alias1 other
-    (other, Alias _ _ _ alias2) -> diff localizer ctx other alias2
 
-    (Lambda a b cs, Lambda x y zs) -> diffLambda localizer ctx (a:b:cs) (x:y:zs)
+instance Applicative Pair where
+  pure a =
+    Pair a a Bag.empty
 
-    (FlexVar x, other) -> Similar (D.fromName x) (toDoc localizer ctx other)
-    (other, FlexVar x) -> Similar (toDoc localizer ctx other) (D.fromName x)
+  (<*>) (Pair aFunc bFunc ps1) (Pair aArg bArg ps2) =
+    Pair (aFunc aArg) (bFunc bArg) (Bag.append ps1 ps2)
 
-    pair ->
-      case pair of
-        (Type home name [t1], t2) | isMaybe home name && isSimilar t1 t2 ->
-          Different (yellowApply localizer ctx home name t1) (toDoc localizer ctx t2) (Bag.one AnythingFromMaybe)
 
-        (t1, Type home name [t2]) | isList home name && isSimilar t1 t2 ->
-          Different (toDoc localizer ctx t1) (yellowApply localizer ctx home name t2) (Bag.one AnythingToList)
+diffToPair :: L.Localizer -> RT.Context -> Diff -> Pair D.Doc
+diffToPair localizer ctx diff =
+  case diff of
+    Similar tipe1 tipe2 ->
+      Pair (toDoc localizer ctx tipe1) (toDoc localizer ctx tipe2) Bag.empty
 
-        _ ->
+    DiffLambda _ a b cs ->
+      RT.lambda ctx
+        <$> diffToPair localizer RT.Func a
+        <*> diffToPair localizer RT.Func b
+        <*> traverse (diffToPair localizer RT.Func) cs
+
+    DiffType _ home name args ->
+      RT.apply ctx (nameToDoc localizer home name)
+        <$> traverse (diffToPair localizer RT.App) args
+
+    DiffRecord _ left both right ext1 ext2 ->
+      diffRecord localizer left both right ext1 ext2
+
+    DiffTuple _ a b maybeC ->
+      RT.tuple
+        <$> diffToPair localizer RT.None a
+        <*> diffToPair localizer RT.None b
+        <*> traverse (diffToPair localizer RT.None) (Maybe.maybeToList maybeC)
+
+    Clash tipe1 tipe2 ->
+      case (tipe1, tipe2) of
+        (Lambda a b cs, Lambda x y zs) ->
+          diffLambda localizer ctx (a:b:cs) (x:y:zs)
+
+        (Type home name [t1], t2) | isMaybe home name && isSimilar (toDiff t1 t2) ->
+          Pair (yellowApply localizer ctx home name t1) (toDoc localizer ctx t2) (Bag.one AnythingFromMaybe)
+
+        (t1, Type home name [t2]) | isList home name && isSimilar (toDiff t1 t2) ->
+          Pair (toDoc localizer ctx t1) (yellowApply localizer ctx home name t2) (Bag.one AnythingToList)
+
+        pair ->
           let
             doc1 = D.dullyellow (toDoc localizer ctx tipe1)
             doc2 = D.dullyellow (toDoc localizer ctx tipe2)
           in
-          Different doc1 doc2 $
+          Pair doc1 doc2 $
             case pair of
               (RigidVar     x, other) -> Bag.one $ BadRigidVar x other
               (FlexSuper  s x, other) -> Bag.one $ BadFlexSuper s x other
@@ -319,13 +470,6 @@ isList home name =
   home == ModuleName.list && name == N.list
 
 
-isSimilar :: Type -> Type -> Bool
-isSimilar tipe1 tipe2 =
-  case diff L.empty RT.None tipe1 tipe2 of
-    Similar _ _ -> True
-    Different _ _ _ -> False
-
-
 yellowApply :: L.Localizer -> RT.Context -> ModuleName.Canonical -> N.Name -> Type -> D.Doc
 yellowApply localizer ctx home name tipe =
   RT.apply ctx
@@ -338,9 +482,12 @@ yellowApply localizer ctx home name tipe =
 
 
 --
--- INVARIANT: length types1 >= 2 && length types2 >= 2
+-- INVARIANTS:
+--   length types1 >= 2
+--   length types2 >= 2
+--   length types1 /= length types2
 --
-diffLambda :: L.Localizer -> RT.Context -> [Type] -> [Type] -> Diff D.Doc
+diffLambda :: L.Localizer -> RT.Context -> [Type] -> [Type] -> Pair D.Doc
 diffLambda localizer ctx types1 types2 =
   let
     (result1:revArgs1) = reverse types1
@@ -349,39 +496,34 @@ diffLambda localizer ctx types1 types2 =
     numArgs1 = length revArgs1
     numArgs2 = length revArgs2
 
-    resultDiff = diff localizer RT.Func result1 result2
+    diff = toDiff result1 result2
+
+    (Pair r1 r2 _) = diffToPair localizer RT.Func diff
   in
-  case resultDiff of
-    Similar resultDoc1 resultDoc2 ->
-      if numArgs1 == numArgs2 then
-        (\resultDoc revArgsDoc ->
-            let (x:y:zs) = reverse (resultDoc:revArgsDoc) in
-            RT.lambda ctx x y zs
-        )
-          <$> resultDiff
-          <*> sequenceA (zipWith (diff localizer RT.Func) revArgs1 revArgs2)
+  if isSimilar diff then
 
-      else if numArgs1 < numArgs2 then
-        diffArgMismatch localizer ctx revArgs1 resultDoc1 revArgs2 resultDoc2
+    if numArgs1 < numArgs2 then
+      diffArgMismatch localizer ctx revArgs1 r1 revArgs2 r2
+    else
+      diffArgMismatch localizer ctx revArgs2 r2 revArgs1 r1
 
-      else
-        diffArgMismatch localizer ctx revArgs2 resultDoc2 revArgs1 resultDoc1
-
-    Different resultDoc1 resultDoc2 problems ->
-      let
-        (x1:y1:zs1) = reverse (resultDoc1 : map (toDoc localizer RT.Func) revArgs1)
-        (x2:y2:zs2) = reverse (resultDoc2 : map (toDoc localizer RT.Func) revArgs2)
-      in
-      Different
-        (RT.lambda ctx x1 y1 zs1)
-        (RT.lambda ctx x2 y2 zs2)
-        (Bag.append (Bag.one ReturnMismatch) problems)
+  else
+    let
+      (a1:b1:cs1) = reverse (r1 : map (toDoc localizer RT.Func) revArgs1)
+      (a2:b2:cs2) = reverse (r2 : map (toDoc localizer RT.Func) revArgs2)
+    in
+    Pair
+      (D.dullyellow (RT.lambda ctx a1 b1 cs1))
+      (D.dullyellow (RT.lambda ctx a2 b2 cs2))
+      (Bag.one ReturnMismatch)
 
 
 --
--- INVARIANT: length shortRevArgs >= 2 && length longRevArgs >= 2
+-- INVARIANTS:
+--   length shortRevArgs >= 2
+--   length longRevArgs >= 2
 --
-diffArgMismatch :: L.Localizer -> RT.Context -> [Type] -> D.Doc -> [Type] -> D.Doc -> Diff D.Doc
+diffArgMismatch :: L.Localizer -> RT.Context -> [Type] -> D.Doc -> [Type] -> D.Doc -> Pair D.Doc
 diffArgMismatch localizer ctx shortRevArgs shortResult longRevArgs longResult =
   case toGreedyMatch localizer shortRevArgs longRevArgs of
     Just (GreedyMatch shortRevArgDocs longRevArgDocs) ->
@@ -389,7 +531,7 @@ diffArgMismatch localizer ctx shortRevArgs shortResult longRevArgs longResult =
         (a:b:cs) = reverse (shortResult:shortRevArgDocs)
         (x:y:zs) = reverse (longResult:longRevArgDocs)
       in
-      Different
+      Pair
         (RT.lambda ctx a b cs)
         (RT.lambda ctx x y zs)
         (Bag.one (MissingArgs (length longRevArgs - length shortRevArgs)))
@@ -399,9 +541,9 @@ diffArgMismatch localizer ctx shortRevArgs shortResult longRevArgs longResult =
         Just (GreedyMatch shortArgDocs longArgDocs) ->
           let
             (a:b:cs) = shortArgDocs ++ [shortResult]
-            (x:y:zs) = longArgDocs  ++ [longResult ]
+            (x:y:zs) = longArgDocs ++ [longResult]
           in
-          Different
+          Pair
             (RT.lambda ctx a b cs)
             (RT.lambda ctx x y zs)
             (Bag.one (MissingArgs (length longRevArgs - length shortRevArgs)))
@@ -414,7 +556,7 @@ diffArgMismatch localizer ctx shortRevArgs shortResult longRevArgs longResult =
             (a:b:cs) = reverse (shortResult : map toYellowDoc shortRevArgs)
             (x:y:zs) = reverse (longResult  : map toYellowDoc longRevArgs )
           in
-          Different
+          Pair
             (RT.lambda ctx a b cs)
             (RT.lambda ctx x y zs)
             (Bag.one (MissingArgs (length longRevArgs - length shortRevArgs)))
@@ -429,7 +571,8 @@ data GreedyMatch =
 
 
 --
--- INVARIANT: length shorterArgs < length longerArgs
+-- INVARIANTS:
+--   length shorterArgs < length longerArgs
 --
 toGreedyMatch :: L.Localizer -> [Type] -> [Type] -> Maybe GreedyMatch
 toGreedyMatch localizer shorterArgs longerArgs =
@@ -444,12 +587,14 @@ toGreedyMatchHelp localizer shorterArgs longerArgs match@(GreedyMatch shorterDoc
   in
   case (shorterArgs, longerArgs) of
     (x:xs, y:ys) ->
-      case diff localizer RT.Func x y of
+      case toDiff x y of
         Similar a b ->
           toGreedyMatchHelp localizer xs ys $
-            GreedyMatch (a:shorterDocs) (b:longerDocs)
+            GreedyMatch
+              (toDoc localizer RT.Func a : shorterDocs)
+              (toDoc localizer RT.Func b : longerDocs)
 
-        Different _ _ _ ->
+        _ ->
           toGreedyMatchHelp localizer shorterArgs ys $
             GreedyMatch shorterDocs (toYellowDoc y : longerDocs)
 
@@ -467,38 +612,47 @@ toGreedyMatchHelp localizer shorterArgs longerArgs match@(GreedyMatch shorterDoc
 -- RECORD DIFFS
 
 
-diffRecord :: L.Localizer -> Map.Map N.Name Type -> Extension -> Map.Map N.Name Type -> Extension -> Diff D.Doc
-diffRecord localizer fields1 ext1 fields2 ext2 =
-  let
-    only1 = Map.keys (Map.difference fields1 fields2)
-    only2 = Map.keys (Map.difference fields2 fields1)
-  in
+diffRecord
+  :: L.Localizer
+  -> [N.Name]
+  -> Map.Map N.Name Diff
+  -> [N.Name]
+  -> Extension
+  -> Extension
+  -> Pair D.Doc
+diffRecord localizer only1 both only2 ext1 ext2 =
   if null only1 && null only2 then
-    case findBadOverlaps localizer fields1 fields2 of
+    case findBadOverlaps localizer both of
       [] ->
         case diffExt ext1 ext2 of
-          Similar _ _ ->
-            Similar (toBoringRecord fields1 ext1) (toBoringRecord fields2 ext2)
+          ExtSimilar ->
+            Pair
+              (toBoringRecord (Map.size both) ext1)
+              (toBoringRecord (Map.size both) ext2)
+              Bag.empty
 
-          Different dExt1 dExt2 problems ->
-            Different (RT.record [] dExt1) (RT.record [] dExt2) problems
+          ExtDifferent maybeExt1 maybeExt2 problems ->
+            Pair
+              (RT.record [] (fmap (D.dullyellow . D.fromName) maybeExt1))
+              (RT.record [] (fmap (D.dullyellow . D.fromName) maybeExt2))
+              problems
 
       overlaps@(bad:bads) ->
-        if length overlaps < Map.size fields1 then
-          Different
+        if length overlaps < Map.size both then
+          Pair
             (RT.recordSnippet (toOverlapDoc _doc1 bad) (map (toOverlapDoc _doc1) bads))
             (RT.recordSnippet (toOverlapDoc _doc2 bad) (map (toOverlapDoc _doc2) bads))
-            (foldr Bag.append Bag.empty (map _problems overlaps))
+            (foldr Bag.append Bag.empty (map _problemBag overlaps))
         else
-          Different
+          Pair
             (toOverlapRecord _doc1 bad bads ext1)
             (toOverlapRecord _doc2 bad bads ext2)
-            (foldr Bag.append Bag.empty (map _problems overlaps))
+            (foldr Bag.append Bag.empty (map _problemBag overlaps))
 
   else
-    Different
-      (toMissingDoc fields1 only1 ext1)
-      (toMissingDoc fields2 only2 ext2)
+    Pair
+      (toMissingDoc (Map.size both) only1 ext1)
+      (toMissingDoc (Map.size both) only2 ext2)
       (Bag.one (FieldMismatch only1 only2))
 
 
@@ -516,14 +670,14 @@ toOverlapRecord getDoc bad bads ext =
     RigidOpen _ -> RT.recordSnippet (go bad) (map go bads)
 
 
-toMissingDoc :: Map.Map N.Name t -> [N.Name] -> Extension -> D.Doc
-toMissingDoc allFields uniqueFields ext =
+toMissingDoc :: Int -> [N.Name] -> Extension -> D.Doc
+toMissingDoc numSharedFields uniqueFields ext =
   case map emphasizeFieldName uniqueFields of
     [] ->
-      toBoringRecord allFields ext
+      toBoringRecord numSharedFields ext
 
     doc:docs ->
-      if length uniqueFields < Map.size allFields then
+      if length uniqueFields < numSharedFields then
         RT.recordSnippet doc docs
       else
         case ext of
@@ -537,10 +691,10 @@ emphasizeFieldName field =
   ( D.dullyellow (D.fromName field), "..." )
 
 
-toBoringRecord :: Map.Map N.Name t -> Extension -> D.Doc
-toBoringRecord fields ext =
+toBoringRecord :: Int -> Extension -> D.Doc
+toBoringRecord numFields ext =
   case ext of
-    Closed      -> if Map.null fields then "{}" else "{ ... }"
+    Closed      -> if numFields == 0 then "{}" else "{ ... }"
     FlexOpen _  -> "{ ... }"
     RigidOpen _ -> "{ ... }"
 
@@ -549,36 +703,48 @@ toBoringRecord fields ext =
 -- DIFF RECORD EXTENSION
 
 
-diffExt :: Extension -> Extension -> Diff (Maybe D.Doc)
+isExtSimilar :: Extension -> Extension -> Bool
+isExtSimilar ext1 ext2 =
+  case diffExt ext1 ext2 of
+    ExtSimilar ->
+      True
+
+    ExtDifferent _ _ _ ->
+      False
+
+
+data ExtDiff
+  = ExtSimilar
+  | ExtDifferent (Maybe N.Name) (Maybe N.Name) (Bag.Bag Problem)
+
+
+diffExt :: Extension -> Extension -> ExtDiff
 diffExt ext1 ext2 =
   let
-    normal = Just . D.fromName
-    yellow = Just . D.dullyellow . D.fromName
-
-    different x y = Different x y Bag.empty
+    different x y = ExtDifferent x y Bag.empty
   in
   case ext1 of
     Closed ->
       case ext2 of
-        Closed      -> Similar Nothing Nothing
-        FlexOpen  y -> different Nothing (yellow y)
-        RigidOpen y -> different Nothing (yellow y)
+        Closed      -> ExtSimilar
+        FlexOpen  y -> different Nothing (Just y)
+        RigidOpen y -> different Nothing (Just y)
 
     FlexOpen x ->
       case ext2 of
-        Closed      -> different (yellow x) Nothing
-        FlexOpen  y -> Similar (normal x) (normal y)
-        RigidOpen y -> Similar (normal x) (normal y)
+        Closed      -> different (Just x) Nothing
+        FlexOpen  _ -> ExtSimilar
+        RigidOpen _ -> ExtSimilar
 
     RigidOpen x ->
       case ext2 of
-        Closed      -> different (yellow x) Nothing
-        FlexOpen  y -> Similar (normal x) (normal y)
+        Closed      -> different (Just x) Nothing
+        FlexOpen  _ -> ExtSimilar
         RigidOpen y ->
           if x == y then
-            Similar (normal x) (normal y)
+            ExtSimilar
           else
-            Different (yellow x) (yellow y) (Bag.one (BadRigidVar x (RigidVar y)))
+            ExtDifferent (Just x) (Just y) (Bag.one (BadRigidVar x (RigidVar y)))
 
 
 
@@ -590,24 +756,21 @@ data BadOverlap =
     { _field :: N.Name
     , _doc1 :: D.Doc
     , _doc2 :: D.Doc
-    , _problems :: Bag.Bag Problem
+    , _problemBag :: Bag.Bag Problem
     }
 
 
-findBadOverlaps :: L.Localizer -> Map.Map N.Name Type -> Map.Map N.Name Type -> [BadOverlap]
-findBadOverlaps localizer fields1 fields2 =
-  findBadOverlapsHelp [] $ Map.toList $
-    Map.intersectionWith (diff localizer RT.None) fields1 fields2
+findBadOverlaps :: L.Localizer -> Map.Map N.Name Diff -> [BadOverlap]
+findBadOverlaps localizer overlaps =
+  Map.foldrWithKey (addBadOverlap localizer) [] overlaps
 
 
-findBadOverlapsHelp :: [BadOverlap] -> [(N.Name, Diff D.Doc)] -> [BadOverlap]
-findBadOverlapsHelp badOverlaps fieldPairs =
-  case fieldPairs of
-    [] ->
-      badOverlaps
-
-    (_, Similar _ _) : otherFieldPairs ->
-      findBadOverlapsHelp badOverlaps otherFieldPairs
-
-    (field, Different aDoc bDoc problems) : otherFieldPairs ->
-      findBadOverlapsHelp (BadOverlap field aDoc bDoc problems : badOverlaps) otherFieldPairs
+addBadOverlap :: L.Localizer -> N.Name -> Diff -> [BadOverlap] -> [BadOverlap]
+addBadOverlap localizer field diff badOverlaps =
+  if isSimilar diff then
+    badOverlaps
+  else
+    let
+      (Pair aDoc bDoc problems) = diffToPair localizer RT.None diff
+    in
+    BadOverlap field aDoc bDoc problems : badOverlaps
