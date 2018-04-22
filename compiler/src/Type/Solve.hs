@@ -260,7 +260,7 @@ occurs state (name, A.At region variable) =
           do  errorType <- Type.toErrorType variable
               (Descriptor _ rank mark copy) <- UF.get variable
               UF.set variable (Descriptor Error rank mark copy)
-              return $ state { _errors = Error.InfiniteType region name errorType : _errors state }
+              return $ addError state (Error.InfiniteType region name errorType)
         else
           return state
 
