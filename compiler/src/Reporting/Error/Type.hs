@@ -20,8 +20,10 @@ module Reporting.Error.Type
 
 
 import Prelude hiding (round)
+import qualified Data.Map as Map
 import Data.Monoid ((<>))
 
+import qualified AST.Canonical as Can
 import qualified Data.Index as Index
 import qualified Elm.Name as N
 import qualified Reporting.Doc as D
@@ -63,9 +65,8 @@ data Context
   | CaseBranch Index.ZeroBased
   | CallArity MaybeName Int
   | CallArg MaybeName Index.ZeroBased
-  | TooManyArgs MaybeName Int
   | RecordAccess N.Name
-  | RecordUpdate
+  | RecordUpdate N.Name (Map.Map N.Name Can.Expr)
   | Destructure
 
 
@@ -185,36 +186,26 @@ toPatternReport source localizer patternRegion category tipe expected =
   case expected of
     PNoExpectation expectedType ->
       Report.toCodeSnippet source patternRegion Nothing $
-        (
-          "This pattern is being used in an unexpected way:"
-        ,
-          patternTypeComparison localizer tipe expectedType
-            (
-              toPatternDescription category "It is"
-            ,
-              "But it needs to match values of type:"
-            ,
-              []
-            )
+        ( "This pattern is being used in an unexpected way:"
+        , patternTypeComparison localizer tipe expectedType
+            (addPatternCategory "It is" category)
+            (singular "But it needs to match")
+            []
         )
 
     PFromContext region context expectedType ->
       Report.toCodeSnippet source region (Just patternRegion) $
         case context of
           PTypedArg name index ->
-            (
-              D.reflow $
-                "The " <> D.ordinalize (Index.toHuman index) <> " argument to `" <> N.toString name <> "` is weird."
-            ,
-              patternTypeComparison localizer tipe expectedType
-                (
-                  toPatternDescription category $
-                    "The argument is a pattern that matches"
-                ,
-                  "But the type annotation on `" <> N.toString name <> "` says the " <> D.ordinalize (Index.toHuman index) <> " argument should be:"
-                ,
-                  []
+            ( D.reflow $
+                "The " <> D.ordinal index <> " argument to `" <> N.toString name <> "` is weird."
+            , patternTypeComparison localizer tipe expectedType
+                (addPatternCategory "The argument is a pattern that matches" category)
+                (singular $
+                  "But the type annotation on `" <> N.toString name
+                  <> "` says the " <> D.ordinal index <> " argument should be"
                 )
+                []
             )
 
           PCaseMatch index ->
@@ -224,82 +215,58 @@ toPatternReport source localizer patternRegion category tipe expected =
                   "The 1st pattern in this `case` causing a mismatch:"
               ,
                 patternTypeComparison localizer tipe expectedType
-                  (
-                    toPatternDescription category "The first pattern is trying to match"
-                  ,
-                    "But it is supposed to match an expression of type:"
-                  ,
-                    [ D.reflow $
-                        "Is the pattern the problem? Or is it the expression you are trying to match on?"
-                    ]
-                  )
+                  (addPatternCategory "The first pattern is trying to match" category)
+                  (singular "But the expression between `case` and `of` is")
+                  [ D.reflow $
+                      "These can never match! Is the pattern the problem? Or is it the expression?"
+                  ]
               )
             else
-              (
-                D.reflow $
-                  "The " <> D.ordinalize (Index.toHuman index) <> " pattern in this `case` does not match the previous ones."
-              ,
-                patternTypeComparison localizer tipe expectedType
-                  (
-                    toPatternDescription category $
-                      "The " <> D.ordinalize (Index.toHuman index) <> " pattern is trying to match"
-                  ,
-                    "But all the previous patterns match values of type:"
-                  ,
-                    []
-                  )
+              ( D.reflow $
+                  "The " <> D.ordinal index <> " pattern in this `case` does not match the previous ones."
+              , patternTypeComparison localizer tipe expectedType
+                  (addPatternCategory ("The " <> D.ordinal index <> " pattern is trying to match") category)
+                  (plural "But all the previous patterns match")
+                  [ D.link "Note"
+                      "A `case` expression can only handle one type of value, so you may want to use"
+                      "union-types"
+                      "to handle “mixing” types."
+                  ]
               )
 
           PCtorArg name index ->
-            (
-              D.reflow $
-                "The " <> D.ordinalize (Index.toHuman index) <> " argument to `" <> N.toString name <> "` is weird."
-            ,
-              patternTypeComparison localizer tipe expectedType
-                (
-                  toPatternDescription category "It is trying to match"
-                ,
-                  "But `" <> N.toString name <> "` needs its " <> D.ordinalize (Index.toHuman index) <> " argument to be:"
-                ,
-                  []
+            ( D.reflow $
+                "The " <> D.ordinal index <> " argument to `" <> N.toString name <> "` is weird."
+            , patternTypeComparison localizer tipe expectedType
+                (addPatternCategory "It is trying to match" category)
+                (singular $
+                  "But `" <> N.toString name <> "` needs its "
+                  <> D.ordinal index <> " argument to be"
                 )
+                []
             )
 
           PListEntry index ->
-            (
-              D.reflow $
-                "The " <> D.ordinalize (Index.toHuman index) <> " pattern in this list does not match all the previous ones:"
-            ,
-              patternTypeComparison localizer tipe expectedType
-                (
-                  toPatternDescription category $
-                    "The " <> D.ordinalize (Index.toHuman index) <> " pattern is trying to match"
-                ,
-                  "But all the previous patterns in the list are:"
-                ,
-                  [ D.toSimpleHint $
-                      "Everything in the list needs to be the same type of value.\
-                      \ This way you never run into unexpected values partway through.\
-                      \ To mix different types in a single list, create a \"union type\" as\
-                      \ described in: <http://guide.elm-lang.org/types/union_types.html>"
-                  ]
-                )
+            ( D.reflow $
+                "The " <> D.ordinal index <> " pattern in this list does not match all the previous ones:"
+            , patternTypeComparison localizer tipe expectedType
+                (addPatternCategory ("The " <> D.ordinal index <> " pattern is trying to match") category)
+                (plural "But all the previous patterns in the list are")
+                [ D.toSimpleHint $
+                    "Everything in the list needs to be the same type of value.\
+                    \ This way you never run into unexpected values partway through.\
+                    \ To mix different types in a single list, create a \"union type\" as\
+                    \ described in: <http://guide.elm-lang.org/types/union_types.html>"
+                ]
             )
 
           PTail ->
-            (
-              D.reflow $
+            ( D.reflow $
                 "The pattern after (::) is causing issues."
-            ,
-              patternTypeComparison localizer tipe expectedType
-                (
-                  toPatternDescription category $
-                    "The pattern after (::) is trying to match"
-                ,
-                  "But it needs to match lists like this:"
-                ,
-                  []
-                )
+            , patternTypeComparison localizer tipe expectedType
+                (addPatternCategory "The pattern after (::) is trying to match" category)
+                (\_ -> "But it needs to match lists like this:")
+                []
             )
 
 
@@ -307,96 +274,144 @@ toPatternReport source localizer patternRegion category tipe expected =
 -- PATTERN HELPERS
 
 
-patternTypeComparison :: L.Localizer -> T.Type -> T.Type -> ( String, String, [D.Doc] ) -> D.Doc
-patternTypeComparison localizer actual expected ( iAmSeeing, insteadOf, contextHints ) =
+patternTypeComparison
+  :: L.Localizer
+  -> T.Type
+  -> T.Type
+  -> (Maybe N.Name -> D.Doc)
+  -> (Maybe N.Name -> D.Doc)
+  -> [D.Doc]
+  -> D.Doc
+patternTypeComparison localizer actual expected iAmSeeing insteadOf contextHints =
   let
-    (actualDoc, expectedDoc, problems) =
-      T.toDiffDocs localizer actual expected
+    (T.Comparison actualAlias actualDoc expectedAlias expectedDoc problems) =
+      T.toComparison localizer actual expected
   in
   D.stack $
-    [ D.reflow iAmSeeing
+    [ iAmSeeing actualAlias
     , D.indent 4 actualDoc
-    , D.reflow insteadOf
+    , insteadOf expectedAlias
     , D.indent 4 expectedDoc
     ]
     ++ problemsToHint problems
     ++ contextHints
 
 
-toPatternDescription :: PCategory -> String -> String
-toPatternDescription category iAmTryingToMatch =
-  iAmTryingToMatch <>
-    case category of
-      PRecord -> " record values of type:"
-      PUnit -> " unit values:"
-      PTuple -> " tuples of type:"
-      PList -> " lists of type:"
-      PCtor name -> " `" <> N.toString name <> "` values of type:"
-      PInt -> " integers:"
-      PStr -> " strings:"
-      PChr -> " characters:"
+addPatternCategory :: String -> PCategory -> Maybe N.Name -> D.Doc
+addPatternCategory iAmTryingToMatch category maybeAlias =
+  D.reflow $ iAmTryingToMatch <>
+  case maybeAlias of
+    Just alias ->
+      " `" <> N.toString alias <> "` values:"
+
+    Nothing ->
+      case category of
+        PRecord -> " record values of type:"
+        PUnit -> " unit values:"
+        PTuple -> " tuples of type:"
+        PList -> " lists of type:"
+        PCtor name -> " `" <> N.toString name <> "` values of type:"
+        PInt -> " integers:"
+        PStr -> " strings:"
+        PChr -> " characters:"
 
 
 
 -- EXPR HELPERS
 
 
-typeComparison :: L.Localizer -> T.Type -> T.Type -> ( String, String, [D.Doc] ) -> D.Doc
-typeComparison localizer actual expected ( iAmSeeing, insteadOf, contextHints ) =
+typeComparison
+  :: L.Localizer
+  -> T.Type
+  -> T.Type
+  -> (Maybe N.Name -> D.Doc)
+  -> (Maybe N.Name -> D.Doc)
+  -> [D.Doc]
+  -> D.Doc
+typeComparison localizer actual expected iAmSeeing insteadOf contextHints =
   let
-    (actualDoc, expectedDoc, problems) =
-      T.toDiffDocs localizer actual expected
+    (T.Comparison actualAlias actualDoc expectedAlias expectedDoc problems) =
+      T.toComparison localizer actual expected
   in
   D.stack $
-    [ D.reflow iAmSeeing
+    [ iAmSeeing actualAlias
     , D.indent 4 actualDoc
-    , D.reflow insteadOf
+    , insteadOf expectedAlias
     , D.indent 4 expectedDoc
     ]
     ++ problemsToHint problems
     ++ contextHints
 
 
-loneType :: L.Localizer -> T.Type -> T.Type -> ( D.Doc, [D.Doc] ) -> D.Doc
-loneType localizer actual expected ( iAmSeeing, furtherDetails ) =
+loneType
+  :: L.Localizer
+  -> T.Type
+  -> T.Type
+  -> (Maybe N.Name -> D.Doc)
+  -> [D.Doc]
+  -> D.Doc
+loneType localizer actual expected iAmSeeing furtherDetails =
   let
-    (actualDoc, _, problems) =
-      T.toDiffDocs localizer actual expected
+    (T.Comparison actualAlias actualDoc _ _ problems) =
+      T.toComparison localizer actual expected
   in
   D.stack $
-    [ iAmSeeing
+    [ iAmSeeing actualAlias
     , D.indent 4 actualDoc
     ]
     ++ furtherDetails
     ++ problemsToHint problems
 
 
-toDescription :: Category -> String -> String
-toDescription category thatThingIs =
+singular :: String -> Maybe N.Name -> D.Doc
+singular insteadOf maybeAlias =
+  D.reflow $ insteadOf <>
+    case maybeAlias of
+      Nothing -> ":"
+      Just a  -> " a `" <> N.toString a <> "` value:"
+
+
+plural :: String -> Maybe N.Name -> D.Doc
+plural insteadOf maybeAlias =
+  D.reflow $ insteadOf <>
+    case maybeAlias of
+      Nothing -> ":"
+      Just a  -> "  `" <> N.toString a <> "` values:"
+
+
+addCategory :: String -> Category -> Maybe N.Name -> D.Doc
+addCategory thisIs category maybeAlias =
+  let
+    definitely whatever =
+      case maybeAlias of
+        Just alias -> " a `" <> N.toString alias <> "` value:"
+        Nothing    -> whatever
+  in
+  D.reflow $
   case category of
-    Local name -> "This `" <> N.toString name <> "` value has type:"
-    Foreign name -> "This `" <> N.toString name <> "` value has type:"
-    Access field -> "The value at ." <> N.toString field <> " has type:"
+    Local name -> "This `" <> N.toString name <> "` value is" <> definitely " a:"
+    Foreign name -> "This `" <> N.toString name <> "` value is" <> definitely " a:"
+    Access field -> "The value at ." <> N.toString field <> " is" <> definitely " a:"
     Accessor field -> "This ." <> N.toString field <> " field access function has type:"
-    If -> "This `if` expression produces a value of type:"
-    Case -> "This `case` expression produces a value of type:"
-    List -> thatThingIs <> " a list of type:"
-    Number -> thatThingIs <> " a number of type:"
-    Float -> thatThingIs <> " a float of type:"
-    String -> thatThingIs <> " a string of type:"
-    Char -> thatThingIs <> " a character of type:"
-    Lambda -> thatThingIs <> " an anonymous function of type:"
-    Record -> thatThingIs <> " a record of type:"
-    Tuple -> thatThingIs <> " a tuple of type:"
-    Unit -> thatThingIs <> " a unit value:"
-    Shader -> thatThingIs <> " a GLSL shader of type:"
-    Effects -> thatThingIs <> " a thing for CORE LIBRARIES ONLY."
+    If -> "This `if` expression produces" <> definitely ":"
+    Case -> "This `case` expression produces" <> definitely ":"
+    List -> thisIs <> definitely " a list of type:"
+    Number -> thisIs <> definitely " a number of type:"
+    Float -> thisIs <> definitely " a float of type:"
+    String -> thisIs <> definitely " a string of type:"
+    Char -> thisIs <> definitely " a character of type:"
+    Lambda -> thisIs <> definitely " an anonymous function of type:"
+    Record -> thisIs <> definitely " a record of type:"
+    Tuple -> thisIs <> definitely " a tuple of type:"
+    Unit -> thisIs <> definitely " a unit value:"
+    Shader -> thisIs <> definitely " a GLSL shader of type:"
+    Effects -> thisIs <> " a thing for CORE LIBRARIES ONLY."
     CallResult maybeName ->
       case maybeName of
-        NoName -> thatThingIs <> ":"
-        FuncName name -> "This `" <> N.toString name <> "` call produces:"
-        CtorName name -> "This `" <> N.toString name <> "` call produces:"
-        OpName _ -> thatThingIs <> ":"
+        NoName -> thisIs <> ":"
+        FuncName name -> "This `" <> N.toString name <> "` call produces" <> definitely ":"
+        CtorName name -> "This `" <> N.toString name <> "` call produces" <> definitely ":"
+        OpName _ -> thisIs <> definitely ":"
 
 
 problemsToHint :: [T.Problem] -> [D.Doc]
@@ -637,203 +652,171 @@ badFlexFlexSuper s1 s2 =
 
 toExprReport :: Code.Source -> L.Localizer -> R.Region -> Category -> T.Type -> Expected T.Type -> Report.Report
 toExprReport source localizer exprRegion category tipe expected =
-  Report.Report "TYPE MISMATCH" exprRegion [] $
   case expected of
     NoExpectation expectedType ->
-      Report.toCodeSnippet source exprRegion Nothing
-        (
-          "This expression is being used in an unexpected way:"
-        ,
-          typeComparison localizer tipe expectedType
-            (
-              toDescription category "It is"
-            ,
-              "But you are trying to use it as:"
-            ,
+      Report.Report "TYPE MISMATCH" exprRegion [] $
+        Report.toCodeSnippet source exprRegion Nothing
+          ( "This expression is being used in an unexpected way:"
+          , typeComparison localizer tipe expectedType
+              (addCategory "It is" category)
+              (singular "But you are trying to use it as")
               []
-            )
-        )
+          )
 
     FromAnnotation name _arity subContext expectedType ->
-      Report.toCodeSnippet source exprRegion Nothing
-        (
-          D.reflow $
-            case subContext of
-              TypedIfBranch index ->
-                "Something is off with the " <> D.ordinalize (Index.toHuman index) <> " branch of this `if` expression:"
+      let
+        thing =
+          case subContext of
+            TypedIfBranch index   -> D.ordinal index <> " branch of this `if` expression:"
+            TypedCaseBranch index -> D.ordinal index <> " branch of this `case` expression:"
+            TypedBody             -> "body of the `" <> N.toString name <> "` definition:"
 
-              TypedCaseBranch index ->
-                "Something is off with the " <> D.ordinalize (Index.toHuman index) <> " branch of this `case` expression:"
-
-              TypedBody ->
-                "Something is off with the body of the `" <> N.toString name <> "` definition:"
-        ,
-          typeComparison localizer tipe expectedType
-            (
-              toDescription category $
-                case subContext of
-                  TypedIfBranch index ->
-                    "The " <> D.ordinalize (Index.toHuman index) <> " branch is"
-
-                  TypedCaseBranch index ->
-                    "The " <> D.ordinalize (Index.toHuman index) <> " branch is"
-
-                  TypedBody ->
-                    "The body is"
-            ,
-              "But the type annotation on `" <> N.toString name <> "` says it should be:"
-            ,
+        itIs =
+          case subContext of
+            TypedIfBranch index   -> "The " <> D.ordinal index <> " branch is"
+            TypedCaseBranch index -> "The " <> D.ordinal index <> " branch is"
+            TypedBody             -> "The body is"
+      in
+      Report.Report "TYPE MISMATCH" exprRegion [] $
+        Report.toCodeSnippet source exprRegion Nothing $
+          ( D.reflow ("Something is off with the " <> thing)
+          , typeComparison localizer tipe expectedType
+              (addCategory itIs category)
+              (singular $ "But the type annotation on `" <> N.toString name <> "` says it should be")
               []
-            )
-        )
+          )
 
     FromContext region context expectedType ->
+      let
+        mismatch (maybeHighlight, problem, thisIs, insteadOf, furtherDetails) =
+          Report.Report "TYPE MISMATCH" exprRegion [] $
+            Report.toCodeSnippet source region maybeHighlight
+              ( D.reflow problem
+              , typeComparison localizer tipe expectedType (addCategory thisIs category) insteadOf furtherDetails
+              )
+
+        badType (maybeHighlight, problem, thisIs, furtherDetails) =
+          Report.Report "TYPE MISMATCH" exprRegion [] $
+            Report.toCodeSnippet source region maybeHighlight
+              ( D.reflow problem
+              , loneType localizer tipe expectedType (addCategory thisIs category) furtherDetails
+              )
+      in
       case context of
         ListEntry index ->
-          Report.toCodeSnippet source region (Just exprRegion)
-            (
-              D.reflow $
-                "The " <> D.ordinalize (Index.toHuman index) <> " element of this list does not match all the previous elements:"
-            ,
-              typeComparison localizer tipe expectedType
-                (
-                  toDescription category $
-                    "The " <> D.ordinalize (Index.toHuman index) <> " element is"
-                ,
-                  "But all the previous elements in the list are:"
-                ,
-                  [ D.toSimpleHint $
-                      "Everything in the list needs to be the same type of value.\
-                      \ This way you never run into unexpected values partway through.\
-                      \ To mix different types in a single list, create a \"union type\" as\
-                      \ described in: <http://guide.elm-lang.org/types/union_types.html>"
-                  ]
-                )
-            )
+          let ith = D.ordinal index in
+          mismatch
+          ( Just exprRegion
+          , "The " <> ith <> " element of this list does not match all the previous elements:"
+          , "The " <> ith <> " element is"
+          , plural "But all the previous elements in the list are"
+          , [ D.toSimpleHint $
+                "Everything in the list needs to be the same type of value.\
+                \ This way you never run into unexpected values partway through.\
+                \ To mix different types in a single list, create a \"union type\" as\
+                \ described in: <http://guide.elm-lang.org/types/union_types.html>"
+            ]
+          )
 
         Negate ->
-          Report.toCodeSnippet source region (Just exprRegion)
-            (
-              "I do not know how to negate this type of value:"
-            ,
-              loneType localizer tipe expectedType
-                (
-                  D.reflow $ toDescription category "It is"
-                ,
-                  [ D.fillSep
-                      ["But","I","only","now","how","to","negate"
-                      ,D.dullyellow "Int","and",D.dullyellow "Float","values."
-                      ]
-                  ]
-                )
-            )
+          badType
+          ( Just exprRegion
+          , "I do not know how to negate this type of value:"
+          , "It is"
+          , [ D.fillSep
+                ["But","I","only","now","how","to","negate"
+                ,D.dullyellow "Int","and",D.dullyellow "Float","values."
+                ]
+            ]
+          )
 
         OpLeft op ->
-          Report.toCodeSnippet source region (Just exprRegion) $
-            opLeftToDocs localizer category op tipe expectedType
+          Report.Report "TYPE MISMATCH" exprRegion [] $
+            Report.toCodeSnippet source region (Just exprRegion) $
+              opLeftToDocs localizer category op tipe expectedType
 
         OpRight op ->
-          case opRightToDocs localizer category op tipe expectedType of
-            EmphBoth details ->
-              Report.toCodeSnippet source region Nothing details
+          Report.Report "TYPE MISMATCH" exprRegion [] $
+            case opRightToDocs localizer category op tipe expectedType of
+              EmphBoth details ->
+                Report.toCodeSnippet source region Nothing details
 
-            EmphRight details ->
-              Report.toCodeSnippet source region (Just exprRegion) details
+              EmphRight details ->
+                Report.toCodeSnippet source region (Just exprRegion) details
 
         IfCondition ->
-          Report.toCodeSnippet source region (Just exprRegion)
-            (
-              "This `if` condition does not evaluate to a boolean value, True or False."
-            ,
-              loneType localizer tipe expectedType
-                (
-                  D.reflow $ toDescription category "It is"
-                ,
-                  [ D.fillSep ["But","I","need","this","`if`","condition","to","be","a",D.dullyellow "Bool","value."]
-                  ]
-                )
-            )
+          badType
+          ( Just exprRegion
+          , "This `if` condition does not evaluate to a boolean value, True or False."
+          , "It is"
+          , [ D.fillSep ["But","I","need","this","`if`","condition","to","be","a",D.dullyellow "Bool","value."]
+            ]
+          )
 
         IfBranch index ->
-          Report.toCodeSnippet source region (Just exprRegion)
-            (
-              D.reflow $
-                "The " <> D.ordinalize (Index.toHuman index) <> " branch of this `if` does not match all the previous branches:"
-            ,
-              typeComparison localizer tipe expectedType
-                (
-                  toDescription category $
-                    "The " <> D.ordinalize (Index.toHuman index) <> " branch is"
-                ,
-                  "But all the previous branches result in:"
-                ,
-                  [ D.link "Hint"
-                      "All branches in an `if` must produce the same type of values. This way, no\
-                      \ matter which branch we take, the result is always a consistent shape. Read"
-                      "union-types"
-                      "to learn how to “mix” types."
-                  ]
-                )
-            )
+          let ith = D.ordinal index in
+          mismatch
+          ( Just exprRegion
+          , "The " <> ith <> " branch of this `if` does not match all the previous branches:"
+          , "The " <> ith <> " branch is"
+          , plural "But all the previous branches result in"
+          , [ D.link "Hint"
+                "All branches in an `if` must produce the same type of values. This way, no\
+                \ matter which branch we take, the result is always a consistent shape. Read"
+                "union-types"
+                "to learn how to “mix” types."
+            ]
+          )
 
         CaseBranch index ->
-          Report.toCodeSnippet source region (Just exprRegion)
-            (
-              D.reflow $
-                "The " <> D.ordinalize (Index.toHuman index) <> " branch of this `case` does not match all the previous branches:"
-            ,
-              typeComparison localizer tipe expectedType
-                (
-                  toDescription category $
-                    "The " <> D.ordinalize (Index.toHuman index) <> " branch is"
-                ,
-                  "But all the previous branches result in:"
-                ,
-                  [ D.link "Hint"
-                      "All branches in a `case` must produce the same type of values. This way, no\
-                      \ matter which branch we take, the result is always a consistent shape. Read"
-                      "union-types"
-                      "to learn how to “mix” types."
-                  ]
-                )
-            )
+          let ith = D.ordinal index in
+          mismatch
+          ( Just exprRegion
+          , "The " <> ith <> " branch of this `case` does not match all the previous branches:"
+          , "The " <> ith <> " branch is"
+          , plural "But all the previous branches result in"
+          , [ D.link "Hint"
+                "All branches in a `case` must produce the same type of values. This way, no\
+                \ matter which branch we take, the result is always a consistent shape. Read"
+                "union-types"
+                "to learn how to “mix” types."
+            ]
+          )
 
-        CallArity maybeFuncName numArgs ->
+        CallArity maybeFuncName numGivenArgs ->
+          Report.Report "TOO MANY ARGS" exprRegion [] $
+          Report.toCodeSnippet source region (Just exprRegion) $
           case countArgs tipe of
             0 ->
-              Report.toCodeSnippet source region (Just exprRegion)
-                ( D.reflow $
-                    case maybeFuncName of
-                      NoName        -> "This is not a function:"
-                      FuncName name -> "The `" <> N.toString name <> "` value is not a function:"
-                      CtorName name -> "The `" <> N.toString name <> "` value is not a function:"
-                      OpName op     -> "The (" <> N.toString op <> ") operator is not a function:"
-                ,
-                  D.stack $
-                    [ "It has type:"
-                    , D.indent 4 $ D.dullyellow $ T.toDoc localizer RT.None tipe
-                    , D.reflow $ "So it cannot accept arguments, but it got " <> show numArgs <> " anyway."
-                    ]
-                )
+              let
+                thisValue =
+                  case maybeFuncName of
+                    NoName        -> "This value"
+                    FuncName name -> "The `" <> N.toString name <> "` value"
+                    CtorName name -> "The `" <> N.toString name <> "` value"
+                    OpName op     -> "The (" <> N.toString op <> ") operator"
+              in
+              ( D.reflow $ thisValue <> " is not a function, but it was given " <> D.args numGivenArgs <> "."
+              , D.reflow $ "Are there any missing commas? Or missing parentheses?"
+              )
 
             n ->
-              Report.toCodeSnippet source region (Just exprRegion)
-                ( D.reflow $
-                    case maybeFuncName of
-                      NoName        -> "This function was given too many arguments:"
-                      FuncName name -> "The `" <> N.toString name <> "` function was given too many arguments:"
-                      CtorName name -> "The `" <> N.toString name <> "` constructor was given too many arguments:"
-                      OpName op     -> "The (" <> N.toString op <> ") operator was given too many arguments:"
-                ,
-                  D.stack $
-                    [ "It has type:"
-                    , D.indent 4 $ D.dullyellow $ T.toDoc localizer RT.None tipe
-                    , D.reflow $ "So it expects " <> D.args n <> ", but it got " <> show numArgs <> " instead."
-                    ]
-                )
+              let
+                thisFunction =
+                  case maybeFuncName of
+                    NoName        -> "This function"
+                    FuncName name -> "The `" <> N.toString name <> "` function"
+                    CtorName name -> "The `" <> N.toString name <> "` constructor"
+                    OpName op     -> "The (" <> N.toString op <> ") operator"
+              in
+              ( D.reflow $ thisFunction <> " expects " <> D.args n <> ", but it got " <> show numGivenArgs <> " instead."
+              , D.reflow $ "Are there any missing commas? Or missing parentheses?"
+              )
 
         CallArg maybeFuncName index ->
           let
+            ith = D.ordinal index
+
             thisFunction =
               case maybeFuncName of
                 NoName        -> "this function"
@@ -841,187 +824,81 @@ toExprReport source localizer exprRegion category tipe expected =
                 CtorName name -> "`" <> N.toString name <> "`"
                 OpName op     -> "(" <> N.toString op <> ")"
           in
-          Report.toCodeSnippet source region (Just exprRegion)
-            (
-              D.reflow $
-                "The " <> D.ordinalize (Index.toHuman index) <> " argument to " <> thisFunction <> " is not what I expect:"
-            ,
-              typeComparison localizer tipe expectedType
-                (
-                  toDescription category "This argument is"
-                ,
-                  "But " <> thisFunction <> " needs the " <> D.ordinalize (Index.toHuman index)
-                  <> " argument to be:"
-                ,
-                  if Index.toHuman index == 1 then
-                    []
-                  else
-                    [ D.toSimpleHint $
-                       "I always figure out the argument types from left to right. If an argument\
-                        \ is acceptable, I assume it is “correct” and move on. So the problem may\
-                        \ actually be in one of the previous arguments!"
-                    ]
-                )
-            )
-
-        TooManyArgs maybeName numGivenArgs ->
-          case countArgs tipe of
-            0 ->
-              Report.toCodeSnippet source region (Just exprRegion)
-                (
-                  D.reflow $
-                    case maybeName of
-                      NoName ->
-                        "You are giving " <> D.args numGivenArgs <> " to something that is not a function!"
-
-                      FuncName name ->
-                        "`" <> N.toString name <> "` is not a function, but you are giving it " <> D.args numGivenArgs <> "!"
-
-                      CtorName name ->
-                        "`" <> N.toString name <> "` is not a function, but you are giving it " <> D.args numGivenArgs <> "!"
-
-                      OpName op ->
-                        "(" <> N.toString op <> ") is not a function, but you are giving it " <> D.args numGivenArgs <> "!"
-                ,
-                  typeComparison localizer tipe expectedType
-                    (
-                      case maybeName of
-                        NoName ->
-                          "It is a value of type:"
-
-                        FuncName name ->
-                          "`" <> N.toString name <> "` is a value of type:"
-
-                        CtorName name ->
-                          "`" <> N.toString name <> "` is a constructor of type:"
-
-                        OpName op ->
-                          "(" <> N.toString op <> ") is a value of type:"
-                    ,
-                      "But you are giving it " <> D.args numGivenArgs <> " as if its type was:"
-                    ,
-                      [ "Maybe you forgot some parentheses? Or a comma?"
-                      ]
-                    )
-                )
-
-            numExpectedArgs ->
-              let
-                thisFunction =
-                  case maybeName of
-                    NoName ->
-                      "This function"
-
-                    FuncName name ->
-                      "The `" <> N.toString name <> "` function"
-
-                    CtorName name ->
-                      "The `" <> N.toString name <> "` constructor"
-
-                    OpName op ->
-                      "The (" <> N.toString op <> ") function"
-              in
-              Report.toCodeSnippet source region (Just exprRegion)
-                (
-                  D.reflow $
-                    thisFunction <> " is getting too many arguments:"
-                ,
-                  typeComparison localizer tipe expectedType
-                    (
-                      thisFunction <> " is expecting to get " <> D.args numExpectedArgs <> " like this:"
-                    ,
-                      "But you are giving it " <> D.args numGivenArgs <> " as if its type was:"
-                    ,
-                      [ "Maybe you forgot some parentheses? Or a comma?"
-                      , D.toSimpleNote $
-                          "I am not good at figuring out which arguments are extra myself. The\
-                          \ problem may even be that the FUNCTION is defined funny, and the arguments are\
-                          \ actually fine. Anyway, I hope I gave enough info to help you figure it out!"
-                      ]
-                    )
-                )
+          mismatch
+          ( Just exprRegion
+          , "The " <> ith <> " argument to " <> thisFunction <> " is not what I expect:"
+          , "This argument is"
+          , singular $ "But " <> thisFunction <> " needs the " <> ith <> " argument to be"
+          ,
+            if Index.toHuman index == 1 then
+              []
+            else
+              [ D.toSimpleHint $
+                 "I always figure out the argument types from left to right. If an argument\
+                  \ is acceptable, I assume it is “correct” and move on. So the problem may\
+                  \ actually be in one of the previous arguments!"
+              ]
+          )
 
         RecordAccess field ->
-          Report.toCodeSnippet source region (Just exprRegion) $
-            case tipe of
-              T.Record _ _ ->
-                (
-                  D.reflow $
-                    "This record does not have a `" <> N.toString field <> "` field:"
-                ,
-                  loneType localizer tipe expectedType
-                    (
-                      D.reflow $ "It is a record with this type:"
-                    ,
-                      [ D.fillSep
-                          ["Is","the",D.dullyellow ("." <> D.fromName field)
-                          ,"field","access","is","misspelled?"
-                          ]
-                      ]
-                    )
-                )
+          badType $
+          case T.getFields tipe of
+            Just _fields ->
+              ( Just exprRegion
+              , "This record does not have a `" <> N.toString field <> "` field:"
+              , "It is"
+              , [ -- TODO suggest what the typo is!
+                ]
+              )
 
-              _ ->
-                (
-                  D.reflow $
-                    "This is not a record, so it has no fields to access!"
-                ,
-                  loneType localizer tipe expectedType
-                    ( D.reflow $ toDescription category "It is"
-                    , [ D.fillSep
-                          ["But","I","need","a","record","with","a"
-                          ,D.dullyellow (D.fromName field),"field!"
-                          ]
-                      ]
-                    )
-                )
+            Nothing ->
+              ( Just exprRegion
+              , "This is not a record, so it has no fields to access!"
+              , "It is"
+              , [ D.fillSep
+                    ["But","I","need","a","record","with","a"
+                    ,D.dullyellow (D.fromName field),"field!"
+                    ]
+                ]
+              )
 
-        RecordUpdate ->
-          case T.iteratedDealias tipe of
-            T.Record _ _ ->
-              Report.toCodeSnippet source region Nothing $
-                (
-                  D.reflow $
-                    "I think there is a typo in one of these field names:"
-                ,
-                  typeComparison localizer tipe expectedType
-                    (
-                      "The record you want to update has type:"
-                    ,
-                      "But you are saying it should have these fields:"
-                    ,
-                      [ D.reflow "Maybe there is some typo?"
-                      ]
-                    )
-                )
+        RecordUpdate name updatedFields ->
+          badType $
+          case T.getFields tipe of
+            Nothing ->
+              ( Just exprRegion
+              , "I cannot update the `" <> N.toString name <> "` value:"
+              , "It is"
+              , [ D.reflow $ "It is not a record. It has no fields to update!"
+                ]
+              )
 
-            _ ->
-              Report.toCodeSnippet source region (Just exprRegion)
-                (
-                  "The record update syntax does not work with this value:"
-                ,
-                  loneType localizer tipe expectedType
-                    ( D.reflow $ toDescription category "It is"
-                    , [ D.reflow $ "But I need some kind of record here!"
-                      ]
-                    )
-                )
+            Just _fields ->
+              case Map.keys updatedFields of
+                [field] ->
+                  ( Nothing
+                  , "The `" <> N.toString name <> "` record does not have a `" <> N.toString field <> "` field."
+                  , "It is"
+                  , [ -- TODO suggest what the typo is!
+                    ]
+                  )
+
+                _ ->
+                  ( Nothing
+                  , "The `" <> N.toString name <> "` record does have all of these fields:"
+                  , "It is"
+                  , [ -- TODO suggest what the typo is!
+                    ]
+                  )
 
         Destructure ->
-          Report.toCodeSnippet source region Nothing
-            (
-              D.reflow $
-                "I cannot destructure "
-            ,
-              typeComparison localizer tipe expectedType
-                (
-                  toDescription category "You are defining"
-                ,
-                  "But then trying to destructure it as:"
-                ,
-                  []
-                )
-            )
+          mismatch
+          ( Nothing
+          , "This definition is causing issues:"
+          , "You are defining"
+          , singular "But then trying to destructure it as"
+          , []
+          )
 
 
 
@@ -1069,27 +946,19 @@ opLeftToDocs localizer category op tipe expected =
 
     "<|" ->
       ( "The left side of (<|) needs to be a function so I can pipe arguments to it!"
-      ,
-        loneType localizer tipe expected
-          ( D.reflow $ toDescription category "I am seeing"
-          , [ D.reflow $ "This needs to be some kind of function though!"
-            ]
-          )
+      , loneType localizer tipe expected
+          (addCategory "I am seeing" category)
+          [ D.reflow $ "This needs to be some kind of function though!"
+          ]
       )
 
     _ ->
-      (
-        D.reflow $
+      ( D.reflow $
           "The left argument of (" <> N.toString op <> ") is causing problems:"
-      ,
-        typeComparison localizer tipe expected
-          (
-            toDescription category "The left argument is"
-          ,
-            "But (" <> N.toString op <> ") needs the left argument to be:"
-          ,
-            []
-          )
+      , typeComparison localizer tipe expected
+          (addCategory "The left argument is" category)
+          (singular $ "But (" <> N.toString op <> ") needs the left argument to be")
+          []
       )
 
 
@@ -1146,47 +1015,30 @@ opRightToDocs localizer category op tipe expected =
 
     "<|" ->
       EmphRight
-        (
-          D.reflow $
-            "I cannot send this through the (<|) pipe:"
-        ,
-          typeComparison localizer tipe expected
-            (
-              toDescription category "You are providing"
-            ,
-              "But (<|) is piping it a function that expects:"
-            ,
-              []
-            )
+        ( D.reflow $ "I cannot send this through the (<|) pipe:"
+        , typeComparison localizer tipe expected
+            (addCategory "You are providing" category)
+            (singular "But (<|) is piping it a function that expects")
+            []
         )
 
     "|>" ->
       case (tipe, expected) of
         (T.Lambda expectedArgType _ _, T.Lambda argType _ _) ->
           EmphRight
-            (
-              "This function cannot handle the argument sent through the (|>) pipe:"
-            ,
-              typeComparison localizer argType expectedArgType
-                (
-                  "You are providing an argument of type:"
-                ,
-                  "But (|>) is piping it a function that expects its next argument to be:"
-                ,
-                  []
-                )
+            ( D.reflow $ "This function cannot handle the argument sent through the (|>) pipe:"
+            , typeComparison localizer argType expectedArgType
+                (addCategory "The argument is" category)
+                (singular "But (|>) is piping it a function that expects")
+                []
             )
 
         _ ->
           EmphRight
-            (
-              "The right side of (|>) needs to be a function so I can pipe arguments to it!"
-            ,
-              loneType localizer tipe expected
-                ( D.reflow $ toDescription category $
-                    "But instead of a function, I am seeing "
-                , []
-                )
+            ( D.reflow $ "The right side of (|>) needs to be a function so I can pipe arguments to it!"
+            , loneType localizer tipe expected
+                (addCategory "But instead of a function, I am seeing" category)
+                []
             )
 
     _ ->
@@ -1196,22 +1048,16 @@ opRightToDocs localizer category op tipe expected =
 badOpRightFallback :: L.Localizer -> Category -> N.Name -> T.Type -> T.Type -> RightDocs
 badOpRightFallback localizer category op tipe expected =
   EmphRight
-    (
-      D.reflow $
+    ( D.reflow $
         "The right argument of (" <> N.toString op <> ") is causing problems."
-    ,
-      typeComparison localizer tipe expected
-        (
-          toDescription category "The right argument is"
-        ,
-          "But (" <> N.toString op <> ") needs the right argument to be:"
-        ,
-          [ D.toSimpleHint $
-              "With operators like (" ++ N.toString op ++ ") I always check the left\
-              \ side first. If it seems fine, I assume it is correct and check the right\
-              \ side. So the problem may be in how the left and right arguments interact!"
-          ]
-        )
+    , typeComparison localizer tipe expected
+        (addCategory "The right argument is" category)
+        (singular $ "But (" <> N.toString op <> ") needs the right argument to be")
+        [ D.toSimpleHint $
+            "With operators like (" ++ N.toString op ++ ") I always check the left\
+            \ side first. If it seems fine, I assume it is correct and check the right\
+            \ side. So the problem may be in how the left and right arguments interact!"
+        ]
     )
 
 
@@ -1266,16 +1112,11 @@ badConsRight localizer category tipe expected =
       case expected of
         T.Type home2 name2 [expectedElement] | T.isList home2 name2 ->
           EmphBoth
-            (
-              D.reflow "I am having trouble with this (::) operator:"
-            ,
-              typeComparison localizer expectedElement actualElement
-                (
-                  "The left side of (::) is an element of type:"
-                ,
-                  "But the right side is a list filled with elements of type:"
-                ,
-                  case expectedElement of
+            ( D.reflow "I am having trouble with this (::) operator:"
+            , typeComparison localizer expectedElement actualElement
+                (singular "The left side of (::) is")
+                (plural "But you are trying to put that into a list filled with")
+                ( case expectedElement of
                     T.Type home name [_] | T.isList home name ->
                       [ D.toSimpleHint
                           "Are you trying to append two lists? The (++) operator\
@@ -1295,16 +1136,11 @@ badConsRight localizer category tipe expected =
 
     _ ->
       EmphRight
-        (
-          D.reflow "The (::) operator can only add elements onto lists."
-        ,
-          loneType localizer tipe expected
-            (
-              D.reflow $ toDescription category "The right side is"
-            ,
-              [D.fillSep ["But","(::)","needs","a",D.dullyellow "List","on","the","right."]
-              ]
-            )
+        ( D.reflow "The (::) operator can only add elements onto lists."
+        , loneType localizer tipe expected
+            (addCategory "The right side is" category)
+            [D.fillSep ["But","(::)","needs","a",D.dullyellow "List","on","the","right."]
+            ]
         )
 
 
@@ -1337,13 +1173,11 @@ badAppendLeft :: L.Localizer -> Category -> T.Type -> T.Type -> (D.Doc, D.Doc)
 badAppendLeft localizer category tipe expected =
   case toAppendType tipe of
     ANumber thing stringFromThing ->
-      (
-        D.fillSep
+      ( D.fillSep
           ["The","(++)","operator","can","append","List","and","String"
           ,"values,","but","not",D.dullyellow thing,"values","like","this:"
           ]
-      ,
-        D.fillSep
+      , D.fillSep
           ["Try","using",D.green stringFromThing,"to","turn","it","into","a","string?"
           ,"Or","put","it","in","[]","to","make","it","a","list?"
           ,"Or","switch","to","the","(::)","operator?"
@@ -1351,20 +1185,16 @@ badAppendLeft localizer category tipe expected =
       )
 
     _ ->
-      (
-        D.reflow $
+      ( D.reflow $
           "The (++) operator cannot append this type of value:"
-      ,
-        loneType localizer tipe expected
-          ( D.reflow $ toDescription category "I am seeing"
-          ,
-            [ D.fillSep
-                ["But","the","(++)","operator","is","only","for","appending"
-                ,D.dullyellow "List","and",D.dullyellow "String","values."
-                ,"Maybe","put","this","value","in","[]","to","make","it","a","list?"
-                ]
-            ]
-          )
+      , loneType localizer tipe expected
+          (addCategory "I am seeing" category)
+          [ D.fillSep
+              ["But","the","(++)","operator","is","only","for","appending"
+              ,D.dullyellow "List","and",D.dullyellow "String","values."
+              ,"Maybe","put","this","value","in","[]","to","make","it","a","list?"
+              ]
+          ]
       )
 
 
@@ -1373,36 +1203,28 @@ badAppendRight localizer category tipe expected =
   case (toAppendType expected, toAppendType tipe) of
     (AString, ANumber thing stringFromThing) ->
       EmphRight
-        (
-          D.fillSep
+        ( D.fillSep
             ["I","thought","I","was","appending",D.dullyellow "String","values","here,"
             ,"not",D.dullyellow thing,"values","like","this:"
             ]
-        ,
-          D.fillSep
-            ["Try","using",D.green stringFromThing
-            ,"to","turn","it","into","a","string?"
-            ]
+        , D.fillSep
+            ["Try","using",D.green stringFromThing,"to","turn","it","into","a","string?"]
         )
 
     (AList, ANumber thing _) ->
       EmphRight
-        (
-          D.fillSep
+        ( D.fillSep
             ["I","thought","I","was","appending",D.dullyellow "List","values","here,"
             ,"not",D.dullyellow thing,"values","like","this:"
             ]
-        ,
-          D.reflow "Try putting it in [] to make it a list?"
+        , D.reflow "Try putting it in [] to make it a list?"
         )
 
     (AString, AList) ->
       EmphBoth
-        (
-          D.reflow $
+        ( D.reflow $
             "The (++) operator needs the same type of value on both sides:"
-        ,
-          D.fillSep
+        , D.fillSep
             ["I","see","a",D.dullyellow "String","on","the","left","and","a"
             ,D.dullyellow "List","on","the","right.","Which","should","it","be?"
             ,"Does","the","string","need","[]","around","it","to","become","a","list?"
@@ -1411,11 +1233,9 @@ badAppendRight localizer category tipe expected =
 
     (AList, AString) ->
       EmphBoth
-        (
-          D.reflow $
+        ( D.reflow $
             "The (++) operator needs the same type of value on both sides:"
-        ,
-          D.fillSep
+        , D.fillSep
             ["I","see","a",D.dullyellow "List","on","the","left","and","a"
             ,D.dullyellow "String","on","the","right.","Which","should","it","be?"
             ,"Does","the","string","need","[]","around","it","to","become","a","list?"
@@ -1424,19 +1244,12 @@ badAppendRight localizer category tipe expected =
 
     (_,_) ->
       EmphBoth
-        (
-          D.reflow $
+        ( D.reflow $
             "The (++) operator cannot append these two values:"
-        ,
-          typeComparison localizer expected tipe
-            (
-              "I already figured out that the left side of (++) is:"
-            ,
-              toDescription category $
-                "But this clashes with the right side, which is"
-            ,
-              []
-            )
+        , typeComparison localizer expected tipe
+            (singular "I already figured out that the left side of (++) is")
+            (addCategory "But this clashes with the right side, which is" category)
+            []
         )
 
 
@@ -1450,11 +1263,9 @@ data ThisThenThat = FloatInt | IntFloat
 badCast :: N.Name -> ThisThenThat -> RightDocs
 badCast op thisThenThat =
   EmphBoth
-    (
-      D.reflow $
+    ( D.reflow $
         "I need both sides of (" <> N.toString op <> ") to be the exact same type. Both Int or both Float."
-    ,
-      let
+    , let
         anInt = ["an", D.dullyellow "Int"]
         aFloat = ["a", D.dullyellow "Float"]
         toFloat = D.green "toFloat"
@@ -1508,18 +1319,14 @@ badListAdd localizer category direction tipe expected =
     "I cannot do addition with lists:"
   ,
     loneType localizer tipe expected
-      (
-        D.reflow $ toDescription category $
-          "The " <> direction <> " side of (+) is"
-      ,
-        [ D.fillSep
-            ["But","(+)","only","works","with",D.dullyellow "Int","and",D.dullyellow "Float","values."
-            ]
-        , D.toFancyHint
-            ["Switch","to","the",D.green "(++)","operator","to","append","lists!"
-            ]
-        ]
-      )
+      (addCategory ("The " <> direction <> " side of (+) is") category)
+      [ D.fillSep
+          ["But","(+)","only","works","with",D.dullyellow "Int","and",D.dullyellow "Float","values."
+          ]
+      , D.toFancyHint
+          ["Switch","to","the",D.green "(++)","operator","to","append","lists!"
+          ]
+      ]
   )
 
 
@@ -1542,10 +1349,8 @@ badMath localizer category operation direction op tipe expected otherHints =
       operation ++ " does not work with this value:"
   ,
     loneType localizer tipe expected
-      ( D.reflow $ toDescription category $
-          "The " <> direction <> " side of (" <> op <> ") is"
-      ,
-        [ D.fillSep
+      (addCategory ("The " <> direction <> " side of (" <> op <> ") is") category)
+      ( [ D.fillSep
             ["But","(" <> D.fromString op <> ")","only","works","with"
             ,D.dullyellow "Int","and",D.dullyellow "Float","values."
             ]
@@ -1578,14 +1383,13 @@ badFDiv localizer direction tipe expected =
 
     else
       loneType localizer tipe expected
-        (
-          D.fillSep
-            ["The",direction,"side","of","(/)","must","be","a"
-            ,D.dullyellow "Float" <> ","
-            ,"but","instead","I","am","seeing:"
-            ]
-        , []
+        (\_ ->
+            D.fillSep
+              ["The",direction,"side","of","(/)","must","be","a"
+              ,D.dullyellow "Float" <> ",","but","instead","I","am","seeing:"
+              ]
         )
+        []
   )
 
 
@@ -1614,14 +1418,13 @@ badIDiv localizer direction tipe expected =
         ]
     else
       loneType localizer tipe expected
-        (
-          D.fillSep
-            ["The",direction,"side","of","(//)","must","be","an"
-            ,D.dullyellow "Int" <> ","
-            ,"but","instead","I","am","seeing:"
-            ]
-        , []
+        ( \_ ->
+            D.fillSep
+              ["The",direction,"side","of","(//)","must","be","an"
+              ,D.dullyellow "Int" <> ",","but","instead","I","am","seeing:"
+              ]
         )
+        []
   )
 
 
@@ -1636,14 +1439,13 @@ badBool localizer op direction tipe expected =
       "I am struggling with this boolean operation:"
   ,
     loneType localizer tipe expected
-      (
-        D.fillSep
-          ["Both","sides","of","(" <> op <> ")","must","be"
-          ,D.dullyellow "Bool","values,","but","the",direction,"side","is:"
-          ]
-      ,
-        []
+      ( \_ ->
+          D.fillSep
+            ["Both","sides","of","(" <> op <> ")","must","be"
+            ,D.dullyellow "Bool","values,","but","the",direction,"side","is:"
+            ]
       )
+      []
   )
 
 
@@ -1658,23 +1460,19 @@ badCompLeft localizer category op direction tipe expected =
       "I cannot do a comparison with this value:"
   ,
     loneType localizer tipe expected
-      (
-        D.reflow $ toDescription category $
-          "The " <> direction <> " side of (" <> op <> ") is"
-      ,
-        [ D.fillSep
-            ["But","(" <> D.fromString op <> ")","only","works","on"
-            ,D.dullyellow "Int" <> ","
-            ,D.dullyellow "Float" <> ","
-            ,D.dullyellow "Char" <> ","
-            ,"and"
-            ,D.dullyellow "String"
-            ,"values.","It","can","work","on","lists","and","tuples"
-            ,"of","comparable","values","as","well,","but","it","is"
-            ,"usually","better","to","find","a","different","path."
-            ]
-        ]
-      )
+      (addCategory ("The " <> direction <> " side of (" <> op <> ") is") category)
+      [ D.fillSep
+          ["But","(" <> D.fromString op <> ")","only","works","on"
+          ,D.dullyellow "Int" <> ","
+          ,D.dullyellow "Float" <> ","
+          ,D.dullyellow "Char" <> ","
+          ,"and"
+          ,D.dullyellow "String"
+          ,"values.","It","can","work","on","lists","and","tuples"
+          ,"of","comparable","values","as","well,","but","it","is"
+          ,"usually","better","to","find","a","different","path."
+          ]
+      ]
   )
 
 
@@ -1686,15 +1484,11 @@ badCompRight localizer op tipe expected =
         "I need both sides of (" <> op <> ") to be the same type:"
     ,
       typeComparison localizer expected tipe
-        (
-          "The left side of is:"
-        ,
-          "But the right side is:"
-        ,
-          [ D.reflow $
-              "I cannot compare different types though! Which side of (" <> op <> ") is the problem?"
-          ]
-        )
+        (singular "The left side of is")
+        (singular "But the right side is")
+        [ D.reflow $
+            "I cannot compare different types though! Which side of (" <> op <> ") is the problem?"
+        ]
     )
 
 
@@ -1710,21 +1504,15 @@ badEquality localizer op tipe expected =
         "I need both sides of (" <> op <> ") to be the same type:"
     ,
       typeComparison localizer expected tipe
-        (
-          "The left side of is:"
-        ,
-          "But the right side is:"
-        ,
-          if isFloat tipe || isFloat expected then
-            [ D.toSimpleNote $
-                "Equality on floats is not 100% reliable due to the design of IEEE 754. I\
-                \ recommend a check like (abs (x - y) < 0.0001) instead."
-            ]
+        (singular "The left side of is")
+        (singular "But the right side is")
+        [ if isFloat tipe || isFloat expected then
+            D.toSimpleNote $
+              "Equality on floats is not 100% reliable due to the design of IEEE 754. I\
+              \ recommend a check like (abs (x - y) < 0.0001) instead."
           else
-            [ D.reflow $
-                "Different types can never be equal though! Which side is messed up?"
-            ]
-        )
+            D.reflow  "Different types can never be equal though! Which side is messed up?"
+        ]
     )
 
 
