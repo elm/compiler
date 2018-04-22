@@ -97,7 +97,7 @@ data Expr_
   | Case Expr [CaseBranch]
   | Accessor N.Name
   | Access Expr N.Name
-  | Update Expr (Map.Map N.Name Expr)
+  | Update N.Name Expr (Map.Map N.Name Expr)
   | Record (Map.Map N.Name Expr)
   | Unit
   | Tuple Expr Expr (Maybe Expr)

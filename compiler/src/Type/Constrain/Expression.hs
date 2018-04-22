@@ -137,8 +137,8 @@ constrain rtv (A.At region expression) expected =
               , CEqual region (Access field) fieldType expected
               ]
 
-    Can.Update expr fields ->
-      constrainUpdate rtv region expr fields expected
+    Can.Update name expr fields ->
+      constrainUpdate rtv region name expr fields expected
 
     Can.Record fields ->
       constrainRecord rtv region fields expected
@@ -406,20 +406,19 @@ constrainField rtv expr =
 -- CONSTRAIN RECORD UPDATE
 
 
-constrainUpdate :: RTV -> R.Region -> Can.Expr -> Map.Map N.Name Can.Expr -> Expected Type -> IO Constraint
-constrainUpdate rtv region expr fields expected =
+constrainUpdate :: RTV -> R.Region -> N.Name -> Can.Expr -> Map.Map N.Name Can.Expr -> Expected Type -> IO Constraint
+constrainUpdate rtv region name expr fields expected =
   do  sharedVar <- mkFlexVar
       let sharedType = VarN sharedVar
 
       oldVars <- traverse (\_ -> mkFlexVar) fields
       let oldTypes = Map.map VarN oldVars
       let oldRecordType = RecordN oldTypes sharedType
-      oldCon <- constrain rtv expr (FromContext region RecordUpdate oldRecordType)
+      oldCon <- constrain rtv expr (FromContext region (RecordUpdate name fields) oldRecordType)
 
       newDict <- traverse (constrainField rtv) fields
 
-      let getType (_, t, _) = t
-      let newRecordType = RecordN (Map.map getType newDict) sharedType
+      let newRecordType = RecordN (Map.map (\(_,t,_) -> t) newDict) sharedType
       let newCon = CEqual region Record newRecordType expected
 
       let vars = Map.foldr (\(v,_,_) vs -> v:vs) (sharedVar : Map.elems oldVars) newDict

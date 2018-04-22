@@ -329,7 +329,7 @@ checkExpr (A.At region expression) errors =
     Can.Access record _ ->
       checkExpr record errors
 
-    Can.Update record fields ->
+    Can.Update _ record fields ->
       checkExpr record $ Map.foldr checkExpr errors fields
 
     Can.Record fields ->
