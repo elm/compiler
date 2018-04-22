@@ -27,7 +27,7 @@ toReport source err =
         Report.toCodeSnippet source caseRegion (Just patternRegion)
           (
             D.reflow $
-              "The " <> D.ordinalize index <> " pattern is redundant:"
+              "The " <> D.intToOrdinal index <> " pattern is redundant:"
           ,
             D.reflow $
               "Any value with this shape will be handled by a previous\

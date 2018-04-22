@@ -15,7 +15,8 @@ module Reporting.Doc
   , stack, reflow, commaSep
   , toSimpleNote, toSimpleHint, toFancyHint
   , link, fancyLink, reflowLink, makeLink
-  , args, moreArgs, ordinalize
+  , args, moreArgs
+  , ordinal, intToOrdinal
   , cycle
   )
   where
@@ -32,6 +33,7 @@ import qualified System.Console.ANSI.Types as Ansi
 import System.IO (Handle)
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 
+import qualified Data.Index as Index
 import qualified Elm.Compiler.Version as Compiler
 import qualified Elm.Package as Pkg
 import qualified Json.Encode as E
@@ -176,8 +178,13 @@ moreArgs n =
   show n <> " more" <> if n == 1 then " argument" else " arguments"
 
 
-ordinalize :: Int -> String
-ordinalize number =
+ordinal :: Index.ZeroBased -> String
+ordinal index =
+  intToOrdinal (Index.toHuman index)
+
+
+intToOrdinal :: Int -> String
+intToOrdinal number =
   let
     remainder10 =
       number `mod` 10
