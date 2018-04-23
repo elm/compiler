@@ -411,15 +411,20 @@ constrainUpdate rtv region name expr fields expected =
   do  extVar <- mkFlexVar
       fieldDict <- Map.traverseWithKey (constrainUpdateField rtv region) fields
 
-      let recordType = RecordN (Map.map (\(_,t,_) -> t) fieldDict) (VarN extVar)
+      recordVar <- mkFlexVar
+      let recordType = VarN recordVar
+      let fieldsType = RecordN (Map.map (\(_,t,_) -> t) fieldDict) (VarN extVar)
+
+      -- NOTE: fieldsType is separate so that Error propagates better
+      let fieldsCon = CEqual region Record recordType (NoExpectation fieldsType)
       let recordCon = CEqual region Record recordType expected
 
-      let vars = Map.foldr (\(v,_,_) vs -> v:vs) [extVar] fieldDict
+      let vars = Map.foldr (\(v,_,_) vs -> v:vs) [recordVar,extVar] fieldDict
       let cons = Map.foldr (\(_,_,c) cs -> c:cs) [recordCon] fieldDict
 
       con <- constrain rtv expr (FromContext region (RecordUpdateKeys name fields) recordType)
 
-      return $ exists vars $ CAnd (con:cons)
+      return $ exists vars $ CAnd (fieldsCon:con:cons)
 
 
 constrainUpdateField :: RTV -> R.Region -> N.Name -> Can.FieldUpdate -> IO (Variable, Type, Constraint)
