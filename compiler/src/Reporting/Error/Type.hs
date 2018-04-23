@@ -26,13 +26,13 @@ import Data.Monoid ((<>))
 import qualified AST.Canonical as Can
 import qualified Data.Index as Index
 import qualified Elm.Name as N
-import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
 import qualified Reporting.Region as R
 import qualified Reporting.Render.Code as Code
 import qualified Reporting.Render.Type as RT
 import qualified Reporting.Render.Type.Localizer as L
 import qualified Reporting.Report as Report
+import qualified Reporting.Suggest as Suggest
 import qualified Type.Error as T
 
 
@@ -429,8 +429,6 @@ problemsToHint problems =
 problemToHint :: T.Problem -> [D.Doc]
 problemToHint problem =
   case problem of
-    T.FieldMismatch _ _ -> [] -- TODO do a better job?
-
     T.IntFloat ->
       [ D.fancyLink "Note" ["Read"] "implicit-casts"
           ["to","learn","why","Elm","does","not","implicitly","convert"
@@ -845,17 +843,28 @@ toExprReport source localizer exprRegion category tipe expected =
           )
 
         RecordAccess field ->
-          badType $
-          case T.getFields tipe of
-            Just _fields ->
-              ( Just exprRegion
-              , "This record does not have a `" <> N.toString field <> "` field:"
-              , "It is"
-              , [ -- TODO suggest what the typo is!
-                ]
-              )
+          case T.iteratedDealias tipe of
+            T.Record fields ext ->
+              custom (Just exprRegion)
+                ( D.reflow $
+                    "This record does not have a `" <> N.toString field <> "` field:"
+                , case Suggest.sort (N.toString field) (N.toString . fst) (Map.toList fields) of
+                    [] ->
+                      D.reflow "In fact, it is a record with NO fields!"
 
-            Nothing ->
+                    f:fs ->
+                      D.stack
+                        [ addAlias "record" tipe (\noun -> "It is a " <> noun <> " with fields:")
+                        , toNearbyRecord localizer f fs ext
+                        , D.fillSep
+                            ["So","instead","of",D.dullyellow (D.fromName field) <> ","
+                            ,"maybe","you","want",D.green (D.fromName (fst f)) <> "?"
+                            ]
+                        ]
+                )
+
+            _ ->
+              badType
               ( Just exprRegion
               , "This is not a record, so it has no fields to access!"
               , "It is"
@@ -867,8 +876,46 @@ toExprReport source localizer exprRegion category tipe expected =
               )
 
         RecordUpdateKeys record expectedFields ->
-          case T.getFields tipe of
-            Nothing ->
+          case T.iteratedDealias tipe of
+            T.Record actualFields ext ->
+              case Map.lookupMin (Map.difference expectedFields actualFields) of
+                Nothing ->
+                  mismatch
+                  ( Nothing
+                  , "Something is off with this record update:"
+                  , "The `" <> N.toString record <> "` record is"
+                  , \_ -> "But this update needs it to be compatable with:"
+                  , [ D.reflow
+                        "Do you mind creating an <http://sscce.org/> that produces this error message and\
+                        \ sharing it at <https://github.com/elm-lang/error-message-catalog/issues> so we\
+                        \ can try to give better advice here?"
+                    ]
+                  )
+
+                Just (field, Can.FieldUpdate fieldRegion _) ->
+                  let
+                    rStr = "`" <> N.toString record <> "`"
+                    fStr = "`" <> N.toString field <> "`"
+                  in
+                  custom (Just fieldRegion)
+                    ( D.reflow $
+                        "The " <> rStr <> " record does not have a " <> fStr <> " field:"
+                    , case Suggest.sort (N.toString field) (N.toString . fst) (Map.toList actualFields) of
+                        [] ->
+                          D.reflow $ "In fact, " <> rStr <> " is a record with NO fields!"
+
+                        f:fs ->
+                          D.stack
+                            [ addAlias "record" tipe (\noun -> rStr <> " is a " <> noun <> " with fields:")
+                            , toNearbyRecord localizer f fs ext
+                            , D.fillSep
+                                ["So","instead","of",D.dullyellow (D.fromName field) <> ","
+                                ,"maybe","you","want",D.green (D.fromName (fst f)) <> "?"
+                                ]
+                            ]
+                    )
+
+            _ ->
               badType
               ( Just exprRegion
               , "This is not a record, so it has no fields to update!"
@@ -876,21 +923,6 @@ toExprReport source localizer exprRegion category tipe expected =
               , [ D.reflow $ "But I need a record!"
                 ]
               )
-
-            Just actualFields ->
-              case Map.foldrWithKey addLocatedField [] (Map.difference expectedFields actualFields) of
-                [] ->
-                  error "TODO RecordUpdateKeys"
-
-                A.At fieldRegion field : _ ->
-                  badType
-                  ( Just fieldRegion
-                  , "The `" <> N.toString record <> "` record does not have a `" <> N.toString field <> "` field:"
-                  , "The `" <> N.toString record <> "` is"
-                  , [ D.reflow $ "So maybe you want one of these fields instead? TODO make suggestions!"
-                    -- TODO suggest what the typo is!
-                    ]
-                  )
 
         RecordUpdateValue field ->
           mismatch
@@ -928,9 +960,42 @@ countArgs tipe =
       0
 
 
-addLocatedField :: N.Name -> Can.FieldUpdate -> [A.Located N.Name] -> [A.Located N.Name]
-addLocatedField name (Can.FieldUpdate region _) names =
-  A.At region name : names
+addAlias :: String -> T.Type -> (String -> String) -> D.Doc
+addAlias noun tipe toMessage =
+  case tipe of
+    T.Alias _ name _ _ ->
+      D.reflow (toMessage ("`" <> N.toString name <> "`"))
+
+    _ ->
+      D.reflow (toMessage noun)
+
+
+
+-- FIELD NAME HELPERS
+
+
+toNearbyRecord :: L.Localizer -> (N.Name, T.Type) -> [(N.Name, T.Type)] -> T.Extension -> D.Doc
+toNearbyRecord localizer f fs ext =
+  D.indent 4 $
+    if length fs <= 3 then
+      RT.record (map (fieldToDocs localizer) (f:fs)) (extToDoc ext)
+    else
+      RT.recordSnippet (fieldToDocs localizer f) (map (fieldToDocs localizer) (take 3 fs))
+
+
+fieldToDocs :: L.Localizer -> (N.Name, T.Type) -> (D.Doc, D.Doc)
+fieldToDocs localizer (name, tipe) =
+  ( D.fromName name
+  , T.toDoc localizer RT.None tipe
+  )
+
+
+extToDoc :: T.Extension -> Maybe D.Doc
+extToDoc ext =
+  case ext of
+    T.Closed      -> Nothing
+    T.FlexOpen  x -> Just (D.fromName x)
+    T.RigidOpen x -> Just (D.fromName x)
 
 
 
