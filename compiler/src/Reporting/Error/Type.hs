@@ -26,6 +26,7 @@ import Data.Monoid ((<>))
 import qualified AST.Canonical as Can
 import qualified Data.Index as Index
 import qualified Elm.Name as N
+import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
 import qualified Reporting.Region as R
 import qualified Reporting.Render.Code as Code
@@ -66,7 +67,8 @@ data Context
   | CallArity MaybeName Int
   | CallArg MaybeName Index.ZeroBased
   | RecordAccess N.Name
-  | RecordUpdate N.Name (Map.Map N.Name Can.Expr)
+  | RecordUpdateKeys N.Name (Map.Map N.Name Can.FieldUpdate)
+  | RecordUpdateValue N.Name
   | Destructure
 
 
@@ -384,7 +386,7 @@ addCategory thisIs category maybeAlias =
   let
     definitely whatever =
       case maybeAlias of
-        Just alias -> " a `" <> N.toString alias <> "` value:"
+        Just alias -> " a `" <> N.toString alias <> "`:"
         Nothing    -> whatever
   in
   D.reflow $
@@ -701,6 +703,10 @@ toExprReport source localizer exprRegion category tipe expected =
               ( D.reflow problem
               , loneType localizer tipe expectedType (addCategory thisIs category) furtherDetails
               )
+
+        custom maybeHighlight docPair =
+          Report.Report "TYPE MISMATCH" exprRegion [] $
+            Report.toCodeSnippet source region maybeHighlight docPair
       in
       case context of
         ListEntry index ->
@@ -731,18 +737,16 @@ toExprReport source localizer exprRegion category tipe expected =
           )
 
         OpLeft op ->
-          Report.Report "TYPE MISMATCH" exprRegion [] $
-            Report.toCodeSnippet source region (Just exprRegion) $
-              opLeftToDocs localizer category op tipe expectedType
+          custom (Just exprRegion) $
+            opLeftToDocs localizer category op tipe expectedType
 
         OpRight op ->
-          Report.Report "TYPE MISMATCH" exprRegion [] $
-            case opRightToDocs localizer category op tipe expectedType of
-              EmphBoth details ->
-                Report.toCodeSnippet source region Nothing details
+          case opRightToDocs localizer category op tipe expectedType of
+            EmphBoth details ->
+              custom Nothing details
 
-              EmphRight details ->
-                Report.toCodeSnippet source region (Just exprRegion) details
+            EmphRight details ->
+              custom (Just exprRegion) details
 
         IfCondition ->
           badType
@@ -862,34 +866,43 @@ toExprReport source localizer exprRegion category tipe expected =
                 ]
               )
 
-        RecordUpdate name updatedFields ->
-          badType $
+        RecordUpdateKeys record expectedFields ->
           case T.getFields tipe of
             Nothing ->
+              badType
               ( Just exprRegion
-              , "I cannot update the `" <> N.toString name <> "` value:"
+              , "This is not a record, so it has no fields to update!"
               , "It is"
-              , [ D.reflow $ "It is not a record. It has no fields to update!"
+              , [ D.reflow $ "But I need a record!"
                 ]
               )
 
-            Just _fields ->
-              case Map.keys updatedFields of
-                [field] ->
-                  ( Nothing
-                  , "The `" <> N.toString name <> "` record does not have a `" <> N.toString field <> "` field."
-                  , "It is"
-                  , [ -- TODO suggest what the typo is!
+            Just actualFields ->
+              case Map.foldrWithKey addLocatedField [] (Map.difference expectedFields actualFields) of
+                [] ->
+                  error "TODO RecordUpdateKeys"
+
+                A.At fieldRegion field : _ ->
+                  badType
+                  ( Just fieldRegion
+                  , "The `" <> N.toString record <> "` record does not have a `" <> N.toString field <> "` field:"
+                  , "The `" <> N.toString record <> "` is"
+                  , [ D.reflow $ "So maybe you want one of these fields instead? TODO make suggestions!"
+                    -- TODO suggest what the typo is!
                     ]
                   )
 
-                _ ->
-                  ( Nothing
-                  , "The `" <> N.toString name <> "` record does have all of these fields:"
-                  , "It is"
-                  , [ -- TODO suggest what the typo is!
-                    ]
-                  )
+        RecordUpdateValue field ->
+          mismatch
+          ( Just exprRegion
+          , "I cannot update the `" <> N.toString field <> "` field like this:"
+          , "You are trying to update `" <> N.toString field <> "` to be"
+          , singular "But it should be"
+          , [ D.toSimpleNote
+                "The record update syntax does not allow you to change the type of fields.\
+                \ You can achieve that with record constructors or the record literal syntax."
+            ]
+          )
 
         Destructure ->
           mismatch
@@ -902,7 +915,7 @@ toExprReport source localizer exprRegion category tipe expected =
 
 
 
--- COUNT ARGS
+-- HELPERS
 
 
 countArgs :: T.Type -> Int
@@ -913,6 +926,11 @@ countArgs tipe =
 
     _ ->
       0
+
+
+addLocatedField :: N.Name -> Can.FieldUpdate -> [A.Located N.Name] -> [A.Located N.Name]
+addLocatedField name (Can.FieldUpdate region _) names =
+  A.At region name : names
 
 
 

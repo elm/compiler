@@ -3,6 +3,7 @@
 module AST.Canonical
   ( Expr, Expr_(..)
   , CaseBranch(..)
+  , FieldUpdate(..)
   , CtorOpts(..)
   -- definitions
   , Def(..)
@@ -97,7 +98,7 @@ data Expr_
   | Case Expr [CaseBranch]
   | Accessor N.Name
   | Access Expr N.Name
-  | Update N.Name Expr (Map.Map N.Name Expr)
+  | Update N.Name Expr (Map.Map N.Name FieldUpdate)
   | Record (Map.Map N.Name Expr)
   | Unit
   | Tuple Expr Expr (Maybe Expr)
@@ -106,6 +107,10 @@ data Expr_
 
 data CaseBranch =
   CaseBranch Pattern Expr
+
+
+data FieldUpdate =
+  FieldUpdate R.Region Expr
 
 
 

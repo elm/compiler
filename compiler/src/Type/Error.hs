@@ -73,14 +73,14 @@ iteratedDealias tipe =
       tipe
 
 
-getFields :: Type -> Maybe [N.Name]
+getFields :: Type -> Maybe (Map.Map N.Name Type)
 getFields tipe =
   case tipe of
     Alias _ _ _ real ->
       getFields real
 
     Record fields _ ->
-      Just (Map.keys fields)
+      Just fields
 
     _ ->
       Nothing

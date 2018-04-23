@@ -3,6 +3,7 @@
 module Canonicalize.Environment.Dups
   ( detect
   , checkFields
+  , checkFields'
   , Dict
   , none
   , one
@@ -74,6 +75,16 @@ checkFields fields =
 addField :: (A.Located N.Name, a) -> Dict a -> Dict a
 addField (A.At region name, value) dups =
   Map.insertWith OneOrMore.more name (OneOrMore.one (Info region value)) dups
+
+
+checkFields' :: (R.Region -> a -> b) -> [(A.Located N.Name, a)] -> Result.Result i w Error.Error (Map.Map N.Name b)
+checkFields' toValue fields =
+  detect Error.DuplicateField (foldr (addField' toValue) none fields)
+
+
+addField' :: (R.Region -> a -> b) -> (A.Located N.Name, a) -> Dict b -> Dict b
+addField' toValue (A.At region name, value) dups =
+  Map.insertWith OneOrMore.more name (OneOrMore.one (Info region (toValue region value))) dups
 
 
 

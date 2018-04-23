@@ -138,10 +138,13 @@ canonicalize env (A.At region expression) =
         <*> Result.ok field
 
     Valid.Update (A.At reg name) fields ->
-      do  fieldDict <- Dups.checkFields fields
-          name_ <- findVar reg env name
-          Can.Update name (A.At reg name_)
-            <$> traverse (canonicalize env) fieldDict
+      let
+        makeCanFields =
+          Dups.checkFields' (\r t -> Can.FieldUpdate r <$> canonicalize env t) fields
+      in
+      Can.Update name
+        <$> (A.At reg <$> findVar reg env name)
+        <*> (sequenceA =<< makeCanFields)
 
     Valid.Record fields ->
       do  fieldDict <- Dups.checkFields fields

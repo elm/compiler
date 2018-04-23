@@ -153,7 +153,7 @@ optimize cycle (A.At region expression) =
     Can.Update _ record updates ->
       Names.registerFieldDict updates Opt.Update
         <*> optimize cycle record
-        <*> traverse (optimize cycle) updates
+        <*> traverse (optimizeUpdate cycle) updates
 
     Can.Record fields ->
       Names.registerFieldDict fields Opt.Record
@@ -170,6 +170,15 @@ optimize cycle (A.At region expression) =
 
     Can.Shader _ src _ ->
       pure (Opt.Shader src)
+
+
+
+-- UPDATE
+
+
+optimizeUpdate :: Cycle -> Can.FieldUpdate -> Names.Tracker Opt.Expr
+optimizeUpdate cycle (Can.FieldUpdate _ expr) =
+  optimize cycle expr
 
 
 

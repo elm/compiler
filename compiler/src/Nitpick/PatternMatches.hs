@@ -330,7 +330,7 @@ checkExpr (A.At region expression) errors =
       checkExpr record errors
 
     Can.Update _ record fields ->
-      checkExpr record $ Map.foldr checkExpr errors fields
+      checkExpr record $ Map.foldr checkField errors fields
 
     Can.Record fields ->
       Map.foldr checkExpr errors fields
@@ -350,6 +350,15 @@ checkExpr (A.At region expression) errors =
 
     Can.Shader _ _ _ ->
       errors
+
+
+
+-- CHECK FIELD
+
+
+checkField :: Can.FieldUpdate -> [Error] -> [Error]
+checkField (Can.FieldUpdate _ expr) errors =
+  checkExpr expr errors
 
 
 

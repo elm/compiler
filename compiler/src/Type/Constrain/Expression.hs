@@ -406,25 +406,28 @@ constrainField rtv expr =
 -- CONSTRAIN RECORD UPDATE
 
 
-constrainUpdate :: RTV -> R.Region -> N.Name -> Can.Expr -> Map.Map N.Name Can.Expr -> Expected Type -> IO Constraint
+constrainUpdate :: RTV -> R.Region -> N.Name -> Can.Expr -> Map.Map N.Name Can.FieldUpdate -> Expected Type -> IO Constraint
 constrainUpdate rtv region name expr fields expected =
-  do  sharedVar <- mkFlexVar
-      let sharedType = VarN sharedVar
+  do  extVar <- mkFlexVar
+      fieldDict <- Map.traverseWithKey (constrainUpdateField rtv region) fields
 
-      oldVars <- traverse (\_ -> mkFlexVar) fields
-      let oldTypes = Map.map VarN oldVars
-      let oldRecordType = RecordN oldTypes sharedType
-      oldCon <- constrain rtv expr (FromContext region (RecordUpdate name fields) oldRecordType)
+      let recordType = RecordN (Map.map (\(_,t,_) -> t) fieldDict) (VarN extVar)
+      let recordCon = CEqual region Record recordType expected
 
-      newDict <- traverse (constrainField rtv) fields
+      let vars = Map.foldr (\(v,_,_) vs -> v:vs) [extVar] fieldDict
+      let cons = Map.foldr (\(_,_,c) cs -> c:cs) [recordCon] fieldDict
 
-      let newRecordType = RecordN (Map.map (\(_,t,_) -> t) newDict) sharedType
-      let newCon = CEqual region Record newRecordType expected
+      con <- constrain rtv expr (FromContext region (RecordUpdateKeys name fields) recordType)
 
-      let vars = Map.foldr (\(v,_,_) vs -> v:vs) (sharedVar : Map.elems oldVars) newDict
-      let cons = Map.foldr (\(_,_,c) cs -> c:cs) [newCon] newDict
+      return $ exists vars $ CAnd (con:cons)
 
-      return $ exists vars (CAnd (oldCon:cons))
+
+constrainUpdateField :: RTV -> R.Region -> N.Name -> Can.FieldUpdate -> IO (Variable, Type, Constraint)
+constrainUpdateField rtv region field (Can.FieldUpdate _ expr) =
+  do  var <- mkFlexVar
+      let tipe = VarN var
+      con <- constrain rtv expr (FromContext region (RecordUpdateValue field) tipe)
+      return (var, tipe, con)
 
 
 
