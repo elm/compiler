@@ -235,7 +235,7 @@ exitWithUnknown :: String -> [String] -> IO a
 exitWithUnknown unknown knowns =
   let
     suggestions =
-      case map toGreen (Suggest.nearbyNames id unknown knowns) of
+      case map toGreen (Suggest.sort unknown id knowns) of
         [] ->
           []
 

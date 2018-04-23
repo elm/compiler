@@ -313,7 +313,7 @@ toReport source err =
       let
         suggestions =
           map N.toString $ take 4 $
-            Suggest.nearbyNames N.toString rawName possibleNames
+            Suggest.sort (N.toString rawName) N.toString possibleNames
       in
       Report.Report "UNKNOWN EXPORT" region suggestions $
         let (a, thing, name) = toKindInfo kind rawName in
@@ -399,7 +399,7 @@ toReport source err =
       let
         suggestions =
           map N.toString $ take 4 $
-            Suggest.nearbyNames N.toString home possibleNames
+            Suggest.sort (N.toString home) N.toString possibleNames
       in
       Report.Report "BAD IMPORT" region suggestions $
         Report.toCodeSnippet source region Nothing
@@ -491,7 +491,7 @@ toReport source err =
         let
           suggestions =
             map N.toString $ take 2 $
-              Suggest.nearbyNames N.toString op (Set.toList locals)
+              Suggest.sort (N.toString op) N.toString (Set.toList locals)
 
           format altOp =
             D.green $ "(" <> altOp <> ")"
@@ -1059,7 +1059,7 @@ notFound source region maybePrefix name thing (PossibleNames locals quals) =
       Map.foldrWithKey addQuals (map N.toString (Set.toList locals)) quals
 
     nearbyNames =
-      take 4 (Suggest.nearbyNames id givenName possibleNames)
+      take 4 (Suggest.sort givenName id possibleNames)
 
     toDetails noSuggestionDetails yesSuggestionDetails =
       case nearbyNames of

@@ -52,17 +52,13 @@ check rawName =
     Nothing ->
       let
         toPairs (License name code) =
-          [ (code, code), (name, code) ]
+          [ (Text.unpack code, code), (Text.unpack name, code) ]
 
         pairs =
           concatMap toPairs (Map.elems osiApprovedSpdxLicenses)
-
-        toSuggestion (suggestion, _) =
-          Text.unpack suggestion
       in
       Left $ map snd $
-        Suggest.nearbyNames toSuggestion (rawName, rawName) pairs
-
+        Suggest.sort (Text.unpack rawName) fst pairs
 
 
 
