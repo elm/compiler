@@ -627,14 +627,11 @@ extToStatus ext1 ext2 =
     Closed ->
       case ext2 of
         Closed      -> Similar
-        FlexOpen  _ -> Different Bag.empty
+        FlexOpen  _ -> Similar
         RigidOpen _ -> Different Bag.empty
 
     FlexOpen _ ->
-      case ext2 of
-        Closed      -> Different Bag.empty
-        FlexOpen  _ -> Similar
-        RigidOpen _ -> Similar
+      Similar
 
     RigidOpen x ->
       case ext2 of
