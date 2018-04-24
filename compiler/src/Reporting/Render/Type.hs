@@ -40,7 +40,7 @@ lambda :: Context -> Doc -> Doc -> [Doc] -> Doc
 lambda context arg1 arg2 args =
   let
     lambdaDoc =
-      D.sep (arg1 : map ("->" <+>) (arg2:args))
+      D.align $ D.sep (arg1 : map ("->" <+>) (arg2:args))
   in
   case context of
     None -> lambdaDoc
@@ -71,7 +71,7 @@ tuple a b cs =
     entries =
       zipWith (<+>) ("(" : repeat ",") (a:b:cs)
   in
-  D.sep [ D.cat entries, ")" ]
+  D.align $ D.sep [ D.cat entries, ")" ]
 
 
 record :: [(Doc, Doc)] -> Maybe Doc -> Doc
@@ -81,13 +81,13 @@ record entries maybeExt =
         "{}"
 
     (fields, Nothing) ->
-        D.sep
+        D.align $ D.sep $
           [ D.cat (zipWith (<+>) ("{" : repeat ",") fields)
           , "}"
           ]
 
     (fields, Just ext) ->
-        D.sep
+        D.align $ D.sep $
           [ D.hang 4 $ D.sep $
               [ "{" <+> ext
               , D.cat (zipWith (<+>) ("|" : repeat ",") fields)

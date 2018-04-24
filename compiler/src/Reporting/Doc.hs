@@ -3,7 +3,7 @@
 module Reporting.Doc
   ( P.Doc
   , (P.<+>), (<>)
-  , P.cat, P.empty, P.fill, P.fillSep, P.hang
+  , P.align, P.cat, P.empty, P.fill, P.fillSep, P.hang
   , P.hcat, P.hsep, P.indent, P.sep, P.vcat
   , P.red, P.magenta, P.green, P.blue, P.black
   , P.dullred, P.dullcyan, P.dullyellow
