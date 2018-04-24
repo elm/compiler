@@ -978,9 +978,9 @@ toNearbyRecord :: L.Localizer -> (N.Name, T.Type) -> [(N.Name, T.Type)] -> T.Ext
 toNearbyRecord localizer f fs ext =
   D.indent 4 $
     if length fs <= 3 then
-      RT.record (map (fieldToDocs localizer) (f:fs)) (extToDoc ext)
+      RT.vrecord (map (fieldToDocs localizer) (f:fs)) (extToDoc ext)
     else
-      RT.recordSnippet (fieldToDocs localizer f) (map (fieldToDocs localizer) (take 3 fs))
+      RT.vrecordSnippet (fieldToDocs localizer f) (map (fieldToDocs localizer) (take 3 fs))
 
 
 fieldToDocs :: L.Localizer -> (N.Name, T.Type) -> (D.Doc, D.Doc)

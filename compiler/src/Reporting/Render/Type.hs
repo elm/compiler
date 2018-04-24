@@ -6,14 +6,14 @@ module Reporting.Render.Type
   , apply
   , tuple
   , record
-  , recordSnippet
+  , vrecordSnippet
+  , vrecord
   , srcToDoc
   , canToDoc
   )
   where
 
 
-import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 
 import qualified AST.Source as Src
@@ -101,13 +101,33 @@ entryToDoc (fieldName, fieldType) =
   D.hang 4 (D.sep [ fieldName <+> ":", fieldType ])
 
 
-recordSnippet :: (Doc, Doc) -> [(Doc, Doc)] -> Doc
-recordSnippet entry entries =
+vrecordSnippet :: (Doc, Doc) -> [(Doc, Doc)] -> Doc
+vrecordSnippet entry entries =
   let
     field  = "{" <+> entryToDoc entry
     fields = zipWith (<+>) (repeat ",") (map entryToDoc entries ++ ["..."])
   in
-  D.sep [ D.cat (field:fields), "}" ]
+  D.vcat (field : fields ++ ["}"])
+
+
+vrecord :: [(Doc, Doc)] -> Maybe Doc -> Doc
+vrecord entries maybeExt =
+  case (map entryToDoc entries, maybeExt) of
+    ([], Nothing) ->
+      "{}"
+
+    (fields, Nothing) ->
+      D.vcat $
+        zipWith (<+>) ("{" : repeat ",") fields ++ ["}"]
+
+    (fields, Just ext) ->
+      D.vcat
+        [ D.hang 4 $ D.vcat $
+            [ "{" <+> ext
+            , D.cat (zipWith (<+>) ("|" : repeat ",") fields)
+            ]
+        , "}"
+        ]
 
 
 
