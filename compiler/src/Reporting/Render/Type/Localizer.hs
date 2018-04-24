@@ -122,8 +122,9 @@ addType (A.At _ exposed) types =
 
 replEmpty :: Localizer
 replEmpty =
-  Localizer $ Map.fromList $ map toPair $
-    Imports.addDefaults Pkg.dummyName []
+  Localizer $
+    Map.insert N.replModule (Import Nothing All) $
+      Map.fromList $ map toPair $ Imports.addDefaults Pkg.dummyName []
 
 
 replAdd :: N.Name -> Maybe N.Name -> Src.Exposing -> Localizer -> Localizer

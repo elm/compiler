@@ -30,6 +30,7 @@ module Elm.Name
   , shader, debug, debugger, bitwise, basics
   , utils, negate, value
   , node, program, main, dollar, identity
+  , replModule
   )
   where
 
@@ -329,3 +330,8 @@ dollar = "$"
 {-# NOINLINE identity #-}
 identity :: Name
 identity = "identity"
+
+
+{-# NOINLINE replModule #-}
+replModule :: Name
+replModule = "Elm_Repl"

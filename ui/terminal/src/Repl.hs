@@ -234,8 +234,11 @@ initialState =
 compile :: Output -> State -> Task.Task (Maybe FilePath)
 compile output (State count imports types defs tricks localizer) =
   let
+    header =
+      "module " <> N.toBuilder N.replModule <> " exposing (..)\n\n"
+
     elmSourceCode =
-      (<>) "module Elm_Repl exposing (..)\n\n" $
+      (<>) header $
         addLines imports $ addLines types $ addLines defs $
           List.foldr (<>) mempty (map Text.encodeUtf8Builder tricks)
   in
