@@ -292,41 +292,30 @@ type CtorDups = Dups.Dict (Map.Map ModuleName.Canonical Env.Ctor)
 
 canonicalizeAlias :: Env.Env -> Valid.Alias -> Result i w ( (N.Name, Can.Alias), CtorDups )
 canonicalizeAlias env@(Env.Env home _ _ _ _ _ _ _) (Valid.Alias _ (A.At region name) args tipe) =
-  case tipe of
-    A.At _ (Src.TRecord fields Nothing) ->
-      do  cfields <- canonicalizeFields env fields
-          fieldDict <- Dups.checkFields cfields
+  do  let vars = map A.toValue args
+      ctipe <- Type.canonicalize env tipe
+      Result.ok
+        ( (name, Can.Alias vars ctipe)
+        ,
+          case ctipe of
+            Can.TRecord fields Nothing ->
+              Dups.one name region (Map.singleton home (toRecordCtor home name vars fields))
 
-          let
-            addArg (_, Can.FieldType _ t1) t2 = Can.TLambda t1 t2
-            recordType = Can.TRecord fieldDict Nothing
-            vars = map A.toValue args
-            ctor = Env.RecordCtor home vars (foldr addArg recordType cfields)
+            _ ->
+              Dups.none
+        )
 
-          Result.ok
-            ( (name, Can.Alias vars recordType)
-            , Dups.one name region (Map.singleton home ctor)
-            )
-
-    _ ->
-      do  ctipe <- Type.canonicalize env tipe
-          Result.ok
-            ( (name, Can.Alias (map A.toValue args) ctipe)
-            , Dups.none
-            )
-
-
-canonicalizeFields :: Env.Env -> [(A.Located N.Name, Src.Type)] -> Result i w [(A.Located N.Name, Can.FieldType)]
-canonicalizeFields env fields =
+toRecordCtor :: ModuleName.Canonical -> N.Name -> [N.Name] -> Map.Map N.Name Can.FieldType -> Env.Ctor
+toRecordCtor home name vars fields =
   let
-    len =
-      fromIntegral (length fields)
-
-    canonicalizeField index (name, srcType) =
-      do  tipe <- Type.canonicalize env srcType
-          return (name, Can.FieldType index tipe)
+    avars = map (\var -> (var, Can.TVar var)) vars
+    alias =
+      foldr
+        (\(_,t1) t2 -> Can.TLambda t1 t2)
+        (Can.TAlias home name avars (Can.Filled (Can.TRecord fields Nothing)))
+        (Can.fieldsToList fields)
   in
-  sequenceA (zipWith canonicalizeField [0..len] fields)
+  Env.RecordCtor home vars alias
 
 
 
