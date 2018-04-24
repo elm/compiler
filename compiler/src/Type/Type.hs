@@ -400,7 +400,7 @@ termToCanType term =
       return $ Can.TRecord Map.empty Nothing
 
     Record1 fields extension ->
-      do  canFields <- traverse variableToCanType fields
+      do  canFields <- traverse fieldToCanType fields
           canExt <- Type.iteratedDealias <$> variableToCanType extension
           return $
               case canExt of
@@ -421,6 +421,12 @@ termToCanType term =
         <$> variableToCanType a
         <*> variableToCanType b
         <*> traverse variableToCanType maybeC
+
+
+fieldToCanType :: Variable -> StateT NameState IO Can.FieldType
+fieldToCanType variable =
+  do  tipe <- variableToCanType variable
+      return (Can.FieldType 0 tipe)
 
 
 

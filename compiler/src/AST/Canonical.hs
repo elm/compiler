@@ -15,6 +15,8 @@ module AST.Canonical
   , Annotation(..)
   , Type(..)
   , AliasType(..)
+  , FieldType(..)
+  , fieldsToList
   -- modules
   , Module(..)
   , Alias(..)
@@ -53,6 +55,7 @@ So it is clear why the data is kept around.
 import Control.Monad (liftM, liftM2, liftM3, liftM4, replicateM)
 import Data.Binary
 import qualified Data.ByteString as B
+import qualified Data.List as List
 import qualified Data.Map as Map
 import Data.Text (Text)
 
@@ -188,7 +191,7 @@ data Type
   = TLambda Type Type
   | TVar N.Name
   | TType ModuleName.Canonical N.Name [Type]
-  | TRecord (Map.Map N.Name Type) (Maybe N.Name)
+  | TRecord (Map.Map N.Name FieldType) (Maybe N.Name)
   | TUnit
   | TTuple Type Type (Maybe Type)
   | TAlias ModuleName.Canonical N.Name [(N.Name, Type)] AliasType
@@ -197,6 +200,26 @@ data Type
 data AliasType
   = Holey Type
   | Filled Type
+
+
+data FieldType =
+  FieldType {-# UNPACK #-} !Word16 Type
+
+
+-- NOTE: The Word16 marks the source order, but it may not be available
+-- for every canonical type. For example, if the canonical type is inferred
+-- the orders will all be zeros.
+--
+fieldsToList :: Map.Map N.Name FieldType -> [(N.Name, Type)]
+fieldsToList fields =
+  let
+    getIndex (_, FieldType index _) =
+      index
+
+    dropIndex (name, FieldType _ tipe) =
+      (name, tipe)
+  in
+  map dropIndex (List.sortOn getIndex (Map.toList fields))
 
 
 
@@ -216,7 +239,7 @@ data Module =
     }
 
 
-data Alias = Alias [N.Name] Type (Maybe [(N.Name,Type)])
+data Alias = Alias [N.Name] Type
 data Binop = Binop_ Binop.Associativity Binop.Precedence N.Name
 
 
@@ -297,8 +320,8 @@ data Manager
 
 
 instance Binary Alias where
-  get = liftM3 Alias get get get
-  put (Alias a b c) = put a >> put b >> put c
+  get = liftM2 Alias get get
+  put (Alias a b) = put a >> put b
 
 
 instance Binary Union where
@@ -376,3 +399,8 @@ instance Binary AliasType where
           0 -> liftM Holey get
           1 -> liftM Filled get
           _ -> error "binary encoding of AliasType was corrupted"
+
+
+instance Binary FieldType where
+  get = liftM2 FieldType get get
+  put (FieldType a b) = put a >> put b

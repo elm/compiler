@@ -141,7 +141,7 @@ srcToDoc context (A.At _ tipe) =
 
     Src.TRecord fields ext ->
       record
-        (map fieldToDocs fields)
+        (map srcFieldToDocs fields)
         (fmap (D.fromName . A.toValue) ext)
 
     Src.TUnit ->
@@ -154,8 +154,8 @@ srcToDoc context (A.At _ tipe) =
         (map (srcToDoc None) cs)
 
 
-fieldToDocs :: (A.Located N.Name, Src.Type) -> (Doc, Doc)
-fieldToDocs (A.At _ fieldName, fieldType) =
+srcFieldToDocs :: (A.Located N.Name, Src.Type) -> (Doc, Doc)
+srcFieldToDocs (A.At _ fieldName, fieldType) =
   ( D.fromName fieldName
   , srcToDoc None fieldType
   )
@@ -200,7 +200,7 @@ canToDoc localizer context tipe =
 
     Can.TRecord fields ext ->
       record
-        (map (entryToDocs localizer) (Map.toList fields))
+        (map (canFieldToDoc localizer) (Can.fieldsToList fields))
         (fmap D.fromName ext)
 
     Can.TUnit ->
@@ -218,9 +218,11 @@ canToDoc localizer context tipe =
         (map (canToDoc localizer App . snd) args)
 
 
-entryToDocs :: L.Localizer -> (N.Name, Can.Type) -> (Doc, Doc)
-entryToDocs localizer (name, tipe) =
-  (D.fromName name, canToDoc localizer None tipe)
+canFieldToDoc :: L.Localizer -> (N.Name, Can.Type) -> (Doc, Doc)
+canFieldToDoc localizer (name, tipe) =
+  ( D.fromName name
+  , canToDoc localizer None tipe
+  )
 
 
 collectArgs :: Can.Type -> (Can.Type, [Can.Type])

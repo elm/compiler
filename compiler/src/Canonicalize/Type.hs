@@ -63,8 +63,7 @@ canonicalize env (A.At typeRegion tipe) =
           <*> canonicalize env b
 
     Src.TRecord fields ext ->
-        do  fieldDict <- Dups.checkFields fields
-            cfields <- traverse (canonicalize env) fieldDict
+        do  cfields <- sequenceA =<< Dups.checkFields (canonicalizeFields env fields)
             return $ Can.TRecord cfields (fmap A.toValue ext)
 
     Src.TUnit ->
@@ -84,6 +83,16 @@ canonicalize env (A.At typeRegion tipe) =
 
               _ ->
                 Result.throw $ Error.TupleLargerThanThree typeRegion
+
+
+canonicalizeFields :: Env.Env -> [(A.Located N.Name, Src.Type)] -> [(A.Located N.Name, Result i w Can.FieldType)]
+canonicalizeFields env fields =
+  let
+    len = fromIntegral (length fields)
+    canonicalizeField index (name, srcType) =
+      (name, Can.FieldType index <$> canonicalize env srcType)
+  in
+  zipWith canonicalizeField [0..len] fields
 
 
 
@@ -129,10 +138,10 @@ addFreeVars freeVars tipe =
       List.foldl' addFreeVars freeVars args
 
     Can.TRecord fields Nothing ->
-      Map.foldl addFreeVars freeVars fields
+      Map.foldl addFieldFreeVars freeVars fields
 
     Can.TRecord fields (Just ext) ->
-      Map.foldl addFreeVars (Map.insert ext () freeVars) fields
+      Map.foldl addFieldFreeVars (Map.insert ext () freeVars) fields
 
     Can.TUnit ->
       freeVars
@@ -147,3 +156,8 @@ addFreeVars freeVars tipe =
 
     Can.TAlias _ _ args _ ->
       List.foldl' (\fvs (_,arg) -> addFreeVars fvs arg) freeVars args
+
+
+addFieldFreeVars :: Map.Map N.Name () -> Can.FieldType -> Map.Map N.Name ()
+addFieldFreeVars freeVars (Can.FieldType _ tipe) =
+  addFreeVars freeVars tipe

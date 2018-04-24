@@ -202,7 +202,12 @@ checkPayload tipe =
         Left (tipe, Error.ExtendedRecord)
 
     Can.TRecord fields Nothing ->
-        F.traverse_ checkPayload fields
+        F.traverse_ checkFieldPayload fields
+
+
+checkFieldPayload :: Can.FieldType -> Either (Can.Type, Error.InvalidPayload) ()
+checkFieldPayload (Can.FieldType _ tipe) =
+  checkPayload tipe
 
 
 isIntFloatBool :: ModuleName.Canonical -> N.Name -> Bool

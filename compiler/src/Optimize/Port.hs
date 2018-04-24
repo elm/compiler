@@ -65,7 +65,7 @@ toEncoder tipe =
 
     Can.TRecord fields Nothing ->
       let
-        encodeField (name, fieldType) =
+        encodeField (name, Can.FieldType _ fieldType) =
           do  encoder <- toEncoder fieldType
               let value = Opt.Call encoder [Opt.Access (Opt.VarLocal N.dollar) name]
               return $ Opt.Tuple (Opt.Str (N.toText name)) value Nothing
@@ -283,7 +283,7 @@ indexAndThen i tipe decoder =
 -- DECODE RECORDS
 
 
-decodeRecord :: Map.Map N.Name Can.Type -> Names.Tracker Opt.Expr
+decodeRecord :: Map.Map N.Name Can.FieldType -> Names.Tracker Opt.Expr
 decodeRecord fields =
   let
     toFieldExpr name _ =
@@ -297,8 +297,8 @@ decodeRecord fields =
           Names.registerFieldDict fields (Map.toList fields)
 
 
-fieldAndThen :: Opt.Expr -> (N.Name, Can.Type) -> Names.Tracker Opt.Expr
-fieldAndThen decoder (key, tipe) =
+fieldAndThen :: Opt.Expr -> (N.Name, Can.FieldType) -> Names.Tracker Opt.Expr
+fieldAndThen decoder (key, Can.FieldType _ tipe) =
   do  andThen <- decode "andThen"
       field <- decode "field"
       typeDecoder <- toDecoder tipe

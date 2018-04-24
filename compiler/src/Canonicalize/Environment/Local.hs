@@ -6,7 +6,6 @@ module Canonicalize.Environment.Local
   where
 
 
-import Control.Arrow (first)
 import Control.Monad (foldM)
 import qualified Data.Graph as Graph
 import qualified Data.List as List
@@ -295,26 +294,39 @@ canonicalizeAlias :: Env.Env -> Valid.Alias -> Result i w ( (N.Name, Can.Alias),
 canonicalizeAlias env@(Env.Env home _ _ _ _ _ _ _) (Valid.Alias _ (A.At region name) args tipe) =
   case tipe of
     A.At _ (Src.TRecord fields Nothing) ->
-      do  cfields <- traverse (traverse (Type.canonicalize env)) fields
+      do  cfields <- canonicalizeFields env fields
           fieldDict <- Dups.checkFields cfields
 
-          let recordType = Can.TRecord fieldDict Nothing
-          let ctorType = foldr (Can.TLambda . snd) recordType cfields
-          let vars = map A.toValue args
-          let alias = Can.Alias vars recordType (Just (map (first A.toValue) cfields))
-          let ctor = Env.RecordCtor home vars ctorType
+          let
+            addArg (_, Can.FieldType _ t1) t2 = Can.TLambda t1 t2
+            recordType = Can.TRecord fieldDict Nothing
+            vars = map A.toValue args
+            ctor = Env.RecordCtor home vars (foldr addArg recordType cfields)
 
           Result.ok
-            ( (name, alias)
+            ( (name, Can.Alias vars recordType)
             , Dups.one name region (Map.singleton home ctor)
             )
 
     _ ->
       do  ctipe <- Type.canonicalize env tipe
           Result.ok
-            ( (name, Can.Alias (map A.toValue args) ctipe Nothing)
+            ( (name, Can.Alias (map A.toValue args) ctipe)
             , Dups.none
             )
+
+
+canonicalizeFields :: Env.Env -> [(A.Located N.Name, Src.Type)] -> Result i w [(A.Located N.Name, Can.FieldType)]
+canonicalizeFields env fields =
+  let
+    len =
+      fromIntegral (length fields)
+
+    canonicalizeField index (name, srcType) =
+      do  tipe <- Type.canonicalize env srcType
+          return (name, Can.FieldType index tipe)
+  in
+  sequenceA (zipWith canonicalizeField [0..len] fields)
 
 
 

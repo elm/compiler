@@ -526,7 +526,7 @@ srcTypeToVar rank pools flexVars srcType =
           register rank pools (Structure (App1 home name argVars))
 
     Can.TRecord fields maybeExt ->
-      do  fieldVars <- traverse go fields
+      do  fieldVars <- traverse (srcFieldTypeToVar rank pools flexVars) fields
           extVar <-
             case maybeExt of
               Nothing -> register rank pools emptyRecord1
@@ -553,6 +553,11 @@ srcTypeToVar rank pools flexVars srcType =
                 go tipe
 
           register rank pools (Alias home name argVars aliasVar)
+
+
+srcFieldTypeToVar :: Int -> Pools -> Map.Map N.Name Variable -> Can.FieldType -> IO Variable
+srcFieldTypeToVar rank pools flexVars (Can.FieldType _ srcTipe) =
+  srcTypeToVar rank pools flexVars srcTipe
 
 
 

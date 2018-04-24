@@ -10,7 +10,6 @@ module Elm.Compiler.Type.Extract
 
 
 import Data.Map ((!))
-import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 
@@ -53,7 +52,7 @@ extract astType =
         <*> traverse extract args
 
     Can.TRecord fields ext ->
-      do  efields <- fmap Map.toList (traverse extract fields)
+      do  efields <- traverse (traverse extract) (Can.fieldsToList fields)
           pure (T.Record efields ext)
 
     Can.TUnit ->
@@ -123,7 +122,7 @@ extractAlias :: I.Interfaces -> Opt.Global -> Extractor T.Alias
 extractAlias interfaces (Opt.Global home name) =
   let
     (I.Interface _ _ aliases _) = interfaces ! home
-    (Can.Alias args aliasType _) = I.toAliasInternals (aliases ! name)
+    (Can.Alias args aliasType) = I.toAliasInternals (aliases ! name)
   in
   T.Alias (toPublicName home name) args <$> extract aliasType
 

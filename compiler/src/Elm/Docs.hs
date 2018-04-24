@@ -453,7 +453,7 @@ addExport info (Module n c us as_ vs bs) (name, A.At region export) =
           Result.ok $ Module n c us as_ vs newBinops
 
     Can.ExportAlias ->
-      do  let (Can.Alias tvars tipe _) = _iAliases info ! name
+      do  let (Can.Alias tvars tipe) = _iAliases info ! name
           comment <- getComment region name info
 
           let newAliases = Map.insert name (Alias comment tvars (Extract.fromType tipe)) as_

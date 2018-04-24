@@ -90,16 +90,13 @@ addAliases home aliases graph =
 
 
 addAlias :: ModuleName.Canonical -> N.Name -> Can.Alias -> Opt.Graph -> Opt.Graph
-addAlias home name (Can.Alias _ _ maybeFields) graph@(Opt.Graph mains nodes fieldCounts) =
-  case maybeFields of
-    Nothing ->
-      graph
-
-    Just fields ->
+addAlias home name (Can.Alias _ tipe) graph@(Opt.Graph mains nodes fieldCounts) =
+  case tipe of
+    Can.TRecord fields Nothing ->
       let
         function =
-          Opt.Function (map fst fields) $ Opt.Record $
-            Map.fromList $ map toPair fields
+          Opt.Function (map fst (Can.fieldsToList fields)) $ Opt.Record $
+            Map.mapWithKey (\field _ -> Opt.VarLocal field) fields
 
         node =
           Opt.Define function Set.empty
@@ -107,16 +104,14 @@ addAlias home name (Can.Alias _ _ maybeFields) graph@(Opt.Graph mains nodes fiel
       Opt.Graph
         mains
         (Map.insert (Opt.Global home name) node nodes)
-        (foldr addRecordCtorField fieldCounts fields)
+        (Map.foldrWithKey addRecordCtorField fieldCounts fields)
+
+    _ ->
+      graph
 
 
-toPair :: (N.Name, Can.Type) -> (N.Name, Opt.Expr)
-toPair (field, _) =
-  ( field, Opt.VarLocal field )
-
-
-addRecordCtorField :: (N.Name, Can.Type) -> Map.Map N.Name Int -> Map.Map N.Name Int
-addRecordCtorField (name, _) fields =
+addRecordCtorField :: N.Name -> Can.FieldType -> Map.Map N.Name Int -> Map.Map N.Name Int
+addRecordCtorField name _ fields =
   Map.insertWith (+) name 1 fields
 
 

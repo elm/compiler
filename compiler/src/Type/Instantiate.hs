@@ -62,7 +62,7 @@ fromSrcType freeVars sourceType =
 
     Can.TRecord fields maybeExt ->
       RecordN
-        <$> traverse (fromSrcType freeVars) fields
+        <$> traverse (fromSrcFieldType freeVars) fields
         <*>
           case maybeExt of
             Nothing ->
@@ -70,3 +70,8 @@ fromSrcType freeVars sourceType =
 
             Just ext ->
               return (freeVars ! ext)
+
+
+fromSrcFieldType :: Map.Map N.Name Type -> Can.FieldType -> IO Type
+fromSrcFieldType freeVars (Can.FieldType _ tipe) =
+  fromSrcType freeVars tipe
