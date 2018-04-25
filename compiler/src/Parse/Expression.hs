@@ -92,9 +92,10 @@ accessible :: R.Position -> Src.Expr -> Parser Src.Expr
 accessible start expr =
   oneOf
     [ do  Symbol.dot
+          pos <- getPosition
           field <- Var.lower
           end <- getPosition
-          let newExpr = A.at start end (Src.Access expr field)
+          let newExpr = A.at start end (Src.Access expr (A.at pos end field))
           accessible start newExpr
     , return expr
     ]

@@ -146,7 +146,7 @@ optimize cycle (A.At region expression) =
     Can.Accessor field ->
       Names.registerField field (Opt.Accessor field)
 
-    Can.Access record field ->
+    Can.Access record (A.At _ field) ->
       do  optRecord <- optimize cycle record
           Names.registerField field (Opt.Access optRecord field)
 

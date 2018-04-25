@@ -51,7 +51,7 @@ data Expr_
     | Let [Def] Expr
     | Case Expr [(Src.Pattern, Expr)]
     | Accessor N.Name
-    | Access Expr N.Name
+    | Access Expr (A.Located N.Name)
     | Update (A.Located N.Name) [(A.Located N.Name, Expr)]
     | Record [(A.Located N.Name, Expr)]
     | Unit

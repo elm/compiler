@@ -100,7 +100,7 @@ data Expr_
   | LetDestruct Pattern Expr Expr
   | Case Expr [CaseBranch]
   | Accessor N.Name
-  | Access Expr N.Name
+  | Access Expr (A.Located N.Name)
   | Update N.Name Expr (Map.Map N.Name FieldUpdate)
   | Record (Map.Map N.Name Expr)
   | Unit
