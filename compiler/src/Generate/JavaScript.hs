@@ -104,19 +104,25 @@ print ansi localizer home name (Can.Forall _ tipe) =
 
 data State =
   State
-    { _revBuilders :: [B.Builder]
+    { _kernel :: B.Builder
+    , _revBuilders :: [B.Builder]
     , _seenGlobals :: Set.Set Opt.Global
     }
 
 
 emptyState :: State
 emptyState =
-  State [] Set.empty
+  State mempty [] Set.empty
 
 
 stateToBuilder :: State -> B.Builder
-stateToBuilder (State revBuilders _) =
-  List.foldl1' (\builder b -> b <> builder) revBuilders
+stateToBuilder (State kernel revBuilders _) =
+  case revBuilders of
+    [] ->
+      kernel
+
+    b:bs ->
+      kernel <> List.foldl' (\code decl -> decl <> code) b bs
 
 
 
@@ -127,12 +133,12 @@ type Graph = Map.Map Opt.Global Opt.Node
 
 
 addGlobal :: Mode.Mode -> Graph -> State -> Opt.Global -> State
-addGlobal mode graph state@(State builders seen) global =
+addGlobal mode graph state@(State kernel builders seen) global =
   if Set.member global seen then
     state
   else
     addGlobalHelp mode graph global $
-      State builders (Set.insert global seen)
+      State kernel builders (Set.insert global seen)
 
 
 addGlobalHelp :: Mode.Mode -> Graph -> Opt.Global -> State -> State
@@ -175,10 +181,10 @@ addGlobalHelp mode graph global state =
       else
         case maybeServer of
           Just (Opt.KContent serverChunks serverDeps) | Mode.isServer mode ->
-            addBuilder (addDeps serverDeps state) (generateKernel mode serverChunks)
+            addKernel (addDeps serverDeps state) (generateKernel mode serverChunks)
 
           _ ->
-            addBuilder (addDeps clientDeps state) (generateKernel mode clientChunks)
+            addKernel (addDeps clientDeps state) (generateKernel mode clientChunks)
 
     Opt.Enum index ->
       addStmt state (
@@ -207,8 +213,13 @@ addStmt state stmt =
 
 
 addBuilder :: State -> B.Builder -> State
-addBuilder (State revBuilders seen) builder =
-  State (builder:revBuilders) seen
+addBuilder (State kernel revBuilders seen) builder =
+  State kernel (builder:revBuilders) seen
+
+
+addKernel :: State -> B.Builder -> State
+addKernel (State kernel revBuilders seen) moreKernel =
+  State (moreKernel <> kernel) revBuilders seen
 
 
 var :: Opt.Global -> Expr.Code -> JS.Stmt
