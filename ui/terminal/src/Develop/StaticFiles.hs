@@ -14,6 +14,7 @@ import qualified Data.ByteString as BS
 import Data.FileEmbed (bsToExp)
 import qualified Data.HashMap.Strict as HM
 import Language.Haskell.TH (runIO)
+import System.FilePath ((</>))
 
 import qualified Develop.StaticFiles.Build as Build
 
@@ -59,27 +60,27 @@ faviconPath =
 
 waitingPath :: FilePath
 waitingPath =
-  "_elm/waiting.gif"
+  "_elm" </> "waiting.gif"
 
 
 elmPath :: FilePath
 elmPath =
-  "_elm/elm.js"
+  "_elm" </> "elm.js"
 
 
 cssPath :: FilePath
 cssPath =
-  "_elm/styles.css"
+  "_elm" </> "styles.css"
 
 
 codeFontPath :: FilePath
 codeFontPath =
-  "_elm/source-code-pro.ttf"
+  "_elm" </> "source-code-pro.ttf"
 
 
 sansFontPath :: FilePath
 sansFontPath =
-  "_elm/source-sans-pro.ttf"
+  "_elm" </> "source-sans-pro.ttf"
 
 
 
