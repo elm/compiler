@@ -481,6 +481,21 @@ problemToHint problem =
         T.Tuple _ _ _    -> badRigidSuper super "a tuple"
         T.Alias _ n _ _  -> badRigidSuper super ("a `" ++ N.toString n ++ "` value")
 
+    T.FieldsMissing fields ->
+      case map (D.green . D.fromName) fields of
+        [] ->
+          []
+
+        [f1] ->
+          [ D.toFancyHint ["Looks","like","the",f1,"field","is","missing."]
+          ]
+
+        fieldDocs ->
+          [ D.toFancyHint $
+              ["Looks","like","fields"] ++ D.commaSep "and" id fieldDocs ++ ["are","missing."]
+          ]
+
+
     T.FieldTypo typo possibilities ->
       case Suggest.sort (N.toString typo) N.toString possibilities of
         [] ->
@@ -492,6 +507,9 @@ problemToHint problem =
               ,D.dullyellow (D.fromName typo),"should","be"
               ,D.green (D.fromName nearest) <> "?"
               ]
+          , D.toSimpleHint
+              "Can more type annotations be added? Type annotations always help me give\
+              \ more specific messages, and I think they could help a lot in this case!"
           ]
 
 

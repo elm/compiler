@@ -185,6 +185,7 @@ data Problem
   | BadRigidVar N.Name Type
   | BadRigidSuper Super N.Name Type
   | FieldTypo N.Name [N.Name]
+  | FieldsMissing [N.Name]
 
 
 instance Functor Diff where
@@ -576,9 +577,9 @@ diffRecord localizer fields1 ext1 fields2 ext2 =
         case Map.lookupMin left of
           Just (f,_) -> Different $ Bag.one $ FieldTypo f (Map.keys fields2)
           Nothing ->
-            case Map.lookupMin right of
-              Just (f,_) -> Different $ Bag.one $ FieldTypo f (Map.keys fields1)
-              Nothing    -> Similar
+            if Map.null right
+              then Similar
+              else Different $ Bag.one $ FieldsMissing (Map.keys right)
 
       (False, True) ->
         case Map.lookupMin left of
