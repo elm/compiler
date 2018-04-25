@@ -182,6 +182,9 @@ dfs summary chan oldPending oldSeen unvisited graph =
                       let newGraph = graph { _foreigns = foreigns }
                       dfs summary chan (pending - 1) seen [] newGraph
 
+                Right ForeignKernel ->
+                  dfs summary chan (pending - 1) seen [] graph
+
                 Left problem ->
                   do  let problems = problem : _problems graph
                       let newGraph = graph { _problems = problems }
@@ -217,6 +220,7 @@ data Asset
   = Local Module.Raw Header.Info
   | Kernel Module.Raw (FilePath, Maybe FilePath)
   | Foreign Module.Raw Pkg.Package
+  | ForeignKernel
 
 
 toVisitor :: Summary -> Unvisited -> Task.Task_ E.Problem Asset
@@ -231,6 +235,9 @@ toVisitor summary (Unvisited origin name) =
 
         Find.Kernel clientPath maybeServerPath ->
           return $ Kernel name (clientPath, maybeServerPath)
+
+        Find.ForeignKernel ->
+          return ForeignKernel
 
 
 

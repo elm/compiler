@@ -31,6 +31,7 @@ data Asset
   = Local FilePath
   | Kernel FilePath (Maybe FilePath)
   | Foreign Pkg.Package
+  | ForeignKernel
 
 
 
@@ -49,7 +50,7 @@ find (Summary.Summary root project exposed _ _) origin name =
         Project.Pkg _ ->
           if N.startsWith "Elm.Kernel." name then
             if Project.isPlatformPackage project then
-              findKernel (toRoot "src") origin name
+              findKernel (toRoot "src") exposed origin name
             else
               Task.throw $ E.ModuleNameReservedForKernel origin name
 
@@ -91,12 +92,18 @@ elmExists name srcDir =
 -- FIND KERNEL
 
 
-findKernel :: FilePath -> E.Origin -> Module.Raw -> Task.Task_ E.Problem Asset
-findKernel srcDir origin name =
+findKernel :: FilePath -> Summary.ExposedModules -> E.Origin -> Module.Raw -> Task.Task_ E.Problem Asset
+findKernel srcDir exposed origin name =
   do  let clientPath = srcDir </> Module.nameToSlashPath name <.> "js"
       let serverPath = srcDir </> Module.nameToSlashPath name <.> "server.js"
       client <- liftIO $ Dir.doesFileExist clientPath
       server <- liftIO $ Dir.doesFileExist serverPath
       if client
         then return $ Kernel clientPath (if server then Just serverPath else Nothing)
-        else Task.throw $ E.ModuleNotFound origin name [srcDir]
+        else
+          case Map.lookup (N.drop 11 name) exposed of
+            Just [Pkg.Package pkg _vsn] | pkg == Pkg.core || pkg == Pkg.virtualDom ->
+              return ForeignKernel
+
+            _ ->
+              Task.throw $ E.ModuleNotFound origin name [srcDir]
