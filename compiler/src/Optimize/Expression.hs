@@ -71,7 +71,8 @@ optimize cycle (A.At region expression) =
       pure (Opt.Float float)
 
     Can.List entries ->
-      Opt.List <$> traverse (optimize cycle) entries
+      Names.registerKernel N.list Opt.List
+        <*> traverse (optimize cycle) entries
 
     Can.Negate expr ->
       do  func <- Names.registerGlobal ModuleName.basics N.negate
