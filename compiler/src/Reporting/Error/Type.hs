@@ -66,7 +66,7 @@ data Context
   | CaseBranch Index.ZeroBased
   | CallArity MaybeName Int
   | CallArg MaybeName Index.ZeroBased
-  | RecordAccess N.Name
+  | RecordAccess R.Region (Maybe N.Name) R.Region N.Name
   | RecordUpdateKeys N.Name (Map.Map N.Name Can.FieldUpdate)
   | RecordUpdateValue N.Name
   | Destructure
@@ -805,30 +805,35 @@ toExprReport source localizer exprRegion category tipe expected =
               ]
           )
 
-        RecordAccess field ->
+        RecordAccess recordRegion maybeName fieldRegion field ->
           case T.iteratedDealias tipe of
             T.Record fields ext ->
-              custom (Just exprRegion)
+              custom (Just fieldRegion)
                 ( D.reflow $
-                    "This record does not have a `" <> N.toString field <> "` field:"
+                    "This "
+                    <> maybe "" (\n -> "`" <> N.toString n <> "`") maybeName
+                    <> " record does not have a `" <> N.toString field <> "` field:"
                 , case Suggest.sort (N.toString field) (N.toString . fst) (Map.toList fields) of
                     [] ->
                       D.reflow "In fact, it is a record with NO fields!"
 
                     f:fs ->
                       D.stack
-                        [ addAlias "record" tipe (\noun -> "It is a " <> noun <> " with fields:")
+                        [ D.reflow $
+                            "This is usually a typo. Here are the "
+                            <> maybe "" (\n -> "`" <> N.toString n <> "`") maybeName
+                            <> " fields that are most similar:"
                         , toNearbyRecord localizer f fs ext
                         , D.fillSep
-                            ["So","instead","of",D.dullyellow (D.fromName field) <> ","
-                            ,"maybe","you","want",D.green (D.fromName (fst f)) <> "?"
+                            ["So","maybe",D.dullyellow (D.fromName field)
+                            ,"should","be",D.green (D.fromName (fst f)) <> "?"
                             ]
                         ]
                 )
 
             _ ->
               badType
-              ( Just exprRegion
+              ( Just recordRegion
               , "This is not a record, so it has no fields to access!"
               , "It is"
               , [ D.fillSep
@@ -869,11 +874,12 @@ toExprReport source localizer exprRegion category tipe expected =
 
                         f:fs ->
                           D.stack
-                            [ addAlias "record" tipe (\noun -> rStr <> " is a " <> noun <> " with fields:")
+                            [ D.reflow $
+                                "This is usually a typo. Here are the " <> rStr <> " fields that are most similar:"
                             , toNearbyRecord localizer f fs ext
                             , D.fillSep
-                                ["So","instead","of",D.dullyellow (D.fromName field) <> ","
-                                ,"maybe","you","want",D.green (D.fromName (fst f)) <> "?"
+                                ["So","maybe",D.dullyellow (D.fromName field)
+                                ,"should","be",D.green (D.fromName (fst f)) <> "?"
                                 ]
                             ]
                     )
@@ -921,16 +927,6 @@ countArgs tipe =
 
     _ ->
       0
-
-
-addAlias :: String -> T.Type -> (String -> String) -> D.Doc
-addAlias noun tipe toMessage =
-  case tipe of
-    T.Alias _ name _ _ ->
-      D.reflow (toMessage ("`" <> N.toString name <> "`"))
-
-    _ ->
-      D.reflow (toMessage noun)
 
 
 

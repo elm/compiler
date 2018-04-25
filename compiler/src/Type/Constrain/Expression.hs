@@ -121,15 +121,15 @@ constrain rtv (A.At region expression) expected =
           return $ exists [ fieldVar, extVar ] $
             CEqual region (Accessor field) (FunN recordType fieldType) expected
 
-    Can.Access expr field ->
+    Can.Access expr (A.At accessRegion field) ->
       do  extVar <- mkFlexVar
           fieldVar <- mkFlexVar
           let extType = VarN extVar
           let fieldType = VarN fieldVar
           let recordType = RecordN (Map.singleton field fieldType) extType
 
-          recordCon <-
-            constrain rtv expr (FromContext region (RecordAccess field) recordType)
+          let context = RecordAccess (A.toRegion expr) (getAccessName expr) accessRegion field
+          recordCon <- constrain rtv expr (FromContext region context recordType)
 
           return $ exists [ fieldVar, extVar ] $
             CAnd
@@ -219,26 +219,22 @@ constrainArg rtv region maybeName index arg =
 getName :: Can.Expr -> MaybeName
 getName (A.At _ expr) =
   case expr of
-    Can.VarLocal name ->
-      FuncName name
+    Can.VarLocal name        -> FuncName name
+    Can.VarTopLevel _ name   -> FuncName name
+    Can.VarForeign _ name _  -> FuncName name
+    Can.VarCtor _ _ name _ _ -> CtorName name
+    Can.VarOperator op _ _ _ -> OpName op
+    Can.VarKernel _ name     -> FuncName name
+    _                        -> NoName
 
-    Can.VarTopLevel _ name ->
-      FuncName name
 
-    Can.VarForeign _ name _ ->
-      FuncName name
-
-    Can.VarCtor _ _ name _ _ ->
-      CtorName name
-
-    Can.VarOperator op _ _ _ ->
-      OpName op
-
-    Can.VarKernel _ name ->
-      FuncName name
-
-    _ ->
-      NoName
+getAccessName :: Can.Expr -> Maybe N.Name
+getAccessName (A.At _ expr) =
+  case expr of
+    Can.VarLocal name       -> Just name
+    Can.VarTopLevel _ name  -> Just name
+    Can.VarForeign _ name _ -> Just name
+    _                       -> Nothing
 
 
 
