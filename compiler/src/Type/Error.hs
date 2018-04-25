@@ -245,6 +245,9 @@ toDiff localizer ctx tipe1 tipe2 =
     (FlexVar _, _        ) -> similar localizer ctx tipe1 tipe2
     (_        , FlexVar _) -> similar localizer ctx tipe1 tipe2
 
+    (FlexSuper s _, t            ) | isSuper s t -> similar localizer ctx tipe1 tipe2
+    (t            , FlexSuper s _) | isSuper s t -> similar localizer ctx tipe1 tipe2
+
     (Lambda a b cs, Lambda x y zs) ->
       if length cs == length zs then
         RT.lambda ctx
@@ -406,6 +409,24 @@ isMaybe home name =
 isList :: ModuleName.Canonical -> N.Name -> Bool
 isList home name =
   home == ModuleName.list && name == N.list
+
+
+
+-- IS SUPER?
+
+
+isSuper :: Super -> Type -> Bool
+isSuper super tipe =
+  case iteratedDealias tipe of
+    Type h n args ->
+      case super of
+        Number     -> isInt h n || isFloat h n
+        Comparable -> isInt h n || isFloat h n || isString h n || isChar h n || isList h n && isSuper super (head args)
+        Appendable -> isString h n || isList h n
+        CompAppend -> isString h n || isList h n && isSuper Comparable (head args)
+
+    _ ->
+      False
 
 
 
