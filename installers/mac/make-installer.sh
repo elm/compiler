@@ -23,8 +23,7 @@ usr_binaries=/usr/local/bin
 
 #### BUILD ASSETS ####
 
-(cd ../.. ; cabal sandbox init ; cabal install)
-cp ../../.cabal-sandbox/bin/elm $pkg_binaries/elm
+cp ../../dist/build/elm/elm $pkg_binaries/elm
 
 cp $(pwd)/preinstall $pkg_scripts
 cp $(pwd)/postinstall $pkg_scripts
@@ -40,13 +39,13 @@ pkgbuild \
 
 #### BUNDLE ASSETS ####
 
-rm -f Elm-Platform.pkg
+rm -f Elm.pkg
 
 productbuild \
     --distribution Distribution.xml \
     --package-path . \
     --resources Resources \
-    Elm-Platform.pkg
+    Elm.pkg
 
 
 #### CLEAN UP ####
