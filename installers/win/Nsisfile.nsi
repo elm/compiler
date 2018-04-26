@@ -1,4 +1,4 @@
-; Elm Platform Installer
+; Elm Installer
 
 ;--------------------------------
 ;Includes
@@ -12,7 +12,7 @@
 ;--------------------------------
 ;Defines
 
-  !Define PRODUCT_DIR_REG_KEY "Software\Elm\Elm Platform\${PLATFORM_VERSION}"
+  !Define PRODUCT_DIR_REG_KEY "Software\Elm\Elm\${PLATFORM_VERSION}"
   !Define FILES_SOURCE_PATH "files"
   !Define INST_DAT "inst.dat"
   !Define UNINST_DAT "uninst.dat"
@@ -26,11 +26,11 @@
 ;General settings
 
   ;Name and file
-  Name "Elm Platform ${PLATFORM_VERSION}"
-  OutFile "ElmPlatform-${PLATFORM_VERSION}-setup.exe"
+  Name "Elm ${PLATFORM_VERSION}"
+  OutFile "Elm-${PLATFORM_VERSION}.exe"
 
   ;Default install dir
-  InstallDir "$PROGRAMFILES\Elm Platform\${PLATFORM_VERSION}"
+  InstallDir "$PROGRAMFILES\Elm\${PLATFORM_VERSION}"
   InstallDirRegKey HKLM "${PRODUCT_DIR_REG_KEY}" ""
 
   ;Icon
@@ -96,18 +96,18 @@ FunctionEnd
 
   ;Start Menu Folder Page Configuration
   !Define MUI_PAGE_HEADER_SUBTEXT \
-  "Choose a Start Menu folder for the Elm Platform ${PLATFORM_VERSION} shortcuts."
+  "Choose a Start Menu folder for the Elm ${PLATFORM_VERSION} shortcuts."
   !Define MUI_STARTMENUPAGE_TEXT_TOP \
-  "Select the Start Menu folder in which you would like to create Elm Platform shortcuts. You can also enter a name to create a new folder."
+  "Select the Start Menu folder in which you would like to create Elm shortcuts. You can also enter a name to create a new folder."
   !Define MUI_STARTMENUPAGE_REGISTRY_ROOT "HKLM"
   !Define MUI_STARTMENUPAGE_REGISTRY_KEY "${PRODUCT_DIR_REG_KEY}"
   !Define MUI_STARTMENUPAGE_REGISTRY_VALUENAME "Start Menu Folder"
-  !Define MUI_STARTMENUPAGE_DEFAULTFOLDER "Elm Platform ${PLATFORM_VERSION}"
+  !Define MUI_STARTMENUPAGE_DEFAULTFOLDER "Elm ${PLATFORM_VERSION}"
   !insertmacro MUI_PAGE_STARTMENU StartMenuPage $START_MENU_FOLDER
   !insertmacro MUI_PAGE_INSTFILES
   !define MUI_FINISHPAGE_RUN
   !define MUI_FINISHPAGE_RUN_FUNCTION "LaunchLink"
-  !define MUI_FINISHPAGE_RUN_TEXT "Open tutorial on how to use Elm Platform"
+  !define MUI_FINISHPAGE_RUN_TEXT "Open tutorial on how to use Elm"
   !insertmacro MUI_PAGE_FINISH
 
   !insertmacro MUI_UNPAGE_WELCOME
@@ -156,7 +156,7 @@ Section "Update the PATH environment variable" SecPath
 
   ; Update PATH
   ; First, remove any older version
-  ExecWait '"$SYSDIR\wscript.exe" //E:vbscript "$INSTDIR\removefrompath.vbs" "$PROGRAMFILES\Elm Platform"'
+  ExecWait '"$SYSDIR\wscript.exe" //E:vbscript "$INSTDIR\removefrompath.vbs" "$PROGRAMFILES\Elm"'
   ; Then add to the PATH
   ExecWait '"$SYSDIR\wscript.exe" //E:vbscript "$INSTDIR\updatepath.vbs" "$INSTDIR\bin"'
   SetShellVarContext current
@@ -182,13 +182,13 @@ Section "Create uninstaller" SecAddRem
   SectionIn RO
 
   ; Add uninstall information to Add/Remove Programs
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\ElmPlatform-${PLATFORM_VERSION}" \
-  "DisplayName" "Elm Platform ${PLATFORM_VERSION}"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\ElmPlatform-${PLATFORM_VERSION}" \
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Elm-${PLATFORM_VERSION}" \
+  "DisplayName" "Elm ${PLATFORM_VERSION}"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Elm-${PLATFORM_VERSION}" \
   "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\ElmPlatform-${PLATFORM_VERSION}" \
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Elm-${PLATFORM_VERSION}" \
   "DisplayIcon" "$INSTDIR\logo.ico"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\ElmPlatform-${PLATFORM_VERSION}" \
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Elm-${PLATFORM_VERSION}" \
   "Publisher" "elm-lang.org"
 
   ;Create uninstaller
@@ -225,7 +225,7 @@ SectionGroupEnd
 Section "Uninstall"
 
   ; Update PATH
-  ExecWait '"$SYSDIR\wscript.exe" //E:vbscript "$INSTDIR\removefrompath.vbs" "$PROGRAMFILES\Elm Platform"'
+  ExecWait '"$SYSDIR\wscript.exe" //E:vbscript "$INSTDIR\removefrompath.vbs" "$PROGRAMFILES\Elm"'
   SetShellVarContext current
 
   !Include ${UNINST_DAT}
@@ -233,8 +233,8 @@ Section "Uninstall"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir $INSTDIR
 
-  ;Since we install to '$PF\Elm Platform\$PLATFORM_VERSION', we
-  ;should also try to delete '$PF\Elm Platform' if it is empty.
+  ;Since we install to '$PF\Elm\$PLATFORM_VERSION', we
+  ;should also try to delete '$PF\Elm' if it is empty.
   ${GetParent} $INSTDIR $R0
   RMDir $R0
 
@@ -256,7 +256,7 @@ Section "Uninstall"
   DeleteRegKey HKCU "Software\Elm"
   DeleteRegKey HKLM "${PRODUCT_DIR_REG_KEY}"
   DeleteRegKey /IfEmpty HKCU Software\Elm
-  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\ElmPlatform-${PLATFORM_VERSION}"
+  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Elm-${PLATFORM_VERSION}"
 
   ; Update environment variables
   SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000

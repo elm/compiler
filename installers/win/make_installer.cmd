@@ -1,15 +1,20 @@
 
 set version=%1
 
-runhaskell ..\BuildFromSource.hs %version%
+git clone https://github.com/elm-lang/elm-compiler.git
+cd elm-compiler
+git checkout %version%
+cabal sandbox init
+cabal update
+cabal configure
+cabal build
+
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 mkdir files
 mkdir files\bin
 
-set platform=Elm-Platform\%version%
-
-xcopy %platform%\.cabal-sandbox\bin\elm*.exe files\bin /s /e
+xcopy dist/build/elm/elm.exe files\bin /s /e
 xcopy updatepath.vbs files
 
 if EXIST "%ProgramFiles%" (
