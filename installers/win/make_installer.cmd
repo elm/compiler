@@ -7,7 +7,7 @@ mkdir files\bin
 xcopy ..\..\dist\build\elm\elm.exe files\bin /s /e
 xcopy updatepath.vbs files
 
-if EXIST "%ProgramFiles%" (
+if EXIST "%ProgramFiles%\NSIS" (
     set nsis=%ProgramFiles%\NSIS
 ) else (
     set nsis=%ProgramFiles(x86)%\NSIS
