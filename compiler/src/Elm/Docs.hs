@@ -18,7 +18,6 @@ module Elm.Docs
   where
 
 
-import Control.Monad (foldM)
 import qualified Data.ByteString as B
 import qualified Data.List as List
 import Data.Map ((!))
@@ -303,10 +302,9 @@ fromModule (Can.Module name docs exports decls unions aliases binops effects) =
               Result.mapError Error.Docs $
                 do  checkNames exportDict names
                     let types = gatherTypes decls Map.empty
-                    foldM
-                      (addExport (Info comments types unions aliases binops effects))
-                      (emptyModule name overview)
-                      (Map.toList exportDict)
+                    let info = Info comments types unions aliases binops effects
+                    inserters <- Map.traverseWithKey (checkExport info) exportDict
+                    return $ foldr ($) (emptyModule name overview) inserters
 
 
 emptyModule :: ModuleName.Canonical -> B.ByteString -> Module
@@ -434,51 +432,45 @@ data Info =
     }
 
 
-addExport :: Info -> Module -> (N.Name, A.Located Can.Export) -> Result i w Module
-addExport info (Module n c us as_ vs bs) (name, A.At region export) =
+checkExport :: Info -> N.Name -> A.Located Can.Export -> Result i w (Module -> Module)
+checkExport info name (A.At region export) =
   case export of
     Can.ExportValue ->
       do  tipe <- getType name info
           comment <- getComment region name info
-
-          let newValues = Map.insert name (Value comment tipe) vs
-          Result.ok $ Module n c us as_ newValues bs
+          Result.ok $ \m ->
+            m { _values = Map.insert name (Value comment tipe) (_values m) }
 
     Can.ExportBinop ->
       do  let (Can.Binop_ assoc prec realName) = _iBinops info ! name
           tipe <- getType realName info
           comment <- getComment region realName info
-
-          let newBinops = Map.insert name (Binop comment tipe assoc prec) bs
-          Result.ok $ Module n c us as_ vs newBinops
+          Result.ok $ \m ->
+            m { _binops = Map.insert name (Binop comment tipe assoc prec) (_binops m) }
 
     Can.ExportAlias ->
       do  let (Can.Alias tvars tipe) = _iAliases info ! name
           comment <- getComment region name info
-
-          let newAliases = Map.insert name (Alias comment tvars (Extract.fromType tipe)) as_
-          Result.ok $ Module n c us newAliases vs bs
+          Result.ok $ \m ->
+            m { _aliases = Map.insert name (Alias comment tvars (Extract.fromType tipe)) (_aliases m) }
 
     Can.ExportUnionOpen ->
       do  let (Can.Union tvars ctors _ _) = _iUnions info ! name
           comment <- getComment region name info
-
-          let newUnions = Map.insert name (Union comment tvars (map dector ctors)) us
-          Result.ok $ Module n c newUnions as_ vs bs
+          Result.ok $ \m ->
+            m { _unions = Map.insert name (Union comment tvars (map dector ctors)) (_unions m) }
 
     Can.ExportUnionClosed ->
       do  let (Can.Union tvars _ _ _) = _iUnions info ! name
           comment <- getComment region name info
-
-          let newUnions = Map.insert name (Union comment tvars []) us
-          Result.ok $ Module n c newUnions as_ vs bs
+          Result.ok $ \m ->
+            m { _unions = Map.insert name (Union comment tvars []) (_unions m) }
 
     Can.ExportPort ->
       do  tipe <- getType name info
           comment <- getComment region name info
-
-          let newValues = Map.insert name (Value comment tipe) vs
-          Result.ok $ Module n c us as_ newValues bs
+          Result.ok $ \m ->
+            m { _values = Map.insert name (Value comment tipe) (_values m) }
 
 
 getComment :: R.Region -> N.Name -> Info -> Result i w Comment
