@@ -25,27 +25,37 @@ This is a decent baseline for pretty much any applications made with Elm. You wi
 }
 ```
 
+<br>
+
 
 ## `"type"`
 
 Either `"application"` or `"package"`. All the other fields are based on this choice!
+
+<br>
 
 
 ## `"source-directories"`
 
 A list of directories where Elm code lives. Most projects just use `"src"` for everything.
 
+<br>
+
 
 ## `"elm-version"`
 
 The exact version of Elm this builds with. Should be `"0.19.0"` for most people!
+
+<br>
 
 
 ## `"dependencies"`
 
 All the packages you depend upon. We use exact versions, so your `elm.json` file doubles as a "lock file" that ensures reliable builds.
 
-> **Note:** We plan to eventually have a screen in `reactor` that helps add, remove, and upgrade packages. It can sometimes be tricky to keep all of the constraints happy, so we think having a UI will help a lot. If you get into trouble in the meantime, adding things back one-by-one often helps, and I hope you do not get into trouble!
+**Note:** We plan to eventually have a screen in `reactor` that helps add, remove, and upgrade packages. It can sometimes be tricky to keep all of the constraints happy, so we think having a UI will help a lot. If you get into trouble in the meantime, adding things back one-by-one often helps, and I hope you do not get into trouble!
+
+<br>
 
 
 ## `"test-dependencies"`
