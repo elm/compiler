@@ -71,6 +71,6 @@ A list of packages that you depend upon. In each application, there can only be 
 > **Note:** Dependency ranges should only express _tested_ ranges. It is not nice to use optimistic ranges and end up causing build failures for your users down the line. Eventually we would like to have an automated system that tries to build and test packages as new packages come out. If it all works, we could send a PR to the author widening the range.
 
 
-> `"test-dependencies"`
+## `"test-dependencies"`
 
 Dependencies that are only used in the `tests/` directory by `elm test`. Values from these packages will not appear in any final build artifacts.
