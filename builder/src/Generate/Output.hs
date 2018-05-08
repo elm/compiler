@@ -145,18 +145,19 @@ generateMonolith mode maybeOutput (Summary.Summary _ project _ _ _) graph rootNa
 
 
 generateReplFile
-  :: L.Localizer
+  :: Bool
+  -> L.Localizer
   -> Summary.Summary
   -> Crawl.Result
   -> I.Interface
   -> N.Name
   -> Task.Task FilePath
-generateReplFile localizer summary@(Summary.Summary _ project _ _ _) graph iface name =
+generateReplFile noColors localizer summary@(Summary.Summary _ project _ _ _) graph iface name =
   do
       objectGraph <- organize summary graph
 
       let home = Module.Canonical (Project.getName project) N.replModule
-      let builder = Obj.generateForRepl True localizer objectGraph iface home name
+      let builder = Obj.generateForRepl (not noColors) localizer objectGraph iface home name
 
       liftIO $ IO.writeBuilder (Paths.temp "js") $
         replRecovery <> "(function(){\n'use strict';" <> Functions.functions <> builder <> "}());"

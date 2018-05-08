@@ -44,22 +44,23 @@ import qualified Reporting.Render.Type.Localizer as L
 data Flags =
   Flags
     { _interpreter :: Maybe FilePath
+    , _noColors :: Bool
     }
 
 
 run :: () -> Flags -> IO ()
-run () (Flags maybeAlternateInterpreter) =
+run () (Flags maybeAlternateInterpreter noColors) =
   do  interpreter <- getInterpreter maybeAlternateInterpreter
       _ <- Project.getRootWithReplFallback
       printWelcomeMessage
       settings <- initSettings
       let manager = Repl.runInputT settings (Repl.withInterrupt loop)
-      (exitCode,_,_) <- RWS.runRWST manager interpreter initialState
+      (exitCode,_,_) <- RWS.runRWST manager (interpreter, noColors) initialState
       Exit.exitWith exitCode
 
 
 type Runner =
-  RWS.RWST FilePath () State IO
+  RWS.RWST (FilePath, Bool) () State IO
 
 
 
@@ -155,7 +156,8 @@ data Output = None | Def N.Name | Expr Text.Text
 
 interpret :: Output -> State -> Runner (Maybe a)
 interpret def state =
-  do  result <- liftIO $ Task.try Repl.reporter $ compile def state
+  do  noColors <- RWS.asks snd
+      result <- liftIO $ Task.try Repl.reporter $ compile noColors def state
 
       case result of
         Nothing ->
@@ -170,7 +172,7 @@ interpret def state =
 
 interpretHelp :: FilePath -> Runner ()
 interpretHelp path =
-  do  interpreter <- RWS.ask
+  do  interpreter <- RWS.asks fst
       let proc = (Proc.proc interpreter [path]) { Proc.std_in = Proc.CreatePipe }
       liftIO $ Proc.withCreateProcess proc $ \_ _ _ handle ->
         do  _ <- Proc.waitForProcess handle
@@ -231,8 +233,8 @@ initialState =
   State 0 Map.empty Map.empty Map.empty [] L.replEmpty
 
 
-compile :: Output -> State -> Task.Task (Maybe FilePath)
-compile output (State count imports types defs tricks localizer) =
+compile :: Bool -> Output -> State -> Task.Task (Maybe FilePath)
+compile noColors output (State count imports types defs tricks localizer) =
   let
     header =
       "module " <> N.toBuilder N.replModule <> " exposing (..)\n\n"
@@ -241,34 +243,32 @@ compile output (State count imports types defs tricks localizer) =
       (<>) header $
         addLines imports $ addLines types $ addLines defs $
           List.foldr (<>) mempty (map Text.encodeUtf8Builder tricks)
+
+    compileForRepl builder maybeName =
+      Project.compileForRepl noColors localizer (LBS.toStrict (B.toLazyByteString builder)) maybeName
   in
-    case output of
-      None ->
-        if Map.null types && Map.null defs && null tricks then
-          evaluate localizer (elmSourceCode <> "unit = ()") Nothing
-        else
-          evaluate localizer elmSourceCode Nothing
+  case output of
+    None ->
+      if Map.null types && Map.null defs && null tricks then
+        compileForRepl (elmSourceCode <> "unit = ()") Nothing
+      else
+        compileForRepl elmSourceCode Nothing
 
-      Def name ->
-        evaluate localizer elmSourceCode (Just name)
+    Def name ->
+      compileForRepl elmSourceCode (Just name)
 
-      Expr expr ->
-        let
-          name = N.addIndex "repl_value_" count
-          text = Text.replace "\n" "\n  " expr
-          def = N.toBuilder name <> " =\n  " <> Text.encodeUtf8Builder text <> "\n"
-        in
-        evaluate localizer (elmSourceCode <> def) (Just name)
+    Expr expr ->
+      let
+        name = N.addIndex "repl_value_" count
+        text = Text.replace "\n" "\n  " expr
+        def = N.toBuilder name <> " =\n  " <> Text.encodeUtf8Builder text <> "\n"
+      in
+      compileForRepl (elmSourceCode <> def) (Just name)
 
 
 addLines :: Map.Map N.Name Text.Text -> B.Builder -> B.Builder
 addLines dict builder =
   Map.foldr (\text b -> Text.encodeUtf8Builder text <> "\n" <> b) builder dict
-
-
-evaluate :: L.Localizer -> B.Builder -> Maybe N.Name -> Task.Task (Maybe FilePath)
-evaluate localizer builder maybeName =
-  Project.compileForRepl localizer (LBS.toStrict (B.toLazyByteString builder)) maybeName
 
 
 

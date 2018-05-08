@@ -93,6 +93,7 @@ repl =
     replFlags =
       flags Repl.Flags
         |-- flag "interpreter" interpreter "Path to a alternate JS interpreter, like node or nodejs."
+        |-- onOff "no-colors" "Turn off the colors in the REPL. This can help if you are having trouble reading the values. Some terminals use a custom color scheme that diverges significantly from the standard ANSI colors, so another path may be to pick a more standard color scheme."
   in
   Interface "repl" (Common summary) details example noArgs replFlags Repl.run
 

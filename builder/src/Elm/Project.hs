@@ -71,15 +71,15 @@ compile mode target maybeOutput docs summary@(Summary.Summary root project _ _ _
 -- COMPILE FOR REPL
 
 
-compileForRepl :: L.Localizer -> BS.ByteString -> Maybe N.Name -> Task.Task (Maybe FilePath)
-compileForRepl localizer source maybeName =
+compileForRepl :: Bool -> L.Localizer -> BS.ByteString -> Maybe N.Name -> Task.Task (Maybe FilePath)
+compileForRepl noColors localizer source maybeName =
   do  summary@(Summary.Summary root project _ _ _) <- getRoot
       graph <- Crawl.crawlFromSource summary source
       (dirty, ifaces) <- Plan.plan Nothing summary graph
       answers <- Compile.compile project Nothing ifaces dirty
       results <- Artifacts.write root answers
       let (Compiler.Artifacts elmi _ _) = results ! N.replModule
-      traverse (Output.generateReplFile localizer summary graph elmi) maybeName
+      traverse (Output.generateReplFile noColors localizer summary graph elmi) maybeName
 
 
 
