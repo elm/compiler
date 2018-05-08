@@ -241,19 +241,8 @@ generateCycle mode (Opt.Global home _) cycle =
   let
     safeDefs = map (generateSafeCycle mode home) cycle
     realDefs = map (generateRealCycle home) cycle
-    block = JS.Block (safeDefs ++ realDefs)
   in
-  case mode of
-    Mode.Prod _ _ ->
-      block
-
-    Mode.Dev _ _ ->
-      JS.Try block Name.dollar $ JS.Throw $ JS.String $
-        "The following top-level definitions are causing infinite recursion:\\n"
-        <> drawCycle (map fst cycle)
-        <> "\\n\\nThese errors are very tricky, so read "
-        <> B.stringUtf8 (D.makeLink "halting-problem")
-        <> " to learn how to fix it!"
+  JS.Block (safeDefs ++ realDefs)
 
 
 generateSafeCycle :: Mode.Mode -> ModuleName.Canonical -> (N.Name, Opt.Expr) -> JS.Stmt
@@ -273,18 +262,6 @@ generateRealCycle home (name, _) =
     , JS.ExprStmt $ JS.Assign (JS.LRef safeName) $
         JS.Function Nothing [] [ JS.Return (Just (JS.Ref realName)) ]
     ]
-
-
-drawCycle :: [N.Name] -> B.Builder
-drawCycle names =
-  let
-    topLine       = "\\n  ┌─────┐"
-    nameLine name = "\\n  │    " <> N.toBuilder name
-    midLine       = "\\n  │     ↓"
-    bottomLine    = "\\n  └─────┘"
-  in
-    mconcat (topLine : List.intersperse midLine (map nameLine names) ++ [ bottomLine ])
-
 
 
 
