@@ -18,8 +18,10 @@ import Control.Concurrent.Chan (Chan, newChan, readChan, writeChan)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, readMVar)
 import Control.Exception (Exception, SomeException, catch)
 import Control.Monad (forever, join, replicateM_, void)
+import qualified Data.ByteString.Char8 as BS
 import qualified Network.HTTP as Http (urlEncodeVars)
 import qualified Network.HTTP.Client as Http
+import qualified Network.HTTP.Types.Header as Http (hAcceptEncoding, hUserAgent)
 
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Package as Pkg
@@ -170,7 +172,7 @@ fetchSafe url manager handler =
 fetchUnsafe :: String -> Http.Manager -> Handler a -> IO (Either Exit.Exit a)
 fetchUnsafe url manager handler =
   do  request <- Http.parseUrlThrow url
-      result <- handler request manager
+      result <- handler (addHeaders request) manager
       case result of
         Right value ->
           return (Right value)
@@ -182,3 +184,19 @@ fetchUnsafe url manager handler =
 handleAnyError :: (Exception e) => String -> e -> IO (Either Exit.Exit a)
 handleAnyError url exception =
   return $ Left $ Exit.BadHttp url $ E.Unknown $ show exception
+
+
+addHeaders :: Http.Request -> Http.Request
+addHeaders request =
+  request
+    { Http.requestHeaders =
+        [ (Http.hUserAgent, userAgent)
+        , (Http.hAcceptEncoding, "gzip")
+        ]
+    }
+
+
+{-# NOINLINE userAgent #-}
+userAgent :: BS.ByteString
+userAgent =
+  BS.pack ("elm/" ++ Pkg.versionToString Compiler.version)
