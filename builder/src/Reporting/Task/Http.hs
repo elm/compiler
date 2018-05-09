@@ -147,16 +147,9 @@ makePackageUrl path params =
       if null params then
         ""
       else
-        "?" ++ Http.urlEncodeVars (versionParam : params)
+        "?" ++ Http.urlEncodeVars params
   in
     packageDomain ++ "/" ++ path ++ query
-
-
-versionParam :: (String, String)
-versionParam =
-  ( "elm-package-version"
-  , Pkg.versionToString Compiler.version
-  )
 
 
 
