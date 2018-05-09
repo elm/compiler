@@ -104,7 +104,7 @@ print ansi localizer home name (Can.Forall _ tipe) =
 
 data State =
   State
-    { _kernel :: B.Builder
+    { _revKernels :: [B.Builder]
     , _revBuilders :: [B.Builder]
     , _seenGlobals :: Set.Set Opt.Global
     }
@@ -116,13 +116,13 @@ emptyState =
 
 
 stateToBuilder :: State -> B.Builder
-stateToBuilder (State kernel revBuilders _) =
-  case revBuilders of
-    [] ->
-      kernel
+stateToBuilder (State revKernels revBuilders _) =
+  prependBuilders revKernels (prependBuilders revBuilders mempty)
 
-    b:bs ->
-      kernel <> List.foldl' (\code decl -> decl <> code) b bs
+
+prependBuilders :: [B.Builder] -> B.Builder -> B.Builder
+prependBuilders revBuilders monolith =
+  List.foldl' (\m b -> b <> m) monolith revBuilders
 
 
 
@@ -133,12 +133,12 @@ type Graph = Map.Map Opt.Global Opt.Node
 
 
 addGlobal :: Mode.Mode -> Graph -> State -> Opt.Global -> State
-addGlobal mode graph state@(State kernel builders seen) global =
+addGlobal mode graph state@(State revKernels builders seen) global =
   if Set.member global seen then
     state
   else
     addGlobalHelp mode graph global $
-      State kernel builders (Set.insert global seen)
+      State revKernels builders (Set.insert global seen)
 
 
 addGlobalHelp :: Mode.Mode -> Graph -> Opt.Global -> State -> State
@@ -213,13 +213,13 @@ addStmt state stmt =
 
 
 addBuilder :: State -> B.Builder -> State
-addBuilder (State kernel revBuilders seen) builder =
-  State kernel (builder:revBuilders) seen
+addBuilder (State revKernels revBuilders seen) builder =
+  State revKernels (builder:revBuilders) seen
 
 
 addKernel :: State -> B.Builder -> State
-addKernel (State kernel revBuilders seen) moreKernel =
-  State (moreKernel <> kernel) revBuilders seen
+addKernel (State revKernels revBuilders seen) kernel =
+  State (kernel:revKernels) revBuilders seen
 
 
 var :: Opt.Global -> Expr.Code -> JS.Stmt
