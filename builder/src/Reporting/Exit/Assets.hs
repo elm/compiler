@@ -25,7 +25,7 @@ data Exit
   = BadElmJson ElmJsonProblem
   | CorruptElmJson Pkg.Name Pkg.Version
   | CorruptDocumentation Pkg.Name Pkg.Version
-  | CorruptBinary FilePath
+  | CorruptBinary FilePath FilePath
 
 
 
@@ -51,13 +51,19 @@ toReport exit =
     CorruptDocumentation pkg vsn ->
       corruptJsonToReport "docs.json" pkg vsn
 
-    CorruptBinary path ->
+    CorruptBinary elmHome path ->
       Help.report "CORRUPT BINARY" (Just path)
         ("The binary data at " ++ path ++ " is corrupt.")
-        [ D.reflow $
-            "Maybe a program is modifying your elm-stuff/ or ELM_HOME\
-            \ directory in unexpected ways? Both of those are just caches, so\
-            \ you can try deleting them and they will be rebuilt from scratch."
+        [ D.reflow "Elm caches build artifacts in the following directories:"
+        , D.dullyellow $ D.indent 4 $ D.vcat $
+            [ D.fromString elmHome
+            , "elm-stuff/"
+            ]
+        , D.reflow
+            "Maybe you recently installed a command line tool or editor plugin that messes\
+            \ with them? They definitely should not be doing that, but you never know! So\
+            \ maybe try deleting them? Everything will be rebuilt from scratch. This may\
+            \ help reveal the corrupting influence."
         ]
 
     BadElmJson problem ->

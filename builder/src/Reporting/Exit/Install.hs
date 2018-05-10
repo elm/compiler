@@ -28,7 +28,7 @@ data Exit
 toReport :: Exit -> Help.Report
 toReport exit =
   case exit of
-    NoArgs cacheDir ->
+    NoArgs elmHome ->
       Help.report "INSTALL WHAT?" Nothing
         "I am expecting commands like:"
         [ D.green $ D.indent 4 $ D.vcat $
@@ -40,7 +40,7 @@ toReport exit =
             ["In","JavaScript","folks","run","`npm install`","to","start","projects."
             ,"\"Gotta","download","everything!\"","But","why","download","packages"
             ,"again","and","again?","Instead,","Elm","caches","packages","in"
-            ,D.dullyellow (D.fromString cacheDir)
+            ,D.dullyellow (D.fromString elmHome)
             ,"so","each","one","is","downloaded","and","built","ONCE","on","your","machine."
             ,"Elm","projects","check","that","cache","before","trying","the","internet."
             ,"This","reduces","build","times,","reduces","server","costs,","and","makes","it"

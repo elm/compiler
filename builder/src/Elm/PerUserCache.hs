@@ -2,6 +2,7 @@
 module Elm.PerUserCache
   ( getPackageRoot
   , getReplRoot
+  , getElmHome
   )
   where
 
@@ -29,8 +30,7 @@ getReplRoot =
 
 getRoot :: FilePath -> IO FilePath
 getRoot projectName =
-  do  maybeHome <- Env.lookupEnv "ELM_HOME"
-      home <- maybe (Dir.getAppUserDataDirectory "elm") return maybeHome
+  do  home <- getElmHome
       let root = home </> version </> projectName
       Dir.createDirectoryIfMissing True root
       return root
@@ -39,3 +39,9 @@ getRoot projectName =
 version :: FilePath
 version =
   Pkg.versionToString Compiler.version
+
+
+getElmHome :: IO FilePath
+getElmHome =
+  do  maybeHome <- Env.lookupEnv "ELM_HOME"
+      maybe (Dir.getAppUserDataDirectory "elm") return maybeHome

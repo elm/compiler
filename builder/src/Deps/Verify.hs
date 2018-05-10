@@ -19,6 +19,7 @@ import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Objects as Obj
 import qualified Elm.Docs as Docs
 import Elm.Package (Name, Version)
+import qualified Elm.PerUserCache as PerUserCache
 import Elm.Project.Json (Project(..), AppInfo(..), PkgInfo(..))
 import qualified Json.Encode as Encode
 
@@ -192,7 +193,8 @@ toInfo _ answer =
       return Nothing
 
     Err name version ->
-      throw (E.BuildFailure name version)
+      do  elmHome <- liftIO PerUserCache.getElmHome
+          throw (E.BuildFailure elmHome name version)
 
 
 ifNotBlocked :: Map Name Answer -> (Map Name PkgInfo -> IO Answer) -> IO Answer

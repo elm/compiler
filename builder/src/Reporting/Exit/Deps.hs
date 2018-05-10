@@ -19,13 +19,13 @@ import qualified Reporting.Exit.Help as Help
 
 
 data Exit
-  = CorruptVersionCache Pkg.Name
+  = CorruptVersionCache FilePath Pkg.Name
   | PackageNotFound Pkg.Name [Pkg.Name]
   -- verify
   | AppBadElm Pkg.Version
   | PkgBadElm Con.Constraint
   | BadDeps
-  | BuildFailure Pkg.Name Pkg.Version
+  | BuildFailure FilePath Pkg.Name Pkg.Version
 
 
 
@@ -35,13 +35,13 @@ data Exit
 toReport :: Exit -> Help.Report
 toReport exit =
   case exit of
-    CorruptVersionCache pkg ->
+    CorruptVersionCache elmHome pkg ->
       Help.report "CORRUPT CACHE" Nothing
         ( "I ran into an unknown package while exploring dependencies:"
         )
         [ D.indent 4 $ D.dullyellow $ D.fromString $ Pkg.toString pkg
         , D.reflow $
-            "This suggests that your ELM_HOME directory has been corrupted.\
+            "This suggests that your " ++ elmHome ++ " directory has been corrupted.\
             \ Maybe some program is messing with it? It is just cached files,\
             \ so you can delete it and see if that fixes the issue."
         ]
@@ -94,11 +94,13 @@ toReport exit =
             \ you are running into something that seems trickier than this."
         ]
 
-    BuildFailure pkg vsn ->
+    BuildFailure elmHome pkg vsn ->
       Help.report "CORRUPT DEPENDENCY" Nothing
         "I ran into a problem while building the following package:"
-        [ D.indent 4 $ D.dullyellow $ D.fromString $ Pkg.toString pkg ++ " " ++ Pkg.versionToString vsn
-        , D.reflow $
-            "This probably means the downloaded files got corrupted somehow.\
-            \ Maybe try deleting your ELM_HOME and see if that resolves the issue?"
+        [ D.indent 4 $ D.red $ D.fromString $ Pkg.toString pkg ++ " " ++ Pkg.versionToString vsn
+        , D.fillSep
+            ["This","probably","means","the","downloaded","files","got","corrupted","somehow."
+            ,"Try","deleting",D.dullyellow (D.fromString elmHome),"(a","directory","for"
+            ,"caching","build","artifacts)","and","see","if","that","resolves","the","issue."
+            ]
         ]

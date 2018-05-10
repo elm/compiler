@@ -19,7 +19,7 @@ The goal of this module is to only pay for (1) and pay for (2) as needed.
 -}
 
 
-import Control.Monad.Except (lift, throwError)
+import Control.Monad.Except (liftIO, lift, throwError)
 import Control.Monad.State (StateT, evalStateT, gets, modify)
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -27,6 +27,7 @@ import qualified Data.Map as Map
 import Elm.Package (Name, Version)
 
 import qualified Deps.Get as Get
+import qualified Elm.PerUserCache as PerUserCache
 import qualified Elm.Project.Json as Project
 import Elm.Project.Constraint (Constraint)
 import qualified Reporting.Exit as Exit
@@ -89,7 +90,8 @@ getVersions name =
           return versions
 
         Left _suggestions ->
-          throwError (Exit.Deps (E.CorruptVersionCache name))
+          do  elmHome <- liftIO PerUserCache.getElmHome
+              throwError (Exit.Deps (E.CorruptVersionCache elmHome name))
 
 
 

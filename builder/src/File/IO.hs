@@ -30,6 +30,7 @@ import qualified System.FilePath as FP
 import qualified System.IO as IO
 import System.IO.Error (ioeGetErrorType, annotateIOError, modifyIOError)
 
+import qualified Elm.PerUserCache as PerUserCache
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Assets as E
 import qualified Reporting.Task as Task
@@ -64,7 +65,8 @@ readBinary path =
 
 throwCorruptBinary :: FilePath -> Task.Task a
 throwCorruptBinary filePath =
-  Task.throw (Exit.Assets (E.CorruptBinary filePath))
+  do  elmHome <- liftIO PerUserCache.getElmHome
+      Task.throw (Exit.Assets (E.CorruptBinary elmHome filePath))
 
 
 
