@@ -8,9 +8,7 @@ module Reporting.Exit
   where
 
 
-import qualified Elm.Compiler as Compiler
 import qualified Elm.Compiler.Module as Module
-import qualified Elm.Package as Pkg
 import qualified Json.Encode as Encode
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit.Assets as Asset
@@ -22,6 +20,7 @@ import qualified Reporting.Exit.Diff as Diff
 import qualified Reporting.Exit.Help as Help
 import qualified Reporting.Exit.Http as Http
 import qualified Reporting.Exit.Make as Make
+import qualified Reporting.Exit.Install as Install
 import qualified Reporting.Exit.Publish as Publish
 
 
@@ -39,11 +38,9 @@ data Exit
   | Deps Deps.Exit
   | Diff Diff.Exit
   | Make Make.Exit
+  | Install Install.Exit
   | Publish Publish.Exit
   | BadHttp String Http.Exit
-
-  -- misc
-  | NoSolution [Pkg.Name]
 
 
 
@@ -116,38 +113,11 @@ toReport exit =
     Make makeExit ->
       Make.toReport makeExit
 
+    Install installExit ->
+      Install.toReport installExit
+
     Publish publishExit ->
       Publish.toReport publishExit
 
     BadHttp url httpExit ->
       Http.toReport url httpExit
-
-    NoSolution badPackages ->
-      case badPackages of
-        [] ->
-          Help.report "UNSOLVABLE DEPENDENCIES" (Just "elm.json")
-            "This usually happens if you try to modify dependency constraints by\
-            \ hand. I recommend deleting any dependency you added recently (or all\
-            \ of them if things are bad) and then adding them again with:"
-            [ D.indent 4 $ D.green "elm install"
-            , D.reflow $
-                "And do not be afaid to ask for help on Slack if you get stuck!"
-            ]
-
-        _:_ ->
-          Help.report "OLD DEPENDENCIES" (Just "elm.json")
-            ( "The following packages do not work with Elm " ++ Pkg.versionToString Compiler.version ++ " right now:"
-            )
-            [ D.indent 4 $ D.vcat $ map (D.red . D.fromString . Pkg.toString) badPackages
-            , D.reflow $
-                "This may be because it is not upgraded yet. It may be because a\
-                \ better solution came along, so there was no need to upgrade it.\
-                \ Etc. Try asking around on Slack to learn more about the topic."
-            , D.toSimpleNote
-                "Whatever the case, please be kind to the relevant package authors! Having\
-                \ friendly interactions with users is great motivation, and conversely, getting\
-                \ berated by strangers on the internet sucks your soul dry. Furthermore, package\
-                \ authors are humans with families, friends, jobs, vacations, responsibilities,\
-                \ goals, etc. They face obstacles outside of their technical work you will never\
-                \ know about, so please assume the best and try to be patient and supportive!"
-            ]

@@ -118,6 +118,7 @@ Executable elm
         Reporting.Exit.Help,
         Reporting.Exit.Http,
         Reporting.Exit.Make,
+        Reporting.Exit.Install,
         Reporting.Exit.Publish,
         Reporting.Progress,
         Reporting.Progress.Bar,

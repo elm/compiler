@@ -26,6 +26,7 @@ import qualified Elm.Project.Root as Root
 import Reporting.Doc ((<>), (<+>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
+import qualified Reporting.Exit.Install as E
 import qualified Reporting.Task as Task
 
 
@@ -148,7 +149,7 @@ addToApp pkg info@(Project.AppInfo _ _ deps tests trans) =
 
           Nothing ->
             do  badNames <- filterM isBadElm (pkg : Map.keys old)
-                lift $ Task.throw (Exit.NoSolution badNames)
+                lift $ Task.throw (Exit.Install (E.NoSolution badNames))
 
 
 addToAppHelp :: Name -> Project.AppInfo -> Solver.Solver (Map Name Version)
@@ -189,7 +190,7 @@ addToPkg pkg info@(Project.PkgInfo _ _ _ _ _ deps tests _) =
           Nothing ->
             do  let pkgs = Map.keys deps ++ Map.keys tests
                 badNames <- filterM isBadElm (pkg : pkgs)
-                lift $ Task.throw (Exit.NoSolution badNames)
+                lift $ Task.throw (Exit.Install (E.NoSolution badNames))
 
 
 addToPkgHelp :: Name -> Project.PkgInfo -> Solver.Solver (Map Name Constraint)

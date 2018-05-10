@@ -213,8 +213,14 @@ install =
             "What if two projects use different versions of the same package? No problem!\
             \ Each project is independent, so there cannot be conflics like that!"
         ]
+
+    installArgs =
+      oneOf
+        [ require0 Install.NoArgs
+        , require1 Install.Install package
+        ]
   in
-  Interface "install" (Common summary) details example (required package) noFlags Install.run
+  Interface "install" (Common summary) details example installArgs noFlags Install.run
 
 
 
