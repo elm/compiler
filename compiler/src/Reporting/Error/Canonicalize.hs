@@ -480,7 +480,7 @@ toReport source err =
                     "If you want the behavior of (%) like in JavaScript, switch to:\
                     \ <https://package.elm-lang.org/packages/elm-lang/core/latest/Basics#remainderBy>"
                 , D.reflow $
-                    "If you want modular arithmatic like in math, switch to:\
+                    "If you want modular arithmetic like in math, switch to:\
                     \ <https://package.elm-lang.org/packages/elm-lang/core/latest/Basics#modBy>"
                 , D.reflow $
                     "The difference is how things work when negative numbers are involved."
