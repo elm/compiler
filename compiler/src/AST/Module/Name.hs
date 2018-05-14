@@ -7,7 +7,7 @@ module AST.Module.Name
   , platform, cmd, sub
   , virtualDom, debug, bitwise
   , jsonDecode, jsonEncode
-  , webgl, vector2, vector3, vector4, matrix4
+  , webgl, texture, vector2, vector3, vector4, matrix4
   , isKernel, getKernel, canonicalIsKernel
   )
   where
@@ -150,6 +150,11 @@ jsonEncode = Canonical Pkg.json "Json.Encode"
 {-# NOINLINE webgl #-}
 webgl :: Canonical
 webgl = Canonical Pkg.webgl "WebGL"
+
+
+{-# NOINLINE texture #-}
+texture :: Canonical
+texture = Canonical Pkg.webgl "WebGL.Texture"
 
 
 {-# NOINLINE vector2 #-}

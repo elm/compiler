@@ -253,7 +253,7 @@ mat4 = AppN ModuleName.matrix4 "Mat4" []
 
 {-# NOINLINE texture #-}
 texture :: Type
-texture = AppN ModuleName.webgl "Texture" []
+texture = AppN ModuleName.texture "Texture" []
 
 
 
