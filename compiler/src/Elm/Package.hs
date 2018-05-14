@@ -227,13 +227,13 @@ url =
 {-# NOINLINE webgl #-}
 webgl :: Name
 webgl =
-  Name "elm-community" "webgl"
+  Name "elm-explorations" "webgl"
 
 
 {-# NOINLINE linearAlgebra #-}
 linearAlgebra :: Name
 linearAlgebra =
-  Name "elm-community" "linear-algebra"
+  Name "elm-explorations" "linear-algebra"
 
 
 
