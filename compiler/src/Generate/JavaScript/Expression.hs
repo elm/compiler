@@ -883,8 +883,18 @@ generateIfTest mode root (path, test) =
     value = pathToJsExpr mode root path
   in
   case test of
-    DT.IsCtor home name index _ _ ->
-      strictEq (JS.Access value Name.dollar) $
+    DT.IsCtor home name index _ opts ->
+      let
+        tag =
+          case mode of
+            Mode.Dev _ _ -> JS.Access value Name.dollar
+            Mode.Prod _ _ ->
+              case opts of
+                Can.Normal -> JS.Access value Name.dollar
+                Can.Enum   -> value
+                Can.Unbox  -> value
+      in
+      strictEq tag $
         case mode of
           Mode.Dev _ _ -> JS.String (N.toBuilder name)
           Mode.Prod _ _ -> JS.Int (ctorToInt home name index)
