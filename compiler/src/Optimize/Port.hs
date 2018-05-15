@@ -114,20 +114,24 @@ encodeTuple a b maybeC =
           return $ Opt.Call encoder [ Opt.VarLocal arg ]
   in
   do  list <- encode "list"
+      identity <- Names.registerGlobal ModuleName.basics N.identity
       arg1 <- encodeArg "a" a
       arg2 <- encodeArg "b" b
 
-      Opt.Function [N.dollar] <$>
-        let_ "a" Index.first <$>
-        let_ "b" Index.second <$>
-          case maybeC of
-            Nothing ->
-              return $ Opt.Call list [ arg1, arg2 ]
+      case maybeC of
+        Nothing ->
+          return $ Opt.Function [N.dollar] $
+            let_ "a" Index.first $
+            let_ "b" Index.second $
+              Opt.Call list [ identity, Opt.List [ arg1, arg2 ] ]
 
-            Just c ->
-              do  arg3 <- encodeArg "c" c
-                  return $ let_ "c" Index.third $
-                    Opt.Call list [ arg1, arg2, arg3 ]
+        Just c ->
+          do  arg3 <- encodeArg "c" c
+              return $ Opt.Function [N.dollar] $
+                let_ "a" Index.first $
+                let_ "b" Index.second $
+                let_ "c" Index.third $
+                  Opt.Call list [ identity, Opt.List [ arg1, arg2, arg3 ] ]
 
 
 
