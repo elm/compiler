@@ -9,8 +9,8 @@ module Elm.Bump
 import Control.Monad.Trans (liftIO)
 import qualified Data.List as List
 
+import qualified Deps.Cache as Cache
 import qualified Deps.Diff as Diff
-import qualified Deps.Get as Get
 import qualified Elm.Package as Pkg
 import qualified Elm.Project as Project
 import qualified Elm.Project.Json as Project
@@ -35,8 +35,8 @@ bump summary@(Summary.Summary root project _ _ _) =
       Task.throw (Exit.Bump E.Application)
 
     Project.Pkg info@(Project.PkgInfo name _ _ version _ _ _ _) ->
-      do  pkgs <- Get.all Get.RequireLatest
-          case Get.versions name pkgs of
+      do  registry <- Cache.mandatoryUpdate
+          case Cache.getVersions name registry of
             Left _suggestions ->
               checkNewPackage root info
 
@@ -101,7 +101,7 @@ checkNewPackage root info@(Project.PkgInfo _ _ _ version _ _ _ _) =
 
 suggestVersion :: Summary.Summary -> Project.PkgInfo -> Task.Task ()
 suggestVersion summary@(Summary.Summary root _ _ _ _) info@(Project.PkgInfo name _ _ version _ _ _ _) =
-  do  oldDocs <- Get.docs name version
+  do  oldDocs <- Cache.getDocs name version
       newDocs <- Task.silently (Project.generateDocs summary)
       let changes = Diff.diff oldDocs newDocs
       let newVersion = Diff.bump changes version

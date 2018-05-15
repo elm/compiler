@@ -12,9 +12,9 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 
+import qualified Deps.Cache as Cache
 import Deps.Diff (PackageChanges(..), ModuleChanges(..), Changes(..), Magnitude(..))
 import qualified Deps.Diff as Diff
-import qualified Deps.Get as Get
 import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Docs as Docs
@@ -47,8 +47,8 @@ diff :: Args -> Task.Task ()
 diff args =
   case args of
     GlobalInquiry name v1 v2 ->
-      do  pkgs <- Get.all Get.RequireLatest
-          case Get.versions name pkgs of
+      do  registry <- Cache.mandatoryUpdate
+          case Cache.getVersions name registry of
             Left suggestions ->
               throw $ E.UnknownPackage name suggestions
 
@@ -88,7 +88,7 @@ throw exit =
 getDocs :: Pkg.Name -> [Pkg.Version] -> Pkg.Version -> Task.Task Docs.Documentation
 getDocs name allVersions version =
   if elem version allVersions then
-    Get.docs name version
+    Cache.getDocs name version
   else
     throw $ E.UnknownVersion name version allVersions
 
@@ -101,8 +101,8 @@ getPackageInfo =
           throw $ E.Application
 
         Project.Pkg (Project.PkgInfo name _ _ _ _ _ _ _) ->
-          do  pkgs <- Get.all Get.RequireLatest
-              let vsns = either (const []) id (Get.versions name pkgs)
+          do  registry <- Cache.mandatoryUpdate
+              let vsns = either (const []) id (Cache.getVersions name registry)
               return ( summary, name, vsns )
 
 

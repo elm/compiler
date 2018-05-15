@@ -1,25 +1,28 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Deps.Get
-  ( all
-  , AllPackages
-  , Mode(..)
-  , versions
-  , info
-  , docs
+module Deps.Cache
+  ( update
+  , optionalUpdate
+  , mandatoryUpdate
+  , PackageRegistry
+  , getPackageRegistry
+  , getVersions
+  , getElmJson
+  , getDocs
   )
   where
 
 
 import Prelude hiding (all)
+import Control.Monad (liftM2)
 import Control.Monad.Except (catchError, liftIO)
+import Data.Binary (Binary, get, put)
 import qualified Data.ByteString as BS
 import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import Data.Map (Map)
 import qualified Data.Text as Text
-import qualified System.Directory as Dir
 import System.FilePath ((</>))
 
 import qualified Elm.Docs as Docs
@@ -38,53 +41,91 @@ import qualified Reporting.Task as Task
 
 
 
--- ALL VERSIONS
+-- PACKAGE REGISTRY
 
 
-data Mode = RequireLatest | AllowOffline
+data PackageRegistry =
+  PackageRegistry Int (Map Pkg.Name [Pkg.Version])
 
 
-newtype AllPackages = AllPackages (Map Pkg.Name [Pkg.Version])
-
-
-all :: Mode -> Task.Task AllPackages
-all mode =
-  do  dir <- Task.getPackageCacheDir
-      let versionsFile = dir </> "versions.dat"
-      exists <- liftIO $ Dir.doesFileExist versionsFile
+getPackageRegistry :: Task.Task PackageRegistry
+getPackageRegistry =
+  do  path <- getRegistryPath
+      exists <- IO.exists path
       if exists
-        then fetchNew versionsFile mode
-        else fetchAll versionsFile
+        then IO.readBinary path
+        else rebuild
 
 
-fetchAll :: FilePath -> Task.Task AllPackages
-fetchAll versionsFile =
-  do  packages <- Website.getAllPackages
+getRegistryPath :: Task.Task FilePath
+getRegistryPath =
+  do  dir <- Task.getPackageCacheDir
+      return (dir </> "versions.dat")
+
+
+
+-- REBUILD
+
+
+rebuild :: Task.Task PackageRegistry
+rebuild =
+  do  path <- getRegistryPath
+      packages <- Website.getAllPackages
       let size = Map.foldr ((+) . length) 0 packages
-      IO.writeBinary versionsFile (size, packages)
-      return (AllPackages packages)
+      let registry = PackageRegistry size packages
+      IO.writeBinary path registry
+      return registry
 
 
-fetchNew :: FilePath -> Mode -> Task.Task AllPackages
-fetchNew versionsFile mode =
-  do  (size, packages) <- IO.readBinary versionsFile
 
-      news <-
-        case mode of
-          RequireLatest ->
-            Website.getNewPackages size
+-- UPDATE
 
-          AllowOffline ->
-            Website.getNewPackages size `catchError` \_ ->
-              do  Task.report Progress.UnableToLoadLatestPackages
-                  return []
 
-      if null news
-        then return (AllPackages packages)
+optionalUpdate :: Task.Task PackageRegistry
+optionalUpdate =
+  update False
+
+
+mandatoryUpdate :: Task.Task PackageRegistry
+mandatoryUpdate =
+  update True
+
+
+update :: Bool -> Task.Task PackageRegistry
+update isMandatory =
+  do  path <- getRegistryPath
+      exists <- IO.exists path
+      if not exists
+        then rebuild
         else
-          do  let newAllPkgs = List.foldl' addNew packages news
-              IO.writeBinary versionsFile (size + length news, newAllPkgs)
-              return (AllPackages newAllPkgs)
+          do  registry <- IO.readBinary path
+              if isMandatory
+                then attemptUpdate registry
+                else attemptUpdate registry `catchError` recoverUpdate registry
+
+
+recoverUpdate :: PackageRegistry -> a -> Task.Task PackageRegistry
+recoverUpdate registry _ =
+  do  Task.report Progress.UnableToLoadLatestPackages
+      return registry
+
+
+attemptUpdate :: PackageRegistry -> Task.Task PackageRegistry
+attemptUpdate oldRegistry@(PackageRegistry size packages) =
+  do  news <- Website.getNewPackages size
+      case news of
+        [] ->
+          return oldRegistry
+
+        _:_ ->
+          let
+            newSize = size + length news
+            newPkgs = List.foldl' addNew packages news
+            newRegistry = PackageRegistry newSize newPkgs
+          in
+          do  path <- getRegistryPath
+              IO.writeBinary path newRegistry
+              return newRegistry
 
 
 addNew :: Map Pkg.Name [Pkg.Version] -> (Pkg.Name, Pkg.Version) -> Map Pkg.Name [Pkg.Version]
@@ -93,11 +134,11 @@ addNew packages (name, version) =
 
 
 
--- VERSIONS
+-- GET VERSIONS
 
 
-versions :: Pkg.Name -> AllPackages -> Either [Pkg.Name] [Pkg.Version]
-versions name (AllPackages pkgs) =
+getVersions :: Pkg.Name -> PackageRegistry -> Either [Pkg.Name] [Pkg.Version]
+getVersions name (PackageRegistry _ pkgs) =
   case Map.lookup name pkgs of
     Just vsns ->
       Right vsns
@@ -137,12 +178,12 @@ projectDistance bad possibility =
 -- PACKAGE INFO
 
 
-info :: Pkg.Name -> Pkg.Version -> Task.Task Project.PkgInfo
-info name version =
+getElmJson :: Pkg.Name -> Pkg.Version -> Task.Task Project.PkgInfo
+getElmJson name version =
   do  dir <- Task.getPackageCacheDirFor name version
       let elmJson = dir </> "elm.json"
 
-      exists <- liftIO $ Dir.doesFileExist elmJson
+      exists <- IO.exists elmJson
 
       json <-
         if exists
@@ -165,12 +206,12 @@ info name version =
 -- DOCS
 
 
-docs :: Pkg.Name -> Pkg.Version -> Task.Task Docs.Documentation
-docs name version =
+getDocs :: Pkg.Name -> Pkg.Version -> Task.Task Docs.Documentation
+getDocs name version =
   do  dir <- Task.getPackageCacheDirFor name version
       let docsJson = dir </> "docs.json"
 
-      exists <- liftIO $ Dir.doesFileExist docsJson
+      exists <- IO.exists docsJson
 
       json <-
         if exists
@@ -209,3 +250,12 @@ errorToDocs err =
   ,"<https://github.com/elm-lang/package.elm-lang.org/issues>"
   ,"if","you","think","it","is","on","the","Elm","side!"
   ]
+
+
+
+-- BINARY
+
+
+instance Binary PackageRegistry where
+  get = liftM2 PackageRegistry get get
+  put (PackageRegistry a b) = put a >> put b

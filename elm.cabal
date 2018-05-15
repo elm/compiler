@@ -88,9 +88,9 @@ Executable elm
         Reporting.Task,
 
         -- private from builder/
+        Deps.Cache,
         Deps.Diff,
         Deps.Explorer,
-        Deps.Get,
         Deps.Solver,
         Deps.Verify,
         Deps.Website,

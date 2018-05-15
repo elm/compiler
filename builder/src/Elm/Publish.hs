@@ -13,8 +13,8 @@ import System.FilePath ((</>))
 import qualified System.IO as IO
 import qualified System.Process as Process
 
+import qualified Deps.Cache as Cache
 import qualified Deps.Diff as Diff
-import qualified Deps.Get as Get
 import qualified Deps.Website as Website
 import qualified Elm.Bump as Bump
 import qualified Elm.Docs as Docs
@@ -41,8 +41,8 @@ publish summary@(Summary.Summary root project _ _ _) =
 
     Project.Pkg (Project.PkgInfo name smry _ version exposed _ _ _) ->
       do
-          pkgs <- Get.all Get.RequireLatest
-          let maybePublishedVersions = either (const Nothing) Just (Get.versions name pkgs)
+          registry <- Cache.mandatoryUpdate
+          let maybePublishedVersions = either (const Nothing) Just (Cache.getVersions name registry)
 
           Task.report (Progress.PublishStart name version maybePublishedVersions)
 
@@ -244,7 +244,7 @@ verifyBump name statedVersion newDocs publishedVersions =
       throw $ E.InvalidBump statedVersion (last publishedVersions)
 
     Just (old, new, magnitude) ->
-      do  oldDocs <- Get.docs name old
+      do  oldDocs <- Cache.getDocs name old
           let changes = Diff.diff oldDocs newDocs
           let realNew = Diff.bump changes old
           if new == realNew

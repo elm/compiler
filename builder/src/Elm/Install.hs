@@ -15,6 +15,7 @@ import System.IO (stdout)
 import qualified Elm.Package as Pkg
 import Elm.Package (Name, Version)
 
+import qualified Deps.Cache as Cache
 import Deps.Explorer (Explorer)
 import qualified Deps.Explorer as Explorer
 import qualified Deps.Verify as Verify
@@ -58,7 +59,8 @@ makePlan :: Name -> Project.Project -> (Project.Project -> Task.Task ()) -> Task
 makePlan pkg project attemptInstall =
   case project of
     Project.App info@(Project.AppInfo elm srcDirs deps test trans) ->
-      do  changes <- addToApp pkg info
+      do  registry <- Cache.optionalUpdate
+          changes <- addToApp registry pkg info
 
           let news = Map.mapMaybe keepNew changes
           let newDeps = addNews (Just pkg) news deps
@@ -70,7 +72,8 @@ makePlan pkg project attemptInstall =
           withApproval Pkg.versionToString changes (attemptInstall newProject)
 
     Project.Pkg info@(Project.PkgInfo _ _ _ _ _ deps test _) ->
-      do  changes <- addToPkg pkg info
+      do  registry <- Cache.optionalUpdate
+          changes <- addToPkg registry pkg info
 
           let news = Map.mapMaybe keepNew changes
           let newProject = Project.Pkg $
@@ -137,9 +140,9 @@ keepNew change =
 -- ADD TO APP
 
 
-addToApp :: Name -> Project.AppInfo -> Task.Task (Map Name (Change Version))
-addToApp pkg info@(Project.AppInfo _ _ deps tests trans) =
-  Explorer.run $
+addToApp :: Cache.PackageRegistry -> Name -> Project.AppInfo -> Task.Task (Map Name (Change Version))
+addToApp registry pkg info@(Project.AppInfo _ _ deps tests trans) =
+  Explorer.run registry $
     do  Explorer.exists pkg
         let old = Map.unions [ deps, tests, trans ]
         result <- Solver.run (addToAppHelp pkg info)
@@ -177,9 +180,9 @@ addToAppHelp pkg (Project.AppInfo _ _ deps tests trans) =
 -- ADD TO PKG
 
 
-addToPkg :: Name -> Project.PkgInfo -> Task.Task (Map Name (Change Constraint))
-addToPkg pkg info@(Project.PkgInfo _ _ _ _ _ deps tests _) =
-  Explorer.run $
+addToPkg :: Cache.PackageRegistry -> Name -> Project.PkgInfo -> Task.Task (Map Name (Change Constraint))
+addToPkg registry pkg info@(Project.PkgInfo _ _ _ _ _ deps tests _) =
+  Explorer.run registry $
     do  Explorer.exists pkg
         let old = Map.union deps tests
         result <- Solver.run (addToPkgHelp pkg info)

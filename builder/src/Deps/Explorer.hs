@@ -26,7 +26,7 @@ import qualified Data.Map as Map
 
 import Elm.Package (Name, Version)
 
-import qualified Deps.Get as Get
+import qualified Deps.Cache as Cache
 import qualified Elm.PerUserCache as PerUserCache
 import qualified Elm.Project.Json as Project
 import Elm.Project.Constraint (Constraint)
@@ -45,7 +45,7 @@ type Explorer =
 
 data Metadata =
   Metadata
-    { _vsns :: Get.AllPackages
+    { _registry :: Cache.PackageRegistry
     , _info :: Map (Name, Version) Info
     }
 
@@ -57,10 +57,9 @@ data Info =
     }
 
 
-run :: Explorer a -> Task.Task a
-run explorer =
-  do  versions <- Get.all Get.AllowOffline
-      evalStateT explorer (Metadata versions Map.empty)
+run :: Cache.PackageRegistry -> Explorer a -> Task.Task a
+run registry explorer =
+  evalStateT explorer (Metadata registry Map.empty)
 
 
 
@@ -69,8 +68,8 @@ run explorer =
 
 exists :: Name -> Explorer ()
 exists name =
-  do  pkgs <- gets _vsns
-      case Get.versions name pkgs of
+  do  registry <- gets _registry
+      case Cache.getVersions name registry of
         Right _ ->
           return ()
 
@@ -84,8 +83,8 @@ exists name =
 
 getVersions :: Name -> Explorer [Version]
 getVersions name =
-  do  pkgs <- gets _vsns
-      case Get.versions name pkgs of
+  do  registry <- gets _registry
+      case Cache.getVersions name registry of
         Right versions ->
           return versions
 
@@ -106,7 +105,7 @@ getConstraints name version =
           return info
 
         Nothing ->
-          do  pkgInfo <- lift $ Get.info name version
+          do  pkgInfo <- lift $ Cache.getElmJson name version
 
               let elm = Project._pkg_elm_version pkgInfo
               let pkgs = Project._pkg_deps pkgInfo

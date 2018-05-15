@@ -23,8 +23,8 @@ import qualified Elm.PerUserCache as PerUserCache
 import Elm.Project.Json (Project(..), AppInfo(..), PkgInfo(..))
 import qualified Json.Encode as Encode
 
+import qualified Deps.Cache as Cache
 import qualified Deps.Explorer as Explorer
-import qualified Deps.Get as Get
 import qualified Deps.Solver as Solver
 import qualified Deps.Website as Website
 import qualified Elm.Compiler as Compiler
@@ -73,7 +73,8 @@ verifyApp info =
   else
     do  let oldSolution = Project.appSolution info
         let solver = Solver.solve (Map.map Con.exactly oldSolution)
-        maybeSolution <- Explorer.run (Solver.run solver)
+        registry <- Cache.optionalUpdate
+        maybeSolution <- Explorer.run registry (Solver.run solver)
         case maybeSolution of
           Nothing ->
             throw E.BadDeps
@@ -90,7 +91,8 @@ verifyPkg info =
   else
     do  let deps = Map.union (_pkg_deps info) (_pkg_test_deps info)
         let solver = Solver.solve deps
-        maybeSolution <- Explorer.run (Solver.run solver)
+        registry <- Cache.optionalUpdate
+        maybeSolution <- Explorer.run registry (Solver.run solver)
         case maybeSolution of
           Nothing ->
             throw E.BadDeps
@@ -145,7 +147,7 @@ verifyBuild
   -> Task.Task (MVar Answer)
 verifyBuild pkgInfoMVar ifacesMVar name version =
   do  mvar <- liftIO newEmptyMVar
-      info <- Get.info name version
+      info <- Cache.getElmJson name version
       report <- Task.getReporter
       runner <- Task.getSilentRunner
 
