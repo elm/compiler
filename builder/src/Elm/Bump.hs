@@ -123,11 +123,10 @@ suggestVersion summary@(Summary.Summary root _ _ _ _) info@(Project.PkgInfo name
 
 changeVersion :: FilePath -> Project.PkgInfo -> Pkg.Version -> D.Doc -> Task.Task ()
 changeVersion root info targetVersion explanation =
-  do  liftIO $ Help.toStdout explanation
-      approved <- Task.getApproval
+  do  approved <- Task.getApproval explanation
       if not approved
         then
-          liftIO $ putStrLn "Okay, no changes were made."
+          liftIO $ putStrLn "Okay, I did not change anything!"
 
         else
           do  liftIO $ Project.write root $ Project.Pkg $

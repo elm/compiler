@@ -163,7 +163,7 @@ compileToHtmlBuilder file =
   do  mvar1 <- newEmptyMVar
       mvar2 <- newEmptyMVar
 
-      let reporter = Progress.Reporter (\_ -> return ()) (putMVar mvar1)
+      let reporter = Progress.Reporter (\_ -> return ()) (\_ -> return True) (putMVar mvar1)
       let output = Just (Output.HtmlBuilder mvar2)
 
       void $ Task.try reporter $

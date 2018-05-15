@@ -62,8 +62,27 @@ loop chan state =
         End Nothing ->
           return ()
 
+        Ask doc mvar ->
+          do  Help.toStdout doc
+              putMVar mvar =<< getApproval
+              loop chan state
+
         Progress progress ->
           loopHelp chan progress state
+
+
+getApproval :: IO Bool
+getApproval =
+  do  hFlush stdout
+      input <- getLine
+      case input of
+        ""  -> return True
+        "Y" -> return True
+        "y" -> return True
+        "n" -> return False
+        _   ->
+          do  putStr "Must type 'y' for yes or 'n' for no: "
+              getApproval
 
 
 loopHelp :: Chan Msg -> Progress -> State -> IO ()

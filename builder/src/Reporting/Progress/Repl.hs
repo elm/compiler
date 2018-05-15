@@ -14,7 +14,10 @@ import qualified Reporting.Progress as Progress
 
 reporter :: Progress.Reporter
 reporter =
-  Progress.Reporter (\_ -> return ()) end
+  Progress.Reporter
+    (\_ -> return ())
+    (\_ -> return True)
+    end
 
 
 end :: Maybe Exit.Exit -> IO ()

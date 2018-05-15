@@ -10,7 +10,6 @@ module Reporting.Task
   , getPackageCacheDirFor
   , report
   , getReporter
-  , withApproval
   , getApproval
   , silently
   , getSilentRunner
@@ -23,18 +22,18 @@ import Control.Concurrent (forkIO)
 import Control.Concurrent.Chan (Chan, newChan, readChan, writeChan)
 import Control.Monad (forever, join, replicateM_)
 import Control.Monad.Except (ExceptT, runExceptT, throwError, withExceptT)
-import Control.Monad.Reader (ReaderT, runReaderT, ask, asks)
+import qualified Control.Monad.Reader as R
 import Control.Monad.Trans (liftIO)
 import qualified Network.HTTP.Client as Http
 import qualified Network.HTTP.Client.TLS as Http
 import qualified System.Directory as Dir
 import qualified System.Exit as Exit
 import System.FilePath ((</>))
-import qualified System.IO as IO
 
 import Elm.Package (Name, Version)
 import qualified Elm.Package as Pkg
 import qualified Elm.PerUserCache as PerUserCache
+import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Progress as Progress
 
@@ -48,7 +47,7 @@ type Task =
 
 
 type Task_ e =
-  ExceptT e (ReaderT Env IO)
+  ExceptT e (R.ReaderT Env IO)
 
 
 data Env =
@@ -57,16 +56,17 @@ data Env =
     , _worker :: IO () -> IO ()
     , _httpManager :: Http.Manager
     , _tell :: Progress.Progress -> IO ()
+    , _ask :: D.Doc -> IO Bool
     }
 
 
 try :: Progress.Reporter -> Task a -> IO (Maybe a)
-try (Progress.Reporter tell end) task =
+try (Progress.Reporter tell ask end) task =
   do  root <- PerUserCache.getPackageRoot
       pool <- initPool 4
       httpManager <- Http.newManager Http.tlsManagerSettings
-      let env = Env root pool httpManager tell
-      result <- runReaderT (runExceptT task) env
+      let env = Env root pool httpManager tell ask
+      result <- R.runReaderT (runExceptT task) env
       case result of
         Left err ->
           do  end (Just err)
@@ -101,7 +101,7 @@ mapError =
 
 getPackageCacheDir :: Task_ e FilePath
 getPackageCacheDir =
-  asks _cacheDir
+  R.asks _cacheDir
 
 
 getPackageCacheDirFor :: Name -> Version -> Task_ e FilePath
@@ -118,37 +118,23 @@ getPackageCacheDirFor name version =
 
 report :: Progress.Progress -> Task_ e ()
 report progress =
-  do  tell <- asks _tell
+  do  tell <- R.asks _tell
       liftIO (tell progress)
 
 
 getReporter :: Task (Progress.Progress -> IO ())
 getReporter =
-  asks _tell
+  R.asks _tell
 
 
 
 -- APPROVAL
 
 
-withApproval :: Task_ e () -> Task_ e ()
-withApproval task =
-  do  approval <- getApproval
-      if approval then task else return ()
-
-
-getApproval :: Task_ e Bool
-getApproval =
-  do  liftIO $ IO.hFlush IO.stdout
-      input <- liftIO getLine
-      case input of
-        ""  -> return True
-        "Y" -> return True
-        "y" -> return True
-        "n" -> return False
-        _   ->
-          do  liftIO $ putStr "Must type 'y' for yes or 'n' for no: "
-              getApproval
+getApproval :: D.Doc -> Task_ e Bool
+getApproval doc =
+  do  ask <- R.asks _ask
+      liftIO (ask doc)
 
 
 
@@ -164,9 +150,9 @@ silently task =
 
 getSilentRunner :: Task_ x (Task_ e a -> IO (Either e a))
 getSilentRunner =
-  do  env <- ask
+  do  env <- R.ask
       let silentEnv = env { _tell = \_ -> return () }
-      return $ \task -> runReaderT (runExceptT task) silentEnv
+      return $ \task -> R.runReaderT (runExceptT task) silentEnv
 
 
 
@@ -175,10 +161,10 @@ getSilentRunner =
 
 workerChan :: Chan (Either e a) -> Task_ e a -> Task_ x ()
 workerChan chan task =
-  do  env <- ask
+  do  env <- R.ask
 
       liftIO $ _worker env $
-        do  result <- runReaderT (runExceptT task) env
+        do  result <- R.runReaderT (runExceptT task) env
             writeChan chan result
 
 
@@ -198,6 +184,6 @@ initPool size =
 
 runHttp :: (Http.Manager -> (Progress.Progress -> IO ()) -> IO (Either Exit.Exit a)) -> Task a
 runHttp fetcher =
-  do  (Env _ _ manager tell) <- ask
+  do  (Env _ _ manager tell _) <- R.ask
       result <- liftIO $ fetcher manager tell
       either throwError return result

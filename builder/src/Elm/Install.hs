@@ -7,13 +7,11 @@ module Elm.Install
 
 import Control.Monad (filterM, forM, msum, void)
 import Control.Monad.Except (catchError, lift, liftIO)
-import Data.Map (Map, (!))
+import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Map.Merge.Lazy as Map
-import System.IO (stdout)
 
 import qualified Elm.Package as Pkg
-import Elm.Package (Name, Version)
 
 import qualified Deps.Cache as Cache
 import Deps.Explorer (Explorer)
@@ -35,57 +33,133 @@ import qualified Reporting.Task as Task
 -- INSTALL
 
 
-install :: Name -> Task.Task ()
+install :: Pkg.Name -> Task.Task ()
 install pkg =
   do  (root, oldProject) <- Root.unsafeGet
-      makePlan pkg oldProject $ \newProject ->
-        let
-          upgrade =
-            do  liftIO $ Project.write root newProject
-                void $ Verify.verify root newProject
 
-          revert err =
-            do  liftIO $ Project.write root oldProject
-                Task.throw err
-        in
-          upgrade `catchError` revert
+      case oldProject of
+        Project.App info ->
+          do  changes <- makeAppPlan pkg info
+              attemptElmJsonChange root oldProject Pkg.versionToString changes
+
+        Project.Pkg info ->
+          do  changes <- makePkgPlan pkg info
+              attemptElmJsonChange root oldProject Con.toString changes
 
 
+attemptElmJsonChange :: FilePath -> Project.Project -> (a -> String) -> Changes a -> Task.Task ()
+attemptElmJsonChange root oldProject toString changes =
+  let
+    attempt newProject question =
+      do  approved <- Task.getApproval question
+          if approved
+            then upgrade newProject `catchError` revert
+            else liftIO $ putStrLn "Okay, I did not change anything!"
 
--- MAKE PLAN
+    upgrade newProject =
+      do  liftIO $ Project.write root newProject
+          void $ Verify.verify root newProject
+
+    revert err =
+      do  liftIO $ Project.write root oldProject
+          Task.throw err
+  in
+  case changes of
+    AlreadyInstalled ->
+      do  liftIO $ putStrLn "It is already installed!"
+
+    PromoteTest newProject ->
+      attempt newProject $ D.vcat $
+       [ "I found it in your elm.json file!"
+       , "In \"test-dependencies\" though."
+       , "Should I move it into \"dependencies\" for more general use? [Y/n]: "
+       ]
+
+    PromoteTrans newProject ->
+      attempt newProject $ D.vcat $
+       [ "I found it in your elm.json file!"
+       , "In \"transitive-dependencies\" though."
+       , "Should I move it into \"dependencies\" for more general use? [Y/n]: "
+       ]
+
+    Changes changeDict newProject ->
+      let
+        widths = Map.foldrWithKey (widen toString) (Widths 0 0 0) changeDict
+        changeDocs = Map.foldrWithKey (addChange toString widths) (Docs [] [] []) changeDict
+      in
+      attempt newProject $ D.vcat $
+        [ "Here is my plan:"
+        , viewChangeDocs changeDocs
+        , ""
+        , "Would you like me to update your elm.json accordingly? [Y/n]: "
+        ]
 
 
-makePlan :: Name -> Project.Project -> (Project.Project -> Task.Task ()) -> Task.Task ()
-makePlan pkg project attemptInstall =
-  case project of
-    Project.App info@(Project.AppInfo elm srcDirs deps test trans) ->
-      do  registry <- Cache.optionalUpdate
-          changes <- addToApp registry pkg info
 
-          let news = Map.mapMaybe keepNew changes
-          let newDeps = addNews (Just pkg) news deps
-          let newTest = addNews Nothing news test
-          let newTrans = Map.union (Map.difference news (Map.union newDeps newTest)) trans
-          let newInfo = Project.AppInfo elm srcDirs newDeps newTest newTrans
-          let newProject = Project.App newInfo
-
-          withApproval Pkg.versionToString changes (attemptInstall newProject)
-
-    Project.Pkg info@(Project.PkgInfo _ _ _ _ _ deps test _) ->
-      do  registry <- Cache.optionalUpdate
-          changes <- addToPkg registry pkg info
-
-          let news = Map.mapMaybe keepNew changes
-          let newProject = Project.Pkg $
-                info
-                  { Project._pkg_deps = addNews (Just pkg) news deps
-                  , Project._pkg_test_deps = addNews Nothing news test
-                  }
-
-          withApproval (show . Con.toString) changes (attemptInstall newProject)
+-- MAKE PLANS
 
 
-addNews :: Maybe Name -> Map Name a -> Map Name a -> Map Name a
+data Changes vsn
+  = AlreadyInstalled
+  | PromoteTest Project.Project
+  | PromoteTrans Project.Project
+  | Changes (Map.Map Pkg.Name (Change vsn)) Project.Project
+
+
+makeAppPlan :: Pkg.Name -> Project.AppInfo -> Task.Task (Changes Pkg.Version)
+makeAppPlan pkg info@(Project.AppInfo elm srcDirs deps test trans) =
+  if Map.member pkg deps then
+    return AlreadyInstalled
+  else
+    case Map.lookup pkg test of
+      Just vsn ->
+        return $ PromoteTest $ Project.App $
+          Project.AppInfo elm srcDirs (Map.insert pkg vsn deps) (Map.delete pkg test) trans
+
+      Nothing ->
+        case Map.lookup pkg trans of
+          Just vsn ->
+            return $ PromoteTrans $ Project.App $
+              Project.AppInfo elm srcDirs (Map.insert pkg vsn deps) test (Map.delete pkg trans)
+
+          Nothing ->
+            do  registry <- Cache.optionalUpdate
+                changes <- addToApp registry pkg info
+
+                let news = Map.mapMaybe keepNew changes
+                let newDeps = addNews (Just pkg) news deps
+                let newTest = addNews Nothing news test
+                let newTrans = Map.union (Map.difference news (Map.union newDeps newTest)) trans
+
+                return $ Changes changes $ Project.App $
+                  Project.AppInfo elm srcDirs newDeps newTest newTrans
+
+
+makePkgPlan :: Pkg.Name -> Project.PkgInfo -> Task.Task (Changes Constraint)
+makePkgPlan pkg info@(Project.PkgInfo _ _ _ _ _ deps test _) =
+  if Map.member pkg deps then
+    return AlreadyInstalled
+  else
+    case Map.lookup pkg test of
+      Just con ->
+        return $ PromoteTest $ Project.Pkg $
+          info
+            { Project._pkg_deps = Map.insert pkg con deps
+            , Project._pkg_test_deps = Map.delete pkg test
+            }
+
+      Nothing ->
+        do  registry <- Cache.optionalUpdate
+            changes <- addToPkg registry pkg info
+            let news = Map.mapMaybe keepNew changes
+            return $ Changes changes $ Project.Pkg $
+              info
+                { Project._pkg_deps = addNews (Just pkg) news deps
+                , Project._pkg_test_deps = addNews Nothing news test
+                }
+
+
+addNews :: Maybe Pkg.Name -> Map.Map Pkg.Name a -> Map.Map Pkg.Name a -> Map.Map Pkg.Name a
 addNews pkg new old =
   Map.merge
     Map.preserveMissing
@@ -105,7 +179,7 @@ data Change a
   | Remove a
 
 
-detectChanges :: (Eq a) => Map Name a -> Map Name a -> Map Name (Change a)
+detectChanges :: (Eq a) => Map.Map Pkg.Name a -> Map.Map Pkg.Name a -> Map.Map Pkg.Name (Change a)
 detectChanges old new =
   Map.merge
     (Map.mapMissing (\_ v -> Remove v))
@@ -140,7 +214,7 @@ keepNew change =
 -- ADD TO APP
 
 
-addToApp :: Cache.PackageRegistry -> Name -> Project.AppInfo -> Task.Task (Map Name (Change Version))
+addToApp :: Cache.PackageRegistry -> Pkg.Name -> Project.AppInfo -> Task.Task (Map.Map Pkg.Name (Change Pkg.Version))
 addToApp registry pkg info@(Project.AppInfo _ _ deps tests trans) =
   Explorer.run registry $
     do  Explorer.exists pkg
@@ -155,7 +229,7 @@ addToApp registry pkg info@(Project.AppInfo _ _ deps tests trans) =
                 lift $ Task.throw (Exit.Install (E.NoSolution badNames))
 
 
-addToAppHelp :: Name -> Project.AppInfo -> Solver.Solver (Map Name Version)
+addToAppHelp :: Pkg.Name -> Project.AppInfo -> Solver.Solver (Map.Map Pkg.Name Pkg.Version)
 addToAppHelp pkg (Project.AppInfo _ _ deps tests trans) =
   let
     directs =
@@ -180,7 +254,7 @@ addToAppHelp pkg (Project.AppInfo _ _ deps tests trans) =
 -- ADD TO PKG
 
 
-addToPkg :: Cache.PackageRegistry -> Name -> Project.PkgInfo -> Task.Task (Map Name (Change Constraint))
+addToPkg :: Cache.PackageRegistry -> Pkg.Name -> Project.PkgInfo -> Task.Task (Map.Map Pkg.Name (Change Constraint))
 addToPkg registry pkg info@(Project.PkgInfo _ _ _ _ _ deps tests _) =
   Explorer.run registry $
     do  Explorer.exists pkg
@@ -196,7 +270,7 @@ addToPkg registry pkg info@(Project.PkgInfo _ _ _ _ _ deps tests _) =
                 lift $ Task.throw (Exit.Install (E.NoSolution badNames))
 
 
-addToPkgHelp :: Name -> Project.PkgInfo -> Solver.Solver (Map Name Constraint)
+addToPkgHelp :: Pkg.Name -> Project.PkgInfo -> Solver.Solver (Map.Map Pkg.Name Constraint)
 addToPkgHelp pkg (Project.PkgInfo _ _ _ _ _ deps tests _) =
   do  let directs = Map.union deps tests
       let newCons = Map.insert pkg Con.anything directs
@@ -209,7 +283,7 @@ addToPkgHelp pkg (Project.PkgInfo _ _ _ _ _ deps tests _) =
 -- FAILURE HINTS
 
 
-isBadElm :: Name -> Explorer Bool
+isBadElm :: Pkg.Name -> Explorer Bool
 isBadElm name =
   do  versions <- Explorer.getVersions name
 
@@ -217,36 +291,6 @@ isBadElm name =
         Explorer._elm <$> Explorer.getConstraints name vsn
 
       return (not (any Con.goodElm elmVersions))
-
-
-
--- VIEW
-
-
-withApproval :: (a -> String) -> Map Name (Change a) -> Task.Task () -> Task.Task ()
-withApproval toString changes attemptInstall =
-  let
-    widths =
-      Map.foldrWithKey (widen toString) (Widths 0 0 0) changes
-
-    changeDocs =
-      Map.foldrWithKey (addChange toString widths) (Docs [] [] []) changes
-  in
-    case changeDocs of
-      Docs [] [] [] ->
-        do  liftIO $ putStrLn "Already installed. No changes necessary!"
-
-      Docs inserts [] [] ->
-        do  liftIO $ putStrLn "Adding the following dependencies:\n"
-            liftIO $ D.toAnsi stdout $ D.indent 2 (D.vcat (reverse inserts))
-            liftIO $ putStrLn "\n"
-            attemptInstall
-
-      Docs _ _ _ ->
-        do  liftIO $ putStrLn "Here is my plan:"
-            liftIO $ D.toAnsi stdout $ viewChangeDocs changeDocs
-            liftIO $ putStrLn "\nDo you approve? [Y/n]: "
-            Task.withApproval attemptInstall
 
 
 
@@ -285,7 +329,7 @@ viewNonZero title entries =
 -- VIEW CHANGE
 
 
-addChange :: (a -> String) -> Widths -> Name -> Change a -> ChangeDocs -> ChangeDocs
+addChange :: (a -> String) -> Widths -> Pkg.Name -> Change a -> ChangeDocs -> ChangeDocs
 addChange toString widths name change (Docs inserts changes removes) =
   case change of
     Insert new ->
@@ -298,12 +342,12 @@ addChange toString widths name change (Docs inserts changes removes) =
       Docs inserts changes (viewRemove toString widths name old : removes)
 
 
-viewInsert :: (a -> String) -> Widths -> Name -> a -> D.Doc
+viewInsert :: (a -> String) -> Widths -> Pkg.Name -> a -> D.Doc
 viewInsert toString (Widths nameWidth leftWidth _) name new =
   viewName nameWidth name <+> pad leftWidth (toString new)
 
 
-viewChange :: (a -> String) -> Widths -> Name -> a -> a -> D.Doc
+viewChange :: (a -> String) -> Widths -> Pkg.Name -> a -> a -> D.Doc
 viewChange toString (Widths nameWidth leftWidth rightWidth) name old new =
   D.hsep
     [ viewName nameWidth name
@@ -313,12 +357,12 @@ viewChange toString (Widths nameWidth leftWidth rightWidth) name old new =
     ]
 
 
-viewRemove :: (a -> String) -> Widths -> Name -> a -> D.Doc
+viewRemove :: (a -> String) -> Widths -> Pkg.Name -> a -> D.Doc
 viewRemove toString (Widths nameWidth leftWidth _) name old =
   viewName nameWidth name <+> pad leftWidth (toString old)
 
 
-viewName :: Int -> Name -> D.Doc
+viewName :: Int -> Pkg.Name -> D.Doc
 viewName width name =
   D.fill (width + 3) (D.fromText (Pkg.toText name))
 
@@ -340,7 +384,7 @@ data Widths =
     }
 
 
-widen :: (a -> String) -> Name -> Change a -> Widths -> Widths
+widen :: (a -> String) -> Pkg.Name -> Change a -> Widths -> Widths
 widen toString pkg change (Widths name left right) =
   let
     toLength a =

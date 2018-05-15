@@ -13,10 +13,11 @@ module Reporting.Progress
 
 
 import Control.Concurrent.Chan (Chan, writeChan)
-import Control.Concurrent.MVar (MVar, readMVar)
+import Control.Concurrent.MVar (MVar, newEmptyMVar, readMVar)
 import qualified Elm.Compiler.Module as Module
 import Deps.Diff (Magnitude)
 import Elm.Package (Name, Version)
+import qualified Reporting.Doc as D
 import Reporting.Exit (Exit)
 
 
@@ -27,6 +28,7 @@ import Reporting.Exit (Exit)
 data Reporter =
   Reporter
     { _tell :: Progress -> IO ()
+    , _ask :: D.Doc -> IO Bool
     , _end :: Maybe Exit -> IO ()
     }
 
@@ -37,17 +39,23 @@ makeReporter chan mvar =
     tell progress =
       writeChan chan (Progress progress)
 
+    ask doc =
+      do  var <- newEmptyMVar
+          writeChan chan (Ask doc var)
+          readMVar var
+
     end maybeError =
       do  writeChan chan (End maybeError)
           readMVar mvar
   in
-    Reporter tell end
+  Reporter tell ask end
 
 
 silentReporter :: Reporter
 silentReporter =
   Reporter
     (\_ -> return ())
+    (\_ -> return True)
     (\_ -> return ())
 
 
@@ -55,7 +63,10 @@ silentReporter =
 -- MESSAGES
 
 
-data Msg = Progress Progress | End (Maybe Exit)
+data Msg
+  = Progress Progress
+  | Ask D.Doc (MVar Bool)
+  | End (Maybe Exit)
 
 
 data Progress
