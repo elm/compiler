@@ -54,7 +54,7 @@ generate mode (Opt.Graph mains graph _fields) roots =
     name:names ->
       let
         state = Map.foldrWithKey (addMain mode graph) emptyState rootMap
-        builder = stateToBuilder state <> toMainExports mode rootMap
+        builder = perfNote mode <> stateToBuilder state <> toMainExports mode rootMap
       in
       Some name names builder
 
@@ -62,6 +62,19 @@ generate mode (Opt.Graph mains graph _fields) roots =
 addMain :: Mode.Mode -> Graph -> ModuleName.Canonical -> main -> State -> State
 addMain mode graph home _ state =
   addGlobal mode graph state (Opt.Global home "main")
+
+
+perfNote :: Mode.Mode -> B.Builder
+perfNote mode =
+  case mode of
+    Mode.Prod _ _ ->
+      ""
+
+    Mode.Dev _ Nothing ->
+      "console.warn('Compiled in DEV mode. Follow the advice at https://elm-lang.org/0.19.0/optimize for better performance and smaller assets.');"
+
+    Mode.Dev _ (Just _) ->
+      "console.warn('Compiled in DEBUG mode. Follow the advice at https://elm-lang.org/0.19.0/optimize for better performance and smaller assets.');"
 
 
 
