@@ -320,8 +320,8 @@ typeComparison localizer actual expected iAmSeeing insteadOf contextHints =
     , D.reflow insteadOf
     , D.indent 4 expectedDoc
     ]
-    ++ problemsToHint problems
     ++ contextHints
+    ++ problemsToHint problems
 
 
 loneType :: L.Localizer -> T.Type -> T.Type -> D.Doc -> [D.Doc] -> D.Doc
@@ -1541,7 +1541,7 @@ badCompRight localizer op tipe expected =
         "I need both sides of (" <> op <> ") to be the same type:"
     ,
       typeComparison localizer expected tipe
-        "The left side of is:"
+        ("The left side of (" <> op <> ") is:")
         "But the right side is:"
         [ D.reflow $
             "I cannot compare different types though! Which side of (" <> op <> ") is the problem?"
@@ -1561,7 +1561,7 @@ badEquality localizer op tipe expected =
         "I need both sides of (" <> op <> ") to be the same type:"
     ,
       typeComparison localizer expected tipe
-        "The left side of is:"
+        ("The left side of (" <> op <> ") is:")
         "But the right side is:"
         [ if isFloat tipe || isFloat expected then
             D.toSimpleNote $
