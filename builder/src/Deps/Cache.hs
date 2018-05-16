@@ -1,8 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Deps.Cache
-  ( update
-  , optionalUpdate
+  ( optionalUpdate
   , mandatoryUpdate
   , PackageRegistry
   , getPackageRegistry
