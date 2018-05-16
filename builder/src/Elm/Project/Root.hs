@@ -7,10 +7,14 @@ module Elm.Project.Root
   where
 
 import Control.Monad.Trans (liftIO)
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map as Map
+import Data.Monoid ((<>))
+import qualified Network.HTTP.Client as Client
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
 
+import qualified Elm.Compiler.Version as Elm
 import qualified Elm.Package as Pkg
 import qualified Elm.Project.Constraint as Con
 import qualified Elm.Project.Json as Project
@@ -19,8 +23,11 @@ import Elm.Project.Json (Project(..), PkgInfo(..))
 import Elm.Project.Summary (Summary)
 import qualified Elm.PerUserCache as PerUserCache
 import qualified File.IO as IO
+import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
+import qualified Reporting.Progress as Progress
 import qualified Reporting.Task as Task
+import qualified Reporting.Task.Http as Http
 import qualified Stuff.Verify as Verify
 import qualified Json.Encode as Encode
 
@@ -54,7 +61,38 @@ moveToRoot =
               return root
 
         Nothing ->
-          Task.throw Exit.NoElmJson
+          do  approved <- Task.getApproval $ D.vcat $
+                [ "It looks like you are starting a new Elm project. Very exciting!"
+                , ""
+                , "I would like to create two files to help you get started:"
+                , ""
+                , "  1. elm.json" <> D.black " ------------ describes your dependencies"
+                , "  2. src/Main.elm" <> D.black " ------ a basic Elm program to expand"
+                , ""
+                , "This is common to all Elm projects. Would you like me to create them? [Y/n]: "
+                ]
+
+              if approved
+                then
+                  do  liftIO $ Dir.createDirectoryIfMissing True "src"
+                      fetch "elm.json"
+                      fetch "src/Main.elm"
+                      Task.report Progress.ElmJsonApproved
+                      liftIO $ Dir.getCurrentDirectory
+                else
+                  do  Task.report Progress.ElmJsonRejected
+                      Task.throw Exit.NoElmJson
+
+
+fetch :: FilePath -> Task.Task ()
+fetch path =
+  Http.run $
+    Http.anything
+    ("https://experiment.elm-lang.org/" ++ Pkg.versionToString Elm.version ++ "/starter/" ++ path)
+    (\request manager ->
+        do  response <- Client.httpLbs request manager
+            Right <$> LBS.writeFile path (Client.responseBody response)
+    )
 
 
 

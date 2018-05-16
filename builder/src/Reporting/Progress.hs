@@ -70,8 +70,12 @@ data Msg
 
 
 data Progress
+  -- elm.json
+  = ElmJsonApproved
+  | ElmJsonRejected
+
   -- download packages
-  = DownloadSkip
+  | DownloadSkip
   | DownloadStart [(Name, Version)]
   | DownloadPkgStart Name Version
   | DownloadPkgEnd Name Version Outcome
