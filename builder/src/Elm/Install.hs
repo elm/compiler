@@ -36,14 +36,15 @@ import qualified Reporting.Task as Task
 install :: Pkg.Name -> Task.Task ()
 install pkg =
   do  (root, oldProject) <- Root.unsafeGet
+      registry <- Cache.optionalUpdate
 
       case oldProject of
         Project.App info ->
-          do  changes <- makeAppPlan pkg info
+          do  changes <- makeAppPlan registry pkg info
               attemptElmJsonChange root oldProject Pkg.versionToString changes
 
         Project.Pkg info ->
-          do  changes <- makePkgPlan pkg info
+          do  changes <- makePkgPlan registry pkg info
               attemptElmJsonChange root oldProject Con.toString changes
 
 
@@ -106,8 +107,8 @@ data Changes vsn
   | Changes (Map.Map Pkg.Name (Change vsn)) Project.Project
 
 
-makeAppPlan :: Pkg.Name -> Project.AppInfo -> Task.Task (Changes Pkg.Version)
-makeAppPlan pkg info@(Project.AppInfo elm srcDirs deps test trans) =
+makeAppPlan :: Cache.PackageRegistry -> Pkg.Name -> Project.AppInfo -> Task.Task (Changes Pkg.Version)
+makeAppPlan registry pkg info@(Project.AppInfo elm srcDirs deps test trans) =
   if Map.member pkg deps then
     return AlreadyInstalled
   else
@@ -123,8 +124,7 @@ makeAppPlan pkg info@(Project.AppInfo elm srcDirs deps test trans) =
               Project.AppInfo elm srcDirs (Map.insert pkg vsn deps) test (Map.delete pkg trans)
 
           Nothing ->
-            do  registry <- Cache.optionalUpdate
-                changes <- addToApp registry pkg info
+            do  changes <- addToApp registry pkg info
 
                 let news = Map.mapMaybe keepNew changes
                 let newDeps = addNews (Just pkg) news deps
@@ -135,8 +135,8 @@ makeAppPlan pkg info@(Project.AppInfo elm srcDirs deps test trans) =
                   Project.AppInfo elm srcDirs newDeps newTest newTrans
 
 
-makePkgPlan :: Pkg.Name -> Project.PkgInfo -> Task.Task (Changes Constraint)
-makePkgPlan pkg info@(Project.PkgInfo _ _ _ _ _ deps test _) =
+makePkgPlan :: Cache.PackageRegistry -> Pkg.Name -> Project.PkgInfo -> Task.Task (Changes Constraint)
+makePkgPlan registry pkg info@(Project.PkgInfo _ _ _ _ _ deps test _) =
   if Map.member pkg deps then
     return AlreadyInstalled
   else
@@ -149,8 +149,7 @@ makePkgPlan pkg info@(Project.PkgInfo _ _ _ _ _ deps test _) =
             }
 
       Nothing ->
-        do  registry <- Cache.optionalUpdate
-            changes <- addToPkg registry pkg info
+        do  changes <- addToPkg registry pkg info
             let news = Map.mapMaybe keepNew changes
             return $ Changes changes $ Project.Pkg $
               info
