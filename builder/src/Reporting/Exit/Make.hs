@@ -32,8 +32,8 @@ toReport exit =
       Help.report "NO INPUT" Nothing
         "What should I make though? I need more information, like:"
         [ D.vcat
-            [ D.indent 4 $ D.green "elm make MyThing.elm"
-            , D.indent 4 $ D.green "elm make This.elm That.elm"
+            [ D.indent 4 $ D.green "elm make src/Main.elm"
+            , D.indent 4 $ D.green "elm make src/This.elm src/That.elm"
             ]
         , D.reflow
             "However many files you give, I will create one JS file out of them."
