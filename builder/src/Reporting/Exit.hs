@@ -68,12 +68,12 @@ toReport exit =
     NoElmJson ->
       Help.report "NO elm.json FILE" Nothing
         "I cannot continue without an elm.json file. Read more about them here:"
-        [ D.indent 4 $ D.vcat $ map D.fromString $
+        [ D.indent 4 $ D.dullyellow $ D.vcat $ map D.fromString $
             [ D.makeLink "elm.json/application.md"
             , D.makeLink "elm.json/package.md"
             ]
         , "And if you would rather work from a larger example, check out:"
-        , D.indent 4 $ D.vcat $ map D.fromString $
+        , D.indent 4 $ D.dullyellow $ D.vcat $ map D.fromString $
             [ D.makeLink "todomvc"
             ]
         ]
