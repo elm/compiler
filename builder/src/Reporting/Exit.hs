@@ -66,21 +66,16 @@ toReport :: Exit -> Help.Report
 toReport exit =
   case exit of
     NoElmJson ->
-      Help.report "WELCOME" Nothing
-        "It looks like you are trying to start a new Elm project. Very exciting! :D"
-        [ D.fillSep
-            ["I","very","highly","recommend","working","through"
-            ,D.green "<https://guide.elm-lang.org>","which","will","teach","you","the"
-            ,"basics","of","Elm,","including","how","to","start","new","projects."
+      Help.report "NO elm.json FILE" Nothing
+        "I cannot continue without an elm.json file. Read more about them here:"
+        [ D.indent 4 $ D.vcat $ map D.fromString $
+            [ D.makeLink "elm.json/application.md"
+            , D.makeLink "elm.json/package.md"
             ]
-        , D.fillSep
-            ["For","folks","who","have","already","built","stuff","with","Elm,","the"
-            ,"problem","is","just","that","there","is","no",D.dullyellow "elm.json","yet."
-            ,"If","you","want","to","work","from","an","example,","check","out","the"
-            ,"one","at","<https://github.com/evancz/elm-todomvc/blob/master/elm.json>"
+        , "And if you would rather work from a larger example, check out:"
+        , D.indent 4 $ D.vcat $ map D.fromString $
+            [ D.makeLink "todomvc"
             ]
-        , D.reflow
-            "Whatever your scenario, I hope you have a lovely time using Elm!"
         ]
 
     Assets assetExit ->
