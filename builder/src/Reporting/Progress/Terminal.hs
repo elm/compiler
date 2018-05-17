@@ -105,7 +105,7 @@ loopHelp chan progress state@(State total good bad) =
             , "-------------------- Now back to what you were doing before --------------------"
             , "--------------------------------------------------------------------------------"
             ]
-          putStrLn ""
+          putStrLn "\n"
           loop chan state
 
     ElmJsonRejected ->
