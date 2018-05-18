@@ -92,24 +92,14 @@ loopHelp chan progress state@(State total good bad) =
 
     -- ELM.JSON
 
-    ElmJsonApproved ->
-      do  putStrLn ""
-          Help.toStdout $ D.fillSep $
-            [ "Done!","And","check","out"
-            ,D.green "<https://guide.elm-lang.org>"
-            ,"to","learn","what","to","do","next!"
-            ]
-          putStrLn "\n"
-          Help.toStdout $ D.black $ D.vcat $
+    ElmJsonAdded ->
+      do  Help.toStdout $ D.black $ D.vcat $ map D.fromString $
             [ "--------------------------------------------------------------------------------"
-            , "-------------------- Now back to what you were doing before --------------------"
+            , "  Looks like you are starting a new Elm project, so I added an elm.json file."
+            , "  Read " ++ D.makeLink "get-started" ++ " for tips on what to do next!"
             , "--------------------------------------------------------------------------------"
             ]
-          putStrLn "\n"
-          loop chan state
-
-    ElmJsonRejected ->
-      do  putStrLn "\nOkay, I did not create anything.\n"
+          putStrLn ""
           loop chan state
 
 

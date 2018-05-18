@@ -71,8 +71,7 @@ data Msg
 
 data Progress
   -- elm.json
-  = ElmJsonApproved
-  | ElmJsonRejected
+  = ElmJsonAdded
 
   -- download packages
   | DownloadSkip
