@@ -79,8 +79,11 @@ verifyApp info =
           Nothing ->
             throw E.BadDeps
 
-          Just solution ->
-            return solution
+          Just newSolution ->
+            if Map.size oldSolution == Map.size newSolution then
+              return newSolution
+            else
+              throw (E.AppMissingTrans (Map.toList (Map.difference newSolution oldSolution)))
 
 
 verifyPkg :: PkgInfo -> Task.Task (Map Name Version)

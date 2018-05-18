@@ -22,8 +22,9 @@ data Exit
   = CorruptVersionCache FilePath Pkg.Name
   | PackageNotFound Pkg.Name [Pkg.Name]
   -- verify
-  | AppBadElm Pkg.Version
   | PkgBadElm Con.Constraint
+  | AppBadElm Pkg.Version
+  | AppMissingTrans [(Pkg.Name, Pkg.Version)]
   | BadDeps
   | BuildFailure FilePath Pkg.Name Pkg.Version
 
@@ -59,8 +60,19 @@ toReport exit =
         , "But check <https://package.elm-lang.org> to see all possibilities!"
         ]
 
+    PkgBadElm constraint ->
+      Help.report "ELM VERSION MISMATCH" (Just "elm.json")
+        "Your elm.json says this package needs a version of Elm in this range:"
+        [ D.indent 4 $ D.dullyellow $ D.fromString $ Con.toString constraint
+        , D.fillSep
+            [ "But", "you", "are", "using", "Elm"
+            , D.red (D.fromString (Pkg.versionToString Compiler.version))
+            , "right", "now."
+            ]
+        ]
+
     AppBadElm version ->
-      Help.report "ELM VERSION MISMATCH" Nothing
+      Help.report "ELM VERSION MISMATCH" (Just "elm.json")
         "Your elm.json says this application needs a different version of Elm."
         [ D.fillSep
             [ "It", "requires"
@@ -71,19 +83,23 @@ toReport exit =
             ]
         ]
 
-    PkgBadElm constraint ->
-      Help.report "ELM VERSION MISMATCH" Nothing
-        "Your elm.json says this package needs a version of Elm in this range:"
-        [ D.indent 4 $ D.dullyellow $ D.fromString $ Con.toString constraint
+    AppMissingTrans missingDeps ->
+      let
+        toEntry (pkg, vsn) =
+          "\"" ++ Pkg.toString pkg ++ "\": \"" ++ Pkg.versionToString vsn ++ "\""
+      in
+      Help.report "MISSING DEPENDENCIES" (Just "elm.json")
+        "Your elm.json is missing some \"transitive-dependencies\" entries:"
+        [ D.indent 4 $ D.dullyellow $ D.vcat $ map (D.fromString . toEntry) missingDeps
         , D.fillSep
-            [ "But", "you", "are", "using", "Elm"
-            , D.red (D.fromString (Pkg.versionToString Compiler.version))
-            , "right", "now."
+            ["This","usually","means","you","are","editing","elm.json","by","hand."
+            ,"It","is","much","more","reliable","to","use","the"
+            ,D.green "elm install","command","instead."
             ]
         ]
 
     BadDeps ->
-      Help.report "CLASHING PACKAGE DEPENDENCIES" Nothing
+      Help.report "CLASHING PACKAGE DEPENDENCIES" (Just "elm.json")
         "The dependencies in your elm.json are not compatible."
         [ D.reflow $
             "Did you change them by hand? Try to change it back! It is much\
