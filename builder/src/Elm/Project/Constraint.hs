@@ -52,7 +52,7 @@ exactly version =
 
 anything :: Constraint
 anything =
-  Range (Version 1 0 0) LessOrEqual LessOrEqual (Version 30000 0 0)
+  Range (Version 1 0 0) LessOrEqual LessOrEqual (Version maxBound 0 0)
 
 
 
