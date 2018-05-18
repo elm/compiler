@@ -132,6 +132,7 @@ data PCategory
   | PInt
   | PStr
   | PChr
+  | PBool
 
 
 
@@ -302,6 +303,7 @@ addPatternCategory iAmTryingToMatch category =
       PInt -> " integers:"
       PStr -> " strings:"
       PChr -> " characters:"
+      PBool -> " booleans:"
 
 
 

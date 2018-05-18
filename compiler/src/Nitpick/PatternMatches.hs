@@ -94,6 +94,9 @@ simplify (A.At _ pattern) =
     Can.PChr chr ->
       Literal (Chr chr)
 
+    Can.PBool union bool ->
+      Ctor union (if bool then N.true else N.false) []
+
 
 cons :: Can.Pattern -> Pattern -> Pattern
 cons hd tl =

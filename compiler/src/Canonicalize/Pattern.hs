@@ -11,6 +11,7 @@ module Canonicalize.Pattern
 import qualified Data.Map.Strict as Map
 
 import qualified AST.Canonical as Can
+import qualified AST.Module.Name as ModuleName
 import qualified AST.Source as Src
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
@@ -123,7 +124,10 @@ canonicalizeCtor env region name patterns ctor =
       do  verifiedList <- Index.indexedZipWithA toCanonicalArg patterns args
           case verifiedList of
             Index.LengthMatch cargs ->
-              Result.ok (Can.PCtor home tipe union name index cargs)
+              if tipe == N.bool && home == ModuleName.basics then
+                Result.ok (Can.PBool union (name == N.true))
+              else
+                Result.ok (Can.PCtor home tipe union name index cargs)
 
             Index.LengthMismatch actualLength expectedLength ->
               Result.throw (Error.BadArity region Error.PatternArity name actualLength expectedLength)

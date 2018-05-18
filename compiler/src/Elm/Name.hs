@@ -28,7 +28,7 @@ module Elm.Name
   , maybe, result, list, array, dict, tuple, jsArray
   , task, router, cmd, sub, platform, browser, virtualDom
   , shader, debug, debugger, bitwise, basics
-  , utils, negate, value
+  , utils, negate, true, false, value
   , node, program, main, dollar, identity
   , replModule
   )
@@ -300,6 +300,16 @@ utils = "Utils"
 {-# NOINLINE negate #-}
 negate :: Name
 negate = "negate"
+
+
+{-# NOINLINE true #-}
+true :: Name
+true = "True"
+
+
+{-# NOINLINE false #-}
+false :: Name
+false = "False"
 
 
 {-# NOINLINE value #-}

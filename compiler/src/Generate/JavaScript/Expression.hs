@@ -899,6 +899,12 @@ generateIfTest mode root (path, test) =
           Mode.Dev _ _ -> JS.String (N.toBuilder name)
           Mode.Prod _ _ -> JS.Int (ctorToInt home name index)
 
+    DT.IsBool True ->
+      value
+
+    DT.IsBool False ->
+      JS.Prefix JS.PrefixLNot value
+
     DT.IsInt int ->
       strictEq value (JS.Int int)
 
@@ -947,6 +953,9 @@ generateCaseValue mode test =
     DT.IsStr string ->
       JS.String (Text.encodeUtf8Builder string)
 
+    DT.IsBool _ ->
+      error "COMPILER BUG - there should never be three tests on a boolean"
+
     DT.IsCons ->
       error "COMPILER BUG - there should never be three tests on a list"
 
@@ -963,21 +972,24 @@ generateCaseTest mode root path exampleTest =
     value = pathToJsExpr mode root path
   in
   case exampleTest of
-    DT.IsCtor _ _ _ _ opts ->
-      case mode of
-        Mode.Dev _ _ ->
-          JS.Access value Name.dollar
+    DT.IsCtor home name _ _ opts ->
+      if name == N.bool && home == ModuleName.basics then
+        value
+      else
+        case mode of
+          Mode.Dev _ _ ->
+            JS.Access value Name.dollar
 
-        Mode.Prod _ _ ->
-          case opts of
-            Can.Normal ->
-              JS.Access value Name.dollar
+          Mode.Prod _ _ ->
+            case opts of
+              Can.Normal ->
+                JS.Access value Name.dollar
 
-            Can.Enum ->
-              value
+              Can.Enum ->
+                value
 
-            Can.Unbox ->
-              value
+              Can.Unbox ->
+                value
 
     DT.IsInt _ ->
       value
@@ -992,6 +1004,9 @@ generateCaseTest mode root path exampleTest =
 
         Mode.Prod _ _ ->
           value
+
+    DT.IsBool _ ->
+      error "COMPILER BUG - there should never be three tests on a list"
 
     DT.IsCons ->
       error "COMPILER BUG - there should never be three tests on a list"

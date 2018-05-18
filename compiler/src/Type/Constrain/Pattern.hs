@@ -122,6 +122,11 @@ add (A.At region pattern) expectation state =
           let chrCon = CPattern region E.PChr T.char expectation
           return $ State headers vars (chrCon:revCons)
 
+    Can.PBool _ _ ->
+      do  let (State headers vars revCons) = state
+          let boolCon = CPattern region E.PBool T.bool expectation
+          return $ State headers vars (boolCon:revCons)
+
 
 
 -- STATE HELPERS

@@ -79,6 +79,7 @@ data Test
   | IsInt Int
   | IsChr Text
   | IsStr Text
+  | IsBool Bool
   deriving (Eq, Ord)
 
 
@@ -159,6 +160,9 @@ isComplete tests =
     IsInt _ ->
       False
 
+    IsBool _ ->
+      length tests == 2
+
 
 
 -- FLATTEN PATTERNS
@@ -225,6 +229,9 @@ flatten pathPattern@(path, A.At region pattern) otherPathPatterns =
       pathPattern : otherPathPatterns
 
     Can.PInt _ ->
+      pathPattern : otherPathPatterns
+
+    Can.PBool _ _ ->
       pathPattern : otherPathPatterns
 
 
@@ -338,6 +345,9 @@ testAtPath selectedPath (Branch _ pathPatterns) =
         Can.PChr chr ->
             Just (IsChr chr)
 
+        Can.PBool _ bool ->
+            Just (IsBool bool)
+
         Can.PRecord _ ->
             Nothing
 
@@ -423,6 +433,14 @@ toRelevantBranch test path branch@(Branch goal pathPatterns) =
                 _ ->
                   Nothing
 
+          Can.PBool _ bool ->
+              case test of
+                IsBool testBool | bool == testBool ->
+                  Just (Branch goal (start ++ end))
+
+                _ ->
+                  Nothing
+
           Can.PUnit ->
               Just (Branch goal (start ++ end))
 
@@ -497,6 +515,7 @@ needsTests (A.At _ pattern) =
     Can.PChr _            -> True
     Can.PStr _            -> True
     Can.PInt _            -> True
+    Can.PBool _ _         -> True
     Can.PAlias _ _ ->
         error "aliases should never reach 'isIrrelevantTo' function"
 
@@ -586,6 +605,7 @@ instance Binary Test where
       IsChr a          -> putWord8 4 >> put a
       IsStr a          -> putWord8 5 >> put a
       IsInt a          -> putWord8 6 >> put a
+      IsBool a         -> putWord8 7 >> put a
 
   get =
     do  word <- getWord8
@@ -597,6 +617,7 @@ instance Binary Test where
           4 -> liftM  IsChr get
           5 -> liftM  IsStr get
           6 -> liftM  IsInt get
+          7 -> liftM  IsBool get
           _ -> error "problem getting DecisionTree.Test binary"
 
 
