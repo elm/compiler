@@ -35,7 +35,7 @@ Either `"application"` or `"package"`. All the other fields are based on this ch
 
 The name of a GitHub repo like `"elm-lang/core"` or `"rtfeldman/elm-css"`.
 
-> **Note:** We currently only support GitHub repos to ensure that there are no author name collisions. This seems like a pretty tricky problem to solve in a pleasant way For example, do we have to keep an author name registry and give them out as we see them? But if someone is the same person on two platforms? And how to make this all happen in a way this is really nice for typical Elm users? Etc. So adding other hosting endpoints is harder than it sounds.
+> **Note:** We currently only support GitHub repos to ensure that there are no author name collisions. This seems like a pretty tricky problem to solve in a pleasant way. For example, do we have to keep an author name registry and give them out as we see them? But if someone is the same person on two platforms? And how to make this all happen in a way this is really nice for typical Elm users? Etc. So adding other hosting endpoints is harder than it sounds.
 
 <br>
 
