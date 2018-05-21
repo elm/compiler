@@ -67,15 +67,10 @@ toReport exit =
   case exit of
     NoElmJson ->
       Help.report "NO elm.json FILE" Nothing
-        "I cannot continue without an elm.json file. Read more about them here:"
-        [ D.indent 4 $ D.dullyellow $ D.vcat $ map D.fromString $
-            [ D.makeLink "elm.json/application.md"
-            , D.makeLink "elm.json/package.md"
-            ]
-        , "And if you would rather work from a larger example, check out:"
-        , D.indent 4 $ D.dullyellow $ D.vcat $ map D.fromString $
-            [ D.makeLink "todomvc"
-            ]
+        "It looks like you are starting a new Elm project. Very exciting! Try running:"
+        [ D.indent 4 $ D.green $ "elm init"
+        , D.reflow $
+            "It will help you get set up. It is really simple!"
         ]
 
     Assets assetExit ->
