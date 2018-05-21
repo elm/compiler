@@ -1079,7 +1079,7 @@ opRightToDocs localizer category op tipe expected =
       EmphRight
         ( D.reflow $ "I cannot send this through the (<|) pipe:"
         , typeComparison localizer tipe expected
-            (addCategory "You are providing" category)
+            "The argument is:"
             "But (<|) is piping it a function that expects:"
             []
         )
@@ -1090,7 +1090,7 @@ opRightToDocs localizer category op tipe expected =
           EmphRight
             ( D.reflow $ "This function cannot handle the argument sent through the (|>) pipe:"
             , typeComparison localizer argType expectedArgType
-                (addCategory "The argument is" category)
+                "The argument is:"
                 "But (|>) is piping it a function that expects:"
                 []
             )
