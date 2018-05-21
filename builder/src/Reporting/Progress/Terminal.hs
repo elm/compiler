@@ -90,19 +90,6 @@ loopHelp chan progress state@(State total good bad) =
   case progress of
 
 
-    -- ELM.JSON
-
-    ElmJsonAdded ->
-      do  Help.toStdout $ D.black $ D.vcat $ map D.fromString $
-            [ "--------------------------------------------------------------------------------"
-            , "  Looks like you are starting a new Elm project, so I added an elm.json file."
-            , "  Read " ++ D.makeLink "get-started" ++ " for tips on what to do next!"
-            , "--------------------------------------------------------------------------------"
-            ]
-          putStrLn ""
-          loop chan state
-
-
     -- DOWNLOADS
 
     DownloadSkip ->

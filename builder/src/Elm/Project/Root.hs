@@ -60,41 +60,7 @@ moveToRoot =
               return root
 
         Nothing ->
-          do  addElmJson
-              Task.report Progress.ElmJsonAdded
-              liftIO $ Dir.getCurrentDirectory
-
-
-addElmJson :: Task.Task ()
-addElmJson =
-  do  registry <- Cache.optionalUpdate
-      maybeSolution <- Explorer.run registry $ Solver.run $
-        msum $ map Solver.solve $
-          [ defaultDependencies
-          , Map.singleton Pkg.core Con.anything
-          ]
-      case maybeSolution of
-        Nothing ->
           Task.throw Exit.NoElmJson
-
-        Just solution ->
-          liftIO $ Encode.write "elm.json" $ Project.encode $ Project.App $
-            Project.AppInfo
-              Elm.version
-              ["src"]
-              (Map.intersection solution defaultDependencies)
-              Map.empty
-              (Map.difference solution defaultDependencies)
-
-
-defaultDependencies :: Map.Map Pkg.Name Con.Constraint
-defaultDependencies =
-  Map.fromList
-    [ (Pkg.browser, Con.anything)
-    , (Pkg.core, Con.anything)
-    , (Pkg.html, Con.anything)
-    , (Pkg.json, Con.anything)
-    ]
 
 
 

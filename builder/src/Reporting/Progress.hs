@@ -70,11 +70,8 @@ data Msg
 
 
 data Progress
-  -- elm.json
-  = ElmJsonAdded
-
   -- download packages
-  | DownloadSkip
+  = DownloadSkip
   | DownloadStart [(Name, Version)]
   | DownloadPkgStart Name Version
   | DownloadPkgEnd Name Version Outcome
