@@ -15,6 +15,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Text.Encoding as Text
+import qualified System.Directory as Dir
 
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Compiler.Module as Module
@@ -48,11 +49,13 @@ ignore answers =
 write :: FilePath -> Map Module.Raw Answer -> Task.Task (Map Module.Raw Compiler.Artifacts)
 write root answers =
   let
-    writer name result@(Compiler.Artifacts elmi elmo _) =
+    writer name result@(Compiler.Artifacts time elmi elmo _) =
       do  mvar <- newEmptyMVar
           void $ forkIO $
-            do  Binary.encodeFile (Path.elmi root name) elmi
+            do  let ifacePath = Path.elmi root name
+                Binary.encodeFile ifacePath elmi
                 Binary.encodeFile (Path.elmo root name) elmo
+                Dir.setModificationTime ifacePath time
                 putMVar mvar result
           return mvar
   in
@@ -63,7 +66,7 @@ write root answers =
 writeDocs :: Map Module.Raw Compiler.Artifacts -> FilePath -> Task.Task Docs.Documentation
 writeDocs results path =
   let
-    getDocs (Compiler.Artifacts _ _ docs) =
+    getDocs (Compiler.Artifacts _ _ _ docs) =
       docs
   in
     case Maybe.mapMaybe getDocs (Map.elems results) of

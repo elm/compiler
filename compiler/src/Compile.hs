@@ -9,6 +9,7 @@ module Compile
 
 import qualified Data.ByteString as BS
 import qualified Data.Map as Map
+import qualified Data.Time.Clock as Time
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
@@ -45,14 +46,15 @@ type ImportDict =
 
 data Artifacts =
   Artifacts
-    { _elmi :: I.Interface
+    { _time :: Time.UTCTime
+    , _elmi :: I.Interface
     , _elmo :: Opt.Graph
     , _docs :: Maybe Docs.Module
     }
 
 
-compile :: DocsFlag -> Pkg.Name -> ImportDict -> I.Interfaces -> BS.ByteString -> Result i Artifacts
-compile flag pkg importDict interfaces source =
+compile :: DocsFlag -> Pkg.Name -> ImportDict -> I.Interfaces -> Time.UTCTime -> BS.ByteString -> Result i Artifacts
+compile flag pkg importDict interfaces time source =
   do
       valid <- Result.mapError Error.Syntax $
         Parse.program pkg source
@@ -76,7 +78,8 @@ compile flag pkg importDict interfaces source =
 
       Result.ok $
         Artifacts
-          { _elmi = I.fromModule annotations canonical
+          { _time = time
+          , _elmi = I.fromModule annotations canonical
           , _elmo = graph
           , _docs = documentation
           }

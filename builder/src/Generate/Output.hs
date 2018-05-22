@@ -88,7 +88,7 @@ getInterfaces :: Summary.Summary -> Map.Map Module.Raw Compiler.Artifacts -> I.I
 getInterfaces (Summary.Summary _ project _ interfaces _) artifacts =
   let
     pkg = Project.getName project
-    addArtifact home (Compiler.Artifacts elmi _ _) ifaces =
+    addArtifact home (Compiler.Artifacts _ elmi _ _) ifaces =
       Map.insert (ModuleName.Canonical pkg home) elmi ifaces
   in
   Map.foldrWithKey addArtifact interfaces artifacts

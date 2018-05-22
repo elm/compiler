@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Elm.Compiler
   ( version
-  , Context(..)
   , Compile.DocsFlag(..)
   , Compile.Artifacts(..)
   , compile
@@ -16,6 +15,7 @@ module Elm.Compiler
 import qualified Data.ByteString as BS
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import qualified Data.Time.Clock as Time
 
 import qualified Compile
 import qualified Elm.Compiler.Module as M
@@ -44,18 +44,16 @@ version =
 -- COMPILE
 
 
-data Context =
-  Context
-    { _package :: Pkg.Name
-    , _docsFlag :: Compile.DocsFlag
-    , _imports :: Map.Map M.Raw M.Canonical
-    , _interfaces :: M.Interfaces
-    }
-
-
-compile :: Context -> BS.ByteString -> ([Warning.Warning], Either [Error.Error] Compile.Artifacts)
-compile (Context pkg docsFlag importDict interfaces) source =
-  Result.run $ Compile.compile docsFlag pkg importDict interfaces source
+compile
+  :: Compile.DocsFlag
+  -> Pkg.Name
+  -> Map.Map M.Raw M.Canonical
+  -> M.Interfaces
+  -> Time.UTCTime
+  -> BS.ByteString
+  -> ( [Warning.Warning], Either [Error.Error] Compile.Artifacts )
+compile docsFlag pkg importDict interfaces time source =
+  Result.run $ Compile.compile docsFlag pkg importDict interfaces time source
 
 
 
