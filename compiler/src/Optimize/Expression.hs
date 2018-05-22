@@ -402,7 +402,7 @@ optimizeTail cycle rootName argNames locExpr@(A.At _ expression) =
     Can.LetDestruct pattern expr body ->
       do  (dname, destructors) <- destruct pattern
           oexpr <- optimize cycle expr
-          obody <- optimizeTail cycle dname argNames body
+          obody <- optimizeTail cycle rootName argNames body
           pure $
             Opt.Let (Opt.Def dname oexpr) (foldr Opt.Destruct obody destructors)
 
