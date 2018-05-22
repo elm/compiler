@@ -7,16 +7,11 @@ module Elm.Project.Root
   where
 
 
-import Control.Monad (msum)
 import Control.Monad.Trans (liftIO)
 import qualified Data.Map as Map
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
 
-import qualified Deps.Cache as Cache
-import qualified Deps.Explorer as Explorer
-import qualified Deps.Solver as Solver
-import qualified Elm.Compiler.Version as Elm
 import qualified Elm.Package as Pkg
 import qualified Elm.Project.Constraint as Con
 import qualified Elm.Project.Json as Project
@@ -25,7 +20,6 @@ import qualified Elm.Project.Summary as Summary
 import qualified Elm.PerUserCache as PerUserCache
 import qualified File.IO as IO
 import qualified Reporting.Exit as Exit
-import qualified Reporting.Progress as Progress
 import qualified Reporting.Task as Task
 import qualified Stuff.Verify as Verify
 import qualified Json.Encode as Encode
