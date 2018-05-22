@@ -129,13 +129,16 @@ extractAlias interfaces (Opt.Global home name) =
 
 extractUnion :: I.Interfaces -> Opt.Global -> Extractor T.Union
 extractUnion interfaces (Opt.Global home name) =
-  let
-    pname = toPublicName home name
-    unions = I._unions (interfaces ! home)
-  in
-  case I.toUnionInternals (unions ! name) of
-    Can.Union vars ctors _ _ ->
-      T.Union pname vars <$> traverse extractCtor ctors
+  if name == N.list && home == ModuleName.list
+    then return $ T.Union (toPublicName home name) ["a"] []
+    else
+      let
+        pname = toPublicName home name
+        unions = I._unions (interfaces ! home)
+      in
+      case I.toUnionInternals (unions ! name) of
+        Can.Union vars ctors _ _ ->
+          T.Union pname vars <$> traverse extractCtor ctors
 
 
 extractCtor :: Can.Ctor -> Extractor (N.Name, [T.Type])
