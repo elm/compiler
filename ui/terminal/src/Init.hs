@@ -39,8 +39,11 @@ run () flags =
       Task.run reporter $
         do  approved <- Task.getApproval question
             if approved
-              then init flags
-              else liftIO $ putStrLn "Okay, I left everything the same!"
+              then
+                do  init flags
+                    liftIO $ putStrLn "Okay, I created them!"
+              else
+                liftIO $ putStrLn "Okay, I left everything the same!"
 
 
 question :: D.Doc
