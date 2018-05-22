@@ -20,6 +20,7 @@ import qualified Reporting.Exit.Diff as Diff
 import qualified Reporting.Exit.Help as Help
 import qualified Reporting.Exit.Http as Http
 import qualified Reporting.Exit.Make as Make
+import qualified Reporting.Exit.Init as Init
 import qualified Reporting.Exit.Install as Install
 import qualified Reporting.Exit.Publish as Publish
 
@@ -38,6 +39,7 @@ data Exit
   | Deps Deps.Exit
   | Diff Diff.Exit
   | Make Make.Exit
+  | Init Init.Exit
   | Install Install.Exit
   | Publish Publish.Exit
   | BadHttp String Http.Exit
@@ -102,6 +104,9 @@ toReport exit =
 
     Make makeExit ->
       Make.toReport makeExit
+
+    Init initExit ->
+      Init.toReport initExit
 
     Install installExit ->
       Install.toReport installExit

@@ -59,6 +59,7 @@ Executable elm
         Develop.StaticFiles
         Develop.StaticFiles.Build
         Diff
+        Init
         Install
         Make
         Publish
@@ -118,6 +119,7 @@ Executable elm
         Reporting.Exit.Help
         Reporting.Exit.Http
         Reporting.Exit.Make
+        Reporting.Exit.Init
         Reporting.Exit.Install
         Reporting.Exit.Publish
         Reporting.Progress
