@@ -43,6 +43,16 @@ simple details example args_ flags_ callback =
           do  hPutStrLn stdout (Pkg.versionToString Compiler.version)
               Exit.exitSuccess
 
+        "autocomplete" : n : chunks ->
+          case Read.readMaybe n of
+            Nothing ->
+              Exit.exitFailure
+
+            Just index ->
+              do  suggestions <- fst $ Chomp.chomp (Just index) chunks args_ flags_
+                  hPutStr stdout (unlines suggestions)
+                  Exit.exitFailure
+
         chunks ->
           if elem "--help" chunks then
             Error.exitWithHelp Nothing details example args_ flags_
@@ -72,6 +82,16 @@ complex intro outro interfaces =
         ["--version"] ->
           do  hPutStrLn stdout (Pkg.versionToString Compiler.version)
               Exit.exitSuccess
+
+        "autocomplete" : n : chunks ->
+          case Read.readMaybe n of
+            Nothing ->
+              Exit.exitFailure
+
+            Just index ->
+              do  suggestions <- complexSuggest interfaces index chunks
+                  hPutStr stdout (unlines suggestions)
+                  Exit.exitFailure
 
         command : chunks ->
           do  maybeAutoComplete argStrings (complexSuggest interfaces)
