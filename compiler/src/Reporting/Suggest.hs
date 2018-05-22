@@ -3,6 +3,7 @@
 module Reporting.Suggest
   ( distance
   , sort
+  , rank
   )
   where
 
@@ -33,3 +34,19 @@ sort target toString values =
 toLower :: String -> String
 toLower string =
   map Char.toLower string
+
+
+
+-- RANK
+
+
+rank :: String -> (a -> String) -> [a] -> [(Int,a)]
+rank target toString values =
+  let
+    toRank v =
+      distance (toLower target) (toLower (toString v))
+
+    addRank v =
+      (toRank v, v)
+  in
+  List.sortOn fst (map addRank values)

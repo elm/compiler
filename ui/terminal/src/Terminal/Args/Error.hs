@@ -234,8 +234,11 @@ toCommandList exeName interfaces =
 exitWithUnknown :: String -> [String] -> IO a
 exitWithUnknown unknown knowns =
   let
+    nearbyKnowns =
+      takeWhile (\(r,_) -> r <= 3) (Suggest.rank unknown id knowns)
+
     suggestions =
-      case map toGreen (Suggest.sort unknown id knowns) of
+      case map toGreen (map snd nearbyKnowns) of
         [] ->
           []
 
