@@ -40,7 +40,7 @@ run () flags =
         do  approved <- Task.getApproval question
             if approved
               then init flags
-              else liftIO $ putStrLn "TODO"
+              else liftIO $ putStrLn "Okay, I left everything the same!"
 
 
 question :: D.Doc
