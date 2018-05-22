@@ -5,6 +5,7 @@ module Main
   where
 
 
+import Prelude hiding (init)
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
 import qualified Data.List as List
 import qualified Text.PrettyPrint.ANSI.Leijen as P
@@ -21,6 +22,7 @@ import Terminal.Args.Helpers
 import qualified Bump
 import qualified Develop
 import qualified Diff
+import qualified Init
 import qualified Install
 import qualified Make
 import qualified Publish
@@ -36,6 +38,7 @@ main =
   do  setLocaleEncoding utf8
       complex intro outro
         [ repl
+        , init
         , reactor
         , make
         , install
@@ -71,6 +74,34 @@ outro =
 
 
 
+-- INIT
+
+
+init :: Interface
+init =
+  let
+    summary =
+      "Start an Elm project. It creates two files (elm.json and src/Main.elm)\
+      \ and provides a couple links that explain how to get going with Elm."
+
+    details =
+      "The `init` command helps start Elm projects:"
+
+    example =
+      reflow
+        "It asks permission to create two files (elm.json and src/Main.elm) that are\
+        \ common to all Elm projects. It also provides a couple links that explain what\
+        \ to do from there."
+
+    initFlags =
+      flags Init.Flags
+        |-- onOff "embed" "Switch Browser.sandbox to Browser.embed, making it easier to jump into making HTTP requests, generating random values, asking the time, etc."
+        |-- onOff "fullscreen" "Switch Browser.sandbox to Browser.fullscreen, setting you up for a single-page app that controls the <title> and URL of the browser."
+  in
+  Interface "init" (Common summary) details example noArgs initFlags Init.run
+
+
+
 -- REPL
 
 
@@ -78,8 +109,8 @@ repl :: Interface
 repl =
   let
     summary =
-      "Open up an interactive programming session. You can type in Elm\
-      \ expressions and it will tell you what they evaluate to."
+      "Open up an interactive programming session. Type in Elm expressions\
+      \ like (2 + 2) or (String.length \"test\") and see if they equal four!"
 
     details =
       "The `repl` command opens up an interactive programming session:"
@@ -117,8 +148,8 @@ reactor :: Interface
 reactor =
   let
     summary =
-      "Easy way to get started with Elm. It shows a file viewer, and when you\
-      \ click on an Elm file, it compiles it and shows the result."
+      "Compile code with a click. It opens a file viewer in your browser, and\
+      \ when you click on an Elm file, it compiles and you see the result."
 
     details =
       "The `reactor` command starts a local server on your computer:"
@@ -155,10 +186,6 @@ port_ =
 make :: Interface
 make =
   let
-    summary =
-      "Compile files by hand. Once you get comfortable with Elm projects, you\
-      \ will probably want this level of control during development."
-
     details =
       "The `make` command compiles Elm code into JS or HTML:"
 
@@ -180,7 +207,7 @@ make =
         |-- flag "report" Make.reportType "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
         |-- flag "docs" Make.docsFile "Generate a JSON file of documentation for a package. Eventually it will be possible to preview docs with `reactor` because it is quite hard to deal with these JSON files directly."
   in
-  Interface "make" (Common summary) details example (zeroOrMore elmFile) makeFlags Make.run
+  Interface "make" Uncommon details example (zeroOrMore elmFile) makeFlags Make.run
 
 
 
@@ -190,10 +217,6 @@ make =
 install :: Interface
 install =
   let
-    summary =
-      "Install <https://package.elm-lang.org> packages. Every project is\
-      \ independent, so you can use different versions in different projects."
-
     details =
       "The `install` command fetches packages from <https://package.elm-lang.org> for\
       \ use in your project:"
@@ -220,7 +243,7 @@ install =
         , require1 Install.Install package
         ]
   in
-  Interface "install" (Common summary) details example installArgs noFlags Install.run
+  Interface "install" Uncommon details example installArgs noFlags Install.run
 
 
 
