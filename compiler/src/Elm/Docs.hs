@@ -316,10 +316,7 @@ emptyModule (ModuleName.Canonical _ name) overview =
 -- PARSE OVERVIEW
 
 
-type LName = A.Located N.Name
-
-
-parseOverview :: R.Region -> B.ByteString -> Result.Result i w Error.Error [LName]
+parseOverview :: R.Region -> B.ByteString -> Result.Result i w Error.Error [A.Located N.Name]
 parseOverview (R.Region (R.Position row col) _) overview =
   case P.runAt row (col + 3) (chompOverview []) overview of
     Left err ->
@@ -329,7 +326,7 @@ parseOverview (R.Region (R.Position row col) _) overview =
       Result.ok names
 
 
-chompOverview :: [LName] -> Parser [LName]
+chompOverview :: [A.Located N.Name] -> Parser [A.Located N.Name]
 chompOverview names =
   do  isDocs <- W.chompUntilDocs
       if isDocs
@@ -337,7 +334,7 @@ chompOverview names =
         else return names
 
 
-chompOverviewHelp :: [LName] -> Parser [LName]
+chompOverviewHelp :: [A.Located N.Name] -> Parser [A.Located N.Name]
 chompOverviewHelp names =
   do  pos <- P.getPosition
       (W.SPos spos) <- W.whitespace
@@ -346,7 +343,7 @@ chompOverviewHelp names =
         else chompOverview =<< chompDocs names
 
 
-chompDocs :: [LName] -> Parser [LName]
+chompDocs :: [A.Located N.Name] -> Parser [A.Located N.Name]
 chompDocs names =
   do  name <- P.addLocation (P.oneOf [ Var.lower, Var.upper, chompBinop ])
       spos <- W.whitespace
@@ -379,7 +376,7 @@ type Dups =
   Map.Map N.Name (OneOrMore.OneOrMore R.Region)
 
 
-checkNames :: Map.Map N.Name (A.Located Can.Export) -> [LName] -> Result i w ()
+checkNames :: Map.Map N.Name (A.Located Can.Export) -> [A.Located N.Name] -> Result i w ()
 checkNames exports names =
   do  docs <- Map.traverseWithKey isUnique (List.foldl' addName Map.empty names)
       let overlap = Map.size (Map.intersection docs exports)
@@ -391,7 +388,7 @@ checkNames exports names =
               Result.ok ()
 
 
-addName :: Dups -> LName -> Dups
+addName :: Dups -> A.Located N.Name -> Dups
 addName dict (A.At region name) =
   Map.insertWith OneOrMore.more name (OneOrMore.one region) dict
 
