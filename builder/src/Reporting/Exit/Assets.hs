@@ -36,6 +36,9 @@ data ElmJsonProblem
   = BadJson D.Doc
   | BadDepDup String String Pkg.Name [Pkg.Name]
   | BadSrcDir FilePath
+  | NoPkgCore
+  | NoAppCore
+  | NoAppJson
 
 
 
@@ -103,6 +106,29 @@ elmJsonProblemToReport problem =
         [ D.indent 4 (D.dullyellow (D.fromString dir))
         , D.reflow "I cannot find that directory though! Is it missing? Is there a typo?"
         ]
+
+    NoPkgCore ->
+      Help.report "MISSING DEPENDENCY" (Just "elm.json")
+        "A package must have \"elm-lang/core\" as a dependency. Try running:"
+        [ D.indent 4 $ D.green $ "elm install elm-lang/core"
+        , D.reflow "I need it for the default imports that make `List` and `Maybe` available."
+        ]
+
+    NoAppCore ->
+      Help.report "MISSING DEPENDENCY" (Just "elm.json")
+        "An application must have \"elm-lang/core\" as a dependency. Try running:"
+        [ D.indent 4 $ D.green $ "elm install elm-lang/core"
+        , D.reflow "It has some supporting code that is needed by every Elm application!"
+        ]
+
+    NoAppJson ->
+      Help.report "MISSING DEPENDENCY" (Just "elm.json")
+        "An application must have \"elm-lang/json\" as a dependency. Try running:"
+        [ D.indent 4 $ D.green $ "elm install elm-lang/json"
+        , D.reflow "It helps me handle flags and ports."
+        ]
+
+
 
     BadDepDup field1 field2 dup dups ->
       let
