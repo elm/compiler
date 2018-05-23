@@ -84,15 +84,15 @@ compileModule tell project maybeDocsPath answersMVar ifacesMVar name info =
                     let docs = toDocsFlag name project maybeDocsPath
                     let imports = makeImports project info
                     ifaces <- readMVar ifacesMVar
-                    let time = Plan._time info
                     let source = Plan._src info
-                    case Compiler.compile docs pkg imports ifaces time source of
+                    case Compiler.compile docs pkg imports ifaces source of
                       (_warnings, Left errors) ->
                         do  tell (Progress.CompileFileEnd name Progress.Bad)
+                            let time = Plan._time info
                             let path = Plan._path info
                             putMVar mvar (Bad path time source errors)
 
-                      (_warnings, Right result@(Compiler.Artifacts _ elmi _ _)) ->
+                      (_warnings, Right result@(Compiler.Artifacts elmi _ _)) ->
                         do  tell (Progress.CompileFileEnd name Progress.Good)
                             let canonicalName = Module.Canonical pkg name
                             lock <- takeMVar ifacesMVar

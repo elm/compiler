@@ -158,7 +158,7 @@ isFresh srcTime cachedFile =
   andM
     [ Dir.doesFileExist cachedFile
     , do  cacheTime <- Dir.getModificationTime cachedFile
-          return (cacheTime == srcTime)
+          return (cacheTime >= srcTime)
     ]
 
 

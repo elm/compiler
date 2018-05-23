@@ -334,7 +334,7 @@ crush pkg info results =
 
 
 crushHelp :: Set Module.Raw -> Module.Raw -> Compiler.Artifacts -> Maybe Module.Interface
-crushHelp exposed name (Compiler.Artifacts _ elmi _ _) =
+crushHelp exposed name (Compiler.Artifacts elmi _ _) =
   if Set.member name exposed then
     Just elmi
 
@@ -347,7 +347,7 @@ crushHelp exposed name (Compiler.Artifacts _ elmi _ _) =
 
 
 addDocs :: Compiler.Artifacts -> [Docs.Module] -> [Docs.Module]
-addDocs (Compiler.Artifacts _ _ _ maybeDocs) docsList =
+addDocs (Compiler.Artifacts _ _ maybeDocs) docsList =
   case maybeDocs of
     Nothing ->
       docsList
@@ -361,7 +361,7 @@ addDocs (Compiler.Artifacts _ _ _ maybeDocs) docsList =
 
 
 addGraph :: Compiler.Artifacts -> Obj.Graph -> Obj.Graph
-addGraph (Compiler.Artifacts _ _ elmo _) graph =
+addGraph (Compiler.Artifacts _ elmo _) graph =
   Obj.union elmo graph
 
 

@@ -15,7 +15,6 @@ module Elm.Compiler
 import qualified Data.ByteString as BS
 import qualified Data.Map as Map
 import qualified Data.Text as Text
-import qualified Data.Time.Clock as Time
 
 import qualified Compile
 import qualified Elm.Compiler.Module as M
@@ -49,11 +48,10 @@ compile
   -> Pkg.Name
   -> Map.Map M.Raw M.Canonical
   -> M.Interfaces
-  -> Time.UTCTime
   -> BS.ByteString
   -> ( [Warning.Warning], Either [Error.Error] Compile.Artifacts )
-compile docsFlag pkg importDict interfaces time source =
-  Result.run $ Compile.compile docsFlag pkg importDict interfaces time source
+compile docsFlag pkg importDict interfaces source =
+  Result.run $ Compile.compile docsFlag pkg importDict interfaces source
 
 
 
