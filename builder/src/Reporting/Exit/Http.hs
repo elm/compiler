@@ -60,12 +60,15 @@ toReport url exit =
     BadZipSha expectedHash actualHash ->
       Help.report "CORRUPT ZIP" Nothing "I got an unexpected zip file from:"
         [ urlDoc
+        , D.reflow "I check the hash the zip, and it seems off:"
+        , D.vcat $ map D.fromString $
+            [ "  Expected: " ++ expectedHash
+            , "    Actual: " ++ actualHash
+            ]
         , D.reflow $
-            "I was expecting the hash of content to be " ++ expectedHash
-            ++ ", but it is " ++ actualHash
-        , D.reflow $
-            "Most likely the package author may have moved the version\
-            \ tag, so report it to them and see if that is the issue."
+            "This usually means that the package author moved the version\
+            \ tag, so report it to them and see if that is the issue. Folks\
+            \ on Elm slack can probably help as well."
         ]
 
 
