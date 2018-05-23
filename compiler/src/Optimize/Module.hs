@@ -308,9 +308,9 @@ data State =
 addRecDefs :: ModuleName.Canonical -> [Can.Def] -> Opt.Graph -> Opt.Graph
 addRecDefs home defs (Opt.Graph mains nodes fieldCounts) =
   let
-    valueNames = foldr addValueName [] defs
-    cycleName = Opt.Global home (N.toCompositeName valueNames)
-    cycle = Set.fromList valueNames
+    names = map toName defs
+    cycleName = Opt.Global home (N.toCompositeName names)
+    cycle = foldr addValueName Set.empty defs
     links = foldr (addLink home (Opt.Link cycleName)) Map.empty defs
 
     (deps, fields, State values funcs) =
@@ -323,11 +323,18 @@ addRecDefs home defs (Opt.Graph mains nodes fieldCounts) =
     (Map.unionWith (+) fields fieldCounts)
 
 
-addValueName :: Can.Def -> [N.Name] -> [N.Name]
+toName :: Can.Def -> N.Name
+toName def =
+  case def of
+    Can.Def      (A.At _ name) _ _     -> name
+    Can.TypedDef (A.At _ name) _ _ _ _ -> name
+
+
+addValueName :: Can.Def -> Set.Set N.Name -> Set.Set N.Name
 addValueName def names =
   case def of
-    Can.Def      (A.At _ name)   args _   -> if null args then name:names else names
-    Can.TypedDef (A.At _ name) _ args _ _ -> if null args then name:names else names
+    Can.Def      (A.At _ name)   args _   -> if null args then Set.insert name names else names
+    Can.TypedDef (A.At _ name) _ args _ _ -> if null args then Set.insert name names else names
 
 
 addLink :: ModuleName.Canonical -> Opt.Node -> Can.Def -> Map.Map Opt.Global Opt.Node -> Map.Map Opt.Global Opt.Node
