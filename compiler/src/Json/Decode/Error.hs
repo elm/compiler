@@ -47,7 +47,7 @@ toDoc rootName source userErrorToDocs err =
         [] ->
           D.reflow
             "I am not sure what is wrong with this JSON. Please create an <http://sscce.org>\
-            \ and share it at <https://github.com/elm-lang/elm-compiler/issues> so I can\
+            \ and share it at <https://github.com/elm/compiler/issues> so I can\
             \ provide a helpful hint here!"
 
         [flatError] ->

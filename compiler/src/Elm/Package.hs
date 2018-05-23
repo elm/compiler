@@ -71,7 +71,7 @@ data Package =
 
 isKernel :: Name -> Bool
 isKernel (Name author _) =
-  author == "elm-lang" || author == "elm-explorations"
+  author == "elm" || author == "elm-explorations"
 
 
 toString :: Name -> String
@@ -179,49 +179,49 @@ dummyName =
 {-# NOINLINE kernel #-}
 kernel :: Name
 kernel =
-  Name "elm-lang" "kernel"
+  Name "elm" "kernel"
 
 
 {-# NOINLINE core #-}
 core :: Name
 core =
-  Name "elm-lang" "core"
+  Name "elm" "core"
 
 
 {-# NOINLINE browser #-}
 browser :: Name
 browser =
-  Name "elm-lang" "browser"
+  Name "elm" "browser"
 
 
 {-# NOINLINE virtualDom #-}
 virtualDom :: Name
 virtualDom =
-  Name "elm-lang" "virtual-dom"
+  Name "elm" "virtual-dom"
 
 
 {-# NOINLINE html #-}
 html :: Name
 html =
-  Name "elm-lang" "html"
+  Name "elm" "html"
 
 
 {-# NOINLINE json #-}
 json :: Name
 json =
-  Name "elm-lang" "json"
+  Name "elm" "json"
 
 
 {-# NOINLINE http #-}
 http :: Name
 http =
-  Name "elm-lang" "http"
+  Name "elm" "http"
 
 
 {-# NOINLINE url #-}
 url :: Name
 url =
-  Name "elm-lang" "url"
+  Name "elm" "url"
 
 
 {-# NOINLINE webgl #-}

@@ -504,7 +504,7 @@ problemToDocs problem =
                   "I do not have any suggestions though!"
               , D.reflow $
                   "Can you get it down to a <http://sscce.org> and share it at\
-                  \ <https://github.com/elm-lang/error-message-catalog/issues>?\
+                  \ <https://github.com/elm/error-message-catalog/issues>?\
                   \ That way we can figure out how to give better advice!"
               ]
 

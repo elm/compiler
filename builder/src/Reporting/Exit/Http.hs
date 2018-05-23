@@ -85,7 +85,7 @@ badJsonToDocs badJson =
     BadNewPkg txt ->
       ["I","ran","into",D.red (D.fromString (show txt)) <> ","
       ,"but","I","need","entries","like"
-      ,D.green "\"elm-lang/core@6.0.0\"" <> "."
+      ,D.green "\"elm/core@6.0.0\"" <> "."
       ]
 
     BadAllPkg txt suggestion ->

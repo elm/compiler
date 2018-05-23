@@ -123,7 +123,7 @@ isPlatformPackage project =
         (Pkg.Name user _) =
           _pkg_name info
       in
-        user == "elm-lang" || user == "elm-explorations"
+      user == "elm" || user == "elm-explorations"
 
 
 get :: (AppInfo -> a) -> (PkgInfo -> a) -> Project -> a

@@ -33,7 +33,7 @@ module AST.Canonical
   where
 
 {- Creating a canonical AST means finding the home module for all variables.
-So if you have L.map, you need to figure out that it is from the elm-lang/core
+So if you have L.map, you need to figure out that it is from the elm/core
 package in the List module.
 
 In later phases (e.g. type inference, exhaustiveness checking, optimization)

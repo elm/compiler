@@ -167,7 +167,7 @@ authorDistance bad possibility =
 
 projectDistance :: String -> Text.Text -> Int
 projectDistance bad possibility =
-  if possibility == "elm-lang" || possibility == "elm-explorations" then
+  if possibility == "elm" || possibility == "elm-explorations" then
     0
   else
     abs (Suggest.distance bad (Text.unpack possibility))
@@ -246,7 +246,7 @@ errorToDocs err =
   details
   ++
   ["This","should","not","happen","in","general,","so","please","report","this","at"
-  ,"<https://github.com/elm-lang/package.elm-lang.org/issues>"
+  ,"<https://github.com/elm/package.elm-lang.org/issues>"
   ,"if","you","think","it","is","on","the","Elm","side!"
   ]
 

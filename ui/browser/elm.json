@@ -5,21 +5,21 @@
     ],
     "elm-version": "0.19.0",
     "dependencies": {
-        "elm-explorations/markdown": "1.0.0",
-        "elm-lang/browser": "1.0.0",
-        "elm-lang/core": "6.0.0",
-        "elm-lang/html": "3.0.0",
-        "elm-lang/http": "2.0.0",
-        "elm-lang/json": "1.0.0",
-        "elm-lang/project-metadata-utils": "1.0.0",
-        "elm-lang/svg": "3.0.0"
+        "elm/browser": "1.0.0",
+        "elm/core": "1.0.0",
+        "elm/html": "1.0.0",
+        "elm/http": "1.0.0",
+        "elm/json": "1.0.0",
+        "elm/project-metadata-utils": "1.0.0",
+        "elm/svg": "1.0.0",
+        "elm-explorations/markdown": "1.0.0"
     },
     "test-dependencies": {},
     "do-not-edit-this-by-hand": {
         "transitive-dependencies": {
-            "elm-lang/parser": "1.0.0",
-            "elm-lang/url": "1.0.0",
-            "elm-lang/virtual-dom": "3.0.0"
+            "elm/parser": "1.0.0",
+            "elm/url": "1.0.0",
+            "elm/virtual-dom": "1.0.0"
         }
     }
 }

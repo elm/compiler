@@ -109,22 +109,22 @@ elmJsonProblemToReport problem =
 
     NoPkgCore ->
       Help.report "MISSING DEPENDENCY" (Just "elm.json")
-        "A package must have \"elm-lang/core\" as a dependency. Try running:"
-        [ D.indent 4 $ D.green $ "elm install elm-lang/core"
+        "A package must have \"elm/core\" as a dependency. Try running:"
+        [ D.indent 4 $ D.green $ "elm install elm/core"
         , D.reflow "I need it for the default imports that make `List` and `Maybe` available."
         ]
 
     NoAppCore ->
       Help.report "MISSING DEPENDENCY" (Just "elm.json")
-        "An application must have \"elm-lang/core\" as a dependency. Try running:"
-        [ D.indent 4 $ D.green $ "elm install elm-lang/core"
+        "An application must have \"elm/core\" as a dependency. Try running:"
+        [ D.indent 4 $ D.green $ "elm install elm/core"
         , D.reflow "It has some supporting code that is needed by every Elm application!"
         ]
 
     NoAppJson ->
       Help.report "MISSING DEPENDENCY" (Just "elm.json")
-        "An application must have \"elm-lang/json\" as a dependency. Try running:"
-        [ D.indent 4 $ D.green $ "elm install elm-lang/json"
+        "An application must have \"elm/json\" as a dependency. Try running:"
+        [ D.indent 4 $ D.green $ "elm install elm/json"
         , D.reflow "It helps me handle flags and ports."
         ]
 
@@ -154,7 +154,6 @@ elmJsonProblemToReport problem =
               "The " ++ packagesAre ++ " available in \"" ++ field1
               ++ "\", so it is redundant to list it again in \"" ++ field2
               ++ "\". It is already available! " ++ advice
-          , D.reflow "More help at <https://github.com/elm-lang/elm-package/blob/master/TODO>"
           ]
 
 

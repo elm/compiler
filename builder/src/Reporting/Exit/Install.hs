@@ -32,9 +32,9 @@ toReport exit =
       Help.report "INSTALL WHAT?" Nothing
         "I am expecting commands like:"
         [ D.green $ D.indent 4 $ D.vcat $
-            [ "elm install elm-lang/http"
-            , "elm install elm-lang/json"
-            , "elm install elm-lang/random"
+            [ "elm install elm/http"
+            , "elm install elm/json"
+            , "elm install elm/random"
             ]
         , D.toFancyHint
             ["In","JavaScript","folks","run","`npm install`","to","start","projects."

@@ -96,4 +96,4 @@ deciderHasDebug decider =
 
 
 -- TODO: FIND GLOBALLY UNUSED DEFINITIONS?
--- TODO: FIND PACKAGE USAGE STATS? (e.g. elm-lang/core = 142, author/project = 2, etc.)
+-- TODO: FIND PACKAGE USAGE STATS? (e.g. elm/core = 142, author/project = 2, etc.)

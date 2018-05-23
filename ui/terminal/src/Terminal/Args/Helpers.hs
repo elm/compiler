@@ -119,7 +119,7 @@ examplePackages string =
 
     _ ->
       return
-        [ "elm-lang/http"
-        , "elm-lang/json"
+        [ "elm/http"
+        , "elm/json"
         , "elm-community/random-extra"
         ]

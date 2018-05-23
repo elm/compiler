@@ -875,7 +875,7 @@ toExprReport source localizer exprRegion category tipe expected =
                   , "But this update needs it to be compatable with:"
                   , [ D.reflow
                         "Do you mind creating an <http://sscce.org/> that produces this error message and\
-                        \ sharing it at <https://github.com/elm-lang/error-message-catalog/issues> so we\
+                        \ sharing it at <https://github.com/elm/error-message-catalog/issues> so we\
                         \ can try to give better advice here?"
                     ]
                   )

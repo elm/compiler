@@ -328,7 +328,7 @@ printWelcomeMessage =
   D.toAnsi IO.stdout $
     D.vcat
       [ D.black "----" <+> D.dullcyan title <+> D.black (D.fromString dashes)
-      , D.black " :help for help, :exit to exit, more at <https://github.com/elm-lang/elm-repl>"
+      , D.black $ D.fromString $ "Read " <> D.makeLink "repl" <> " to learn more: exit, help, imports, etc."
       , D.black "--------------------------------------------------------------------------------"
       , D.empty
       ]
@@ -361,7 +361,7 @@ genericHelpMessage =
   \  :help    Show this information\n\
   \  :reset   Clear all previous imports and definitions\n\
   \\n\
-  \More info at <https://github.com/elm-lang/elm/blob/" ++ elmVersion ++ "/help/repl.md>\n"
+  \More info at " ++ D.makeLink "repl" ++ "\n"
 
 
 

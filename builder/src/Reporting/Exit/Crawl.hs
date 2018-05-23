@@ -149,8 +149,8 @@ problemToReport problem =
     EffectsUnexpected path name ->
       badTagToDoc path name "effect" "effect-modules" $
         "Creating `effect` modules is relatively experimental. There are a\
-        \ couple in @elm-lang repos right now, but we have decided to be\
-        \ very cautious in expanding its usage."
+        \ couple in @elm repos right now, but we have decided to be very\
+        \ cautious in expanding its usage."
 
 
 badTagToDoc :: FilePath -> Module.Raw -> String -> String -> String -> Help.Report

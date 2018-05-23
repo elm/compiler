@@ -34,7 +34,7 @@ toReport exit =
       Help.report "CANNOT DIFF APPLICATIONS" Nothing
         "I cannot perform diffs on applications, only packages! If you are\
         \ just curious to see a diff, try running this command:"
-        [ D.indent 4 $ D.green $ "elm diff elm-lang/html 5.1.1 6.0.0"
+        [ D.indent 4 $ D.green $ "elm diff elm/html 5.1.1 6.0.0"
         ]
 
     UnknownPackage pkg suggestions ->

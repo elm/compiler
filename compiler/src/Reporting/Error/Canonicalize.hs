@@ -478,10 +478,10 @@ toReport source err =
               D.stack
                 [ D.reflow $
                     "If you want the behavior of (%) like in JavaScript, switch to:\
-                    \ <https://package.elm-lang.org/packages/elm-lang/core/latest/Basics#remainderBy>"
+                    \ <https://package.elm-lang.org/packages/elm/core/latest/Basics#remainderBy>"
                 , D.reflow $
                     "If you want modular arithmetic like in math, switch to:\
-                    \ <https://package.elm-lang.org/packages/elm-lang/core/latest/Basics#modBy>"
+                    \ <https://package.elm-lang.org/packages/elm/core/latest/Basics#modBy>"
                 , D.reflow $
                     "The difference is how things work when negative numbers are involved."
                 ]
@@ -683,7 +683,7 @@ toReport source err =
           error
             "There is some compiler bug in reporting cyclic definitions.\n\
             \Please get a <http://sscce.org/> and share the details at\n\
-            \<https://github.com/elm-lang/elm-compiler/issues>"
+            \<https://github.com/elm/compiler/issues>"
 
         A.At region name : otherNames ->
           Report.Report "CYCLIC DEFINITION" region [] $
@@ -1189,7 +1189,7 @@ modHint =
   [ "Rather", "than", "a", D.dullyellow "(%)", "operator,"
   , "Elm", "has", "a", D.green "modBy", "function."
   , "Learn", "more", "here:"
-  , "<https://package.elm-lang.org/packages/elm-lang/core/latest/Basics#modBy>"
+  , "<https://package.elm-lang.org/packages/elm/core/latest/Basics#modBy>"
   ]
 
 
