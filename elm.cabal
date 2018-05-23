@@ -38,7 +38,7 @@ Executable elm
     if flag(dev)
         ghc-options: -O0 -Wall -Werror
     else
-        ghc-options: -O2 -fsimpl-tick-factor=200
+        ghc-options: -O2 -fsimpl-tick-factor=200 -rtsopts
 
     Hs-Source-Dirs:
         compiler/src
