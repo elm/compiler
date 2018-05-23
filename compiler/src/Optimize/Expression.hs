@@ -1,8 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Optimize.Expression
-  ( Cycle
-  , optimize
+  ( optimize
   , destructArgs
   , optimizePotentialTailCall
   )
@@ -113,7 +112,7 @@ optimize cycle (A.At region expression) =
       case defs of
         [def] ->
           Opt.Let
-            <$> optimizePotentialTailCall cycle def
+            <$> optimizePotentialTailCallDef cycle def
             <*> optimize cycle body
 
         _ ->
@@ -342,18 +341,21 @@ destructCtorArg path revDs (Can.PatternCtorArg index _ arg) =
 -- TAIL CALL
 
 
-optimizePotentialTailCall :: Cycle -> Can.Def -> Names.Tracker Opt.Def
-optimizePotentialTailCall cycle def =
+optimizePotentialTailCallDef :: Cycle -> Can.Def -> Names.Tracker Opt.Def
+optimizePotentialTailCallDef cycle def =
   case def of
     Can.Def (A.At _ name) args expr ->
-      do  (argNames, destructors) <- destructArgs args
-          toTailDef name argNames destructors <$>
-            optimizeTail cycle name argNames expr
+      optimizePotentialTailCall cycle name args expr
 
     Can.TypedDef (A.At _ name) _ typedArgs expr _ ->
-      do  (argNames, destructors) <- destructArgs (map fst typedArgs)
-          toTailDef name argNames destructors <$>
-            optimizeTail cycle name argNames expr
+      optimizePotentialTailCall cycle name (map fst typedArgs) expr
+
+
+optimizePotentialTailCall :: Cycle -> N.Name -> [Can.Pattern] -> Can.Expr -> Names.Tracker Opt.Def
+optimizePotentialTailCall cycle name args expr =
+  do  (argNames, destructors) <- destructArgs args
+      toTailDef name argNames destructors <$>
+        optimizeTail cycle name argNames expr
 
 
 optimizeTail :: Cycle -> N.Name -> [N.Name] -> Can.Expr -> Names.Tracker Opt.Expr
@@ -392,7 +394,7 @@ optimizeTail cycle rootName argNames locExpr@(A.At _ expression) =
       case defs of
         [def] ->
           Opt.Let
-            <$> optimizePotentialTailCall cycle def
+            <$> optimizePotentialTailCallDef cycle def
             <*> optimizeTail cycle rootName argNames body
 
         _ ->

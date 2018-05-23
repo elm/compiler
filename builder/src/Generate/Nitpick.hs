@@ -39,7 +39,7 @@ nodeHasDebug node =
     Opt.Enum _                  -> False
     Opt.Box                     -> False
     Opt.Link _                  -> False
-    Opt.Cycle defs _            -> any (hasDebug . snd) defs
+    Opt.Cycle vs fs _           -> any (hasDebug . snd) vs || any defHasDebug fs
     Opt.Manager _               -> False
     Opt.Kernel _ _              -> False
     Opt.PortIncoming expr _     -> hasDebug expr

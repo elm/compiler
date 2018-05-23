@@ -180,9 +180,9 @@ addGlobalHelp mode graph global state =
     Opt.Link linkedGlobal ->
       addGlobal mode graph state linkedGlobal
 
-    Opt.Cycle cycle deps ->
+    Opt.Cycle values functions deps ->
       addStmt (addDeps deps state) (
-        generateCycle mode global cycle
+        generateCycle mode global values functions
       )
 
     Opt.Manager effectsType ->
@@ -249,13 +249,24 @@ isDebugger (Opt.Global (ModuleName.Canonical _ home) _) =
 -- GENERATE CYCLES
 
 
-generateCycle :: Mode.Mode -> Opt.Global -> [(N.Name, Opt.Expr)] -> JS.Stmt
-generateCycle mode (Opt.Global home _) cycle =
+generateCycle :: Mode.Mode -> Opt.Global -> [(N.Name, Opt.Expr)] -> [Opt.Def] -> JS.Stmt
+generateCycle mode (Opt.Global home _) values functions =
   let
-    safeDefs = map (generateSafeCycle mode home) cycle
-    realDefs = map (generateRealCycle home) cycle
+    funcDefs = map (generateCycleFunc mode home) functions
+    safeDefs = map (generateSafeCycle mode home) values
+    realDefs = map (generateRealCycle home) values
   in
-  JS.Block (safeDefs ++ realDefs)
+  JS.Block (funcDefs ++ safeDefs ++ realDefs)
+
+
+generateCycleFunc :: Mode.Mode -> ModuleName.Canonical -> Opt.Def -> JS.Stmt
+generateCycleFunc mode home def =
+  case def of
+    Opt.Def name expr ->
+      JS.Var [ (Name.fromGlobal home name, Just (Expr.codeToExpr (Expr.generate mode expr))) ]
+
+    Opt.TailDef name args expr ->
+      JS.Var [ (Name.fromGlobal home name, Just (Expr.codeToExpr (Expr.generateTailDef mode name args expr))) ]
 
 
 generateSafeCycle :: Mode.Mode -> ModuleName.Canonical -> (N.Name, Opt.Expr) -> JS.Stmt

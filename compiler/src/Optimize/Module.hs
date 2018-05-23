@@ -301,74 +301,66 @@ addDefNode home name args body mainDeps graph =
 data State =
   State
     { _values :: [(N.Name, Opt.Expr)]
-    , _graph :: Opt.Graph
+    , _functions :: [Opt.Def]
     }
 
 
 addRecDefs :: ModuleName.Canonical -> [Can.Def] -> Opt.Graph -> Opt.Graph
-addRecDefs home defs graph =
+addRecDefs home defs (Opt.Graph mains nodes fieldCounts) =
   let
-    cycleValues = foldr addValueName Set.empty defs
-    dummyName = Opt.Global home (N.toCompositeName (Set.toList cycleValues))
+    valueNames = foldr addValueName [] defs
+    cycleName = Opt.Global home (N.toCompositeName valueNames)
+    cycle = Set.fromList valueNames
+    links = foldr (addLink home (Opt.Link cycleName)) Map.empty defs
 
-    (deps, fields, State cyclicValuePairs newGraph) =
+    (deps, fields, State values funcs) =
       Names.run $
-        foldM (addRecDef home dummyName cycleValues) (State [] graph) defs
+        foldM (addRecDef cycle) (State [] []) defs
   in
-  addToGraph dummyName (Opt.Cycle cyclicValuePairs deps) fields newGraph
+  Opt.Graph
+    mains
+    (Map.insert cycleName (Opt.Cycle values funcs deps) (Map.union links nodes))
+    (Map.unionWith (+) fields fieldCounts)
 
 
-addValueName :: Can.Def -> Set.Set N.Name -> Set.Set N.Name
-addValueName def valueNames =
+addValueName :: Can.Def -> [N.Name] -> [N.Name]
+addValueName def names =
   case def of
-    Can.Def (A.At _ name) [] _ ->
-      Set.insert name valueNames
+    Can.Def      (A.At _ name)   args _   -> if null args then name:names else names
+    Can.TypedDef (A.At _ name) _ args _ _ -> if null args then name:names else names
 
-    Can.TypedDef (A.At _ name) _ [] _ _ ->
-      Set.insert name valueNames
 
-    _ ->
-      valueNames
+addLink :: ModuleName.Canonical -> Opt.Node -> Can.Def -> Map.Map Opt.Global Opt.Node -> Map.Map Opt.Global Opt.Node
+addLink home link def links =
+  case def of
+    Can.Def (A.At _ name) _ _ ->
+      Map.insert (Opt.Global home name) link links
+
+    Can.TypedDef (A.At _ name) _ _ _ _ ->
+      Map.insert (Opt.Global home name) link links
 
 
 
 -- ADD RECURSIVE DEFS
 
 
-addRecDef :: ModuleName.Canonical -> Opt.Global -> Expr.Cycle -> State -> Can.Def -> Names.Tracker State
-addRecDef home dummyName cycle state@(State values graph) def =
+addRecDef :: Set.Set N.Name -> State -> Can.Def -> Names.Tracker State
+addRecDef cycle state def =
   case def of
-    Can.Def (A.At _ name) [] body ->
-      addRecValue home dummyName cycle name body state
+    Can.Def (A.At _ name) args body ->
+      addRecDefHelp cycle state name args body
 
-    Can.TypedDef (A.At _ name) _ [] body _ ->
-      addRecValue home dummyName cycle name body state
-
-    _ ->
-      let
-        (deps, fields, odef) =
-          Names.run (Expr.optimizePotentialTailCall cycle def)
-      in
-      pure $ State values $
-        case odef of
-          Opt.Def name body ->
-            let node = Opt.Define body deps in
-            addToGraph (Opt.Global home name) node fields graph
-
-          Opt.TailDef name args body ->
-            let node = Opt.DefineTailFunc args body deps in
-            addToGraph (Opt.Global home name) node fields graph
+    Can.TypedDef (A.At _ name) _ args body _ ->
+      addRecDefHelp cycle state name (map fst args) body
 
 
-addRecValue :: ModuleName.Canonical -> Opt.Global -> Expr.Cycle -> N.Name -> Can.Expr -> State -> Names.Tracker State
-addRecValue home dummyName cycle name body (State values (Opt.Graph mains nodes fields)) =
-  do  obody <- Expr.optimize cycle body
+addRecDefHelp :: Set.Set N.Name -> State -> N.Name -> [Can.Pattern] -> Can.Expr -> Names.Tracker State
+addRecDefHelp cycle (State values funcs) name args body =
+  case args of
+    [] ->
+      do  obody <- Expr.optimize cycle body
+          pure $ State ((name, obody) : values) funcs
 
-      let global = Opt.Global home name
-      let node = Opt.Link dummyName
-
-      pure $
-        State
-          { _values = (name, obody) : values
-          , _graph = Opt.Graph mains (Map.insert global node nodes) fields
-          }
+    _:_ ->
+      do  odef <- Expr.optimizePotentialTailCall cycle name args body
+          pure $ State values (odef : funcs)
