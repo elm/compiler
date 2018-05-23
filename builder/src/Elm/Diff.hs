@@ -102,8 +102,12 @@ getPackageInfo =
 
         Project.Pkg (Project.PkgInfo name _ _ _ _ _ _ _) ->
           do  registry <- Cache.mandatoryUpdate
-              let vsns = either (const []) id (Cache.getVersions name registry)
-              return ( summary, name, vsns )
+              case Cache.getVersions name registry of
+                Right vsns ->
+                  return ( summary, name, vsns )
+
+                Left _ ->
+                  throw E.Unpublished
 
 
 
