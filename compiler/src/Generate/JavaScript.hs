@@ -71,10 +71,14 @@ perfNote mode =
       ""
 
     Mode.Dev _ Nothing ->
-      "console.warn('Compiled in DEV mode. Follow the advice at https://elm-lang.org/0.19.0/optimize for better performance and smaller assets.');"
+      "console.warn('Compiled in DEV mode. Follow the advice at "
+      <> B.stringUtf8 (D.makeNakedLink "optimize")
+      <> " for better performance and smaller assets.');"
 
     Mode.Dev _ (Just _) ->
-      "console.warn('Compiled in DEBUG mode. Follow the advice at https://elm-lang.org/0.19.0/optimize for better performance and smaller assets.');"
+      "console.warn('Compiled in DEBUG mode. Follow the advice at "
+      <> B.stringUtf8 (D.makeNakedLink "optimize")
+      <> " for better performance and smaller assets.');"
 
 
 
