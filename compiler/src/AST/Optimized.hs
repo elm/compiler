@@ -150,7 +150,7 @@ data Node
   | Enum Index.ZeroBased
   | Box
   | Link Global
-  | Cycle [(N.Name, Expr)] [Def] (Set.Set Global)
+  | Cycle [N.Name] [(N.Name, Expr)] [Def] (Set.Set Global)
   | Manager EffectsType
   | Kernel KContent (Maybe KContent)
   | PortIncoming Expr (Set.Set Global)
@@ -344,7 +344,7 @@ instance Binary Node where
       Enum a               -> putWord8  3 >> put a
       Box                  -> putWord8  4
       Link a               -> putWord8  5 >> put a
-      Cycle a b c          -> putWord8  6 >> put a >> put b >> put c
+      Cycle a b c d        -> putWord8  6 >> put a >> put b >> put c >> put d
       Manager a            -> putWord8  7 >> put a
       Kernel a b           -> putWord8  8 >> put a >> put b
       PortIncoming a b     -> putWord8  9 >> put a >> put b
@@ -359,7 +359,7 @@ instance Binary Node where
           3  -> liftM  Enum get
           4  -> return Box
           5  -> liftM  Link get
-          6  -> liftM3 Cycle get get get
+          6  -> liftM4 Cycle get get get get
           7  -> liftM  Manager get
           8  -> liftM2 Kernel get get
           9  -> liftM2 PortIncoming get get

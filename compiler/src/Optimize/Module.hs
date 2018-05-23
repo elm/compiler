@@ -308,7 +308,7 @@ data State =
 addRecDefs :: ModuleName.Canonical -> [Can.Def] -> Opt.Graph -> Opt.Graph
 addRecDefs home defs (Opt.Graph mains nodes fieldCounts) =
   let
-    names = map toName defs
+    names = reverse (map toName defs)
     cycleName = Opt.Global home (N.toCompositeName names)
     cycle = foldr addValueName Set.empty defs
     links = foldr (addLink home (Opt.Link cycleName)) Map.empty defs
@@ -319,7 +319,7 @@ addRecDefs home defs (Opt.Graph mains nodes fieldCounts) =
   in
   Opt.Graph
     mains
-    (Map.insert cycleName (Opt.Cycle values funcs deps) (Map.union links nodes))
+    (Map.insert cycleName (Opt.Cycle names values funcs deps) (Map.union links nodes))
     (Map.unionWith (+) fields fieldCounts)
 
 

@@ -184,9 +184,9 @@ addGlobalHelp mode graph global state =
     Opt.Link linkedGlobal ->
       addGlobal mode graph state linkedGlobal
 
-    Opt.Cycle values functions deps ->
+    Opt.Cycle names values functions deps ->
       addStmt (addDeps deps state) (
-        generateCycle mode global values functions
+        generateCycle mode global names values functions
       )
 
     Opt.Manager effectsType ->
@@ -253,14 +253,28 @@ isDebugger (Opt.Global (ModuleName.Canonical _ home) _) =
 -- GENERATE CYCLES
 
 
-generateCycle :: Mode.Mode -> Opt.Global -> [(N.Name, Opt.Expr)] -> [Opt.Def] -> JS.Stmt
-generateCycle mode (Opt.Global home _) values functions =
+generateCycle :: Mode.Mode -> Opt.Global -> [N.Name] -> [(N.Name, Opt.Expr)] -> [Opt.Def] -> JS.Stmt
+generateCycle mode (Opt.Global home _) names values functions =
   let
-    funcDefs = map (generateCycleFunc mode home) functions
-    safeDefs = map (generateSafeCycle mode home) values
-    realDefs = map (generateRealCycle home) values
+    funcBlock = JS.Block $ map (generateCycleFunc mode home) functions
+    safeBlock = JS.Block $ map (generateSafeCycle mode home) values
+    realBlock = JS.Block $ map (generateRealCycle home) values
   in
-  JS.Block (funcDefs ++ safeDefs ++ realDefs)
+  case mode of
+    Mode.Prod _ _ ->
+      JS.Block [ funcBlock, safeBlock, realBlock ]
+
+    Mode.Dev _ _ ->
+      let
+        tryRealBlock =
+          JS.Try realBlock Name.dollar $ JS.Throw $ JS.String $
+            "Some top-level definitions from `" <> N.toBuilder (ModuleName._module home) <> "` are causing infinite recursion:\\n"
+            <> drawCycle names
+            <> "\\n\\nThese errors are very tricky, so read "
+            <> B.stringUtf8 (D.makeNakedLink "halting-problem")
+            <> " to learn how to fix it!"
+      in
+      JS.Block [ funcBlock, safeBlock, tryRealBlock ]
 
 
 generateCycleFunc :: Mode.Mode -> ModuleName.Canonical -> Opt.Def -> JS.Stmt
@@ -290,6 +304,17 @@ generateRealCycle home (name, _) =
     , JS.ExprStmt $ JS.Assign (JS.LRef safeName) $
         JS.Function Nothing [] [ JS.Return (Just (JS.Ref realName)) ]
     ]
+
+
+drawCycle :: [N.Name] -> B.Builder
+drawCycle names =
+  let
+    topLine       = "\\n  ┌─────┐"
+    nameLine name = "\\n  │    " <> N.toBuilder name
+    midLine       = "\\n  │     ↓"
+    bottomLine    = "\\n  └─────┘"
+  in
+  mconcat (topLine : List.intersperse midLine (map nameLine names) ++ [ bottomLine ])
 
 
 
