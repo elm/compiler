@@ -50,7 +50,7 @@ toEncoder tipe =
           | name == N.int    -> encode "int"
           | name == N.bool   -> encode "bool"
           | name == N.string -> encode "string"
-          | name == N.value  -> encode "value"
+          | name == N.value  -> Names.registerGlobal ModuleName.basics N.identity
 
         [arg]
           | name == N.maybe -> encodeMaybe arg
