@@ -238,9 +238,9 @@ read path =
         Left err ->
           throwBadJson (E.BadJson err)
 
-        Right project@(Pkg (PkgInfo _ _ _ _ _ deps tests _)) ->
+        Right project@(Pkg (PkgInfo name _ _ _ _ deps tests _)) ->
           do  checkOverlap "dependencies" "test-dependencies" deps tests
-              pkgHasCore deps
+              pkgHasCore name deps
               return project
 
         Right project@(App (AppInfo _ srcDirs deps tests trans)) ->
@@ -287,9 +287,9 @@ appHasCoreAndJson pkgs =
     throwBadJson E.NoAppCore
 
 
-pkgHasCore :: Map Name a -> Task.Task ()
-pkgHasCore pkgs =
-  if Map.member Pkg.core pkgs
+pkgHasCore :: Name -> Map Name a -> Task.Task ()
+pkgHasCore name pkgs =
+  if name == Pkg.core || Map.member Pkg.core pkgs
     then return ()
     else throwBadJson E.NoPkgCore
 
