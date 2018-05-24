@@ -121,7 +121,7 @@ generateMonolith mode maybeOutput (Summary.Summary _ project _ _ _) graph rootNa
           liftIO $
           case maybeOutput of
             Nothing ->
-              IO.writeBuilder "elm.js" monolith
+              IO.writeBuilder "index.html" (Html.sandwich name monolith)
 
             Just output_ ->
               case output_ of
