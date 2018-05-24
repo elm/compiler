@@ -108,14 +108,3 @@ fromList func list =
 add :: (a -> b) -> Bag b -> a -> Bag b
 add func bag value =
   Two (One (func value)) bag
-
-
-
--- MONOID
-
-
-instance Monoid (Bag a) where
-  {-# INLINE mempty #-}
-  mempty = Empty
-  {-# INLINE mappend #-}
-  mappend = Two
