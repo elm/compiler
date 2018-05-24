@@ -115,7 +115,7 @@ getStatus env statusMVars foreigns name (Header.Info path time src deps) =
                         Nothing -> return True
                         Just _ -> isFresh time docs
 
-                    if freshElmi && freshDocs
+                    if name /= "Main" && freshElmi && freshDocs
                       then
                         do  let canonical = Module.Canonical (_pkg env) name
                             writeChan (_queue env) (Get canonical elmi)
