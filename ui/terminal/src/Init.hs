@@ -11,6 +11,7 @@ import Control.Monad.Trans (liftIO)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Monoid ((<>))
 import qualified Network.HTTP.Client as Client
+import qualified System.Directory as Dir
 
 import qualified Elm.Compiler.Version as Compiler
 import qualified Elm.Package as Pkg
@@ -85,17 +86,18 @@ init flags =
 
 download :: String -> Task.Task ()
 download projectType =
-  do  fetch (projectType ++ "/elm.json")
-      fetch (projectType ++ "/src/Main.elm")
+  do  fetch projectType "elm.json"     $ return ()
+      fetch projectType "src/Main.elm" $ Dir.createDirectoryIfMissing True "src"
 
 
-fetch :: FilePath -> Task.Task ()
-fetch path =
+fetch :: String -> FilePath -> IO () -> Task.Task ()
+fetch projectType path setup =
   Http.run $
     Http.anything
-    ("https://experiment.elm-lang.org/" ++ vsn ++ "/init/" ++ path)
+    ("https://experiment.elm-lang.org/" ++ vsn ++ "/init/" ++ projectType ++ "/" ++ path)
     (\request manager ->
         do  response <- Client.httpLbs request manager
+            setup
             Right <$> LBS.writeFile path (Client.responseBody response)
     )
 
