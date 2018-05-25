@@ -38,7 +38,7 @@ toEncoder tipe =
       error "toEncoder: type variable"
 
     Can.TUnit ->
-      encode "null"
+      Opt.Function [N.dollar] <$> encode "null"
 
     Can.TTuple a b c ->
       encodeTuple a b c
