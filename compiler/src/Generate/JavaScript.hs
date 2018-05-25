@@ -255,26 +255,26 @@ isDebugger (Opt.Global (ModuleName.Canonical _ home) _) =
 
 generateCycle :: Mode.Mode -> Opt.Global -> [N.Name] -> [(N.Name, Opt.Expr)] -> [Opt.Def] -> JS.Stmt
 generateCycle mode (Opt.Global home _) names values functions =
-  let
-    funcBlock = JS.Block $ map (generateCycleFunc mode home) functions
-    safeBlock = JS.Block $ map (generateSafeCycle mode home) values
-    realBlock = JS.Block $ map (generateRealCycle home) values
-  in
-  case mode of
-    Mode.Prod _ _ ->
-      JS.Block [ funcBlock, safeBlock, realBlock ]
+  JS.Block
+    [ JS.Block $ map (generateCycleFunc mode home) functions
+    , JS.Block $ map (generateSafeCycle mode home) values
+    , case map (generateRealCycle home) values of
+        [] ->
+          JS.EmptyStmt
 
-    Mode.Dev _ _ ->
-      let
-        tryRealBlock =
-          JS.Try realBlock Name.dollar $ JS.Throw $ JS.String $
-            "Some top-level definitions from `" <> N.toBuilder (ModuleName._module home) <> "` are causing infinite recursion:\\n"
-            <> drawCycle names
-            <> "\\n\\nThese errors are very tricky, so read "
-            <> B.stringUtf8 (D.makeNakedLink "halting-problem")
-            <> " to learn how to fix it!"
-      in
-      JS.Block [ funcBlock, safeBlock, tryRealBlock ]
+        realBlock@(_:_) ->
+            case mode of
+              Mode.Prod _ _ ->
+                JS.Block realBlock
+
+              Mode.Dev _ _ ->
+                JS.Try (JS.Block realBlock) Name.dollar $ JS.Throw $ JS.String $
+                  "Some top-level definitions from `" <> N.toBuilder (ModuleName._module home) <> "` are causing infinite recursion:\\n"
+                  <> drawCycle names
+                  <> "\\n\\nThese errors are very tricky, so read "
+                  <> B.stringUtf8 (D.makeNakedLink "halting-problem")
+                  <> " to learn how to fix it!"
+    ]
 
 
 generateCycleFunc :: Mode.Mode -> ModuleName.Canonical -> Opt.Def -> JS.Stmt
