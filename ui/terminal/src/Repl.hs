@@ -91,8 +91,8 @@ readHelp starter lines =
 
         Just line ->
           if not (null line) && last line == '\\'
-            then readHelp "| " (init line : lines)
-            else return $ toInput $ List.intercalate "\n" $ reverse (line : lines)
+            then readHelp "|   " (init line : lines)
+            else return $ toInput $ List.intercalate "\n  " $ reverse (line : lines)
 
 
 
