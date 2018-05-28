@@ -309,9 +309,10 @@ codePointToBits code =
     wordToBits code
 
   else
-    wordToBits ((code `div` 0x400) + 0xD800)
-    ++
-    wordToBits ((code `mod` 0x400) + 0xDC00)
+    let
+      (hi,lo) = divMod (code - 0x10000) 0x400
+    in
+    wordToBits (hi + 0xD800) ++ wordToBits (lo + 0xDC00)
 
 
 wordToBits :: Int -> [Char]
