@@ -3,6 +3,7 @@ module Reporting.Exit.Crawl
   ( Exit(..)
   , Problem(..)
   , Origin(..)
+  , SrcDirs(..)
   , toReport
   )
   where
@@ -36,7 +37,7 @@ data Exit
 
 
 data Problem
-  = ModuleNotFound Origin Module.Raw [FilePath]
+  = ModuleNotFound Origin Module.Raw SrcDirs
   | ModuleAmbiguous Origin Module.Raw [FilePath] [Pkg.Package]
   | BadHeader FilePath Time.UTCTime BS.ByteString Compiler.Error
   | ModuleNameReservedForKernel Origin Module.Raw
@@ -53,6 +54,11 @@ data Origin
   = ElmJson
   | File FilePath
   | Module FilePath Module.Raw
+
+
+data SrcDirs
+  = App [FilePath]
+  | Pkg
 
 
 
@@ -113,8 +119,8 @@ toReport exit =
 problemToReport :: Problem -> Help.Report
 problemToReport problem =
   case problem of
-    ModuleNotFound origin name dirs ->
-      notFoundToDoc origin name dirs
+    ModuleNotFound origin name srcDirs ->
+      notFoundToDoc origin name srcDirs
 
     ModuleAmbiguous origin child paths pkgs ->
       ambiguousToDoc origin child paths pkgs
@@ -173,7 +179,7 @@ badTagToDoc path name tag hintName summary =
 
 
 
--- HELPERS
+-- NAMELESS
 
 
 namelessToDoc :: FilePath -> Module.Raw -> Help.Report
@@ -194,31 +200,34 @@ namelessToDoc path name =
     ]
 
 
-notFoundToDoc :: Origin -> Module.Raw -> [FilePath] -> Help.Report
-notFoundToDoc origin child dirs =
+
+-- NOT FOUND
+
+
+notFoundToDoc :: Origin -> Module.Raw -> SrcDirs -> Help.Report
+notFoundToDoc origin child srcDirs =
   case origin of
     ElmJson ->
       Help.report "MODULE NOT FOUND" (Just "elm.json")
         "Your elm.json says your project has the following module:"
         [ D.indent 4 $ D.red $ D.fromString $ Module.nameToString child
         , D.reflow $
-            "When creating packages, all modules must live in the\
-            \ src/ directory, but I cannot find it there."
+            "When creating packages, all modules must live in the src/ directory."
         ]
 
     File path ->
       Help.report "UNKNOWN IMPORT" (Just path)
         ("I cannot find a `" ++ Module.nameToString child ++ "` module to import.")
-        (notFoundDetails child dirs)
+        (notFoundDetails child srcDirs)
 
     Module path parent ->
       Help.report "UNKNOWN IMPORT" (Just path)
         ("The " ++ Module.nameToString parent ++ " module has a bad import:")
-        (notFoundDetails child dirs)
+        (notFoundDetails child srcDirs)
 
 
-notFoundDetails :: Module.Raw -> [FilePath] -> [D.Doc]
-notFoundDetails child dirs =
+notFoundDetails :: Module.Raw -> SrcDirs -> [D.Doc]
+notFoundDetails child srcDirs =
   let
     simulatedCode =
       D.indent 4 $ D.red $ D.fromString $ "import " ++ Module.nameToString child
@@ -230,26 +239,37 @@ notFoundDetails child dirs =
           "Do you want the one from the " ++ Pkg.toString pkg
           ++ " package? If so, run this command to add that dependency to your elm.json file:"
       , D.indent 4 $ D.green $ D.fromString $ "elm install " ++ Pkg.toString pkg
-      , D.reflow $
-          "If you want a local file, make sure the directory that contains the `"
-          ++ Module.nameToString child
-          ++ "` module is listed in your elm.json \"source-directories\" field."
+      , case srcDirs of
+          Pkg ->
+            D.reflow $
+              "If you want a local file, make sure the `"
+              ++ Module.nameToString child
+              ++ "` module is in your src/ directory."
+
+          App _ ->
+            D.reflow $
+              "If you want a local file, make sure the `"
+              ++ Module.nameToString child
+              ++ "` module is in one of the \"source-directories\" listed in your elm.json file."
       ]
 
     Nothing ->
       [ simulatedCode
       , "I cannot find that module! Is there a typo in the module name?"
       , D.reflow $
-          case dirs of
-            [] ->
+          case srcDirs of
+            Pkg ->
+              "When creating a package, all modules must live in the src/ directory."
+
+            App [] ->
               "The \"source-directories\" field of your elm.json is empty, so I only\
               \ searched in packages. Maybe you need to add a \"src\" directory there?"
 
-            [dir] ->
+            App [dir] ->
               "The \"source-directories\" field of your elm.json tells me to only look in the "
               ++ dir ++ " directory, but it is not there. Maybe it is in a package that is not installed yet?"
 
-            dir:_:_ ->
+            App (dir:_:_) ->
               "The \"source-directories\" field of your elm.json tells me to look in directories like "
               ++ dir ++ ", but it is not in any of them. Maybe it is in a package that is not installed yet?"
       ]

@@ -45,7 +45,7 @@ find (Summary.Summary root project exposed _ _) origin name =
       case project of
         Project.App info ->
           do  let srcDirs = map toRoot (Project._app_source_dirs info)
-              findElm srcDirs exposed origin name
+              findElm project srcDirs exposed origin name
 
         Project.Pkg _ ->
           if N.startsWith "Elm.Kernel." name then
@@ -55,15 +55,15 @@ find (Summary.Summary root project exposed _ _) origin name =
               Task.throw $ E.ModuleNameReservedForKernel origin name
 
           else
-            findElm [ toRoot "src" ] exposed origin name
+            findElm project [ toRoot "src" ] exposed origin name
 
 
 
 -- FIND ELM
 
 
-findElm :: [FilePath] -> Summary.ExposedModules -> E.Origin -> Module.Raw -> Task.Task_ E.Problem Asset
-findElm srcDirs exposed origin name =
+findElm :: Project.Project -> [FilePath] -> Summary.ExposedModules -> E.Origin -> Module.Raw -> Task.Task_ E.Problem Asset
+findElm project srcDirs exposed origin name =
   do
       paths <- liftIO $ Maybe.catMaybes <$> mapM (elmExists name) srcDirs
 
@@ -75,7 +75,12 @@ findElm srcDirs exposed origin name =
             return (Foreign pkg)
 
         ([], Nothing) ->
-            Task.throw $ E.ModuleNotFound origin name srcDirs
+            case project of
+              Project.App _ ->
+                Task.throw $ E.ModuleNotFound origin name (E.App srcDirs)
+
+              Project.Pkg _ ->
+                Task.throw $ E.ModuleNotFound origin name E.Pkg
 
         (_, maybePkgs) ->
             Task.throw $ E.ModuleAmbiguous origin name paths (maybe [] id maybePkgs)
@@ -106,4 +111,4 @@ findKernel srcDir exposed origin name =
               return ForeignKernel
 
             _ ->
-              Task.throw $ E.ModuleNotFound origin name [srcDir]
+              Task.throw $ E.ModuleNotFound origin name E.Pkg
