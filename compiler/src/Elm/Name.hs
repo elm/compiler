@@ -26,7 +26,7 @@ module Elm.Name
   -- interned
   , int, float, bool, char, string
   , maybe, result, list, array, dict, tuple, jsArray
-  , task, router, cmd, sub, platform, browser, virtualDom
+  , task, router, cmd, sub, platform, virtualDom
   , shader, debug, debugger, bitwise, basics
   , utils, negate, true, false, value
   , node, program, main, dollar, identity
@@ -255,11 +255,6 @@ sub = "Sub"
 {-# NOINLINE platform #-}
 platform :: Name
 platform = "Platform"
-
-
-{-# NOINLINE browser #-}
-browser :: Name
-browser = "Browser"
 
 
 {-# NOINLINE virtualDom #-}
