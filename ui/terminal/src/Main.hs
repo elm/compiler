@@ -95,8 +95,8 @@ init =
 
     initFlags =
       flags Init.Flags
-        |-- onOff "embed" "Switch Browser.sandbox to Browser.embed, making it easier to jump into making HTTP requests, generating random values, asking the time, etc."
-        |-- onOff "fullscreen" "Switch Browser.sandbox to Browser.fullscreen, setting you up for a single-page app that controls the <title> and URL of the browser."
+        |-- onOff "element" "Initialize a Browser.element program, making it easier to jump into making HTTP requests, generating random values, asking the time, etc."
+        |-- onOff "document" "Initialize a Browser.document program, allowing you to control the <title> and and <body> of the browser."
   in
   Interface "init" (Common summary) details example noArgs initFlags Init.run
 

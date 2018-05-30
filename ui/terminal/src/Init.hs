@@ -29,8 +29,8 @@ import qualified Reporting.Progress.Terminal as Terminal
 
 data Flags =
   Flags
-    { _embed :: Bool
-    , _fullscreen :: Bool
+    { _element :: Bool
+    , _document :: Bool
     }
 
 
@@ -79,8 +79,8 @@ init :: Flags -> Task.Task ()
 init flags =
   case flags of
     Flags False False -> download "sandbox"
-    Flags True  False -> download "embed"
-    Flags False True  -> download "fullscreen"
+    Flags True  False -> download "element"
+    Flags False True  -> download "document"
     Flags _     _     -> Task.throw $ Exit.Init E.ClashingFlags
 
 
