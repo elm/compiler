@@ -28,26 +28,15 @@ sandwich moduleName javascript =
 </head>
 
 <body>
-<div id="embed"></div>
+<div id="elm-f0111bc4e658d0f98db96260c16f7e49"></div>
 <script>
 |] <> javascript <> [r|
 
-// It is too complicated to figure out which kind of Program you created
-// based on only the code. So here we check for different possibilities.
-//
-// When you embed compiled Elm into HTML yourself, you should not copy/paste
-// from here. Do just the part that makes sense for your application!
-//
-var app =
-    Elm.|] <> name <> [r|.fullscreen
-        ? Elm.|] <> name <> [r|.fullscreen()
-        :
-    Elm.|] <> name <> [r|.embed
-        ? Elm.|] <> name <> [r|.embed(document.getElementById('embed'))
-        :
-    Elm.|] <> name <> [r|.worker
-        ? (document.getElementById('embed').innerText = 'This is a headless program, meaning there is nothing to show here. I started the program anyway though, and you can access it as `app` in the developer console.', Elm.|] <> name <> [r|.worker())
-        : (document.getElementById('embed').innerText = 'I cannot figure out what kind of program this is supposed to be. Perhaps someone on Slack can help?', undefined);
+var app = Elm.|] <> name <> [r|.init({ node: document.getElementById("elm-f0111bc4e658d0f98db96260c16f7e49") });
+if (document.getElementById("elm-f0111bc4e658d0f98db96260c16f7e49"))
+{
+  document.getElementById("elm-f0111bc4e658d0f98db96260c16f7e49").innerText = 'This is a headless program, meaning there is nothing to show here.\n\nI started the program anyway though, and you can access it as `app` in the developer console.';
+}
 </script>
 </body>
 </html>|]
