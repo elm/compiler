@@ -624,7 +624,7 @@ badFlexFlexSuper s1 s2 =
         T.Appendable -> "appendable"
   in
     [ D.toSimpleHint $
-        "There are no values in Elm that are both"
+        "There are no values in Elm that are both "
         ++ likeThis s1 ++ " and " ++ likeThis s2 ++ "."
     ]
 
