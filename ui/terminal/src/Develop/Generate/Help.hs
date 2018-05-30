@@ -29,7 +29,7 @@ makePageHtml moduleName flags =
 </head>
 <body>
 <script>
-Elm.|] <> N.toBuilder moduleName <> [r|.fullscreen(|] <> flags <> [r|);
+Elm.|] <> N.toBuilder moduleName <> [r|.init({ flags: |] <> flags <> [r| });
 </script>
 </body>
 </html>

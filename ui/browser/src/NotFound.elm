@@ -9,15 +9,15 @@ import Html.Attributes exposing (..)
 
 main : Program () () ()
 main =
-  Browser.fullscreen
+  Browser.document
     { init = \_ -> ((), Cmd.none)
     , update = \_ _ -> ((), Cmd.none)
     , subscriptions = \_ -> Sub.none
-    , onNavigation = Nothing
     , view = \_ -> page
     }
 
 
+page : Browser.Document ()
 page =
   { title = "Page not found"
   , body =
