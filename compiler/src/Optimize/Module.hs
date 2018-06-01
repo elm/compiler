@@ -263,7 +263,7 @@ addDefHelp region annotations home name args body graph@(Opt.Graph mains nodes f
           Result.ok $ addMain $ Names.run $
             Names.registerKernel N.virtualDom Opt.Static
 
-      Can.TType hm nm [flags, message, _] | hm == ModuleName.platform && nm == N.program ->
+      Can.TType hm nm [flags, _, message] | hm == ModuleName.platform && nm == N.program ->
           case Effects.checkPayload flags of
             Right () ->
               Result.ok $ addMain $ Names.run $
