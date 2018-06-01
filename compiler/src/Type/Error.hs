@@ -19,6 +19,7 @@ module Type.Error
 
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
+import Data.Monoid ((<>))
 
 import qualified AST.Module.Name as ModuleName
 import qualified Data.Bag as Bag
@@ -75,11 +76,6 @@ iteratedDealias tipe =
 -- TO DOC
 
 
-nameToDoc :: L.Localizer -> ModuleName.Canonical -> N.Name -> D.Doc
-nameToDoc localizer (ModuleName.Canonical _ home) name =
-  L.toDoc localizer home name
-
-
 toDoc :: L.Localizer -> RT.Context -> Type -> D.Doc
 toDoc localizer ctx tipe =
   case tipe of
@@ -109,7 +105,7 @@ toDoc localizer ctx tipe =
 
     Type home name args ->
       RT.apply ctx
-        (nameToDoc localizer home name)
+        (L.toDoc localizer home name)
         (map (toDoc localizer RT.App) args)
 
     Record fields ext ->
@@ -131,7 +127,7 @@ toDoc localizer ctx tipe =
 aliasToDoc :: L.Localizer -> RT.Context -> ModuleName.Canonical -> N.Name -> [(N.Name, Type)] -> D.Doc
 aliasToDoc localizer ctx home name args =
   RT.apply ctx
-    (nameToDoc localizer home name)
+    (L.toDoc localizer home name)
     (map (toDoc localizer RT.App . snd) args)
 
 
@@ -273,48 +269,70 @@ toDiff localizer ctx tipe1 tipe2 =
       diffRecord localizer fields1 ext1 fields2 ext2
 
     (Type home1 name1 args1, Type home2 name2 args2) | home1 == home2 && name1 == name2 ->
-      RT.apply ctx (nameToDoc localizer home1 name1)
+      RT.apply ctx (L.toDoc localizer home1 name1)
         <$> sequenceA (zipWith (toDiff localizer RT.App) args1 args2)
 
     (Alias home1 name1 args1 _, Alias home2 name2 args2 _) | home1 == home2 && name1 == name2 ->
-      RT.apply ctx (nameToDoc localizer home1 name1)
+      RT.apply ctx (L.toDoc localizer home1 name1)
         <$> sequenceA (zipWith (toDiff localizer RT.App) (map snd args1) (map snd args2))
 
     -- start trying to find specific problems
 
+    (Type home1 name1 args1, Type home2 name2 args2) | L.toString localizer home1 name1 == L.toString localizer home2 name2 ->
+      different
+        (nameClashToDoc ctx localizer home1 name1 args1)
+        (nameClashToDoc ctx localizer home2 name2 args2)
+        Bag.empty
+
     (Type home name [t1], t2) | isMaybe home name && isSimilar (toDiff localizer ctx t1 t2) ->
       different
-        (RT.apply ctx (D.dullyellow (nameToDoc localizer home name)) [toDoc localizer RT.App t1])
+        (RT.apply ctx (D.dullyellow (L.toDoc localizer home name)) [toDoc localizer RT.App t1])
         (toDoc localizer ctx t2)
         (Bag.one AnythingFromMaybe)
 
     (t1, Type home name [t2]) | isList home name && isSimilar (toDiff localizer ctx t1 t2) ->
       different
         (toDoc localizer ctx t1)
-        (RT.apply ctx (D.dullyellow (nameToDoc localizer home name)) [toDoc localizer RT.App t2])
+        (RT.apply ctx (D.dullyellow (L.toDoc localizer home name)) [toDoc localizer RT.App t2])
         (Bag.one AnythingToList)
 
-    (Alias home name args t1, t2) ->
+    (Alias home1 name1 args1 t1, t2) ->
       case diffAliasedRecord localizer t1 t2 of
         Just (Diff _ doc2 status) ->
-          Diff (D.dullyellow (aliasToDoc localizer ctx home name args)) doc2 status
+          Diff (D.dullyellow (aliasToDoc localizer ctx home1 name1 args1)) doc2 status
 
         Nothing ->
-          different
-            (D.dullyellow (toDoc localizer ctx tipe1))
-            (D.dullyellow (toDoc localizer ctx tipe2))
-            Bag.empty
+          case t2 of
+            Type home2 name2 args2 | L.toString localizer home1 name1 == L.toString localizer home2 name2 ->
+              different
+                (nameClashToDoc ctx localizer home1 name1 (map snd args1))
+                (nameClashToDoc ctx localizer home2 name2 args2)
+                Bag.empty
 
-    (t1, Alias home name args t2) ->
+            _ ->
+              different
+                (D.dullyellow (toDoc localizer ctx tipe1))
+                (D.dullyellow (toDoc localizer ctx tipe2))
+                Bag.empty
+
+    (t1, Alias home2 name2 args2 t2) ->
       case diffAliasedRecord localizer t1 t2 of
         Just (Diff doc1 _ status) ->
-          Diff doc1 (D.dullyellow (aliasToDoc localizer ctx home name args)) status
+          Diff doc1 (D.dullyellow (aliasToDoc localizer ctx home2 name2 args2)) status
 
         Nothing ->
-          different
-            (D.dullyellow (toDoc localizer ctx tipe1))
-            (D.dullyellow (toDoc localizer ctx tipe2))
-            Bag.empty
+          case t1 of
+            Type home1 name1 args1 | L.toString localizer home1 name1 == L.toString localizer home2 name2 ->
+              different
+                (nameClashToDoc ctx localizer home1 name1 args1)
+                (nameClashToDoc ctx localizer home2 name2 (map snd args2))
+                Bag.empty
+
+            _ ->
+              different
+                (D.dullyellow (toDoc localizer ctx tipe1))
+                (D.dullyellow (toDoc localizer ctx tipe2))
+                Bag.empty
 
     pair ->
       let
@@ -427,6 +445,17 @@ isSuper super tipe =
 
     _ ->
       False
+
+
+
+-- NAME CLASH
+
+
+nameClashToDoc :: RT.Context -> L.Localizer -> ModuleName.Canonical -> N.Name -> [Type] -> D.Doc
+nameClashToDoc ctx localizer (ModuleName.Canonical _ home) name args =
+  RT.apply ctx
+    (D.yellow (D.fromName home) <> D.dullyellow ("." <> D.fromName name))
+    (map (toDoc localizer RT.App) args)
 
 
 

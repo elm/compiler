@@ -5,7 +5,7 @@ module Reporting.Doc
   , (P.<+>), (<>)
   , P.align, P.cat, P.empty, P.fill, P.fillSep, P.hang
   , P.hcat, P.hsep, P.indent, P.sep, P.vcat
-  , P.red, P.cyan, P.magenta, P.green, P.blue, P.black
+  , P.red, P.cyan, P.magenta, P.green, P.blue, P.black, P.yellow
   , P.dullred, P.dullcyan, P.dullyellow
 
   , fromString, fromText, fromName, fromInt
