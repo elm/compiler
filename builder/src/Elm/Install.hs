@@ -70,18 +70,10 @@ attemptElmJsonChange root oldProject toString changes =
       do  liftIO $ putStrLn "It is already installed!"
 
     PromoteTest newProject ->
-      attempt newProject $ D.vcat $
-       [ "I found it in your elm.json file!"
-       , "In \"test-dependencies\" though."
-       , "Should I move it into \"dependencies\" for more general use? [Y/n]: "
-       ]
+      attempt newProject $ requestPromotion "\"test-dependencies\""
 
     PromoteTrans newProject ->
-      attempt newProject $ D.vcat $
-       [ "I found it in your elm.json file!"
-       , "In \"transitive-dependencies\" though."
-       , "Should I move it into \"dependencies\" for more general use? [Y/n]: "
-       ]
+      attempt newProject $ requestPromotion "\"transitive-dependencies\""
 
     Changes changeDict newProject ->
       let
@@ -94,6 +86,20 @@ attemptElmJsonChange root oldProject toString changes =
         , ""
         , "Would you like me to update your elm.json accordingly? [Y/n]: "
         ]
+
+
+requestPromotion :: D.Doc -> D.Doc
+requestPromotion theWrongPlace =
+  D.vcat
+   [ D.fillSep
+      ["I","found","it","in","your","elm.json","file!"
+      ,"In",D.dullyellow theWrongPlace,"though."
+      ]
+   , D.fillSep
+      ["Should","I","move","it","into",D.green "\"dependencies\""
+      ,"for","more","general","use?","[Y/n]: "
+      ]
+   ]
 
 
 
