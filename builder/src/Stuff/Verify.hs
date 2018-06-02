@@ -5,14 +5,14 @@ module Stuff.Verify
   where
 
 
-import Prelude hiding (read)
-import qualified Data.Map as Map
+import Control.Monad (liftM2, liftM3, liftM4)
+import Data.Binary
 import Data.Map (Map)
 
+import qualified Elm.Compiler.Module as Module
 import Elm.Package (Name, Version)
 
 import qualified Deps.Verify as Verify
-import Elm.Project.Json (Project(..), PkgInfo(..))
 import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Constraint as Con
 import qualified Elm.Project.Summary as Summary
@@ -25,72 +25,99 @@ import qualified Stuff.Paths as Path
 -- VERIFY
 
 
-verify :: FilePath -> Project -> Task.Task Summary.Summary
+verify :: FilePath -> Project.Project -> Task.Task Summary.Summary
 verify root project =
-  do  fresh <-
-        IO.andM
-          [ IO.exists Path.solution
-          , IO.exists Path.summary
-          , checkSolution project
-          ]
+  do  exists <- IO.exists Path.summary
+      if exists
+        then
+          do  (MiniSummary deps exposed ifaces graph) <- IO.readBinary Path.summary
+              if isValidMiniSummary deps project
+                then
+                  return (Summary.Summary root project exposed ifaces graph)
+                else
+                  do  IO.remove Path.summary
+                      cacheSummary root project
+        else
+          cacheSummary root project
 
-      if fresh
-        then read root project
-        else rebuildCache root project
 
-
-rebuildCache :: FilePath -> Project -> Task.Task Summary.Summary
-rebuildCache root project =
-  do  IO.remove Path.solution
-      IO.remove Path.summary
-
-      (solution, summary) <- Verify.verify root project
-
-      IO.writeBinary Path.solution solution
-      write summary
+cacheSummary :: FilePath -> Project.Project -> Task.Task Summary.Summary
+cacheSummary root project =
+  do  summary@(Summary.Summary _ _ exposed ifaces graph) <- Verify.verify root project
+      IO.writeBinary Path.summary (MiniSummary (getDeps project) exposed ifaces graph)
       return summary
 
 
 
--- READ / WRITE
+-- MINI SUMMARY
 
 
-read :: FilePath -> Project -> Task.Task Summary.Summary
-read root project =
-  do  (exposed, ifaces, graph) <- IO.readBinary Path.summary
-      return (Summary.Summary root project exposed ifaces graph)
+data MiniSummary =
+  MiniSummary
+    { _deps :: ProjectDeps
+    , _exposed :: Summary.ExposedModules
+    , _ifaces :: Module.Interfaces
+    , _depsGraph :: Summary.DepsGraph
+    }
 
 
-write :: Summary.Summary -> Task.Task ()
-write (Summary.Summary _ _ exposed ifaces graph) =
-  IO.writeBinary Path.summary ( exposed, ifaces, graph )
+data ProjectDeps
+  = App (Map Name Version) (Map Name Version) (Map Name Version)
+  | Pkg (Map Name Con.Constraint) (Map Name Con.Constraint)
 
 
-
--- CHECK SOLUTION
-
-
-checkSolution :: Project -> Task.Task Bool
-checkSolution project =
-  checkSolutionHelp project <$> IO.readBinary Path.solution
-
-
-checkSolutionHelp :: Project -> Map Name Version -> Bool
-checkSolutionHelp project solution =
+getDeps :: Project.Project -> ProjectDeps
+getDeps project =
   case project of
-    App info ->
-      solution == Project.appSolution info
+    Project.App (Project.AppInfo _ _ direct test trans) ->
+      App direct test trans
 
-    Pkg info ->
-      allGood (_pkg_test_deps info) solution
-      && allGood (_pkg_deps info) solution
+    Project.Pkg (Project.PkgInfo _ _ _ _ _ direct test _) ->
+      Pkg direct test
 
 
-allGood :: Map Name Con.Constraint -> Map Name Version -> Bool
-allGood cons vsns =
-  let
-    bools =
-      Map.intersectionWith Con.satisfies cons vsns
-  in
-    Map.size cons == Map.size bools
-    && Map.foldr (&&) True bools
+isValidMiniSummary :: ProjectDeps -> Project.Project -> Bool
+isValidMiniSummary deps project =
+  case deps of
+    App cachedDirect cachedTest cachedTrans ->
+      case project of
+        Project.Pkg _ ->
+          False
+
+        Project.App (Project.AppInfo _ _ direct test trans) ->
+          cachedDirect == direct
+          && cachedTest == test
+          && cachedTrans == trans
+
+    Pkg cachedDirect cachedTest ->
+      case project of
+        Project.Pkg (Project.PkgInfo _ _ _ _ _ direct test _) ->
+          cachedDirect == direct
+          && cachedTest == test
+
+        Project.App _ ->
+          False
+
+
+
+-- BINARY
+
+
+instance Binary MiniSummary where
+  get = liftM4 MiniSummary get get get get
+  put (MiniSummary a b c d) = put a >> put b >> put c >> put d
+
+
+
+instance Binary ProjectDeps where
+  put deps =
+    case deps of
+      App a b c -> putWord8 0 >> put a >> put b >> put c
+      Pkg a b   -> putWord8 1 >> put a >> put b
+
+  get =
+    do  n <- getWord8
+        case n of
+          0 -> liftM3 App get get get
+          1 -> liftM2 Pkg get get
+          _ -> error "binary encoding of ProjectDeps was corrupted"

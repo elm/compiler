@@ -48,12 +48,11 @@ import qualified Stuff.Paths as Paths
 -- VERIFY
 
 
-verify :: FilePath -> Project -> Task.Task (Map Name Version, Summary.Summary)
+verify :: FilePath -> Project -> Task.Task Summary.Summary
 verify root project =
   do  solution <- Project.get verifyApp verifyPkg project
       (RawInfo infos ifaces) <- verifyArtifacts solution
-      let summary = Summary.init root project infos ifaces
-      return (solution, summary)
+      return (Summary.init root project infos ifaces)
 
 
 throw :: E.Exit -> Task.Task a

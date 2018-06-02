@@ -18,6 +18,9 @@ module Elm.Project.Constraint
   )
   where
 
+
+import Control.Monad (liftM4)
+import Data.Binary
 import qualified Data.Text as Text
 import Data.Text (Text)
 
@@ -232,3 +235,26 @@ expand constraint@(Range lower lowerOp upperOp upper) version
 
   | otherwise =
       constraint
+
+
+
+-- BINARY
+
+
+instance Binary Constraint where
+  get = liftM4 Range get get get get
+  put (Range a b c d) = put a >> put b >> put c >> put d
+
+
+instance Binary Op where
+  put op =
+    case op of
+      Less        -> putWord8 0
+      LessOrEqual -> putWord8 1
+
+  get =
+    do  n <- getWord8
+        case n of
+          0 -> return Less
+          1 -> return LessOrEqual
+          _ -> error "binary encoding of Op was corrupted"
