@@ -43,16 +43,6 @@ simple details example args_ flags_ callback =
           do  hPutStrLn stdout (Pkg.versionToString Compiler.version)
               Exit.exitSuccess
 
-        "autocomplete" : n : chunks ->
-          case Read.readMaybe n of
-            Nothing ->
-              Exit.exitFailure
-
-            Just index ->
-              do  suggestions <- fst $ Chomp.chomp (Just index) chunks args_ flags_
-                  hPutStr stdout (unlines suggestions)
-                  Exit.exitFailure
-
         chunks ->
           if elem "--help" chunks then
             Error.exitWithHelp Nothing details example args_ flags_
@@ -83,19 +73,8 @@ complex intro outro interfaces =
           do  hPutStrLn stdout (Pkg.versionToString Compiler.version)
               Exit.exitSuccess
 
-        "autocomplete" : n : chunks ->
-          case Read.readMaybe n of
-            Nothing ->
-              Exit.exitFailure
-
-            Just index ->
-              do  suggestions <- complexSuggest interfaces index chunks
-                  hPutStr stdout (unlines suggestions)
-                  Exit.exitFailure
-
         command : chunks ->
-          do  maybeAutoComplete argStrings (complexSuggest interfaces)
-              case List.find (\iface -> toName iface == command) interfaces of
+          do  case List.find (\iface -> toName iface == command) interfaces of
                 Nothing ->
                   Error.exitWithUnknown command (map toName interfaces)
 
@@ -116,8 +95,8 @@ complex intro outro interfaces =
 -- AUTO-COMPLETE
 
 
-maybeAutoComplete :: [String] -> (Int -> [String] -> IO [String]) -> IO ()
-maybeAutoComplete argStrings getSuggestions =
+_maybeAutoComplete :: [String] -> (Int -> [String] -> IO [String]) -> IO ()
+_maybeAutoComplete argStrings getSuggestions =
   if length argStrings /= 3 then
     return ()
   else
