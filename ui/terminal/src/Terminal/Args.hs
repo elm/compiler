@@ -48,15 +48,12 @@ simple details example args_ flags_ callback =
             Error.exitWithHelp Nothing details example args_ flags_
 
           else
-            do  maybeAutoComplete chunks $ \index cs ->
-                  fst $ Chomp.chomp (Just index) cs args_ flags_
+            case snd $ Chomp.chomp Nothing chunks args_ flags_ of
+              Right (argsValue, flagValue) ->
+                callback argsValue flagValue
 
-                case snd $ Chomp.chomp Nothing chunks args_ flags_ of
-                  Right (argsValue, flagValue) ->
-                    callback argsValue flagValue
-
-                  Left err ->
-                    Error.exitWithError err
+              Left err ->
+                Error.exitWithError err
 
 
 complex :: P.Doc -> P.Doc -> [Interface] -> IO ()
