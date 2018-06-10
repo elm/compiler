@@ -50,7 +50,11 @@ import qualified Stuff.Paths as Paths
 
 verify :: FilePath -> Project -> Task.Task Summary.Summary
 verify root project =
-  do  solution <- Project.get verifyApp verifyPkg project
+  do  solution <-
+        case project of
+          Project.App info -> verifyApp info
+          Project.Pkg info -> verifyPkg info
+
       (RawInfo infos ifaces) <- verifyArtifacts solution
       return (Summary.init root project infos ifaces)
 
