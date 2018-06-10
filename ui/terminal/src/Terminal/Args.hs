@@ -157,8 +157,8 @@ findIndex index point chunks =
         findIndex (index + 1) point cs
 
 
-complexSuggest :: [Interface] -> Int -> [String] -> IO [String]
-complexSuggest interfaces index strings =
+_complexSuggest :: [Interface] -> Int -> [String] -> IO [String]
+_complexSuggest interfaces index strings =
   case strings of
     [] ->
       return (map toName interfaces)
