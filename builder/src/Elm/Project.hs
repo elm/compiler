@@ -17,6 +17,7 @@ import System.FilePath ((</>))
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Docs as Docs
 import qualified Elm.Name as N
+import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Root as Root
 import qualified Elm.Project.Summary as Summary
 import Elm.Project.Summary (Summary)
@@ -58,7 +59,8 @@ compile
   -> [FilePath]
   -> Task.Task ()
 compile mode target maybeOutput docs summary@(Summary.Summary root project _ _ _) paths =
-  do  args <- Args.fromPaths summary paths
+  do  Project.check project
+      args <- Args.fromPaths summary paths
       graph <- Crawl.crawl summary args
       (dirty, ifaces) <- Plan.plan docs summary graph
       answers <- Compile.compile project docs ifaces dirty
@@ -74,6 +76,7 @@ compile mode target maybeOutput docs summary@(Summary.Summary root project _ _ _
 compileForRepl :: Bool -> L.Localizer -> BS.ByteString -> Maybe N.Name -> Task.Task (Maybe FilePath)
 compileForRepl noColors localizer source maybeName =
   do  summary@(Summary.Summary root project _ _ _) <- getRoot
+      Project.check project
       graph <- Crawl.crawlFromSource summary source
       (dirty, ifaces) <- Plan.plan Nothing summary graph
       answers <- Compile.compile project Nothing ifaces dirty
