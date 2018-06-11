@@ -10,6 +10,7 @@ import Control.Monad (filterM, void)
 import Control.Monad.Trans (liftIO)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Data.Map.Merge.Strict as Map
 import Data.Map (Map)
 import Data.Set (Set)
 import System.Directory (doesDirectoryExist)
@@ -65,7 +66,7 @@ throw exit =
 
 
 
--- VERIFY SOLUTION
+-- VERIFY APP
 
 
 verifyApp :: AppInfo -> Task.Task (Map Name Version)
@@ -74,7 +75,7 @@ verifyApp info =
     throw (E.AppBadElm (_app_elm_version info))
 
   else
-    do  let oldSolution = Project.appSolution info
+    do  oldSolution <- appToSolution info
         let solver = Solver.solve (Map.map Con.exactly oldSolution)
         registry <- Cache.optionalUpdate
         maybeSolution <- Explorer.run registry (Solver.run solver)
@@ -89,13 +90,17 @@ verifyApp info =
               throw (E.AppMissingTrans (Map.toList (Map.difference newSolution oldSolution)))
 
 
+
+-- VERIFY PKG
+
+
 verifyPkg :: PkgInfo -> Task.Task (Map Name Version)
 verifyPkg info =
   if not (Con.goodElm (_pkg_elm_version info)) then
     throw (E.PkgBadElm (_pkg_elm_version info))
 
   else
-    do  let deps = Map.union (_pkg_deps info) (_pkg_test_deps info)
+    do  deps <- union noDups (_pkg_deps info) (_pkg_test_deps info)
         let solver = Solver.solve deps
         registry <- Cache.optionalUpdate
         maybeSolution <- Explorer.run registry (Solver.run solver)
@@ -105,6 +110,35 @@ verifyPkg info =
 
           Just solution ->
             return solution
+
+
+
+-- APP TO SOLUTION
+
+
+appToSolution :: Project.AppInfo -> Task.Task (Map Name Version)
+appToSolution (Project.AppInfo _ _ depsDirect depsTrans testDirect testTrans) =
+  do  a <- union allowEqualDups depsTrans testDirect
+      b <- union noDups depsDirect testTrans
+      union noDups a b
+
+
+noDups :: Name -> a -> a -> Task.Task a
+noDups _ _ _ =
+  throw E.BadDeps
+
+
+allowEqualDups :: Name -> Version -> Version -> Task.Task Version
+allowEqualDups _ v1 v2 =
+  if v1 == v2 then
+    return v1
+  else
+    throw E.BadDeps
+
+
+union :: (Name -> a -> a -> Task.Task a) -> Map Name a -> Map Name a -> Task.Task (Map Name a)
+union tieBreaker deps1 deps2 =
+  Map.mergeA Map.preserveMissing Map.preserveMissing (Map.zipWithAMatched tieBreaker) deps1 deps2
 
 
 
