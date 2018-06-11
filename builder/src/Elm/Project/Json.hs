@@ -12,11 +12,10 @@ module Elm.Project.Json
   , read
   , pkgDecoder
   -- queries
-  , appSolution
   , isPlatformPackage
-  , get
   , getName
   , getExposed
+  , check
   )
   where
 
@@ -62,9 +61,10 @@ data AppInfo =
   AppInfo
     { _app_elm_version :: Version
     , _app_source_dirs :: [FilePath]
-    , _app_deps :: Map Name Version
-    , _app_test_deps :: Map Name Version
-    , _app_trans_deps :: Map Name Version
+    , _app_deps_direct :: Map Name Version
+    , _app_deps_trans :: Map Name Version
+    , _app_test_direct :: Map Name Version
+    , _app_test_trans :: Map Name Version
     }
 
 
@@ -103,15 +103,6 @@ defaultSummary =
 -- QUERIES
 
 
-appSolution :: AppInfo -> Map Name Version
-appSolution info =
-  Map.unions
-    [ _app_deps info
-    , _app_test_deps info
-    , _app_trans_deps info
-    ]
-
-
 isPlatformPackage :: Project -> Bool
 isPlatformPackage project =
   case project of
@@ -120,25 +111,20 @@ isPlatformPackage project =
 
     Pkg info ->
       let
-        (Pkg.Name user _) =
+        (Pkg.Name author _) =
           _pkg_name info
       in
-      user == "elm" || user == "elm-explorations"
-
-
-get :: (AppInfo -> a) -> (PkgInfo -> a) -> Project -> a
-get appFunc pkgFunc project =
-  case project of
-    App info ->
-      appFunc info
-
-    Pkg info ->
-      pkgFunc info
+      author == "elm" || author == "elm-explorations"
 
 
 getName :: Project -> Name
 getName project =
-  get (\_ -> Pkg.dummyName) _pkg_name project
+  case project of
+    App _ ->
+      Pkg.dummyName
+
+    Pkg info ->
+      _pkg_name info
 
 
 getExposed :: PkgInfo -> [Module.Raw]
@@ -149,6 +135,25 @@ getExposed info =
 
     ExposedDict chunks ->
       concatMap snd chunks
+
+
+check :: Project -> Task.Task ()
+check project =
+  case project of
+    Pkg (PkgInfo _ _ _ _ _ deps _ _) ->
+      if Map.member Pkg.core deps
+        then return ()
+        else throwBadJson E.NoPkgCore
+
+    App (AppInfo _ _ direct indirect _ _) ->
+      if Map.member Pkg.core direct then
+
+        if Map.member Pkg.json direct || Map.member Pkg.json indirect
+          then return ()
+          else throwBadJson E.NoAppJson
+
+      else
+        throwBadJson E.NoAppCore
 
 
 
@@ -167,15 +172,21 @@ write root project =
 encode :: Project -> E.Value
 encode project =
   case project of
-    App (AppInfo elm srcDirs deps tests trans) ->
+    App (AppInfo elm srcDirs depsDirect depsTrans testDirect testTrans) ->
       E.object
         [ "type" ==> E.text "application"
         , "source-directories" ==> E.list (E.text . Text.pack) srcDirs
         , "elm-version" ==> encodeVersion elm
-        , "dependencies" ==> encodeDeps encodeVersion deps
-        , "test-dependencies" ==> encodeDeps encodeVersion tests
-        , "do-not-edit-this-by-hand" ==>
-            E.object [ "transitive-dependencies" ==> encodeDeps encodeVersion trans ]
+        , "dependencies" ==>
+            E.object
+              [ "direct" ==> encodeDeps encodeVersion depsDirect
+              , "indirect" ==> encodeDeps encodeVersion depsTrans
+              ]
+        , "test-dependencies" ==>
+            E.object
+              [ "direct" ==> encodeDeps encodeVersion testDirect
+              , "indirect" ==> encodeDeps encodeVersion testTrans
+              ]
         ]
 
     Pkg (PkgInfo name summary license version exposed deps tests elm) ->
@@ -238,17 +249,11 @@ read path =
         Left err ->
           throwBadJson (E.BadJson err)
 
-        Right project@(Pkg (PkgInfo name _ _ _ _ deps tests _)) ->
-          do  checkOverlap "dependencies" "test-dependencies" deps tests
-              pkgHasCore name deps
-              return project
+        Right project@(Pkg _) ->
+          return project
 
-        Right project@(App (AppInfo _ srcDirs deps tests trans)) ->
-          do  checkOverlap "dependencies" "test-dependencies" deps tests
-              checkOverlap "dependencies" "transitive-dependencies" deps trans
-              checkOverlap "test-dependencies" "transitive-dependencies" tests trans
-              mapM_ doesDirectoryExist srcDirs
-              appHasCoreAndJson (Map.union deps trans)
+        Right project@(App (AppInfo _ srcDirs _ _ _ _)) ->
+          do  mapM_ doesDirectoryExist srcDirs
               return project
 
 
@@ -257,41 +262,12 @@ throwBadJson problem =
   Task.throw (Exit.Assets (E.BadElmJson problem))
 
 
-checkOverlap :: String -> String -> Map Name a -> Map Name a -> Task.Task ()
-checkOverlap field1 field2 deps1 deps2 =
-  case Map.keys (Map.intersection deps1 deps2) of
-    [] ->
-      return ()
-
-    dup : dups ->
-      throwBadJson (E.BadDepDup field1 field2 dup dups)
-
-
 doesDirectoryExist :: FilePath -> Task.Task ()
 doesDirectoryExist dir =
   do  exists <- liftIO $ Dir.doesDirectoryExist dir
       if exists
         then return ()
         else throwBadJson (E.BadSrcDir dir)
-
-
-appHasCoreAndJson :: Map Name a -> Task.Task ()
-appHasCoreAndJson pkgs =
-  if Map.member Pkg.core pkgs then
-
-    if Map.member Pkg.json pkgs
-      then return ()
-      else throwBadJson E.NoAppJson
-
-  else
-    throwBadJson E.NoAppCore
-
-
-pkgHasCore :: Name -> Map Name a -> Task.Task ()
-pkgHasCore name pkgs =
-  if name == Pkg.core || Map.member Pkg.core pkgs
-    then return ()
-    else throwBadJson E.NoPkgCore
 
 
 
@@ -321,9 +297,10 @@ appDecoder =
   AppInfo
     <$> D.field "elm-version" versionDecoder
     <*> D.field "source-directories" (D.list dirDecoder)
-    <*> D.field "dependencies" (depsDecoder versionDecoder)
-    <*> D.field "test-dependencies" (depsDecoder versionDecoder)
-    <*> D.at ["do-not-edit-this-by-hand", "transitive-dependencies"] (depsDecoder versionDecoder)
+    <*> D.field "dependencies" (D.field "direct" (depsDecoder versionDecoder))
+    <*> D.field "dependencies" (D.field "indirect" (depsDecoder versionDecoder))
+    <*> D.field "test-dependencies" (D.field "direct" (depsDecoder versionDecoder))
+    <*> D.field "test-dependencies" (D.field "indirect" (depsDecoder versionDecoder))
 
 
 pkgDecoder :: Decoder PkgInfo

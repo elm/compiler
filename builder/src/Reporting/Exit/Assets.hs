@@ -34,7 +34,6 @@ data Exit
 
 data ElmJsonProblem
   = BadJson D.Doc
-  | BadDepDup String String Pkg.Name [Pkg.Name]
   | BadSrcDir FilePath
   | NoPkgCore
   | NoAppCore
@@ -127,34 +126,6 @@ elmJsonProblemToReport problem =
         [ D.indent 4 $ D.green $ "elm install elm/json"
         , D.reflow "It helps me handle flags and ports."
         ]
-
-
-
-    BadDepDup field1 field2 dup dups ->
-      let
-        packagesAre =
-          if null dups then "package is" else "packages are"
-
-        advice =
-          if null dups then
-            "Delete one of the entries."
-          else
-            "Delete duplicates until each package lives in ONE category."
-      in
-        Help.report "BAD JSON" (Just "elm.json")
-          (
-            if null dups then
-              "The following package appears twice in your elm.json file:"
-            else
-              "The following packages appear twice in your elm.json file:"
-          )
-          [ D.dullyellow $ D.indent 4 $ D.vcat $
-              map (D.fromString . Pkg.toString) (dup:dups)
-          , D.reflow $
-              "The " ++ packagesAre ++ " available in \"" ++ field1
-              ++ "\", so it is redundant to list it again in \"" ++ field2
-              ++ "\". It is already available! " ++ advice
-          ]
 
 
 

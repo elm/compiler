@@ -52,7 +52,7 @@ init root project deps ifaces =
     exposed =
       case project of
         Project.App info ->
-          getExposed deps (_app_deps info)
+          getExposed deps (_app_deps_direct info)
 
         Project.Pkg info ->
           getExposed deps (_pkg_deps info)
