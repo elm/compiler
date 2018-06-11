@@ -5,7 +5,7 @@ module Stuff.Verify
   where
 
 
-import Control.Monad (liftM2, liftM3, liftM4)
+import Control.Monad (liftM2, liftM4)
 import Data.Binary
 import Data.Map (Map)
 
@@ -62,15 +62,15 @@ data MiniSummary =
 
 
 data ProjectDeps
-  = App (Map Name Version) (Map Name Version) (Map Name Version)
+  = App (Map Name Version) (Map Name Version) (Map Name Version) (Map Name Version)
   | Pkg (Map Name Con.Constraint) (Map Name Con.Constraint)
 
 
 getDeps :: Project.Project -> ProjectDeps
 getDeps project =
   case project of
-    Project.App (Project.AppInfo _ _ direct test trans) ->
-      App direct test trans
+    Project.App (Project.AppInfo _ _ depsDirect depsTrans testDirect testTrans) ->
+      App depsDirect depsTrans testDirect testTrans
 
     Project.Pkg (Project.PkgInfo _ _ _ _ _ direct test _) ->
       Pkg direct test
@@ -79,21 +79,18 @@ getDeps project =
 isValidMiniSummary :: ProjectDeps -> Project.Project -> Bool
 isValidMiniSummary deps project =
   case deps of
-    App cachedDirect cachedTest cachedTrans ->
+    App a b c d ->
       case project of
         Project.Pkg _ ->
           False
 
-        Project.App (Project.AppInfo _ _ direct test trans) ->
-          cachedDirect == direct
-          && cachedTest == test
-          && cachedTrans == trans
+        Project.App (Project.AppInfo _ _ a2 b2 c2 d2) ->
+          a == a2 && b == b2 && c == c2 && d == d2
 
-    Pkg cachedDirect cachedTest ->
+    Pkg a b ->
       case project of
-        Project.Pkg (Project.PkgInfo _ _ _ _ _ direct test _) ->
-          cachedDirect == direct
-          && cachedTest == test
+        Project.Pkg (Project.PkgInfo _ _ _ _ _ a2 b2 _) ->
+          a == a2 && b == b2
 
         Project.App _ ->
           False
@@ -112,12 +109,12 @@ instance Binary MiniSummary where
 instance Binary ProjectDeps where
   put deps =
     case deps of
-      App a b c -> putWord8 0 >> put a >> put b >> put c
-      Pkg a b   -> putWord8 1 >> put a >> put b
+      App a b c d -> putWord8 0 >> put a >> put b >> put c >> put d
+      Pkg a b     -> putWord8 1 >> put a >> put b
 
   get =
     do  n <- getWord8
         case n of
-          0 -> liftM3 App get get get
+          0 -> liftM4 App get get get get
           1 -> liftM2 Pkg get get
           _ -> error "binary encoding of ProjectDeps was corrupted"
