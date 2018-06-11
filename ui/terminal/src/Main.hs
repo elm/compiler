@@ -81,24 +81,18 @@ init :: Interface
 init =
   let
     summary =
-      "Start an Elm project. It creates two files (elm.json and src/Main.elm)\
-      \ and provides a couple links that explain how to get going with Elm."
+      "Start an Elm project. It creates a starter elm.json file and\
+      \ provides a link explaining what to do from there."
 
     details =
       "The `init` command helps start Elm projects:"
 
     example =
       reflow
-        "It asks permission to create two files (elm.json and src/Main.elm) that are\
-        \ common to all Elm projects. It also provides a couple links that explain what\
-        \ to do from there."
-
-    initFlags =
-      flags Init.Flags
-        |-- onOff "element" "Initialize a Browser.element program, making it easier to jump into making HTTP requests, generating random values, asking the time, etc."
-        |-- onOff "document" "Initialize a Browser.document program, allowing you to control the <title> and and <body> of the browser."
+        "It will ask permission to create an elm.json file, the one thing common\
+        \ to all Elm projects. It also provides a link explaining what to do from there."
   in
-  Interface "init" (Common summary) details example noArgs initFlags Init.run
+  Interface "init" (Common summary) details example noArgs noFlags Init.run
 
 
 
