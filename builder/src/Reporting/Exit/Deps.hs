@@ -99,15 +99,16 @@ toReport exit =
         ]
 
     BadDeps ->
-      Help.report "CLASHING PACKAGE DEPENDENCIES" (Just "elm.json")
+      Help.report "INVALID PACKAGE DEPENDENCIES" (Just "elm.json")
         "The dependencies in your elm.json are not compatible."
-        [ D.reflow $
-            "Did you change them by hand? Try to change it back! It is much\
-            \ better to add dependencies with commands like this:"
-        , D.indent 4 $ D.dullyellow "elm install elm/http"
+        [ D.fillSep
+            ["Did","you","change","them","by","hand?","Try","to","change","it","back!"
+            ,"It","is","much","better","to","add","dependencies","with",D.green "elm install"
+            ,"or","the","dependency","management","tool","in",D.green "elm reactor" <> "."
+            ]
         , D.reflow $
             "Please ask for help on the Elm slack <http://elmlang.herokuapp.com/> if\
-            \ you are running into something that seems trickier than this."
+            \ you try those paths and still cannot figure it out!"
         ]
 
     BuildFailure elmHome pkg vsn ->
