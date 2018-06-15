@@ -500,8 +500,8 @@ generateBasicsCall mode home name args =
 
     [elmLeft, elmRight] ->
       case name of
-        "composeL" -> decomposeL mode elmLeft [elmRight]
-        "composeR" -> decomposeR mode [elmLeft] elmRight
+        -- NOTE: removed "composeL" and "composeR" because of this issue:
+        -- https://github.com/elm/compiler/issues/1722
         "append"   -> append mode elmLeft elmRight
         "apL"      -> generateJsExpr mode $ apply elmLeft elmRight
         "apR"      -> generateJsExpr mode $ apply elmRight elmLeft
@@ -576,30 +576,6 @@ isLiteral expr =
 
     _ ->
       False
-
-
-decomposeL :: Mode.Mode -> Opt.Expr -> [Opt.Expr] -> JS.Expr
-decomposeL mode expr funcs =
-  case expr of
-    Opt.Call (Opt.VarGlobal (Opt.Global home "composeL")) [left, func]
-      | home == ModuleName.basics ->
-          decomposeL mode left (func:funcs)
-
-    _ ->
-      generateJsExpr mode $
-        Opt.Function [N.dollar] (foldr apply (Opt.VarLocal N.dollar) (expr:funcs))
-
-
-decomposeR :: Mode.Mode -> [Opt.Expr] -> Opt.Expr -> JS.Expr
-decomposeR mode funcs expr =
-  case expr of
-    Opt.Call (Opt.VarGlobal (Opt.Global home "composeR")) [func, right]
-      | home == ModuleName.basics ->
-          decomposeR mode (func:funcs) right
-
-    _ ->
-      generateJsExpr mode $
-        Opt.Function [N.dollar] (foldr apply (Opt.VarLocal N.dollar) (expr:funcs))
 
 
 apply :: Opt.Expr -> Opt.Expr -> Opt.Expr
