@@ -84,6 +84,7 @@ a:hover {
   padding: 7px 12px;
   background-color: #fafafa;
   text-align: center;
+  border-radius: 5px;
 }
 
 .box-item {
