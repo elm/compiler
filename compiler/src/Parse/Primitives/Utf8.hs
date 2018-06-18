@@ -226,6 +226,11 @@ multiString fp offset terminal row col initialOffset builder =
       multiString fp offset1 terminal (row + 1) 1 offset1 $
         addBits newlineBits fp initialOffset offset builder
 
+    else if word == 0x0D {- \r -} then
+      let !offset1 = offset + 1 in
+      multiString fp offset1 terminal (row + 1) 1 offset1 $
+        addBits carriageReturnBits fp initialOffset offset builder
+
     else if word == 0x5C {- \ -} then
       case eatEscape fp (offset + 1) terminal of
         EscapeNormal ->
@@ -342,6 +347,12 @@ singleQuoteBits =
 newlineBits :: Text.Builder
 newlineBits =
   "\\n"
+
+
+{-# NOINLINE carriageReturnBits #-}
+carriageReturnBits :: Text.Builder
+carriageReturnBits =
+  "\\r"
 
 
 

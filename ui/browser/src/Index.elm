@@ -205,7 +205,7 @@ viewDeps exactDeps project =
     dependencies =
       case project of
         Project.Application info ->
-          List.map (viewDependency exactDeps) info.deps
+          List.map (viewDependency exactDeps) info.depsDirect
 
         Project.Package info ->
           List.map (viewDependency exactDeps) info.deps
@@ -223,7 +223,7 @@ viewTestDeps exactDeps project =
     dependencies =
       case project of
         Project.Application info ->
-          List.map (viewDependency exactDeps) info.testDeps
+          List.map (viewDependency exactDeps) info.testDepsDirect
 
         Project.Package info ->
           List.map (viewDependency exactDeps) info.testDeps
@@ -257,5 +257,5 @@ viewDependency exactDeps (pkg, _) =
 
 toPackageUrl : Package.Name -> Version.Version -> String
 toPackageUrl name version =
-  "http://package.elm-lang.org/packages/"
+  "https://package.elm-lang.org/packages/"
   ++ Package.toString name ++ "/" ++ Version.toString version
