@@ -189,10 +189,11 @@ toReport source err =
           Report.toCodeSnippet source region Nothing
             (
               D.reflow $
-                "The `" <> N.toString name <> "` " <> thing <> " was given " <> D.args actual <> ":"
+                "The `" <> N.toString name <> "` " <> thing <> " needs "
+                <> D.args expected <> " but I see " <> show actual <> " instead:"
             ,
               D.reflow $
-                "But it needs " <> D.args expected <> ". What is missing? Are some parentheses misplaced?"
+                "What is missing? Are some parentheses misplaced?"
             )
 
       else
