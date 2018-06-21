@@ -228,7 +228,7 @@ install =
             \ commands, you could say `import Http` or `import Json.Decode` in your code."
         , reflow
             "What if two projects use different versions of the same package? No problem!\
-            \ Each project is independent, so there cannot be conflics like that!"
+            \ Each project is independent, so there cannot be conflicts like that!"
         ]
 
     installArgs =
