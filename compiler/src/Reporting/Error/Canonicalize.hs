@@ -454,7 +454,7 @@ toReport source err =
                 [ D.reflow "Switch to (/=) instead."
                 , D.toSimpleNote $
                     "Our (/=) operator is supposed to look like a real “not equal” sign (≠). I hope that history will remember ("
-                    ++ N.toString op ++ ") as a werid and temporary choice."
+                    ++ N.toString op ++ ") as a weird and temporary choice."
                 ]
             )
 
