@@ -190,7 +190,7 @@ toReport source err =
             (
               D.reflow $
                 "The `" <> N.toString name <> "` " <> thing <> " needs "
-                <> D.args expected <> " but I see " <> show actual <> " instead:"
+                <> D.args expected <> ", but I see " <> show actual <> " instead:"
             ,
               D.reflow $
                 "What is missing? Are some parentheses misplaced?"
