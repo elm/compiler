@@ -182,8 +182,8 @@ toReport exit =
             , "To tag the most recent commit and push it to GitHub, run this:"
             ]
         , D.indent 4 $ D.dullyellow $ D.vcat $ map D.fromString $
-            [ "git tag -a beta-" ++ vsn ++ " -m \"preparing for Elm 0.19\""
-            , "git push origin beta-" ++ vsn
+            [ "git tag -a rc1-" ++ vsn ++ " -m \"preparing for Elm 0.19\""
+            , "git push origin rc1-" ++ vsn
             ]
         , "The -m flag is for a helpful message. Try to make it more informative!"
         ]
