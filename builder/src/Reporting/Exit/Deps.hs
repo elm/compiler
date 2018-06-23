@@ -89,7 +89,7 @@ toReport exit =
           "\"" ++ Pkg.toString pkg ++ "\": \"" ++ Pkg.versionToString vsn ++ "\""
       in
       Help.report "MISSING DEPENDENCIES" (Just "elm.json")
-        "Your elm.json is missing some \"transitive-dependencies\" entries:"
+        "Your elm.json is missing some \"indirect\" dependencies:"
         [ D.indent 4 $ D.dullyellow $ D.vcat $ map (D.fromString . toEntry) missingDeps
         , D.fillSep
             ["This","usually","means","you","are","editing","elm.json","by","hand."
