@@ -11,14 +11,14 @@ This is a decent baseline for pretty much any applications made with Elm. You wi
     "elm-version": "0.19.0",
     "dependencies": {
         "direct": {
-            "elm-lang/browser": "1.0.0",
-            "elm-lang/core": "6.0.0",
-            "elm-lang/html": "3.0.0",
-            "elm-lang/json": "1.0.0"
+            "elm/browser": "1.0.0",
+            "elm/core": "1.0.0",
+            "elm/html": "1.0.0",
+            "elm/json": "1.0.0"
         },
         "indirect": {
-            "elm-lang/url": "1.0.0",
-            "elm-lang/virtual-dom": "3.0.0"
+            "elm/url": "1.0.0",
+            "elm/virtual-dom": "1.0.0"
         }
     },
     "test-dependencies": {
