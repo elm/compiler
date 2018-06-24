@@ -17,6 +17,7 @@ import qualified Data.List as List
 import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Text.Encoding as Text
+import qualified Data.Text
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
@@ -179,7 +180,7 @@ generate mode expression =
               ]
 
     Opt.Shader src ->
-      let string = JS.String (Text.encodeUtf8Builder src) in
+      let string = JS.String (Text.encodeUtf8Builder (Data.Text.replace "\n" "\\n" src)) in
       JsExpr $ JS.Object [ ( Name.fromLocal "src", string ) ]
 
 
