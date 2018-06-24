@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Parse.Shader
   ( shader
   )
@@ -28,10 +29,11 @@ import qualified Parse.Primitives.Shader as Shader
 
 shader :: R.Position -> Parser Src.Expr
 shader start@(R.Position row col) =
-  do  src <- Shader.block
-      shdr <- parseSource row col (Text.unpack src)
+  do  block <- Shader.block
+      shdr <- parseSource row col (Text.unpack block)
       end@(R.Position row2 col2) <- getPosition
       let uid = List.intercalate ":" (map show [row, col, row2, col2])
+      let src = Text.replace "\n" "\\n" (Text.replace "\r\n" "\\n" block)
       return (A.at start end (Src.Shader (Text.pack uid) src shdr))
 
 
