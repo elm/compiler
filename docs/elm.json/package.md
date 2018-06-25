@@ -1,11 +1,11 @@
 # `elm.json` for packages
 
-This is roughly `elm.json` for the `elm-lang/json` package:
+This is roughly `elm.json` for the `elm/json` package:
 
 ```json
 {
     "type": "package",
-    "name": "elm-lang/json",
+    "name": "elm/json",
     "summary": "Encode and decode JSON values",
     "license": "BSD-3-Clause",
     "version": "1.0.0",
@@ -15,7 +15,7 @@ This is roughly `elm.json` for the `elm-lang/json` package:
     ],
     "elm-version": "0.19.0 <= v < 0.20.0",
     "dependencies": {
-        "elm-lang/core": "6.0.0 <= v < 7.0.0"
+        "elm/core": "6.0.0 <= v < 7.0.0"
     },
     "test-dependencies": {}
 }
@@ -33,7 +33,7 @@ Either `"application"` or `"package"`. All the other fields are based on this ch
 
 ## `"name"`
 
-The name of a GitHub repo like `"elm-lang/core"` or `"rtfeldman/elm-css"`.
+The name of a GitHub repo like `"elm/core"` or `"rtfeldman/elm-css"`.
 
 > **Note:** We currently only support GitHub repos to ensure that there are no author name collisions. This seems like a pretty tricky problem to solve in a pleasant way. For example, do we have to keep an author name registry and give them out as we see them? But if someone is the same person on two platforms? And how to make this all happen in a way this is really nice for typical Elm users? Etc. So adding other hosting endpoints is harder than it sounds.
 
