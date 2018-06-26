@@ -1,11 +1,11 @@
 # `elm.json` for packages
 
-This is roughly `elm.json` for the `elm-lang/json` package:
+This is roughly `elm.json` for the `elm/json` package:
 
 ```json
 {
     "type": "package",
-    "name": "elm-lang/json",
+    "name": "elm/json",
     "summary": "Encode and decode JSON values",
     "license": "BSD-3-Clause",
     "version": "1.0.0",
@@ -15,7 +15,7 @@ This is roughly `elm.json` for the `elm-lang/json` package:
     ],
     "elm-version": "0.19.0 <= v < 0.20.0",
     "dependencies": {
-        "elm-lang/core": "6.0.0 <= v < 7.0.0"
+        "elm/core": "1.0.0 <= v < 2.0.0"
     },
     "test-dependencies": {}
 }
