@@ -88,10 +88,14 @@ getFlags :: FilePath -> FilePath -> IO Flags
 getFlags root pwd =
   do  (dirs, files) <- getDirsAndFiles pwd
       readme <- getReadme pwd
+      exists <- Dir.doesFileExist (root </> "elm.json")
 
       maybeSummary <-
-        Task.try Progress.silentReporter $
-          Verify.verify root =<< Project.read "elm.json"
+        if exists then
+          Task.try Progress.silentReporter $
+            Verify.verify root =<< Project.read (root </> "elm.json")
+        else
+          return Nothing
 
       return $
         Flags
