@@ -31,7 +31,7 @@ import qualified Stuff.Verify as Verify
 get :: FilePath -> FilePath -> IO B.Builder
 get root pwd =
   do  flags <- getFlags root pwd
-      return $ Help.makePageHtml "Index" (E.encode (encode flags))
+      return $ Help.makePageHtml "Index" (Just (encode flags))
 
 
 

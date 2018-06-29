@@ -13,13 +13,15 @@ import Data.Monoid ((<>))
 import Text.RawString.QQ (r)
 
 import qualified Elm.Name as N
+import qualified Json.Encode as Encode
+
 
 
 -- PAGES
 
 
-makePageHtml :: N.Name -> B.Builder -> B.Builder
-makePageHtml moduleName flags =
+makePageHtml :: N.Name -> Maybe Encode.Value -> B.Builder
+makePageHtml moduleName maybeFlags =
   [r|<!DOCTYPE HTML>
 <html>
 <head>
@@ -29,7 +31,7 @@ makePageHtml moduleName flags =
 </head>
 <body>
 <script>
-Elm.|] <> N.toBuilder moduleName <> [r|.init({ flags: |] <> flags <> [r| });
+Elm.|] <> N.toBuilder moduleName <> [r|.init({ flags: |] <> maybe "undefined" Encode.encode maybeFlags <> [r| });
 </script>
 </body>
 </html>

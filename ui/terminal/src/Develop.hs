@@ -98,7 +98,7 @@ error404 :: Snap ()
 error404 =
   do  modifyResponse $ setResponseStatus 404 "Not Found"
       modifyResponse $ setContentType "text/html; charset=utf-8"
-      writeBuilder $ Generate.makePageHtml "NotFound" ""
+      writeBuilder $ Generate.makePageHtml "NotFound" Nothing
 
 
 
@@ -173,7 +173,7 @@ compileToHtmlBuilder file =
       result <- takeMVar mvar1
       case result of
         Just exit ->
-          return $ Generate.makePageHtml "Errors" (Encode.encode (Exit.toJson exit))
+          return $ Generate.makePageHtml "Errors" (Just (Exit.toJson exit))
 
         Nothing ->
           takeMVar mvar2
