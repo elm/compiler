@@ -361,13 +361,20 @@ optimizePotentialTailCall cycle name args expr =
 optimizeTail :: Cycle -> N.Name -> [N.Name] -> Can.Expr -> Names.Tracker Opt.Expr
 optimizeTail cycle rootName argNames locExpr@(A.At _ expression) =
   case expression of
-    Can.Call func@(A.At _ (Can.VarTopLevel _ name)) args ->
+    Can.Call func args ->
       do  oargs <- traverse (optimize cycle) args
-          if name == rootName
+
+          let isMatchingName =
+                case A.toValue func of
+                  Can.VarLocal      name -> rootName == name
+                  Can.VarTopLevel _ name -> rootName == name
+                  _                      -> False
+
+          if isMatchingName
             then
               case Index.indexedZipWith (\_ a b -> (a,b)) argNames oargs of
                 Index.LengthMatch pairs ->
-                  pure $ Opt.TailCall name pairs
+                  pure $ Opt.TailCall rootName pairs
 
                 Index.LengthMismatch _ _ ->
                   do  ofunc <- optimize cycle func
