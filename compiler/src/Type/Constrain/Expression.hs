@@ -726,22 +726,22 @@ data TypedArgs =
 
 constrainTypedArgs :: Map.Map N.Name Type -> N.Name -> [(Can.Pattern, Can.Type)] -> Can.Type -> IO TypedArgs
 constrainTypedArgs rtv name args srcResultType =
-  do  resultType <- Instantiate.fromSrcType rtv srcResultType
-      typedArgsHelp rtv name Index.first args resultType Pattern.emptyState
+  typedArgsHelp rtv name Index.first args srcResultType Pattern.emptyState
 
 
-typedArgsHelp :: Map.Map N.Name Type -> N.Name -> Index.ZeroBased -> [(Can.Pattern, Can.Type)] -> Type -> Pattern.State -> IO TypedArgs
-typedArgsHelp rtv name index args resultType state =
+typedArgsHelp :: Map.Map N.Name Type -> N.Name -> Index.ZeroBased -> [(Can.Pattern, Can.Type)] -> Can.Type -> Pattern.State -> IO TypedArgs
+typedArgsHelp rtv name index args srcResultType state =
   case args of
     [] ->
-      return $ TypedArgs resultType resultType state
+      do  resultType <- Instantiate.fromSrcType rtv srcResultType
+          return $ TypedArgs resultType resultType state
 
     (pattern@(A.At region _), srcType) : otherArgs ->
       do  argType <- Instantiate.fromSrcType rtv srcType
           let expected = PFromContext region (PTypedArg name index) argType
 
-          (TypedArgs tipe result newState) <-
-            typedArgsHelp rtv name (Index.next index) otherArgs resultType =<<
+          (TypedArgs tipe resultType newState) <-
+            typedArgsHelp rtv name (Index.next index) otherArgs srcResultType =<<
               Pattern.add pattern expected state
 
-          return (TypedArgs (FunN argType tipe) result newState)
+          return (TypedArgs (FunN argType tipe) resultType newState)
