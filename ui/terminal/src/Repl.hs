@@ -310,7 +310,7 @@ addMatch :: String -> Bool -> N.Name -> v -> [Repl.Completion] -> [Repl.Completi
 addMatch string isFinished name _ completions =
   let suggestion = N.toString name in
   if List.isPrefixOf string suggestion then
-    Repl.Completion (drop (length string) suggestion) suggestion isFinished : completions
+    Repl.Completion suggestion suggestion isFinished : completions
   else
     completions
 
