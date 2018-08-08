@@ -140,8 +140,8 @@ getExposed info =
 check :: Project -> Task.Task ()
 check project =
   case project of
-    Pkg (PkgInfo _ _ _ _ _ deps _ _) ->
-      if Map.member Pkg.core deps
+    Pkg (PkgInfo name _ _ _ _ deps _ _) ->
+      if name == Pkg.core || Map.member Pkg.core deps
         then return ()
         else throwBadJson E.NoPkgCore
 
