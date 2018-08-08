@@ -668,7 +668,7 @@ recDefsHelp rtv defs bodyCon rigidInfo flexInfo =
               recDefsHelp rtv otherDefs bodyCon
                 ( Info
                     { _vars = Map.foldr (:) rigidVars newRigids
-                    , _cons = defCon : rigidCons
+                    , _cons = CLet (Map.elems newRigids) [] Map.empty defCon CTrue : rigidCons
                     , _headers = Map.insert name (A.At region tipe) rigidHeaders
                     }
                 )
