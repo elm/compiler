@@ -75,7 +75,7 @@ hasDebug expression =
     Opt.Record fs        -> any hasDebug fs
     Opt.Unit             -> False
     Opt.Tuple a b c      -> hasDebug a || hasDebug b || maybe False hasDebug c
-    Opt.Shader _         -> False
+    Opt.Shader _ _ _     -> False
 
 
 defHasDebug :: Opt.Def -> Bool

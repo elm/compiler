@@ -10,11 +10,13 @@ module Optimize.Expression
 
 import Prelude hiding (cycle)
 import Control.Monad (foldM)
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
+import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
 import qualified Elm.Name as N
 import qualified Optimize.Case as Case
@@ -168,8 +170,8 @@ optimize cycle (A.At region expression) =
         <*> optimize cycle b
         <*> traverse (optimize cycle) maybeC
 
-    Can.Shader _ src _ ->
-      pure (Opt.Shader src)
+    Can.Shader _ src (Shader.Shader attributes uniforms _varyings) ->
+      pure (Opt.Shader src (Map.keysSet attributes) (Map.keysSet uniforms))
 
 
 
