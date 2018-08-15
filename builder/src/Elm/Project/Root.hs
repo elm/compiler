@@ -88,7 +88,11 @@ replInfo =
     , Project._pkg_license = Licenses.bsd3
     , Project._pkg_version = Pkg.dummyVersion
     , Project._pkg_exposed = Project.ExposedList []
-    , Project._pkg_deps = Map.singleton Pkg.core Con.anything
+    , Project._pkg_deps =
+        Map.fromList
+          [ (Pkg.core, Con.anything)
+          , (Pkg.json, Con.anything)
+          ]
     , Project._pkg_test_deps = Map.empty
     , Project._pkg_elm_version = Con.defaultElm
     }
