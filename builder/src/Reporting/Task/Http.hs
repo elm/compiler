@@ -137,7 +137,7 @@ runHelp chan manager tell fetch =
 
 packageDomain :: String
 packageDomain =
-  "https://alpha.elm-lang.org"
+  "https://package.elm-lang.org"
 
 
 makePackageUrl :: String -> [(String,String)] -> String
