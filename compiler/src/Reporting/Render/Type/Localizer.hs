@@ -62,7 +62,7 @@ toDoc localizer home name =
 
 
 toString :: Localizer -> ModuleName.Canonical -> N.Name -> String
-toString (Localizer localizer) (ModuleName.Canonical _ home) name =
+toString (Localizer localizer) moduleName@(ModuleName.Canonical _ home) name =
   case Map.lookup home localizer of
     Nothing ->
       N.toString home <> "." <> N.toString name
@@ -75,6 +75,8 @@ toString (Localizer localizer) (ModuleName.Canonical _ home) name =
         Only set ->
           if Set.member name set then
             N.toString name
+          else if name == N.list && moduleName == ModuleName.list then
+            "List"
           else
             N.toString (maybe home id alias) <> "." <> N.toString name
 
