@@ -438,20 +438,20 @@ problemToHint problem =
     T.MissingArgs _ -> []
     T.ReturnMismatch -> []
 
-    T.BadFlexSuper super _ tipe ->
+    T.BadFlexSuper direction super _ tipe ->
       case tipe of
-        T.Lambda _ _ _   -> badFlexSuper super tipe
+        T.Lambda _ _ _   -> badFlexSuper direction super tipe
         T.Infinite       -> []
         T.Error          -> []
         T.FlexVar _      -> []
         T.FlexSuper s _  -> badFlexFlexSuper super s
         T.RigidVar y     -> badRigidVar y (toASuperThing super)
         T.RigidSuper s _ -> badRigidSuper s (toASuperThing super)
-        T.Type _ _ _     -> badFlexSuper super tipe
-        T.Record _ _     -> badFlexSuper super tipe
-        T.Unit           -> badFlexSuper super tipe
-        T.Tuple _ _ _    -> badFlexSuper super tipe
-        T.Alias _ _ _ _  -> badFlexSuper super tipe
+        T.Type _ _ _     -> badFlexSuper direction super tipe
+        T.Record _ _     -> badFlexSuper direction super tipe
+        T.Unit           -> badFlexSuper direction super tipe
+        T.Tuple _ _ _    -> badFlexSuper direction super tipe
+        T.Alias _ _ _ _  -> badFlexSuper direction super tipe
 
     T.BadRigidVar x tipe ->
       case tipe of
@@ -535,7 +535,7 @@ badDoubleRigid x y =
   [ D.toSimpleHint $
       "Your type annotation uses `" ++ N.toString x ++ "` and `" ++ N.toString y ++
       "` as separate type variables. Your code seems to be saying they are the\
-      \ same though! Maybe they should be the same in your type annotation?\
+      \ same though. Maybe they should be the same in your type annotation?\
       \ Maybe your code uses them in a weird way?"
   , D.reflowLink "Read" "type-annotations" "for more advice!"
   ]
@@ -554,30 +554,16 @@ toASuperThing super =
 -- BAD SUPER HINTS
 
 
-badFlexSuper :: T.Super -> T.Type -> [D.Doc]
-badFlexSuper super tipe =
+badFlexSuper :: T.Direction -> T.Super -> T.Type -> [D.Doc]
+badFlexSuper direction super tipe =
   case super of
     T.Comparable ->
       [ D.toSimpleHint "Only ints, floats, chars, strings, lists, and tuples are comparable."
       ]
 
     T.Appendable ->
-      case tipe of
-        T.Type home name _ | T.isInt home name ->
-          [ D.toFancyHint ["Try","using",D.green"String.fromInt","to","convert","it","to","a","string?"]
-          ]
-
-        T.Type home name _ | T.isFloat home name ->
-          [ D.toFancyHint ["Try","using",D.green"String.fromFloat","to","convert","it","to","a","string?"]
-          ]
-
-        T.FlexSuper T.Number _ ->
-          [ D.toFancyHint ["Try","using",D.green"String.fromInt","to","convert","it","to","a","string?"]
-          ]
-
-        _ ->
-          [ D.toFancyHint ["Only","strings","and","lists","are","appendable.","Put","it","in",D.green "[]","to","make","it","a","list?"]
-          ]
+      [ D.toSimpleHint "Only strings and lists are appendable."
+      ]
 
     T.CompAppend ->
       [ D.toSimpleHint "Only strings and lists are both comparable and appendable."
@@ -586,8 +572,14 @@ badFlexSuper super tipe =
     T.Number ->
       case tipe of
         T.Type home name _ | T.isString home name ->
-          [ D.toFancyHint ["Try","using",D.green"String.toInt","to","convert","it","to","a","number?"]
-          ]
+          case direction of
+            T.Have ->
+              [ D.toFancyHint ["Try","using",D.green "String.fromInt","to","convert","it","to","a","string?"]
+              ]
+
+            T.Need ->
+              [ D.toFancyHint ["Try","using",D.green "String.toInt","to","convert","it","to","an","integer?"]
+              ]
 
         _ ->
           [ D.toFancyHint ["Only",D.green "Int","and",D.green "Float","values","work","as","numbers."]
