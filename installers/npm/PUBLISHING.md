@@ -9,32 +9,36 @@ You can find a list of what binaries we'll need to tar up in `index.js`.
 For example:
 
 ```javascript
-var root = "https://github.com/elm-lang/elm-platform/releases/download/" + binVersion + "-exp/elm-platform";
+var root =
+  "https://github.com/elm/compiler/releases/download/" +
+  binVersion +
+  "/binaries-for-";
 
 module.exports = binwrap({
-  binaries: ["elm", "elm-make", "elm-repl", "elm-reactor", "elm-package"],
+  binaries: ["elm"],
   urls: {
-    "darwin-x64": root + "-macos.tar.gz",
-    "win32-x64": root + "-windows.tar.gz",
-    "win32-ia32": root + "-windows.tar.gz",
-    "linux-x64": root + "-linux-64bit.tar.gz"
+    "darwin-x64": root + "mac.tar.gz",
+    "win32-x64": root + "windows.tar.gz",
+    "win32-ia32": root + "windows.tar.gz",
+    "linux-x64": root + "linux.tar.gz"
   }
 });
 ```
 
 If this is the end of your `index.js`, you'll need to create these files:
 
-1. `elm-platform-macos.tar.gz`
-2. `elm-platform-windows.tar.gz`
-3. `elm-platform-linux-64bit.tar.gz`
+1. `binaries-for-mac.tar.gz`
+2. `binaries-for-windows.tar.gz`
+3. `binaries-for-linux.tar.gz`
 
-Each of these tarballs should have **only binaries** inside them - no directories!
+Each of these tarballs should have **only the Elm binary** inside them - no
+directories!
 
 So create them by making a directory, putting all the binaries in it, `cd`-ing
 into that directory, and then running something like this:
 
 ```shell
-$ tar cvzf elm-platform-linux-64bit.tar.gz *
+$ tar cvzf binaries-for-linux.tar.gz elm
 ```
 
 Make sure each tarball contains all the binaries listed in that `binaries:` list
