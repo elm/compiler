@@ -27,7 +27,22 @@ var targetPath = fs.realpathSync(process.argv[1]);
 process.chdir(path.join(path.dirname(targetPath), ".."));
 
 install(process.platform, process.arch).then(function() {
-  spawn(targetPath, process.argv.slice(2), {
+  // we have to do this because the Elm binaries end in `.exe` on
+  // Windows. Really, we should fix this upstream (in binwrap), but in the
+  // interests of getting the installers out we're going to do this temporarily
+  // and ship a fix upstream later.
+  var replacement = process.argv.slice(2);
+  if (process.platform === "win32") {
+    replacement += ".exe";
+
+    if (fs.existsSync(replacement)) {
+      // if we replaced the bootstrap script, we should remove it. Otherwise we'd
+      // have two of them laying around on Windows (elm and elm.exe)
+      fs.unlinkSync(process.argv.slice(2));
+    }
+  }
+
+  spawn(targetPath, replacement, {
     stdio: "inherit"
   }).on("exit", process.exit);
 });
