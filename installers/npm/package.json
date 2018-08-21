@@ -1,15 +1,16 @@
 {
   "name": "elm",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "description": "The Elm Platform: Binaries for the Elm programming language.",
+  "main": "index.js",
   "preferGlobal": true,
   "license": "BSD-3-Clause",
   "repository": {
     "type": "git",
-    "url": "https://github.com/elm-lang/elm-platform.git"
+    "url": "https://github.com/elm/compiler.git"
   },
-  "homepage": "https://github.com/elm-lang/elm-platform/tree/master/installers/npm",
-  "bugs": "https://github.com/elm-lang/elm-platform/issues",
+  "homepage": "https://github.com/elm/compiler/tree/master/installers/npm",
+  "bugs": "https://github.com/elm/compiler/issues",
   "author": {
     "name": "Richard Feldman",
     "email": "richard.t.feldman@gmail.com",
@@ -19,32 +20,25 @@
     "node": ">=4.0.0"
   },
   "scripts": {
-    "install": "node install.js"
+    "install": "binwrap-install",
+    "prepublishOnly": "binwrap-test"
   },
   "files": [
-    "install.js",
-    "binaries"
+    "index.js",
+    "bin",
+    "bin/elm"
   ],
   "keywords": [
     "bin",
     "binary",
     "binaries",
     "elm",
-    "elm-make",
-    "elm-package",
-    "elm-platform",
-    "elm-reactor",
-    "elm-repl",
     "platform"
   ],
   "bin": {
-    "elm": "binaries/elm",
-    "elm-make": "binaries/elm-make",
-    "elm-package": "binaries/elm-package",
-    "elm-reactor": "binaries/elm-reactor",
-    "elm-repl": "binaries/elm-repl"
+    "elm": "bin/elm"
   },
   "dependencies": {
-    "binstall": "1.2.0"
+    "binwrap": "0.1.4"
   }
 }
