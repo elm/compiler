@@ -1,0 +1,33 @@
+#!/usr/bin/env node
+
+// This file exists for the benefit of npm users who have --ignore-scripts
+// enabled. (Enabling this flag globally is a good security measure.)
+// Since they won't run the post-install hook, the binaries won't be downloaded
+// and installed.
+//
+// Since this file is included in "bin" in package.json, npm will install
+// it automatically in a place that should be on the PATH. All the file does
+// is to download the appropriate binary (just like the post-install hook would
+// have), replace this file with that binary, and run the binary.
+//
+// In this way, the first time a user with --ignore-scripts enabled runs this
+// binary, it will download and install itself, and then run as normal. From
+// then on, it will run as normal without re-downloading.
+
+var install = require("..").install;
+var spawn = require("child_process").spawn;
+var path = require("path");
+var fs = require("fs");
+
+// Make sure we get the right path even if we're executing from the symlinked
+// node_modules/.bin/ executable
+var targetPath = fs.realpathSync(process.argv[1]);
+
+// cd into the directory above bin/ so install() puts bin/ in the right place.
+process.chdir(path.join(path.dirname(targetPath), ".."));
+
+install(process.platform, process.arch).then(function() {
+  spawn(targetPath, process.argv.slice(2), {
+    stdio: "inherit"
+  }).on("exit", process.exit);
+});
