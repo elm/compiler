@@ -17,6 +17,7 @@ This is a decent baseline for pretty much any applications made with Elm. You wi
             "elm/json": "1.0.0"
         },
         "indirect": {
+            "elm/time": "1.0.0",
             "elm/url": "1.0.0",
             "elm/virtual-dom": "1.0.0"
         }
