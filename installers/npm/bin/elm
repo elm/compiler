@@ -15,19 +15,34 @@
 // then on, it will run as normal without re-downloading.
 
 var install = require("..").install;
-var spawn = require("child_process").spawn;
+var child_process = require("child_process");
 var path = require("path");
 var fs = require("fs");
 
 // Make sure we get the right path even if we're executing from the symlinked
 // node_modules/.bin/ executable
+var interpreter = fs.realpathSync(process.argv[0]);
 var targetPath = fs.realpathSync(process.argv[1]);
+
+// Figure out the binary name as we'll eventually want to execute
+// this. Re-executing this script doesn't always work because of varying
+// permissions and modes of operation across platforms (for example, Windows has
+// some interesting edge cases here.)
+var binaryName = path.join(
+  __dirname,
+  "..",
+  "unpacked_bin",
+  path.basename(targetPath)
+);
+if (process.platform === "win") {
+  binaryName += ".exe";
+}
 
 // cd into the directory above bin/ so install() puts bin/ in the right place.
 process.chdir(path.join(path.dirname(targetPath), ".."));
 
 install(process.platform, process.arch).then(function() {
-  spawn(targetPath, process.argv.slice(2), {
-    stdio: "inherit"
-  }).on("exit", process.exit);
+  child_process
+    .spawn(binaryName, process.argv.slice(2), { stdio: "inherit" })
+    .on("exit", process.exit);
 });
