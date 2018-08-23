@@ -349,7 +349,7 @@ updateCache root name info solution graph results =
               IO.writeBinary (root </> "objs.dat") $
                 Map.foldr addGraph (objGraphFromKernels graph) results
 
-              liftIO $ Encode.write (root </> "documentation.json") $
+              liftIO $ Encode.writeUgly (root </> "documentation.json") $
                 Encode.list Docs.encode $
                   Map.foldr addDocs [] results
 
