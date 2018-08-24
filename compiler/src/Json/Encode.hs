@@ -118,7 +118,7 @@ list encodeEntry entries =
 write :: FilePath -> Value -> IO ()
 write path value =
   withBinaryFile path WriteMode $ \handle ->
-    B.hPutBuilder handle (encode value)
+    B.hPutBuilder handle (encode value <> "\n")
 
 
 writeUgly :: FilePath -> Value -> IO ()
