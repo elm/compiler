@@ -28,6 +28,7 @@ import qualified Canonicalize.Pattern as Pattern
 import qualified Canonicalize.Type as Type
 import qualified Data.Index as Index
 import qualified Elm.Name as N
+import qualified Elm.Package as Pkg
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Region as R
@@ -730,7 +731,7 @@ findVarQual region (Env.Env localHome vs _ _ _ qvs _ _) prefix name =
           Result.throw (Error.NotFoundVar region (Just prefix) name (toPossibleNames vs qvs))
 
     Nothing ->
-      if ModuleName.isKernel prefix then
+      if ModuleName.isKernel prefix && Pkg.isKernel (ModuleName._package localHome) then
         Result.ok $ Can.VarKernel (ModuleName.getKernel prefix) name
       else
         Result.throw (Error.NotFoundVar region (Just prefix) name (toPossibleNames vs qvs))
