@@ -328,7 +328,7 @@ printWelcomeMessage =
   D.toAnsi IO.stdout $
     D.vcat
       [ D.black "----" <+> D.dullcyan title <+> D.black (D.fromString dashes)
-      , D.black $ D.fromString $ "Read " <> D.makeLink "repl" <> " to learn more: exit, help, imports, etc."
+      , D.black $ D.fromString $ "Say :help for help and :exit to exit! More at " <> D.makeLink "repl"
       , D.black "--------------------------------------------------------------------------------"
       , D.empty
       ]

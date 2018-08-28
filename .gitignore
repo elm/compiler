@@ -5,3 +5,4 @@ cabal-dev
 cabal.sandbox.config
 .DS_Store
 *~
+.stack-work
