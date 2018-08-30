@@ -11,3 +11,5 @@ BEFORE DELETING THIS:
 If none of that applies, write up a report that satisfies this checklist:
 
   https://github.com/process-bot/contribution-checklist/blob/master/issues.md
+
+**NOTE:** You can include a link to an [ellie](https://ellie-app.com) if you want, but please have the code directly in the Github issue. It makes it easier for me to stay organized. Thanks!
