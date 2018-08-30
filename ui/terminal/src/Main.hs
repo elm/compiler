@@ -18,6 +18,7 @@ import qualified Elm.Package as Pkg
 import qualified Generate.Output as Output
 import Terminal.Args
 import Terminal.Args.Helpers
+import Terminal.Env
 
 import qualified Bump
 import qualified Develop
@@ -36,6 +37,7 @@ import qualified Repl
 main :: IO ()
 main =
   do  setLocaleEncoding utf8
+      Terminal.Env.configure
       complex intro outro
         [ repl
         , init
