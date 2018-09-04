@@ -1,4 +1,3 @@
-
 Name: elm
 Version: 0.19.0
 
@@ -65,6 +64,222 @@ Executable elm
         Publish
         Repl
 
+        -- terminal args
+        Terminal.Args
+        Terminal.Args.Chomp
+        Terminal.Args.Error
+        Terminal.Args.Helpers
+        Terminal.Args.Internal
+
+        -- shared from builder/
+        Elm.Bump
+        Elm.Diff
+        Elm.Install
+        Elm.PerUserCache
+        Elm.Project
+        Elm.Project.Constraint
+        Elm.Project.Json
+        Elm.Project.Licenses
+        Elm.Publish
+        File.IO
+        Reporting.Progress.Json
+        Reporting.Progress.Repl
+        Reporting.Progress.Terminal
+        Reporting.Task
+
+        -- private from builder/
+        Deps.Cache
+        Deps.Diff
+        Deps.Explorer
+        Deps.Solver
+        Deps.Verify
+        Deps.Website
+        Elm.Project.Root
+        Elm.Project.Summary
+        File.Args
+        File.Artifacts
+        File.Compile
+        File.Crawl
+        File.Find
+        File.Hash
+        File.Header
+        File.Plan
+        Generate.Functions
+        Generate.Html
+        Generate.Nitpick
+        Generate.Output
+        Reporting.Exit
+        Reporting.Exit.Assets
+        Reporting.Exit.Bump
+        Reporting.Exit.Compile
+        Reporting.Exit.Crawl
+        Reporting.Exit.Deps
+        Reporting.Exit.Diff
+        Reporting.Exit.Help
+        Reporting.Exit.Http
+        Reporting.Exit.Make
+        Reporting.Exit.Init
+        Reporting.Exit.Install
+        Reporting.Exit.Publish
+        Reporting.Progress
+        Reporting.Progress.Bar
+        Reporting.Task.Http
+        Stuff.Paths
+        Stuff.Verify
+
+        -- shared from compiler/
+        Elm.Compiler
+        Elm.Compiler.Module
+        Elm.Compiler.Objects
+        Elm.Compiler.Type
+        Elm.Docs
+        Elm.Kernel
+        Elm.Header
+        Elm.Name
+        Elm.Package
+        Json.Decode
+        Json.Encode
+
+        -- private from compiler/
+        AST.Canonical
+        AST.Optimized
+        AST.Source
+        AST.Module.Name
+        AST.Utils.Binop
+        AST.Utils.Shader
+        AST.Utils.Type
+        AST.Valid
+        Canonicalize.Effects
+        Canonicalize.Environment
+        Canonicalize.Environment.Dups
+        Canonicalize.Environment.Foreign
+        Canonicalize.Environment.Local
+        Canonicalize.Expression
+        Canonicalize.Module
+        Canonicalize.Pattern
+        Canonicalize.Type
+        Compile
+        Data.Bag
+        Data.Index
+        Data.OneOrMore
+        Elm.Compiler.Imports
+        Elm.Compiler.Type.Extract
+        Elm.Compiler.Version
+        Elm.Interface
+        Generate.JavaScript
+        Generate.JavaScript.Builder
+        Generate.JavaScript.Expression
+        Generate.JavaScript.Mode
+        Generate.JavaScript.Name
+        Json.Decode.Error
+        Json.Decode.Internals
+        Nitpick.PatternMatches
+        Optimize.Case
+        Optimize.DecisionTree
+        Optimize.Expression
+        Optimize.Module
+        Optimize.Names
+        Optimize.Port
+        Parse.Declaration
+        Parse.Expression
+        Parse.Module
+        Parse.Parse
+        Parse.Pattern
+        Parse.Primitives
+        Parse.Primitives.Internals
+        Parse.Primitives.Kernel
+        Parse.Primitives.Keyword
+        Parse.Primitives.Number
+        Parse.Primitives.Shader
+        Parse.Primitives.Symbol
+        Parse.Primitives.Utf8
+        Parse.Primitives.Variable
+        Parse.Primitives.Whitespace
+        Parse.Repl
+        Parse.Shader
+        Parse.Type
+        Reporting.Annotation
+        Reporting.Doc
+        Reporting.Error
+        Reporting.Error.Canonicalize
+        Reporting.Error.Docs
+        Reporting.Error.Main
+        Reporting.Error.Pattern
+        Reporting.Error.Syntax
+        Reporting.Error.Type
+        Reporting.Region
+        Reporting.Render.Code
+        Reporting.Render.Type
+        Reporting.Render.Type.Localizer
+        Reporting.Report
+        Reporting.Result
+        Reporting.Suggest
+        Reporting.Warning
+        Type.Constrain.Expression
+        Type.Constrain.Module
+        Type.Constrain.Pattern
+        Type.Error
+        Type.Instantiate
+        Type.Occurs
+        Type.Solve
+        Type.Type
+        Type.Unify
+        Type.UnionFind
+        Validate
+        Paths_elm
+
+    Build-depends:
+        elm,
+        ansi-terminal >= 0.8 && < 0.9,
+        ansi-wl-pprint >= 0.6.8 && < 0.7,
+        base >=4.8 && <5,
+        binary >= 0.8 && < 0.9,
+        bytestring >= 0.9 && < 0.11,
+        containers >= 0.5.8.2 && < 0.6,
+        directory >= 1.2.3.0 && < 2.0,
+        edit-distance >= 0.2 && < 0.3,
+        file-embed,
+        filepath >= 1 && < 2.0,
+        ghc-prim,
+        haskeline,
+        HTTP >= 4000.2.5 && < 4000.4,
+        http-client >= 0.5 && < 0.6,
+        http-client-tls >= 0.3 && < 0.4,
+        http-types >= 0.9 && < 1.0,
+        language-glsl >= 0.0.2 && < 0.3,
+        logict,
+        mtl >= 2.2.1 && < 3,
+        network >= 2.4 && < 2.7,
+        parsec,
+        process,
+        raw-strings-qq,
+        scientific,
+        SHA,
+        snap-core,
+        snap-server,
+        template-haskell,
+        text >= 1 && < 2,
+        time,
+        unordered-containers,
+        utf8-string,
+        vector,
+        zip-archive
+
+library
+    if flag(dev)
+        ghc-options: -O0 -Wall -Werror
+    else
+        ghc-options: -O2 -fsimpl-tick-factor=200 -rtsopts
+
+    Hs-Source-Dirs:
+        compiler/src
+        builder/src
+        ui/terminal/src
+
+    other-extensions:
+        TemplateHaskell
+
+    exposed-modules:
         -- terminal args
         Terminal.Args
         Terminal.Args.Chomp
