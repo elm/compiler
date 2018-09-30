@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Develop
-  ( Flags(..)
+  ( Args(..)
+  , Flags(..)
   , run
   )
   where
@@ -34,6 +35,9 @@ import qualified Reporting.Task as Task
 
 -- RUN THE DEV SERVER
 
+data Args
+  = BrowseFiles
+  | SinglePageApplication FilePath
 
 data Flags =
   Flags
@@ -41,20 +45,27 @@ data Flags =
     }
 
 
-run :: () -> Flags -> IO ()
-run () (Flags maybePort) =
+run :: Args -> Flags -> IO ()
+run args (Flags maybePort) =
   let
     port =
       maybe 8000 id maybePort
   in
     do  putStrLn $ "Go to <http://localhost:" ++ show port ++ "> to see your project dashboard."
 
-        httpServe (config port) $
-          serveFiles
-          <|> serveDirectoryWith directoryConfig "."
-          <|> serveAssets
-          <|> error404
-
+        case args of
+          BrowseFiles ->
+            httpServe (config port) $
+              serveFiles
+              <|> serveDirectoryWith directoryConfig "."
+              <|> serveAssets
+              <|> error404
+          SinglePageApplication file ->
+            httpServe (config port) $
+              serveFiles
+              <|> serveAssets
+              <|> serveElm file
+              <|> error404
 
 config :: Int -> Config Snap a
 config port =
