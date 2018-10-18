@@ -523,7 +523,7 @@ toReport source err =
               <> "` as a function, but it is not available in pattern matching like this:"
           ,
             D.reflow $
-              "I recommend matching matching the record as a variable and unpacking it later."
+              "I recommend matching the record as a variable and unpacking it later."
           )
 
     PortPayloadInvalid region portName _badType invalidPayload ->
