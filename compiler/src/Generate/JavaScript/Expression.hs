@@ -668,7 +668,7 @@ strictNEq :: JS.Expr -> JS.Expr -> JS.Expr
 strictNEq left right =
   case left of
     JS.Int 0 ->
-      right
+      JS.Prefix JS.PrefixLNot (JS.Prefix JS.PrefixLNot right)
 
     JS.Bool bool ->
       if bool then JS.Prefix JS.PrefixLNot right else right
@@ -676,7 +676,7 @@ strictNEq left right =
     _ ->
       case right of
         JS.Int 0 ->
-          left
+          JS.Prefix JS.PrefixLNot (JS.Prefix JS.PrefixLNot left)
 
         JS.Bool bool ->
           if bool then JS.Prefix JS.PrefixLNot left else left
