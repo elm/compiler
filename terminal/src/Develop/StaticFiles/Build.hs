@@ -22,7 +22,7 @@ import qualified Reporting.Progress.Terminal as Terminal
 
 readAsset :: FilePath -> IO BS.ByteString
 readAsset path =
-  BS.readFile ("ui" </> "browser" </> "assets" </> path)
+  BS.readFile ("reactor" </> "assets" </> path)
 
 
 
@@ -31,7 +31,7 @@ readAsset path =
 
 compile :: IO BS.ByteString
 compile =
-  Dir.withCurrentDirectory ("ui" </> "browser") $
+  Dir.withCurrentDirectory "reactor" $
     do  reporter <- Terminal.create
         Task.run reporter $
           do  summary <- Project.getRoot

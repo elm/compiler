@@ -43,7 +43,7 @@ Executable elm
     Hs-Source-Dirs:
         compiler/src
         builder/src
-        ui/terminal/src
+        terminal/src
 
     other-extensions:
         TemplateHaskell
