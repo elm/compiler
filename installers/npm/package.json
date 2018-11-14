@@ -39,6 +39,6 @@
     "elm": "bin/elm"
   },
   "dependencies": {
-    "binwrap": "0.1.4"
+    "binwrap": "0.2.0"
   }
 }
