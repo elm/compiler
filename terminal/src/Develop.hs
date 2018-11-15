@@ -25,7 +25,6 @@ import qualified Develop.Generate.Help as Generate
 import qualified Develop.Generate.Index as Index
 import qualified Develop.StaticFiles as StaticFiles
 import qualified Generate.Output as Output
-import qualified Json.Encode as Encode
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Progress as Progress
 import qualified Reporting.Task as Task
