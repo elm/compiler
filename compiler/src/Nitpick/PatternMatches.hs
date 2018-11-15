@@ -20,7 +20,7 @@ http://moscova.inria.fr/~maranget/papers/warn/warn.pdf
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
-import qualified Data.Text as Text
+import Data.Utf8 (Utf8)
 
 import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
@@ -41,8 +41,8 @@ data Pattern
 
 
 data Literal
-  = Chr Text.Text
-  | Str Text.Text
+  = Chr Utf8
+  | Str Utf8
   | Int Int
   deriving (Eq)
 

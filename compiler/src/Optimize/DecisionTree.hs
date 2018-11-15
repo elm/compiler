@@ -26,7 +26,7 @@ import Data.Binary
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
-import Data.Text (Text)
+import Data.Utf8 (Utf8)
 
 import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
@@ -77,8 +77,8 @@ data Test
   | IsNil
   | IsTuple
   | IsInt Int
-  | IsChr Text
-  | IsStr Text
+  | IsChr Utf8
+  | IsStr Utf8
   | IsBool Bool
   deriving (Eq, Ord)
 
