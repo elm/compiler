@@ -19,6 +19,7 @@ module AST.Source
 
 
 import qualified Data.ByteString as B
+import Data.Text (Text)
 import Data.Utf8 (Utf8)
 
 import qualified AST.Utils.Binop as Binop
@@ -57,7 +58,7 @@ data Expr_
   | Record [(A.Located N.Name, Expr)]
   | Unit
   | Tuple Expr Expr [Expr]
-  | Shader Utf8 Utf8 Shader.Shader
+  | Shader Text Text Shader.Shader
 
 
 data VarType = Value | Ctor
