@@ -19,7 +19,7 @@ module AST.Source
 
 
 import qualified Data.ByteString as B
-import Data.Text (Text)
+import Data.Utf8 (Utf8)
 
 import qualified AST.Utils.Binop as Binop
 import qualified AST.Utils.Shader as Shader
@@ -36,8 +36,8 @@ type Expr = A.Located Expr_
 
 
 data Expr_
-  = Chr Text
-  | Str Text
+  = Chr Utf8
+  | Str Utf8
   | Int Int
   | Float Double
   | Var VarType N.Name
@@ -57,7 +57,7 @@ data Expr_
   | Record [(A.Located N.Name, Expr)]
   | Unit
   | Tuple Expr Expr [Expr]
-  | Shader Text Text Shader.Shader
+  | Shader Utf8 Utf8 Shader.Shader
 
 
 data VarType = Value | Ctor
@@ -91,8 +91,8 @@ data Pattern_
   | PCtorQual R.Region N.Name N.Name [Pattern]
   | PList [Pattern]
   | PCons Pattern Pattern
-  | PChr Text
-  | PStr Text
+  | PChr Utf8
+  | PStr Utf8
   | PInt Int
 
 
@@ -126,7 +126,7 @@ data Decl_
   | Alias (A.Located N.Name) [A.Located N.Name] Type
   | Binop N.Name Binop.Associativity Binop.Precedence N.Name
   | Port (A.Located N.Name) Type
-  | Docs Text
+  | Docs Utf8
   | Annotation (A.Located N.Name) Type
   | Definition (A.Located N.Name) [Pattern] Expr
 

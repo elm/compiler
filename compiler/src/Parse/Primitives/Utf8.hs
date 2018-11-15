@@ -8,15 +8,9 @@ module Parse.Primitives.Utf8
 
 
 import Prelude hiding (length)
-import Data.Bits
 import qualified Data.ByteString.Internal as B
-import qualified Data.ByteString.UTF8 as Utf8
-import qualified Data.Char as Char
-import Data.Monoid ((<>))
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Lazy as LText
-import qualified Data.Text.Lazy.Builder as Text
+import qualified Data.ByteString.UTF8 as BS_UTF8
+import qualified Data.Utf8 as Utf8
 import Foreign.ForeignPtr (ForeignPtr)
 import GHC.Word (Word8(..))
 
@@ -30,14 +24,14 @@ import qualified Reporting.Error.Syntax as E
 -- CHARACTER
 
 
-character :: Parser Text.Text
+character :: Parser Utf8.Utf8
 character =
   Parser $ \(State fp offset terminal indent row col ctx) cok cerr _ eerr ->
     if offset >= terminal || I.unsafeIndex fp offset /= 0x27 {- ' -} then
       eerr noError
 
     else
-      case chompChar fp (offset + 1) terminal (col + 1) 0 "" of
+      case chompChar fp (offset + 1) terminal (col + 1) 0 placeholder of
         Bad newCol problem ->
           cerr (E.ParseError row newCol problem)
 
@@ -46,15 +40,15 @@ character =
             cerr (E.ParseError row col (E.BadChar newCol))
           else
             let !newState = State fp newOffset terminal indent row newCol ctx in
-            cok mostRecent newState noError
+            cok (Utf8.fromChunks fp [mostRecent]) newState noError
 
 
 data CharResult
   = Bad Int E.Problem
-  | Good Int Int Int Text.Text
+  | Good Int Int Int Utf8.Chunk
 
 
-chompChar :: ForeignPtr Word8 -> Int -> Int -> Int -> Int -> Text.Text -> CharResult
+chompChar :: ForeignPtr Word8 -> Int -> Int -> Int -> Int -> Utf8.Chunk -> CharResult
 chompChar fp offset terminal col numChars mostRecent =
   if offset >= terminal then
     Bad col E.EndOfFile_Char
@@ -70,15 +64,15 @@ chompChar fp offset terminal col numChars mostRecent =
         Bad col E.NewLineInChar
 
       else if word == 0x22 {- " -} then
-        chompChar fp (offset + 1) terminal (col + 1) (numChars + 1) "\\\""
+        chompChar fp (offset + 1) terminal (col + 1) (numChars + 1) doubleQuote
 
       else if word == 0x5C {- \ -} then
         case eatEscape fp (offset + 1) terminal of
           EscapeNormal ->
-            chompChar fp (offset + 2) terminal (col + 2) (numChars + 1) (toText fp offset 2)
+            chompChar fp (offset + 2) terminal (col + 2) (numChars + 1) (Utf8.Slice offset 2)
 
-          EscapeUnicode delta bits ->
-            chompChar fp (offset + delta) terminal (col + delta) (numChars + 1) (Text.pack bits)
+          EscapeUnicode delta code ->
+            chompChar fp (offset + delta) terminal (col + delta) (numChars + 1) (Utf8.CodePoint code)
 
           EscapeProblem newOffset problem ->
             Bad col (E.BadEscape (newOffset - offset) problem)
@@ -88,19 +82,14 @@ chompChar fp offset terminal col numChars mostRecent =
 
       else
         let !width = I.getCharWidth fp offset terminal word in
-        chompChar fp (offset + width) terminal (col + 1) (numChars + 1) (toText fp offset width)
-
-
-toText :: ForeignPtr Word8 -> Int -> Int -> Text.Text
-toText fp offset length =
-  Text.decodeUtf8 (B.PS fp offset length)
+        chompChar fp (offset + width) terminal (col + 1) (numChars + 1) (Utf8.Slice offset width)
 
 
 
 -- STRINGS
 
 
-string :: Parser Text.Text
+string :: Parser Utf8.Utf8
 string =
   Parser $ \(State fp offset terminal indent row col ctx) cok cerr _ eerr ->
     if isDoubleQuote fp offset terminal then
@@ -117,12 +106,11 @@ string =
           Err err ->
             cerr err
 
-          Ok newOffset newRow newCol builder ->
+          Ok newOffset newRow newCol utf8 ->
             let
               !newState = State fp newOffset terminal indent newRow newCol ctx
-              !content = LText.toStrict (Text.toLazyText builder)
             in
-              cok content newState noError
+            cok utf8 newState noError
 
     else
       eerr noError
@@ -136,31 +124,32 @@ isDoubleQuote fp offset terminal =
 
 data StringResult
   = Err E.ParseError
-  | Ok !Int !Int !Int Text.Builder
+  | Ok !Int !Int !Int !Utf8.Utf8
 
 
-finalize :: ForeignPtr Word8 -> Int -> Int -> Text.Builder -> Text.Builder
-finalize fp start end builder =
+finalize :: ForeignPtr Word8 -> Int -> Int -> [Utf8.Chunk] -> Utf8.Utf8
+finalize fp start end revChunks =
+  Utf8.fromChunks fp $ reverse $
+    if start == end then
+      revChunks
+    else
+      Utf8.Slice start (end - start) : revChunks
+
+
+addEscape :: Utf8.Chunk -> Int -> Int -> [Utf8.Chunk] -> [Utf8.Chunk]
+addEscape chunk start end revChunks =
   if start == end then
-    builder
+    chunk : revChunks
   else
-    builder <> Text.fromText (Text.decodeUtf8 (B.PS fp start (end - start)))
-
-
-addBits :: Text.Builder -> ForeignPtr Word8 -> Int -> Int -> Text.Builder -> Text.Builder
-addBits bits fp start end builder =
-  if start == end then
-    builder <> bits
-  else
-    builder <> Text.fromText (Text.decodeUtf8 (B.PS fp start (end - start))) <> bits
+    chunk : Utf8.Slice start (end - start) : revChunks
 
 
 
 -- SINGLE STRINGS
 
 
-singleString :: ForeignPtr Word8 -> Int -> Int -> Int -> Int -> Int -> Text.Builder -> StringResult
-singleString fp offset terminal row col initialOffset builder =
+singleString :: ForeignPtr Word8 -> Int -> Int -> Int -> Int -> Int -> [Utf8.Chunk] -> StringResult
+singleString fp offset terminal row col initialOffset revChunks =
   if offset >= terminal then
     Err (E.ParseError row col E.EndOfFile_String)
 
@@ -170,7 +159,7 @@ singleString fp offset terminal row col initialOffset builder =
     in
       if word == 0x22 {- " -} then
         Ok (offset + 1) row (col + 1) $
-          finalize fp initialOffset offset builder
+          finalize fp initialOffset offset revChunks
 
       else if word == 0x0A {- \n -} then
         Err (E.ParseError row col E.NewLineInString)
@@ -178,17 +167,17 @@ singleString fp offset terminal row col initialOffset builder =
       else if word == 0x27 {- ' -} then
         let !newOffset = offset + 1 in
         singleString fp newOffset terminal row (col + 1) newOffset $
-          addBits singleQuoteBits fp initialOffset offset builder
+          addEscape singleQuote initialOffset offset revChunks
 
       else if word == 0x5C {- \ -} then
         case eatEscape fp (offset + 1) terminal of
           EscapeNormal ->
-            singleString fp (offset + 2) terminal row (col + 2) initialOffset builder
+            singleString fp (offset + 2) terminal row (col + 2) initialOffset revChunks
 
-          EscapeUnicode delta bits ->
+          EscapeUnicode delta code ->
             let !newOffset = offset + delta in
             singleString fp newOffset terminal row (col + delta) newOffset $
-              addBits (Text.fromText (Text.pack bits)) fp initialOffset offset builder
+              addEscape (Utf8.CodePoint code) initialOffset offset revChunks
 
           EscapeProblem newOffset problem ->
             Err (E.ParseError row col (E.BadEscape (newOffset - offset) problem))
@@ -198,15 +187,15 @@ singleString fp offset terminal row col initialOffset builder =
 
       else
         let !newOffset = offset + I.getCharWidth fp offset terminal word in
-        singleString fp newOffset terminal row (col + 1) initialOffset builder
+        singleString fp newOffset terminal row (col + 1) initialOffset revChunks
 
 
 
 -- MULTI STRINGS
 
 
-multiString :: ForeignPtr Word8 -> Int -> Int -> Int -> Int -> Int -> Text.Builder -> StringResult
-multiString fp offset terminal row col initialOffset builder =
+multiString :: ForeignPtr Word8 -> Int -> Int -> Int -> Int -> Int -> [Utf8.Chunk] -> StringResult
+multiString fp offset terminal row col initialOffset revChunks =
   if offset >= terminal then
     Err (E.ParseError row col E.EndOfFile_MultiString)
 
@@ -214,32 +203,32 @@ multiString fp offset terminal row col initialOffset builder =
     let !word = I.unsafeIndex fp offset in
     if word == 0x22 {- " -} && isDoubleQuote fp (offset + 1) terminal && isDoubleQuote fp (offset + 2) terminal then
       Ok (offset + 3) row (col + 3) $
-        finalize fp initialOffset offset builder
+        finalize fp initialOffset offset revChunks
 
     else if word == 0x27 {- ' -} then
       let !offset1 = offset + 1 in
       multiString fp offset1 terminal row (col + 1) offset1 $
-        addBits singleQuoteBits fp initialOffset offset builder
+        addEscape singleQuote initialOffset offset revChunks
 
     else if word == 0x0A {- \n -} then
       let !offset1 = offset + 1 in
       multiString fp offset1 terminal (row + 1) 1 offset1 $
-        addBits newlineBits fp initialOffset offset builder
+        addEscape newline initialOffset offset revChunks
 
     else if word == 0x0D {- \r -} then
       let !offset1 = offset + 1 in
       multiString fp offset1 terminal (row + 1) 1 offset1 $
-        addBits carriageReturnBits fp initialOffset offset builder
+        addEscape carriageReturn initialOffset offset revChunks
 
     else if word == 0x5C {- \ -} then
       case eatEscape fp (offset + 1) terminal of
         EscapeNormal ->
-          multiString fp (offset + 2) terminal row (col + 2) initialOffset builder
+          multiString fp (offset + 2) terminal row (col + 2) initialOffset revChunks
 
-        EscapeUnicode delta bits ->
+        EscapeUnicode delta code ->
           let !newOffset = offset + delta in
           multiString fp newOffset terminal row (col + delta) newOffset $
-            addBits (Text.fromText (Text.pack bits)) fp initialOffset offset builder
+            addEscape (Utf8.CodePoint code) initialOffset offset revChunks
 
         EscapeProblem newOffset problem ->
           Err (E.ParseError row col (E.BadEscape (newOffset - offset) problem))
@@ -249,7 +238,7 @@ multiString fp offset terminal row col initialOffset builder =
 
     else
       let !newOffset = offset + I.getCharWidth fp offset terminal word in
-      multiString fp newOffset terminal row (col + 1) initialOffset builder
+      multiString fp newOffset terminal row (col + 1) initialOffset revChunks
 
 
 
@@ -258,7 +247,7 @@ multiString fp offset terminal row col initialOffset builder =
 
 data Escape
   = EscapeNormal
-  | EscapeUnicode !Int [Char]
+  | EscapeUnicode !Int !Int
   | EscapeProblem !Int E.EscapeProblem
   | EscapeEndOfFile
 
@@ -298,186 +287,37 @@ eatUnicode fp offset terminal =
 
     else if numDigits < 4 || 6 < numDigits then
       EscapeProblem (newOffset + 1) $
-        E.UnicodeLength numDigits (Utf8.toString (B.PS fp digitOffset numDigits))
+        E.UnicodeLength numDigits (BS_UTF8.toString (B.PS fp digitOffset numDigits))
 
     else
-      EscapeUnicode (numDigits + 4) (codePointToBits code)
+      EscapeUnicode (numDigits + 4) code
 
 
-
--- CODE POINT TO BITS
-
-
-codePointToBits :: Int -> [Char]
-codePointToBits code =
-  if code < 0xFFFF then
-    wordToBits code
-
-  else
-    let
-      (hi,lo) = divMod (code - 0x10000) 0x400
-    in
-    wordToBits (hi + 0xD800) ++ wordToBits (lo + 0xDC00)
+{-# NOINLINE singleQuote #-}
+singleQuote :: Utf8.Chunk
+singleQuote =
+  Utf8.Escape 0x5C27 {- \' -}
 
 
-wordToBits :: Int -> [Char]
-wordToBits code =
-  [ '\\' -- 0x5C -- \
-  , 'u'  -- 0x75 -- u
-  , toBits code 12
-  , toBits code 8
-  , toBits code 4
-  , toBits code 0
-  ]
+{-# NOINLINE doubleQuote #-}
+doubleQuote :: Utf8.Chunk
+doubleQuote =
+  Utf8.Escape 0x5C22 {- \" -}
 
 
-toBits :: Int -> Int -> Char
-toBits code offset =
-  let !n = fromIntegral (shiftR code offset .&. 0x000F) in
-  Char.chr $ if n < 10 then 0x30 + n else 0x61 + (n - 10)
+{-# NOINLINE newline #-}
+newline :: Utf8.Chunk
+newline =
+  Utf8.Escape 0x5C6E {- \n -}
 
 
-{-# NOINLINE singleQuoteBits #-}
-singleQuoteBits :: Text.Builder
-singleQuoteBits =
-  "\\\'"
+{-# NOINLINE carriageReturn #-}
+carriageReturn :: Utf8.Chunk
+carriageReturn =
+  Utf8.Escape 0x5C72 {- \r -}
 
 
-{-# NOINLINE newlineBits #-}
-newlineBits :: Text.Builder
-newlineBits =
-  "\\n"
-
-
-{-# NOINLINE carriageReturnBits #-}
-carriageReturnBits :: Text.Builder
-carriageReturnBits =
-  "\\r"
-
-
-
----- CHUNKS
-
-
---data Chunk
---  = Copy { _offset :: Int, _length :: Int }
---  | Bits [Word8]
-
-
---finalize :: Int -> Int -> [Chunk] -> [Chunk]
---finalize start end chunks =
---  reverse $
---    if start == end then
---      chunks
---    else
---      Copy start (end - start) : chunks
-
-
---addBits :: [Word8] -> Int -> Int -> [Chunk] -> [Chunk]
---addBits bits start end chunks =
---  if start == end then
---    Bits bits : chunks
---  else
---    Bits bits : Copy start (end - start) : chunks
-
-
---chunkLength :: Chunk -> Int
---chunkLength chunk =
---  case chunk of
---    Copy _ len ->
---      len
-
---    Bits bits ->
---      length bits
-
-
-
----- CHUNK TO SHORT
-
-
---chunkToShort :: ForeignPtr Word8 -> Chunk -> S.ShortByteString
---chunkToShort fp chunk =
---  unsafeDupablePerformIO $ stToIO $
---    do  MBA mba <- newMutableByteArray (chunkLength chunk)
---        case chunk of
---          Copy offset len ->
---            do  copyToByteArray (unsafeForeignPtrToPtr fp `plusPtr` offset) mba 0 len
---                freeze mba
-
---          Bits bits ->
---            do  _ <- writeBits mba 0 bits
---                freeze mba
-
-
-
----- CHUNKS TO SHORT
-
-
---chunksToShort :: ForeignPtr Word8 -> [Chunk] -> S.ShortByteString
---chunksToShort fp chunks =
---  unsafeDupablePerformIO $ stToIO $
---    do  MBA mba <- newMutableByteArray (sum (map chunkLength chunks))
---        chunksToShortHelp fp mba 0 chunks
-
-
---chunksToShortHelp :: ForeignPtr Word8 -> Prim.MutableByteArray# s -> Int -> [Chunk] -> ST s S.ShortByteString
---chunksToShortHelp fp mba index chunks =
---  case chunks of
---    [] ->
---      freeze mba
-
---    chunk : others ->
---      case chunk of
---        Copy offset len ->
---          do  copyToByteArray (unsafeForeignPtrToPtr fp `plusPtr` offset) mba index len
---              chunksToShortHelp fp mba (index + len) others
-
---        Bits bits ->
---          do  newIndex <- writeBits mba index bits
---              chunksToShortHelp fp mba newIndex others
-
-
-
----- CHUNKS HELPERS
-
-
---data MBA s = MBA (Prim.MutableByteArray# s)
-
-
---newMutableByteArray :: Int -> ST s (MBA s)
---newMutableByteArray (I# len) =
---  ST $ \s1 ->
---    case Prim.newByteArray# len s1 of
---      (# s2, mba #) -> (# s2, MBA mba #)
-
-
---freeze :: Prim.MutableByteArray# s -> ST s S.ShortByteString
---freeze mba =
---  ST $ \s1 ->
---    case Prim.unsafeFreezeByteArray# mba s1 of
---      (# s2, ba #) -> (# s2, S.SBS ba #)
-
-
---copyToByteArray :: Ptr Word8 -> Prim.MutableByteArray# s -> Int -> Int -> ST s ()
---copyToByteArray (Ptr src) dst (I# dstOffset) (I# len) =
---    ST $ \s1 ->
---      case Prim.copyAddrToByteArray# src dst dstOffset len s1 of
---        s2 -> (# s2, () #)
-
-
---writeBits :: Prim.MutableByteArray# s -> Int -> [Word8] -> ST s Int
---writeBits mba index bits =
---  case bits of
---    [] ->
---      return index
-
---    word : others ->
---      do  writeWord8Array mba index word
---          writeBits mba (index + 1) others
-
-
---writeWord8Array :: Prim.MutableByteArray# s -> Int -> Word8 -> ST s ()
---writeWord8Array mba (I# offset) (W8# word) =
---  ST $ \s1 ->
---    case Prim.writeWord8Array# mba offset word s1 of
---      s2 -> (# s2, () #)
+{-# NOINLINE placeholder #-}
+placeholder :: Utf8.Chunk
+placeholder =
+  Utf8.CodePoint 0xFFFD {- replacement character -}
