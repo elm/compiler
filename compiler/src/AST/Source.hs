@@ -127,7 +127,7 @@ data Decl_
   | Alias (A.Located N.Name) [A.Located N.Name] Type
   | Binop N.Name Binop.Associativity Binop.Precedence N.Name
   | Port (A.Located N.Name) Type
-  | Docs Utf8
+  | Docs Text
   | Annotation (A.Located N.Name) Type
   | Definition (A.Located N.Name) [Pattern] Expr
 
