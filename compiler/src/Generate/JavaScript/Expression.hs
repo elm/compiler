@@ -18,6 +18,7 @@ import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text.Encoding as Text
+import qualified Data.Utf8 as Utf8
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
@@ -55,13 +56,13 @@ generate mode expression =
       JsExpr $
         case mode of
           Mode.Dev _ _ ->
-            JS.Call toChar [ JS.String (Text.encodeUtf8Builder char) ]
+            JS.Call toChar [ JS.String (Utf8.toBuilder char) ]
 
           Mode.Prod _ _ ->
-            JS.String (Text.encodeUtf8Builder char)
+            JS.String (Utf8.toBuilder char)
 
     Opt.Str string ->
-      JsExpr $ JS.String (Text.encodeUtf8Builder string)
+      JsExpr $ JS.String (Utf8.toBuilder string)
 
     Opt.Int int ->
       JsExpr $ JS.Int int
@@ -898,13 +899,13 @@ generateIfTest mode root (path, test) =
       strictEq value (JS.Int int)
 
     DT.IsChr char ->
-      strictEq (JS.String (Text.encodeUtf8Builder char)) $
+      strictEq (JS.String (Utf8.toBuilder char)) $
         case mode of
           Mode.Dev _ _ -> JS.Call (JS.Access value (Name.fromLocal "valueOf")) []
           Mode.Prod _ _ -> value
 
     DT.IsStr string ->
-      strictEq value (JS.String (Text.encodeUtf8Builder string))
+      strictEq value (JS.String (Utf8.toBuilder string))
 
     DT.IsCons ->
       JS.Access value (Name.fromLocal "b")
@@ -937,10 +938,10 @@ generateCaseValue mode test =
       JS.Int int
 
     DT.IsChr char ->
-      JS.String (Text.encodeUtf8Builder char)
+      JS.String (Utf8.toBuilder char)
 
     DT.IsStr string ->
-      JS.String (Text.encodeUtf8Builder string)
+      JS.String (Utf8.toBuilder string)
 
     DT.IsBool _ ->
       error "COMPILER BUG - there should never be three tests on a boolean"
