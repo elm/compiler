@@ -24,6 +24,7 @@ import qualified Data.ByteString as BS
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
+import Data.Utf8 (Utf8)
 
 import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
@@ -40,8 +41,8 @@ import qualified Reporting.Region as R
 
 data Expr
   = Bool Bool
-  | Chr Text
-  | Str Text
+  | Chr Utf8
+  | Str Utf8
   | Int Int
   | Float Double
   | VarLocal N.Name

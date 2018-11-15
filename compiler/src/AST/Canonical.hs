@@ -58,6 +58,7 @@ import qualified Data.ByteString as B
 import qualified Data.List as List
 import qualified Data.Map as Map
 import Data.Text (Text)
+import Data.Utf8 (Utf8)
 
 import qualified AST.Utils.Binop as Binop
 import qualified AST.Module.Name as ModuleName
@@ -85,8 +86,8 @@ data Expr_
   | VarCtor CtorOpts ModuleName.Canonical N.Name Index.ZeroBased Annotation
   | VarDebug ModuleName.Canonical N.Name Annotation
   | VarOperator N.Name ModuleName.Canonical N.Name Annotation -- CACHE real name for optimization
-  | Chr Text
-  | Str Text
+  | Chr Utf8
+  | Str Utf8
   | Int Int
   | Float Double
   | List [Expr]
@@ -153,8 +154,8 @@ data Pattern_
   | PList [Pattern]
   | PCons Pattern Pattern
   | PBool Union Bool
-  | PChr Text
-  | PStr Text
+  | PChr Utf8
+  | PStr Utf8
   | PInt Int
   | PCtor
       { _p_home :: ModuleName.Canonical

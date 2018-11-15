@@ -18,6 +18,7 @@ module AST.Valid
 
 import qualified Data.Map as Map
 import Data.Text (Text)
+import Data.Utf8 (Utf8)
 
 import qualified AST.Utils.Binop as Binop
 import qualified AST.Source as Src
@@ -35,8 +36,8 @@ type Expr = A.Located Expr_
 
 
 data Expr_
-    = Chr Text
-    | Str Text
+    = Chr Utf8
+    | Str Utf8
     | Int Int
     | Float Double
     | Var Src.VarType N.Name
