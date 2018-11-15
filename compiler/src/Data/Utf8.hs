@@ -9,7 +9,11 @@ module Data.Utf8
   where
 
 
+import Data.Binary (Binary(..), Get)
+import Data.Binary.Put (putBuilder)
+import Data.Binary.Get.Internal (readN)
 import Data.Bits ((.&.), shiftR)
+import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.Builder.Internal as B
 import Foreign.ForeignPtr (ForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
@@ -25,7 +29,7 @@ import GHC.Exts
   , writeWord8Array#, writeWord16Array#
   )
 import GHC.IO
-import GHC.ST (ST(ST))
+import GHC.ST (ST(ST), runST)
 import GHC.Prim
 import GHC.Word (Word8(W8#), Word16(W16#))
 
@@ -51,6 +55,64 @@ instance Eq Utf8 where
     isTrue# (len1# ==# len2#)
     &&
     isTrue# (0# ==# compareByteArrays# ba1# 0# ba2# 0# len1#)
+
+
+
+-- COMPARE
+
+
+instance Ord Utf8 where
+  compare (Utf8 ba1#) (Utf8 ba2#) =
+    let
+      !len1# = sizeofByteArray# ba1#
+      !len2# = sizeofByteArray# ba2#
+      !len#  = if isTrue# (len1# <# len2#) then len1# else len2#
+      !cmp#  = compareByteArrays# ba1# 0# ba2# 0# len#
+    in
+    case () of
+      _ | isTrue# (cmp# <# 0#)     -> LT
+        | isTrue# (cmp# ># 0#)     -> GT
+        | isTrue# (len1# <# len2#) -> LT
+        | isTrue# (len1# ># len2#) -> GT
+        | True                     -> EQ
+
+
+
+-- BINARY
+
+
+instance Binary Utf8 where
+  put utf8@(Utf8 ba#) =
+    put (I# (sizeofByteArray# ba#)) <> putBuilder (toBuilder utf8)
+  get =
+    get >>= getUtf8
+
+
+{-# INLINE getUtf8 #-}
+getUtf8 :: Int -> Get Utf8
+getUtf8 n =
+  if n > 0 then
+    readN n (fromByteString n)
+  else
+    return empty
+
+
+-- TODO add inline?
+fromByteString :: Int -> B.ByteString -> Utf8
+fromByteString len (B.PS fptr offset _) =
+  unsafeDupablePerformIO
+  (
+    do  mba <- stToIO (newByteArray len)
+        stToIO (copyFromPtr (unsafeForeignPtrToPtr fptr `plusPtr` offset) mba 0 len)
+        touchForeignPtr fptr
+        stToIO (unsafeFreeze mba)
+  )
+
+
+{-# NOINLINE empty #-}
+empty :: Utf8
+empty =
+  runST (unsafeFreeze =<< newByteArray 0)
 
 
 
