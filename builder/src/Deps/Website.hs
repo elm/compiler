@@ -22,7 +22,6 @@ import qualified Data.Binary.Get as Binary
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Digest.Pure.SHA as SHA
-import qualified Data.HashMap.Lazy as HashMap
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Network.HTTP.Client as Client
@@ -114,8 +113,8 @@ allPkgsDecoder =
             Right pkg ->
               checkKeys rest (Map.insert pkg versions pkgs)
   in
-    do  dict <- D.dict (D.list (D.mapError E.BadAllVsn Pkg.versionDecoder))
-        checkKeys (HashMap.toList dict) Map.empty
+    do  pairs <- D.pairs (D.list (D.mapError E.BadAllVsn Pkg.versionDecoder))
+        checkKeys pairs Map.empty
 
 
 

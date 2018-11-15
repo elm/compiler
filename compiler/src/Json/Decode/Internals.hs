@@ -9,7 +9,7 @@ module Json.Decode.Internals
   , list, dict, pairs
   , maybe
   , field, at
-  , index
+  , pair
   , map, map2, mapError
   , succeed, fail
   , andThen, oneOf
@@ -20,11 +20,10 @@ module Json.Decode.Internals
 import Data.Text (Text)
 import Prelude hiding (fail, map, maybe)
 
-import qualified Data.HashMap.Strict as HashMap
+import qualified Data.List as List
+import qualified Data.Map.Strict as Map
 import qualified Data.Scientific as Sci
 import qualified Data.Text as Text
-import qualified Data.Vector as Vector
-import Data.Vector ((!?))
 import qualified Elm.Name as N
 import qualified Json.Encode as E
 
@@ -34,8 +33,8 @@ import qualified Json.Encode as E
 
 
 data Value
-  = Array (Vector.Vector Value)
-  | Object [(Text, Value)] (HashMap.HashMap Text Value)
+  = Array [Value]
+  | Object [(Text, Value)]
   | String Text
   | Integer Int
   | Float Sci.Scientific
@@ -71,7 +70,7 @@ data Type
   | TBool
   | TInt
   | TObjectWith Text
-  | TArrayWith Int Int
+  | TArrayPair Int
 
 
 
@@ -132,27 +131,27 @@ list :: Decoder e a -> Decoder e [a]
 list (Decoder run) =
   Decoder $ \value ->
     case value of
-      Array vector ->
+      Array vs ->
         let
           runHelp i v =
             mapLeft (Index i) (run v)
         in
-        Vector.toList <$> Vector.imapM runHelp vector
+        sequenceA (zipWith runHelp [0..] vs)
 
       _ ->
         Left (expecting value TArray)
 
 
-dict :: Decoder e a -> Decoder e (HashMap.HashMap Text a)
+dict :: Decoder e a -> Decoder e (Map.Map Text a)
 dict (Decoder run) =
   Decoder $ \value ->
     case value of
-      Object _ hashMap ->
+      Object kvs ->
         let
           runHelp k v =
             mapLeft (Field k) (run v)
         in
-        HashMap.traverseWithKey runHelp hashMap
+        Map.traverseWithKey runHelp (Map.fromList kvs)
 
       _ ->
         Left (expecting value TObject)
@@ -162,7 +161,7 @@ pairs :: Decoder e a -> Decoder e [(Text, a)]
 pairs (Decoder run) =
   Decoder $ \value ->
     case value of
-      Object kvs _ ->
+      Object kvs ->
         let
           runHelp (k,v) =
             case run v of
@@ -194,8 +193,8 @@ field :: Text -> Decoder e a -> Decoder e a
 field k (Decoder run) =
   Decoder $ \value ->
     case value of
-      Object _ hashMap ->
-        case HashMap.lookup k hashMap of
+      Object kvs ->
+        case List.lookup k kvs of
           Just v ->
             mapLeft (Field k) (run v)
 
@@ -215,17 +214,19 @@ at names decoder =
 -- ARRAY PRIMITIVES
 
 
-index :: Int -> Decoder e a -> Decoder e a
-index i (Decoder run) =
+pair :: Decoder e a -> Decoder e b -> Decoder e (a,b)
+pair (Decoder runA) (Decoder runB) =
   Decoder $ \value ->
     case value of
-      Array vector ->
-        case vector !? i of
-          Just v ->
-            mapLeft (Index i) (run v)
+      Array vs ->
+        case vs of
+          [a,b] ->
+            (,)
+              <$> mapLeft (Index 0) (runA a)
+              <*> mapLeft (Index 1) (runB b)
 
-          Nothing ->
-            Left (expecting value (TArrayWith i (Vector.length vector)))
+          _ ->
+            Left (expecting value (TArrayPair (length vs)))
 
       _ ->
         Left (expecting value TArray)
@@ -266,14 +267,14 @@ expecting value tipe =
 toEncodeValue :: Value -> E.Value
 toEncodeValue value =
   case value of
-    Array vector    -> E.array (Vector.toList (Vector.map toEncodeValue vector))
-    Object fields _ -> E.object (fmap (fmap toEncodeValue) fields)
-    String txt      -> E.text txt
-    Integer n       -> E.int n
-    Float n         -> E.number n
-    TRUE            -> E.bool True
-    FALSE           -> E.bool False
-    NULL            -> E.null
+    Array vs   -> E.array (fmap toEncodeValue vs)
+    Object kvs -> E.object (fmap (fmap toEncodeValue) kvs)
+    String txt -> E.text txt
+    Integer n  -> E.int n
+    Float n    -> E.number n
+    TRUE       -> E.bool True
+    FALSE      -> E.bool False
+    NULL       -> E.null
 
 
 
@@ -297,9 +298,7 @@ map2 func (Decoder runA) (Decoder runB) =
 apply :: Decoder e (a -> b) -> Decoder e a -> Decoder e b
 apply (Decoder runFunc) (Decoder runArg) =
   Decoder $ \value ->
-    do  func <- runFunc value
-        arg <- runArg value
-        return (func arg)
+    runFunc value <*> runArg value
 
 
 

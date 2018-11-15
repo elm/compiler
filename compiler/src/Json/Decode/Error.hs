@@ -139,10 +139,9 @@ anExpectedThing tipe =
     Json.TBool -> ["a", D.green "BOOLEAN" <> "."]
     Json.TInt -> ["an", D.green "INT" <> "."]
     Json.TObjectWith field -> ["an",D.green "OBJECT","with","a",D.green ("\"" <> D.fromString (Text.unpack field) <> "\""),"field."]
-    Json.TArrayWith i len ->
-      ["a",D.green "longer",D.green "ARRAY" <> "."
-      ,"I","need","index",D.fromInt i <> ",","but","this","array"
-      ,"only","has",D.fromInt len,"elements."
+    Json.TArrayPair len ->
+      ["an",D.green "ARRAY","with",D.green "TWO","entries."
+      ,"This","array","has",D.fromInt len, if len == 1 then "element." else "elements."
       ]
 
 

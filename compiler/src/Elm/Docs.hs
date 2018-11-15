@@ -175,9 +175,7 @@ encodeCase ( tag, args ) =
 
 caseDecoder :: D.Decoder Error ( N.Name, [Type.Type] )
 caseDecoder =
-  (,)
-    <$> D.index 0 D.name
-    <*> D.index 1 (D.list typeDecoder)
+  D.pair D.name (D.list typeDecoder)
 
 
 

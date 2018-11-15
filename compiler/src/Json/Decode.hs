@@ -7,7 +7,7 @@ module Json.Decode
   , Json.string, Json.text, Json.name, Json.bool, Json.int
   , Json.list, Json.dict, Json.pairs, Json.maybe
   , Json.field, Json.at
-  , Json.index
+  , Json.pair
   , Json.map, Json.map2, Json.mapError
   , Json.succeed, Json.fail
   , Json.andThen, Json.oneOf
@@ -18,10 +18,8 @@ module Json.Decode
 import Prelude hiding (length)
 import qualified Data.ByteString.Char8 as Char8
 import qualified Data.ByteString.Internal as B
-import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import qualified Data.Vector as Vector
 import Foreign.ForeignPtr (ForeignPtr)
 import GHC.Word (Word8(..))
 
@@ -106,7 +104,7 @@ object start =
                     spaces
                     objectHelp [entry]
               , do  Symbol.rightCurly
-                    return (Json.Object [] HashMap.empty)
+                    return (Json.Object [])
               ]
 
 
@@ -121,7 +119,7 @@ objectHelp revEntries =
           objectHelp (entry:revEntries)
     ,
       do  Symbol.rightCurly
-          return (Json.Object (reverse revEntries) (HashMap.fromList revEntries))
+          return (Json.Object (reverse revEntries))
     ]
 
 
@@ -149,7 +147,7 @@ array start =
                     spaces
                     arrayHelp 1 [entry]
               , do  Symbol.rightSquare
-                    return (Json.Array Vector.empty)
+                    return (Json.Array [])
               ]
 
 
@@ -164,8 +162,7 @@ arrayHelp !length revEntries =
           arrayHelp (length + 1) (entry:revEntries)
     ,
       do  Symbol.rightSquare
-          return $ Json.Array $ Vector.reverse $
-            Vector.fromListN length revEntries
+          return $ Json.Array $ reverse revEntries
     ]
 
 
