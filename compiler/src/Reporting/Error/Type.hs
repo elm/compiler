@@ -1072,7 +1072,7 @@ opRightToDocs localizer category op tipe expected =
         ( D.reflow $ "I cannot send this through the (<|) pipe:"
         , typeComparison localizer tipe expected
             "The argument is:"
-            "But (<|) is piping it a function that expects:"
+            "But (<|) is piping it to a function that expects:"
             []
         )
 
@@ -1083,7 +1083,7 @@ opRightToDocs localizer category op tipe expected =
             ( D.reflow $ "This function cannot handle the argument sent through the (|>) pipe:"
             , typeComparison localizer argType expectedArgType
                 "The argument is:"
-                "But (|>) is piping it a function that expects:"
+                "But (|>) is piping it to a function that expects:"
                 []
             )
 
