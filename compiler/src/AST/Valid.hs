@@ -17,13 +17,13 @@ module AST.Valid
 
 
 import qualified Data.Map as Map
+import Data.Name (Name)
 import Data.Text (Text)
 import Data.Utf8 (Utf8)
 
 import qualified AST.Utils.Binop as Binop
 import qualified AST.Source as Src
 import qualified AST.Utils.Shader as Shader
-import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
@@ -40,21 +40,21 @@ data Expr_
     | Str Utf8
     | Int Int
     | Float Double
-    | Var Src.VarType N.Name
-    | VarQual Src.VarType N.Name N.Name
+    | Var Src.VarType Name
+    | VarQual Src.VarType Name Name
     | List [Expr]
-    | Op N.Name
+    | Op Name
     | Negate Expr
-    | Binops [(Expr, A.Located N.Name)] Expr
+    | Binops [(Expr, A.Located Name)] Expr
     | Lambda [Src.Pattern] Expr
     | Call Expr [Expr]
     | If [(Expr, Expr)] Expr
     | Let [Def] Expr
     | Case Expr [(Src.Pattern, Expr)]
-    | Accessor N.Name
-    | Access Expr (A.Located N.Name)
-    | Update (A.Located N.Name) [(A.Located N.Name, Expr)]
-    | Record [(A.Located N.Name, Expr)]
+    | Accessor Name
+    | Access Expr (A.Located Name)
+    | Update (A.Located Name) [(A.Located Name, Expr)]
+    | Record [(A.Located Name, Expr)]
     | Unit
     | Tuple Expr Expr [Expr]
     | Shader Text Text Shader.Shader
@@ -65,7 +65,7 @@ data Expr_
 
 
 data Def
-    = Define R.Region (A.Located N.Name) [Src.Pattern] Expr (Maybe Src.Type)
+    = Define R.Region (A.Located Name) [Src.Pattern] Expr (Maybe Src.Type)
     | Destruct R.Region Src.Pattern Expr
 
 
@@ -75,9 +75,9 @@ data Def
 
 data Module =
   Module
-    { _name     :: N.Name
+    { _name     :: Name
     , _overview :: Src.Docs
-    , _docs     :: Map.Map N.Name Text
+    , _docs     :: Map.Map Name Text
     , _exports  :: A.Located Src.Exposing
     , _imports  :: [Src.Import]
     , _decls    :: [A.Located Decl]
@@ -88,10 +88,10 @@ data Module =
     }
 
 
-data Decl = Decl (A.Located N.Name) [Src.Pattern] Expr (Maybe Src.Type)
-data Union = Union R.Region (A.Located N.Name) [A.Located N.Name] [(A.Located N.Name, [Src.Type])]
-data Alias = Alias R.Region (A.Located N.Name) [A.Located N.Name] Src.Type
-data Binop = Binop N.Name Binop.Associativity Binop.Precedence N.Name
+data Decl = Decl (A.Located Name) [Src.Pattern] Expr (Maybe Src.Type)
+data Union = Union R.Region (A.Located Name) [A.Located Name] [(A.Located Name, [Src.Type])]
+data Alias = Alias R.Region (A.Located Name) [A.Located Name] Src.Type
+data Binop = Binop Name Binop.Associativity Binop.Precedence Name
 
 
 data Effects
@@ -101,15 +101,15 @@ data Effects
 
 
 data Manager
-  = Cmd (A.Located N.Name)
-  | Sub (A.Located N.Name)
-  | Fx (A.Located N.Name) (A.Located N.Name)
+  = Cmd (A.Located Name)
+  | Sub (A.Located Name)
+  | Fx (A.Located Name) (A.Located Name)
 
 
-data Port = Port (A.Located N.Name) Src.Type
+data Port = Port (A.Located Name) Src.Type
 
 
-defaultModule :: Map.Map N.Name Text -> [Src.Import] -> [A.Located Decl] -> [Union] -> [Alias] -> [Binop] -> Module
+defaultModule :: Map.Map Name Text -> [Src.Import] -> [A.Located Decl] -> [Union] -> [Alias] -> [Binop] -> Module
 defaultModule docs imports decls unions aliases binop =
   Module
     { _name     = "Main"

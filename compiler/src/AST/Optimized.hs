@@ -22,6 +22,8 @@ import Control.Monad (liftM, liftM2, liftM3, liftM4)
 import Data.Binary
 import qualified Data.ByteString as BS
 import qualified Data.Map as Map
+import qualified Data.Name as Name
+import Data.Name (Name)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import Data.Utf8 (Utf8)
@@ -29,7 +31,6 @@ import Data.Utf8 (Utf8)
 import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
-import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 import qualified Optimize.DecisionTree as DT
 import qualified Reporting.Region as R
@@ -45,39 +46,39 @@ data Expr
   | Str Utf8
   | Int Int
   | Float Double
-  | VarLocal N.Name
+  | VarLocal Name
   | VarGlobal Global
   | VarEnum Global Index.ZeroBased
   | VarBox Global
-  | VarCycle ModuleName.Canonical N.Name
-  | VarDebug N.Name ModuleName.Canonical R.Region (Maybe N.Name)
-  | VarKernel N.Name N.Name
+  | VarCycle ModuleName.Canonical Name
+  | VarDebug Name ModuleName.Canonical R.Region (Maybe Name)
+  | VarKernel Name Name
   | List [Expr]
-  | Function [N.Name] Expr
+  | Function [Name] Expr
   | Call Expr [Expr]
-  | TailCall N.Name [(N.Name, Expr)]
+  | TailCall Name [(Name, Expr)]
   | If [(Expr, Expr)] Expr
   | Let Def Expr
   | Destruct Destructor Expr
-  | Case N.Name N.Name (Decider Choice) [(Int, Expr)]
-  | Accessor N.Name
-  | Access Expr N.Name
-  | Update Expr (Map.Map N.Name Expr)
-  | Record (Map.Map N.Name Expr)
+  | Case Name Name (Decider Choice) [(Int, Expr)]
+  | Accessor Name
+  | Access Expr Name
+  | Update Expr (Map.Map Name Expr)
+  | Record (Map.Map Name Expr)
   | Unit
   | Tuple Expr Expr (Maybe Expr)
-  | Shader Text (Set.Set N.Name) (Set.Set N.Name)
+  | Shader Text (Set.Set Name) (Set.Set Name)
 
 
-data Global = Global ModuleName.Canonical N.Name
+data Global = Global ModuleName.Canonical Name
   deriving (Eq, Ord)
 
 
 -- Provide "List" not "Elm.Kernel.List"
 --
-kernel :: N.Name -> Global
+kernel :: Name -> Global
 kernel home =
-  Global (ModuleName.Canonical Pkg.kernel home) N.dollar
+  Global (ModuleName.Canonical Pkg.kernel home) Name.dollar
 
 
 
@@ -85,19 +86,19 @@ kernel home =
 
 
 data Def
-  = Def N.Name Expr
-  | TailDef N.Name [N.Name] Expr
+  = Def Name Expr
+  | TailDef Name [Name] Expr
 
 
 data Destructor =
-  Destructor N.Name Path
+  Destructor Name Path
 
 
 data Path
   = Index Index.ZeroBased Path
-  | Field N.Name Path
+  | Field Name Path
   | Unbox Path
-  | Root N.Name
+  | Root Name
 
 
 
@@ -132,7 +133,7 @@ data Graph =
   Graph
     { _mains :: Map.Map ModuleName.Canonical Main
     , _nodes :: Map.Map Global Node
-    , _fields :: Map.Map N.Name Int
+    , _fields :: Map.Map Name Int
     }
 
 
@@ -146,12 +147,12 @@ data Main
 
 data Node
   = Define Expr (Set.Set Global)
-  | DefineTailFunc [N.Name] Expr (Set.Set Global)
+  | DefineTailFunc [Name] Expr (Set.Set Global)
   | Ctor Index.ZeroBased Int
   | Enum Index.ZeroBased
   | Box
   | Link Global
-  | Cycle [N.Name] [(N.Name, Expr)] [Def] (Set.Set Global)
+  | Cycle [Name] [(Name, Expr)] [Def] (Set.Set Global)
   | Manager EffectsType
   | Kernel KContent (Maybe KContent)
   | PortIncoming Expr (Set.Set Global)
@@ -167,9 +168,9 @@ data KContent =
 
 data KChunk
   = JS BS.ByteString
-  | ElmVar ModuleName.Canonical N.Name
-  | JsVar N.Name N.Name
-  | ElmField N.Name
+  | ElmVar ModuleName.Canonical Name
+  | JsVar Name Name
+  | ElmField Name
   | JsField Int
   | JsEnum Int
   | Debug

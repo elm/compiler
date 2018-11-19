@@ -57,6 +57,7 @@ import Data.Binary
 import qualified Data.ByteString as B
 import qualified Data.List as List
 import qualified Data.Map as Map
+import Data.Name (Name)
 import Data.Text (Text)
 import Data.Utf8 (Utf8)
 
@@ -64,7 +65,6 @@ import qualified AST.Utils.Binop as Binop
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
-import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
@@ -79,20 +79,20 @@ type Expr =
 
 -- CACHE Annotations for type inference
 data Expr_
-  = VarLocal N.Name
-  | VarTopLevel ModuleName.Canonical N.Name
-  | VarKernel N.Name N.Name
-  | VarForeign ModuleName.Canonical N.Name Annotation
-  | VarCtor CtorOpts ModuleName.Canonical N.Name Index.ZeroBased Annotation
-  | VarDebug ModuleName.Canonical N.Name Annotation
-  | VarOperator N.Name ModuleName.Canonical N.Name Annotation -- CACHE real name for optimization
+  = VarLocal Name
+  | VarTopLevel ModuleName.Canonical Name
+  | VarKernel Name Name
+  | VarForeign ModuleName.Canonical Name Annotation
+  | VarCtor CtorOpts ModuleName.Canonical Name Index.ZeroBased Annotation
+  | VarDebug ModuleName.Canonical Name Annotation
+  | VarOperator Name ModuleName.Canonical Name Annotation -- CACHE real name for optimization
   | Chr Utf8
   | Str Utf8
   | Int Int
   | Float Double
   | List [Expr]
   | Negate Expr
-  | Binop N.Name ModuleName.Canonical N.Name Annotation Expr Expr -- CACHE real name for optimization
+  | Binop Name ModuleName.Canonical Name Annotation Expr Expr -- CACHE real name for optimization
   | Lambda [Pattern] Expr
   | Call Expr [Expr]
   | If [(Expr, Expr)] Expr
@@ -100,10 +100,10 @@ data Expr_
   | LetRec [Def] Expr
   | LetDestruct Pattern Expr Expr
   | Case Expr [CaseBranch]
-  | Accessor N.Name
-  | Access Expr (A.Located N.Name)
-  | Update N.Name Expr (Map.Map N.Name FieldUpdate)
-  | Record (Map.Map N.Name Expr)
+  | Accessor Name
+  | Access Expr (A.Located Name)
+  | Update Name Expr (Map.Map Name FieldUpdate)
+  | Record (Map.Map Name Expr)
   | Unit
   | Tuple Expr Expr (Maybe Expr)
   | Shader Text Text Shader.Shader
@@ -122,8 +122,8 @@ data FieldUpdate =
 
 
 data Def
-  = Def (A.Located N.Name) [Pattern] Expr
-  | TypedDef (A.Located N.Name) FreeVars [(Pattern, Type)] Expr Type
+  = Def (A.Located Name) [Pattern] Expr
+  | TypedDef (A.Located Name) FreeVars [(Pattern, Type)] Expr Type
 
 
 
@@ -146,9 +146,9 @@ type Pattern =
 
 data Pattern_
   = PAnything
-  | PVar N.Name
-  | PRecord [N.Name]
-  | PAlias Pattern N.Name
+  | PVar Name
+  | PRecord [Name]
+  | PAlias Pattern Name
   | PUnit
   | PTuple Pattern Pattern (Maybe Pattern)
   | PList [Pattern]
@@ -159,9 +159,9 @@ data Pattern_
   | PInt Int
   | PCtor
       { _p_home :: ModuleName.Canonical
-      , _p_type :: N.Name
+      , _p_type :: Name
       , _p_union :: Union
-      , _p_name :: N.Name
+      , _p_name :: Name
       , _p_index :: Index.ZeroBased
       , _p_args :: [PatternCtorArg]
       }
@@ -186,17 +186,17 @@ data PatternCtorArg =
 data Annotation = Forall FreeVars Type
 
 
-type FreeVars = Map.Map N.Name ()
+type FreeVars = Map.Map Name ()
 
 
 data Type
   = TLambda Type Type
-  | TVar N.Name
-  | TType ModuleName.Canonical N.Name [Type]
-  | TRecord (Map.Map N.Name FieldType) (Maybe N.Name)
+  | TVar Name
+  | TType ModuleName.Canonical Name [Type]
+  | TRecord (Map.Map Name FieldType) (Maybe Name)
   | TUnit
   | TTuple Type Type (Maybe Type)
-  | TAlias ModuleName.Canonical N.Name [(N.Name, Type)] AliasType
+  | TAlias ModuleName.Canonical Name [(Name, Type)] AliasType
 
 
 data AliasType
@@ -212,7 +212,7 @@ data FieldType =
 -- for every canonical type. For example, if the canonical type is inferred
 -- the orders will all be zeros.
 --
-fieldsToList :: Map.Map N.Name FieldType -> [(N.Name, Type)]
+fieldsToList :: Map.Map Name FieldType -> [(Name, Type)]
 fieldsToList fields =
   let
     getIndex (_, FieldType index _) =
@@ -234,20 +234,20 @@ data Module =
     , _docs    :: Docs
     , _exports :: Exports
     , _decls   :: Decls
-    , _unions  :: Map.Map N.Name Union
-    , _aliases :: Map.Map N.Name Alias
-    , _binops  :: Map.Map N.Name Binop
+    , _unions  :: Map.Map Name Union
+    , _aliases :: Map.Map Name Alias
+    , _binops  :: Map.Map Name Binop
     , _effects :: Effects
     }
 
 
-data Alias = Alias [N.Name] Type
-data Binop = Binop_ Binop.Associativity Binop.Precedence N.Name
+data Alias = Alias [Name] Type
+data Binop = Binop_ Binop.Associativity Binop.Precedence Name
 
 
 data Union =
   Union
-    { _u_vars :: [N.Name]
+    { _u_vars :: [Name]
     , _u_alts :: [Ctor]
     , _u_numAlts :: Int -- CACHE numAlts for exhaustiveness checking
     , _u_opts :: CtorOpts -- CACHE which optimizations are available
@@ -262,7 +262,7 @@ data CtorOpts
 
 
 data Ctor =
-  Ctor N.Name Index.ZeroBased Int [Type] -- CACHE length args
+  Ctor Name Index.ZeroBased Int [Type] -- CACHE length args
 
 
 
@@ -274,7 +274,7 @@ data Docs
   | YesDocs
       { _region :: R.Region
       , _overview :: B.ByteString
-      , _comments :: Map.Map N.Name Text
+      , _comments :: Map.Map Name Text
       }
 
 
@@ -284,7 +284,7 @@ data Docs
 
 data Exports
   = ExportEverything R.Region
-  | Export (Map.Map N.Name (A.Located Export))
+  | Export (Map.Map Name (A.Located Export))
 
 
 data Export
@@ -302,7 +302,7 @@ data Export
 
 data Effects
   = NoEffects
-  | Ports (Map.Map N.Name Port)
+  | Ports (Map.Map Name Port)
   | Manager R.Region R.Region R.Region Manager
 
 
@@ -312,9 +312,9 @@ data Port
 
 
 data Manager
-  = Cmd N.Name
-  | Sub N.Name
-  | Fx N.Name N.Name
+  = Cmd Name
+  | Sub Name
+  | Fx Name Name
 
 
 

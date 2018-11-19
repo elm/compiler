@@ -19,12 +19,12 @@ module AST.Source
 
 
 import qualified Data.ByteString as B
+import Data.Name (Name)
 import Data.Text (Text)
 import Data.Utf8 (Utf8)
 
 import qualified AST.Utils.Binop as Binop
 import qualified AST.Utils.Shader as Shader
-import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
@@ -41,21 +41,21 @@ data Expr_
   | Str Utf8
   | Int Int
   | Float Double
-  | Var VarType N.Name
-  | VarQual VarType N.Name N.Name
+  | Var VarType Name
+  | VarQual VarType Name Name
   | List [Expr]
-  | Op N.Name
+  | Op Name
   | Negate Expr
-  | Binops [(Expr, A.Located N.Name)] Expr
+  | Binops [(Expr, A.Located Name)] Expr
   | Lambda [Pattern] Expr
   | Call Expr [Expr]
   | If [(Expr, Expr)] Expr
   | Let [A.Located Def] Expr
   | Case Expr [(Pattern, Expr)]
-  | Accessor N.Name
-  | Access Expr (A.Located N.Name)
-  | Update (A.Located N.Name) [(A.Located N.Name, Expr)]
-  | Record [(A.Located N.Name, Expr)]
+  | Accessor Name
+  | Access Expr (A.Located Name)
+  | Update (A.Located Name) [(A.Located Name, Expr)]
+  | Record [(A.Located Name, Expr)]
   | Unit
   | Tuple Expr Expr [Expr]
   | Shader Text Text Shader.Shader
@@ -69,8 +69,8 @@ data VarType = Value | Ctor
 
 
 data Def
-  = Annotate N.Name Type
-  | Define (A.Located N.Name) [Pattern] Expr
+  = Annotate Name Type
+  | Define (A.Located Name) [Pattern] Expr
   | Destruct Pattern Expr
 
 
@@ -83,13 +83,13 @@ type Pattern = A.Located Pattern_
 
 data Pattern_
   = PAnything
-  | PVar N.Name
-  | PRecord [A.Located N.Name]
-  | PAlias Pattern (A.Located N.Name)
+  | PVar Name
+  | PRecord [A.Located Name]
+  | PAlias Pattern (A.Located Name)
   | PUnit
   | PTuple Pattern Pattern [Pattern]
-  | PCtor R.Region N.Name [Pattern]
-  | PCtorQual R.Region N.Name N.Name [Pattern]
+  | PCtor R.Region Name [Pattern]
+  | PCtorQual R.Region Name Name [Pattern]
   | PList [Pattern]
   | PCons Pattern Pattern
   | PChr Utf8
@@ -107,10 +107,10 @@ type Type =
 
 data Type_
   = TLambda Type Type
-  | TVar N.Name
-  | TType R.Region N.Name [Type]
-  | TTypeQual R.Region N.Name N.Name [Type]
-  | TRecord [(A.Located N.Name, Type)] (Maybe (A.Located N.Name))
+  | TVar Name
+  | TType R.Region Name [Type]
+  | TTypeQual R.Region Name Name [Type]
+  | TRecord [(A.Located Name, Type)] (Maybe (A.Located Name))
   | TUnit
   | TTuple Type Type [Type]
 
@@ -123,13 +123,13 @@ type Decl = A.Located Decl_
 
 
 data Decl_
-  = Union (A.Located N.Name) [A.Located N.Name] [(A.Located N.Name, [Type])]
-  | Alias (A.Located N.Name) [A.Located N.Name] Type
-  | Binop N.Name Binop.Associativity Binop.Precedence N.Name
-  | Port (A.Located N.Name) Type
+  = Union (A.Located Name) [A.Located Name] [(A.Located Name, [Type])]
+  | Alias (A.Located Name) [A.Located Name] Type
+  | Binop Name Binop.Associativity Binop.Precedence Name
+  | Port (A.Located Name) Type
   | Docs Text
-  | Annotation (A.Located N.Name) Type
-  | Definition (A.Located N.Name) [Pattern] Expr
+  | Annotation (A.Located Name) Type
+  | Definition (A.Located Name) [Pattern] Expr
 
 
 
@@ -142,7 +142,7 @@ data Module decls =
 
 data Header
   = Header
-      { _name :: N.Name
+      { _name :: Name
       , _effects :: Effects
       , _exports :: A.Located Exposing
       , _docs :: Docs
@@ -151,8 +151,8 @@ data Header
 
 data Import =
   Import
-    { _import :: A.Located N.Name
-    , _alias :: Maybe N.Name
+    { _import :: A.Located Name
+    , _alias :: Maybe Name
     , _exposing :: Exposing
     }
 
@@ -169,9 +169,9 @@ data Effects
 
 
 data Manager
-  = Cmd (A.Located N.Name)
-  | Sub (A.Located N.Name)
-  | Fx (A.Located N.Name) (A.Located N.Name)
+  = Cmd (A.Located Name)
+  | Sub (A.Located Name)
+  | Fx (A.Located Name) (A.Located Name)
 
 
 
@@ -184,9 +184,9 @@ data Exposing
 
 
 data Exposed
-  = Lower !N.Name
-  | Upper !N.Name !Privacy
-  | Operator !N.Name
+  = Lower !Name
+  | Upper !Name !Privacy
+  | Operator !Name
 
 
 data Privacy
