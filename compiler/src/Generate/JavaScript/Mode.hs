@@ -13,11 +13,11 @@ module Generate.JavaScript.Mode
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
+import qualified Data.Name as Name
 
 import qualified AST.Optimized as Opt
 import qualified Elm.Interface as I
-import qualified Elm.Name as N
-import qualified Generate.JavaScript.Name as Name
+import qualified Generate.JavaScript.Name as JsName
 
 
 
@@ -80,27 +80,27 @@ isServerHelp target =
 
 
 type ShortFieldNames =
-  Map.Map N.Name Name.Name
+  Map.Map Name.Name JsName.Name
 
 
-shortenFieldNames :: Map.Map N.Name Int -> ShortFieldNames
+shortenFieldNames :: Map.Map Name.Name Int -> ShortFieldNames
 shortenFieldNames frequencies =
   Map.foldr addToShortNames Map.empty $
     Map.foldrWithKey addToBuckets Map.empty frequencies
 
 
-addToBuckets :: N.Name -> Int -> Map.Map Int [N.Name] -> Map.Map Int [N.Name]
+addToBuckets :: Name.Name -> Int -> Map.Map Int [Name.Name] -> Map.Map Int [Name.Name]
 addToBuckets field frequency buckets =
   -- TODO try using an IntMap for buckets
   Map.insertWith (++) frequency [field] buckets
 
 
-addToShortNames :: [N.Name] -> ShortFieldNames -> ShortFieldNames
+addToShortNames :: [Name.Name] -> ShortFieldNames -> ShortFieldNames
 addToShortNames fields shortNames =
   List.foldl' addField shortNames fields
 
 
-addField :: ShortFieldNames -> N.Name -> ShortFieldNames
+addField :: ShortFieldNames -> Name.Name -> ShortFieldNames
 addField shortNames field =
-  let rename = Name.fromInt (Map.size shortNames) in
+  let rename = JsName.fromInt (Map.size shortNames) in
   Map.insert field rename shortNames

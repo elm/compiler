@@ -13,6 +13,7 @@ import Data.Monoid ((<>))
 import qualified Data.List as List
 import Data.Map ((!))
 import qualified Data.Map as Map
+import qualified Data.Name as Name
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
@@ -22,10 +23,9 @@ import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
 import qualified Elm.Interface as I
-import qualified Elm.Name as N
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Expression as Expr
-import qualified Generate.JavaScript.Name as Name
+import qualified Generate.JavaScript.Name as JsName
 import qualified Generate.JavaScript.Mode as Mode
 import qualified Reporting.Doc as D
 import qualified Reporting.Render.Type as RT
@@ -38,7 +38,7 @@ import qualified Reporting.Render.Type.Localizer as L
 
 data Output
   = None
-  | Some N.Name [N.Name] B.Builder
+  | Some Name.Name [Name.Name] B.Builder
 
 
 generate :: Mode.Mode -> Opt.Graph -> [ModuleName.Canonical] -> Output
@@ -85,7 +85,7 @@ perfNote mode =
 -- GENERATE FOR REPL
 
 
-generateForRepl :: Bool -> L.Localizer -> Opt.Graph -> I.Interface -> ModuleName.Canonical -> N.Name -> B.Builder
+generateForRepl :: Bool -> L.Localizer -> Opt.Graph -> I.Interface -> ModuleName.Canonical -> Name.Name -> B.Builder
 generateForRepl ansi localizer (Opt.Graph _ graph _) iface home name =
   let
     mode = Mode.dev Mode.Client
@@ -97,11 +97,11 @@ generateForRepl ansi localizer (Opt.Graph _ graph _) iface home name =
   print ansi localizer home name (I._types iface ! name)
 
 
-print :: Bool -> L.Localizer -> ModuleName.Canonical -> N.Name -> Can.Annotation -> B.Builder
+print :: Bool -> L.Localizer -> ModuleName.Canonical -> Name.Name -> Can.Annotation -> B.Builder
 print ansi localizer home name (Can.Forall _ tipe) =
   let
-    value = Name.toBuilder (Name.fromGlobal home name)
-    toString = Name.toBuilder (Name.fromKernel N.debug "toAnsiString")
+    value = JsName.toBuilder (JsName.fromGlobal home name)
+    toString = JsName.toBuilder (JsName.fromKernel Name.debug "toAnsiString")
     tipeDoc = RT.canToDoc localizer RT.None tipe
     bool = if ansi then "true" else "false"
   in
@@ -241,19 +241,19 @@ addKernel (State revKernels revBuilders seen) kernel =
 
 var :: Opt.Global -> Expr.Code -> JS.Stmt
 var (Opt.Global home name) code =
-  JS.Var [ (Name.fromGlobal home name, Just (Expr.codeToExpr code)) ]
+  JS.Var [ (JsName.fromGlobal home name, Just (Expr.codeToExpr code)) ]
 
 
 isDebugger :: Opt.Global -> Bool
 isDebugger (Opt.Global (ModuleName.Canonical _ home) _) =
-  home == N.debugger
+  home == Name.debugger
 
 
 
 -- GENERATE CYCLES
 
 
-generateCycle :: Mode.Mode -> Opt.Global -> [N.Name] -> [(N.Name, Opt.Expr)] -> [Opt.Def] -> JS.Stmt
+generateCycle :: Mode.Mode -> Opt.Global -> [Name.Name] -> [(Name.Name, Opt.Expr)] -> [Opt.Def] -> JS.Stmt
 generateCycle mode (Opt.Global home _) names values functions =
   JS.Block
     [ JS.Block $ map (generateCycleFunc mode home) functions
@@ -268,8 +268,8 @@ generateCycle mode (Opt.Global home _) names values functions =
                 JS.Block realBlock
 
               Mode.Dev _ _ ->
-                JS.Try (JS.Block realBlock) Name.dollar $ JS.Throw $ JS.String $
-                  "Some top-level definitions from `" <> N.toBuilder (ModuleName._module home) <> "` are causing infinite recursion:\\n"
+                JS.Try (JS.Block realBlock) JsName.dollar $ JS.Throw $ JS.String $
+                  "Some top-level definitions from `" <> Name.toBuilder (ModuleName._module home) <> "` are causing infinite recursion:\\n"
                   <> drawCycle names
                   <> "\\n\\nThese errors are very tricky, so read "
                   <> B.stringUtf8 (D.makeNakedLink "halting-problem")
@@ -281,23 +281,23 @@ generateCycleFunc :: Mode.Mode -> ModuleName.Canonical -> Opt.Def -> JS.Stmt
 generateCycleFunc mode home def =
   case def of
     Opt.Def name expr ->
-      JS.Var [ (Name.fromGlobal home name, Just (Expr.codeToExpr (Expr.generate mode expr))) ]
+      JS.Var [ (JsName.fromGlobal home name, Just (Expr.codeToExpr (Expr.generate mode expr))) ]
 
     Opt.TailDef name args expr ->
-      JS.Var [ (Name.fromGlobal home name, Just (Expr.codeToExpr (Expr.generateTailDef mode name args expr))) ]
+      JS.Var [ (JsName.fromGlobal home name, Just (Expr.codeToExpr (Expr.generateTailDef mode name args expr))) ]
 
 
-generateSafeCycle :: Mode.Mode -> ModuleName.Canonical -> (N.Name, Opt.Expr) -> JS.Stmt
+generateSafeCycle :: Mode.Mode -> ModuleName.Canonical -> (Name.Name, Opt.Expr) -> JS.Stmt
 generateSafeCycle mode home (name, expr) =
-  JS.FunctionStmt (Name.fromCycle home name) [] $
+  JS.FunctionStmt (JsName.fromCycle home name) [] $
     Expr.codeToStmtList (Expr.generate mode expr)
 
 
-generateRealCycle :: ModuleName.Canonical -> (N.Name, expr) -> JS.Stmt
+generateRealCycle :: ModuleName.Canonical -> (Name.Name, expr) -> JS.Stmt
 generateRealCycle home (name, _) =
   let
-    safeName = Name.fromCycle home name
-    realName = Name.fromGlobal home name
+    safeName = JsName.fromCycle home name
+    realName = JsName.fromGlobal home name
   in
   JS.Block
     [ JS.Var [ ( realName, Just (JS.Call (JS.Ref safeName) []) ) ]
@@ -306,11 +306,11 @@ generateRealCycle home (name, _) =
     ]
 
 
-drawCycle :: [N.Name] -> B.Builder
+drawCycle :: [Name.Name] -> B.Builder
 drawCycle names =
   let
     topLine       = "\\n  ┌─────┐"
-    nameLine name = "\\n  │    " <> N.toBuilder name
+    nameLine name = "\\n  │    " <> Name.toBuilder name
     midLine       = "\\n  │     ↓"
     bottomLine    = "\\n  └─────┘"
   in
@@ -333,16 +333,16 @@ addChunk mode builder chunk =
       B.byteString javascript <> builder
 
     Opt.ElmVar home name ->
-      Name.toBuilder (Name.fromGlobal home name) <> builder
+      JsName.toBuilder (JsName.fromGlobal home name) <> builder
 
     Opt.JsVar home name ->
-      Name.toBuilder (Name.fromKernel home name) <> builder
+      JsName.toBuilder (JsName.fromKernel home name) <> builder
 
     Opt.ElmField name ->
-      Name.toBuilder (Expr.generateField mode name) <> builder
+      JsName.toBuilder (Expr.generateField mode name) <> builder
 
     Opt.JsField int ->
-      Name.toBuilder (Name.fromInt int) <> builder
+      JsName.toBuilder (JsName.fromInt int) <> builder
 
     Opt.JsEnum int ->
       B.intDec int <> builder
@@ -379,7 +379,7 @@ generateEnum mode global@(Opt.Global home name) index =
         Mode.Prod _ _ ->
           JS.Int (Index.toMachine index)
   in
-  JS.Var [ (Name.fromGlobal home name, Just definition) ]
+  JS.Var [ (JsName.fromGlobal home name, Just definition) ]
 
 
 
@@ -395,25 +395,25 @@ generateBox mode global@(Opt.Global home name) =
           Expr.codeToExpr (Expr.generateCtor mode global Index.first 1)
 
         Mode.Prod _ _ ->
-          JS.Ref (Name.fromGlobal ModuleName.basics N.identity)
+          JS.Ref (JsName.fromGlobal ModuleName.basics Name.identity)
   in
-  JS.Var [ (Name.fromGlobal home name, Just definition) ]
+  JS.Var [ (JsName.fromGlobal home name, Just definition) ]
 
 
 
 -- GENERATE PORTS
 
 
-generatePort :: Mode.Mode -> Opt.Global -> N.Name -> Opt.Expr -> JS.Stmt
+generatePort :: Mode.Mode -> Opt.Global -> Name.Name -> Opt.Expr -> JS.Stmt
 generatePort mode (Opt.Global home name) makePort converter =
   let
     definition =
-      JS.Call (JS.Ref (Name.fromKernel N.platform makePort))
-        [ JS.String (N.toBuilder name)
+      JS.Call (JS.Ref (JsName.fromKernel Name.platform makePort))
+        [ JS.String (Name.toBuilder name)
         , Expr.codeToExpr (Expr.generate mode converter)
         ]
   in
-  JS.Var [ (Name.fromGlobal home name, Just definition) ]
+  JS.Var [ (JsName.fromGlobal home name, Just definition) ]
 
 
 
@@ -425,40 +425,40 @@ generateManager mode graph (Opt.Global home@(ModuleName.Canonical _ moduleName) 
   let
     managerLVar =
       JS.LBracket
-        (JS.Ref (Name.fromKernel N.platform "effectManagers"))
-        (JS.String (N.toBuilder moduleName))
+        (JS.Ref (JsName.fromKernel Name.platform "effectManagers"))
+        (JS.String (Name.toBuilder moduleName))
 
     (deps, args, stmts) =
       generateManagerHelp home effectsType
 
     createManager =
       JS.ExprStmt $ JS.Assign managerLVar $
-        JS.Call (JS.Ref (Name.fromKernel N.platform "createManager")) args
+        JS.Call (JS.Ref (JsName.fromKernel Name.platform "createManager")) args
   in
   addStmt (List.foldl' (addGlobal mode graph) state deps) $
     JS.Block (createManager : stmts)
 
 
-generateLeaf :: ModuleName.Canonical -> N.Name -> JS.Stmt
+generateLeaf :: ModuleName.Canonical -> Name.Name -> JS.Stmt
 generateLeaf home@(ModuleName.Canonical _ moduleName) name =
   let
     definition =
-      JS.Call leaf [ JS.String (N.toBuilder moduleName) ]
+      JS.Call leaf [ JS.String (Name.toBuilder moduleName) ]
   in
-  JS.Var [ (Name.fromGlobal home name, Just definition) ]
+  JS.Var [ (JsName.fromGlobal home name, Just definition) ]
 
 
 {-# NOINLINE leaf #-}
 leaf :: JS.Expr
 leaf =
-  JS.Ref (Name.fromKernel N.platform "leaf")
+  JS.Ref (JsName.fromKernel Name.platform "leaf")
 
 
 generateManagerHelp :: ModuleName.Canonical -> Opt.EffectsType -> ([Opt.Global], [JS.Expr], [JS.Stmt])
 generateManagerHelp home effectsType =
   let
     dep name = Opt.Global home name
-    ref name = JS.Ref (Name.fromGlobal home name)
+    ref name = JS.Ref (JsName.fromGlobal home name)
   in
   case effectsType of
     Opt.Cmd ->
@@ -489,10 +489,10 @@ generateManagerHelp home effectsType =
 toMainExports :: Mode.Mode -> Map.Map ModuleName.Canonical Opt.Main -> B.Builder
 toMainExports mode mains =
   let
-    export = Name.fromKernel N.platform "export"
+    export = JsName.fromKernel Name.platform "export"
     exports = generateExports mode (Map.foldrWithKey addToTrie emptyTrie mains)
   in
-  Name.toBuilder export <> "(" <> exports <> ");"
+  JsName.toBuilder export <> "(" <> exports <> ");"
 
 
 generateExports :: Mode.Mode -> Trie -> B.Builder
@@ -542,7 +542,7 @@ emptyTrie =
 
 addToTrie :: ModuleName.Canonical -> Opt.Main -> Trie -> Trie
 addToTrie home@(ModuleName.Canonical _ moduleName) main trie =
-  merge trie $ segmentsToTrie home (Text.splitOn "." (N.toText moduleName)) main
+  merge trie $ segmentsToTrie home (Text.splitOn "." (Name.toText moduleName)) main
 
 
 segmentsToTrie :: ModuleName.Canonical -> [Text.Text] -> Opt.Main -> Trie
