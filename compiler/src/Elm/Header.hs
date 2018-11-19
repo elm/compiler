@@ -7,10 +7,10 @@ module Elm.Header
 
 
 import qualified Data.ByteString as B
+import qualified Data.Name as Name
 
 import qualified AST.Source as Src
 import qualified Elm.Compiler.Module as M
-import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 import qualified Parse.Primitives as Parser
 import qualified Parse.Module as Module
@@ -46,7 +46,7 @@ parse pkgName sourceCode =
       Left (Error.Syntax err)
 
 
-getName :: Src.Import -> N.Name
+getName :: Src.Import -> Name.Name
 getName (Src.Import (A.At _ name) _ _) =
   name
 
@@ -55,7 +55,7 @@ getName (Src.Import (A.At _ name) _ _) =
 -- TO HEADER
 
 
-simplifyHeader :: Src.Header -> (Tag, N.Name)
+simplifyHeader :: Src.Header -> (Tag, Name.Name)
 simplifyHeader (Src.Header name effects _ _) =
   ( toTag effects, name )
 

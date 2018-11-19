@@ -15,10 +15,10 @@ module Elm.Compiler.Objects
 
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Name as Name
 
 import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
-import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 import qualified Generate.JavaScript as JS
 
@@ -62,7 +62,7 @@ data Kernel =
     }
 
 
-fromKernels :: Map.Map N.Name Kernel -> Opt.Graph
+fromKernels :: Map.Map Name.Name Kernel -> Opt.Graph
 fromKernels kernels =
   Opt.Graph
     Map.empty
@@ -74,9 +74,9 @@ fromKernels kernels =
 -- KERNEL TO NODES
 
 
-toGlobal :: N.Name -> Opt.Global
+toGlobal :: Name.Name -> Opt.Global
 toGlobal home =
-  Opt.Global (ModuleName.Canonical Pkg.kernel (ModuleName.getKernel home)) N.dollar
+  Opt.Global (ModuleName.Canonical Pkg.kernel (Name.getKernel home)) Name.dollar
 
 
 toNode :: Kernel -> Opt.Node
@@ -88,17 +88,17 @@ toNode (Kernel client server) =
 -- KERNEL TO ELM FIELDS
 
 
-addKernel :: Map.Map N.Name Int -> Kernel -> Map.Map N.Name Int
+addKernel :: Map.Map Name.Name Int -> Kernel -> Map.Map Name.Name Int
 addKernel fields (Kernel client maybeServer) =
   addContent (maybe fields (addContent fields) maybeServer) client
 
 
-addContent :: Map.Map N.Name Int -> Opt.KContent -> Map.Map N.Name Int
+addContent :: Map.Map Name.Name Int -> Opt.KContent -> Map.Map Name.Name Int
 addContent fields (Opt.KContent chunks _) =
   List.foldl' addChunk fields chunks
 
 
-addChunk :: Map.Map N.Name Int -> Opt.KChunk -> Map.Map N.Name Int
+addChunk :: Map.Map Name.Name Int -> Opt.KChunk -> Map.Map Name.Name Int
 addChunk fields chunk =
   case chunk of
     Opt.ElmField name ->

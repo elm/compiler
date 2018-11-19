@@ -19,11 +19,11 @@ import Data.Binary
 import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Map.Merge.Strict as Map
+import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Utils.Binop as Binop
-import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 
 
@@ -41,10 +41,10 @@ type Interfaces =
 
 data Interface =
   Interface
-    { _types   :: Map.Map N.Name Can.Annotation
-    , _unions  :: Map.Map N.Name Union
-    , _aliases :: Map.Map N.Name Alias
-    , _binops  :: Map.Map N.Name Binop
+    { _types   :: Map.Map Name.Name Can.Annotation
+    , _unions  :: Map.Map Name.Name Union
+    , _aliases :: Map.Map Name.Name Alias
+    , _binops  :: Map.Map Name.Name Binop
     }
 
 
@@ -61,7 +61,7 @@ data Alias
 
 data Binop =
   Binop
-    { _op_name :: N.Name
+    { _op_name :: Name.Name
     , _op_annotation :: Can.Annotation
     , _op_associativity :: Binop.Associativity
     , _op_precedence :: Binop.Precedence
@@ -72,7 +72,7 @@ data Binop =
 -- FROM MODULE
 
 
-fromModule :: Map.Map N.Name Can.Annotation -> Can.Module -> Interface
+fromModule :: Map.Map Name.Name Can.Annotation -> Can.Module -> Interface
 fromModule types (Can.Module _ _ exports _ unions aliases binops _) =
   Interface
     { _types = privatize exports types
@@ -82,7 +82,7 @@ fromModule types (Can.Module _ _ exports _ unions aliases binops _) =
     }
 
 
-privatize :: Can.Exports -> Map.Map N.Name a -> Map.Map N.Name a
+privatize :: Can.Exports -> Map.Map Name.Name a -> Map.Map Name.Name a
 privatize exports dict =
   case exports of
     Can.ExportEverything _ ->
@@ -92,12 +92,12 @@ privatize exports dict =
       Map.intersection dict explicitExports
 
 
-toOp :: Map.Map N.Name Can.Annotation -> Can.Binop -> Binop
+toOp :: Map.Map Name.Name Can.Annotation -> Can.Binop -> Binop
 toOp types (Can.Binop_ associativity precedence name) =
   Binop name (types ! name) associativity precedence
 
 
-privatizeUnions :: Can.Exports -> Map.Map N.Name Can.Union -> Map.Map N.Name Union
+privatizeUnions :: Can.Exports -> Map.Map Name.Name Can.Union -> Map.Map Name.Name Union
 privatizeUnions exports unions =
   case exports of
     Can.ExportEverything _ ->
@@ -115,7 +115,7 @@ privatizeUnions exports unions =
             _ -> error "impossible exports discovered in privatizeUnions"
 
 
-privatizeAliases :: Can.Exports -> Map.Map N.Name Can.Alias -> Map.Map N.Name Alias
+privatizeAliases :: Can.Exports -> Map.Map Name.Name Can.Alias -> Map.Map Name.Name Alias
 privatizeAliases exports aliases =
   case exports of
     Can.ExportEverything _ ->

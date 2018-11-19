@@ -11,6 +11,7 @@ module Elm.Compiler.Type.Extract
 
 import Data.Map ((!))
 import qualified Data.Maybe as Maybe
+import qualified Data.Name as Name
 import qualified Data.Set as Set
 
 import qualified AST.Canonical as Can
@@ -19,7 +20,6 @@ import qualified AST.Module.Name as ModuleName
 import qualified AST.Utils.Type as Type
 import qualified Elm.Compiler.Type as T
 import qualified Elm.Interface as I
-import qualified Elm.Name as N
 
 
 
@@ -71,9 +71,9 @@ extract astType =
             <$> traverse (extract . snd) args
 
 
-toPublicName :: ModuleName.Canonical -> N.Name -> N.Name
+toPublicName :: ModuleName.Canonical -> Name.Name -> Name.Name
 toPublicName (ModuleName.Canonical _ home) name =
-  N.sepBy 0x2E {- . -} home name
+  Name.sepBy 0x2E {- . -} home name
 
 
 
@@ -129,7 +129,7 @@ extractAlias interfaces (Opt.Global home name) =
 
 extractUnion :: I.Interfaces -> Opt.Global -> Extractor T.Union
 extractUnion interfaces (Opt.Global home name) =
-  if name == N.list && home == ModuleName.list
+  if name == Name.list && home == ModuleName.list
     then return $ T.Union (toPublicName home name) ["a"] []
     else
       let
@@ -141,7 +141,7 @@ extractUnion interfaces (Opt.Global home name) =
           T.Union pname vars <$> traverse extractCtor ctors
 
 
-extractCtor :: Can.Ctor -> Extractor (N.Name, [T.Type])
+extractCtor :: Can.Ctor -> Extractor (Name.Name, [T.Type])
 extractCtor (Can.Ctor ctor _ _ args) =
   (,) ctor <$> traverse extract args
 
