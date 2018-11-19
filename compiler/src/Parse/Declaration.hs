@@ -7,11 +7,11 @@ module Parse.Declaration
   where
 
 
+import qualified Data.Name as Name
 import qualified Data.Text.Encoding as Text
 
 import qualified AST.Source as Src
 import qualified AST.Utils.Binop as Binop
-import qualified Elm.Name as N
 import qualified Parse.Expression as Expr
 import qualified Parse.Pattern as Pattern
 import Parse.Primitives
@@ -77,7 +77,7 @@ def_ start =
         ]
 
 
-definitionHelp :: R.Position -> A.Located N.Name -> [Src.Pattern] -> SParser Src.Decl
+definitionHelp :: R.Position -> A.Located Name.Name -> [Src.Pattern] -> SParser Src.Decl
 definitionHelp start name revArgs =
   oneOf
     [ do  arg <- hint E.Arg Pattern.term
@@ -115,14 +115,14 @@ type_ start =
         ]
 
 
-nameArgsEquals :: Parser (A.Located N.Name, [A.Located N.Name])
+nameArgsEquals :: Parser (A.Located Name.Name, [A.Located Name.Name])
 nameArgsEquals =
   do  name <- addLocation Var.upper
       spaces
       nameArgsEqualsHelp name []
 
 
-nameArgsEqualsHelp :: A.Located N.Name -> [A.Located N.Name] -> Parser (A.Located N.Name, [A.Located N.Name])
+nameArgsEqualsHelp :: A.Located Name.Name -> [A.Located Name.Name] -> Parser (A.Located Name.Name, [A.Located Name.Name])
 nameArgsEqualsHelp name args =
   oneOf
     [ do  arg <- addLocation Var.lower
@@ -134,7 +134,7 @@ nameArgsEqualsHelp name args =
     ]
 
 
-chompConstructors :: [(A.Located N.Name, [Src.Type])] -> R.Position -> SPos -> SParser [(A.Located N.Name, [Src.Type])]
+chompConstructors :: [(A.Located Name.Name, [Src.Type])] -> R.Position -> SPos -> SParser [(A.Located Name.Name, [Src.Type])]
 chompConstructors ctors end pos =
   oneOf
     [ do  checkSpace pos

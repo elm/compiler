@@ -9,9 +9,10 @@ module Parse.Module
   where
 
 
+import qualified Data.Name as Name
+
 import qualified AST.Source as Src
 import qualified Elm.Compiler.Imports as Imports
-import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 import Parse.Primitives (Parser, oneOf)
 import qualified Parse.Primitives as P
@@ -57,7 +58,7 @@ chompHeader =
 -- port module MyThing
 -- effect module MyThing where { command = MyCmd }
 --
-chompNameAndEffects :: Parser (N.Name, Src.Effects)
+chompNameAndEffects :: Parser (Name.Name, Src.Effects)
 chompNameAndEffects =
   oneOf
     [
@@ -135,7 +136,7 @@ chompManager =
         ]
 
 
-chompCommand :: Parser (A.Located N.Name)
+chompCommand :: Parser (A.Located Name.Name)
 chompCommand =
   do  Keyword.command_
       P.spaces
@@ -144,7 +145,7 @@ chompCommand =
       P.addLocation Var.upper
 
 
-chompSubscription :: Parser (A.Located N.Name)
+chompSubscription :: Parser (A.Located Name.Name)
 chompSubscription =
   do  Keyword.subscription_
       P.spaces
@@ -199,7 +200,7 @@ chompImports imports =
     ]
 
 
-chompAs :: A.Located N.Name -> [Src.Import] -> Parser [Src.Import]
+chompAs :: A.Located Name.Name -> [Src.Import] -> Parser [Src.Import]
 chompAs name imports =
   do  Keyword.as_
       P.spaces
@@ -215,7 +216,7 @@ chompAs name imports =
         ]
 
 
-chompExposing :: A.Located N.Name -> Maybe N.Name -> [Src.Import] -> Parser [Src.Import]
+chompExposing :: A.Located Name.Name -> Maybe Name.Name -> [Src.Import] -> Parser [Src.Import]
 chompExposing name maybeAlias imports =
   do  Keyword.exposing_
       P.spaces

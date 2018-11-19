@@ -6,8 +6,9 @@ module Parse.Expression
   where
 
 
+import qualified Data.Name as Name
+
 import qualified AST.Source as Src
-import qualified Elm.Name as N
 import Parse.Primitives
 import qualified Parse.Primitives.Keyword as Keyword
 import qualified Parse.Primitives.Number as Number
@@ -218,7 +219,7 @@ record start =
               ]
 
 
-type Field = ( A.Located N.Name, Src.Expr )
+type Field = ( A.Located Name.Name, Src.Expr )
 
 
 chompFields :: [Field] -> Parser [Field]
@@ -270,7 +271,7 @@ expression =
 
 data State =
   State
-    { _ops  :: ![(Src.Expr, A.Located N.Name)]
+    { _ops  :: ![(Src.Expr, A.Located Name.Name)]
     , _expr :: !Src.Expr
     , _args :: ![Src.Expr]
     , _end  :: !R.Position
@@ -536,7 +537,7 @@ definition =
         ]
 
 
-definitionHelp :: R.Position -> A.Located N.Name -> [Src.Pattern] -> SParser (A.Located Src.Def)
+definitionHelp :: R.Position -> A.Located Name.Name -> [Src.Pattern] -> SParser (A.Located Src.Def)
 definitionHelp start name revArgs =
   oneOf
     [ do  arg <- hint E.Arg Pattern.term

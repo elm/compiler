@@ -9,10 +9,10 @@ module Parse.Primitives.Kernel
 
 import Prelude hiding (length)
 import qualified Data.ByteString.Internal as B
+import qualified Data.Name as Name
 import Data.Word (Word8)
 import Foreign.ForeignPtr (ForeignPtr)
 
-import qualified Elm.Name as N
 import Parse.Primitives.Internals (Parser(..), State(..), noError)
 import qualified Parse.Primitives.Internals as I
 import qualified Parse.Primitives.Variable as Var
@@ -23,12 +23,12 @@ import qualified Parse.Primitives.Variable as Var
 
 
 data Special
-  = Enum Word8 N.Name
+  = Enum Word8 Name.Name
   | Prod
   | Debug
-  | Import N.Name
-  | JsField N.Name
-  | ElmField N.Name
+  | Import Name.Name
+  | JsField Name.Name
+  | ElmField Name.Name
 
 
 
@@ -94,10 +94,10 @@ chompSpecial fp offset terminal row col jsOffset =
 
     !special =
       if word == 0x24 {- $ -} then
-        ElmField (N.fromForeignPtr fp offset (newOffset - offset))
+        ElmField (Name.fromByteString fp offset (newOffset - offset))
 
       else
-        let !name = N.fromForeignPtr fp tagOffset (newOffset - tagOffset) in
+        let !name = Name.fromByteString fp tagOffset (newOffset - tagOffset) in
         if 0x30 <= word && word <= 0x39 then
           Enum (fromIntegral (word - 0x30)) name
 

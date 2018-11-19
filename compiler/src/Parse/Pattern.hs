@@ -8,9 +8,9 @@ module Parse.Pattern
 
 
 import qualified Data.List as List
+import qualified Data.Name as Name
 
 import qualified AST.Source as Src
-import qualified Elm.Name as N
 import Parse.Primitives (Parser, SParser, SPos, addLocation, checkSpace, getPosition, hint, inContext, spaces, oneOf)
 import qualified Parse.Primitives as P
 import qualified Parse.Primitives.Keyword as Keyword
@@ -103,7 +103,7 @@ record start =
               ]
 
 
-recordHelp :: R.Position -> [A.Located N.Name] -> Parser Src.Pattern
+recordHelp :: R.Position -> [A.Located Name.Name] -> Parser Src.Pattern
 recordHelp start vars =
   oneOf
     [ do  Symbol.comma

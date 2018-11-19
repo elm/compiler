@@ -7,12 +7,12 @@ module Parse.Repl
   where
 
 
-import qualified Data.ByteString.UTF8 as Utf8
+import qualified Data.ByteString.UTF8 as BS_UTF8
 import qualified Data.Text as Text
 import Data.Text (Text)
+import Data.Name (Name)
 
 import qualified AST.Source as Src
-import qualified Elm.Name as N
 import qualified Parse.Module as Module
 import Parse.Primitives
 import qualified Parse.Primitives.Keyword as Keyword
@@ -27,9 +27,9 @@ import qualified Reporting.Annotation as A
 
 
 data Entry
-  = Import N.Name (Maybe N.Name) Src.Exposing Text
-  | Type N.Name Text
-  | Def (Maybe N.Name) Text
+  = Import Name (Maybe Name) Src.Exposing Text
+  | Type Name Text
+  | Def (Maybe Name) Text
   | Other Text
   | Annotation
   | Port
@@ -45,7 +45,7 @@ parseEntry rawEntry =
     source =
       Text.pack rawEntry
   in
-    case run (entryParser source) (Utf8.fromString rawEntry) of
+    case run (entryParser source) (BS_UTF8.fromString rawEntry) of
       Right entry ->
         entry
 
@@ -104,7 +104,7 @@ chompArgs =
     ]
 
 
-tryAlias :: Parser (Maybe N.Name)
+tryAlias :: Parser (Maybe Name)
 tryAlias =
   oneOf
     [ try $

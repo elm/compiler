@@ -16,11 +16,11 @@ import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.Char8 as Char8
 import qualified Data.Char as Char
 import qualified Data.IntSet as IntSet
+import qualified Data.Name as Name
 import qualified Data.Vector as Vector
 import Foreign.ForeignPtr (ForeignPtr)
 import GHC.Word (Word8)
 
-import qualified Elm.Name as N
 import Parse.Primitives.Internals (Parser(..), State(..), expect, noError)
 import qualified Parse.Primitives.Internals as I
 import qualified Parse.Primitives.Variable as Var
@@ -54,7 +54,7 @@ underscore =
 -- BINOP
 
 
-binop :: Parser N.Name
+binop :: Parser Name.Name
 binop =
   Parser $ \(State fp offset terminal indent row col ctx) cok cerr _ eerr ->
     let !newOffset = chompOps fp offset terminal in
@@ -63,7 +63,7 @@ binop =
 
     else
       let !length = newOffset - offset in
-      case N.fromForeignPtr fp offset length of
+      case Name.fromByteString fp offset length of
         "."  -> cerr (E.ParseError row col (E.BadOp Dot ctx))
         "|"  -> cerr (E.ParseError row col (E.BadOp Pipe ctx))
         "->" -> cerr (E.ParseError row col (E.BadOp Arrow ctx))

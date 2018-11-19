@@ -17,12 +17,12 @@ module Parse.Primitives.Variable
 import Control.Exception (assert)
 import Data.Bits ((.&.), (.|.), shiftL)
 import qualified Data.Char as Char
+import qualified Data.Name as Name
 import qualified Data.Set as Set
 import Foreign.ForeignPtr (ForeignPtr)
 import GHC.Word (Word8)
 
 import qualified AST.Source as Src
-import qualified Elm.Name as N
 import Parse.Primitives.Internals (Parser(..), State(..), expect, noError, unsafeIndex)
 import qualified Reporting.Error.Syntax as E
 
@@ -31,14 +31,14 @@ import qualified Reporting.Error.Syntax as E
 -- LOCAL UPPER
 
 
-upper :: Parser N.Name
+upper :: Parser Name.Name
 upper =
   Parser $ \(State fp offset terminal indent row col ctx) cok _ _ eerr ->
     let (# newOffset, newCol #) = chompUpper fp offset terminal col in
     if offset == newOffset then
       eerr (expect row col ctx E.CapVar)
     else
-      let !name = N.fromForeignPtr fp offset (newOffset - offset) in
+      let !name = Name.fromByteString fp offset (newOffset - offset) in
       cok name (State fp newOffset terminal indent row newCol ctx) noError
 
 
@@ -46,14 +46,14 @@ upper =
 -- LOCAL LOWER
 
 
-lower :: Parser N.Name
+lower :: Parser Name.Name
 lower =
   Parser $ \(State fp offset terminal indent row col ctx) cok _ _ eerr ->
     let (# newOffset, newCol #) = chompLower fp offset terminal col in
     if offset == newOffset then
       eerr (expect row col ctx E.LowVar)
     else
-      let !name = N.fromForeignPtr fp offset (newOffset - offset) in
+      let !name = Name.fromByteString fp offset (newOffset - offset) in
       if Set.member name reservedWords then
         eerr (expect row col ctx E.LowVar)
       else
@@ -61,7 +61,7 @@ lower =
 
 
 {-# NOINLINE reservedWords #-}
-reservedWords :: Set.Set N.Name
+reservedWords :: Set.Set Name.Name
 reservedWords =
   Set.fromList
     [ "if", "then", "else"
@@ -79,7 +79,7 @@ reservedWords =
 -- MODULE NAME
 
 
-moduleName :: Parser N.Name
+moduleName :: Parser Name.Name
 moduleName =
   Parser $ \(State fp offset terminal indent row col ctx) cok _ _ eerr ->
     let (# newOffset, newCol #) = chompUpper fp offset terminal col in
@@ -89,7 +89,7 @@ moduleName =
 
       Good end endCol ->
         let
-          !name = N.fromForeignPtr fp offset (end - offset)
+          !name = Name.fromByteString fp offset (end - offset)
           !newState = State fp end terminal indent row endCol ctx
         in
         cok name newState noError
@@ -119,8 +119,8 @@ moduleNameHelp fp offset terminal col =
 
 
 data Upper
-  = Unqualified N.Name
-  | Qualified N.Name N.Name
+  = Unqualified Name.Name
+  | Qualified Name.Name Name.Name
 
 
 foreignUpper :: Parser Upper
@@ -132,12 +132,12 @@ foreignUpper =
     else
       let
         !newState = State fp end terminal indent row newCol ctx
-        !name = N.fromForeignPtr fp start (end - start)
+        !name = Name.fromByteString fp start (end - start)
         !foreign =
           if start == offset then
             Unqualified name
           else
-            let !home = N.fromForeignPtr fp offset ((start - 1) - offset) in
+            let !home = Name.fromByteString fp offset ((start - 1) - offset) in
             Qualified home name
       in
       cok foreign newState noError
@@ -171,7 +171,7 @@ foreignAlpha =
     else
       let
         !newState = State fp end terminal indent row newCol ctx
-        !name = N.fromForeignPtr fp start (end - start)
+        !name = Name.fromByteString fp start (end - start)
       in
       if start == offset then
         if Set.member name reservedWords then
@@ -179,7 +179,7 @@ foreignAlpha =
         else
           cok (Src.Var varType name) newState noError
       else
-        let !home = N.fromForeignPtr fp offset ((start - 1) - offset) in
+        let !home = Name.fromByteString fp offset ((start - 1) - offset) in
         cok (Src.VarQual varType home name) newState noError
 
 

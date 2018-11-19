@@ -8,6 +8,7 @@ module Parse.Shader
 
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Name as Name
 import qualified Data.Text as Text
 import qualified Language.GLSL.Parser as GLP
 import qualified Language.GLSL.Syntax as GLS
@@ -16,7 +17,6 @@ import qualified Text.Parsec.Error as Parsec
 
 import qualified AST.Source as Src
 import qualified AST.Utils.Shader as Shader
-import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 import Parse.Primitives (Parser, getPosition)
@@ -71,9 +71,9 @@ emptyShader =
 addInput :: (GLS.StorageQualifier, Shader.Type, String) -> Shader.Shader -> Shader.Shader
 addInput (qual, tipe, name) glDecls =
   case qual of
-    GLS.Attribute -> glDecls { Shader._attribute = Map.insert (N.fromString name) tipe (Shader._attribute glDecls) }
-    GLS.Uniform   -> glDecls { Shader._uniform = Map.insert (N.fromString name) tipe (Shader._uniform glDecls) }
-    GLS.Varying   -> glDecls { Shader._varying = Map.insert (N.fromString name) tipe (Shader._varying glDecls) }
+    GLS.Attribute -> glDecls { Shader._attribute = Map.insert (Name.fromString name) tipe (Shader._attribute glDecls) }
+    GLS.Uniform   -> glDecls { Shader._uniform = Map.insert (Name.fromString name) tipe (Shader._uniform glDecls) }
+    GLS.Varying   -> glDecls { Shader._varying = Map.insert (Name.fromString name) tipe (Shader._varying glDecls) }
     _             -> error "Should never happen due to `extractInputs` function"
 
 
