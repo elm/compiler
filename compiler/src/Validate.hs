@@ -9,11 +9,11 @@ module Validate
 import Control.Applicative (liftA2)
 import Control.Monad (forM_)
 import qualified Data.Map as Map
+import qualified Data.Name as Name
 import Data.Text (Text)
 
 import qualified AST.Source as Src
 import qualified AST.Valid as Valid
-import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as Error
 import qualified Reporting.Region as R
@@ -51,7 +51,7 @@ data Stuff =
     , _aliases :: [Valid.Alias]
     , _binops :: [Valid.Binop]
     , _ports :: [Valid.Port]
-    , _docs :: Map.Map N.Name Text
+    , _docs :: Map.Map Name.Name Text
     }
 
 
@@ -111,7 +111,7 @@ validateDocs region docs decls stuff =
           vsdHelp decls $ stuff { _docs = Map.insert name docs (_docs stuff) }
 
 
-getNameForDocs :: R.Region -> Src.Decl_ -> Result i w N.Name
+getNameForDocs :: R.Region -> Src.Decl_ -> Result i w Name.Name
 getNameForDocs region decl =
   case decl of
     Src.Union (A.At _ name) _ _ ->
@@ -140,7 +140,7 @@ getNameForDocs region decl =
 -- VALIDATE ANNOTATION
 
 
-validateAnnotation :: R.Region -> N.Name -> Src.Type -> [Src.Decl] -> Stuff -> Result i w Stuff
+validateAnnotation :: R.Region -> Name.Name -> Src.Type -> [Src.Decl] -> Stuff -> Result i w Stuff
 validateAnnotation annRegion annotationName tipe decls stuff =
   case decls of
     [] ->
@@ -289,7 +289,7 @@ definitions sourceDefs =
           Result.throw (Error.TypeWithoutDefinition annRegion annotationName)
 
 
-validateDefinition :: R.Region -> A.Located N.Name -> [Src.Pattern] -> Src.Expr -> Maybe Src.Type -> Result i w Valid.Def
+validateDefinition :: R.Region -> A.Located Name.Name -> [Src.Pattern] -> Src.Expr -> Maybe Src.Type -> Result i w Valid.Def
 validateDefinition region name args expr maybeType =
   do  validExpr <- expression expr
       return $ Valid.Define region name args validExpr maybeType
