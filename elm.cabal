@@ -136,7 +136,6 @@ Executable elm
         Elm.Docs
         Elm.Kernel
         Elm.Header
-        Elm.Name
         Elm.Package
         Json.Decode
         Json.Encode
@@ -162,6 +161,7 @@ Executable elm
         Compile
         Data.Bag
         Data.Index
+        Data.Name
         Data.OneOrMore
         Data.Utf8
         Elm.Compiler.Imports
