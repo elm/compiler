@@ -9,6 +9,7 @@ module Canonicalize.Pattern
 
 
 import qualified Data.Map.Strict as Map
+import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
@@ -16,7 +17,6 @@ import qualified AST.Source as Src
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
 import qualified Data.Index as Index
-import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Region as R
@@ -32,7 +32,7 @@ type Result i w a =
 
 
 type Bindings =
-  Map.Map N.Name R.Region
+  Map.Map Name.Name R.Region
 
 
 
@@ -113,7 +113,7 @@ canonicalize env (A.At region pattern) =
       Result.ok (Can.PInt int)
 
 
-canonicalizeCtor :: Env.Env -> R.Region -> N.Name -> [Src.Pattern] -> Env.Ctor -> Result DupsDict w Can.Pattern_
+canonicalizeCtor :: Env.Env -> R.Region -> Name.Name -> [Src.Pattern] -> Env.Ctor -> Result DupsDict w Can.Pattern_
 canonicalizeCtor env region name patterns ctor =
   case ctor of
     Env.Ctor home tipe union index args ->
@@ -124,8 +124,8 @@ canonicalizeCtor env region name patterns ctor =
       do  verifiedList <- Index.indexedZipWithA toCanonicalArg patterns args
           case verifiedList of
             Index.LengthMatch cargs ->
-              if tipe == N.bool && home == ModuleName.basics then
-                Result.ok (Can.PBool union (name == N.true))
+              if tipe == Name.bool && home == ModuleName.basics then
+                Result.ok (Can.PBool union (name == Name.true))
               else
                 Result.ok (Can.PCtor home tipe union name index cargs)
 
@@ -165,13 +165,13 @@ canonicalizeList env list =
 -- LOG BINDINGS
 
 
-logVar :: N.Name -> R.Region -> a -> Result DupsDict w a
+logVar :: Name.Name -> R.Region -> a -> Result DupsDict w a
 logVar name region value =
   Result.Result $ \bindings warnings _ ok ->
     ok (Dups.insert name region region bindings) warnings value
 
 
-logFields :: [A.Located N.Name] -> a -> Result DupsDict w a
+logFields :: [A.Located Name.Name] -> a -> Result DupsDict w a
 logFields fields value =
   let
     addField (A.At region name) dict =

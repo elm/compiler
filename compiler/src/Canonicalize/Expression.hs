@@ -15,6 +15,7 @@ import qualified Data.Graph as Graph
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Map.Strict.Internal as I
+import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
@@ -27,7 +28,6 @@ import qualified Canonicalize.Environment.Dups as Dups
 import qualified Canonicalize.Pattern as Pattern
 import qualified Canonicalize.Type as Type
 import qualified Data.Index as Index
-import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
@@ -45,7 +45,7 @@ type Result i w a =
 
 
 type FreeLocals =
-  Map.Map N.Name Uses
+  Map.Map Name.Name Uses
 
 
 data Uses =
@@ -214,7 +214,7 @@ canonicalizeCaseBranch env (pattern, expr) =
 -- CANONICALIZE BINOPS
 
 
-canonicalizeBinops :: R.Region -> Env.Env -> [(Valid.Expr, A.Located N.Name)] -> Valid.Expr -> Result FreeLocals [W.Warning] Can.Expr
+canonicalizeBinops :: R.Region -> Env.Env -> [(Valid.Expr, A.Located Name.Name)] -> Valid.Expr -> Result FreeLocals [W.Warning] Can.Expr
 canonicalizeBinops overallRegion env ops final =
   let
     canonicalizeHelp (expr, A.At region op) =
@@ -379,12 +379,12 @@ addBindingsHelp bindings (A.At region pattern) =
 
 
 type Node =
-  (Binding, N.Name, [N.Name])
+  (Binding, Name.Name, [Name.Name])
 
 
 data Binding
   = Define Can.Def
-  | Edge (A.Located N.Name)
+  | Edge (A.Located Name.Name)
   | Destruct Can.Pattern Can.Expr
 
 
@@ -439,7 +439,7 @@ addDefNodes env nodes def =
                   (\freeLocals warnings cbody ->
                       let
                         names = getPatternNames [] pattern
-                        name = N.toCompositeName (map A.toValue names)
+                        name = Name.fromManyNames (map A.toValue names)
                         node = ( Destruct cpattern cbody, name, Map.keys freeLocals )
                       in
                       good
@@ -462,12 +462,12 @@ logLetLocals args letLocals value =
       value
 
 
-addEdge :: [N.Name] -> [Node] -> A.Located N.Name -> [Node]
+addEdge :: [Name.Name] -> [Node] -> A.Located Name.Name -> [Node]
 addEdge edges nodes aname@(A.At _ name) =
   (Edge aname, name, edges) : nodes
 
 
-getPatternNames :: [A.Located N.Name] -> Src.Pattern ->  [A.Located N.Name]
+getPatternNames :: [A.Located Name.Name] -> Src.Pattern ->  [A.Located Name.Name]
 getPatternNames names (A.At region pattern) =
   case pattern of
     Src.PAnything            -> names
@@ -491,7 +491,7 @@ getPatternNames names (A.At region pattern) =
 
 gatherTypedArgs
   :: Env.Env
-  -> N.Name
+  -> Name.Name
   -> [Src.Pattern]
   -> Can.Type
   -> Index.ZeroBased
@@ -575,7 +575,7 @@ checkCycle bindings defs =
           checkCycle otherBindings defs
 
 
-toNames :: [Binding] -> [Can.Def] -> [N.Name]
+toNames :: [Binding] -> [Can.Def] -> [Name.Name]
 toNames bindings revDefs =
   case bindings of
     [] ->
@@ -588,7 +588,7 @@ toNames bindings revDefs =
         Destruct _ _       -> toNames otherBindings revDefs
 
 
-getDefName :: Can.Def -> N.Name
+getDefName :: Can.Def -> Name.Name
 getDefName def =
   case def of
     Can.Def (A.At _ name) _ _ ->
@@ -602,7 +602,7 @@ getDefName def =
 -- LOG VARIABLE USES
 
 
-logVar :: N.Name -> a -> Result FreeLocals w a
+logVar :: Name.Name -> a -> Result FreeLocals w a
 logVar name value =
   Result.Result $ \freeLocals warnings _ good ->
     good (Map.insertWith combineUses name oneDirectUse freeLocals) warnings value
@@ -657,7 +657,7 @@ verifyBindings context bindings (Result.Result k) =
       )
 
 
-addUnusedWarning :: W.Context -> [W.Warning] -> N.Name -> R.Region -> [W.Warning]
+addUnusedWarning :: W.Context -> [W.Warning] -> Name.Name -> R.Region -> [W.Warning]
 addUnusedWarning context warnings name region =
   W.UnusedVariable region context name : warnings
 
@@ -687,7 +687,7 @@ delayedUsage (Result.Result k) =
 -- FIND VARIABLE
 
 
-findVar :: R.Region -> Env.Env -> N.Name -> Result FreeLocals w Can.Expr_
+findVar :: R.Region -> Env.Env -> Name.Name -> Result FreeLocals w Can.Expr_
 findVar region (Env.Env localHome vs _ _ _ qvs _ _) name =
   case Map.lookup name vs of
     Just var ->
@@ -712,7 +712,7 @@ findVar region (Env.Env localHome vs _ _ _ qvs _ _) name =
       Result.throw (Error.NotFoundVar region Nothing name (toPossibleNames vs qvs))
 
 
-findVarQual :: R.Region -> Env.Env -> N.Name -> N.Name -> Result FreeLocals w Can.Expr_
+findVarQual :: R.Region -> Env.Env -> Name.Name -> Name.Name -> Result FreeLocals w Can.Expr_
 findVarQual region (Env.Env localHome vs _ _ _ qvs _ _) prefix name =
   case Map.lookup prefix qvs of
     Just qualified ->
@@ -731,13 +731,13 @@ findVarQual region (Env.Env localHome vs _ _ _ qvs _ _) prefix name =
           Result.throw (Error.NotFoundVar region (Just prefix) name (toPossibleNames vs qvs))
 
     Nothing ->
-      if ModuleName.isKernel prefix && Pkg.isKernel (ModuleName._package localHome) then
-        Result.ok $ Can.VarKernel (ModuleName.getKernel prefix) name
+      if Name.isKernel prefix && Pkg.isKernel (ModuleName._package localHome) then
+        Result.ok $ Can.VarKernel (Name.getKernel prefix) name
       else
         Result.throw (Error.NotFoundVar region (Just prefix) name (toPossibleNames vs qvs))
 
 
-toPossibleNames :: Map.Map N.Name Env.Var -> Env.Qualified Can.Annotation -> Error.PossibleNames
+toPossibleNames :: Map.Map Name.Name Env.Var -> Env.Qualified Can.Annotation -> Error.PossibleNames
 toPossibleNames exposed qualified =
   Error.PossibleNames (Map.keysSet exposed) (Map.map Map.keysSet qualified)
 
@@ -746,7 +746,7 @@ toPossibleNames exposed qualified =
 -- FIND CTOR
 
 
-toVarCtor :: N.Name -> Env.Ctor -> Can.Expr_
+toVarCtor :: Name.Name -> Env.Ctor -> Can.Expr_
 toVarCtor name ctor =
   case ctor of
     Env.Ctor home typeName (Can.Union vars _ _ opts) index args ->

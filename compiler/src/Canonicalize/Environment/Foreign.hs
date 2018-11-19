@@ -8,15 +8,15 @@ module Canonicalize.Environment.Foreign
 
 
 import Control.Monad (foldM)
+import qualified Data.List as List
 import qualified Data.Map.Strict as Map
+import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
 import qualified AST.Module.Name as ModuleName
 import qualified Canonicalize.Environment as Env
-import qualified Data.List as List
 import qualified Elm.Interface as I
-import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Result as Result
@@ -35,7 +35,7 @@ type Result i w a =
 
 
 type ImportDict =
-  Map.Map N.Name ModuleName.Canonical
+  Map.Map Name.Name ModuleName.Canonical
 
 
 createInitialEnv :: ModuleName.Canonical -> ImportDict -> I.Interfaces -> [Src.Import] -> Result i w Env.Env
@@ -47,7 +47,7 @@ createInitialEnv home importDict interfaces sourceImports =
 
 isNotKernel :: Src.Import -> Bool
 isNotKernel (Src.Import (A.At _ name) _ _) =
-  not (ModuleName.isKernel name)
+  not (Name.isKernel name)
 
 
 
@@ -118,7 +118,7 @@ addExposed =
   Map.unionWith Map.union
 
 
-addQualified :: N.Name -> Env.Exposed a -> Env.Qualified a -> Env.Qualified a
+addQualified :: Name.Name -> Env.Exposed a -> Env.Qualified a -> Env.Qualified a
 addQualified prefix exposed qualified =
   Map.insertWith addExposed prefix exposed qualified
 
@@ -127,12 +127,12 @@ addQualified prefix exposed qualified =
 -- UNION
 
 
-unionToType :: ModuleName.Canonical -> N.Name -> I.Union -> Maybe (Env.Type, Env.Exposed Env.Ctor)
+unionToType :: ModuleName.Canonical -> Name.Name -> I.Union -> Maybe (Env.Type, Env.Exposed Env.Ctor)
 unionToType home name union =
   unionToTypeHelp home name <$> I.toPublicUnion union
 
 
-unionToTypeHelp :: ModuleName.Canonical -> N.Name -> Can.Union -> (Env.Type, Env.Exposed Env.Ctor)
+unionToTypeHelp :: ModuleName.Canonical -> Name.Name -> Can.Union -> (Env.Type, Env.Exposed Env.Ctor)
 unionToTypeHelp home name union@(Can.Union vars ctors _ _) =
   let
     addCtor dict (Can.Ctor ctor index _ args) =
@@ -147,12 +147,12 @@ unionToTypeHelp home name union@(Can.Union vars ctors _ _) =
 -- ALIAS
 
 
-aliasToType :: ModuleName.Canonical -> N.Name -> I.Alias -> Maybe (Env.Type, Env.Exposed Env.Ctor)
+aliasToType :: ModuleName.Canonical -> Name.Name -> I.Alias -> Maybe (Env.Type, Env.Exposed Env.Ctor)
 aliasToType home name alias =
   aliasToTypeHelp home name <$> I.toPublicAlias alias
 
 
-aliasToTypeHelp :: ModuleName.Canonical -> N.Name -> Can.Alias -> (Env.Type, Env.Exposed Env.Ctor)
+aliasToTypeHelp :: ModuleName.Canonical -> Name.Name -> Can.Alias -> (Env.Type, Env.Exposed Env.Ctor)
 aliasToTypeHelp home name (Can.Alias vars tipe) =
   (
     Env.Alias (length vars) home vars tipe
@@ -178,7 +178,7 @@ aliasToTypeHelp home name (Can.Alias vars tipe) =
 -- BINOP
 
 
-binopToBinop :: ModuleName.Canonical -> N.Name -> I.Binop -> Map.Map ModuleName.Canonical Env.Binop
+binopToBinop :: ModuleName.Canonical -> Name.Name -> I.Binop -> Map.Map ModuleName.Canonical Env.Binop
 binopToBinop home op (I.Binop name annotation associativity precedence) =
   Map.singleton home (Env.Binop op home name annotation associativity precedence)
 
@@ -190,8 +190,8 @@ binopToBinop home op (I.Binop name annotation associativity precedence) =
 addExposedValue
   :: ModuleName.Canonical
   -> Env.Exposed Can.Annotation
-  -> Map.Map N.Name (Env.Type, Env.Exposed Env.Ctor)
-  -> Map.Map N.Name I.Binop
+  -> Map.Map Name.Name (Env.Type, Env.Exposed Env.Ctor)
+  -> Map.Map Name.Name I.Binop
   -> State
   -> A.Located Src.Exposed
   -> Result i w State
@@ -262,7 +262,7 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) (A.At reg
 
 
 
-toCtors :: Map.Map N.Name (Env.Type, Env.Exposed Env.Ctor) -> Map.Map N.Name N.Name
+toCtors :: Map.Map Name.Name (Env.Type, Env.Exposed Env.Ctor) -> Map.Map Name.Name Name.Name
 toCtors types =
     Map.foldr addCtors Map.empty types
   where
@@ -286,7 +286,7 @@ data Import =
   Import
     { _name :: ModuleName.Canonical
     , _interface :: I.Interface
-    , _prefix :: N.Name
+    , _prefix :: Name.Name
     , _exposing :: Src.Exposing
     }
 

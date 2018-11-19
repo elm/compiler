@@ -10,6 +10,7 @@ import Control.Monad (foldM)
 import qualified Data.Graph as Graph
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
+import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
@@ -19,7 +20,6 @@ import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
 import qualified Canonicalize.Type as Type
 import qualified Data.Index as Index
-import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Region as R
@@ -34,8 +34,8 @@ type Result i w a =
   Result.Result i w Error.Error a
 
 
-type Unions = Map.Map N.Name Can.Union
-type Aliases = Map.Map N.Name Can.Alias
+type Unions = Map.Map Name.Name Can.Union
+type Aliases = Map.Map Name.Name Can.Alias
 
 
 add :: Valid.Module -> Env.Env -> Result i w (Env.Env, Unions, Aliases)
@@ -55,7 +55,7 @@ addVars module_ (Env.Env home vs ts cs bs qvs qts qcs) =
       Result.ok $ Env.Env home vs2 ts cs bs qvs qts qcs
 
 
-collectVars :: Valid.Module -> Result i w (Map.Map N.Name Env.Var)
+collectVars :: Valid.Module -> Result i w (Map.Map Name.Name Env.Var)
 collectVars (Valid.Module _ _ _ _ _ decls _ _ _ effects) =
   let
     addDecl dict (A.At _ (Valid.Decl (A.At region name) _ _ _)) =
@@ -152,12 +152,12 @@ addAlias env@(Env.Env home vs ts cs bs qvs qts qcs) scc =
 -- DETECT TYPE ALIAS CYCLES
 
 
-toNode :: Valid.Alias -> (Valid.Alias, N.Name, [N.Name])
+toNode :: Valid.Alias -> (Valid.Alias, Name.Name, [Name.Name])
 toNode alias@(Valid.Alias _ (A.At _ name) _ tipe) =
   ( alias, name, getEdges [] tipe )
 
 
-getEdges :: [N.Name] -> Src.Type -> [N.Name]
+getEdges :: [Name.Name] -> Src.Type -> [Name.Name]
 getEdges edges (A.At _ tipe) =
   case tipe of
     Src.TLambda arg result ->
@@ -206,7 +206,7 @@ checkUnionFreeVars (Valid.Union unionRegion (A.At _ name) args ctors) =
             Error.TypeVarsUnboundInUnion unionRegion name (map A.toValue args) unbound unbounds
 
 
-checkAliasFreeVars :: Valid.Alias -> Result i w [N.Name]
+checkAliasFreeVars :: Valid.Alias -> Result i w [Name.Name]
 checkAliasFreeVars (Valid.Alias aliasRegion (A.At _ name) args tipe) =
   let
     addArg (A.At region arg) dict =
@@ -225,7 +225,7 @@ checkAliasFreeVars (Valid.Alias aliasRegion (A.At _ name) args tipe) =
               (Map.toList (Map.difference freeVars boundVars))
 
 
-addFreeVars :: Map.Map N.Name R.Region -> Src.Type -> Map.Map N.Name R.Region
+addFreeVars :: Map.Map Name.Name R.Region -> Src.Type -> Map.Map Name.Name R.Region
 addFreeVars freeVars (A.At region tipe) =
   case tipe of
     Src.TLambda arg result ->
@@ -290,7 +290,7 @@ type CtorDups = Dups.Dict (Map.Map ModuleName.Canonical Env.Ctor)
 -- CANONICALIZE ALIAS
 
 
-canonicalizeAlias :: Env.Env -> Valid.Alias -> Result i w ( (N.Name, Can.Alias), CtorDups )
+canonicalizeAlias :: Env.Env -> Valid.Alias -> Result i w ( (Name.Name, Can.Alias), CtorDups )
 canonicalizeAlias env@(Env.Env home _ _ _ _ _ _ _) (Valid.Alias _ (A.At region name) args tipe) =
   do  let vars = map A.toValue args
       ctipe <- Type.canonicalize env tipe
@@ -305,7 +305,7 @@ canonicalizeAlias env@(Env.Env home _ _ _ _ _ _ _) (Valid.Alias _ (A.At region n
               Dups.none
         )
 
-toRecordCtor :: ModuleName.Canonical -> N.Name -> [N.Name] -> Map.Map N.Name Can.FieldType -> Env.Ctor
+toRecordCtor :: ModuleName.Canonical -> Name.Name -> [Name.Name] -> Map.Map Name.Name Can.FieldType -> Env.Ctor
 toRecordCtor home name vars fields =
   let
     avars = map (\var -> (var, Can.TVar var)) vars
@@ -322,7 +322,7 @@ toRecordCtor home name vars fields =
 -- CANONICALIZE UNION
 
 
-canonicalizeUnion :: Env.Env -> Valid.Union -> Result i w ( (N.Name, Can.Union), CtorDups )
+canonicalizeUnion :: Env.Env -> Valid.Union -> Result i w ( (Name.Name, Can.Union), CtorDups )
 canonicalizeUnion env@(Env.Env home _ _ _ _ _ _ _) (Valid.Union _ (A.At _ name) avars ctors) =
   do  cctors <- Index.indexedTraverse (canonicalizeCtor env) ctors
       let vars = map A.toValue avars
@@ -334,14 +334,14 @@ canonicalizeUnion env@(Env.Env home _ _ _ _ _ _ _) (Valid.Union _ (A.At _ name) 
         )
 
 
-canonicalizeCtor :: Env.Env -> Index.ZeroBased -> (A.Located N.Name, [Src.Type]) -> Result i w (A.Located Can.Ctor)
+canonicalizeCtor :: Env.Env -> Index.ZeroBased -> (A.Located Name.Name, [Src.Type]) -> Result i w (A.Located Can.Ctor)
 canonicalizeCtor env index (A.At region ctor, tipes) =
   do  ctipes <- traverse (Type.canonicalize env) tipes
       Result.ok $ A.At region $
         Can.Ctor ctor index (length ctipes) ctipes
 
 
-toOpts :: [(A.Located N.Name, [Src.Type])] -> Can.CtorOpts
+toOpts :: [(A.Located Name.Name, [Src.Type])] -> Can.CtorOpts
 toOpts ctors =
   case ctors of
     [ (_,[_]) ] ->
@@ -351,7 +351,7 @@ toOpts ctors =
       if all (null . snd) ctors then Can.Enum else Can.Normal
 
 
-toCtor :: ModuleName.Canonical -> N.Name -> Can.Union -> A.Located Can.Ctor -> CtorDups
+toCtor :: ModuleName.Canonical -> Name.Name -> Can.Union -> A.Located Can.Ctor -> CtorDups
 toCtor home typeName union (A.At region (Can.Ctor name index _ args)) =
   Dups.one name region $ Map.singleton home $
     Env.Ctor home typeName union index args
