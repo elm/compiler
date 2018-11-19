@@ -25,7 +25,7 @@ import Data.Utf8 (Utf8)
 import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
-import qualified Elm.Name as N
+import qualified Data.Name as Name
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
@@ -37,7 +37,7 @@ import qualified Reporting.Region as R
 data Pattern
   = Anything
   | Literal Literal
-  | Ctor Can.Union N.Name [Pattern]
+  | Ctor Can.Union Name.Name [Pattern]
 
 
 data Literal
@@ -95,7 +95,7 @@ simplify (A.At _ pattern) =
       Literal (Chr chr)
 
     Can.PBool union bool ->
-      Ctor union (if bool then N.true else N.false) []
+      Ctor union (if bool then Name.true else Name.false) []
 
 
 cons :: Can.Pattern -> Pattern -> Pattern
@@ -153,34 +153,34 @@ list =
     consCtor =
       Can.Ctor consName Index.second 2
         [ Can.TVar "a"
-        , Can.TType ModuleName.list N.list [Can.TVar "a"]
+        , Can.TType ModuleName.list Name.list [Can.TVar "a"]
         ]
   in
   Can.Union ["a"] [ nilCtor, consCtor ] 2 Can.Normal
 
 
 {-# NOINLINE unitName #-}
-unitName :: N.Name
+unitName :: Name.Name
 unitName = "#0"
 
 
 {-# NOINLINE pairName #-}
-pairName :: N.Name
+pairName :: Name.Name
 pairName = "#2"
 
 
 {-# NOINLINE tripleName #-}
-tripleName :: N.Name
+tripleName :: Name.Name
 tripleName = "#3"
 
 
 {-# NOINLINE consName #-}
-consName :: N.Name
+consName :: Name.Name
 consName = "::"
 
 
 {-# NOINLINE nilName #-}
-nilName :: N.Name
+nilName :: Name.Name
 nilName = "[]"
 
 
@@ -458,7 +458,7 @@ isExhaustive matrix n =
           concatMap isAltExhaustive altList
 
 
-isMissing :: Can.Union -> Map.Map N.Name a -> Can.Ctor -> Maybe Pattern
+isMissing :: Can.Union -> Map.Map Name.Name a -> Can.Ctor -> Maybe Pattern
 isMissing union ctors (Can.Ctor name _ arity _) =
   if Map.member name ctors then
     Nothing
@@ -466,7 +466,7 @@ isMissing union ctors (Can.Ctor name _ arity _) =
     Just (Ctor union name (replicate arity Anything))
 
 
-recoverCtor :: Can.Union -> N.Name -> Int -> [Pattern] -> [Pattern]
+recoverCtor :: Can.Union -> Name.Name -> Int -> [Pattern] -> [Pattern]
 recoverCtor union name arity patterns =
   let
     (args, rest) =
@@ -552,7 +552,7 @@ isUseful matrix vector =
 
 
 -- INVARIANT: (length row == N) ==> (length result == arity + N - 1)
-specializeRowByCtor :: N.Name -> Int -> [Pattern] -> Maybe [Pattern]
+specializeRowByCtor :: Name.Name -> Int -> [Pattern] -> Maybe [Pattern]
 specializeRowByCtor ctorName arity row =
   case row of
     Ctor _ name args : patterns ->
@@ -638,12 +638,12 @@ isComplete matrix =
 -- COLLECT CTORS
 
 
-collectCtors :: [[Pattern]] -> Map.Map N.Name Can.Union
+collectCtors :: [[Pattern]] -> Map.Map Name.Name Can.Union
 collectCtors matrix =
   List.foldl' collectCtorsHelp Map.empty matrix
 
 
-collectCtorsHelp :: Map.Map N.Name Can.Union -> [Pattern] -> Map.Map N.Name Can.Union
+collectCtorsHelp :: Map.Map Name.Name Can.Union -> [Pattern] -> Map.Map Name.Name Can.Union
 collectCtorsHelp ctors row =
   case row of
     Ctor union name _ : _ ->
