@@ -25,13 +25,13 @@ import Control.Monad (liftM, liftM2, liftM5)
 import Data.Binary
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
+import qualified Data.Name as Name
 import qualified Data.Set as Set
 import Data.Utf8 (Utf8)
 
 import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
-import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 
 
@@ -72,7 +72,7 @@ data DecisionTree
 
 
 data Test
-  = IsCtor ModuleName.Canonical N.Name Index.ZeroBased Int Can.CtorOpts
+  = IsCtor ModuleName.Canonical Name.Name Index.ZeroBased Int Can.CtorOpts
   | IsCons
   | IsNil
   | IsTuple

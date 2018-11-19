@@ -10,6 +10,7 @@ import Prelude hiding (cycle)
 import Control.Monad (foldM)
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Name as Name
 import qualified Data.Set as Set
 import Data.Map ((!))
 
@@ -18,7 +19,6 @@ import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Utils.Type as Type
 import qualified Canonicalize.Effects as Effects
-import qualified Elm.Name as N
 import qualified Optimize.Expression as Expr
 import qualified Optimize.Names as Names
 import qualified Optimize.Port as Port
@@ -38,7 +38,7 @@ type Result i w a =
 
 
 type Annotations =
-  Map.Map N.Name Can.Annotation
+  Map.Map Name.Name Can.Annotation
 
 
 optimize :: Annotations -> Can.Module -> Result i [W.Warning] Opt.Graph
@@ -58,7 +58,7 @@ type Nodes =
   Map.Map Opt.Global Opt.Node
 
 
-addUnions :: ModuleName.Canonical -> Map.Map N.Name Can.Union -> Opt.Graph -> Opt.Graph
+addUnions :: ModuleName.Canonical -> Map.Map Name.Name Can.Union -> Opt.Graph -> Opt.Graph
 addUnions home unions (Opt.Graph mains nodes fields) =
   Opt.Graph mains (Map.foldr (addUnion home) nodes unions) fields
 
@@ -84,12 +84,12 @@ addCtorNode home opts nodes (Can.Ctor name index numArgs _) =
 -- ALIAS
 
 
-addAliases :: ModuleName.Canonical -> Map.Map N.Name Can.Alias -> Opt.Graph -> Opt.Graph
+addAliases :: ModuleName.Canonical -> Map.Map Name.Name Can.Alias -> Opt.Graph -> Opt.Graph
 addAliases home aliases graph =
   Map.foldrWithKey (addAlias home) graph aliases
 
 
-addAlias :: ModuleName.Canonical -> N.Name -> Can.Alias -> Opt.Graph -> Opt.Graph
+addAlias :: ModuleName.Canonical -> Name.Name -> Can.Alias -> Opt.Graph -> Opt.Graph
 addAlias home name (Can.Alias _ tipe) graph@(Opt.Graph mains nodes fieldCounts) =
   case tipe of
     Can.TRecord fields Nothing ->
@@ -110,7 +110,7 @@ addAlias home name (Can.Alias _ tipe) graph@(Opt.Graph mains nodes fieldCounts) 
       graph
 
 
-addRecordCtorField :: N.Name -> Can.FieldType -> Map.Map N.Name Int -> Map.Map N.Name Int
+addRecordCtorField :: Name.Name -> Can.FieldType -> Map.Map Name.Name Int -> Map.Map Name.Name Int
 addRecordCtorField name _ fields =
   Map.insertWith (+) name 1 fields
 
@@ -152,7 +152,7 @@ addEffects home effects graph@(Opt.Graph mains nodes fields) =
       Opt.Graph mains newNodes fields
 
 
-addPort :: ModuleName.Canonical -> N.Name -> Can.Port -> Opt.Graph -> Opt.Graph
+addPort :: ModuleName.Canonical -> Name.Name -> Can.Port -> Opt.Graph -> Opt.Graph
 addPort home name port_ graph =
   case port_ of
     Can.Incoming _ payloadType _ ->
@@ -174,7 +174,7 @@ addPort home name port_ graph =
 -- HELPER
 
 
-addToGraph :: Opt.Global -> Opt.Node -> Map.Map N.Name Int -> Opt.Graph -> Opt.Graph
+addToGraph :: Opt.Global -> Opt.Node -> Map.Map Name.Name Int -> Opt.Graph -> Opt.Graph
 addToGraph name node fields (Opt.Graph mains nodes fieldCounts) =
   Opt.Graph
     mains
@@ -213,13 +213,13 @@ findMain defs =
     def:rest ->
       case def of
         Can.Def (A.At region name) _ _ ->
-          if name == N.main then Just region else findMain rest
+          if name == Name.main then Just region else findMain rest
 
         Can.TypedDef (A.At region name) _ _ _ _ ->
-          if name == N.main then Just region else findMain rest
+          if name == Name.main then Just region else findMain rest
 
 
-defToName :: Can.Def -> N.Name
+defToName :: Can.Def -> Name.Name
 defToName def =
   case def of
     Can.Def (A.At _ name) _ _          -> name
@@ -242,9 +242,9 @@ addDef home annotations def graph =
       addDefHelp region annotations home name (map fst typedArgs) body graph
 
 
-addDefHelp :: R.Region -> Annotations -> ModuleName.Canonical -> N.Name -> [Can.Pattern] -> Can.Expr -> Opt.Graph -> Result i w Opt.Graph
+addDefHelp :: R.Region -> Annotations -> ModuleName.Canonical -> Name.Name -> [Can.Pattern] -> Can.Expr -> Opt.Graph -> Result i w Opt.Graph
 addDefHelp region annotations home name args body graph@(Opt.Graph mains nodes fieldCounts) =
-  if name /= N.main then
+  if name /= Name.main then
     Result.ok (addDefNode home name args body Set.empty graph)
   else
     let
@@ -259,11 +259,11 @@ addDefHelp region annotations home name args body graph@(Opt.Graph mains nodes f
           Opt.Graph newMains nodes newFields
     in
     case Type.deepDealias tipe of
-      Can.TType hm nm [_] | hm == ModuleName.virtualDom && nm == N.node ->
+      Can.TType hm nm [_] | hm == ModuleName.virtualDom && nm == Name.node ->
           Result.ok $ addMain $ Names.run $
-            Names.registerKernel N.virtualDom Opt.Static
+            Names.registerKernel Name.virtualDom Opt.Static
 
-      Can.TType hm nm [flags, _, message] | hm == ModuleName.platform && nm == N.program ->
+      Can.TType hm nm [flags, _, message] | hm == ModuleName.platform && nm == Name.program ->
           case Effects.checkPayload flags of
             Right () ->
               Result.ok $ addMain $ Names.run $
@@ -276,7 +276,7 @@ addDefHelp region annotations home name args body graph@(Opt.Graph mains nodes f
           Result.throw (E.BadType region tipe)
 
 
-addDefNode :: ModuleName.Canonical -> N.Name -> [Can.Pattern] -> Can.Expr -> Set.Set Opt.Global -> Opt.Graph -> Opt.Graph
+addDefNode :: ModuleName.Canonical -> Name.Name -> [Can.Pattern] -> Can.Expr -> Set.Set Opt.Global -> Opt.Graph -> Opt.Graph
 addDefNode home name args body mainDeps graph =
   let
     (deps, fields, def) =
@@ -300,7 +300,7 @@ addDefNode home name args body mainDeps graph =
 
 data State =
   State
-    { _values :: [(N.Name, Opt.Expr)]
+    { _values :: [(Name.Name, Opt.Expr)]
     , _functions :: [Opt.Def]
     }
 
@@ -309,7 +309,7 @@ addRecDefs :: ModuleName.Canonical -> [Can.Def] -> Opt.Graph -> Opt.Graph
 addRecDefs home defs (Opt.Graph mains nodes fieldCounts) =
   let
     names = reverse (map toName defs)
-    cycleName = Opt.Global home (N.toCompositeName names)
+    cycleName = Opt.Global home (Name.fromManyNames names)
     cycle = foldr addValueName Set.empty defs
     links = foldr (addLink home (Opt.Link cycleName)) Map.empty defs
 
@@ -323,14 +323,14 @@ addRecDefs home defs (Opt.Graph mains nodes fieldCounts) =
     (Map.unionWith (+) fields fieldCounts)
 
 
-toName :: Can.Def -> N.Name
+toName :: Can.Def -> Name.Name
 toName def =
   case def of
     Can.Def      (A.At _ name) _ _     -> name
     Can.TypedDef (A.At _ name) _ _ _ _ -> name
 
 
-addValueName :: Can.Def -> Set.Set N.Name -> Set.Set N.Name
+addValueName :: Can.Def -> Set.Set Name.Name -> Set.Set Name.Name
 addValueName def names =
   case def of
     Can.Def      (A.At _ name)   args _   -> if null args then Set.insert name names else names
@@ -351,7 +351,7 @@ addLink home link def links =
 -- ADD RECURSIVE DEFS
 
 
-addRecDef :: Set.Set N.Name -> State -> Can.Def -> Names.Tracker State
+addRecDef :: Set.Set Name.Name -> State -> Can.Def -> Names.Tracker State
 addRecDef cycle state def =
   case def of
     Can.Def (A.At _ name) args body ->
@@ -361,7 +361,7 @@ addRecDef cycle state def =
       addRecDefHelp cycle state name (map fst args) body
 
 
-addRecDefHelp :: Set.Set N.Name -> State -> N.Name -> [Can.Pattern] -> Can.Expr -> Names.Tracker State
+addRecDefHelp :: Set.Set Name.Name -> State -> Name.Name -> [Can.Pattern] -> Can.Expr -> Names.Tracker State
 addRecDefHelp cycle (State values funcs) name args body =
   case args of
     [] ->
