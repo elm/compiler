@@ -588,7 +588,7 @@ specializeRowByLiteral literal row =
 
     Ctor _ _ _ : _ ->
       error $
-        "Compiler bug! After type checking, constructors and literals\
+        "Compiler bug! After type checking, variants and literals\
         \ should never align in pattern match exhaustiveness checks."
 
     [] ->

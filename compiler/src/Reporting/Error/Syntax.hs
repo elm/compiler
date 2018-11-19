@@ -711,7 +711,7 @@ equalsTheory stack =
       case context of
         ExprRecord -> "an equals sign (=) followed by an expression"
         Definition name -> "an equals sign (=) followed by " <> N.toString name <> "'s definition"
-        TypeUnion -> "an equals sign (=) followed by the first custom type constructor"
+        TypeUnion -> "an equals sign (=) followed by the first custom type variant"
         TypeAlias -> "an equals sign (=) followed by the aliased type"
         _ -> equalsTheory rest
 
@@ -726,7 +726,7 @@ barTheory stack =
       case context of
         ExprRecord -> "a vertical bar (|) followed by the record fields you want to update"
         TypeRecord -> "a vertical bar (|) followed by some record field types"
-        TypeUnion -> "a vertical bar (|) followed by more custom type constructors"
+        TypeUnion -> "a vertical bar (|) followed by more custom type variants"
         _ -> barTheory rest
 
 

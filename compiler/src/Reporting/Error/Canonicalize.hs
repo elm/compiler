@@ -172,7 +172,7 @@ toReport source err =
       ambiguousName source region maybePrefix name possibleHomes "type"
 
     AmbiguousCtor region maybePrefix name possibleHomes ->
-      ambiguousName source region maybePrefix name possibleHomes "constructor"
+      ambiguousName source region maybePrefix name possibleHomes "variant"
 
     AmbiguousBinop region name possibleHomes ->
       ambiguousName source region Nothing name possibleHomes "operator"
@@ -182,7 +182,7 @@ toReport source err =
         thing =
           case badArityContext of
             TypeArity    -> "type"
-            PatternArity -> "constructor"
+            PatternArity -> "variant"
       in
       if actual < expected then
         Report.Report "TOO FEW ARGS" region [] $
@@ -231,7 +231,7 @@ toReport source err =
 
     DuplicateCtor name r1 r2 ->
       nameClash source r1 r2 $
-        "This file defines multiple `" <> N.toString name <> "` type constructors."
+        "This file defines multiple `" <> N.toString name <> "` variants."
 
     DuplicateBinop name r1 r2 ->
       nameClash source r1 r2 $
@@ -356,12 +356,12 @@ toReport source err =
           (
             D.reflow $
               "You are trying to import the `" <> N.toString ctor
-              <> "` type constructor by name:"
+              <> "` variant by name:"
           ,
             D.fillSep
               ["Try","importing",D.green (D.fromName tipe <> "(..)"),"instead."
               ,"The","dots","mean","“expose","the",D.fromName tipe,"type","and"
-              ,"all","its","constructors”","so","it","gives","you","access","to"
+              ,"all","its","variants”","so","it","gives","you","access","to"
               , D.fromName ctor <> "."
               ]
           )
@@ -431,7 +431,7 @@ toReport source err =
       notFound source region prefix name "type" possibleNames
 
     NotFoundCtor region prefix name possibleNames ->
-      notFound source region prefix name "constructor" possibleNames
+      notFound source region prefix name "variant" possibleNames
 
     NotFoundBinop region op locals ->
       if op == "===" then

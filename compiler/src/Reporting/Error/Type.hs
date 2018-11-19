@@ -783,7 +783,7 @@ toExprReport source localizer exprRegion category tipe expected =
                   case maybeFuncName of
                     NoName        -> "This function"
                     FuncName name -> "The `" <> N.toString name <> "` function"
-                    CtorName name -> "The `" <> N.toString name <> "` constructor"
+                    CtorName name -> "The `" <> N.toString name <> "` variant"
                     OpName op     -> "The (" <> N.toString op <> ") operator"
               in
               ( D.reflow $ thisFunction <> " expects " <> D.args n <> ", but it got " <> show numGivenArgs <> " instead."
