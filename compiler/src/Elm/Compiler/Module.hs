@@ -21,13 +21,12 @@ module Elm.Compiler.Module
 
 
 import qualified Data.Char as Char
-import qualified Data.List as List
+import qualified Data.Name as Name
 import qualified Data.Text as Text
-import System.FilePath ((</>))
+import qualified System.FilePath as FP
 
 import qualified AST.Module.Name as ModuleName
 import qualified Elm.Interface as I
-import qualified Elm.Name as N
 import qualified Json.Decode as Decode
 import qualified Json.Encode as Encode
 
@@ -36,28 +35,29 @@ import qualified Json.Encode as Encode
 -- NAMES
 
 
-type Raw = N.Name
+type Raw = Name.Name
 
 
 nameToString :: Raw -> String
 nameToString =
-  N.toString
+  Name.toString
 
 
 nameToSlashPath :: Raw -> FilePath
 nameToSlashPath name =
-  List.foldl1 (</>) (map Text.unpack (Text.splitOn "." (N.toText name)))
+  map (\c -> if c == '.' then FP.pathSeparator else c) (Name.toString name)
 
 
 nameToHyphenPath :: Raw -> FilePath
 nameToHyphenPath name =
-  Text.unpack (Text.replace "." "-" (N.toText name))
+  map (\c -> if c == '.' then '-' else c) (Name.toString name)
 
 
 fromHyphenPath :: Text.Text -> Maybe Raw
 fromHyphenPath txt =
-  if all isGoodChunk (Text.splitOn "-" txt)
-    then Just (N.fromText (Text.replace "-" "." txt))
+  let str = Text.unpack txt in
+  if all isGoodChunk (splitOn '-' str)
+    then Just (Name.fromString (map (\c -> if c == '-' then '.' else c) str))
     else Nothing
 
 
@@ -73,24 +73,44 @@ encode =
 decoder :: Decode.Decoder Text.Text Raw
 decoder =
   do  txt <- Decode.text
-      let chunks = Text.splitOn "." txt
-      if all isGoodChunk chunks
-        then Decode.succeed (N.fromText txt)
+      let str = Text.unpack txt
+      if all isGoodChunk (splitOn '.' str)
+        then Decode.succeed (Name.fromString str)
         else Decode.fail txt
 
 
-isGoodChunk :: Text.Text -> Bool
+isGoodChunk :: String -> Bool
 isGoodChunk chunk =
-  case Text.uncons chunk of
-    Nothing ->
+  case chunk of
+    [] ->
       False
 
-    Just (first, rest) ->
-      Char.isUpper first && Text.all isGoodChar rest
+    first : rest ->
+      Char.isUpper first && all isGoodChar rest
 
 
 isGoodChar :: Char -> Bool
 isGoodChar char =
   Char.isAlphaNum char || char == '_'
 
+
+splitOn :: Char -> String -> [String]
+splitOn sep string =
+  uncurry (:) (splitOnHelp sep string)
+
+
+splitOnHelp :: Char -> String -> (String, [String])
+splitOnHelp sep string =
+  case string of
+    [] ->
+      ("",[])
+
+    char : rest ->
+      let
+        (chunk,chunks) = splitOnHelp sep rest
+      in
+      if char == sep then
+        ("", chunk:chunks)
+      else
+        (char:chunk, chunks)
 
