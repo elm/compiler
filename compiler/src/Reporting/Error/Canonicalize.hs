@@ -275,7 +275,7 @@ toReport source err =
               "You have declared that `" ++ N.toString name ++ "` is an effect type:"
           ,
             D.reflow $
-              "But I cannot find a union type named `" ++ N.toString name ++ "` in this file!"
+              "But I cannot find a custom type named `" ++ N.toString name ++ "` in this file!"
           )
 
     EffectFunctionNotFound region name ->
@@ -343,7 +343,7 @@ toReport source err =
         Report.toCodeSnippet source region Nothing
           (
             D.reflow $
-              "The (..) syntax is for exposing union type constructors. It cannot be used with a type alias like `"
+              "The (..) syntax is for exposing custom type variants. It cannot be used with a type alias like `"
               ++ N.toString name ++ "` though."
           ,
             D.reflow $

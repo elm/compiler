@@ -606,7 +606,7 @@ contextToString defaultString prefixString stack =
         PatternRecord -> "a record pattern" <> anchor
         Module -> "a module declaration"
         Import -> "an import"
-        TypeUnion -> "a union type"
+        TypeUnion -> "a custom type"
         TypeAlias -> "a type alias"
         Infix -> "an infix declaration"
         Port -> "a port declaration"
@@ -711,7 +711,7 @@ equalsTheory stack =
       case context of
         ExprRecord -> "an equals sign (=) followed by an expression"
         Definition name -> "an equals sign (=) followed by " <> N.toString name <> "'s definition"
-        TypeUnion -> "an equals sign (=) followed by the first union type constructor"
+        TypeUnion -> "an equals sign (=) followed by the first custom type constructor"
         TypeAlias -> "an equals sign (=) followed by the aliased type"
         _ -> equalsTheory rest
 
@@ -726,7 +726,7 @@ barTheory stack =
       case context of
         ExprRecord -> "a vertical bar (|) followed by the record fields you want to update"
         TypeRecord -> "a vertical bar (|) followed by some record field types"
-        TypeUnion -> "a vertical bar (|) followed by more union type constructors"
+        TypeUnion -> "a vertical bar (|) followed by more custom type constructors"
         _ -> barTheory rest
 
 
@@ -754,7 +754,7 @@ badSpace stack =
         PatternRecord -> "the end of that record" <> badSpaceEnd
         Module -> "something like `module Main exposing (..)`"
         Import -> "something like `import Html exposing (..)`"
-        TypeUnion -> "more of that union type" <> badSpaceEnd
+        TypeUnion -> "more of that custom type" <> badSpaceEnd
         TypeAlias -> "more of that type alias" <> badSpaceEnd
         Infix -> "more of that infix declaration" <> badSpaceEnd
         Port -> "more of that port declaration" <> badSpaceEnd

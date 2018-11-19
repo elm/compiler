@@ -256,7 +256,7 @@ toPatternReport source localizer patternRegion category tipe expected =
                 [ D.toSimpleHint $
                     "Everything in the list needs to be the same type of value.\
                     \ This way you never run into unexpected values partway through.\
-                    \ To mix different types in a single list, create a \"union type\" as\
+                    \ To mix different types in a single list, create a \"custom type\" as\
                     \ described in: <https://guide.elm-lang.org/types/custom_types.html>"
                 ]
             )
@@ -692,7 +692,7 @@ toExprReport source localizer exprRegion category tipe expected =
           , [ D.toSimpleHint $
                 "Everything in the list needs to be the same type of value.\
                 \ This way you never run into unexpected values partway through.\
-                \ To mix different types in a single list, create a \"union type\" as\
+                \ To mix different types in a single list, create a \"custom type\" as\
                 \ described in: <https://guide.elm-lang.org/types/custom_types.html>"
             ]
           )
