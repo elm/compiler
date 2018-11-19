@@ -29,6 +29,7 @@ import Data.Binary (Binary, get, getWord8, put, putWord8)
 import qualified Data.Char as Char
 import Data.Function (on)
 import qualified Data.List as List
+import qualified Data.Name as Name
 import qualified Data.Map as Map
 import Data.Monoid ((<>))
 import qualified Data.Text as Text
@@ -40,7 +41,6 @@ import Data.Text (Text)
 import Data.Word (Word16)
 import System.FilePath ((</>))
 
-import qualified Elm.Name as N
 import qualified Json.Decode.Internals as Decode
 import qualified Json.Encode as Encode
 
@@ -51,8 +51,8 @@ import qualified Json.Encode as Encode
 
 data Name =
   Name
-    { _author :: !Text
-    , _project :: !Text
+    { _author :: !Name.Name
+    , _project :: !Name.Name
     }
     deriving (Eq, Ord)
 
@@ -75,30 +75,30 @@ isKernel (Name author _) =
 
 
 toString :: Name -> String
-toString name =
-    Text.unpack (toText name)
+toString (Name author project) =
+  Name.toString author <> "/" <> Name.toString project
 
 
 toText :: Name -> Text
-toText (Name author project) =
-    author <> "/" <> project
+toText name =
+  Text.pack (toString name)
 
 
 toUrl :: Name -> String
 toUrl (Name author project) =
-    Text.unpack author ++ "/" ++ Text.unpack project
+  Name.toString author ++ "/" ++ Name.toString project
 
 
 toFilePath :: Name -> FilePath
 toFilePath (Name author project) =
-    Text.unpack author </> Text.unpack project
+  Name.toString author </> Name.toString project
 
 
 fromText :: Text -> Either (String, [String]) Name
 fromText text =
   case Text.splitOn "/" text of
     [ author, project ] | not (Text.null author || Text.null project) ->
-      Name author <$> validateProjectName project
+      Name (Name.fromString (Text.unpack author)) <$> validateProjectName project
 
     _ ->
       Left
@@ -107,7 +107,7 @@ fromText text =
         )
 
 
-validateProjectName :: Text -> Either (String, [String]) Text
+validateProjectName :: Text -> Either (String, [String]) Name.Name
 validateProjectName text =
   if Text.isInfixOf "--" text then
     Left $ thisCannot "have two dashes in a row" text (Text.replace "--" "-" text)
@@ -131,7 +131,7 @@ validateProjectName text =
     Left $ thisCannot "end with a dash" text (Text.dropEnd 1 text)
 
   else
-    Right text
+    Right (Name.fromString (Text.unpack text))
 
 
 thisCannot :: String -> Text -> Text -> (String, [String])
@@ -240,7 +240,7 @@ linearAlgebra =
 -- PACKAGE SUGGESTIONS
 
 
-suggestions :: Map.Map N.Name Name
+suggestions :: Map.Map Name.Name Name
 suggestions =
   Map.fromList
     [ ("Browser", browser)
