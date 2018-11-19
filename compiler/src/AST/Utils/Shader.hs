@@ -7,7 +7,7 @@ module AST.Utils.Shader
 
 
 import qualified Data.Map as Map
-import qualified Elm.Name as N
+import qualified Data.Name as Name
 
 
 
@@ -16,9 +16,9 @@ import qualified Elm.Name as N
 
 data Shader =
   Shader
-    { _attribute :: Map.Map N.Name Type
-    , _uniform :: Map.Map N.Name Type
-    , _varying :: Map.Map N.Name Type
+    { _attribute :: Map.Map Name.Name Type
+    , _uniform :: Map.Map Name.Name Type
+    , _varying :: Map.Map Name.Name Type
     }
 
 
