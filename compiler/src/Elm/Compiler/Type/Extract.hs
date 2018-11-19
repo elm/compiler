@@ -10,6 +10,7 @@ module Elm.Compiler.Type.Extract
 
 
 import Data.Map ((!))
+import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 
@@ -134,11 +135,15 @@ extractUnion interfaces (Opt.Global home name) =
     else
       let
         pname = toPublicName home name
-        unions = I._unions (interfaces ! home)
+        maybeUnions = I._unions <$> Map.lookup home interfaces
       in
-      case I.toUnionInternals (unions ! name) of
-        Can.Union vars ctors _ _ ->
-          T.Union pname vars <$> traverse extractCtor ctors
+      case Map.lookup name =<< maybeUnions of
+        Just union ->
+          case I.toUnionInternals union of
+            Can.Union vars ctors _ _ ->
+              T.Union pname vars <$> traverse extractCtor ctors
+        Nothing ->
+          return $ T.Union pname [] []
 
 
 extractCtor :: Can.Ctor -> Extractor (N.Name, [T.Type])
