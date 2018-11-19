@@ -10,6 +10,7 @@ module Elm.Kernel
 import qualified Data.ByteString as B
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Name as Name
 import qualified Data.Set as Set
 import Data.Word (Word8)
 
@@ -17,7 +18,6 @@ import Data.Word (Word8)
 import qualified AST.Optimized as Opt
 import qualified AST.Source as Src
 import qualified AST.Module.Name as ModuleName
-import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 import Parse.Primitives (Parser, run)
 import qualified Parse.Primitives.Kernel as K
@@ -32,7 +32,7 @@ import qualified Reporting.Error as E
 
 
 type ImportDict =
-  Map.Map N.Name [Pkg.Name]
+  Map.Map Name.Name [Pkg.Name]
 
 
 parse :: ImportDict -> B.ByteString -> Either E.Error Opt.KContent
@@ -64,7 +64,7 @@ parser importDict =
 
 
 type VarTable =
-  Map.Map N.Name Opt.KChunk
+  Map.Map Name.Name Opt.KChunk
 
 
 data State =
@@ -78,13 +78,13 @@ processImports importDict imports =
 
 addImport :: ImportDict -> State -> Src.Import -> State
 addImport importDict state (Src.Import (A.At _ home) maybeAlias exposing) =
-  if ModuleName.isKernel home then
+  if Name.isKernel home then
     case maybeAlias of
       Just _ ->
-        error ("Cannot use aliases on kernel import of: " ++ N.toString home)
+        error ("Cannot use aliases on kernel import of: " ++ Name.toString home)
 
       Nothing ->
-        addKernelImport (ModuleName.getKernel home) exposing state
+        addKernelImport (Name.getKernel home) exposing state
 
   else
     case Map.lookup home importDict of
@@ -96,46 +96,46 @@ addImport importDict state (Src.Import (A.At _ home) maybeAlias exposing) =
         addNormalImport canonicalHome prefix exposing state
 
       _ ->
-        error ("Cannot find kernel import of: " ++ N.toString home)
+        error ("Cannot find kernel import of: " ++ Name.toString home)
 
 
 -- INVARIANT: the `home` is the * in `Elm.Kernel.*`
 --
-addKernelImport :: N.Name -> Src.Exposing -> State -> State
+addKernelImport :: Name.Name -> Src.Exposing -> State -> State
 addKernelImport home exposing (State vtable deps) =
   let
     addVar table name =
-      Map.insert (N.sepBy 0x5F {- _ -} home name) (Opt.JsVar home name) table
+      Map.insert (Name.sepBy 0x5F {- _ -} home name) (Opt.JsVar home name) table
   in
   State
     (List.foldl' addVar vtable (toNames exposing))
     (Set.insert (Opt.kernel home) deps)
 
 
-addNormalImport :: ModuleName.Canonical -> N.Name -> Src.Exposing -> State -> State
+addNormalImport :: ModuleName.Canonical -> Name.Name -> Src.Exposing -> State -> State
 addNormalImport home prefix exposing state =
   let
     addVar (State vtable deps) name =
       State
-        (Map.insert (N.sepBy 0x5F {- _ -} prefix name) (Opt.ElmVar home name) vtable)
+        (Map.insert (Name.sepBy 0x5F {- _ -} prefix name) (Opt.ElmVar home name) vtable)
         (Set.insert (Opt.Global home name) deps)
   in
   List.foldl' addVar state (toNames exposing)
 
 
-toPrefix :: N.Name -> Maybe N.Name -> N.Name
+toPrefix :: Name.Name -> Maybe Name.Name -> Name.Name
 toPrefix home maybeAlias =
   case maybeAlias of
     Just alias ->
       alias
 
     Nothing ->
-      if N.contains 0x2E {- . -} home then
-        error ("kernel imports with dots need an alias: " ++ show (N.toString home))
+      if Name.hasDot home then
+        error ("kernel imports with dots need an alias: " ++ show (Name.toString home))
       else
         home
 
-toNames :: Src.Exposing -> [N.Name]
+toNames :: Src.Exposing -> [Name.Name]
 toNames exposing =
   case exposing of
     Src.Open ->
@@ -145,7 +145,7 @@ toNames exposing =
       map toName exposedList
 
 
-toName :: A.Located Src.Exposed -> N.Name
+toName :: A.Located Src.Exposed -> Name.Name
 toName (A.At _ exposed) =
   case exposed of
     Src.Lower name ->
@@ -185,7 +185,7 @@ chompChunks vtable enums fields chunks =
             K.Import var ->
               case Map.lookup var vtable of
                 Nothing ->
-                  error ("Bad kernel symbol: " ++ N.toString var)
+                  error ("Bad kernel symbol: " ++ Name.toString var)
 
                 Just chunk ->
                   chompChunks vtable enums fields $
@@ -211,10 +211,10 @@ chompChunks vtable enums fields chunks =
 
 
 type Fields =
-  Map.Map N.Name Int
+  Map.Map Name.Name Int
 
 
-lookupField :: N.Name -> Fields -> (Int, Fields)
+lookupField :: Name.Name -> Fields -> (Int, Fields)
 lookupField name fields =
   case Map.lookup name fields of
     Just n ->
@@ -230,10 +230,10 @@ lookupField name fields =
 
 
 type Enums =
-  Map.Map Word8 (Map.Map N.Name Int)
+  Map.Map Word8 (Map.Map Name.Name Int)
 
 
-lookupEnum :: Word8 -> N.Name -> Enums -> (Int, Enums)
+lookupEnum :: Word8 -> Name.Name -> Enums -> (Int, Enums)
 lookupEnum word var allEnums =
   let
     enums =
