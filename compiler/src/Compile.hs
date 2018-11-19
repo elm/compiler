@@ -9,6 +9,7 @@ module Compile
 
 import qualified Data.ByteString as BS
 import qualified Data.Map as Map
+import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
@@ -16,7 +17,6 @@ import qualified AST.Module.Name as ModuleName
 import qualified Canonicalize.Module as Canonicalize
 import qualified Elm.Docs as Docs
 import qualified Elm.Interface as I
-import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 import qualified Nitpick.PatternMatches as PatternMatches
 import qualified Optimize.Module as Optimize
@@ -40,7 +40,7 @@ type Result i a =
 
 
 type ImportDict =
-  Map.Map N.Name ModuleName.Canonical
+  Map.Map Name.Name ModuleName.Canonical
 
 
 data Artifacts =
@@ -86,7 +86,7 @@ compile flag pkg importDict interfaces source =
 -- TYPE INFERENCE
 
 
-runTypeInference :: L.Localizer -> Can.Module -> Result i (Map.Map N.Name Can.Annotation)
+runTypeInference :: L.Localizer -> Can.Module -> Result i (Map.Map Name.Name Can.Annotation)
 runTypeInference localizer canonical =
   case unsafePerformIO (Type.run =<< Type.constrain canonical) of
     Right annotations ->
