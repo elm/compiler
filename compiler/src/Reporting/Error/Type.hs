@@ -22,10 +22,10 @@ module Reporting.Error.Type
 import Prelude hiding (round)
 import qualified Data.Map as Map
 import Data.Monoid ((<>))
+import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
 import qualified Data.Index as Index
-import qualified Elm.Name as N
 import qualified Reporting.Doc as D
 import qualified Reporting.Region as R
 import qualified Reporting.Render.Code as Code
@@ -43,7 +43,7 @@ import qualified Type.Error as T
 data Error
   = BadExpr R.Region Category T.Type (Expected T.Type)
   | BadPattern R.Region PCategory T.Type (PExpected T.Type)
-  | InfiniteType R.Region N.Name T.Type
+  | InfiniteType R.Region Name.Name T.Type
 
 
 
@@ -53,22 +53,22 @@ data Error
 data Expected tipe
   = NoExpectation tipe
   | FromContext R.Region Context tipe
-  | FromAnnotation N.Name Int SubContext tipe
+  | FromAnnotation Name.Name Int SubContext tipe
 
 
 data Context
   = ListEntry Index.ZeroBased
   | Negate
-  | OpLeft N.Name
-  | OpRight N.Name
+  | OpLeft Name.Name
+  | OpRight Name.Name
   | IfCondition
   | IfBranch Index.ZeroBased
   | CaseBranch Index.ZeroBased
   | CallArity MaybeName Int
   | CallArg MaybeName Index.ZeroBased
-  | RecordAccess R.Region (Maybe N.Name) R.Region N.Name
-  | RecordUpdateKeys N.Name (Map.Map N.Name Can.FieldUpdate)
-  | RecordUpdateValue N.Name
+  | RecordAccess R.Region (Maybe Name.Name) R.Region Name.Name
+  | RecordUpdateKeys Name.Name (Map.Map Name.Name Can.FieldUpdate)
+  | RecordUpdateValue Name.Name
   | Destructure
 
 
@@ -79,9 +79,9 @@ data SubContext
 
 
 data MaybeName
-  = FuncName N.Name
-  | CtorName N.Name
-  | OpName N.Name
+  = FuncName Name.Name
+  | CtorName Name.Name
+  | OpName Name.Name
   | NoName
 
 
@@ -95,15 +95,15 @@ data Category
   | Case
   | CallResult MaybeName
   | Lambda
-  | Accessor N.Name
-  | Access N.Name
+  | Accessor Name.Name
+  | Access Name.Name
   | Record
   | Tuple
   | Unit
   | Shader
   | Effects
-  | Local N.Name
-  | Foreign N.Name
+  | Local Name.Name
+  | Foreign Name.Name
 
 
 
@@ -116,9 +116,9 @@ data PExpected tipe
 
 
 data PContext
-  = PTypedArg N.Name Index.ZeroBased
+  = PTypedArg Name.Name Index.ZeroBased
   | PCaseMatch Index.ZeroBased
-  | PCtorArg N.Name Index.ZeroBased
+  | PCtorArg Name.Name Index.ZeroBased
   | PListEntry Index.ZeroBased
   | PTail
 
@@ -128,7 +128,7 @@ data PCategory
   | PUnit
   | PTuple
   | PList
-  | PCtor N.Name
+  | PCtor Name.Name
   | PInt
   | PStr
   | PChr
@@ -201,10 +201,10 @@ toPatternReport source localizer patternRegion category tipe expected =
         case context of
           PTypedArg name index ->
             ( D.reflow $
-                "The " <> D.ordinal index <> " argument to `" <> N.toString name <> "` is weird."
+                "The " <> D.ordinal index <> " argument to `" <> Name.toString name <> "` is weird."
             , patternTypeComparison localizer tipe expectedType
                 (addPatternCategory "The argument is a pattern that matches" category)
-                ( "But the type annotation on `" <> N.toString name
+                ( "But the type annotation on `" <> Name.toString name
                   <> "` says the " <> D.ordinal index <> " argument should be:"
                 )
                 []
@@ -238,10 +238,10 @@ toPatternReport source localizer patternRegion category tipe expected =
 
           PCtorArg name index ->
             ( D.reflow $
-                "The " <> D.ordinal index <> " argument to `" <> N.toString name <> "` is weird."
+                "The " <> D.ordinal index <> " argument to `" <> Name.toString name <> "` is weird."
             , patternTypeComparison localizer tipe expectedType
                 (addPatternCategory "It is trying to match" category)
-                ( "But `" <> N.toString name <> "` needs its "
+                ( "But `" <> Name.toString name <> "` needs its "
                   <> D.ordinal index <> " argument to be:"
                 )
                 []
@@ -299,7 +299,7 @@ addPatternCategory iAmTryingToMatch category =
       PUnit -> " unit values:"
       PTuple -> " tuples of type:"
       PList -> " lists of type:"
-      PCtor name -> " `" <> N.toString name <> "` values of type:"
+      PCtor name -> " `" <> Name.toString name <> "` values of type:"
       PInt -> " integers:"
       PStr -> " strings:"
       PChr -> " characters:"
@@ -343,10 +343,10 @@ loneType localizer actual expected iAmSeeing furtherDetails =
 addCategory :: String -> Category -> String
 addCategory thisIs category =
   case category of
-    Local name -> "This `" <> N.toString name <> "` value is a:"
-    Foreign name -> "This `" <> N.toString name <> "` value is a:"
-    Access field -> "The value at ." <> N.toString field <> " is a:"
-    Accessor field -> "This ." <> N.toString field <> " field access function has type:"
+    Local name -> "This `" <> Name.toString name <> "` value is a:"
+    Foreign name -> "This `" <> Name.toString name <> "` value is a:"
+    Access field -> "The value at ." <> Name.toString field <> " is a:"
+    Accessor field -> "This ." <> Name.toString field <> " field access function has type:"
     If -> "This `if` expression produces:"
     Case -> "This `case` expression produces:"
     List -> thisIs <> " a list of type:"
@@ -363,8 +363,8 @@ addCategory thisIs category =
     CallResult maybeName ->
       case maybeName of
         NoName -> thisIs <> ":"
-        FuncName name -> "This `" <> N.toString name <> "` call produces:"
-        CtorName name -> "This `" <> N.toString name <> "` call produces:"
+        FuncName name -> "This `" <> Name.toString name <> "` call produces:"
+        CtorName name -> "This `" <> Name.toString name <> "` call produces:"
         OpName _ -> thisIs <> ":"
 
 
@@ -462,11 +462,11 @@ problemToHint problem =
         T.FlexSuper s _  -> badRigidVar x (toASuperThing s)
         T.RigidVar y     -> badDoubleRigid x y
         T.RigidSuper _ y -> badDoubleRigid x y
-        T.Type _ n _     -> badRigidVar x ("a `" ++ N.toString n ++ "` value")
+        T.Type _ n _     -> badRigidVar x ("a `" ++ Name.toString n ++ "` value")
         T.Record _ _     -> badRigidVar x "a record"
         T.Unit           -> badRigidVar x "a unit value"
         T.Tuple _ _ _    -> badRigidVar x "a tuple"
-        T.Alias _ n _ _  -> badRigidVar x ("a `" ++ N.toString n ++ "` value")
+        T.Alias _ n _ _  -> badRigidVar x ("a `" ++ Name.toString n ++ "` value")
 
     T.BadRigidSuper super x tipe ->
       case tipe of
@@ -477,11 +477,11 @@ problemToHint problem =
         T.FlexSuper s _  -> badRigidSuper super (toASuperThing s)
         T.RigidVar y     -> badDoubleRigid x y
         T.RigidSuper _ y -> badDoubleRigid x y
-        T.Type _ n _     -> badRigidSuper super ("a `" ++ N.toString n ++ "` value")
+        T.Type _ n _     -> badRigidSuper super ("a `" ++ Name.toString n ++ "` value")
         T.Record _ _     -> badRigidSuper super "a record"
         T.Unit           -> badRigidSuper super "a unit value"
         T.Tuple _ _ _    -> badRigidSuper super "a tuple"
-        T.Alias _ n _ _  -> badRigidSuper super ("a `" ++ N.toString n ++ "` value")
+        T.Alias _ n _ _  -> badRigidSuper super ("a `" ++ Name.toString n ++ "` value")
 
     T.FieldsMissing fields ->
       case map (D.green . D.fromName) fields of
@@ -499,7 +499,7 @@ problemToHint problem =
 
 
     T.FieldTypo typo possibilities ->
-      case Suggest.sort (N.toString typo) N.toString possibilities of
+      case Suggest.sort (Name.toString typo) Name.toString possibilities of
         [] ->
           []
 
@@ -519,10 +519,10 @@ problemToHint problem =
 -- BAD RIGID HINTS
 
 
-badRigidVar :: N.Name -> String -> [D.Doc]
+badRigidVar :: Name.Name -> String -> [D.Doc]
 badRigidVar name aThing =
   [ D.toSimpleHint $
-      "Your type annotation uses type variable `" ++ N.toString name ++
+      "Your type annotation uses type variable `" ++ Name.toString name ++
       "` which means ANY type of value can flow through, but your code is saying it specifically wants "
       ++ aThing ++ ". Maybe change your type annotation to\
       \ be more specific? Maybe change the code to be more general?"
@@ -530,10 +530,10 @@ badRigidVar name aThing =
   ]
 
 
-badDoubleRigid :: N.Name -> N.Name -> [D.Doc]
+badDoubleRigid :: Name.Name -> Name.Name -> [D.Doc]
 badDoubleRigid x y =
   [ D.toSimpleHint $
-      "Your type annotation uses `" ++ N.toString x ++ "` and `" ++ N.toString y ++
+      "Your type annotation uses `" ++ Name.toString x ++ "` and `" ++ Name.toString y ++
       "` as separate type variables. Your code seems to be saying they are the\
       \ same though. Maybe they should be the same in your type annotation?\
       \ Maybe your code uses them in a weird way?"
@@ -644,7 +644,7 @@ toExprReport source localizer exprRegion category tipe expected =
           case subContext of
             TypedIfBranch index   -> D.ordinal index <> " branch of this `if` expression:"
             TypedCaseBranch index -> D.ordinal index <> " branch of this `case` expression:"
-            TypedBody             -> "body of the `" <> N.toString name <> "` definition:"
+            TypedBody             -> "body of the `" <> Name.toString name <> "` definition:"
 
         itIs =
           case subContext of
@@ -657,7 +657,7 @@ toExprReport source localizer exprRegion category tipe expected =
           ( D.reflow ("Something is off with the " <> thing)
           , typeComparison localizer tipe expectedType
               (addCategory itIs category)
-              ("But the type annotation on `" <> N.toString name <> "` says it should be:")
+              ("But the type annotation on `" <> Name.toString name <> "` says it should be:")
               []
           )
 
@@ -769,9 +769,9 @@ toExprReport source localizer exprRegion category tipe expected =
                 thisValue =
                   case maybeFuncName of
                     NoName        -> "This value"
-                    FuncName name -> "The `" <> N.toString name <> "` value"
-                    CtorName name -> "The `" <> N.toString name <> "` value"
-                    OpName op     -> "The (" <> N.toString op <> ") operator"
+                    FuncName name -> "The `" <> Name.toString name <> "` value"
+                    CtorName name -> "The `" <> Name.toString name <> "` value"
+                    OpName op     -> "The (" <> Name.toString op <> ") operator"
               in
               ( D.reflow $ thisValue <> " is not a function, but it was given " <> D.args numGivenArgs <> "."
               , D.reflow $ "Are there any missing commas? Or missing parentheses?"
@@ -782,9 +782,9 @@ toExprReport source localizer exprRegion category tipe expected =
                 thisFunction =
                   case maybeFuncName of
                     NoName        -> "This function"
-                    FuncName name -> "The `" <> N.toString name <> "` function"
-                    CtorName name -> "The `" <> N.toString name <> "` constructor"
-                    OpName op     -> "The (" <> N.toString op <> ") operator"
+                    FuncName name -> "The `" <> Name.toString name <> "` function"
+                    CtorName name -> "The `" <> Name.toString name <> "` constructor"
+                    OpName op     -> "The (" <> Name.toString op <> ") operator"
               in
               ( D.reflow $ thisFunction <> " expects " <> D.args n <> ", but it got " <> show numGivenArgs <> " instead."
               , D.reflow $ "Are there any missing commas? Or missing parentheses?"
@@ -797,9 +797,9 @@ toExprReport source localizer exprRegion category tipe expected =
             thisFunction =
               case maybeFuncName of
                 NoName        -> "this function"
-                FuncName name -> "`" <> N.toString name <> "`"
-                CtorName name -> "`" <> N.toString name <> "`"
-                OpName op     -> "(" <> N.toString op <> ")"
+                FuncName name -> "`" <> Name.toString name <> "`"
+                CtorName name -> "`" <> Name.toString name <> "`"
+                OpName op     -> "(" <> Name.toString op <> ")"
           in
           mismatch
           ( Just exprRegion
@@ -823,9 +823,9 @@ toExprReport source localizer exprRegion category tipe expected =
               custom (Just fieldRegion)
                 ( D.reflow $
                     "This "
-                    <> maybe "" (\n -> "`" <> N.toString n <> "`") maybeName
-                    <> " record does not have a `" <> N.toString field <> "` field:"
-                , case Suggest.sort (N.toString field) (N.toString . fst) (Map.toList fields) of
+                    <> maybe "" (\n -> "`" <> Name.toString n <> "`") maybeName
+                    <> " record does not have a `" <> Name.toString field <> "` field:"
+                , case Suggest.sort (Name.toString field) (Name.toString . fst) (Map.toList fields) of
                     [] ->
                       D.reflow "In fact, it is a record with NO fields!"
 
@@ -833,7 +833,7 @@ toExprReport source localizer exprRegion category tipe expected =
                       D.stack
                         [ D.reflow $
                             "This is usually a typo. Here are the "
-                            <> maybe "" (\n -> "`" <> N.toString n <> "`") maybeName
+                            <> maybe "" (\n -> "`" <> Name.toString n <> "`") maybeName
                             <> " fields that are most similar:"
                         , toNearbyRecord localizer f fs ext
                         , D.fillSep
@@ -863,7 +863,7 @@ toExprReport source localizer exprRegion category tipe expected =
                   mismatch
                   ( Nothing
                   , "Something is off with this record update:"
-                  , "The `" <> N.toString record <> "` record is"
+                  , "The `" <> Name.toString record <> "` record is"
                   , "But this update needs it to be compatable with:"
                   , [ D.reflow
                         "Do you mind creating an <http://sscce.org/> that produces this error message and\
@@ -874,13 +874,13 @@ toExprReport source localizer exprRegion category tipe expected =
 
                 Just (field, Can.FieldUpdate fieldRegion _) ->
                   let
-                    rStr = "`" <> N.toString record <> "`"
-                    fStr = "`" <> N.toString field <> "`"
+                    rStr = "`" <> Name.toString record <> "`"
+                    fStr = "`" <> Name.toString field <> "`"
                   in
                   custom (Just fieldRegion)
                     ( D.reflow $
                         "The " <> rStr <> " record does not have a " <> fStr <> " field:"
-                    , case Suggest.sort (N.toString field) (N.toString . fst) (Map.toList actualFields) of
+                    , case Suggest.sort (Name.toString field) (Name.toString . fst) (Map.toList actualFields) of
                         [] ->
                           D.reflow $ "In fact, " <> rStr <> " is a record with NO fields!"
 
@@ -908,8 +908,8 @@ toExprReport source localizer exprRegion category tipe expected =
         RecordUpdateValue field ->
           mismatch
           ( Just exprRegion
-          , "I cannot update the `" <> N.toString field <> "` field like this:"
-          , "You are trying to update `" <> N.toString field <> "` to be"
+          , "I cannot update the `" <> Name.toString field <> "` field like this:"
+          , "You are trying to update `" <> Name.toString field <> "` to be"
           , "But it should be:"
           , [ D.toSimpleNote
                 "The record update syntax does not allow you to change the type of fields.\
@@ -945,7 +945,7 @@ countArgs tipe =
 -- FIELD NAME HELPERS
 
 
-toNearbyRecord :: L.Localizer -> (N.Name, T.Type) -> [(N.Name, T.Type)] -> T.Extension -> D.Doc
+toNearbyRecord :: L.Localizer -> (Name.Name, T.Type) -> [(Name.Name, T.Type)] -> T.Extension -> D.Doc
 toNearbyRecord localizer f fs ext =
   D.indent 4 $
     if length fs <= 3 then
@@ -954,7 +954,7 @@ toNearbyRecord localizer f fs ext =
       RT.vrecordSnippet (fieldToDocs localizer f) (map (fieldToDocs localizer) (take 3 fs))
 
 
-fieldToDocs :: L.Localizer -> (N.Name, T.Type) -> (D.Doc, D.Doc)
+fieldToDocs :: L.Localizer -> (Name.Name, T.Type) -> (D.Doc, D.Doc)
 fieldToDocs localizer (name, tipe) =
   ( D.fromName name
   , T.toDoc localizer RT.None tipe
@@ -973,7 +973,7 @@ extToDoc ext =
 -- OP LEFT
 
 
-opLeftToDocs :: L.Localizer -> Category -> N.Name -> T.Type -> T.Type -> (D.Doc, D.Doc)
+opLeftToDocs :: L.Localizer -> Category -> Name.Name -> T.Type -> T.Type -> (D.Doc, D.Doc)
 opLeftToDocs localizer category op tipe expected =
   case op of
     "+"
@@ -1008,10 +1008,10 @@ opLeftToDocs localizer category op tipe expected =
 
     _ ->
       ( D.reflow $
-          "The left argument of (" <> N.toString op <> ") is causing problems:"
+          "The left argument of (" <> Name.toString op <> ") is causing problems:"
       , typeComparison localizer tipe expected
           (addCategory "The left argument is" category)
-          ("But (" <> N.toString op <> ") needs the left argument to be:")
+          ("But (" <> Name.toString op <> ") needs the left argument to be:")
           []
       )
 
@@ -1025,7 +1025,7 @@ data RightDocs
   | EmphRight (D.Doc, D.Doc)
 
 
-opRightToDocs :: L.Localizer -> Category -> N.Name -> T.Type -> T.Type -> RightDocs
+opRightToDocs :: L.Localizer -> Category -> Name.Name -> T.Type -> T.Type -> RightDocs
 opRightToDocs localizer category op tipe expected =
   case op of
     "+"
@@ -1099,16 +1099,16 @@ opRightToDocs localizer category op tipe expected =
       badOpRightFallback localizer category op tipe expected
 
 
-badOpRightFallback :: L.Localizer -> Category -> N.Name -> T.Type -> T.Type -> RightDocs
+badOpRightFallback :: L.Localizer -> Category -> Name.Name -> T.Type -> T.Type -> RightDocs
 badOpRightFallback localizer category op tipe expected =
   EmphRight
     ( D.reflow $
-        "The right argument of (" <> N.toString op <> ") is causing problems."
+        "The right argument of (" <> Name.toString op <> ") is causing problems."
     , typeComparison localizer tipe expected
         (addCategory "The right argument is" category)
-        ("But (" <> N.toString op <> ") needs the right argument to be:")
+        ("But (" <> Name.toString op <> ") needs the right argument to be:")
         [ D.toSimpleHint $
-            "With operators like (" ++ N.toString op ++ ") I always check the left\
+            "With operators like (" ++ Name.toString op ++ ") I always check the left\
             \ side first. If it seems fine, I assume it is correct and check the right\
             \ side. So the problem may be in how the left and right arguments interact!"
         ]
@@ -1314,11 +1314,11 @@ badAppendRight localizer category tipe expected =
 data ThisThenThat = FloatInt | IntFloat
 
 
-badCast :: N.Name -> ThisThenThat -> RightDocs
+badCast :: Name.Name -> ThisThenThat -> RightDocs
 badCast op thisThenThat =
   EmphBoth
     ( D.reflow $
-        "I need both sides of (" <> N.toString op <> ") to be the exact same type. Both Int or both Float."
+        "I need both sides of (" <> Name.toString op <> ") to be the exact same type. Both Int or both Float."
     , let
         anInt = ["an", D.dullyellow "Int"]
         aFloat = ["a", D.dullyellow "Float"]
@@ -1571,13 +1571,13 @@ badEquality localizer op tipe expected =
 -- INFINITE TYPES
 
 
-toInfiniteReport :: Code.Source -> L.Localizer -> R.Region -> N.Name -> T.Type -> Report.Report
+toInfiniteReport :: Code.Source -> L.Localizer -> R.Region -> Name.Name -> T.Type -> Report.Report
 toInfiniteReport source localizer region name overallType =
   Report.Report "INFINITE TYPE" region [] $
     Report.toCodeSnippet source region Nothing
       (
         D.reflow $
-          "I am inferring a weird self-referential type for " <> N.toString name <> ":"
+          "I am inferring a weird self-referential type for " <> Name.toString name <> ":"
       ,
         D.stack
           [ D.reflow $

@@ -8,7 +8,7 @@ module Reporting.Doc
   , P.red, P.cyan, P.magenta, P.green, P.blue, P.black, P.yellow
   , P.dullred, P.dullcyan, P.dullyellow
 
-  , fromString, fromText, fromName, fromInt
+  , fromString, fromText, fromName, fromInt, fromUtf8
   , toAnsi, toString, toLine
   , encode
 
@@ -25,10 +25,11 @@ module Reporting.Doc
 import Prelude hiding (cycle)
 import qualified Data.List as List
 import Data.Monoid ((<>))
+import qualified Data.Name as Name
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Builder as TB
-import qualified Elm.Name as N
+import qualified Data.Utf8 as Utf8
 import qualified System.Console.ANSI.Types as Ansi
 import System.IO (Handle)
 import qualified Text.PrettyPrint.ANSI.Leijen as P
@@ -53,14 +54,19 @@ fromText txt =
   P.text (Text.unpack txt)
 
 
-fromName :: N.Name -> P.Doc
+fromName :: Name.Name -> P.Doc
 fromName name =
-  P.text (N.toString name)
+  P.text (Name.toString name)
 
 
 fromInt :: Int -> P.Doc
 fromInt n =
   P.text (show n)
+
+
+fromUtf8 :: Utf8.Utf8 -> P.Doc
+fromUtf8 utf8 =
+  P.text (Utf8.toString utf8)
 
 
 
@@ -208,7 +214,7 @@ intToOrdinal number =
 
 
 
-cycle :: Int -> [N.Name] -> P.Doc
+cycle :: Int -> [Name.Name] -> P.Doc
 cycle indent names =
   let
     topLine       = "┌─────┐"

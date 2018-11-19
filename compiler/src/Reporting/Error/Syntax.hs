@@ -13,10 +13,10 @@ module Reporting.Error.Syntax
 
 
 import Data.Monoid ((<>))
+import qualified Data.Name as Name
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 
-import qualified Elm.Name as N
 import qualified Reporting.Doc as D
 import qualified Reporting.Region as R
 import qualified Reporting.Render.Code as Code
@@ -29,9 +29,9 @@ import qualified Reporting.Report as Report
 
 data Error
     = CommentOnNothing R.Region
-    | UnexpectedPort R.Region N.Name
-    | TypeWithBadDefinition R.Region N.Name N.Name
-    | TypeWithoutDefinition R.Region N.Name
+    | UnexpectedPort R.Region Name.Name
+    | TypeWithBadDefinition R.Region Name.Name Name.Name
+    | TypeWithoutDefinition R.Region Name.Name
     | Parse R.Region (Maybe R.Region) Problem
 
 
@@ -90,7 +90,7 @@ data Theory
 data Next
   = Decl
   | Expr
-  | AfterOpExpr N.Name
+  | AfterOpExpr Name.Name
   | ElseBranch
   | Arg
   | Pattern
@@ -112,8 +112,8 @@ data Context
   | ExprTuple
   | ExprRecord
   ----------------
-  | Definition N.Name
-  | Annotation N.Name
+  | Definition Name.Name
+  | Annotation Name.Name
   ----------------
   | TypeTuple
   | TypeRecord
@@ -155,7 +155,7 @@ toReport source err =
         Report.toCodeSnippet source region Nothing
           (
             D.reflow $
-              "You are declaring port `" <> N.toString name <> "` in a normal module."
+              "You are declaring port `" <> Name.toString name <> "` in a normal module."
           ,
             D.stack
               [ "It needs to be in a `port` module."
@@ -171,9 +171,9 @@ toReport source err =
         Report.toCodeSnippet source region Nothing
           (
             D.reflow $
-              "I see a `" <> N.toString annName
+              "I see a `" <> Name.toString annName
               <> "` annotation, but it is followed by a `"
-              <> N.toString defName <> "` definition."
+              <> Name.toString defName <> "` definition."
           ,
             D.fillSep
               ["The","annotation","and","definition","names","must","match!"
@@ -189,7 +189,7 @@ toReport source err =
         Report.toCodeSnippet source region Nothing
           (
             D.reflow $
-              "There is a type annotation for `" <> N.toString name
+              "There is a type annotation for `" <> Name.toString name
               <> "` but there is no corresponding definition!"
           ,
             "Directly below the type annotation, put a definition like:\n\n"
@@ -597,8 +597,8 @@ contextToString defaultString prefixString stack =
         ExprList -> "a list" <> anchor
         ExprTuple -> "an expression (in parentheses)" <> anchor
         ExprRecord -> "a record" <> anchor
-        Definition name -> N.toString name <> "'s definition"
-        Annotation name -> N.toString name <> "'s type annotation"
+        Definition name -> Name.toString name <> "'s definition"
+        Annotation name -> Name.toString name <> "'s type annotation"
         TypeTuple -> "a type (in parentheses)" <> anchor
         TypeRecord -> "a record type" <> anchor
         PatternList -> "a list pattern" <> anchor
@@ -621,10 +621,10 @@ getAnchor stack =
     (context, _) : rest ->
       case context of
         Definition name ->
-          " in " <> N.toString name <> "'s definition"
+          " in " <> Name.toString name <> "'s definition"
 
         Annotation name ->
-          " in " <> N.toString name <> "'s type annotation"
+          " in " <> Name.toString name <> "'s type annotation"
 
         _ ->
           getAnchor rest
@@ -692,7 +692,7 @@ theoryToString context theory =
       case next of
         Decl -> "a declaration, like `x = 5` or `type alias Model = { ... }`"
         Expr -> "an expression, like x or 42"
-        AfterOpExpr op -> "an expression after that (" <> N.toString op <> ") operator, like x or 42"
+        AfterOpExpr op -> "an expression after that (" <> Name.toString op <> ") operator, like x or 42"
         ElseBranch -> "an `else` branch. An `if` must handle both possibilities."
         Arg -> "an argument, like `name` or `total`"
         Pattern -> "a pattern, like `name` or (Just x)"
@@ -710,7 +710,7 @@ equalsTheory stack =
     (context, _) : rest ->
       case context of
         ExprRecord -> "an equals sign (=) followed by an expression"
-        Definition name -> "an equals sign (=) followed by " <> N.toString name <> "'s definition"
+        Definition name -> "an equals sign (=) followed by " <> Name.toString name <> "'s definition"
         TypeUnion -> "an equals sign (=) followed by the first union type constructor"
         TypeAlias -> "an equals sign (=) followed by the aliased type"
         _ -> equalsTheory rest
@@ -745,8 +745,8 @@ badSpace stack =
         ExprList -> "the end of that list" <> badSpaceExprEnd rest
         ExprTuple -> "a closing paren" <> badSpaceExprEnd rest
         ExprRecord -> "the end of that record" <> badSpaceExprEnd rest
-        Definition name -> "the rest of " <> N.toString name <> "'s definition" <> badSpaceExprEnd stack
-        Annotation name -> "the rest of " <> N.toString name <> "'s type annotation" <> badSpaceEnd
+        Definition name -> "the rest of " <> Name.toString name <> "'s definition" <> badSpaceExprEnd stack
+        Annotation name -> "the rest of " <> Name.toString name <> "'s type annotation" <> badSpaceEnd
         TypeTuple -> "a closing paren" <> badSpaceEnd
         TypeRecord -> "the end of that record" <> badSpaceEnd
         PatternList -> "the end of that list" <> badSpaceEnd
@@ -780,7 +780,7 @@ badSpaceExprEnd stack =
             "more indentation? (Try " <> show (column + 1) <> "+ spaces.)"
       in
         ". Maybe you forgot some code? Or maybe the body of `"
-        <> N.toString name
+        <> Name.toString name
         <> "` needs " <> ending
 
     _ : rest ->

@@ -117,10 +117,10 @@ patternToDoc context pattern =
     NonList (P.Literal literal) ->
       case literal of
         P.Chr chr ->
-          D.fromText ("'" <> chr <> "'")
+          "'" <> D.fromUtf8 chr <> "'"
 
         P.Str str ->
-          D.fromText ("\"" <> str <> "\"")
+          "\"" <> D.fromUtf8 str <> "\""
 
         P.Int int ->
           D.fromInt int
