@@ -19,6 +19,7 @@ module Data.Name
   , isAppendableType
   , isCompappendType
   , fromVarIndex
+  , fromReplCount
   , fromWords
   , fromManyNames
   , fromTypeVariable
@@ -475,6 +476,11 @@ fromTypeVariableScheme scheme =
           writeNumbers mba (size - 1) extra
           unsafeFreeze mba
   )
+
+
+fromReplCount :: Int -> Name
+fromReplCount n =
+  fromString ("repl_value_" ++ show n)
 
 
 

@@ -15,6 +15,7 @@ import qualified Data.ByteString.Lazy as LBS
 import qualified Data.List as List
 import qualified Data.Map as Map
 import Data.Monoid ((<>))
+import qualified Data.Name as Name
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified System.Console.Haskeline as Repl
@@ -25,7 +26,6 @@ import qualified System.IO as IO
 import qualified System.Process as Proc
 
 import qualified Elm.Compiler as Elm (version)
-import qualified Elm.Name as N
 import qualified Elm.Project as Project
 import qualified Elm.Package as Pkg
 import qualified Elm.PerUserCache as PerUserCache
@@ -151,7 +151,7 @@ report msg =
       return Nothing
 
 
-data Output = None | Def N.Name | Expr Text.Text
+data Output = None | Def Name.Name | Expr Text.Text
 
 
 interpret :: Output -> State -> Runner (Maybe a)
@@ -220,9 +220,9 @@ toInput string =
 data State =
   State
     { _count :: !Int
-    , _imports :: Map.Map N.Name Text.Text
-    , _types :: Map.Map N.Name Text.Text
-    , _defs :: Map.Map N.Name Text.Text
+    , _imports :: Map.Map Name.Name Text.Text
+    , _types :: Map.Map Name.Name Text.Text
+    , _defs :: Map.Map Name.Name Text.Text
     , _tricks :: [Text.Text]
     , _localizer :: L.Localizer
     }
@@ -237,7 +237,7 @@ compile :: Bool -> Output -> State -> Task.Task (Maybe FilePath)
 compile noColors output (State count imports types defs tricks localizer) =
   let
     header =
-      "module " <> N.toBuilder N.replModule <> " exposing (..)\n\n"
+      "module " <> Name.toBuilder Name.replModule <> " exposing (..)\n\n"
 
     elmSourceCode =
       (<>) header $
@@ -259,14 +259,14 @@ compile noColors output (State count imports types defs tricks localizer) =
 
     Expr expr ->
       let
-        name = N.addIndex "repl_value_" count
+        name = Name.fromReplCount count
         text = Text.replace "\n" "\n  " expr
-        def = N.toBuilder name <> " =\n  " <> Text.encodeUtf8Builder text <> "\n"
+        def = Name.toBuilder name <> " =\n  " <> Text.encodeUtf8Builder text <> "\n"
       in
       compileForRepl (elmSourceCode <> def) (Just name)
 
 
-addLines :: Map.Map N.Name Text.Text -> B.Builder -> B.Builder
+addLines :: Map.Map Name.Name Text.Text -> B.Builder -> B.Builder
 addLines dict builder =
   Map.foldr (\text b -> Text.encodeUtf8Builder text <> "\n" <> b) builder dict
 
@@ -296,19 +296,19 @@ lookupCompletions string =
           addMatches string False commands []
 
 
-commands :: Map.Map N.Name ()
+commands :: Map.Map Name.Name ()
 commands =
   Map.fromList [ (":exit", ()), (":quit", ()), (":reset", ()), (":help", ()) ]
 
 
-addMatches :: String -> Bool -> Map.Map N.Name v -> [Repl.Completion] -> [Repl.Completion]
+addMatches :: String -> Bool -> Map.Map Name.Name v -> [Repl.Completion] -> [Repl.Completion]
 addMatches string isFinished dict completions =
   Map.foldrWithKey (addMatch string isFinished) completions dict
 
 
-addMatch :: String -> Bool -> N.Name -> v -> [Repl.Completion] -> [Repl.Completion]
+addMatch :: String -> Bool -> Name.Name -> v -> [Repl.Completion] -> [Repl.Completion]
 addMatch string isFinished name _ completions =
-  let suggestion = N.toString name in
+  let suggestion = Name.toString name in
   if List.isPrefixOf string suggestion then
     Repl.Completion suggestion suggestion isFinished : completions
   else

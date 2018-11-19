@@ -10,9 +10,9 @@ module Develop.Generate.Help
 
 import qualified Data.ByteString.Builder as B
 import Data.Monoid ((<>))
+import qualified Data.Name as Name
 import Text.RawString.QQ (r)
 
-import qualified Elm.Name as N
 import qualified Json.Encode as Encode
 
 
@@ -20,7 +20,7 @@ import qualified Json.Encode as Encode
 -- PAGES
 
 
-makePageHtml :: N.Name -> Maybe Encode.Value -> B.Builder
+makePageHtml :: Name.Name -> Maybe Encode.Value -> B.Builder
 makePageHtml moduleName maybeFlags =
   [r|<!DOCTYPE HTML>
 <html>
@@ -31,7 +31,7 @@ makePageHtml moduleName maybeFlags =
 </head>
 <body>
 <script>
-Elm.|] <> N.toBuilder moduleName <> [r|.init({ flags: |] <> maybe "undefined" Encode.encode maybeFlags <> [r| });
+Elm.|] <> Name.toBuilder moduleName <> [r|.init({ flags: |] <> maybe "undefined" Encode.encode maybeFlags <> [r| });
 </script>
 </body>
 </html>
