@@ -22,9 +22,9 @@ import Prelude hiding (fail, map, maybe)
 
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
+import qualified Data.Name as Name
 import qualified Data.Scientific as Sci
 import qualified Data.Text as Text
-import qualified Elm.Name as N
 import qualified Json.Encode as E
 
 
@@ -93,9 +93,9 @@ text =
         Left (expecting value TString)
 
 
-name :: Decoder e N.Name
+name :: Decoder e Name.Name
 name =
-  N.fromText <$> text
+  Name.fromString <$> string
 
 
 bool :: Decoder e Bool

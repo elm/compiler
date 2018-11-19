@@ -30,12 +30,11 @@ import Data.ByteString.Builder.Prim ((>*<))
 import qualified Data.Map as Map
 import qualified Data.Scientific as Sci
 import Data.Monoid ((<>))
+import qualified Data.Name as Name
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Word as W
 import System.IO (IOMode(WriteMode), withBinaryFile)
-
-import qualified Elm.Name as N
 
 
 
@@ -67,9 +66,9 @@ text txt =
   String (encodeText txt)
 
 
-name :: N.Name -> Value
+name :: Name.Name -> Value
 name nm =
-  String ("\"" <> N.toBuilder nm <> "\"")
+  String ("\"" <> Name.toBuilder nm <> "\"")
 
 
 bool :: Bool -> Value
