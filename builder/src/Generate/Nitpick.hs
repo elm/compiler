@@ -5,24 +5,24 @@ module Generate.Nitpick
 
 
 import qualified Data.Map as Map
+import qualified Data.Name as Name
 import qualified Data.Set as Set
 
 import qualified AST.Optimized as Opt
 import qualified AST.Module.Name as ModuleName
 import qualified Elm.Package as Pkg
-import qualified Elm.Name as N
 
 
 
 -- FIND DEBUG USES
 
 
-findDebugUses :: Pkg.Name -> Opt.Graph -> [N.Name]
+findDebugUses :: Pkg.Name -> Opt.Graph -> [Name.Name]
 findDebugUses pkg (Opt.Graph _ graph _) =
   Set.toList $ Map.foldrWithKey (addDebugUses pkg) Set.empty graph
 
 
-addDebugUses :: Pkg.Name -> Opt.Global -> Opt.Node -> Set.Set N.Name -> Set.Set N.Name
+addDebugUses :: Pkg.Name -> Opt.Global -> Opt.Node -> Set.Set Name.Name -> Set.Set Name.Name
 addDebugUses here (Opt.Global (ModuleName.Canonical pkg home) _) node uses =
   if pkg == here && nodeHasDebug node then
     Set.insert home uses

@@ -17,13 +17,13 @@ import Control.Monad (zipWithM)
 import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Name as Name
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 
 import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Docs as Docs
-import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 
 
@@ -41,10 +41,10 @@ data PackageChanges =
 
 data ModuleChanges =
   ModuleChanges
-    { _unions :: Changes N.Name Docs.Union
-    , _aliases :: Changes N.Name Docs.Alias
-    , _values :: Changes N.Name Docs.Value
-    , _binops :: Changes N.Name Docs.Binop
+    { _unions :: Changes Name.Name Docs.Union
+    , _aliases :: Changes Name.Name Docs.Alias
+    , _values :: Changes Name.Name Docs.Value
+    , _binops :: Changes Name.Name Docs.Binop
     }
 
 
@@ -144,7 +144,7 @@ isEquivalentBinop (Docs.Binop c1 t1 a1 p1) (Docs.Binop c2 t2 a2 p2) =
 -- DIFF TYPES
 
 
-diffType :: Type.Type -> Type.Type -> Maybe [(N.Name,N.Name)]
+diffType :: Type.Type -> Type.Type -> Maybe [(Name.Name,Name.Name)]
 diffType oldType newType =
   case (oldType, newType) of
     (Type.Var oldName, Type.Var newName) ->
@@ -192,11 +192,11 @@ diffType oldType newType =
 
 
 -- handle very old docs that do not use qualified names
-isSameName :: N.Name -> N.Name -> Bool
+isSameName :: Name.Name -> Name.Name -> Bool
 isSameName oldFullName newFullName =
   let
     dedot name =
-      reverse (Text.splitOn "." (N.toText name))
+      reverse (Text.splitOn "." (Name.toText name))
   in
     case ( dedot oldFullName, dedot newFullName ) of
       (oldName:[], newName:_) ->
@@ -209,7 +209,7 @@ isSameName oldFullName newFullName =
         oldFullName == newFullName
 
 
-diffFields :: [(N.Name, Type.Type)] -> [(N.Name, Type.Type)] -> Maybe [(N.Name,N.Name)]
+diffFields :: [(Name.Name, Type.Type)] -> [(Name.Name, Type.Type)] -> Maybe [(Name.Name,Name.Name)]
 diffFields oldRawFields newRawFields =
   let
     sort = List.sortBy (compare `on` fst)
@@ -230,7 +230,7 @@ diffFields oldRawFields newRawFields =
 -- TYPE VARIABLES
 
 
-isEquivalentRenaming :: [(N.Name,N.Name)] -> Bool
+isEquivalentRenaming :: [(Name.Name,Name.Name)] -> Bool
 isEquivalentRenaming varPairs =
   let
     renamings =
@@ -263,7 +263,7 @@ isEquivalentRenaming varPairs =
         allUnique (map snd verifiedRenamings)
 
 
-compatibleVars :: (N.Name, N.Name) -> Bool
+compatibleVars :: (Name.Name, Name.Name) -> Bool
 compatibleVars (old, new) =
   case (categorizeVar old, categorizeVar new) of
     (CompAppend, CompAppend) -> True
@@ -285,13 +285,13 @@ data TypeVarCategory
   | Var
 
 
-categorizeVar :: N.Name -> TypeVarCategory
+categorizeVar :: Name.Name -> TypeVarCategory
 categorizeVar name
-  | N.startsWith "compappend" name = CompAppend
-  | N.startsWith "comparable" name = Comparable
-  | N.startsWith "appendable" name = Appendable
-  | N.startsWith "number"     name = Number
-  | otherwise                      = Var
+  | Name.isCompappendType name = CompAppend
+  | Name.isComparableType name = Comparable
+  | Name.isAppendableType name = Appendable
+  | Name.isNumberType     name = Number
+  | otherwise                  = Var
 
 
 

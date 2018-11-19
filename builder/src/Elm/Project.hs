@@ -12,11 +12,11 @@ module Elm.Project
 
 import qualified Data.ByteString as BS
 import Data.Map ((!))
+import qualified Data.Name as Name
 import System.FilePath ((</>))
 
 import qualified Elm.Compiler as Compiler
 import qualified Elm.Docs as Docs
-import qualified Elm.Name as N
 import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Root as Root
 import qualified Elm.Project.Summary as Summary
@@ -73,7 +73,7 @@ compile mode target maybeOutput docs summary@(Summary.Summary root project _ _ _
 -- COMPILE FOR REPL
 
 
-compileForRepl :: Bool -> L.Localizer -> BS.ByteString -> Maybe N.Name -> Task.Task (Maybe FilePath)
+compileForRepl :: Bool -> L.Localizer -> BS.ByteString -> Maybe Name.Name -> Task.Task (Maybe FilePath)
 compileForRepl noColors localizer source maybeName =
   do  summary@(Summary.Summary root project _ _ _) <- getRoot
       Project.check project
@@ -81,7 +81,7 @@ compileForRepl noColors localizer source maybeName =
       (dirty, ifaces) <- Plan.plan Nothing summary graph
       answers <- Compile.compile project Nothing ifaces dirty
       results <- Artifacts.write root answers
-      let (Compiler.Artifacts elmi _ _) = results ! N.replModule
+      let (Compiler.Artifacts elmi _ _) = results ! Name.replModule
       traverse (Output.generateReplFile noColors localizer summary graph elmi) maybeName
 
 

@@ -21,7 +21,7 @@ import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import Data.Map (Map)
-import qualified Data.Text as Text
+import qualified Data.Name as Name
 import System.FilePath ((</>))
 
 import qualified Elm.Docs as Docs
@@ -149,8 +149,8 @@ getVersions name (PackageRegistry _ pkgs) =
 nearbyNames :: Pkg.Name -> [Pkg.Name] -> [Pkg.Name]
 nearbyNames (Pkg.Name author1 project1) possibleNames =
   let
-    authorDist = authorDistance (Text.unpack author1)
-    projectDist = projectDistance (Text.unpack project1)
+    authorDist = authorDistance (Name.toString author1)
+    projectDist = projectDistance (Name.toString project1)
 
     addDistance name@(Pkg.Name author2 project2) =
       ( authorDist author2 + projectDist project2, name )
@@ -160,17 +160,17 @@ nearbyNames (Pkg.Name author1 project1) possibleNames =
       map addDistance possibleNames
 
 
-authorDistance :: String -> Text.Text -> Int
+authorDistance :: String -> Name.Name -> Int
 authorDistance bad possibility =
-  abs (Suggest.distance bad (Text.unpack possibility))
+  abs (Suggest.distance bad (Name.toString possibility))
 
 
-projectDistance :: String -> Text.Text -> Int
+projectDistance :: String -> Name.Name -> Int
 projectDistance bad possibility =
   if possibility == "elm" || possibility == "elm-explorations" then
     0
   else
-    abs (Suggest.distance bad (Text.unpack possibility))
+    abs (Suggest.distance bad (Name.toString possibility))
 
 
 

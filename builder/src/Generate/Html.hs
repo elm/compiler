@@ -8,18 +8,17 @@ module Generate.Html
 
 import qualified Data.ByteString.Builder as B
 import Data.Monoid ((<>))
+import qualified Data.Name as Name
 import Text.RawString.QQ (r)
-
-import qualified Elm.Name as N
 
 
 
 -- SANDWICH
 
 
-sandwich :: N.Name -> B.Builder -> B.Builder
+sandwich :: Name.Name -> B.Builder -> B.Builder
 sandwich moduleName javascript =
-  let name = N.toBuilder moduleName in
+  let name = Name.toBuilder moduleName in
   [r|<!DOCTYPE HTML>
 <html>
 <head>

@@ -17,6 +17,7 @@ import Control.Monad.Trans (liftIO)
 import qualified Data.ByteString.Builder as B
 import qualified Data.Map as Map
 import Data.Monoid ((<>))
+import qualified Data.Name as Name
 import qualified System.Directory as Dir
 import qualified System.FilePath as FP
 import System.FilePath ((</>))
@@ -25,7 +26,6 @@ import qualified Elm.Compiler as Compiler
 import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Objects as Obj
 import qualified Elm.Interface as I
-import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 
 import qualified AST.Module.Name as ModuleName
@@ -166,13 +166,13 @@ generateReplFile
   -> Summary.Summary
   -> Crawl.Result
   -> I.Interface
-  -> N.Name
+  -> Name.Name
   -> Task.Task FilePath
 generateReplFile noColors localizer summary@(Summary.Summary _ project _ _ _) graph iface name =
   do
       objectGraph <- organize summary graph
 
-      let home = Module.Canonical (Project.getName project) N.replModule
+      let home = Module.Canonical (Project.getName project) Name.replModule
       let builder = Obj.generateForRepl (not noColors) localizer objectGraph iface home name
 
       liftIO $ IO.writeBuilder (Paths.temp "js") $

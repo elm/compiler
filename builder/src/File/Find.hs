@@ -9,12 +9,12 @@ module File.Find
 import Control.Monad.Except (liftIO)
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
+import qualified Data.Name as Name
 import qualified System.FilePath as FP
 import qualified System.Directory as Dir
 import System.FilePath ((</>), (<.>))
 
 import qualified Elm.Compiler.Module as Module
-import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 
 import qualified Elm.Project.Json as Project
@@ -48,7 +48,7 @@ find (Summary.Summary root project exposed _ _) origin name =
               findElm project srcDirs exposed origin name
 
         Project.Pkg _ ->
-          if N.startsWith "Elm.Kernel." name then
+          if Name.isKernel name then
             if Project.isPlatformPackage project then
               findKernel (toRoot "src") exposed origin name
             else
@@ -106,7 +106,7 @@ findKernel srcDir exposed origin name =
       if client
         then return $ Kernel clientPath (if server then Just serverPath else Nothing)
         else
-          case Map.lookup (N.drop 11 name) exposed of
+          case Map.lookup (Name.getKernel name) exposed of
             Just [Pkg.Package pkg _vsn] | pkg == Pkg.core || pkg == Pkg.virtualDom ->
               return ForeignKernel
 

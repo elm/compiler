@@ -11,6 +11,7 @@ import Control.Monad.Except (liftIO)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
+import qualified Data.Name as Name
 
 import qualified Deps.Cache as Cache
 import Deps.Diff (PackageChanges(..), ModuleChanges(..), Changes(..), Magnitude(..))
@@ -18,7 +19,6 @@ import qualified Deps.Diff as Diff
 import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Docs as Docs
-import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 import qualified Elm.Project as Project
 import qualified Elm.Project.Json as Project
@@ -183,7 +183,7 @@ chunkToDoc (Chunk title magnitude details) =
       ]
 
 
-changesToChunk :: L.Localizer -> (N.Name, ModuleChanges) -> Chunk
+changesToChunk :: L.Localizer -> (Name.Name, ModuleChanges) -> Chunk
 changesToChunk localizer (name, changes@(ModuleChanges unions aliases values binops)) =
   let
     magnitude =
@@ -201,7 +201,7 @@ changesToChunk localizer (name, changes@(ModuleChanges unions aliases values bin
     (binopAdd, binopChange, binopRemove) =
       changesToDocTriple (binopToDoc localizer) binops
   in
-    Chunk (N.toString name) magnitude $
+    Chunk (Name.toString name) magnitude $
       D.vcat $ List.intersperse "" $ Maybe.catMaybes $
         [ changesToDoc "Added" unionAdd aliasAdd valueAdd binopAdd
         , changesToDoc "Removed" unionRemove aliasRemove valueRemove binopRemove
@@ -238,7 +238,7 @@ changesToDoc categoryName unions aliases values binops =
       D.fromString categoryName <> ":" : unions ++ aliases ++ binops ++ values
 
 
-unionToDoc :: L.Localizer -> N.Name -> Docs.Union -> D.Doc
+unionToDoc :: L.Localizer -> Name.Name -> Docs.Union -> D.Doc
 unionToDoc localizer name (Docs.Union _ tvars ctors) =
   let
     setup =
@@ -250,7 +250,7 @@ unionToDoc localizer name (Docs.Union _ tvars ctors) =
     D.hang 4 (D.sep (setup : zipWith (<+>) ("=" : repeat "|") (map ctorDoc ctors)))
 
 
-aliasToDoc :: L.Localizer -> N.Name -> Docs.Alias -> D.Doc
+aliasToDoc :: L.Localizer -> Name.Name -> Docs.Alias -> D.Doc
 aliasToDoc localizer name (Docs.Alias _ tvars tipe) =
   let
     declaration =
@@ -259,12 +259,12 @@ aliasToDoc localizer name (Docs.Alias _ tvars tipe) =
     D.hang 4 (D.sep [ declaration, typeDoc localizer tipe ])
 
 
-valueToDoc :: L.Localizer -> N.Name -> Docs.Value -> D.Doc
+valueToDoc :: L.Localizer -> Name.Name -> Docs.Value -> D.Doc
 valueToDoc localizer name (Docs.Value _ tipe) =
   D.hang 4 $ D.sep [ D.fromName name <+> ":", typeDoc localizer tipe ]
 
 
-binopToDoc :: L.Localizer -> N.Name -> Docs.Binop -> D.Doc
+binopToDoc :: L.Localizer -> Name.Name -> Docs.Binop -> D.Doc
 binopToDoc localizer name (Docs.Binop _ tipe associativity (Docs.Precedence n)) =
     "(" <> D.fromName name <> ")" <+> ":" <+> typeDoc localizer tipe <> D.black details
   where
