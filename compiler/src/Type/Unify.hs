@@ -8,9 +8,9 @@ module Type.Unify
 
 
 import qualified Data.Map.Strict as Map
+import qualified Data.Name as Name
 
 import qualified AST.Module.Name as ModuleName
-import qualified Elm.Name as N
 import qualified Type.Error as Error
 import qualified Type.Occurs as Occurs
 import Type.Type as Type
@@ -342,7 +342,7 @@ combineRigidSupers rigid flex =
   || (rigid == CompAppend && (flex == Comparable || flex == Appendable))
 
 
-atomMatchesSuper :: SuperType -> ModuleName.Canonical -> N.Name -> Bool
+atomMatchesSuper :: SuperType -> ModuleName.Canonical -> Name.Name -> Bool
 atomMatchesSuper super home name =
   case super of
     Number ->
@@ -360,11 +360,11 @@ atomMatchesSuper super home name =
       Error.isString home name
 
 
-isNumber :: ModuleName.Canonical -> N.Name -> Bool
+isNumber :: ModuleName.Canonical -> Name.Name -> Bool
 isNumber home name =
   home == ModuleName.basics
   &&
-  (name == N.int || name == N.float)
+  (name == Name.int || name == Name.float)
 
 
 unifyFlexSuperStructure :: Context -> SuperType -> FlatType -> Unify ()
@@ -376,7 +376,7 @@ unifyFlexSuperStructure context super flatType =
       else
         mismatch
 
-    App1 home name [variable] | home == ModuleName.list && name == N.list ->
+    App1 home name [variable] | home == ModuleName.list && name == Name.list ->
       case super of
         Number ->
             mismatch
@@ -444,7 +444,7 @@ unifyComparableRecursive var =
 -- UNIFY ALIASES
 
 
-unifyAlias :: Context -> ModuleName.Canonical -> N.Name -> [(N.Name, Variable)] -> Variable -> Content -> Unify ()
+unifyAlias :: Context -> ModuleName.Canonical -> Name.Name -> [(Name.Name, Variable)] -> Variable -> Content -> Unify ()
 unifyAlias context home name args realVar otherContent =
   case otherContent of
     FlexVar _ ->
@@ -480,7 +480,7 @@ unifyAlias context home name args realVar otherContent =
       merge context Error
 
 
-unifyAliasArgs :: [Variable] -> Context -> [(N.Name,Variable)] -> [(N.Name,Variable)] -> ([Variable] -> () -> IO r) -> ([Variable] -> () -> IO r) -> IO r
+unifyAliasArgs :: [Variable] -> Context -> [(Name.Name,Variable)] -> [(Name.Name,Variable)] -> ([Variable] -> () -> IO r) -> ([Variable] -> () -> IO r) -> IO r
 unifyAliasArgs vars context args1 args2 ok err =
   case args1 of
     (_,arg1):others1 ->
@@ -648,7 +648,7 @@ unifyRecord context (RecordStructure fields1 ext1) (RecordStructure fields2 ext2
           unifySharedFields context sharedFields otherFields ext
 
 
-unifySharedFields :: Context -> Map.Map N.Name (Variable, Variable) -> Map.Map N.Name Variable -> Variable -> Unify ()
+unifySharedFields :: Context -> Map.Map Name.Name (Variable, Variable) -> Map.Map Name.Name Variable -> Variable -> Unify ()
 unifySharedFields context sharedFields otherFields ext =
   do  matchingFields <- Map.traverseMaybeWithKey unifyField sharedFields
       if Map.size sharedFields == Map.size matchingFields
@@ -656,7 +656,7 @@ unifySharedFields context sharedFields otherFields ext =
         else mismatch
 
 
-unifyField :: N.Name -> (Variable, Variable) -> Unify (Maybe Variable)
+unifyField :: Name.Name -> (Variable, Variable) -> Unify (Maybe Variable)
 unifyField _ (actual, expected) =
   Unify $ \vars ok _ ->
     case subUnify actual expected of
@@ -672,12 +672,12 @@ unifyField _ (actual, expected) =
 
 data RecordStructure =
   RecordStructure
-    { _fields :: Map.Map N.Name Variable
+    { _fields :: Map.Map Name.Name Variable
     , _extension :: Variable
     }
 
 
-gatherFields :: Map.Map N.Name Variable -> Variable -> IO RecordStructure
+gatherFields :: Map.Map Name.Name Variable -> Variable -> IO RecordStructure
 gatherFields fields variable =
   do  (Descriptor content _ _ _) <- UF.get variable
       case content of

@@ -8,12 +8,12 @@ module Type.Constrain.Expression
 
 
 import qualified Data.Map.Strict as Map
+import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
-import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as E
 import Reporting.Error.Type (Expected(..), Context(..), SubContext(..), MaybeName(..), Category(..), PExpected(..), PContext(..))
@@ -35,7 +35,7 @@ import Type.Type as Type hiding (Descriptor(..))
 -- dictionary will hold variables for `a` and `b`
 --
 type RTV =
-  Map.Map N.Name Type
+  Map.Map Name.Name Type
 
 
 constrain :: RTV -> Can.Expr -> Expected Type -> IO Constraint
@@ -228,7 +228,7 @@ getName (A.At _ expr) =
     _                        -> NoName
 
 
-getAccessName :: Can.Expr -> Maybe N.Name
+getAccessName :: Can.Expr -> Maybe Name.Name
 getAccessName (A.At _ expr) =
   case expr of
     Can.VarLocal name       -> Just name
@@ -241,7 +241,7 @@ getAccessName (A.At _ expr) =
 -- CONSTRAIN BINOP
 
 
-constrainBinop :: RTV -> R.Region -> N.Name -> Can.Annotation -> Can.Expr -> Can.Expr -> Expected Type -> IO Constraint
+constrainBinop :: RTV -> R.Region -> Name.Name -> Can.Annotation -> Can.Expr -> Can.Expr -> Expected Type -> IO Constraint
 constrainBinop rtv region op annotation leftExpr rightExpr expected =
   do  leftVar <- mkFlexVar
       rightVar <- mkFlexVar
@@ -273,7 +273,7 @@ constrainList :: RTV -> R.Region -> [Can.Expr] -> Expected Type -> IO Constraint
 constrainList rtv region entries expected =
   do  entryVar <- mkFlexVar
       let entryType = VarN entryVar
-      let listType = AppN ModuleName.list N.list [entryType]
+      let listType = AppN ModuleName.list Name.list [entryType]
 
       entryCons <-
         Index.indexedTraverse (constrainListEntry rtv region entryType) entries
@@ -376,7 +376,7 @@ constrainCaseBranch rtv (Can.CaseBranch pattern expr) pExpect bExpect =
 -- CONSTRAIN RECORD
 
 
-constrainRecord :: RTV -> R.Region -> Map.Map N.Name Can.Expr -> Expected Type -> IO Constraint
+constrainRecord :: RTV -> R.Region -> Map.Map Name.Name Can.Expr -> Expected Type -> IO Constraint
 constrainRecord rtv region fields expected =
   do  dict <- traverse (constrainField rtv) fields
 
@@ -402,7 +402,7 @@ constrainField rtv expr =
 -- CONSTRAIN RECORD UPDATE
 
 
-constrainUpdate :: RTV -> R.Region -> N.Name -> Can.Expr -> Map.Map N.Name Can.FieldUpdate -> Expected Type -> IO Constraint
+constrainUpdate :: RTV -> R.Region -> Name.Name -> Can.Expr -> Map.Map Name.Name Can.FieldUpdate -> Expected Type -> IO Constraint
 constrainUpdate rtv region name expr fields expected =
   do  extVar <- mkFlexVar
       fieldDict <- Map.traverseWithKey (constrainUpdateField rtv region) fields
@@ -423,7 +423,7 @@ constrainUpdate rtv region name expr fields expected =
       return $ exists vars $ CAnd (fieldsCon:con:cons)
 
 
-constrainUpdateField :: RTV -> R.Region -> N.Name -> Can.FieldUpdate -> IO (Variable, Type, Constraint)
+constrainUpdateField :: RTV -> R.Region -> Name.Name -> Can.FieldUpdate -> IO (Variable, Type, Constraint)
 constrainUpdateField rtv region field (Can.FieldUpdate _ expr) =
   do  var <- mkFlexVar
       let tipe = VarN var
@@ -475,7 +475,7 @@ constrainShader region (Shader.Shader attributes uniforms varyings) expected =
       let unifType = VarN unifVar
 
       let shaderType =
-            AppN ModuleName.webgl N.shader
+            AppN ModuleName.webgl Name.shader
               [ toShaderRecord attributes attrType
               , toShaderRecord uniforms unifType
               , toShaderRecord varyings EmptyRecordN
@@ -485,7 +485,7 @@ constrainShader region (Shader.Shader attributes uniforms varyings) expected =
         CEqual region Shader shaderType expected
 
 
-toShaderRecord :: Map.Map N.Name Shader.Type -> Type -> Type
+toShaderRecord :: Map.Map Name.Name Shader.Type -> Type -> Type
 toShaderRecord types baseRecType =
   if Map.null types then
     baseRecType
@@ -590,7 +590,7 @@ data Info =
   Info
     { _vars :: [Variable]
     , _cons :: [Constraint]
-    , _headers :: Map.Map N.Name (A.Located Type)
+    , _headers :: Map.Map Name.Name (A.Located Type)
     }
 
 
@@ -724,12 +724,12 @@ data TypedArgs =
     }
 
 
-constrainTypedArgs :: Map.Map N.Name Type -> N.Name -> [(Can.Pattern, Can.Type)] -> Can.Type -> IO TypedArgs
+constrainTypedArgs :: Map.Map Name.Name Type -> Name.Name -> [(Can.Pattern, Can.Type)] -> Can.Type -> IO TypedArgs
 constrainTypedArgs rtv name args srcResultType =
   typedArgsHelp rtv name Index.first args srcResultType Pattern.emptyState
 
 
-typedArgsHelp :: Map.Map N.Name Type -> N.Name -> Index.ZeroBased -> [(Can.Pattern, Can.Type)] -> Can.Type -> Pattern.State -> IO TypedArgs
+typedArgsHelp :: Map.Map Name.Name Type -> Name.Name -> Index.ZeroBased -> [(Can.Pattern, Can.Type)] -> Can.Type -> Pattern.State -> IO TypedArgs
 typedArgsHelp rtv name index args srcResultType state =
   case args of
     [] ->

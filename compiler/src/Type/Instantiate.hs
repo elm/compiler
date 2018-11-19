@@ -9,9 +9,9 @@ module Type.Instantiate
 
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict ((!))
+import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
-import qualified Elm.Name as N
 import Type.Type
 
 
@@ -20,14 +20,14 @@ import Type.Type
 
 
 type FreeVars =
-  Map.Map N.Name Type
+  Map.Map Name.Name Type
 
 
 
 -- FROM SOURCE TYPE
 
 
-fromSrcType :: Map.Map N.Name Type -> Can.Type -> IO Type
+fromSrcType :: Map.Map Name.Name Type -> Can.Type -> IO Type
 fromSrcType freeVars sourceType =
   case sourceType of
     Can.TLambda arg result ->
@@ -72,6 +72,6 @@ fromSrcType freeVars sourceType =
               return (freeVars ! ext)
 
 
-fromSrcFieldType :: Map.Map N.Name Type -> Can.FieldType -> IO Type
+fromSrcFieldType :: Map.Map Name.Name Type -> Can.FieldType -> IO Type
 fromSrcFieldType freeVars (Can.FieldType _ tipe) =
   fromSrcType freeVars tipe
