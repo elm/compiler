@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# LANGUAGE BangPatterns, MagicHash, UnboxedTuples #-}
 module Data.Utf8
-  ( Utf8
+  ( Utf8(..)
+  , toString
   , toBuilder
   , fromChunks
   , Chunk(..)
@@ -19,7 +20,7 @@ import Foreign.ForeignPtr (ForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr)
 import GHC.Exts
-  ( Int(I#), Ptr(Ptr)
+  ( Int(I#), Ptr(Ptr), Char(C#)
   , RealWorld
   , ByteArray#, MutableByteArray#
   , isTrue#
@@ -92,14 +93,14 @@ instance Binary Utf8 where
 getUtf8 :: Int -> Get Utf8
 getUtf8 n =
   if n > 0 then
-    readN n (fromByteString n)
+    readN n (copyFromByteString n)
   else
     return empty
 
 
 -- TODO add inline?
-fromByteString :: Int -> B.ByteString -> Utf8
-fromByteString len (B.PS fptr offset _) =
+copyFromByteString :: Int -> B.ByteString -> Utf8
+copyFromByteString len (B.PS fptr offset _) =
   unsafeDupablePerformIO
   (
     do  mba <- stToIO (newByteArray len)
@@ -225,6 +226,78 @@ toBuilderHelp !utf8@(Utf8 ba#) k =
         do  stToIO (copyToPtr utf8 offset bOffset bLen)
             let !offset' = offset + bLen
             return $ B.bufferFull 1 bEnd (go offset' end)
+
+
+
+-- TO STRING
+
+
+toString :: Utf8 -> String
+toString (Utf8 ba#) =
+  let
+    !len# = sizeofByteArray# ba#
+  in
+  toStringHelp ba# 0# len#
+
+
+toStringHelp :: ByteArray# -> Int# -> Int# -> String
+toStringHelp ba# offset# len# =
+  if isTrue# (offset# >=# len#) then
+    []
+  else
+    let
+      !w# = indexWord8Array# ba# offset#
+      !(# char, width# #)
+        | isTrue# (ltWord# w# 0xC0##) = (# C# (chr# (word2Int# w#)), 1# #)
+        | isTrue# (ltWord# w# 0xE0##) = (# chr2 ba# offset# w#, 2# #)
+        | isTrue# (ltWord# w# 0xF0##) = (# chr3 ba# offset# w#, 3# #)
+        | True                        = (# chr4 ba# offset# w#, 4# #)
+
+      !newOffset# = offset# +# width#
+    in
+    char : toStringHelp ba# newOffset# len#
+
+
+{-# INLINE chr2 #-}
+chr2 :: ByteArray# -> Int# -> Word# -> Char
+chr2 ba# offset# firstWord# =
+  let
+    !i1# = word2Int# firstWord#
+    !i2# = word2Int# (indexWord8Array# ba# (offset# +# 1#))
+    !c1# = uncheckedIShiftL# (i1# -# 0xC0#) 6#
+    !c2# = i2# -# 0x80#
+  in
+  C# (chr# (c1# +# c2#))
+
+
+{-# INLINE chr3 #-}
+chr3 :: ByteArray# -> Int# -> Word# -> Char
+chr3 ba# offset# firstWord# =
+  let
+    !i1# = word2Int# firstWord#
+    !i2# = word2Int# (indexWord8Array# ba# (offset# +# 1#))
+    !i3# = word2Int# (indexWord8Array# ba# (offset# +# 2#))
+    !c1# = uncheckedIShiftL# (i1# -# 0xE0#) 12#
+    !c2# = uncheckedIShiftL# (i2# -# 0x80#) 6#
+    !c3# = i3# -# 0x80#
+  in
+  C# (chr# (c1# +# c2# +# c3#))
+
+
+{-# INLINE chr4 #-}
+chr4 :: ByteArray# -> Int# -> Word# -> Char
+chr4 ba# offset# firstWord# =
+  let
+    !i1# = word2Int# firstWord#
+    !i2# = word2Int# (indexWord8Array# ba# (offset# +# 1#))
+    !i3# = word2Int# (indexWord8Array# ba# (offset# +# 2#))
+    !i4# = word2Int# (indexWord8Array# ba# (offset# +# 3#))
+    !c1# = uncheckedIShiftL# (i1# -# 0xF0#) 18#
+    !c2# = uncheckedIShiftL# (i2# -# 0x80#) 12#
+    !c3# = uncheckedIShiftL# (i3# -# 0x80#) 6#
+    !c4# = i4# -# 0x80#
+  in
+  C# (chr# (c1# +# c2# +# c3# +# c4#))
 
 
 
