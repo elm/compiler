@@ -8,7 +8,7 @@ module AST.Module.Name
   , virtualDom, debug, bitwise
   , jsonDecode, jsonEncode
   , webgl, texture, vector2, vector3, vector4, matrix4
-  , isKernel, getKernel, canonicalIsKernel
+  , canonicalIsKernel
   )
   where
 
@@ -16,8 +16,8 @@ module AST.Module.Name
 import Prelude hiding (maybe)
 import Control.Monad (liftM2)
 import Data.Binary
+import qualified Data.Name as Name
 
-import qualified Elm.Name as N
 import qualified Elm.Package as Pkg
 
 
@@ -28,7 +28,7 @@ import qualified Elm.Package as Pkg
 data Canonical =
   Canonical
     { _package :: !Pkg.Name
-    , _module :: !N.Name
+    , _module :: !Name.Name
     }
     deriving (Ord)
 
@@ -49,12 +49,12 @@ basics = Canonical Pkg.core "Basics"
 
 {-# NOINLINE char #-}
 char :: Canonical
-char = Canonical Pkg.core N.char
+char = Canonical Pkg.core Name.char
 
 
 {-# NOINLINE string #-}
 string :: Canonical
-string = Canonical Pkg.core N.string
+string = Canonical Pkg.core Name.string
 
 
 
@@ -63,32 +63,32 @@ string = Canonical Pkg.core N.string
 
 {-# NOINLINE maybe #-}
 maybe :: Canonical
-maybe = Canonical Pkg.core N.maybe
+maybe = Canonical Pkg.core Name.maybe
 
 
 {-# NOINLINE result #-}
 result :: Canonical
-result = Canonical Pkg.core N.result
+result = Canonical Pkg.core Name.result
 
 
 {-# NOINLINE list #-}
 list :: Canonical
-list = Canonical Pkg.core N.list
+list = Canonical Pkg.core Name.list
 
 
 {-# NOINLINE array #-}
 array :: Canonical
-array = Canonical Pkg.core N.array
+array = Canonical Pkg.core Name.array
 
 
 {-# NOINLINE dict #-}
 dict :: Canonical
-dict = Canonical Pkg.core N.dict
+dict = Canonical Pkg.core Name.dict
 
 
 {-# NOINLINE tuple #-}
 tuple :: Canonical
-tuple = Canonical Pkg.core N.tuple
+tuple = Canonical Pkg.core Name.tuple
 
 
 
@@ -97,7 +97,7 @@ tuple = Canonical Pkg.core N.tuple
 
 {-# NOINLINE platform #-}
 platform :: Canonical
-platform = Canonical Pkg.core N.platform
+platform = Canonical Pkg.core Name.platform
 
 
 {-# NOINLINE cmd #-}
@@ -116,17 +116,17 @@ sub = Canonical Pkg.core "Platform.Sub"
 
 {-# NOINLINE virtualDom #-}
 virtualDom :: Canonical
-virtualDom = Canonical Pkg.virtualDom N.virtualDom
+virtualDom = Canonical Pkg.virtualDom Name.virtualDom
 
 
 {-# NOINLINE debug #-}
 debug :: Canonical
-debug = Canonical Pkg.core N.debug
+debug = Canonical Pkg.core Name.debug
 
 
 {-# NOINLINE bitwise #-}
 bitwise :: Canonical
-bitwise = Canonical Pkg.core N.bitwise
+bitwise = Canonical Pkg.core Name.bitwise
 
 
 
@@ -181,19 +181,9 @@ matrix4 = Canonical Pkg.linearAlgebra "Math.Matrix4"
 -- IS KERNEL
 
 
-isKernel :: N.Name -> Bool
-isKernel name =
-  N.startsWith "Elm.Kernel." name
-
-
-getKernel :: N.Name -> N.Name
-getKernel name =
-  N.drop 11 name
-
-
 canonicalIsKernel :: Canonical -> Bool
 canonicalIsKernel (Canonical _ name) =
-  isKernel name
+  Name.isKernel name
 
 
 
