@@ -217,7 +217,7 @@ multiString fp offset terminal row col initialOffset revChunks =
 
     else if word == 0x0D {- \r -} then
       let !offset1 = offset + 1 in
-      multiString fp offset1 terminal (row + 1) 1 offset1 $
+      multiString fp offset1 terminal row col offset1 $
         addEscape carriageReturn initialOffset offset revChunks
 
     else if word == 0x5C {- \ -} then
