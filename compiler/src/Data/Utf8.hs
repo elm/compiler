@@ -27,12 +27,12 @@ import GHC.Exts
   , newByteArray#, unsafeFreezeByteArray#
   , sizeofByteArray#
   , copyAddrToByteArray#, copyByteArrayToAddr#
-  , writeWord8Array#, writeWord16Array#
+  , writeWord8Array#,
   )
 import GHC.IO
 import GHC.ST (ST(ST), runST)
 import GHC.Prim
-import GHC.Word (Word8(W8#), Word16(W16#))
+import GHC.Word (Word8(W8#))
 
 
 
@@ -122,7 +122,7 @@ empty =
 
 data Chunk
   = Slice Int Int -- TODO try UNPACK
-  | Escape Word16
+  | Escape Word8
   | CodePoint Int
 
 
@@ -165,7 +165,8 @@ writeChunks ptr mba offset chunks =
               writeChunks ptr mba newOffset chunks
 
         Escape word ->
-          do  writeWord16 mba offset word
+          do  writeWord8 mba offset 0x5C {- \ -}
+              writeWord8 mba (offset + 1) word
               let !newOffset = offset + 2
               writeChunks ptr mba newOffset chunks
 
@@ -185,7 +186,8 @@ writeChunks ptr mba offset chunks =
 -- TODO see if it is faster to writeWord32 a block of hex-as-ascii
 writeCode :: MBA RealWorld -> Int -> Int -> ST RealWorld ()
 writeCode mba offset code =
-  do  writeWord16 mba offset 0x5C75 {- \u -}
+  do  writeWord8 mba offset 0x5C {- \ -}
+      writeWord8 mba offset 0x75 {- u -}
       writeHex mba (offset + 2) (shiftR code 12)
       writeHex mba (offset + 3) (shiftR code 8)
       writeHex mba (offset + 4) (shiftR code 4)
@@ -340,11 +342,4 @@ writeWord8 :: MBA s -> Int -> Word8 -> ST s ()
 writeWord8 (MBA# mba#) (I# i#) (W8# w#) =
   ST $ \s ->
     case writeWord8Array# mba# i# w# s of
-      s -> (# s, () #)
-
-
-writeWord16 :: MBA s -> Int -> Word16 -> ST s ()
-writeWord16 (MBA# mba#) (I# i#) (W16# w#) =
-  ST $ \s ->
-    case writeWord16Array# mba# i# w# s of
       s -> (# s, () #)

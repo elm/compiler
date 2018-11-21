@@ -296,25 +296,25 @@ eatUnicode fp offset terminal =
 {-# NOINLINE singleQuote #-}
 singleQuote :: Utf8.Chunk
 singleQuote =
-  Utf8.Escape 0x5C27 {- \' -}
+  Utf8.Escape 0x27 {- ' -}
 
 
 {-# NOINLINE doubleQuote #-}
 doubleQuote :: Utf8.Chunk
 doubleQuote =
-  Utf8.Escape 0x5C22 {- \" -}
+  Utf8.Escape 0x22 {- " -}
 
 
 {-# NOINLINE newline #-}
 newline :: Utf8.Chunk
 newline =
-  Utf8.Escape 0x5C6E {- \n -}
+  Utf8.Escape 0x6E {- n -}
 
 
 {-# NOINLINE carriageReturn #-}
 carriageReturn :: Utf8.Chunk
 carriageReturn =
-  Utf8.Escape 0x5C72 {- \r -}
+  Utf8.Escape 0x72 {- \r -}
 
 
 {-# NOINLINE placeholder #-}
