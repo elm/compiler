@@ -253,26 +253,26 @@ toEscapedBuilderHelp before after !name@(Name ba#) k =
       if len <= bLen then
         do  -- TODO test if writing word-by-word is faster
             stToIO (copyToPtr name offset bOffset len)
-            stToIO (escape before after bOffset name offset len)
+            stToIO (escape before after bOffset name offset len 0)
             let !newBufferRange = B.BufferRange (plusPtr bOffset len) bEnd
             k newBufferRange
       else
         do  stToIO (copyToPtr name offset bOffset bLen)
-            stToIO (escape before after bOffset name offset bLen)
+            stToIO (escape before after bOffset name offset bLen 0)
             let !newOffset = offset + bLen
             let !newLength = len - bLen
             return $ B.bufferFull 1 bEnd (go newOffset newLength)
 
 
-escape :: Word8 -> Word8 -> Ptr a -> Name -> Int -> Int -> ST RealWorld ()
-escape before@(W8# before#) after ptr name@(Name ba#) offset@(I# offset#) end@(I# end#) =
-  if isTrue# (offset# <# end#) then
-    if isTrue# (eqWord# before# (indexWord8Array# ba# offset#))
+escape :: Word8 -> Word8 -> Ptr a -> Name -> Int -> Int -> Int -> ST RealWorld ()
+escape before@(W8# before#) after ptr name@(Name ba#) offset@(I# offset#) len@(I# len#) i@(I# i#) =
+  if isTrue# (i# <# len#) then
+    if isTrue# (eqWord# before# (indexWord8Array# ba# (offset# +# i#)))
     then
-      do  writeWordToPtr ptr offset after
-          escape before after ptr name (offset + 1) end
+      do  writeWordToPtr ptr i after
+          escape before after ptr name offset len (i + 1)
     else
-      do  escape before after ptr name (offset + 1) end
+      do  escape before after ptr name offset len (i + 1)
 
   else
     return ()
