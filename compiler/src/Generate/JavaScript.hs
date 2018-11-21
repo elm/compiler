@@ -209,7 +209,7 @@ addGlobalHelp mode graph global state =
       )
 
     Opt.Box ->
-      addStmt state (
+      addStmt (addGlobal mode graph state identity) (
         generateBox mode global
       )
 
@@ -398,6 +398,12 @@ generateBox mode global@(Opt.Global home name) =
           JS.Ref (JsName.fromGlobal ModuleName.basics Name.identity)
   in
   JS.Var [ (JsName.fromGlobal home name, Just definition) ]
+
+
+{-# NOINLINE identity #-}
+identity :: Opt.Global
+identity =
+  Opt.Global ModuleName.basics Name.identity
 
 
 
