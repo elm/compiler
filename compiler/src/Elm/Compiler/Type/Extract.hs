@@ -9,7 +9,6 @@ module Elm.Compiler.Type.Extract
   where
 
 
-import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
@@ -107,8 +106,8 @@ extractTransitive interfaces (Deps seenAliases seenUnions) (Deps nextAliases nex
         (newDeps, result) =
           run $
             (,)
-              <$> traverse (extractAlias interfaces) (Set.toList aliases)
-              <*> traverse (extractUnion interfaces) (Set.toList unions)
+              <$> (Maybe.catMaybes <$> traverse (extractAlias interfaces) (Set.toList aliases))
+              <*> (Maybe.catMaybes <$> traverse (extractUnion interfaces) (Set.toList unions))
 
         oldDeps =
           Deps (Set.union seenAliases nextAliases) (Set.union seenUnions nextUnions)
@@ -119,31 +118,35 @@ extractTransitive interfaces (Deps seenAliases seenUnions) (Deps nextAliases nex
         mappend result remainingResult
 
 
-extractAlias :: I.Interfaces -> Opt.Global -> Extractor T.Alias
+extractAlias :: I.Interfaces -> Opt.Global -> Extractor (Maybe T.Alias)
 extractAlias interfaces (Opt.Global home name) =
   let
-    (I.Interface _ _ aliases _) = interfaces ! home
-    (Can.Alias args aliasType) = I.toAliasInternals (aliases ! name)
+    pname = toPublicName home name
+    maybeAliases = I._aliases <$> Map.lookup home interfaces
+    maybeAlias = Map.lookup name =<< maybeAliases
+    extractAliasInternals alias =
+      case I.toAliasInternals alias of
+        Can.Alias args aliasType ->
+          T.Alias pname args <$> extract aliasType
   in
-  T.Alias (toPublicName home name) args <$> extract aliasType
+  traverse extractAliasInternals maybeAlias
 
 
-extractUnion :: I.Interfaces -> Opt.Global -> Extractor T.Union
+extractUnion :: I.Interfaces -> Opt.Global -> Extractor (Maybe T.Union)
 extractUnion interfaces (Opt.Global home name) =
   if name == N.list && home == ModuleName.list
-    then return $ T.Union (toPublicName home name) ["a"] []
+    then return . Just $ T.Union (toPublicName home name) ["a"] []
     else
       let
         pname = toPublicName home name
         maybeUnions = I._unions <$> Map.lookup home interfaces
-      in
-      case Map.lookup name =<< maybeUnions of
-        Just union ->
+        maybeUnion = Map.lookup name =<< maybeUnions
+        extractUnionInternals union =
           case I.toUnionInternals union of
             Can.Union vars ctors _ _ ->
               T.Union pname vars <$> traverse extractCtor ctors
-        Nothing ->
-          return $ T.Union pname [] []
+      in
+      traverse extractUnionInternals maybeUnion
 
 
 extractCtor :: Can.Ctor -> Extractor (N.Name, [T.Type])
