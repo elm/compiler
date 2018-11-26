@@ -130,12 +130,12 @@ Executable elm
 
         -- shared from compiler/
         Elm.Compiler
-        Elm.Compiler.Module
         Elm.Compiler.Objects
         Elm.Compiler.Type
         Elm.Docs
-        Elm.Kernel
         Elm.Header
+        Elm.Kernel
+        Elm.ModuleName
         Elm.Package
         Json.Decode
         Json.Encode
@@ -144,7 +144,6 @@ Executable elm
         AST.Canonical
         AST.Optimized
         AST.Source
-        AST.Module.Name
         AST.Utils.Binop
         AST.Utils.Shader
         AST.Utils.Type
@@ -240,6 +239,7 @@ Executable elm
         directory >= 1.2.3.0 && < 2.0,
         edit-distance >= 0.2 && < 0.3,
         file-embed,
+        filelock,
         filepath >= 1 && < 2.0,
         ghc-prim >= 0.5.2,
         haskeline,
