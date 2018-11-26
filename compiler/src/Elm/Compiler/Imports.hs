@@ -9,7 +9,7 @@ module Elm.Compiler.Imports
 import qualified Data.Name as Name
 
 import qualified AST.Source as Src
-import qualified AST.Module.Name as Module
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
@@ -32,22 +32,22 @@ addDefaults pkgName imports =
 
 defaults :: [Src.Import]
 defaults =
-  [ import_ Module.basics Nothing Src.Open
-  , import_ Module.debug Nothing closed
-  , import_ Module.list Nothing (operator "::")
-  , import_ Module.maybe Nothing (typeOpen Name.maybe)
-  , import_ Module.result Nothing (typeOpen Name.result)
-  , import_ Module.string Nothing (typeClosed Name.string)
-  , import_ Module.char Nothing (typeClosed Name.char)
-  , import_ Module.tuple Nothing closed
-  , import_ Module.platform Nothing (typeClosed Name.program)
-  , import_ Module.cmd (Just Name.cmd) (typeClosed Name.cmd)
-  , import_ Module.sub (Just Name.sub) (typeClosed Name.sub)
+  [ import_ ModuleName.basics Nothing Src.Open
+  , import_ ModuleName.debug Nothing closed
+  , import_ ModuleName.list Nothing (operator "::")
+  , import_ ModuleName.maybe Nothing (typeOpen Name.maybe)
+  , import_ ModuleName.result Nothing (typeOpen Name.result)
+  , import_ ModuleName.string Nothing (typeClosed Name.string)
+  , import_ ModuleName.char Nothing (typeClosed Name.char)
+  , import_ ModuleName.tuple Nothing closed
+  , import_ ModuleName.platform Nothing (typeClosed Name.program)
+  , import_ ModuleName.cmd (Just Name.cmd) (typeClosed Name.cmd)
+  , import_ ModuleName.sub (Just Name.sub) (typeClosed Name.sub)
   ]
 
 
-import_ :: Module.Canonical -> Maybe Name.Name -> Src.Exposing -> Src.Import
-import_ (Module.Canonical _ name) maybeAlias exposing =
+import_ :: ModuleName.Canonical -> Maybe Name.Name -> Src.Exposing -> Src.Import
+import_ (ModuleName.Canonical _ name) maybeAlias exposing =
   Src.Import (A.At R.zero name) maybeAlias exposing
 
 

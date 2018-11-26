@@ -20,9 +20,9 @@ import qualified Data.Text.Encoding as Text
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
-import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
 import qualified Elm.Interface as I
+import qualified Elm.ModuleName as ModuleName
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Expression as Expr
 import qualified Generate.JavaScript.Name as JsName

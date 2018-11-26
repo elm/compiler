@@ -20,8 +20,8 @@ import qualified Data.Set as Set
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
-import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
+import qualified Elm.ModuleName as ModuleName
 import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
 import Reporting.Doc (Doc, (<+>), (<>))

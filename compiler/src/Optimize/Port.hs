@@ -15,9 +15,9 @@ import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
-import qualified AST.Module.Name as ModuleName
 import qualified AST.Utils.Type as Type
 import qualified Data.Index as Index
+import qualified Elm.ModuleName as ModuleName
 import qualified Optimize.Names as Names
 
 

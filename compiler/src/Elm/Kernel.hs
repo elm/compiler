@@ -17,7 +17,7 @@ import Data.Word (Word8)
 
 import qualified AST.Optimized as Opt
 import qualified AST.Source as Src
-import qualified AST.Module.Name as ModuleName
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import Parse.Primitives (Parser, run)
 import qualified Parse.Primitives.Kernel as K

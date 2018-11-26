@@ -18,7 +18,7 @@ import qualified Data.Map as Map
 import qualified Data.Name as Name
 
 import qualified AST.Optimized as Opt
-import qualified AST.Module.Name as ModuleName
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Generate.JavaScript as JS
 

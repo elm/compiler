@@ -20,12 +20,12 @@ http://moscova.inria.fr/~maranget/papers/warn/warn.pdf
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
+import qualified Data.Name as Name
 import Data.Utf8 (Utf8)
 
 import qualified AST.Canonical as Can
-import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
-import qualified Data.Name as Name
+import qualified Elm.ModuleName as ModuleName
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 

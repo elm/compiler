@@ -18,9 +18,9 @@ import qualified Data.Name as Name
 import qualified Data.Set as Set
 
 import qualified AST.Source as Src
-import qualified AST.Module.Name as ModuleName
 import qualified AST.Valid as Valid
 import qualified Elm.Compiler.Imports as Imports
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import Reporting.Doc ((<>))
 import qualified Reporting.Doc as D

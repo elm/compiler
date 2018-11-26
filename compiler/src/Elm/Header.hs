@@ -10,7 +10,7 @@ import qualified Data.ByteString as B
 import qualified Data.Name as Name
 
 import qualified AST.Source as Src
-import qualified Elm.Compiler.Module as M
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Parse.Primitives as Parser
 import qualified Parse.Module as Module
@@ -29,7 +29,7 @@ data Tag = Normal | Effect | Port
 -- PARSE
 
 
-parse :: Pkg.Name -> B.ByteString -> Either Error.Error (Maybe (Tag, M.Raw), [M.Raw])
+parse :: Pkg.Name -> B.ByteString -> Either Error.Error (Maybe (Tag, ModuleName.Raw), [ModuleName.Raw])
 parse pkgName sourceCode =
   let
     headerParser =

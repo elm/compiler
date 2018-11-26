@@ -25,8 +25,8 @@ import qualified Data.Name as Name
 
 import qualified AST.Utils.Binop as Binop
 import qualified AST.Canonical as Can
-import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
+import qualified Elm.ModuleName as ModuleName
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Region as R
 import qualified Reporting.Result as Result

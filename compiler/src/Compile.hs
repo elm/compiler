@@ -13,10 +13,10 @@ import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
-import qualified AST.Module.Name as ModuleName
 import qualified Canonicalize.Module as Canonicalize
 import qualified Elm.Docs as Docs
 import qualified Elm.Interface as I
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Nitpick.PatternMatches as PatternMatches
 import qualified Optimize.Module as Optimize

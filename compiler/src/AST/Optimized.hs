@@ -29,8 +29,8 @@ import Data.Text (Text)
 import Data.Utf8 (Utf8)
 
 import qualified AST.Canonical as Can
-import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Optimize.DecisionTree as DT
 import qualified Reporting.Region as R

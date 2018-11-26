@@ -23,8 +23,8 @@ import qualified Data.Maybe as Maybe
 import Data.Monoid ((<>))
 import qualified Data.Name as Name
 
-import qualified AST.Module.Name as ModuleName
 import qualified Data.Bag as Bag
+import qualified Elm.ModuleName as ModuleName
 import qualified Reporting.Doc as D
 import qualified Reporting.Render.Type as RT
 import qualified Reporting.Render.Type.Localizer as L

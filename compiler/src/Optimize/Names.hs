@@ -22,8 +22,8 @@ import qualified Data.Set as Set
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
-import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Reporting.Region as R
 

@@ -13,8 +13,8 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
-import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
+import qualified Elm.ModuleName as ModuleName
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as E
 import qualified Reporting.Region as R

@@ -16,9 +16,9 @@ import Data.Map ((!))
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
-import qualified AST.Module.Name as ModuleName
 import qualified AST.Utils.Type as Type
 import qualified Canonicalize.Effects as Effects
+import qualified Elm.ModuleName as ModuleName
 import qualified Optimize.Expression as Expr
 import qualified Optimize.Names as Names
 import qualified Optimize.Port as Port

@@ -19,7 +19,6 @@ import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
-import qualified AST.Module.Name as ModuleName
 import qualified AST.Utils.Binop as Binop
 import qualified AST.Utils.Type as Type
 import qualified AST.Valid as Valid
@@ -28,6 +27,7 @@ import qualified Canonicalize.Environment.Dups as Dups
 import qualified Canonicalize.Pattern as Pattern
 import qualified Canonicalize.Type as Type
 import qualified Data.Index as Index
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error

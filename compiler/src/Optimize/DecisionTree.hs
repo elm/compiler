@@ -30,8 +30,8 @@ import qualified Data.Set as Set
 import Data.Utf8 (Utf8)
 
 import qualified AST.Canonical as Can
-import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
+import qualified Elm.ModuleName as ModuleName
 import qualified Reporting.Annotation as A
 
 

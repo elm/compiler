@@ -23,12 +23,12 @@ import qualified Data.Utf8 as Utf8
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
-import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Compiler.Type.Extract as Extract
-import qualified Elm.Package as Pkg
 import qualified Elm.Compiler.Version as Version
+import qualified Elm.ModuleName as ModuleName
+import qualified Elm.Package as Pkg
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Mode as Mode
 import qualified Generate.JavaScript.Name as JsName

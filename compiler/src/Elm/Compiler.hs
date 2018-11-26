@@ -17,8 +17,9 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 
 import qualified Compile
-import qualified Elm.Compiler.Module as M
 import qualified Elm.Compiler.Version
+import qualified Elm.Interface as I
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Json.Encode as Encode
 import qualified Reporting.Doc as D
@@ -46,8 +47,8 @@ version =
 compile
   :: Compile.DocsFlag
   -> Pkg.Name
-  -> Map.Map M.Raw M.Canonical
-  -> M.Interfaces
+  -> Map.Map ModuleName.Raw ModuleName.Canonical
+  -> I.Interfaces
   -> BS.ByteString
   -> ( [Warning.Warning], Either [Error.Error] Compile.Artifacts )
 compile docsFlag pkg importDict interfaces source =
@@ -71,7 +72,7 @@ errorsToDoc filePath source errors =
 -- ERRORS TO JSON
 
 
-errorsToJson :: M.Raw -> FilePath -> Text.Text -> [Error.Error] -> Encode.Value
+errorsToJson :: ModuleName.Raw -> FilePath -> Text.Text -> [Error.Error] -> Encode.Value
 errorsToJson moduleName filePath source errors =
   let
     reports =

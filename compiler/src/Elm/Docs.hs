@@ -27,12 +27,11 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 
 import qualified AST.Canonical as Can
-import qualified AST.Module.Name as ModuleName
 import qualified AST.Utils.Binop as Binop
 import qualified Data.OneOrMore as OneOrMore
-import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Compiler.Type.Extract as Extract
+import qualified Elm.ModuleName as ModuleName
 import qualified Json.Decode as D
 import qualified Json.Encode as E
 import Json.Encode ((==>))
@@ -98,7 +97,7 @@ data Binop = Binop Comment Type.Type Binop.Associativity Binop.Precedence
 encode :: Module -> E.Value
 encode (Module name comment unions aliases values binops) =
   E.object $
-    [ "name" ==> Module.encode name
+    [ "name" ==> ModuleName.encode name
     , "comment" ==> E.text comment
     , "unions" ==> E.list encodeUnion (Map.toList unions)
     , "aliases" ==> E.list encodeAlias (Map.toList aliases)
@@ -138,7 +137,7 @@ named entryDecoder =
 
 nameDecoder :: D.Decoder Error Name.Name
 nameDecoder =
-  D.mapError (const BadName) Module.decoder
+  D.mapError (const BadName) ModuleName.decoder
 
 
 typeDecoder :: D.Decoder Error Type.Type

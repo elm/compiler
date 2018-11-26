@@ -62,9 +62,9 @@ import Data.Text (Text)
 import Data.Utf8 (Utf8)
 
 import qualified AST.Utils.Binop as Binop
-import qualified AST.Module.Name as ModuleName
 import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
+import qualified Elm.ModuleName as ModuleName
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 

@@ -16,9 +16,9 @@ import qualified Data.Set as Set
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
-import qualified AST.Module.Name as ModuleName
 import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
+import qualified Elm.ModuleName as ModuleName
 import qualified Optimize.Case as Case
 import qualified Optimize.Names as Names
 import qualified Reporting.Annotation as A

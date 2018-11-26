@@ -25,8 +25,8 @@ import qualified Data.Name as Name
 import qualified Data.Set as Set
 import Data.Word (Word8)
 
-import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 
 
