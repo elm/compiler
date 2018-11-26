@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Elm.Package
   ( Name(..)
-  , Package(..)
+  , Canonical(..)
   , isKernel
   , toString, toText, toUrl, toFilePath
   , fromText
@@ -57,8 +57,8 @@ data Name =
     deriving (Eq, Ord)
 
 
-data Package =
-  Package
+data Canonical =
+  Canonical
     { _name :: !Name
     , _version :: !Version
     }
@@ -359,11 +359,11 @@ instance Binary Name where
         put project
 
 
-instance Binary Package where
+instance Binary Canonical where
   get =
-    liftM2 Package get get
+    liftM2 Canonical get get
 
-  put (Package name version) =
+  put (Canonical name version) =
     do  put name
         put version
 
