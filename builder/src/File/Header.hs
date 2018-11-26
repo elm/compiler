@@ -16,9 +16,8 @@ import qualified Data.Time.Calendar as Day
 import qualified Data.Time.Clock as Time
 import qualified System.Directory as Dir
 
-import qualified Elm.Compiler.Module as Module
 import qualified Elm.Header as Header
-
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Project.Json as Project
 import Elm.Project.Json (Project)
 import Elm.Project.Summary (Summary(..))
@@ -37,7 +36,7 @@ data Info =
     { _path :: FilePath
     , _time :: Time.UTCTime
     , _source :: BS.ByteString
-    , _imports :: [Module.Raw]
+    , _imports :: [ModuleName.Raw]
     }
 
 
@@ -49,7 +48,7 @@ atRoot task =
 -- READ MODULE
 
 
-readModule :: Summary -> Module.Raw -> FilePath -> Task.Task_ E.Problem (Module.Raw, Info)
+readModule :: Summary -> ModuleName.Raw -> FilePath -> Task.Task_ E.Problem (ModuleName.Raw, Info)
 readModule summary expectedName path =
   do  time <- liftIO $ Dir.getModificationTime path
       source <- liftIO $ IO.readUtf8 path
@@ -58,7 +57,7 @@ readModule summary expectedName path =
       return (name, info)
 
 
-checkName :: FilePath -> Module.Raw -> Maybe Module.Raw -> Task.Task_ E.Problem Module.Raw
+checkName :: FilePath -> ModuleName.Raw -> Maybe ModuleName.Raw -> Task.Task_ E.Problem ModuleName.Raw
 checkName path expectedName maybeName =
   case maybeName of
     Nothing ->
@@ -74,7 +73,7 @@ checkName path expectedName maybeName =
 -- READ ONE FILE
 
 
-readOneFile :: Summary -> FilePath -> Task.Task (Maybe Module.Raw, Info)
+readOneFile :: Summary -> FilePath -> Task.Task (Maybe ModuleName.Raw, Info)
 readOneFile summary path =
   Task.mapError Exit.Crawl $
   do  (time, source) <- readOneHelp path
@@ -93,7 +92,7 @@ readOneHelp path =
 -- READ MANY FILES
 
 
-readManyFiles :: Summary -> FilePath -> [FilePath] -> Task.Task ((Module.Raw, Info), [(Module.Raw, Info)])
+readManyFiles :: Summary -> FilePath -> [FilePath] -> Task.Task ((ModuleName.Raw, Info), [(ModuleName.Raw, Info)])
 readManyFiles summary file files =
   Task.mapError Exit.Crawl $
   do  info <- readManyFilesHelp summary file
@@ -106,7 +105,7 @@ readManyFiles summary file files =
     insert (k,v) dict = Map.insertWith append k (v, []) dict
 
 
-readManyFilesHelp :: Summary -> FilePath -> Task.Task_ E.Exit (Module.Raw, Info)
+readManyFilesHelp :: Summary -> FilePath -> Task.Task_ E.Exit (ModuleName.Raw, Info)
 readManyFilesHelp summary path =
   do  (time, source) <- readOneHelp path
       (maybeName, info) <- atRoot $ parse (_project summary) path time source
@@ -118,7 +117,7 @@ readManyFilesHelp summary path =
           return (name, info)
 
 
-detectDuplicateNames :: Module.Raw -> (Info, [Info]) -> Task.Task_ E.Exit ()
+detectDuplicateNames :: ModuleName.Raw -> (Info, [Info]) -> Task.Task_ E.Exit ()
 detectDuplicateNames name (info, otherInfos) =
   case otherInfos of
     [] ->
@@ -133,7 +132,7 @@ detectDuplicateNames name (info, otherInfos) =
 -- READ SOURCE
 
 
-readSource :: Project -> BS.ByteString -> Task.Task (Maybe Module.Raw, Info)
+readSource :: Project -> BS.ByteString -> Task.Task (Maybe ModuleName.Raw, Info)
 readSource project source =
   Task.mapError Exit.Crawl $
     atRoot $ parse project "elm" fakeTime source
@@ -148,7 +147,7 @@ fakeTime =
 -- PARSE HEADER
 
 
-parse :: Project -> FilePath -> Time.UTCTime -> BS.ByteString -> Task.Task_ E.Problem (Maybe Module.Raw, Info)
+parse :: Project -> FilePath -> Time.UTCTime -> BS.ByteString -> Task.Task_ E.Problem (Maybe ModuleName.Raw, Info)
 parse project path time source =
   -- TODO get regions on data extracted here
   case Header.parse (Project.getName project) source of
@@ -160,7 +159,7 @@ parse project path time source =
       Task.throw (E.BadHeader path time source msg)
 
 
-checkTag :: Project -> FilePath -> Maybe (Header.Tag, Module.Raw) -> Task.Task_ E.Problem (Maybe Module.Raw)
+checkTag :: Project -> FilePath -> Maybe (Header.Tag, ModuleName.Raw) -> Task.Task_ E.Problem (Maybe ModuleName.Raw)
 checkTag project path maybeDecl =
   case maybeDecl of
     Nothing ->

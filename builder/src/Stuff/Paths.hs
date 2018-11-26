@@ -17,7 +17,7 @@ import qualified System.Directory as Dir
 import System.FilePath ((</>), (<.>))
 
 import qualified Elm.Compiler as Compiler
-import qualified Elm.Compiler.Module as Module
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Reporting.Task as Task
 
@@ -64,24 +64,24 @@ removeStuff root =
 -- ELMI and ELMO
 
 
-elmi :: FilePath -> Module.Raw -> FilePath
+elmi :: FilePath -> ModuleName.Raw -> FilePath
 elmi root name =
   toArtifactPath root name "elmi"
 
 
-elmo :: FilePath -> Module.Raw -> FilePath
+elmo :: FilePath -> ModuleName.Raw -> FilePath
 elmo root name =
   toArtifactPath root name "elmo"
 
 
-moduleDocs :: FilePath -> Module.Raw -> FilePath
+moduleDocs :: FilePath -> ModuleName.Raw -> FilePath
 moduleDocs root name =
   toArtifactPath root name "json"
 
 
-toArtifactPath :: FilePath -> Module.Raw -> String -> FilePath
+toArtifactPath :: FilePath -> ModuleName.Raw -> String -> FilePath
 toArtifactPath root name ext =
-  root </> stuff </> Module.nameToHyphenPath name <.> ext
+  root </> stuff </> ModuleName.nameToHyphenPath name <.> ext
 
 
 

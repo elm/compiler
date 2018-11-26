@@ -16,7 +16,7 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.Time.Clock as Time
 
 import qualified Elm.Compiler as Compiler
-import qualified Elm.Compiler.Module as Module
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import Reporting.Doc ((<+>), (<>))
 import qualified Reporting.Doc as D
@@ -30,30 +30,30 @@ import qualified Reporting.Exit.Help as Help
 
 data Exit
   = RootFileNotFound FilePath
-  | RootModuleNameDuplicate Module.Raw [FilePath]
+  | RootModuleNameDuplicate ModuleName.Raw [FilePath]
   | RootNameless FilePath
   | DependencyProblems Problem [Problem]
   | BadKernelHeader FilePath
 
 
 data Problem
-  = ModuleNotFound Origin Module.Raw SrcDirs
-  | ModuleAmbiguous Origin Module.Raw [FilePath] [Pkg.Package]
+  = ModuleNotFound Origin ModuleName.Raw SrcDirs
+  | ModuleAmbiguous Origin ModuleName.Raw [FilePath] [Pkg.Canonical]
   | BadHeader FilePath Time.UTCTime BS.ByteString Compiler.Error
-  | ModuleNameReservedForKernel Origin Module.Raw
-  | ModuleNameMissing FilePath Module.Raw
+  | ModuleNameReservedForKernel Origin ModuleName.Raw
+  | ModuleNameMissing FilePath ModuleName.Raw
   | ModuleNameMismatch
       FilePath
-      Module.Raw -- expected
-      Module.Raw -- actual
-  | PortsInPackage FilePath Module.Raw
-  | EffectsUnexpected FilePath Module.Raw
+      ModuleName.Raw -- expected
+      ModuleName.Raw -- actual
+  | PortsInPackage FilePath ModuleName.Raw
+  | EffectsUnexpected FilePath ModuleName.Raw
 
 
 data Origin
   = ElmJson
   | File FilePath
-  | Module FilePath Module.Raw
+  | Module FilePath ModuleName.Raw
 
 
 data SrcDirs
@@ -82,7 +82,7 @@ toReport exit =
             map D.fromString paths
         , D.fillSep $
             [ "These", "modules", if length paths == 2 then "both" else "all", "claim"
-            , "to", "be", "named", D.dullyellow (D.fromString (Module.nameToString name)) <> "."
+            , "to", "be", "named", D.dullyellow (D.fromString (ModuleName.nameToString name)) <> "."
             , "Change", "them", "to", "have", "unique", "names", "and", "you"
             , "should", "be", "all", "set!"
             ]
@@ -139,9 +139,9 @@ problemToReport problem =
       Help.report "MODULE NAME MISMATCH" (Just path)
         ( "The file at " ++ path ++ " has a typo in the module name. It says:"
         )
-        [ D.indent 4 $ D.dullyellow $ "module" <+> D.red (D.fromString (Module.nameToString actual)) <+> "exposing (..)"
+        [ D.indent 4 $ D.dullyellow $ "module" <+> D.red (D.fromString (ModuleName.nameToString actual)) <+> "exposing (..)"
         , "Looks like a typo or copy/paste error. Instead it needs to say:"
-        , D.indent 4 $ D.dullyellow $ "module" <+> D.green (D.fromString (Module.nameToString expected)) <+> "exposing (..)"
+        , D.indent 4 $ D.dullyellow $ "module" <+> D.green (D.fromString (ModuleName.nameToString expected)) <+> "exposing (..)"
         , "Make the change and you should be all set!"
         ]
 
@@ -159,7 +159,7 @@ problemToReport problem =
         \ cautious in expanding its usage."
 
 
-badTagToDoc :: FilePath -> Module.Raw -> String -> String -> String -> Help.Report
+badTagToDoc :: FilePath -> ModuleName.Raw -> String -> String -> String -> Help.Report
 badTagToDoc path name tag hintName summary =
   Help.report
     ("UNEXPECTED " ++ map Char.toUpper tag ++ " MODULE")
@@ -169,7 +169,7 @@ badTagToDoc path name tag hintName summary =
         [ "Get", "rid", "of", "all", "the"
         , D.red (D.fromString tag)
         , "stuff", "in"
-        , D.dullyellow (D.fromString (Module.nameToString name))
+        , D.dullyellow (D.fromString (ModuleName.nameToString name))
         , "to", "proceed."
         ]
     , D.toSimpleNote $
@@ -182,14 +182,14 @@ badTagToDoc path name tag hintName summary =
 -- NAMELESS
 
 
-namelessToDoc :: FilePath -> Module.Raw -> Help.Report
+namelessToDoc :: FilePath -> ModuleName.Raw -> Help.Report
 namelessToDoc path name =
   Help.report "UNNAMED MODULE" (Just path)
-    ( "The `" ++ Module.nameToString name
+    ( "The `" ++ ModuleName.nameToString name
       ++ "` module must start with a line like this:"
     )
     [ D.indent 4 $ D.dullyellow $ D.fromString $
-        "module " ++ Module.nameToString name ++ " exposing (..)"
+        "module " ++ ModuleName.nameToString name ++ " exposing (..)"
     , D.reflow $
         "Try adding that as the first line of your file!"
     , D.toSimpleNote $
@@ -204,33 +204,33 @@ namelessToDoc path name =
 -- NOT FOUND
 
 
-notFoundToDoc :: Origin -> Module.Raw -> SrcDirs -> Help.Report
+notFoundToDoc :: Origin -> ModuleName.Raw -> SrcDirs -> Help.Report
 notFoundToDoc origin child srcDirs =
   case origin of
     ElmJson ->
       Help.report "MODULE NOT FOUND" (Just "elm.json")
         "Your elm.json says your project has the following module:"
-        [ D.indent 4 $ D.red $ D.fromString $ Module.nameToString child
+        [ D.indent 4 $ D.red $ D.fromString $ ModuleName.nameToString child
         , D.reflow $
             "When creating packages, all modules must live in the src/ directory."
         ]
 
     File path ->
       Help.report "UNKNOWN IMPORT" (Just path)
-        ("I cannot find a `" ++ Module.nameToString child ++ "` module to import.")
+        ("I cannot find a `" ++ ModuleName.nameToString child ++ "` module to import.")
         (notFoundDetails child srcDirs)
 
     Module path parent ->
       Help.report "UNKNOWN IMPORT" (Just path)
-        ("The " ++ Module.nameToString parent ++ " module has a bad import:")
+        ("The " ++ ModuleName.nameToString parent ++ " module has a bad import:")
         (notFoundDetails child srcDirs)
 
 
-notFoundDetails :: Module.Raw -> SrcDirs -> [D.Doc]
+notFoundDetails :: ModuleName.Raw -> SrcDirs -> [D.Doc]
 notFoundDetails child srcDirs =
   let
     simulatedCode =
-      D.indent 4 $ D.red $ D.fromString $ "import " ++ Module.nameToString child
+      D.indent 4 $ D.red $ D.fromString $ "import " ++ ModuleName.nameToString child
   in
   case Map.lookup child Pkg.suggestions of
     Just pkg ->
@@ -243,13 +243,13 @@ notFoundDetails child srcDirs =
           Pkg ->
             D.reflow $
               "If you want a local file, make sure the `"
-              ++ Module.nameToString child
+              ++ ModuleName.nameToString child
               ++ "` module is in your src/ directory."
 
           App _ ->
             D.reflow $
               "If you want a local file, make sure the `"
-              ++ Module.nameToString child
+              ++ ModuleName.nameToString child
               ++ "` module is in one of the \"source-directories\" listed in your elm.json file."
       ]
 
@@ -275,10 +275,10 @@ notFoundDetails child srcDirs =
       ]
 
 
-ambiguousToDoc :: Origin -> Module.Raw -> [FilePath] -> [Pkg.Package] -> Help.Report
+ambiguousToDoc :: Origin -> ModuleName.Raw -> [FilePath] -> [Pkg.Canonical] -> Help.Report
 ambiguousToDoc origin child paths pkgs =
   let
-    pkgToString (Pkg.Package pkg vsn) =
+    pkgToString (Pkg.Canonical pkg vsn) =
       "exposed by " ++ Pkg.toString pkg ++ " " ++ Pkg.versionToString vsn
 
     makeReport maybePath summary yellowString =
@@ -303,22 +303,22 @@ ambiguousToDoc origin child paths pkgs =
         makeReport
           Nothing
           "Your elm.json wants the following module:"
-          (Module.nameToString child)
+          (ModuleName.nameToString child)
 
       File path ->
         makeReport
           (Just path)
           ("The file at " ++ path ++ " has an ambiguous import:")
-          ("import " ++ Module.nameToString child)
+          ("import " ++ ModuleName.nameToString child)
 
       Module path parent ->
         makeReport
           (Just path)
-          ("The " ++ Module.nameToString parent ++ " module has an ambiguous import:")
-          ("import " ++ Module.nameToString child)
+          ("The " ++ ModuleName.nameToString parent ++ " module has an ambiguous import:")
+          ("import " ++ ModuleName.nameToString child)
 
 
-kernelNameToDoc :: Origin -> Module.Raw -> Help.Report
+kernelNameToDoc :: Origin -> ModuleName.Raw -> Help.Report
 kernelNameToDoc origin kernelName =
   let
     (maybePath, statement) =
@@ -335,11 +335,11 @@ kernelNameToDoc origin kernelName =
 
         Module path parent ->
           ( Just path
-          , "Your " ++ Module.nameToString parent ++ " module is trying to import:"
+          , "Your " ++ ModuleName.nameToString parent ++ " module is trying to import:"
           )
   in
   Help.report "BAD MODULE NAME" maybePath statement
-    [ D.indent 4 $ D.dullyellow $ D.fromString $ Module.nameToString kernelName
+    [ D.indent 4 $ D.dullyellow $ D.fromString $ ModuleName.nameToString kernelName
     , D.reflow $
         "But names like that are reserved for internal use.\
         \ Switch to a name outside of the Elm/Kernel/ namespace."

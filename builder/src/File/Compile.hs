@@ -13,8 +13,8 @@ import qualified Data.Map as Map
 import qualified Data.Time.Clock as Time
 
 import qualified Elm.Compiler as Compiler
-import qualified Elm.Compiler.Module as Module
-
+import qualified Elm.Interface as I
+import qualified Elm.ModuleName as ModuleName
 import Elm.Project.Json (Project)
 import qualified Elm.Project.Json as Project
 import qualified File.Plan as Plan
@@ -26,7 +26,7 @@ import qualified Reporting.Task as Task
 -- COMPILE
 
 
-compile :: Project -> Maybe FilePath -> Module.Interfaces -> Dict Plan.Info -> Task.Task (Dict Answer)
+compile :: Project -> Maybe FilePath -> I.Interfaces -> Dict Plan.Info -> Task.Task (Dict Answer)
 compile project maybeDocsPath ifaces modules =
   do  Task.report (Progress.CompileStart (Map.size modules))
 
@@ -54,7 +54,7 @@ data Answer
   | Good Compiler.Artifacts
 
 
-type Dict a = Map.Map Module.Raw a
+type Dict a = Map.Map ModuleName.Raw a
 
 
 
@@ -66,8 +66,8 @@ compileModule
   -> Project
   -> Maybe FilePath
   -> MVar (Dict (MVar Answer))
-  -> MVar Module.Interfaces
-  -> Module.Raw
+  -> MVar I.Interfaces
+  -> ModuleName.Raw
   -> Plan.Info
   -> IO (MVar Answer)
 compileModule tell project maybeDocsPath answersMVar ifacesMVar name info =
@@ -94,7 +94,7 @@ compileModule tell project maybeDocsPath answersMVar ifacesMVar name info =
 
                       (_warnings, Right result@(Compiler.Artifacts elmi _ _)) ->
                         do  tell (Progress.CompileFileEnd name Progress.Good)
-                            let canonicalName = Module.Canonical pkg name
+                            let canonicalName = ModuleName.Canonical pkg name
                             lock <- takeMVar ifacesMVar
                             putMVar ifacesMVar (Map.insert canonicalName elmi lock)
                             putMVar mvar (Good result)
@@ -106,7 +106,7 @@ compileModule tell project maybeDocsPath answersMVar ifacesMVar name info =
 -- TO DOCS FLAG
 
 
-toDocsFlag :: Module.Raw -> Project -> Maybe FilePath -> Compiler.DocsFlag
+toDocsFlag :: ModuleName.Raw -> Project -> Maybe FilePath -> Compiler.DocsFlag
 toDocsFlag name project maybeDocsPath =
   case maybeDocsPath of
     Nothing ->
@@ -124,7 +124,7 @@ toDocsFlag name project maybeDocsPath =
             Compiler.NoDocs
 
 
-isExposed :: Module.Raw -> Project.Exposed -> Bool
+isExposed :: ModuleName.Raw -> Project.Exposed -> Bool
 isExposed name exposed =
   case exposed of
     Project.ExposedList modules ->
@@ -138,16 +138,16 @@ isExposed name exposed =
 -- IMPORTS
 
 
-makeImports :: Project -> Plan.Info -> Dict Module.Canonical
+makeImports :: Project -> Plan.Info -> Dict ModuleName.Canonical
 makeImports project (Plan.Info _ _ _ clean dirty foreign) =
   let
     pkgName =
       Project.getName project
 
     mkLocal name =
-      ( name, Module.Canonical pkgName name )
+      ( name, ModuleName.Canonical pkgName name )
 
-    mkForeign canonicalName@(Module.Canonical _ name) =
+    mkForeign canonicalName@(ModuleName.Canonical _ name) =
       ( name, canonicalName )
   in
     Map.fromList $
@@ -165,7 +165,7 @@ isBlocked answers info =
   anyBlock <$> traverse (get answers) (Plan._dirty info)
 
 
-get :: Dict (MVar Answer) -> Module.Raw -> IO Answer
+get :: Dict (MVar Answer) -> ModuleName.Raw -> IO Answer
 get names name =
   case Map.lookup name names of
     Nothing ->

@@ -16,9 +16,9 @@ import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Objects as Obj
 import qualified Elm.Kernel as Kernel
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 
 import qualified Elm.Project.Json as Project
@@ -38,10 +38,10 @@ import qualified Reporting.Task as Task
 
 data Graph kernel problems =
   Graph
-    { _args :: Args.Args Module.Raw
-    , _locals :: Map.Map Module.Raw Header.Info
-    , _kernels :: Map.Map Module.Raw kernel
-    , _foreigns :: Map.Map Module.Raw Pkg.Package
+    { _args :: Args.Args ModuleName.Raw
+    , _locals :: Map.Map ModuleName.Raw Header.Info
+    , _kernels :: Map.Map ModuleName.Raw kernel
+    , _foreigns :: Map.Map ModuleName.Raw Pkg.Canonical
     , _problems :: problems
     }
 
@@ -54,7 +54,7 @@ type WorkGraph =
   Graph (FilePath, Maybe FilePath) [E.Problem]
 
 
-initWorkGraph :: Args.Args Module.Raw -> Map.Map Module.Raw Header.Info -> WorkGraph
+initWorkGraph :: Args.Args ModuleName.Raw -> Map.Map ModuleName.Raw Header.Info -> WorkGraph
 initWorkGraph args locals =
   Graph args locals Map.empty Map.empty []
 
@@ -90,7 +90,7 @@ crawlFromSource summary@(Summary _ project _ _ _) source =
     Header.readSource project source
 
 
-crawlHelp :: Summary -> ( Maybe Module.Raw, Header.Info ) -> Task.Task Result
+crawlHelp :: Summary -> ( Maybe ModuleName.Raw, Header.Info ) -> Task.Task Result
 crawlHelp summary ( maybeName, info@(Header.Info path _ _ deps) ) =
   do  let name = maybe "Main" id maybeName
       let toUnvisited dep = Unvisited (maybe (E.File path) (E.Module path) maybeName) dep
@@ -124,7 +124,7 @@ depthFirstSearch summary unvisited startGraph =
 -- CHECK FOR CYCLES
 
 
-checkForCycles :: Map.Map Module.Raw Header.Info -> Task.Task ()
+checkForCycles :: Map.Map ModuleName.Raw Header.Info -> Task.Task ()
 checkForCycles locals =
   let
     toNode (name, Header.Info _ _ _ imports) =
@@ -136,7 +136,7 @@ checkForCycles locals =
     mapM_ checkComponent components
 
 
-checkComponent :: Graph.SCC Module.Raw -> Task.Task ()
+checkComponent :: Graph.SCC ModuleName.Raw -> Task.Task ()
 checkComponent scc =
   case scc of
     Graph.AcyclicSCC _ ->
@@ -154,7 +154,7 @@ dfs
   :: Summary
   -> Chan (Either E.Problem Asset)
   -> Int
-  -> Set.Set Module.Raw
+  -> Set.Set ModuleName.Raw
   -> [Unvisited]
   -> WorkGraph
   -> Task.Task WorkGraph
@@ -194,9 +194,9 @@ dfs summary chan oldPending oldSeen unvisited graph =
 spawnVisitor
   :: Summary
   -> Chan (Either E.Problem Asset)
-  -> (Set.Set Module.Raw, Int)
+  -> (Set.Set ModuleName.Raw, Int)
   -> Unvisited
-  -> Task.Task (Set.Set Module.Raw, Int)
+  -> Task.Task (Set.Set ModuleName.Raw, Int)
 spawnVisitor summary chan (seen, n) unvisited@(Unvisited _ name) =
   if Set.member name seen then
     return (seen, n)
@@ -212,14 +212,14 @@ spawnVisitor summary chan (seen, n) unvisited@(Unvisited _ name) =
 data Unvisited =
   Unvisited
     { _origin :: E.Origin
-    , _name :: Module.Raw
+    , _name :: ModuleName.Raw
     }
 
 
 data Asset
-  = Local Module.Raw Header.Info
-  | Kernel Module.Raw (FilePath, Maybe FilePath)
-  | Foreign Module.Raw Pkg.Package
+  = Local ModuleName.Raw Header.Info
+  | Kernel ModuleName.Raw (FilePath, Maybe FilePath)
+  | Foreign ModuleName.Raw Pkg.Canonical
   | ForeignKernel
 
 
@@ -246,9 +246,9 @@ toVisitor summary (Unvisited origin name) =
 
 visitKernels
   :: Summary
-  -> Map.Map Module.Raw Header.Info
-  -> Map.Map Module.Raw (FilePath, Maybe FilePath)
-  -> Task.Task (Map.Map Module.Raw Obj.Kernel)
+  -> Map.Map ModuleName.Raw Header.Info
+  -> Map.Map ModuleName.Raw (FilePath, Maybe FilePath)
+  -> Task.Task (Map.Map ModuleName.Raw Obj.Kernel)
 visitKernels summary locals kernelPaths =
   if Map.null kernelPaths then
     return Map.empty
@@ -281,10 +281,10 @@ readKContent importDict path =
 
 
 type ImportDict =
-  Map.Map Module.Raw [Pkg.Name]
+  Map.Map ModuleName.Raw [Pkg.Name]
 
 
-toImportDict :: Summary -> Map.Map Module.Raw info -> ImportDict
+toImportDict :: Summary -> Map.Map ModuleName.Raw info -> ImportDict
 toImportDict (Summary _ project exposed _ _) locals =
   let
     localPkg =

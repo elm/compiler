@@ -16,9 +16,10 @@ import Data.Set (Set)
 import System.Directory (doesDirectoryExist)
 import System.FilePath ((</>))
 
-import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Objects as Obj
 import qualified Elm.Docs as Docs
+import qualified Elm.Interface as I
+import qualified Elm.ModuleName as ModuleName
 import Elm.Package (Name, Version)
 import qualified Elm.PerUserCache as PerUserCache
 import Elm.Project.Json (Project(..), AppInfo(..), PkgInfo(..))
@@ -176,12 +177,12 @@ verifyBuildArtifacts solution =
 
 
 data RawInfo =
-  RawInfo (Map Name PkgInfo) Module.Interfaces
+  RawInfo (Map Name PkgInfo) I.Interfaces
 
 
 verifyBuild
   :: MVar (Map Name (MVar Answer))
-  -> MVar Module.Interfaces
+  -> MVar I.Interfaces
   -> Name
   -> Version
   -> Task.Task (MVar Answer)
@@ -266,8 +267,8 @@ getIface
   -> Version
   -> PkgInfo
   -> Map Name PkgInfo
-  -> Module.Interfaces
-  -> Task.Task Module.Interfaces
+  -> I.Interfaces
+  -> Task.Task I.Interfaces
 getIface name version info infos depIfaces =
   do  root <- Task.getPackageCacheDirFor name version
       let solution = Map.map _pkg_version infos
@@ -328,8 +329,8 @@ updateCache
   -> PkgInfo
   -> Map Name Version
   -> Crawl.Result
-  -> Map Module.Raw Compiler.Artifacts
-  -> Task.Task Module.Interfaces
+  -> Map ModuleName.Raw Compiler.Artifacts
+  -> Task.Task I.Interfaces
 updateCache root name info solution graph results =
   do  let path = root </> "cached.dat"
       let deps = Map.map Set.singleton solution
@@ -360,17 +361,17 @@ updateCache root name info solution graph results =
 -- CRUSH INTERFACES
 
 
-crush :: Name -> PkgInfo -> Map Module.Raw Compiler.Artifacts -> Module.Interfaces
+crush :: Name -> PkgInfo -> Map ModuleName.Raw Compiler.Artifacts -> I.Interfaces
 crush pkg info results =
   let
     exposed =
       Set.fromList (Project.getExposed info)
   in
-    Map.mapKeys (Module.Canonical pkg) $
+    Map.mapKeys (ModuleName.Canonical pkg) $
       Map.mapMaybeWithKey (crushHelp exposed) results
 
 
-crushHelp :: Set Module.Raw -> Module.Raw -> Compiler.Artifacts -> Maybe Module.Interface
+crushHelp :: Set ModuleName.Raw -> ModuleName.Raw -> Compiler.Artifacts -> Maybe I.Interface
 crushHelp exposed name (Compiler.Artifacts elmi _ _) =
   if Set.member name exposed then
     Just elmi

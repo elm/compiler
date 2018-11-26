@@ -23,12 +23,10 @@ import qualified System.FilePath as FP
 import System.FilePath ((</>))
 
 import qualified Elm.Compiler as Compiler
-import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Objects as Obj
 import qualified Elm.Interface as I
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
-
-import qualified AST.Module.Name as ModuleName
 import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Summary as Summary
 import qualified File.Args as Args
@@ -59,7 +57,7 @@ generate
   -> Maybe Output
   -> Summary.Summary
   -> Crawl.Result
-  -> Map.Map Module.Raw Compiler.Artifacts
+  -> Map.Map ModuleName.Raw Compiler.Artifacts
   -> Task.Task ()
 generate mode target maybeOutput summary graph@(Crawl.Graph args locals _ _ _) artifacts =
   case args of
@@ -87,8 +85,8 @@ generate mode target maybeOutput summary graph@(Crawl.Graph args locals _ _ _) a
 
 getInterfaces
   :: Summary.Summary
-  -> Map.Map Module.Raw a
-  -> Map.Map Module.Raw Compiler.Artifacts
+  -> Map.Map ModuleName.Raw a
+  -> Map.Map ModuleName.Raw Compiler.Artifacts
   -> Task.Task I.Interfaces
 getInterfaces (Summary.Summary root project _ interfaces _) locals artifacts =
   let
@@ -119,11 +117,11 @@ generateMonolith
   -> Maybe Output
   -> Summary.Summary
   -> Obj.Graph
-  -> [Module.Raw]
+  -> [ModuleName.Raw]
   -> Task.Task ()
 generateMonolith mode maybeOutput (Summary.Summary _ project _ _ _) graph rootNames =
   do  let pkg = Project.getName project
-      let roots = map (Module.Canonical pkg) rootNames
+      let roots = map (ModuleName.Canonical pkg) rootNames
       case Obj.generate mode graph roots of
         Obj.None ->
           return ()
@@ -172,7 +170,7 @@ generateReplFile noColors localizer summary@(Summary.Summary _ project _ _ _) gr
   do
       objectGraph <- organize summary graph
 
-      let home = Module.Canonical (Project.getName project) Name.replModule
+      let home = ModuleName.Canonical (Project.getName project) Name.replModule
       let builder = Obj.generateForRepl (not noColors) localizer objectGraph iface home name
 
       liftIO $ IO.writeBuilder (Paths.temp "js") $
@@ -197,7 +195,7 @@ organize (Summary.Summary root _ _ _ deps) (Crawl.Graph _ locals _ _ _) =
       return (Obj.union localObjs foreignObjs)
 
 
-loadModuleObj :: FilePath -> Module.Raw -> Task.Task Obj.Graph
+loadModuleObj :: FilePath -> ModuleName.Raw -> Task.Task Obj.Graph
 loadModuleObj root name =
   IO.readBinary (Paths.elmo root name)
 

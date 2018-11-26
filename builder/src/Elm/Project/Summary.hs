@@ -12,10 +12,10 @@ module Elm.Project.Summary
 import Prelude hiding (init)
 import qualified Data.List as List
 import qualified Data.Map as Map
-import Data.Map (Map)
 
-import qualified Elm.Compiler.Module as Module
-import Elm.Package (Package(..), Name, Version)
+import qualified Elm.Interface as I
+import qualified Elm.ModuleName as ModuleName
+import qualified Elm.Package as Pkg
 import Elm.Project.Json (Project(..), AppInfo(..), PkgInfo(..))
 import qualified Elm.Project.Json as Project
 
@@ -29,24 +29,24 @@ data Summary =
     { _root :: FilePath
     , _project :: Project
     , _exposed :: ExposedModules
-    , _ifaces :: Module.Interfaces
+    , _ifaces :: I.Interfaces
     , _depsGraph :: DepsGraph
     }
 
 
 type ExposedModules =
-  Map.Map Module.Raw [Package]
+  Map.Map ModuleName.Raw [Pkg.Canonical]
 
 
 type DepsGraph =
-  Map.Map Name ( Version, [Name] )
+  Map.Map Pkg.Name ( Pkg.Version, [Pkg.Name] )
 
 
 
 -- MAKE SUMMARY
 
 
-init :: FilePath -> Project -> Map Name PkgInfo -> Module.Interfaces -> Summary
+init :: FilePath -> Project -> Map.Map Pkg.Name PkgInfo -> I.Interfaces -> Summary
 init root project deps ifaces =
   let
     exposed =
@@ -66,8 +66,8 @@ init root project deps ifaces =
     Summary root project exposed privatizedInterfaces depsGraph
 
 
-privatize :: ExposedModules -> Module.Canonical -> Module.Interface -> Maybe Module.Interface
-privatize exposed (Module.Canonical _ name) iface =
+privatize :: ExposedModules -> ModuleName.Canonical -> I.Interface -> Maybe I.Interface
+privatize exposed (ModuleName.Canonical _ name) iface =
   case Map.lookup name exposed of
     Just [_] ->
       Just iface
@@ -85,12 +85,12 @@ toNode (PkgInfo name _ _ version _ deps _ _) graph =
 -- MAKE CHEAP SUMMARY
 
 
-cheapInit :: FilePath -> PkgInfo -> Map Name PkgInfo -> Module.Interfaces -> Summary
+cheapInit :: FilePath -> PkgInfo -> Map.Map Pkg.Name PkgInfo -> I.Interfaces -> Summary
 cheapInit root info deps ifaces =
   Summary root (Pkg info) (getExposed deps (_pkg_deps info)) ifaces Map.empty
 
 
-getExposed :: Map Name PkgInfo -> Map Name a -> ExposedModules
+getExposed :: Map.Map Pkg.Name PkgInfo -> Map.Map Pkg.Name a -> ExposedModules
 getExposed deps directs =
   Map.foldl insertExposed Map.empty (Map.intersection deps directs)
 
@@ -99,7 +99,7 @@ insertExposed :: ExposedModules -> PkgInfo -> ExposedModules
 insertExposed exposed info =
   let
     home =
-      Package (_pkg_name info) (_pkg_version info)
+      Pkg.Canonical (_pkg_name info) (_pkg_version info)
 
     insertModule dict modul =
       Map.insertWith (++) modul [home] dict

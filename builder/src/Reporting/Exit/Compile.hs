@@ -13,7 +13,7 @@ import qualified Data.Text as Text
 import qualified Data.Time.Clock as Time
 
 import qualified Elm.Compiler as Compiler
-import qualified Elm.Compiler.Module as Module
+import qualified Elm.ModuleName as ModuleName
 import qualified Json.Encode as Encode
 import qualified Reporting.Doc as D
 
@@ -24,7 +24,7 @@ import qualified Reporting.Doc as D
 
 data Exit =
   Exit
-    { _name :: Module.Raw
+    { _name :: ModuleName.Raw
     , _path :: FilePath
     , _time :: Time.UTCTime
     , _source :: Text.Text
@@ -68,11 +68,11 @@ exitToDoc (Exit _name path _time source errors) =
   Compiler.errorsToDoc path source errors
 
 
-separator :: Module.Raw -> Module.Raw -> D.Doc
+separator :: ModuleName.Raw -> ModuleName.Raw -> D.Doc
 separator beforeName afterName =
   let
-    before = Module.nameToString beforeName ++ "  ↑    "
-    after  = "    ↓  " ++  Module.nameToString afterName
+    before = ModuleName.nameToString beforeName ++ "  ↑    "
+    after  = "    ↓  " ++  ModuleName.nameToString afterName
   in
     D.dullred $ D.vcat $
       [ D.indent (80 - length before) (D.fromString before)

@@ -17,9 +17,9 @@ import qualified Data.Map as Map
 import qualified Data.Time.Clock as Time
 import qualified System.Directory as Dir
 
-import qualified Elm.Compiler.Module as Module
+import qualified Elm.Interface as I
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
-
 import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Summary as Summary
 import qualified File.Crawl as Crawl
@@ -32,10 +32,10 @@ import qualified Stuff.Paths
 -- PLAN
 
 
-type Dict value = Map.Map Module.Raw value
+type Dict value = Map.Map ModuleName.Raw value
 
 
-plan :: Maybe FilePath -> Summary.Summary -> Crawl.Result -> Task.Task (Dict Info, Module.Interfaces)
+plan :: Maybe FilePath -> Summary.Summary -> Crawl.Result -> Task.Task (Dict Info, I.Interfaces)
 plan docs (Summary.Summary root project _ ifaces _) (Crawl.Graph _ locals _ foreigns _) =
   liftIO $
   do  queue <- newChan
@@ -75,9 +75,9 @@ data Info =
     { _path :: FilePath
     , _time :: Time.UTCTime
     , _src :: BS.ByteString
-    , _clean :: [Module.Raw]
-    , _dirty :: [Module.Raw]
-    , _foreign :: [Module.Canonical]  -- TODO is this needed?
+    , _clean :: [ModuleName.Raw]
+    , _dirty :: [ModuleName.Raw]
+    , _foreign :: [ModuleName.Canonical]  -- TODO is this needed?
     }
 
 
@@ -88,8 +88,8 @@ data Info =
 getStatus
   :: Env
   -> MVar (Dict (MVar Status))
-  -> Dict Pkg.Package
-  -> Module.Raw
+  -> Dict Pkg.Canonical
+  -> ModuleName.Raw
   -> Header.Info
   -> IO (MVar Status)
 getStatus env statusMVars foreigns name (Header.Info path time src deps) =
@@ -117,7 +117,7 @@ getStatus env statusMVars foreigns name (Header.Info path time src deps) =
 
                     if name /= "Main" && freshElmi && freshDocs
                       then
-                        do  let canonical = Module.Canonical (_pkg env) name
+                        do  let canonical = ModuleName.Canonical (_pkg env) name
                             writeChan (_queue env) (Get canonical elmi)
                             return Nothing
                       else
@@ -128,7 +128,7 @@ getStatus env statusMVars foreigns name (Header.Info path time src deps) =
       return mvar
 
 
-addDep :: Dict (MVar Status) -> Dict Pkg.Package -> Info -> Module.Raw -> IO Info
+addDep :: Dict (MVar Status) -> Dict Pkg.Canonical -> Info -> ModuleName.Raw -> IO Info
 addDep locals foreigns info name =
   case Map.lookup name locals of
     Just mvar ->
@@ -142,8 +142,8 @@ addDep locals foreigns info name =
 
     Nothing ->
       case Map.lookup name foreigns of
-        Just (Pkg.Package pkg _vsn) ->
-          return $ info { _foreign = Module.Canonical pkg name : _foreign info }
+        Just (Pkg.Canonical pkg _vsn) ->
+          return $ info { _foreign = ModuleName.Canonical pkg name : _foreign info }
 
         Nothing ->
           return info -- must be native
@@ -185,10 +185,10 @@ remove path =
 
 data Msg
   = EndLoop (Dict Info)
-  | Get Module.Canonical FilePath
+  | Get ModuleName.Canonical FilePath
 
 
-ifaceLoader :: Chan Msg -> Module.Interfaces -> IO (Dict Info, Module.Interfaces)
+ifaceLoader :: Chan Msg -> I.Interfaces -> IO (Dict Info, I.Interfaces)
 ifaceLoader queue ifaces =
   do  msg <- readChan queue
       case msg of

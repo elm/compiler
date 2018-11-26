@@ -31,7 +31,7 @@ import qualified Data.Text as Text
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
 
-import qualified Elm.Compiler.Module as Module
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import Elm.Package (Name, Version)
 
@@ -86,8 +86,8 @@ data PkgInfo =
 
 
 data Exposed
-  = ExposedList [Module.Raw]
-  | ExposedDict [(Text, [Module.Raw])]
+  = ExposedList [ModuleName.Raw]
+  | ExposedDict [(Text, [ModuleName.Raw])]
 
 
 
@@ -127,7 +127,7 @@ getName project =
       _pkg_name info
 
 
-getExposed :: PkgInfo -> [Module.Raw]
+getExposed :: PkgInfo -> [ModuleName.Raw]
 getExposed info =
   case _pkg_exposed info of
     ExposedList modules ->
@@ -218,7 +218,7 @@ encodeExposed exposed =
       E.object (map (fmap (E.list encodeModule)) chunks)
 
 
-encodeModule :: Module.Raw -> E.Value
+encodeModule :: ModuleName.Raw -> E.Value
 encodeModule name =
   E.name name
 
@@ -408,9 +408,9 @@ exposedDecoder =
     ]
 
 
-moduleDecoder :: Decoder Module.Raw
+moduleDecoder :: Decoder ModuleName.Raw
 moduleDecoder =
-  D.mapError E.BadModuleName Module.decoder
+  D.mapError E.BadModuleName ModuleName.decoder
 
 
 checkHeader :: Text -> Decoder ()

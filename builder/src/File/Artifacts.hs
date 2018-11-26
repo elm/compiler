@@ -17,8 +17,8 @@ import qualified Data.Maybe as Maybe
 import qualified Data.Text.Encoding as Text
 
 import qualified Elm.Compiler as Compiler
-import qualified Elm.Compiler.Module as Module
 import qualified Elm.Docs as Docs
+import qualified Elm.ModuleName as ModuleName
 import qualified Json.Encode as Encode
 
 import File.Compile (Answer(..))
@@ -32,7 +32,7 @@ import qualified Stuff.Paths as Path
 -- IGNORE
 
 
-ignore :: Map Module.Raw Answer -> Task.Task (Map Module.Raw Compiler.Artifacts)
+ignore :: Map ModuleName.Raw Answer -> Task.Task (Map ModuleName.Raw Compiler.Artifacts)
 ignore answers =
   let
     ignorer _name result =
@@ -45,7 +45,7 @@ ignore answers =
 -- WRITE
 
 
-write :: FilePath -> Map Module.Raw Answer -> Task.Task (Map Module.Raw Compiler.Artifacts)
+write :: FilePath -> Map ModuleName.Raw Answer -> Task.Task (Map ModuleName.Raw Compiler.Artifacts)
 write root answers =
   let
     writer name result@(Compiler.Artifacts elmi elmo _) =
@@ -60,7 +60,7 @@ write root answers =
         liftIO $ traverse readMVar mvars
 
 
-writeDocs :: Map Module.Raw Compiler.Artifacts -> FilePath -> Task.Task Docs.Documentation
+writeDocs :: Map ModuleName.Raw Compiler.Artifacts -> FilePath -> Task.Task Docs.Documentation
 writeDocs results path =
   let
     getDocs (Compiler.Artifacts _ _ docs) =
@@ -79,7 +79,7 @@ writeDocs results path =
 -- GATHER
 
 
-gather :: OnGood a -> Map Module.Raw Answer -> Task.Task (Map Module.Raw a)
+gather :: OnGood a -> Map ModuleName.Raw Answer -> Task.Task (Map ModuleName.Raw a)
 gather onGood answers =
   do  summary <- liftIO $
         foldM (gatherHelp onGood) (Right Map.empty) (Map.toList answers)
@@ -92,10 +92,10 @@ gather onGood answers =
           return results
 
 
-type OnGood a = Module.Raw -> Compiler.Artifacts -> IO a
+type OnGood a = ModuleName.Raw -> Compiler.Artifacts -> IO a
 
 
-gatherHelp :: OnGood a -> Summary a -> (Module.Raw, Answer) -> IO (Summary a)
+gatherHelp :: OnGood a -> Summary a -> (ModuleName.Raw, Answer) -> IO (Summary a)
 gatherHelp onGood summary (name, answer) =
   case answer of
     Blocked ->
@@ -115,10 +115,10 @@ gatherHelp onGood summary (name, answer) =
 
 
 type Summary a =
-  Either (E.Exit, [E.Exit]) (Map Module.Raw a)
+  Either (E.Exit, [E.Exit]) (Map ModuleName.Raw a)
 
 
-addOk :: Module.Raw -> a -> Summary a -> Summary a
+addOk :: ModuleName.Raw -> a -> Summary a -> Summary a
 addOk name result acc =
   case acc of
     Left _ ->

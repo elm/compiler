@@ -14,7 +14,7 @@ module Reporting.Progress
 
 import Control.Concurrent.Chan (Chan, writeChan)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, readMVar)
-import qualified Elm.Compiler.Module as Module
+import qualified Elm.ModuleName as ModuleName
 import Deps.Diff (Magnitude)
 import Elm.Package (Name, Version)
 import qualified Reporting.Doc as D
@@ -84,8 +84,8 @@ data Progress
 
   -- compile files
   | CompileStart Int
-  | CompileFileStart Module.Raw
-  | CompileFileEnd Module.Raw Outcome
+  | CompileFileStart ModuleName.Raw
+  | CompileFileEnd ModuleName.Raw Outcome
   | CompileEnd
 
   -- publish

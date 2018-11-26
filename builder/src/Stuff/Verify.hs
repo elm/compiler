@@ -9,10 +9,9 @@ import Control.Monad (liftM2, liftM4)
 import Data.Binary
 import Data.Map (Map)
 
-import qualified Elm.Compiler.Module as Module
-import Elm.Package (Name, Version)
-
 import qualified Deps.Verify as Verify
+import qualified Elm.Interface as I
+import Elm.Package (Name, Version)
 import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Constraint as Con
 import qualified Elm.Project.Summary as Summary
@@ -56,7 +55,7 @@ data MiniSummary =
   MiniSummary
     { _deps :: ProjectDeps
     , _exposed :: Summary.ExposedModules
-    , _ifaces :: Module.Interfaces
+    , _ifaces :: I.Interfaces
     , _depsGraph :: Summary.DepsGraph
     }
 

@@ -7,7 +7,7 @@ module File.Args
   where
 
 
-import qualified Elm.Compiler.Module as Module
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Summary as Summary
 import qualified Reporting.Exit as Exit
@@ -16,7 +16,7 @@ import qualified Reporting.Task as Task
 
 
 data Args root
-  = Pkg [Module.Raw]
+  = Pkg [ModuleName.Raw]
   | Roots root [root]
 
 

@@ -21,9 +21,9 @@ import qualified Data.Name as Name
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 
-import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Docs as Docs
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 
 
@@ -33,9 +33,9 @@ import qualified Elm.Package as Pkg
 
 data PackageChanges =
   PackageChanges
-    { _modules_added :: [Module.Raw]
-    , _modules_changed :: Map.Map Module.Raw ModuleChanges
-    , _modules_removed :: [Module.Raw]
+    { _modules_added :: [ModuleName.Raw]
+    , _modules_changed :: Map.Map ModuleName.Raw ModuleChanges
+    , _modules_removed :: [ModuleName.Raw]
     }
 
 

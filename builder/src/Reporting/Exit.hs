@@ -8,7 +8,7 @@ module Reporting.Exit
   where
 
 
-import qualified Elm.Compiler.Module as Module
+import qualified Elm.ModuleName as ModuleName
 import qualified Json.Encode as Encode
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit.Assets as Asset
@@ -35,7 +35,7 @@ data Exit
   | Bump Bump.Exit
   | Compile Compile.Exit [Compile.Exit]
   | Crawl Crawl.Exit
-  | Cycle [Module.Raw] -- TODO write docs to help with this scenario
+  | Cycle [ModuleName.Raw] -- TODO write docs to help with this scenario
   | Deps Deps.Exit
   | Diff Diff.Exit
   | Make Make.Exit

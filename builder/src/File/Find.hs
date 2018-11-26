@@ -14,7 +14,7 @@ import qualified System.FilePath as FP
 import qualified System.Directory as Dir
 import System.FilePath ((</>), (<.>))
 
-import qualified Elm.Compiler.Module as Module
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 
 import qualified Elm.Project.Json as Project
@@ -30,7 +30,7 @@ import qualified Reporting.Task as Task
 data Asset
   = Local FilePath
   | Kernel FilePath (Maybe FilePath)
-  | Foreign Pkg.Package
+  | Foreign Pkg.Canonical
   | ForeignKernel
 
 
@@ -38,7 +38,7 @@ data Asset
 -- FIND
 
 
-find :: Summary.Summary -> E.Origin -> Module.Raw -> Task.Task_ E.Problem Asset
+find :: Summary.Summary -> E.Origin -> ModuleName.Raw -> Task.Task_ E.Problem Asset
 find (Summary.Summary root project exposed _ _) origin name =
   do  here <- liftIO Dir.getCurrentDirectory
       let toRoot dir = FP.makeRelative here (root </> dir)
@@ -62,7 +62,7 @@ find (Summary.Summary root project exposed _ _) origin name =
 -- FIND ELM
 
 
-findElm :: Project.Project -> [FilePath] -> Summary.ExposedModules -> E.Origin -> Module.Raw -> Task.Task_ E.Problem Asset
+findElm :: Project.Project -> [FilePath] -> Summary.ExposedModules -> E.Origin -> ModuleName.Raw -> Task.Task_ E.Problem Asset
 findElm project srcDirs exposed origin name =
   do
       paths <- liftIO $ Maybe.catMaybes <$> mapM (elmExists name) srcDirs
@@ -86,9 +86,9 @@ findElm project srcDirs exposed origin name =
             Task.throw $ E.ModuleAmbiguous origin name paths (maybe [] id maybePkgs)
 
 
-elmExists :: Module.Raw -> FilePath -> IO (Maybe FilePath)
+elmExists :: ModuleName.Raw -> FilePath -> IO (Maybe FilePath)
 elmExists name srcDir =
-  do  let path = srcDir </> Module.nameToSlashPath name <.> "elm"
+  do  let path = srcDir </> ModuleName.nameToSlashPath name <.> "elm"
       exists <- Dir.doesFileExist path
       return $ if exists then Just path else Nothing
 
@@ -97,17 +97,17 @@ elmExists name srcDir =
 -- FIND KERNEL
 
 
-findKernel :: FilePath -> Summary.ExposedModules -> E.Origin -> Module.Raw -> Task.Task_ E.Problem Asset
+findKernel :: FilePath -> Summary.ExposedModules -> E.Origin -> ModuleName.Raw -> Task.Task_ E.Problem Asset
 findKernel srcDir exposed origin name =
-  do  let clientPath = srcDir </> Module.nameToSlashPath name <.> "js"
-      let serverPath = srcDir </> Module.nameToSlashPath name <.> "server.js"
+  do  let clientPath = srcDir </> ModuleName.nameToSlashPath name <.> "js"
+      let serverPath = srcDir </> ModuleName.nameToSlashPath name <.> "server.js"
       client <- liftIO $ Dir.doesFileExist clientPath
       server <- liftIO $ Dir.doesFileExist serverPath
       if client
         then return $ Kernel clientPath (if server then Just serverPath else Nothing)
         else
           case Map.lookup (Name.getKernel name) exposed of
-            Just [Pkg.Package pkg _vsn] | pkg == Pkg.core || pkg == Pkg.virtualDom ->
+            Just [Pkg.Canonical pkg _vsn] | pkg == Pkg.core || pkg == Pkg.virtualDom ->
               return ForeignKernel
 
             _ ->

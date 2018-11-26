@@ -16,9 +16,9 @@ import qualified Data.Name as Name
 import qualified Deps.Cache as Cache
 import Deps.Diff (PackageChanges(..), ModuleChanges(..), Changes(..), Magnitude(..))
 import qualified Deps.Diff as Diff
-import qualified Elm.Compiler.Module as Module
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Docs as Docs
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Elm.Project as Project
 import qualified Elm.Project.Json as Project
@@ -142,13 +142,13 @@ toDoc localizer changes@(PackageChanges added changed removed) =
       addedChunk =
         if null added then [] else
           [ Chunk "ADDED MODULES" MINOR $
-              D.vcat $ map (D.fromString . Module.nameToString) added
+              D.vcat $ map (D.fromString . ModuleName.nameToString) added
           ]
 
       removedChunk =
         if null removed then [] else
           [ Chunk "REMOVED MODULES" MAJOR $
-              D.vcat $ map (D.fromString . Module.nameToString) removed
+              D.vcat $ map (D.fromString . ModuleName.nameToString) removed
           ]
 
       chunks =
