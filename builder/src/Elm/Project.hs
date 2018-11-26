@@ -22,10 +22,10 @@ import qualified Elm.Project.Root as Root
 import qualified Elm.Project.Summary as Summary
 import Elm.Project.Summary (Summary)
 import qualified File.Args as Args
-import qualified File.Artifacts as Artifacts
 import qualified File.Compile as Compile
 import qualified File.Crawl as Crawl
 import qualified File.Plan as Plan
+import qualified Generate.Artifacts as Artifacts
 import qualified Generate.Output as Output
 import qualified Reporting.Render.Type.Localizer as L
 import qualified Reporting.Task as Task

@@ -34,11 +34,11 @@ import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Constraint as Con
 import qualified Elm.Project.Summary as Summary
 import qualified File.Args as Args
-import qualified File.Artifacts as Artifacts
 import qualified File.Compile as Compile
 import qualified File.Crawl as Crawl
 import qualified File.IO as IO
 import qualified File.Plan as Plan
+import qualified Generate.Artifacts as Artifacts
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Deps as E
 import qualified Reporting.Progress as Progress

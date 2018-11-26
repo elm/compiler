@@ -1,4 +1,4 @@
-module File.Artifacts
+module Generate.Artifacts
   ( ignore
   , write
   , writeDocs

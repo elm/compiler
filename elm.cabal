@@ -98,13 +98,13 @@ Executable elm
         Elm.Project.Root
         Elm.Project.Summary
         File.Args
-        File.Artifacts
         File.Compile
         File.Crawl
         File.Find
         File.Hash
         File.Header
         File.Plan
+        Generate.Artifacts
         Generate.Functions
         Generate.Html
         Generate.Nitpick
