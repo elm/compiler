@@ -6,8 +6,6 @@ module Parse.Expression
   where
 
 
-import Control.Monad (guard)
-
 import qualified AST.Source as Src
 import qualified Elm.Name as N
 import Parse.Primitives
@@ -300,34 +298,36 @@ exprHelp start (State ops expr args end pos) =
           spos <- W.whitespace
           hint (E.AfterOpExpr opName) (checkSpace spos)
           newStart <- getPosition
-          hint (E.AfterOpExpr opName) $ oneOf $
-            [ -- negative terms
-              do  guard ("-" == opName && end /= opStart && opEnd == newStart)
-                  rawTerm <- term
+          hint (E.AfterOpExpr opName) $
+            if "-" == opName && end /= opStart && opEnd == newStart
+            then
+              -- negative terms
+              do  rawTerm <- term
                   newEnd <- getPosition
                   newPos <- W.whitespace
                   let arg = A.at opStart newEnd (Src.Negate rawTerm)
                   exprHelp start (State ops expr (arg:args) newEnd newPos)
+            else
+              oneOf
+                [ -- term
+                  do  newExpr <- possiblyNegativeTerm newStart
+                      newEnd <- getPosition
+                      newPos <- W.whitespace
+                      let newOps = (toCall expr args, op) : ops
+                      exprHelp start (State newOps newExpr [] newEnd newPos)
 
-            , -- term
-              do  newExpr <- possiblyNegativeTerm newStart
-                  newEnd <- getPosition
-                  newPos <- W.whitespace
-                  let newOps = (toCall expr args, op) : ops
-                  exprHelp start (State newOps newExpr [] newEnd newPos)
-
-            , -- final term
-              do  (newLast, newEnd, newPos) <-
-                    oneOf
-                      [ let_ newStart
-                      , case_ newStart
-                      , if_ newStart
-                      , function newStart
-                      ]
-                  let newOps = (toCall expr args, op) : ops
-                  let finalExpr = A.at start newEnd (Src.Binops (reverse newOps) newLast)
-                  return ( finalExpr, newEnd, newPos )
-            ]
+                , -- final term
+                  do  (newLast, newEnd, newPos) <-
+                        oneOf
+                          [ let_ newStart
+                          , case_ newStart
+                          , if_ newStart
+                          , function newStart
+                          ]
+                      let newOps = (toCall expr args, op) : ops
+                      let finalExpr = A.at start newEnd (Src.Binops (reverse newOps) newLast)
+                      return ( finalExpr, newEnd, newPos )
+                ]
 
     , -- done
       let finalExpr = toCall expr args in

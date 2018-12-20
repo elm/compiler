@@ -9,7 +9,7 @@ Description:
     This includes commands like `elm make`, `elm repl`, and many others
     for helping make Elm developers happy and productive.
 
-Homepage: http://elm-lang.org
+Homepage: https://elm-lang.org
 
 License: BSD3
 License-file: LICENSE
@@ -43,7 +43,7 @@ Executable elm
     Hs-Source-Dirs:
         compiler/src
         builder/src
-        ui/terminal/src
+        terminal/src
 
     other-extensions:
         TemplateHaskell

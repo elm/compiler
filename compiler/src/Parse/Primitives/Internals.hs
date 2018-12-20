@@ -12,7 +12,7 @@ module Parse.Primitives.Internals
 
 
 import Prelude hiding (length)
-import qualified Control.Applicative as Applicative ( Applicative(..), Alternative(..) )
+import qualified Control.Applicative as Applicative (Applicative(..))
 import Control.Monad
 import qualified Data.ByteString.Internal as B
 import Foreign.ForeignPtr (ForeignPtr, withForeignPtr)
@@ -156,14 +156,6 @@ instance Applicative.Applicative Parser where
 
     {-# INLINE (<*>) #-}
     (<*>) = ap
-
-
-instance Applicative.Alternative Parser where
-    {-# INLINE empty #-}
-    empty = allTheOptionsFailed
-
-    {-# INLINE (<|>) #-}
-    (<|>) = oneOfHelp
 
 
 oneOf :: [Parser a] -> Parser a
