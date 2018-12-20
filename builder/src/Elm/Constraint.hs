@@ -1,12 +1,13 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Elm.Project.Constraint
+module Elm.Constraint
   ( Constraint
   , exactly
   , anything
-  , fromText
+  , toChars
   , toString
-  , toText
+  , Error(..)
+  , fromString
   , satisfies
   , check
   , intersect
@@ -15,18 +16,19 @@ module Elm.Project.Constraint
   , untilNextMajor
   , untilNextMinor
   , expand
+  , decoder
+  , encode
   )
   where
 
 
 import Control.Monad (liftM4)
-import Data.Binary
-import qualified Data.Text as Text
-import Data.Text (Text)
+import Data.Binary (Binary, get, put, getWord8, putWord8)
+import qualified Data.Utf8 as Utf8
 
-import qualified Elm.Compiler as Compiler
-import qualified Elm.Package as Pkg
-import Elm.Package (Version(..))
+import qualified Elm.Version as V
+import qualified Json.Decode as D
+import qualified Json.Encode as E
 
 
 
@@ -34,7 +36,7 @@ import Elm.Package (Version(..))
 
 
 data Constraint
-    = Range Version Op Op Version
+    = Range V.Version Op Op V.Version
     deriving (Eq)
 
 
@@ -48,96 +50,96 @@ data Op
 -- COMMON CONSTRAINTS
 
 
-exactly :: Version -> Constraint
+exactly :: V.Version -> Constraint
 exactly version =
   Range version LessOrEqual LessOrEqual version
 
 
 anything :: Constraint
 anything =
-  Range (Version 1 0 0) LessOrEqual LessOrEqual (Version maxBound 0 0)
+  Range V.one LessOrEqual LessOrEqual V.max
 
 
 
--- TEXT CONVERSION
+-- TO STRING
 
 
-toString :: Constraint -> String
+toChars :: Constraint -> String
+toChars constraint =
+  Utf8.toChars (toString constraint)
+
+
+toString :: Constraint -> Utf8.String
 toString constraint =
-  Text.unpack (toText constraint)
-
-
-toText :: Constraint -> Text
-toText constraint =
   case constraint of
     Range lower lowerOp upperOp upper ->
-      Text.intercalate " "
-        [ Pkg.versionToText lower
-        , opToText lowerOp
+      Utf8.join 0x20 {- -}
+        [ V.toString lower
+        , toStringHelp lowerOp
         , "v"
-        , opToText upperOp
-        , Pkg.versionToText upper
+        , toStringHelp upperOp
+        , V.toString upper
         ]
 
 
-opToText :: Op -> Text
-opToText op =
+toStringHelp :: Op -> Utf8.String
+toStringHelp op =
   case op of
-    Less ->
-      "<"
-
-    LessOrEqual ->
-      "<="
+    Less        -> "<"
+    LessOrEqual -> "<="
 
 
-fromText :: Text -> Either String Constraint
-fromText text =
-  case Text.splitOn " " text of
+
+-- FROM STRING
+
+
+data Error
+  = BadLower Utf8.String
+  | BadUpper Utf8.String
+  | BadFormat
+  | InvalidOp
+  | InvalidRange V.Version V.Version
+
+
+fromString :: Utf8.String -> Either Error Constraint
+fromString string =
+  case Utf8.split 0x20 {- -} string of
     [lower, lowerOp, "v", upperOp, upper] ->
-      do  lo <- versionFromText "lower" lower
-          lop <- opFromText lowerOp
-          hop <- opFromText upperOp
-          hi <- versionFromText "upper" upper
+      do  lo <- versionFromString lower BadLower
+          lop <- opFromString lowerOp
+          hop <- opFromString upperOp
+          hi <- versionFromString upper BadUpper
           if lo < hi
             then Right (Range lo lop hop hi)
-            else
-              Left $
-                "The lower bound (" ++ Text.unpack lower
-                ++ ") must be less than the upper bound ("
-                ++ Text.unpack upper ++ ")"
+            else Left (InvalidRange lo hi)
 
     _ ->
-      Left "The standard format is \"1.0.0 <= v < 2.0.0\""
+      Left BadFormat
 
 
-versionFromText :: String -> Text -> Either String Version
-versionFromText lowerOrUpper text =
-  case Pkg.versionFromText text of
+versionFromString :: Utf8.String -> (Utf8.String -> Error) -> Either Error V.Version
+versionFromString string toError =
+  case V.fromString string of
     Just vsn ->
       Right vsn
 
     Nothing ->
-      Left $ "The " ++ lowerOrUpper ++ " bound (" ++ Text.unpack text ++ ") is not a valid version number."
+      Left (toError string)
 
 
-opFromText :: Text -> Either String Op
-opFromText text =
+opFromString :: Utf8.String -> Either Error Op
+opFromString text =
   case text of
-    "<=" ->
-      Right LessOrEqual
-
-    "<" ->
-      Right Less
-
-    _ ->
-      Left $ "The operator (" ++ Text.unpack text ++ ") is not valid. Must be (<=) or (<)."
+    "<=" -> Right LessOrEqual
+    "<"  -> Right Less
+    _    -> Left InvalidOp
 
 
 
 -- IS SATISFIED
 
 
-satisfies :: Constraint -> Version -> Bool
+satisfies :: Constraint -> V.Version -> Bool
 satisfies constraint version =
   case constraint of
     Range lower lowerOp upperOp upper ->
@@ -156,7 +158,7 @@ isLess op =
       (<=)
 
 
-check :: Constraint -> Version -> Ordering
+check :: Constraint -> V.Version -> Ordering
 check constraint version =
   case constraint of
     Range lower lowerOp upperOp upper ->
@@ -201,40 +203,60 @@ intersect (Range lo lop hop hi) (Range lo_ lop_ hop_ hi_) =
 
 goodElm :: Constraint -> Bool
 goodElm constraint =
-  satisfies constraint Compiler.version
+  satisfies constraint V.compiler
 
 
 defaultElm :: Constraint
 defaultElm =
-  if Pkg._major Compiler.version > 0
-    then untilNextMajor Compiler.version
-    else untilNextMinor Compiler.version
+  if V._major V.compiler > 0
+    then untilNextMajor V.compiler
+    else untilNextMinor V.compiler
 
 
 
 -- CREATE CONSTRAINTS
 
 
-untilNextMajor :: Version -> Constraint
+untilNextMajor :: V.Version -> Constraint
 untilNextMajor version =
-  Range version LessOrEqual Less (Pkg.bumpMajor version)
+  Range version LessOrEqual Less (V.bumpMajor version)
 
 
-untilNextMinor :: Version -> Constraint
+untilNextMinor :: V.Version -> Constraint
 untilNextMinor version =
-  Range version LessOrEqual Less (Pkg.bumpMinor version)
+  Range version LessOrEqual Less (V.bumpMinor version)
 
 
-expand :: Constraint -> Version -> Constraint
+expand :: Constraint -> V.Version -> Constraint
 expand constraint@(Range lower lowerOp upperOp upper) version
   | version < lower =
       Range version LessOrEqual upperOp upper
 
   | version > upper =
-      Range lower lowerOp Less (Pkg.bumpMajor version)
+      Range lower lowerOp Less (V.bumpMajor version)
 
   | otherwise =
       constraint
+
+
+
+-- JSON
+
+
+encode :: Constraint -> E.Value
+encode constraint =
+  E.string (toString constraint)
+
+
+decoder :: D.Decoder Error Constraint
+decoder =
+  do  str <- D.string
+      case fromString str of
+        Right constraint ->
+          return constraint
+
+        Left err ->
+          D.failure err
 
 
 
