@@ -4,44 +4,34 @@ module Elm.Package
   ( Name(..)
   , Canonical(..)
   , isKernel
-  , toString, toText, toUrl, toFilePath
-  , fromText
+  , toString
+  , toChars
+  , toUrl
+  , toFilePath
+  , BadName(..)
+  , fromString
   , dummyName, kernel, core
   , browser, virtualDom, html
   , json, http, url
   , webgl, linearAlgebra
   , suggestions
-  , Version(..)
-  , initialVersion, dummyVersion
-  , bumpPatch, bumpMinor, bumpMajor
-  , filterLatest, majorAndMinor
-  , versionToString, versionToText, versionFromText
   , decoder
   , encode
-  , versionDecoder
-  , encodeVersion
   )
   where
 
 
-import Control.Monad (liftM, liftM2, liftM3)
-import Data.Binary (Binary, get, getWord8, put, putWord8)
+import Control.Monad (liftM2)
+import Data.Binary (Binary, get, put)
 import qualified Data.Char as Char
-import Data.Function (on)
-import qualified Data.List as List
 import qualified Data.Name as Name
 import qualified Data.Map as Map
 import Data.Monoid ((<>))
-import qualified Data.Text as Text
-import qualified Data.Text.Read as Text
-import qualified Data.Text.Lazy as B (toStrict)
-import qualified Data.Text.Lazy.Builder as B (singleton, toLazyText)
-import qualified Data.Text.Lazy.Builder.Int as B (decimal)
-import Data.Text (Text)
-import Data.Word (Word16)
+import qualified Data.Utf8 as Utf8
 import System.FilePath ((</>))
 
-import qualified Json.Decode.Internals as Decode
+import qualified Elm.Version as V
+import qualified Json.Decode as Decode
 import qualified Json.Encode as Encode
 
 
@@ -60,7 +50,7 @@ data Name =
 data Canonical =
   Canonical
     { _name :: !Name
-    , _version :: !Version
+    , _version :: !V.Version
     }
     deriving (Eq, Ord)
 
@@ -74,96 +64,54 @@ isKernel (Name author _) =
   author == "elm" || author == "elm-explorations"
 
 
-toString :: Name -> String
+toString :: Name -> Utf8.String
 toString (Name author project) =
-  Name.toString author <> "/" <> Name.toString project
+  Utf8.join 0x2F [ Name.toUtf8 author, Name.toUtf8 project ]
 
 
-toText :: Name -> Text
-toText name =
-  Text.pack (toString name)
+toChars :: Name -> String
+toChars (Name author project) =
+  Name.toChars author <> "/" <> Name.toChars project
 
 
 toUrl :: Name -> String
 toUrl (Name author project) =
-  Name.toString author ++ "/" ++ Name.toString project
+  Name.toChars author ++ "/" ++ Name.toChars project
 
 
 toFilePath :: Name -> FilePath
 toFilePath (Name author project) =
-  Name.toString author </> Name.toString project
+  Name.toChars author </> Name.toChars project
 
 
-fromText :: Text -> Either (String, [String]) Name
-fromText text =
-  case Text.splitOn "/" text of
-    [ author, project ] | not (Text.null author || Text.null project) ->
-      Name (Name.fromString (Text.unpack author)) <$> validateProjectName project
+fromString :: Utf8.String -> Either BadName Name
+fromString str =
+  case Utf8.split 0x2F {- / -} str of
+    [author, project]
+      | Utf8.isEmpty author                      -> Left BadStructure
+      | Utf8.isEmpty project                     -> Left BadStructure
+      | Utf8.size project >= 256                 -> Left TooLong
+      | Utf8.containsDouble 0x2D {- - -} project -> Left HasDoubleDash
+      | Utf8.contains       0x5F {- _ -} project -> Left HasUnderscore
+      | Utf8.contains       0x2E {- . -} project -> Left HasDot
+      | Utf8.any Char.isUpper            project -> Left HasUppercase
+      | Utf8.endsWithWord   0x2D {- - -} project -> Left HasDashEnd
+      | Utf8.startsWithChar Char.isLower project -> Right (Name (Name.fromUtf8 author) (Name.fromUtf8 project))
+      | True                                     -> Left HasNonLowercaseStart
 
     _ ->
-      Left
-        ( "A valid package name looks like \"author/project\" requiring the author and project name together."
-        , []
-        )
+      Left BadStructure
 
 
-validateProjectName :: Text -> Either (String, [String]) Name.Name
-validateProjectName text =
-  if Text.isInfixOf "--" text then
-    Left $ thisCannot "have two dashes in a row" text (Text.replace "--" "-" text)
-
-  else if Text.isInfixOf "_" text then
-    Left $ thisCannot "have underscores" text (Text.replace "_" "-" text)
-
-  else if Text.isInfixOf "." text then
-    Left $ thisCannot "have dots" text (Text.replace "." "-" text)
-
-  else if Text.any Char.isUpper text then
-    Left $ thisCannot "have upper case letters" text (decap text)
-
-  else if not (Char.isLetter (Text.head text)) then
-    Left
-      ( "The project name \"" ++ Text.unpack text ++ "\" must start with a letter. Is there another name that captures what your package is for?"
-      , []
-      )
-
-  else if Text.isSuffixOf "-" text then
-    Left $ thisCannot "end with a dash" text (Text.dropEnd 1 text)
-
-  else
-    Right (Name.fromString (Text.unpack text))
-
-
-thisCannot :: String -> Text -> Text -> (String, [String])
-thisCannot beLikeThis problemName suggestedName =
-  let name = Text.unpack suggestedName in
-  (
-    "The project name \"" ++ Text.unpack problemName ++ "\" cannot "
-    ++ beLikeThis ++ ". Try something like \"" ++ name ++ "\" instead?"
-  ,
-    [name]
-  )
-
-
-decap :: Text -> Text
-decap text =
-  let
-    chunks =
-      uncurry (:) (Text.foldr gatherCaps ([],[]) text)
-  in
-  Text.pack $
-    if any (\c -> length c == 1) chunks then
-      concat chunks
-    else
-      List.intercalate "-" chunks
-
-
-gatherCaps :: Char -> (String, [String]) -> (String, [String])
-gatherCaps char (buffer, chunks) =
-  if Char.isUpper char then
-    ( [], (Char.toLower char : buffer) : chunks )
-  else
-    (char:buffer, chunks)
+data BadName
+  = BadStructure
+  | TooLong
+  | HasDoubleDash
+  | HasUnderscore
+  | HasDot
+  | HasUppercase
+  | HasDashEnd
+  | HasNonLowercaseStart
 
 
 
@@ -254,99 +202,6 @@ suggestions =
 
 
 
--- PACKAGE VERSIONS
-
-
-data Version =
-  Version
-    { _major :: {-# UNPACK #-} !Word16
-    , _minor :: {-# UNPACK #-} !Word16
-    , _patch :: {-# UNPACK #-} !Word16
-    }
-    deriving (Eq, Ord)
-
-
-initialVersion :: Version
-initialVersion =
-    Version 1 0 0
-
-dummyVersion :: Version
-dummyVersion =
-    Version 0 0 0
-
-
-bumpPatch :: Version -> Version
-bumpPatch (Version major minor patch) =
-    Version major minor (patch + 1)
-
-
-bumpMinor :: Version -> Version
-bumpMinor (Version major minor _patch) =
-    Version major (minor + 1) 0
-
-
-bumpMajor :: Version -> Version
-bumpMajor (Version major _minor _patch) =
-    Version (major + 1) 0 0
-
-
-
--- FILTERING
-
-
-filterLatest :: (Ord a) => (Version -> a) -> [Version] -> [Version]
-filterLatest characteristic versions =
-    map last (List.groupBy ((==) `on` characteristic) (List.sort versions))
-
-
-majorAndMinor :: Version -> ( Int, Int )
-majorAndMinor (Version major minor _patch) =
-    ( fromIntegral major, fromIntegral minor )
-
-
-
--- CONVERSIONS
-
-
-versionToString :: Version -> String
-versionToString version =
-  Text.unpack (versionToText version)
-
-
-versionToText :: Version -> Text
-versionToText (Version major minor patch) =
-  B.toStrict $ B.toLazyText $
-    B.decimal major
-    <> B.singleton '.'
-    <> B.decimal minor
-    <> B.singleton '.'
-    <> B.decimal patch
-
-
-versionFromText :: Text -> Maybe Version
-versionFromText text =
-  case Text.splitOn "." text of
-    [major, minor, patch] ->
-      Version
-        <$> toNumber major
-        <*> toNumber minor
-        <*> toNumber patch
-
-    _ ->
-      Nothing
-
-
-toNumber :: Text -> Maybe Word16
-toNumber txt =
-  case Text.decimal txt of
-    Right (n, "") ->
-      Just n
-
-    _ ->
-      Nothing
-
-
-
 -- BINARY
 
 
@@ -368,61 +223,21 @@ instance Binary Canonical where
         put version
 
 
-instance Binary Version where
-  get =
-    do  word <- getWord8
-        if word == 0
-          then liftM3 Version get get get
-          else
-            do  minor <- liftM fromIntegral getWord8
-                patch <- liftM fromIntegral getWord8
-                return (Version (fromIntegral word) minor patch)
-
-  put (Version major minor patch) =
-    if major < 256 && minor < 256 && patch < 256 then
-      do  putWord8 (fromIntegral major)
-          putWord8 (fromIntegral minor)
-          putWord8 (fromIntegral patch)
-    else
-      do  putWord8 0
-          put major
-          put minor
-          put patch
-
-
 
 -- JSON
 
 
-decoder :: Decode.Decoder String Name
+decoder :: Decode.Decoder BadName Name
 decoder =
-  do  txt <- Decode.text
-      case fromText txt of
+  do  str <- Decode.string
+      case fromString str of
         Right name ->
-          Decode.succeed name
+          return name
 
-        Left (msg, _) ->
-          Decode.fail msg
-
+        Left err ->
+          Decode.failure err
 
 
 encode :: Name -> Encode.Value
 encode name =
-  Encode.text (toText name)
-
-
-
-versionDecoder :: Decode.Decoder Text Version
-versionDecoder =
-  do  txt <- Decode.text
-      case versionFromText txt of
-        Just version ->
-          Decode.succeed version
-
-        Nothing ->
-          Decode.fail txt
-
-
-encodeVersion :: Version -> Encode.Value
-encodeVersion version =
-  Encode.text (versionToText version)
+  Encode.string (toString name)
