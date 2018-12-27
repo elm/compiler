@@ -10,20 +10,16 @@ import qualified Data.Name as Name
 
 import qualified AST.Source as Src
 import qualified Elm.ModuleName as ModuleName
-import qualified Elm.Package as Pkg
 import qualified Reporting.Annotation as A
-import qualified Reporting.Region as R
 
 
 
 -- ADD DEFAULTS
 
 
-addDefaults :: Pkg.Name -> [Src.Import] -> [Src.Import]
-addDefaults pkgName imports =
-  if pkgName == Pkg.core
-    then imports
-    else defaults ++ imports
+addDefaults :: [Src.Import] -> [Src.Import]
+addDefaults imports =
+  defaults ++ imports
 
 
 
@@ -48,7 +44,7 @@ defaults =
 
 import_ :: ModuleName.Canonical -> Maybe Name.Name -> Src.Exposing -> Src.Import
 import_ (ModuleName.Canonical _ name) maybeAlias exposing =
-  Src.Import (A.At R.zero name) maybeAlias exposing
+  Src.Import (A.At A.zero name) maybeAlias exposing
 
 
 
@@ -62,14 +58,14 @@ closed =
 
 typeOpen :: Name.Name -> Src.Exposing
 typeOpen name =
-  Src.Explicit [ A.At R.zero (Src.Upper name Src.Public) ]
+  Src.Explicit [ A.At A.zero (Src.Upper name Src.Public) ]
 
 
 typeClosed :: Name.Name -> Src.Exposing
 typeClosed name =
-  Src.Explicit [ A.At R.zero (Src.Upper name Src.Private) ]
+  Src.Explicit [ A.At A.zero (Src.Upper name Src.Private) ]
 
 
 operator :: Name.Name -> Src.Exposing
 operator op =
-  Src.Explicit [ A.At R.zero (Src.Operator op) ]
+  Src.Explicit [ A.At A.zero (Src.Operator op) ]
