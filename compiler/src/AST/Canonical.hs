@@ -23,7 +23,6 @@ module AST.Canonical
   , Binop(..)
   , Union(..)
   , Ctor(..)
-  , Docs(..)
   , Exports(..)
   , Export(..)
   , Effects(..)
@@ -54,19 +53,16 @@ So it is clear why the data is kept around.
 
 import Control.Monad (liftM, liftM2, liftM3, liftM4, replicateM)
 import Data.Binary
-import qualified Data.ByteString as B
 import qualified Data.List as List
 import qualified Data.Map as Map
 import Data.Name (Name)
-import Data.Text (Text)
-import Data.Utf8 (Utf8)
+import qualified Data.Utf8 as Utf8
 
 import qualified AST.Utils.Binop as Binop
 import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
 import qualified Elm.ModuleName as ModuleName
 import qualified Reporting.Annotation as A
-import qualified Reporting.Region as R
 
 
 
@@ -86,10 +82,10 @@ data Expr_
   | VarCtor CtorOpts ModuleName.Canonical Name Index.ZeroBased Annotation
   | VarDebug ModuleName.Canonical Name Annotation
   | VarOperator Name ModuleName.Canonical Name Annotation -- CACHE real name for optimization
-  | Chr Utf8
-  | Str Utf8
+  | Chr Utf8.String
+  | Str Utf8.String
   | Int Int
-  | Float Double
+  | Float (Utf8.Under256 Float)
   | List [Expr]
   | Negate Expr
   | Binop Name ModuleName.Canonical Name Annotation Expr Expr -- CACHE real name for optimization
@@ -106,7 +102,7 @@ data Expr_
   | Record (Map.Map Name Expr)
   | Unit
   | Tuple Expr Expr (Maybe Expr)
-  | Shader Text Text Shader.Shader
+  | Shader Shader.Source Shader.Types
 
 
 data CaseBranch =
@@ -114,7 +110,7 @@ data CaseBranch =
 
 
 data FieldUpdate =
-  FieldUpdate R.Region Expr
+  FieldUpdate A.Region Expr
 
 
 
@@ -154,8 +150,8 @@ data Pattern_
   | PList [Pattern]
   | PCons Pattern Pattern
   | PBool Union Bool
-  | PChr Utf8
-  | PStr Utf8
+  | PChr Utf8.String
+  | PStr Utf8.String
   | PInt Int
   | PCtor
       { _p_home :: ModuleName.Canonical
@@ -231,7 +227,6 @@ fieldsToList fields =
 data Module =
   Module
     { _name    :: ModuleName.Canonical
-    , _docs    :: Docs
     , _exports :: Exports
     , _decls   :: Decls
     , _unions  :: Map.Map Name Union
@@ -266,24 +261,11 @@ data Ctor =
 
 
 
--- DOCS
-
-
-data Docs
-  = NoDocs R.Region
-  | YesDocs
-      { _region :: R.Region
-      , _overview :: B.ByteString
-      , _comments :: Map.Map Name Text
-      }
-
-
-
 -- EXPORTS
 
 
 data Exports
-  = ExportEverything R.Region
+  = ExportEverything A.Region
   | Export (Map.Map Name (A.Located Export))
 
 
@@ -303,7 +285,7 @@ data Export
 data Effects
   = NoEffects
   | Ports (Map.Map Name Port)
-  | Manager R.Region R.Region R.Region Manager
+  | Manager A.Region A.Region A.Region Manager
 
 
 data Port
