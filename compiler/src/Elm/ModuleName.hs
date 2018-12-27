@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Elm.ModuleName
   ( Raw
+  , nameToChars
   , nameToString
   , nameToSlashPath
   , nameToHyphenPath
@@ -24,7 +25,7 @@ import Control.Monad (liftM2)
 import Data.Binary (Binary(..))
 import qualified Data.Char as Char
 import qualified Data.Name as Name
-import qualified Data.Text as Text
+import qualified Data.Utf8 as Utf8
 import Prelude hiding (maybe)
 import qualified System.FilePath as FP
 
@@ -40,26 +41,34 @@ import qualified Json.Encode as Encode
 type Raw = Name.Name
 
 
-nameToString :: Raw -> String
+nameToChars :: Raw -> String
+nameToChars =
+  Name.toChars
+
+
+nameToString :: Raw -> Utf8.String
 nameToString =
-  Name.toString
+  Name.toUtf8
 
 
 nameToSlashPath :: Raw -> FilePath
 nameToSlashPath name =
-  map (\c -> if c == '.' then FP.pathSeparator else c) (Name.toString name)
+  map (\c -> if c == '.' then FP.pathSeparator else c) (Name.toChars name)
 
 
 nameToHyphenPath :: Raw -> FilePath
 nameToHyphenPath name =
-  map (\c -> if c == '.' then '-' else c) (Name.toString name)
+  map (\c -> if c == '.' then '-' else c) (Name.toChars name)
 
 
-fromHyphenPath :: Text.Text -> Maybe Raw
-fromHyphenPath txt =
-  let str = Text.unpack txt in
-  if all isGoodChunk (splitOn '-' str)
-    then Just (Name.fromString (map (\c -> if c == '-' then '.' else c) str))
+fromHyphenPath :: Utf8.String -> Maybe Raw
+fromHyphenPath str =
+  let
+    chunks =
+      Utf8.split 0x2D {- - -} str
+  in
+  if all isGoodChunk chunks
+    then Just (Name.fromUtf8 (Utf8.join 0x2E {- . -} chunks))
     else Nothing
 
 
@@ -72,49 +81,18 @@ encode =
   Encode.name
 
 
-decoder :: Decode.Decoder Text.Text Raw
+decoder :: Decode.Decoder Utf8.String Raw
 decoder =
-  do  txt <- Decode.text
-      let str = Text.unpack txt
-      if all isGoodChunk (splitOn '.' str)
-        then Decode.succeed (Name.fromString str)
-        else Decode.fail txt
+  do  str <- Decode.string
+      if all isGoodChunk (Utf8.split 0x2E {- . -} str)
+        then return (Name.fromUtf8 str)
+        else Decode.failure str
 
 
-isGoodChunk :: String -> Bool
+isGoodChunk :: Utf8.String -> Bool
 isGoodChunk chunk =
-  case chunk of
-    [] ->
-      False
-
-    first : rest ->
-      Char.isUpper first && all isGoodChar rest
-
-
-isGoodChar :: Char -> Bool
-isGoodChar c =
-  Char.isAlphaNum c || c == '_'
-
-
-splitOn :: Char -> String -> [String]
-splitOn sep str =
-  uncurry (:) (splitOnHelp sep str)
-
-
-splitOnHelp :: Char -> String -> (String, [String])
-splitOnHelp sep str =
-  case str of
-    [] ->
-      ("",[])
-
-    c : rest ->
-      let
-        (chunk,chunks) = splitOnHelp sep rest
-      in
-      if c == sep then
-        ("", chunk:chunks)
-      else
-        (c:chunk, chunks)
+  Utf8.startsWithChar Char.isUpper chunk
+  && Utf8.all (\c -> Char.isAlphaNum c || c == '_') chunk
 
 
 
