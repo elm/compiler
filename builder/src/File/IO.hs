@@ -16,7 +16,6 @@ module File.IO
 
 
 import Control.Exception (catch)
-import Control.Monad.Trans (liftIO)
 import qualified Data.Binary as Binary
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Internal as BS
@@ -30,43 +29,31 @@ import qualified System.FilePath as FP
 import qualified System.IO as IO
 import System.IO.Error (ioeGetErrorType, annotateIOError, modifyIOError)
 
-import qualified Elm.PerUserCache as PerUserCache
-import qualified Reporting.Exit as Exit
-import qualified Reporting.Exit.Assets as E
-import qualified Reporting.Task as Task
-
 
 
 -- BINARY
 
 
-writeBinary :: (Binary.Binary a) => FilePath -> a -> Task.Task ()
+writeBinary :: (Binary.Binary a) => FilePath -> a -> IO ()
 writeBinary path value =
-  liftIO $
-    do  let dir = FP.dropFileName path
-        Dir.createDirectoryIfMissing True dir
-        Binary.encodeFile path value
+  do  let dir = FP.dropFileName path
+      Dir.createDirectoryIfMissing True dir
+      Binary.encodeFile path value
 
 
-readBinary :: (Binary.Binary a) => FilePath -> Task.Task a
+readBinary :: (Binary.Binary a) => FilePath -> IO (Maybe a)
 readBinary path =
-  do  exists_ <- liftIO (Dir.doesFileExist path)
+  do  exists_ <- Dir.doesFileExist path
       if not exists_
-        then throwCorruptBinary path
+        then return Nothing
         else
-          do  result <- liftIO (Binary.decodeFileOrFail path)
+          do  result <- Binary.decodeFileOrFail path
               case result of
                 Left _ ->
-                  throwCorruptBinary path
+                  return Nothing
 
                 Right value ->
                   return value
-
-
-throwCorruptBinary :: FilePath -> Task.Task a
-throwCorruptBinary filePath =
-  do  elmHome <- liftIO PerUserCache.getElmHome
-      Task.throw (Exit.Assets (E.CorruptBinary elmHome filePath))
 
 
 
@@ -188,22 +175,21 @@ putHelp source sink =
 -- EXISTS
 
 
-exists :: FilePath -> Task.Task_ e Bool
-exists filePath =
-  liftIO $ Dir.doesFileExist filePath
+exists :: FilePath -> IO Bool
+exists =
+  Dir.doesFileExist
 
 
 
 -- REMOVE FILES
 
 
-remove :: FilePath -> Task.Task_ e ()
+remove :: FilePath -> IO ()
 remove filePath =
-  liftIO $
-    do  exists_ <- Dir.doesFileExist filePath
-        if exists_
-          then Dir.removeFile filePath
-          else return ()
+  do  exists_ <- Dir.doesFileExist filePath
+      if exists_
+        then Dir.removeFile filePath
+        else return ()
 
 
 removeDir :: FilePath -> IO ()
