@@ -17,7 +17,6 @@ import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
 
 
@@ -99,7 +98,7 @@ canonicalizeFields env fields =
 -- CANONICALIZE TYPE
 
 
-canonicalizeType :: Env.Env -> R.Region -> Name.Name -> [Src.Type] -> Env.Type -> Result i w Can.Type
+canonicalizeType :: Env.Env -> A.Region -> Name.Name -> [Src.Type] -> Env.Type -> Result i w Can.Type
 canonicalizeType env region name args info =
   do  cargs <- traverse (canonicalize env) args
       case info of
@@ -112,7 +111,7 @@ canonicalizeType env region name args info =
             Can.TType home name cargs
 
 
-checkArity :: Int -> R.Region -> Name.Name -> [A.Located arg] -> answer -> Result i w answer
+checkArity :: Int -> A.Region -> Name.Name -> [A.Located arg] -> answer -> Result i w answer
 checkArity expected region name args answer =
   let actual = length args in
   if expected == actual then

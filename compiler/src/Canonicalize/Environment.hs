@@ -27,8 +27,8 @@ import qualified AST.Utils.Binop as Binop
 import qualified AST.Canonical as Can
 import qualified Data.Index as Index
 import qualified Elm.ModuleName as ModuleName
+import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
 
 
@@ -70,8 +70,8 @@ type Qualified a =
 
 
 data Var
-  = Local R.Region
-  | TopLevel R.Region
+  = Local A.Region
+  | TopLevel A.Region
   | Foreign (Map.Map ModuleName.Canonical Can.Annotation)
 
 
@@ -118,7 +118,7 @@ data Binop =
 -- VARIABLE -- ADD LOCALS
 
 
-addLocals :: Map.Map Name.Name R.Region -> Env -> Result i w Env
+addLocals :: Map.Map Name.Name A.Region -> Env -> Result i w Env
 addLocals names (Env home vars ts cs bs qvs qts qcs) =
   do  newVars <-
         Map.mergeA
@@ -131,12 +131,12 @@ addLocals names (Env home vars ts cs bs qvs qts qcs) =
       Result.ok (Env home newVars ts cs bs qvs qts qcs)
 
 
-addLocalLeft :: Name.Name -> R.Region -> Var
+addLocalLeft :: Name.Name -> A.Region -> Var
 addLocalLeft _ region =
   Local region
 
 
-addLocalBoth :: Name.Name -> R.Region -> Var -> Result i w Var
+addLocalBoth :: Name.Name -> A.Region -> Var -> Result i w Var
 addLocalBoth name region var =
   case var of
     Foreign _ ->
@@ -153,7 +153,7 @@ addLocalBoth name region var =
 -- FIND TYPE
 
 
-findType :: R.Region -> Env -> Name.Name -> Result i w Type
+findType :: A.Region -> Env -> Name.Name -> Result i w Type
 findType region (Env _ _ ts _ _ _ qts _) name =
   case Map.lookup name ts of
     Just (I.Bin 1 _ tipe _ _) ->
@@ -166,7 +166,7 @@ findType region (Env _ _ ts _ _ _ qts _) name =
       Result.throw (Error.NotFoundType region Nothing name (toPossibleNames ts qts))
 
 
-findTypeQual :: R.Region -> Env -> Name.Name -> Name.Name -> Result i w Type
+findTypeQual :: A.Region -> Env -> Name.Name -> Name.Name -> Result i w Type
 findTypeQual region (Env _ _ ts _ _ _ qts _) prefix name =
   case Map.lookup prefix qts of
     Just qualified ->
@@ -188,20 +188,20 @@ findTypeQual region (Env _ _ ts _ _ _ qts _) prefix name =
 -- FIND CTOR
 
 
-findCtor :: R.Region -> Env -> Name.Name -> Result i w Ctor
+findCtor :: A.Region -> Env -> Name.Name -> Result i w Ctor
 findCtor region (Env _ _ _ cs _ _ _ qcs) name =
   case Map.lookup name cs of
     Just (I.Bin 1 _ ctor _ _) ->
       Result.ok ctor
 
     Just homes ->
-      Result.throw (Error.AmbiguousCtor region Nothing name (Map.keys homes))
+      Result.throw (Error.AmbiguousVariant region Nothing name (Map.keys homes))
 
     Nothing ->
-      Result.throw (Error.NotFoundCtor region Nothing name (toPossibleNames cs qcs))
+      Result.throw (Error.NotFoundVariant region Nothing name (toPossibleNames cs qcs))
 
 
-findCtorQual :: R.Region -> Env -> Name.Name -> Name.Name -> Result i w Ctor
+findCtorQual :: A.Region -> Env -> Name.Name -> Name.Name -> Result i w Ctor
 findCtorQual region (Env _ _ _ cs _ _ _ qcs) prefix name =
   case Map.lookup prefix qcs of
     Just qualified ->
@@ -210,20 +210,20 @@ findCtorQual region (Env _ _ _ cs _ _ _ qcs) prefix name =
           Result.ok pattern
 
         Just homes ->
-          Result.throw (Error.AmbiguousCtor region (Just prefix) name (Map.keys homes))
+          Result.throw (Error.AmbiguousVariant region (Just prefix) name (Map.keys homes))
 
         Nothing ->
-          Result.throw (Error.NotFoundCtor region (Just prefix) name (toPossibleNames cs qcs))
+          Result.throw (Error.NotFoundVariant region (Just prefix) name (toPossibleNames cs qcs))
 
     Nothing ->
-      Result.throw (Error.NotFoundCtor region (Just prefix) name (toPossibleNames cs qcs))
+      Result.throw (Error.NotFoundVariant region (Just prefix) name (toPossibleNames cs qcs))
 
 
 
 -- FIND BINOP
 
 
-findBinop :: R.Region -> Env -> Name.Name -> Result i w Binop
+findBinop :: A.Region -> Env -> Name.Name -> Result i w Binop
 findBinop region (Env _ _ _ _ binops _ _ _) name =
   case Map.lookup name binops of
     Just (I.Bin 1 _ binop _ _) ->

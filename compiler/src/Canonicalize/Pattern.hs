@@ -19,7 +19,6 @@ import qualified Data.Index as Index
 import qualified Elm.ModuleName as ModuleName
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
 
 
@@ -32,7 +31,7 @@ type Result i w a =
 
 
 type Bindings =
-  Map.Map Name.Name R.Region
+  Map.Map Name.Name A.Region
 
 
 
@@ -60,7 +59,7 @@ verify context (Result.Result k) =
 
 
 type DupsDict =
-  Dups.Dict R.Region
+  Dups.Dict A.Region
 
 
 canonicalize :: Env.Env -> Src.Pattern -> Result DupsDict w Can.Pattern
@@ -113,7 +112,7 @@ canonicalize env (A.At region pattern) =
       Result.ok (Can.PInt int)
 
 
-canonicalizeCtor :: Env.Env -> R.Region -> Name.Name -> [Src.Pattern] -> Env.Ctor -> Result DupsDict w Can.Pattern_
+canonicalizeCtor :: Env.Env -> A.Region -> Name.Name -> [Src.Pattern] -> Env.Ctor -> Result DupsDict w Can.Pattern_
 canonicalizeCtor env region name patterns ctor =
   case ctor of
     Env.Ctor home tipe union index args ->
@@ -136,7 +135,7 @@ canonicalizeCtor env region name patterns ctor =
       Result.throw (Error.PatternHasRecordCtor region name)
 
 
-canonicalizeTuple :: R.Region -> Env.Env -> [Src.Pattern] -> Result DupsDict w (Maybe Can.Pattern)
+canonicalizeTuple :: A.Region -> Env.Env -> [Src.Pattern] -> Result DupsDict w (Maybe Can.Pattern)
 canonicalizeTuple tupleRegion env extras =
   case extras of
     [] ->
@@ -165,7 +164,7 @@ canonicalizeList env list =
 -- LOG BINDINGS
 
 
-logVar :: Name.Name -> R.Region -> a -> Result DupsDict w a
+logVar :: Name.Name -> A.Region -> a -> Result DupsDict w a
 logVar name region value =
   Result.Result $ \bindings warnings _ ok ->
     ok (Dups.insert name region region bindings) warnings value

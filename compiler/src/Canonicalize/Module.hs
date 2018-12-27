@@ -11,7 +11,6 @@ import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
-import qualified AST.Valid as Valid
 import qualified Canonicalize.Effects as Effects
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
@@ -26,7 +25,6 @@ import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
 import qualified Reporting.Warning as W
 
@@ -47,9 +45,9 @@ canonicalize
   :: Pkg.Name
   -> Map.Map Name.Name ModuleName.Canonical
   -> I.Interfaces
-  -> Valid.Module
+  -> Src.Module
   -> Result i [W.Warning] Can.Module
-canonicalize pkg importDict interfaces module_@(Valid.Module name _ _ exports imports decls _ _ binops effects) =
+canonicalize pkg importDict interfaces module_@(Src.Module name exports imports values _ _ binops effects) =
   do  let home = ModuleName.Canonical pkg name
       let cbinops = Map.fromList (map canonicalizeBinop binops)
 
@@ -57,33 +55,19 @@ canonicalize pkg importDict interfaces module_@(Valid.Module name _ _ exports im
         Local.add module_ =<<
           Foreign.createInitialEnv home importDict interfaces imports
 
-      cdecls <- canonicalizeDecls env decls
-      ceffects <- Effects.canonicalize env decls cunions effects
-      cexports <- canonicalizeExports decls cunions caliases cbinops ceffects exports
+      cvalues <- canonicalizeValues env values
+      ceffects <- Effects.canonicalize env values cunions effects
+      cexports <- canonicalizeExports values cunions caliases cbinops ceffects exports
 
-      return $ Can.Module home (toDocs module_) cexports cdecls cunions caliases cbinops ceffects
-
-
-
--- DOCUMENTATION
-
-
-toDocs :: Valid.Module -> Can.Docs
-toDocs (Valid.Module _ docs comments _ _ _ _ _ _ _) =
-  case docs of
-    Src.NoDocs region ->
-      Can.NoDocs region
-
-    Src.YesDocs region overview ->
-      Can.YesDocs region overview comments
+      return $ Can.Module home cexports cvalues cunions caliases cbinops ceffects
 
 
 
 -- CANONICALIZE BINOP
 
 
-canonicalizeBinop :: Valid.Binop -> ( Name.Name, Can.Binop )
-canonicalizeBinop (Valid.Binop op associativity precedence func) =
+canonicalizeBinop :: A.Located Src.Binop -> ( Name.Name, Can.Binop )
+canonicalizeBinop (A.At _ (Src.Binop op associativity precedence func)) =
   ( op, Can.Binop_ associativity precedence func )
 
 
@@ -97,9 +81,9 @@ canonicalizeBinop (Valid.Binop op associativity precedence func) =
 --
 
 
-canonicalizeDecls :: Env.Env -> [A.Located Valid.Decl] -> Result i [W.Warning] Can.Decls
-canonicalizeDecls env decls =
-  do  nodes <- traverse (toNodeOne env) decls
+canonicalizeValues :: Env.Env -> [A.Located Src.Value] -> Result i [W.Warning] Can.Decls
+canonicalizeValues env values =
+  do  nodes <- traverse (toNodeOne env) values
       detectCycles (Graph.stronglyConnComp nodes)
 
 
@@ -151,8 +135,8 @@ type NodeTwo =
   (Can.Def, Name.Name, [Name.Name])
 
 
-toNodeOne :: Env.Env -> A.Located Valid.Decl -> Result i [W.Warning] NodeOne
-toNodeOne env (A.At _ (Valid.Decl aname@(A.At _ name) srcArgs body maybeType)) =
+toNodeOne :: Env.Env -> A.Located Src.Value -> Result i [W.Warning] NodeOne
+toNodeOne env (A.At _ (Src.Value aname@(A.At _ name) srcArgs body maybeType)) =
   case maybeType of
     Nothing ->
       do  (args, argBindings) <-
@@ -216,41 +200,41 @@ addDirects name (Expr.Uses directUses _) directDeps =
 
 
 canonicalizeExports
-  :: [A.Located Valid.Decl]
+  :: [A.Located Src.Value]
   -> Map.Map Name.Name union
   -> Map.Map Name.Name alias
   -> Map.Map Name.Name binop
   -> Can.Effects
   -> A.Located Src.Exposing
   -> Result i w Can.Exports
-canonicalizeExports decls unions aliases binops effects (A.At region exposing) =
+canonicalizeExports values unions aliases binops effects (A.At region exposing) =
   case exposing of
     Src.Open ->
       Result.ok (Can.ExportEverything region)
 
     Src.Explicit exposeds ->
-      do  let names = Map.fromList (map declToName decls)
+      do  let names = Map.fromList (map valueToName values)
           infos <- traverse (checkExposed names unions aliases binops effects) exposeds
           Can.Export <$> Dups.detect Error.ExportDuplicate (Dups.unions infos)
 
 
-declToName :: A.Located Valid.Decl -> ( Name.Name, () )
-declToName (A.At _ (Valid.Decl (A.At _ name) _ _ _)) =
+valueToName :: A.Located Src.Value -> ( Name.Name, () )
+valueToName (A.At _ (Src.Value (A.At _ name) _ _ _)) =
   ( name, () )
 
 
 checkExposed
-  :: Map.Map Name.Name decl
+  :: Map.Map Name.Name value
   -> Map.Map Name.Name union
   -> Map.Map Name.Name alias
   -> Map.Map Name.Name binop
   -> Can.Effects
   -> A.Located Src.Exposed
   -> Result i w (Dups.Dict (A.Located Can.Export))
-checkExposed decls unions aliases binops effects (A.At region exposed) =
+checkExposed values unions aliases binops effects (A.At region exposed) =
   case exposed of
     Src.Lower name ->
-      if Map.member name decls then
+      if Map.member name values then
         ok name region Can.ExportValue
       else
         case checkPorts effects name of
@@ -259,7 +243,7 @@ checkExposed decls unions aliases binops effects (A.At region exposed) =
 
           Just ports ->
             Result.throw $ Error.ExportNotFound region Error.BadVar name $
-              ports ++ Map.keys decls
+              ports ++ Map.keys values
 
     Src.Operator name ->
       if Map.member name binops then
@@ -300,6 +284,6 @@ checkPorts effects name =
       Just []
 
 
-ok :: Name.Name -> R.Region -> Can.Export -> Result i w (Dups.Dict (A.Located Can.Export))
+ok :: Name.Name -> A.Region -> Can.Export -> Result i w (Dups.Dict (A.Located Can.Export))
 ok name region export =
   Result.ok $ Dups.one name region (A.At region export)

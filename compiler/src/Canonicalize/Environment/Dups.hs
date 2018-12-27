@@ -20,7 +20,6 @@ import qualified Data.Name as Name
 import qualified Data.OneOrMore as OneOrMore
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
 
 
@@ -34,7 +33,7 @@ type Dict value =
 
 data Info value =
   Info
-    { _region :: R.Region
+    { _region :: A.Region
     , _value :: value
     }
 
@@ -44,7 +43,7 @@ data Info value =
 
 
 type ToError =
-  Name.Name -> R.Region -> R.Region -> Error.Error
+  Name.Name -> A.Region -> A.Region -> Error.Error
 
 
 detect :: ToError -> Dict a -> Result.Result i w Error.Error (Map.Map Name.Name a)
@@ -77,12 +76,12 @@ addField (A.At region name, value) dups =
   Map.insertWith OneOrMore.more name (OneOrMore.one (Info region value)) dups
 
 
-checkFields' :: (R.Region -> a -> b) -> [(A.Located Name.Name, a)] -> Result.Result i w Error.Error (Map.Map Name.Name b)
+checkFields' :: (A.Region -> a -> b) -> [(A.Located Name.Name, a)] -> Result.Result i w Error.Error (Map.Map Name.Name b)
 checkFields' toValue fields =
   detect Error.DuplicateField (foldr (addField' toValue) none fields)
 
 
-addField' :: (R.Region -> a -> b) -> (A.Located Name.Name, a) -> Dict b -> Dict b
+addField' :: (A.Region -> a -> b) -> (A.Located Name.Name, a) -> Dict b -> Dict b
 addField' toValue (A.At region name, value) dups =
   Map.insertWith OneOrMore.more name (OneOrMore.one (Info region (toValue region value))) dups
 
@@ -96,12 +95,12 @@ none =
   Map.empty
 
 
-one :: Name.Name -> R.Region -> value -> Dict value
+one :: Name.Name -> A.Region -> value -> Dict value
 one name region value =
   Map.singleton name (OneOrMore.one (Info region value))
 
 
-insert :: Name.Name -> R.Region -> a -> Dict a -> Dict a
+insert :: Name.Name -> A.Region -> a -> Dict a -> Dict a
 insert name region value dict =
   Map.insertWith OneOrMore.more name (OneOrMore.one (Info region value)) dict
 
