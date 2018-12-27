@@ -8,7 +8,7 @@ module Reporting.Doc
   , P.red, P.cyan, P.magenta, P.green, P.blue, P.black, P.yellow
   , P.dullred, P.dullcyan, P.dullyellow
 
-  , fromString, fromText, fromName, fromInt, fromUtf8
+  , fromChars, fromName, fromInt, fromUtf8
   , toAnsi, toString, toLine
   , encode
 
@@ -26,17 +26,12 @@ import Prelude hiding (cycle)
 import qualified Data.List as List
 import Data.Monoid ((<>))
 import qualified Data.Name as Name
-import qualified Data.Text as Text
-import qualified Data.Text.Lazy as TL
-import qualified Data.Text.Lazy.Builder as TB
 import qualified Data.Utf8 as Utf8
 import qualified System.Console.ANSI.Types as Ansi
 import System.IO (Handle)
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import qualified Data.Index as Index
-import qualified Elm.Compiler.Version as Compiler
-import qualified Elm.Package as Pkg
 import qualified Json.Encode as E
 
 
@@ -44,19 +39,14 @@ import qualified Json.Encode as E
 -- FROM
 
 
-fromString :: String -> P.Doc
-fromString =
+fromChars :: String -> P.Doc
+fromChars =
   P.text
-
-
-fromText :: Text.Text -> P.Doc
-fromText txt =
-  P.text (Text.unpack txt)
 
 
 fromName :: Name.Name -> P.Doc
 fromName name =
-  P.text (Name.toString name)
+  P.text (Name.toChars name)
 
 
 fromInt :: Int -> P.Doc
@@ -64,9 +54,9 @@ fromInt n =
   P.text (show n)
 
 
-fromUtf8 :: Utf8.Utf8 -> P.Doc
+fromUtf8 :: Utf8.String -> P.Doc
 fromUtf8 utf8 =
-  P.text (Utf8.toString utf8)
+  P.text (Utf8.toChars utf8)
 
 
 
@@ -159,12 +149,12 @@ fancyLink word before fileName after =
 
 makeLink :: String -> String
 makeLink fileName =
-  "<https://elm-lang.org/" <> Pkg.versionToString Compiler.version <> "/" <> fileName <> ">"
+  "<https://elm-lang.org/" <> error "TODO V.toString V.compiler" <> "/" <> fileName <> ">"
 
 
 makeNakedLink :: String -> String
 makeNakedLink fileName =
-  "https://elm-lang.org/" <> Pkg.versionToString Compiler.version <> "/" <> fileName
+  "https://elm-lang.org/" <> error "TODO V.toString V.compiler" <> "/" <> fileName
 
 
 reflowLink :: String -> String -> String -> P.Doc
@@ -267,8 +257,10 @@ data Color
   | WHITE
 
 
-toJsonHelp :: Style -> [TB.Builder] -> P.SimpleDoc -> [E.Value]
+toJsonHelp :: Style -> [a] -> P.SimpleDoc -> [E.Value]
 toJsonHelp style revChunks simpleDoc =
+  error "TODO generate json on errors" style revChunks simpleDoc sgrToStyle encodeColor
+{-
   case simpleDoc of
     P.SFail ->
       error $
@@ -294,7 +286,7 @@ toJsonHelp style revChunks simpleDoc =
 spaces :: Int -> TB.Builder
 spaces n =
   TB.fromText (Text.replicate n " ")
-
+-}
 
 sgrToStyle :: [Ansi.SGR] -> Style -> Style
 sgrToStyle sgrs style@(Style bold underline color) =
@@ -356,35 +348,28 @@ toColor layer intensity color =
           Ansi.White   -> pick White   WHITE
           Ansi.Black   -> pick Black   BLACK
 
-
+{-
 encodeChunks :: Style -> [TB.Builder] -> E.Value
 encodeChunks (Style bold underline color) revChunks =
   let
-    text =
-      case revChunks of
-        [] ->
-          Text.empty
-
-        c:cs ->
-          TL.toStrict $ TB.toLazyText $
-            List.foldl' (\builder chunk -> chunk <> builder) c cs
+    !str = Utf8.concat (reverse revChunks)
   in
   case color of
     Nothing | not bold && not underline ->
-      E.text text
+      E.string str
 
     _ ->
       E.object
         [ ("bold", E.bool bold)
         , ("underline", E.bool underline)
         , ("color", maybe E.null encodeColor color)
-        , ("string", E.text text)
+        , ("string", E.string str)
         ]
-
+-}
 
 encodeColor :: Color -> E.Value
 encodeColor color =
-  E.text $
+  E.string $
     case color of
       Red -> "red"
       RED -> "RED"
