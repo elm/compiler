@@ -13,7 +13,6 @@ import qualified AST.Canonical as Can
 import qualified Elm.ModuleName as ModuleName
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as E
-import qualified Reporting.Region as R
 import qualified Type.Constrain.Expression as Expr
 import qualified Type.Instantiate as Instantiate
 import Type.Type (Type(..), Constraint(..), (==>), mkFlexVar, nameToRigid, never)
@@ -24,7 +23,7 @@ import Type.Type (Type(..), Constraint(..), (==>), mkFlexVar, nameToRigid, never
 
 
 constrain :: Can.Module -> IO Constraint
-constrain (Can.Module home _ _ decls _ _ _ effects) =
+constrain (Can.Module home _ decls _ _ _ effects) =
   case effects of
     Can.NoEffects ->
       constrainDecls decls CSaveTheEnvironment
@@ -75,13 +74,13 @@ letPort name port_ makeConstraint =
     Can.Incoming freeVars _ srcType ->
       do  vars <- Map.traverseWithKey (\k _ -> nameToRigid k) freeVars
           tipe <- Instantiate.fromSrcType (Map.map VarN vars) srcType
-          let header = Map.singleton name (A.At R.zero tipe)
+          let header = Map.singleton name (A.At A.zero tipe)
           CLet (Map.elems vars) [] header CTrue <$> makeConstraint
 
     Can.Outgoing freeVars _ srcType ->
       do  vars <- Map.traverseWithKey (\k _ -> nameToRigid k) freeVars
           tipe <- Instantiate.fromSrcType (Map.map VarN vars) srcType
-          let header = Map.singleton name (A.At R.zero tipe)
+          let header = Map.singleton name (A.At A.zero tipe)
           CLet (Map.elems vars) [] header CTrue <$> makeConstraint
 
 
@@ -94,7 +93,7 @@ letCmd home tipe constraint =
   do  msgVar <- mkFlexVar
       let msg = VarN msgVar
       let cmdType = FunN (AppN home tipe [msg]) (AppN ModuleName.cmd Name.cmd [msg])
-      let header = Map.singleton "command" (A.At R.zero cmdType)
+      let header = Map.singleton "command" (A.At A.zero cmdType)
       return $ CLet [msgVar] [] header CTrue constraint
 
 
@@ -103,11 +102,11 @@ letSub home tipe constraint =
   do  msgVar <- mkFlexVar
       let msg = VarN msgVar
       let subType = FunN (AppN home tipe [msg]) (AppN ModuleName.sub Name.sub [msg])
-      let header = Map.singleton "subscription" (A.At R.zero subType)
+      let header = Map.singleton "subscription" (A.At A.zero subType)
       return $ CLet [msgVar] [] header CTrue constraint
 
 
-constrainEffects :: ModuleName.Canonical -> R.Region -> R.Region -> R.Region -> Can.Manager -> IO Constraint
+constrainEffects :: ModuleName.Canonical -> A.Region -> A.Region -> A.Region -> Can.Manager -> IO Constraint
 constrainEffects home r0 r1 r2 manager =
   do  s0 <- mkFlexVar
       s1 <- mkFlexVar
@@ -175,7 +174,7 @@ checkMap name home tipe constraint =
   do  a <- mkFlexVar
       b <- mkFlexVar
       let mapType = toMapType home tipe (VarN a) (VarN b)
-      let mapCon = CLocal R.zero name (E.NoExpectation mapType)
+      let mapCon = CLocal A.zero name (E.NoExpectation mapType)
       return $ CLet [a,b] [] Map.empty mapCon constraint
 
 

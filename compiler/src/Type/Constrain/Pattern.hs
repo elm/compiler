@@ -17,7 +17,6 @@ import qualified Data.Index as Index
 import qualified Elm.ModuleName as ModuleName
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as E
-import qualified Reporting.Region as R
 import qualified Type.Instantiate as Instantiate
 import Type.Type as T
 
@@ -138,7 +137,7 @@ emptyState =
   State Map.empty [] []
 
 
-addToHeaders :: R.Region -> Name.Name -> E.PExpected Type -> State -> State
+addToHeaders :: A.Region -> Name.Name -> E.PExpected Type -> State -> State
 addToHeaders region name expectation (State headers vars revCons) =
   let
     tipe = getType expectation
@@ -158,7 +157,7 @@ getType expectation =
 -- CONSTRAIN LIST
 
 
-addEntry :: R.Region -> Type -> State -> (Index.ZeroBased, Can.Pattern) -> IO State
+addEntry :: A.Region -> Type -> State -> (Index.ZeroBased, Can.Pattern) -> IO State
 addEntry listRegion tipe state (index, pattern) =
   let
     expectation =
@@ -171,7 +170,7 @@ addEntry listRegion tipe state (index, pattern) =
 -- CONSTRAIN TUPLE
 
 
-addTuple :: R.Region -> Can.Pattern -> Can.Pattern -> Maybe Can.Pattern -> E.PExpected Type -> State -> IO State
+addTuple :: A.Region -> Can.Pattern -> Can.Pattern -> Maybe Can.Pattern -> E.PExpected Type -> State -> IO State
 addTuple region a b maybeC expectation state =
   do  aVar <- mkFlexVar
       bVar <- mkFlexVar
@@ -211,7 +210,7 @@ simpleAdd pattern patternType state =
 -- CONSTRAIN CONSTRUCTORS
 
 
-addCtor :: R.Region -> ModuleName.Canonical -> Name.Name -> [Name.Name] -> Name.Name -> [Can.PatternCtorArg] -> E.PExpected Type -> State -> IO State
+addCtor :: A.Region -> ModuleName.Canonical -> Name.Name -> [Name.Name] -> Name.Name -> [Can.PatternCtorArg] -> E.PExpected Type -> State -> IO State
 addCtor region home typeName typeVarNames ctorName args expectation state =
   do  varPairs <- traverse (\var -> (,) var <$> nameToFlex var) typeVarNames
       let typePairs = map (second VarN) varPairs
@@ -231,7 +230,7 @@ addCtor region home typeName typeVarNames ctorName args expectation state =
           }
 
 
-addCtorArg :: R.Region -> Name.Name -> Map.Map Name.Name Type -> State -> Can.PatternCtorArg -> IO State
+addCtorArg :: A.Region -> Name.Name -> Map.Map Name.Name Type -> State -> Can.PatternCtorArg -> IO State
 addCtorArg region ctorName freeVarDict state (Can.PatternCtorArg index srcType pattern) =
   do  tipe <- Instantiate.fromSrcType freeVarDict srcType
       let expectation = E.PFromContext region (E.PCtorArg ctorName index) tipe

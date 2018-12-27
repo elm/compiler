@@ -41,7 +41,6 @@ import qualified AST.Utils.Type as Type
 import qualified Elm.ModuleName as ModuleName
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as E
-import qualified Reporting.Region as R
 import qualified Type.Error as ET
 import qualified Type.UnionFind as UF
 
@@ -53,10 +52,10 @@ import qualified Type.UnionFind as UF
 data Constraint
   = CTrue
   | CSaveTheEnvironment
-  | CEqual R.Region E.Category Type (E.Expected Type)
-  | CLocal R.Region Name.Name (E.Expected Type)
-  | CForeign R.Region Name.Name Can.Annotation (E.Expected Type)
-  | CPattern R.Region E.PCategory Type (E.PExpected Type)
+  | CEqual A.Region E.Category Type (E.Expected Type)
+  | CLocal A.Region Name.Name (E.Expected Type)
+  | CForeign A.Region Name.Name Can.Annotation (E.Expected Type)
+  | CPattern A.Region E.PCategory Type (E.PExpected Type)
   | CAnd [Constraint]
   | CLet
       { _rigidVars :: [Variable]
