@@ -21,15 +21,14 @@ The goal of this module is to only pay for (1) and pay for (2) as needed.
 
 import Control.Monad.Except (liftIO, lift, throwError)
 import Control.Monad.State (StateT, evalStateT, gets, modify)
-import Data.Map (Map)
 import qualified Data.Map as Map
 
-import Elm.Package (Name, Version)
-
 import qualified Deps.Cache as Cache
+import qualified Elm.Constraint as C
+import qualified Elm.Package as Pkg
 import qualified Elm.PerUserCache as PerUserCache
 import qualified Elm.Project.Json as Project
-import Elm.Project.Constraint (Constraint)
+import qualified Elm.Version as V
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Deps as E
 import qualified Reporting.Task as Task
@@ -46,14 +45,14 @@ type Explorer =
 data Metadata =
   Metadata
     { _registry :: Cache.PackageRegistry
-    , _info :: Map (Name, Version) Info
+    , _info :: Map.Map (Pkg.Name, V.Version) Info
     }
 
 
 data Info =
   Info
-    { _elm :: Constraint
-    , _pkgs :: Map Name Constraint
+    { _elm :: C.Constraint
+    , _pkgs :: Map.Map Pkg.Name C.Constraint
     }
 
 
@@ -66,7 +65,7 @@ run registry explorer =
 -- EXISTS
 
 
-exists :: Name -> Explorer ()
+exists :: Pkg.Name -> Explorer ()
 exists name =
   do  registry <- gets _registry
       case Cache.getVersions name registry of
@@ -81,7 +80,7 @@ exists name =
 -- VERSIONS
 
 
-getVersions :: Name -> Explorer [Version]
+getVersions :: Pkg.Name -> Explorer [V.Version]
 getVersions name =
   do  registry <- gets _registry
       case Cache.getVersions name registry of
@@ -97,7 +96,7 @@ getVersions name =
 -- CONSTRAINTS
 
 
-getConstraints :: Name -> Version -> Explorer Info
+getConstraints :: Pkg.Name -> V.Version -> Explorer Info
 getConstraints name version =
   do  allInfo <- gets _info
       case Map.lookup (name, version) allInfo of

@@ -23,18 +23,17 @@ import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Digest.Pure.SHA as SHA
 import qualified Data.Map as Map
-import qualified Data.Text as Text
+import qualified Data.Utf8 as Utf8
 import qualified Network.HTTP.Client as Client
 import qualified Network.HTTP.Client.MultipartFormData as Multi
 import qualified Network.HTTP.Types as Http
 import qualified System.Directory as Dir
 import System.FilePath ((</>), splitFileName)
 
-import Elm.Package (Name, Version)
 import qualified Elm.Package as Pkg
+import qualified Elm.Version as V
 import qualified Json.Decode as D
 
-import qualified Reporting.Doc as D
 import qualified Reporting.Exit.Http as E
 import qualified Reporting.Progress as Progress
 import qualified Reporting.Task as Task
@@ -46,74 +45,74 @@ import qualified Stuff.Paths as Path
 -- GET PACKAGE INFO
 
 
-getElmJson :: Name -> Version -> Task.Task BS.ByteString
+getElmJson :: Pkg.Name -> V.Version -> Task.Task BS.ByteString
 getElmJson name version =
   Http.run $ fetchByteString $
-    "packages/" ++ Pkg.toUrl name ++ "/" ++ Pkg.versionToString version ++ "/elm.json"
+    "packages/" ++ Pkg.toUrl name ++ "/" ++ V.toChars version ++ "/elm.json"
 
 
-getDocs :: Name -> Version -> Task.Task BS.ByteString
+getDocs :: Pkg.Name -> V.Version -> Task.Task BS.ByteString
 getDocs name version =
   Http.run $ fetchByteString $
-    "packages/" ++ Pkg.toUrl name ++ "/" ++ Pkg.versionToString version ++ "/docs.json"
+    "packages/" ++ Pkg.toUrl name ++ "/" ++ V.toChars version ++ "/docs.json"
 
 
 
 -- NEW PACKAGES
 
 
-getNewPackages :: Int -> Task.Task [(Name, Version)]
+getNewPackages :: Int -> Task.Task [(Pkg.Name, V.Version)]
 getNewPackages index =
-  Http.run $ fetchJson "packages" E.badJsonToDocs (D.list newPkgDecoder) ("all-packages/since/" ++ show index)
+  Http.run $ fetchJson (D.list newPkgDecoder) ("all-packages/since/" ++ show index)
 
 
-newPkgDecoder :: D.Decoder E.BadJson ( Name, Version )
+newPkgDecoder :: D.Decoder E.BadJson ( Pkg.Name, V.Version )
 newPkgDecoder =
-  do  txt <- D.text
-      case Text.splitOn "@" txt of
+  do  str <- D.string
+      case Utf8.split 0x40 {-@-} str of
         [key, value] ->
-          case Pkg.fromText key of
+          case Pkg.fromString key of
             Right pkg ->
-              case Pkg.versionFromText value of
+              case V.fromString value of
                 Just vsn ->
-                  D.succeed (pkg, vsn)
+                  return (pkg, vsn)
 
                 Nothing ->
-                  D.fail (E.BadNewPkg txt)
+                  D.failure (E.BadNewPkg str)
 
             Left _ ->
-              D.fail (E.BadNewPkg txt)
+              D.failure (E.BadNewPkg str)
 
         _ ->
-          D.fail (E.BadNewPkg txt)
+          D.failure (E.BadNewPkg str)
 
 
 
 -- ALL PACKAGES
 
 
-getAllPackages :: Task.Task (Map.Map Name [Version])
+getAllPackages :: Task.Task (Map.Map Pkg.Name [V.Version])
 getAllPackages =
-  Http.run $ fetchJson "packages" E.badJsonToDocs allPkgsDecoder "all-packages"
+  Http.run $ fetchJson allPkgsDecoder "all-packages"
 
 
-allPkgsDecoder :: D.Decoder E.BadJson (Map.Map Name [Version])
+allPkgsDecoder :: D.Decoder E.BadJson (Map.Map Pkg.Name [V.Version])
 allPkgsDecoder =
   let
     checkKeys pairs pkgs =
       case pairs of
         [] ->
-          D.succeed pkgs
+          return pkgs
 
         (key, versions) : rest ->
-          case Pkg.fromText key of
-            Left (msg, _) ->
-              D.fail (E.BadAllPkg key msg)
-
+          case Pkg.fromString key of
             Right pkg ->
               checkKeys rest (Map.insert pkg versions pkgs)
+
+            Left badName ->
+              D.failure (E.BadAllPkg key badName)
   in
-    do  pairs <- D.pairs (D.list (D.mapError E.BadAllVsn Pkg.versionDecoder))
+    do  pairs <- D.pairs (D.list (D.mapError E.BadAllVsn V.decoder))
         checkKeys pairs Map.empty
 
 
@@ -128,24 +127,24 @@ fetchByteString path =
         return $ Right $ LBS.toStrict $ Client.responseBody response
 
 
-fetchJson :: String -> (e -> [D.Doc]) -> D.Decoder e a -> String -> Http.Fetch a
-fetchJson rootName errorToDocs decoder path =
+fetchJson :: D.Decoder e a -> String -> Http.Fetch a
+fetchJson decoder path =
   Http.package path [] $ \request manager ->
     do  response <- Client.httpLbs request manager
         let bytes = LBS.toStrict (Client.responseBody response)
-        case D.parse rootName errorToDocs decoder bytes of
+        case D.fromByteString decoder bytes of
           Right value ->
             return $ Right value
 
           Left jsonProblem ->
-            return $ Left $ E.BadJson path jsonProblem
+            return $ Left $ E.BadJson path (error "TODO give real HTTP problem" jsonProblem)
 
 
 
 -- DOWNLOAD
 
 
-download :: [(Name, Version)] -> Task.Task ()
+download :: [(Pkg.Name, V.Version)] -> Task.Task ()
 download packages =
   case packages of
     [] ->
@@ -161,13 +160,13 @@ download packages =
             Http.parallel $ map (downloadHelp cache) packages
 
 
-downloadHelp :: FilePath -> (Name, Version) -> Http.Fetch ()
+downloadHelp :: FilePath -> (Pkg.Name, V.Version) -> Http.Fetch ()
 downloadHelp cache (name, version) =
   let
     endpointUrl =
-      "packages/" ++ Pkg.toUrl name ++ "/" ++ Pkg.versionToString version ++ "/endpoint.json"
+      "packages/" ++ Pkg.toUrl name ++ "/" ++ V.toChars version ++ "/endpoint.json"
   in
-    Http.andThen (fetchJson "version" id endpointDecoder endpointUrl) $ \(endpoint, hash) ->
+    Http.andThen (fetchJson endpointDecoder endpointUrl) $ \(endpoint, hash) ->
       let
         start = Progress.DownloadPkgStart name version
         toEnd = Progress.DownloadPkgEnd name version
@@ -179,16 +178,16 @@ downloadHelp cache (name, version) =
 
 endpointDecoder :: D.Decoder e (String, String)
 endpointDecoder =
-  D.map2 (,)
-    (D.field "url" D.string)
-    (D.field "hash" D.string)
+  (,)
+    <$> (Utf8.toChars <$> D.field "url" D.string)
+    <*> (Utf8.toChars <$> D.field "hash" D.string)
 
 
 
 -- DOWNLOAD ZIP ARCHIVE
 
 
-downloadArchive :: FilePath -> Name -> Version -> String -> Client.Response Client.BodyReader -> IO (Either E.Exit ())
+downloadArchive :: FilePath -> Pkg.Name -> V.Version -> String -> Client.Response Client.BodyReader -> IO (Either E.Exit ())
 downloadArchive cache name version expectedHash response =
   do  result <- readArchive (Client.responseBody response) initialArchiveState
       case result of
@@ -197,7 +196,7 @@ downloadArchive cache name version expectedHash response =
 
         Right (sha, archive) ->
           if expectedHash == SHA.showDigest sha then
-            Right <$> writeArchive archive (cache </> Pkg.toFilePath name) (Pkg.versionToString version)
+            Right <$> writeArchive archive (cache </> Pkg.toFilePath name) (V.toChars version)
           else
             return $ Left $ E.BadZipSha expectedHash (SHA.showDigest sha)
 
@@ -264,11 +263,11 @@ replaceRoot root entry =
 -- FIND TAGGED COMMIT ON GITHUB
 
 
-githubCommit :: Name -> Version -> Task.Task String
+githubCommit :: Pkg.Name -> V.Version -> Task.Task String
 githubCommit name version =
   let
     endpoint =
-      "https://api.github.com/repos/" ++ Pkg.toUrl name ++ "/git/refs/tags/" ++ Pkg.versionToString version
+      "https://api.github.com/repos/" ++ Pkg.toUrl name ++ "/git/refs/tags/" ++ V.toChars version
 
     headers =
       [ ( Http.hUserAgent, "elm-cli" )
@@ -276,14 +275,14 @@ githubCommit name version =
       ]
 
     decoder =
-      D.at ["object","sha"] D.string
+      D.field "object" (D.field "sha" D.string)
   in
     Http.run $ Http.anything endpoint $ \request manager ->
       do  response <- Client.httpLbs (request { Client.requestHeaders = headers }) manager
           let bytes = LBS.toStrict (Client.responseBody response)
-          case D.parse "github" id decoder bytes of
+          case D.fromByteString decoder bytes of
             Right value ->
-              return $ Right value
+              return $ Right (Utf8.toChars value)
 
             Left jsonProblem ->
               return $ Left $ E.BadJson "github.json" jsonProblem
@@ -293,11 +292,11 @@ githubCommit name version =
 -- DOWNLOAD FROM GITHUB
 
 
-githubDownload :: Name -> Version -> FilePath -> Task.Task Sha
+githubDownload :: Pkg.Name -> V.Version -> FilePath -> Task.Task Sha
 githubDownload name version dir =
   let
     endpoint =
-      "https://github.com/" ++ Pkg.toUrl name ++ "/zipball/" ++ Pkg.versionToString version ++ "/"
+      "https://github.com/" ++ Pkg.toUrl name ++ "/zipball/" ++ V.toChars version ++ "/"
   in
     Http.run $ Http.anything endpoint $ \request manager ->
       Client.withResponse request manager (githubDownloadHelp dir)
@@ -320,12 +319,12 @@ githubDownloadHelp targetDir response =
 -- REGISTER PACKAGES
 
 
-register :: Name -> Version -> String -> Sha -> Task.Task ()
+register :: Pkg.Name -> V.Version -> String -> Sha -> Task.Task ()
 register name version commitHash digest =
   let
     params =
-      [ ("name", Pkg.toString name)
-      , ("version", Pkg.versionToString version)
+      [ ("name", Pkg.toChars name)
+      , ("version", V.toChars version)
       , ("commit-hash", commitHash)
       ]
 

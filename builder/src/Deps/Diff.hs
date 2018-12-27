@@ -19,12 +19,12 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Name as Name
 import qualified Data.Set as Set
-import qualified Data.Text as Text
+import qualified Data.Utf8 as Utf8
 
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Docs as Docs
 import qualified Elm.ModuleName as ModuleName
-import qualified Elm.Package as Pkg
+import qualified Elm.Version as V
 
 
 
@@ -196,7 +196,7 @@ isSameName :: Name.Name -> Name.Name -> Bool
 isSameName oldFullName newFullName =
   let
     dedot name =
-      reverse (Text.splitOn "." (Name.toText name))
+      reverse (Utf8.split 0x2E {-.-} (Name.toUtf8 name))
   in
     case ( dedot oldFullName, dedot newFullName ) of
       (oldName:[], newName:_) ->
@@ -318,17 +318,17 @@ magnitudeToString magnitude =
       "MAJOR"
 
 
-bump :: PackageChanges -> Pkg.Version -> Pkg.Version
+bump :: PackageChanges -> V.Version -> V.Version
 bump changes version =
   case toMagnitude changes of
     PATCH ->
-      Pkg.bumpPatch version
+      V.bumpPatch version
 
     MINOR ->
-      Pkg.bumpMinor version
+      V.bumpMinor version
 
     MAJOR ->
-      Pkg.bumpMajor version
+      V.bumpMajor version
 
 
 toMagnitude :: PackageChanges -> Magnitude

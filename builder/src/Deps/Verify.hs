@@ -9,30 +9,26 @@ import Control.Concurrent.MVar (MVar, newMVar, newEmptyMVar, putMVar, readMVar, 
 import Control.Monad (filterM, void)
 import Control.Monad.Trans (liftIO)
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 import qualified Data.Map.Merge.Strict as Map
-import Data.Map (Map)
-import Data.Set (Set)
+import qualified Data.Set as Set
 import System.Directory (doesDirectoryExist)
 import System.FilePath ((</>))
-
-import qualified Elm.Compiler.Objects as Obj
-import qualified Elm.Docs as Docs
-import qualified Elm.Interface as I
-import qualified Elm.ModuleName as ModuleName
-import Elm.Package (Name, Version)
-import qualified Elm.PerUserCache as PerUserCache
-import Elm.Project.Json (Project(..), AppInfo(..), PkgInfo(..))
-import qualified Json.Encode as Encode
 
 import qualified Deps.Cache as Cache
 import qualified Deps.Explorer as Explorer
 import qualified Deps.Solver as Solver
 import qualified Deps.Website as Website
 import qualified Elm.Compiler as Compiler
+import qualified Elm.Compiler.Objects as Obj
+import qualified Elm.Constraint as Con
+import qualified Elm.Interface as I
+import qualified Elm.ModuleName as ModuleName
+import qualified Elm.Package as Pkg
+import qualified Elm.PerUserCache as PerUserCache
+import Elm.Project.Json (Project(..), AppInfo(..), PkgInfo(..))
 import qualified Elm.Project.Json as Project
-import qualified Elm.Project.Constraint as Con
 import qualified Elm.Project.Summary as Summary
+import qualified Elm.Version as V
 import qualified File.Args as Args
 import qualified File.Compile as Compile
 import qualified File.Crawl as Crawl
@@ -70,9 +66,9 @@ throw exit =
 -- VERIFY APP
 
 
-verifyApp :: AppInfo -> Task.Task (Map Name Version)
+verifyApp :: AppInfo -> Task.Task (Map.Map Pkg.Name V.Version)
 verifyApp info =
-  if _app_elm_version info /= Compiler.version then
+  if _app_elm_version info /= V.compiler then
     throw (E.AppBadElm (_app_elm_version info))
 
   else
@@ -95,7 +91,7 @@ verifyApp info =
 -- VERIFY PKG
 
 
-verifyPkg :: PkgInfo -> Task.Task (Map Name Version)
+verifyPkg :: PkgInfo -> Task.Task (Map.Map Pkg.Name V.Version)
 verifyPkg info =
   if not (Con.goodElm (_pkg_elm_version info)) then
     throw (E.PkgBadElm (_pkg_elm_version info))
@@ -117,19 +113,19 @@ verifyPkg info =
 -- APP TO SOLUTION
 
 
-appToSolution :: Project.AppInfo -> Task.Task (Map Name Version)
+appToSolution :: Project.AppInfo -> Task.Task (Map.Map Pkg.Name V.Version)
 appToSolution (Project.AppInfo _ _ depsDirect depsTrans testDirect testTrans) =
   do  a <- union allowEqualDups depsTrans testDirect
       b <- union noDups depsDirect testTrans
       union noDups a b
 
 
-noDups :: Name -> a -> a -> Task.Task a
+noDups :: Pkg.Name -> a -> a -> Task.Task a
 noDups _ _ _ =
   throw E.BadDeps
 
 
-allowEqualDups :: Name -> Version -> Version -> Task.Task Version
+allowEqualDups :: Pkg.Name -> V.Version -> V.Version -> Task.Task V.Version
 allowEqualDups _ v1 v2 =
   if v1 == v2 then
     return v1
@@ -137,7 +133,7 @@ allowEqualDups _ v1 v2 =
     throw E.BadDeps
 
 
-union :: (Name -> a -> a -> Task.Task a) -> Map Name a -> Map Name a -> Task.Task (Map Name a)
+union :: (Pkg.Name -> a -> a -> Task.Task a) -> Map.Map Pkg.Name a -> Map.Map Pkg.Name a -> Task.Task (Map.Map Pkg.Name a)
 union tieBreaker deps1 deps2 =
   Map.mergeA Map.preserveMissing Map.preserveMissing (Map.zipWithAMatched tieBreaker) deps1 deps2
 
@@ -146,13 +142,13 @@ union tieBreaker deps1 deps2 =
 -- VERIFY ARTIFACTS
 
 
-verifyArtifacts :: Map Name Version -> Task.Task RawInfo
+verifyArtifacts :: Map.Map Pkg.Name V.Version -> Task.Task RawInfo
 verifyArtifacts solution =
   do  Website.download =<< filterM noSrc (Map.toList solution)
       verifyBuildArtifacts solution
 
 
-noSrc :: (Name, Version) -> Task.Task Bool
+noSrc :: (Pkg.Name, V.Version) -> Task.Task Bool
 noSrc (name, version) =
   do  root <- Task.getPackageCacheDirFor name version
       liftIO $ not <$> doesDirectoryExist (root </> "src")
@@ -162,7 +158,7 @@ noSrc (name, version) =
 -- VERIFY BUILD ARTIFACTS
 
 
-verifyBuildArtifacts :: Map Name Version -> Task.Task RawInfo
+verifyBuildArtifacts :: Map.Map Pkg.Name V.Version -> Task.Task RawInfo
 verifyBuildArtifacts solution =
   do  Task.report (Progress.BuildDepsStart (Map.size solution))
       startMVar <- liftIO newEmptyMVar
@@ -177,14 +173,14 @@ verifyBuildArtifacts solution =
 
 
 data RawInfo =
-  RawInfo (Map Name PkgInfo) I.Interfaces
+  RawInfo (Map.Map Pkg.Name PkgInfo) I.Interfaces
 
 
 verifyBuild
-  :: MVar (Map Name (MVar Answer))
+  :: MVar (Map.Map Pkg.Name (MVar Answer))
   -> MVar I.Interfaces
-  -> Name
-  -> Version
+  -> Pkg.Name
+  -> V.Version
   -> Task.Task (MVar Answer)
 verifyBuild pkgInfoMVar ifacesMVar name version =
   do  mvar <- liftIO newEmptyMVar
@@ -223,10 +219,10 @@ verifyBuild pkgInfoMVar ifacesMVar name version =
 data Answer
   = Ok PkgInfo
   | Blocked
-  | Err Name Version
+  | Err Pkg.Name V.Version
 
 
-toInfo :: Name -> Answer -> Task.Task (Maybe PkgInfo)
+toInfo :: Pkg.Name -> Answer -> Task.Task (Maybe PkgInfo)
 toInfo _ answer =
   case answer of
     Ok info ->
@@ -240,7 +236,7 @@ toInfo _ answer =
           throw (E.BuildFailure elmHome name version)
 
 
-ifNotBlocked :: Map Name Answer -> (Map Name PkgInfo -> IO Answer) -> IO Answer
+ifNotBlocked :: Map.Map Pkg.Name Answer -> (Map.Map Pkg.Name PkgInfo -> IO Answer) -> IO Answer
 ifNotBlocked answers callback =
   case traverse isOk answers of
     Nothing ->
@@ -263,32 +259,30 @@ isOk answer =
 
 
 getIface
-  :: Name
-  -> Version
+  :: Pkg.Name
+  -> V.Version
   -> PkgInfo
-  -> Map Name PkgInfo
+  -> Map.Map Pkg.Name PkgInfo
   -> I.Interfaces
   -> Task.Task I.Interfaces
 getIface name version info infos depIfaces =
   do  root <- Task.getPackageCacheDirFor name version
       let solution = Map.map _pkg_version infos
 
-      cached <- isCached root solution
+      cached <- liftIO $ isCached root solution
 
       if cached
-        then IO.readBinary (root </> "ifaces.dat")
+        then
+          do  maybeIfaces <- liftIO $ IO.readBinary (root </> "ifaces.dat")
+              maybe (Task.throw (error "TODO corrupt binary 1")) return maybeIfaces
         else
           do  Paths.removeStuff root
-              let docsPath = root </> "docs.json"
-
               let summary = Summary.cheapInit root info infos depIfaces
               args <- Args.fromSummary summary
               graph <- Crawl.crawl summary args
-              (dirty, cachedIfaces) <- Plan.plan (Just docsPath) summary graph
-              answers <- Compile.compile (Pkg info) (Just docsPath) cachedIfaces dirty
+              (dirty, cachedIfaces) <- Plan.plan summary graph
+              answers <- Compile.compile (Pkg info) cachedIfaces dirty
               results <- Artifacts.ignore answers
-              _ <- Artifacts.writeDocs results docsPath
-
               Paths.removeStuff root
 
               updateCache root name info solution graph results
@@ -298,25 +292,29 @@ getIface name version info infos depIfaces =
 -- IS CACHED?
 
 
-isCached :: FilePath -> Map Name Version -> Task.Task Bool
+isCached :: FilePath -> Map.Map Pkg.Name V.Version -> IO Bool
 isCached root solution =
   IO.andM
     [ IO.exists (root </> "cached.dat")
     , IO.exists (root </> "ifaces.dat")
     , IO.exists (root </> "objs.dat")
-    , IO.exists (root </> "documentation.json")
     , isCachedHelp solution <$> IO.readBinary (root </> "cached.dat")
     ]
 
 
-isCachedHelp :: Map Name Version -> Map Name (Set Version) -> Bool
-isCachedHelp solution cachedDeps =
-  let
-    matches =
-      Map.intersectionWith Set.member solution cachedDeps
-  in
-    Map.size solution == Map.size matches
-    && Map.foldr (&&) True matches
+isCachedHelp :: Map.Map Pkg.Name V.Version -> Maybe (Map.Map Pkg.Name (Set.Set V.Version)) -> Bool
+isCachedHelp solution maybeCachedDeps =
+  case maybeCachedDeps of
+    Nothing ->
+      False
+
+    Just cachedDeps ->
+      let
+        matches =
+          Map.intersectionWith Set.member solution cachedDeps
+      in
+      Map.size solution == Map.size matches
+      && Map.foldr (&&) True matches
 
 
 
@@ -325,34 +323,30 @@ isCachedHelp solution cachedDeps =
 
 updateCache
   :: FilePath
-  -> Name
+  -> Pkg.Name
   -> PkgInfo
-  -> Map Name Version
+  -> Map.Map Pkg.Name V.Version
   -> Crawl.Result
-  -> Map ModuleName.Raw Compiler.Artifacts
+  -> Map.Map ModuleName.Raw Compiler.Artifacts
   -> Task.Task I.Interfaces
 updateCache root name info solution graph results =
   do  let path = root </> "cached.dat"
       let deps = Map.map Set.singleton solution
       let elmi = crush name info results
 
-      exists <- IO.exists path
+      exists <- liftIO $ IO.exists path
 
       if exists
         then
-          do  oldDeps <- IO.readBinary path
-              IO.writeBinary path (Map.unionWith Set.union deps oldDeps)
+          do  maybeOldDeps <- liftIO $ IO.readBinary path
+              oldDeps <- maybe (error "TODO corrupt binary 2") return maybeOldDeps
+              liftIO $ IO.writeBinary path (Map.unionWith Set.union deps oldDeps)
         else
+          liftIO $
           do  IO.writeBinary (root </> "ifaces.dat") elmi
-
               IO.writeBinary path deps
-
               IO.writeBinary (root </> "objs.dat") $
                 Map.foldr addGraph (objGraphFromKernels graph) results
-
-              liftIO $ Encode.writeUgly (root </> "documentation.json") $
-                Encode.list Docs.encode $
-                  Map.foldr addDocs [] results
 
       return elmi
 
@@ -361,7 +355,7 @@ updateCache root name info solution graph results =
 -- CRUSH INTERFACES
 
 
-crush :: Name -> PkgInfo -> Map ModuleName.Raw Compiler.Artifacts -> I.Interfaces
+crush :: Pkg.Name -> PkgInfo -> Map.Map ModuleName.Raw Compiler.Artifacts -> I.Interfaces
 crush pkg info results =
   let
     exposed =
@@ -371,8 +365,8 @@ crush pkg info results =
       Map.mapMaybeWithKey (crushHelp exposed) results
 
 
-crushHelp :: Set ModuleName.Raw -> ModuleName.Raw -> Compiler.Artifacts -> Maybe I.Interface
-crushHelp exposed name (Compiler.Artifacts elmi _ _) =
+crushHelp :: Set.Set ModuleName.Raw -> ModuleName.Raw -> Compiler.Artifacts -> Maybe I.Interface
+crushHelp exposed name (Compiler.Artifacts elmi _) =
   if Set.member name exposed then
     Just elmi
 
@@ -381,25 +375,11 @@ crushHelp exposed name (Compiler.Artifacts elmi _ _) =
 
 
 
--- DOCUMENTATION
-
-
-addDocs :: Compiler.Artifacts -> [Docs.Module] -> [Docs.Module]
-addDocs (Compiler.Artifacts _ _ maybeDocs) docsList =
-  case maybeDocs of
-    Nothing ->
-      docsList
-
-    Just docs ->
-      docs : docsList
-
-
-
 -- OBJECT GRAPH
 
 
 addGraph :: Compiler.Artifacts -> Obj.Graph -> Obj.Graph
-addGraph (Compiler.Artifacts _ elmo _) graph =
+addGraph (Compiler.Artifacts _ elmo) graph =
   Obj.union elmo graph
 
 
