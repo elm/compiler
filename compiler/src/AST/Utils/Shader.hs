@@ -1,6 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE EmptyDataDecls #-}
 module AST.Utils.Shader
-  ( Shader(..)
+  ( Source
+  , Types(..)
   , Type(..)
   )
   where
@@ -8,22 +10,28 @@ module AST.Utils.Shader
 
 import qualified Data.Map as Map
 import qualified Data.Name as Name
+import qualified Data.Utf8 as Utf8
 
 
 
--- SHADERS
+-- SOURCE
 
 
-data Shader =
-  Shader
+type Source = Utf8.VeryLong SOURCE
+
+data SOURCE
+
+
+
+-- TYPES
+
+
+data Types =
+  Types
     { _attribute :: Map.Map Name.Name Type
     , _uniform :: Map.Map Name.Name Type
     , _varying :: Map.Map Name.Name Type
     }
-
-
-
--- GL TYPES
 
 
 data Type
