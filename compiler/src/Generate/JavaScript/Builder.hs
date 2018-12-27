@@ -29,7 +29,7 @@ import qualified Json.Encode as Json
 
 data Expr
   = String Builder
-  | Float Double
+  | Float Builder
   | Int Int
   | Bool Bool
   | Null
@@ -316,8 +316,8 @@ fromExpr indent grouping expression =
     String string ->
       (One, "'" <> string <> "'")
 
-    Float n ->
-      (One, B.doubleDec n)
+    Float float ->
+      (One, float)
 
     Int n ->
       (One, B.intDec n)

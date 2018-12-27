@@ -15,19 +15,18 @@ import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Name as Name
 import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import qualified Data.Utf8 as Utf8
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
 import qualified Data.Index as Index
 import qualified Elm.Interface as I
+import qualified Elm.Kernel as K
 import qualified Elm.ModuleName as ModuleName
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Expression as Expr
 import qualified Generate.JavaScript.Name as JsName
 import qualified Generate.JavaScript.Mode as Mode
-import qualified Reporting.Doc as D
 import qualified Reporting.Render.Type as RT
 import qualified Reporting.Render.Type.Localizer as L
 
@@ -192,16 +191,11 @@ addGlobalHelp mode graph global state =
     Opt.Manager effectsType ->
       generateManager mode graph global effectsType state
 
-    Opt.Kernel (Opt.KContent clientChunks clientDeps) maybeServer ->
+    Opt.Kernel chunks deps ->
       if isDebugger global && not (Mode.isDebug mode) then
         state
       else
-        case maybeServer of
-          Just (Opt.KContent serverChunks serverDeps) | Mode.isServer mode ->
-            addKernel (addDeps serverDeps state) (generateKernel mode serverChunks)
-
-          _ ->
-            addKernel (addDeps clientDeps state) (generateKernel mode clientChunks)
+        addKernel (addDeps deps state) (generateKernel mode chunks)
 
     Opt.Enum index ->
       addStmt state (
@@ -321,33 +315,33 @@ drawCycle names =
 -- GENERATE KERNEL
 
 
-generateKernel :: Mode.Mode -> [Opt.KChunk] -> B.Builder
+generateKernel :: Mode.Mode -> [K.Chunk] -> B.Builder
 generateKernel mode chunks =
-  List.foldl' (addChunk mode) mempty chunks
+  List.foldr (addChunk mode) mempty chunks
 
 
-addChunk :: Mode.Mode -> B.Builder -> Opt.KChunk -> B.Builder
-addChunk mode builder chunk =
+addChunk :: Mode.Mode -> K.Chunk -> B.Builder -> B.Builder
+addChunk mode chunk builder =
   case chunk of
-    Opt.JS javascript ->
-      B.byteString javascript <> builder
+    K.JS javascript ->
+      Utf8.toBuilder javascript <> builder
 
-    Opt.ElmVar home name ->
+    K.ElmVar home name ->
       JsName.toBuilder (JsName.fromGlobal home name) <> builder
 
-    Opt.JsVar home name ->
+    K.JsVar home name ->
       JsName.toBuilder (JsName.fromKernel home name) <> builder
 
-    Opt.ElmField name ->
+    K.ElmField name ->
       JsName.toBuilder (Expr.generateField mode name) <> builder
 
-    Opt.JsField int ->
+    K.JsField int ->
       JsName.toBuilder (JsName.fromInt int) <> builder
 
-    Opt.JsEnum int ->
+    K.JsEnum int ->
       B.intDec int <> builder
 
-    Opt.Debug ->
+    K.Debug ->
       case mode of
         Mode.Dev _ _ ->
           builder
@@ -355,7 +349,7 @@ addChunk mode builder chunk =
         Mode.Prod _ _ ->
           "_UNUSED" <> builder
 
-    Opt.Prod ->
+    K.Prod ->
       case mode of
         Mode.Dev _ _ ->
           "_UNUSED" <> builder
@@ -520,14 +514,14 @@ generateExports mode (Trie maybeMain subs) =
 
       (name, subTrie) : otherSubTries ->
         starter "," <>
-        "'" <> Text.encodeUtf8Builder name <> "':"
+        "'" <> Utf8.toBuilder name <> "':"
         <> generateExports mode subTrie
         <> List.foldl' (addSubTrie mode) "}" otherSubTries
 
 
-addSubTrie :: Mode.Mode -> B.Builder -> (Text.Text, Trie) -> B.Builder
+addSubTrie :: Mode.Mode -> B.Builder -> (Utf8.String, Trie) -> B.Builder
 addSubTrie mode end (name, trie) =
-  ",'" <> Text.encodeUtf8Builder name <> "':" <> generateExports mode trie <> end
+  ",'" <> Utf8.toBuilder name <> "':" <> generateExports mode trie <> end
 
 
 
@@ -537,7 +531,7 @@ addSubTrie mode end (name, trie) =
 data Trie =
   Trie
     { _main :: Maybe (ModuleName.Canonical, Opt.Main)
-    , _subs :: Map.Map Text.Text Trie
+    , _subs :: Map.Map Utf8.String Trie
     }
 
 
@@ -548,10 +542,14 @@ emptyTrie =
 
 addToTrie :: ModuleName.Canonical -> Opt.Main -> Trie -> Trie
 addToTrie home@(ModuleName.Canonical _ moduleName) main trie =
-  merge trie $ segmentsToTrie home (Text.splitOn "." (Name.toText moduleName)) main
+  let
+    segments =
+      Utf8.split 0x2E {-.-} (Name.toUtf8 moduleName)
+  in
+  merge trie $ segmentsToTrie home segments main
 
 
-segmentsToTrie :: ModuleName.Canonical -> [Text.Text] -> Opt.Main -> Trie
+segmentsToTrie :: ModuleName.Canonical -> [Utf8.String] -> Opt.Main -> Trie
 segmentsToTrie home segments main =
   case segments of
     [] ->

@@ -18,7 +18,6 @@ import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Name as Name
 import qualified Data.Set as Set
-import qualified Data.Text.Encoding as Text
 import qualified Data.Utf8 as Utf8
 
 import qualified AST.Canonical as Can
@@ -26,7 +25,7 @@ import qualified AST.Optimized as Opt
 import qualified Data.Index as Index
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Compiler.Type.Extract as Extract
-import qualified Elm.Compiler.Version as Version
+import qualified Elm.Version as V
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Generate.JavaScript.Builder as JS
@@ -34,7 +33,7 @@ import qualified Generate.JavaScript.Mode as Mode
 import qualified Generate.JavaScript.Name as JsName
 import qualified Json.Encode as Encode
 import qualified Optimize.DecisionTree as DT
-import qualified Reporting.Region as R
+import qualified Reporting.Annotation as A
 
 
 
@@ -68,7 +67,7 @@ generate mode expression =
       JsExpr $ JS.Int int
 
     Opt.Float float ->
-      JsExpr $ JS.Float float
+      JsExpr $ JS.Float (Utf8.toBuilder float)
 
     Opt.VarLocal name ->
       JsExpr $ JS.Ref (JsName.fromLocal name)
@@ -191,7 +190,7 @@ generate mode expression =
           JS.Object (map toTranlation (Set.toList fields))
       in
       JsExpr $ JS.Object $
-        [ ( JsName.fromLocal "src", JS.String (Text.encodeUtf8Builder src) )
+        [ ( JsName.fromLocal "src", JS.String (Utf8.toBuilder src) )
         , ( JsName.fromLocal "attributes", toTranslationObject attributes )
         , ( JsName.fromLocal "uniforms", toTranslationObject uniforms )
         ]
@@ -313,7 +312,7 @@ generateField mode name =
 -- DEBUG
 
 
-generateDebug :: Name.Name -> ModuleName.Canonical -> R.Region -> Maybe Name.Name -> JS.Expr
+generateDebug :: Name.Name -> ModuleName.Canonical -> A.Region -> Maybe Name.Name -> JS.Expr
 generateDebug name (ModuleName.Canonical _ home) region unhandledValueName =
   if name /= "todo" then
     JS.Ref (JsName.fromGlobal ModuleName.debug name)
@@ -333,19 +332,19 @@ generateDebug name (ModuleName.Canonical _ home) region unhandledValueName =
           ]
 
 
-regionToJsExpr :: R.Region -> JS.Expr
-regionToJsExpr (R.Region start end) =
+regionToJsExpr :: A.Region -> JS.Expr
+regionToJsExpr (A.Region start end) =
   JS.Object
     [ ( JsName.fromLocal "start", positionToJsExpr start )
     , ( JsName.fromLocal "end", positionToJsExpr end )
     ]
 
 
-positionToJsExpr :: R.Position -> JS.Expr
-positionToJsExpr (R.Position line column) =
+positionToJsExpr :: A.Position -> JS.Expr
+positionToJsExpr (A.Position line column) =
   JS.Object
-    [ ( JsName.fromLocal "line", JS.Int line )
-    , ( JsName.fromLocal "column", JS.Int column )
+    [ ( JsName.fromLocal "line", JS.Int (fromIntegral line) )
+    , ( JsName.fromLocal "column", JS.Int (fromIntegral column) )
     ]
 
 
@@ -1065,6 +1064,6 @@ toDebugMetadata mode msgType =
 
     Mode.Dev _ (Just interfaces) ->
       JS.Json $ Encode.object $
-        [ ("versions", Encode.object [ ("elm", Pkg.encodeVersion Version.version) ])
+        [ ("versions", Encode.object [ ("elm", V.encode V.compiler) ])
         , ("types", Type.encodeMetadata (Extract.fromMsg interfaces msgType))
         ]

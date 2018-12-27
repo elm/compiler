@@ -23,6 +23,7 @@ import Data.Monoid ((<>))
 import qualified Data.Map as Map
 import qualified Data.Name as Name
 import qualified Data.Set as Set
+import qualified Data.Utf8 as Utf8
 import Data.Word (Word8)
 
 import qualified Data.Index as Index
@@ -231,7 +232,7 @@ allBadFields :: [BadFields]
 allBadFields =
   let
     add keyword dict =
-      Map.alter (Just . addRenaming keyword) (Name.length keyword) dict
+      Map.alter (Just . addRenaming keyword) (Utf8.size keyword) dict
   in
     Map.elems $ Set.foldr add Map.empty jsReservedWords
 
@@ -239,7 +240,7 @@ allBadFields =
 addRenaming :: Name.Name -> Maybe BadFields -> BadFields
 addRenaming keyword maybeBadFields =
   let
-    width = Name.length keyword
+    width = Utf8.size keyword
     maxName = numStartBytes * numInnerBytes ^ (width - 1) - 1
   in
   case maybeBadFields of
