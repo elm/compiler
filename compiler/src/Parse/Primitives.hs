@@ -1,228 +1,328 @@
-{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind -fno-warn-name-shadowing #-}
+{-# LANGUAGE BangPatterns, Rank2Types, UnboxedTuples, OverloadedStrings #-}
 module Parse.Primitives
-  ( I.Parser
-  , I.oneOf
-  , run, runAt
-  , try, deadend, hint, endOfFile
-  , noFloatsAllowedInPatterns
-  , getPosition, getCol
-  , pushContext, popContext
+  ( Result(..)
+  , fromByteString
+  , fromFile
+  , Parser(..)
+  , State(..)
+  , Context(..)
+  , oneOf
+  , pushContext, popContext, inContext
+  , getPosition, getCol, addLocation
   , getIndent, setIndent
-  , W.SPos
-  , SParser
-  , addLocation, inContext
-  , spaces, noSpace, checkSpace, checkAligned, checkFreshLine
+  , word1, word2
+  , unsafeIndex, isWord, getCharWidth
   )
   where
 
 
 import Prelude hiding (length)
+import qualified Control.Applicative as Applicative (Applicative(..))
+import Control.Monad
 import qualified Data.ByteString.Internal as B
+import Data.Word (Word8, Word16)
+import Foreign.Ptr (Ptr, plusPtr)
+import Foreign.Storable (peek)
+import GHC.ForeignPtr (touchForeignPtr, unsafeForeignPtrToPtr)
 
-import Parse.Primitives.Internals (Parser(..), State(..), expect, noError)
-import qualified Parse.Primitives.Internals as I
-import qualified Parse.Primitives.Whitespace as W
+import qualified File.IO as IO
 import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Syntax as E
-import qualified Reporting.Region as R
 
 
 
--- RUN
+-- PARSER
 
 
-run :: Parser a -> B.ByteString -> Either E.Error a
-run parser bytes =
-  runAt 1 1 parser bytes
+newtype Parser c x a =
+  Parser (
+    forall b.
+      State c
+      -> (a -> State c -> b)                        -- consumed ok
+      -> (a -> State c -> b)                        -- empty ok
+      -> (Word16 -> Word16 -> Context c -> x -> b)  -- consumed err
+      -> (Word16 -> Word16 -> Context c -> x -> b)  -- empty err
+      -> b
+  )
 
 
-runAt :: Int -> Int -> Parser a -> B.ByteString -> Either E.Error a
-runAt startRow startColumn (Parser parser) (B.PS fp offset length) =
-  case parser (State fp offset (offset + length) 0 startRow startColumn []) Ok Err Ok Err of
-    Ok value _ _ ->
-      Right value
+data State c =
+  State
+    { _pos :: !(Ptr Word8)
+    , _end :: !(Ptr Word8)
+    , _indent :: !Word16
+    , _row :: !Word16
+    , _col :: !Word16
+    , _context :: Context c
+    }
 
-    Err (E.ParseError row col problem) ->
+
+data Context c
+  = NoContext
+  | Frame {-# UNPACK #-} !Word16 {-# UNPACK #-} !Word16 c (Context c)
+
+
+
+-- FUNCTOR
+
+
+instance Functor (Parser c x) where
+  {-# INLINE fmap #-}
+  fmap f (Parser parser) =
+    Parser $ \state cok eok cerr eerr ->
       let
-        pos = R.Position row col
-        mkError overallRegion subRegion =
-          Left (E.Parse overallRegion subRegion problem)
+        cok' a s = cok (f a) s
+        eok' a s = eok (f a) s
       in
-        case problem of
-          E.BadChar endCol ->
-            mkError (R.Region pos (R.Position row endCol)) Nothing
-
-          E.BadEscape width _ ->
-            mkError (R.Region pos (R.Position row (col + width))) Nothing
-
-          E.BadUnderscore badCol ->
-            mkError (R.Region pos (R.Position row badCol)) Nothing
-
-          E.BadOp _ ((_, start) : _) ->
-            mkError (R.Region start pos) (Just (R.Region pos pos))
-
-          E.Theories ((_, start) : _) _ ->
-            mkError (R.Region start pos) (Just (R.Region pos pos))
-
-          _ ->
-            mkError (R.Region pos pos) Nothing
+      parser state cok' eok' cerr eerr
 
 
 
--- RESULT
+-- APPLICATIVE
 
 
-data Result a
-  = Ok a State E.ParseError
-  | Err E.ParseError
+instance Applicative.Applicative (Parser c x) where
+  {-# INLINE pure #-}
+  pure = return
+
+  {-# INLINE (<*>) #-}
+  (<*>) = ap
 
 
 
--- COMBINATORS
+-- ONE OF
 
 
-try :: Parser a -> Parser a
-try (Parser parser) =
-  Parser $ \state cok _ eok eerr ->
-    parser state cok eerr eok eerr
+{-# INLINE oneOf #-}
+oneOf :: x -> [Parser c x a] -> Parser c x a
+oneOf x parsers =
+  Parser $ \state cok eok cerr eerr ->
+    oneOfHelp state cok eok cerr eerr x parsers
 
 
-deadend :: [E.Theory] -> Parser a
-deadend thrys =
-  Parser $ \(State _ _ _ _ row col ctx) _ _ _ eerr ->
-    eerr (E.ParseError row col (E.Theories ctx thrys))
+oneOfHelp
+  :: State c
+  -> (a -> State c -> b)
+  -> (a -> State c -> b)
+  -> (Word16 -> Word16 -> Context c -> x -> b)
+  -> (Word16 -> Word16 -> Context c -> x -> b)
+  -> x
+  -> [Parser c x a]
+  -> b
+oneOfHelp state cok eok cerr eerr x parsers =
+  case parsers of
+    Parser parser : parsers ->
+      let
+        eerr' _ _ _ _ =
+          oneOfHelp state cok eok cerr eerr x parsers
+      in
+      parser state cok eok cerr eerr'
+
+    [] ->
+      let
+        (State _ _ _ row col ctx) = state
+      in
+      eerr row col ctx x
 
 
-hint :: E.Next -> Parser a -> Parser a
-hint next (Parser parser) =
-  Parser $ \state@(State _ _ _ _ row col ctx) cok cerr eok eerr ->
+
+-- MONAD
+
+
+instance Monad (Parser c x) where
+  {-# INLINE return #-}
+  return value =
+    Parser $ \state _ eok _ _ ->
+      eok value state
+
+  {-# INLINE (>>=) #-}
+  (Parser parserA) >>= callback =
+    Parser $ \state cok eok cerr eerr ->
+      let
+        cok' a s =
+          case callback a of
+            Parser parserB -> parserB s cok cok cerr cerr
+
+        eok' a s =
+          case callback a of
+            Parser parserB -> parserB s cok eok cerr eerr
+      in
+      parserA state cok' eok' cerr eerr
+
+
+
+-- FROM BYTESTRING
+
+
+data Result c x a
+  = Ok a (State c)
+  | Err Word16 Word16 (Context c) x
+
+
+fromByteString :: Parser c x a -> B.ByteString -> Result c x a
+fromByteString (Parser parser) (B.PS fp offset length) =
+  B.accursedUnutterablePerformIO $
     let
-      eok' x s _ =
-        eok x s (expect row col ctx (E.Expecting next))
-
-      eerr' _ =
-        eerr (expect row col ctx (E.Expecting next))
+      !pos = plusPtr (unsafeForeignPtrToPtr fp) offset
+      !end = plusPtr pos length
+      !result = parser (State pos end 0 1 1 NoContext) Ok Ok Err Err
     in
-      parser state cok cerr eok' eerr'
+    do  touchForeignPtr fp
+        return result
 
 
-endOfFile :: Parser ()
-endOfFile =
-  Parser $ \state@(State _ offset terminal _ _ _ _) _ _ eok eerr ->
-    if offset < terminal then
-      eerr noError
-    else
-      eok () state noError
-
-
-noFloatsAllowedInPatterns :: Parser a
-noFloatsAllowedInPatterns =
-  Parser $ \(State _ _ _ _ row col _) _ cerr _ _ ->
-    cerr (E.ParseError row col E.FloatInPattern)
+fromFile :: Parser c x a -> FilePath -> IO (Result c x a)
+fromFile parser path =
+  fromByteString parser <$> IO.readUtf8 path -- TODO try mmap
 
 
 
--- STATE
+-- POSITION
+
+
+getCol :: Parser c x Word16
+getCol =
+  Parser $ \state@(State _ _ _ _ col _) _ eok _ _ ->
+    eok col state
 
 
 {-# INLINE getPosition #-}
-getPosition :: Parser R.Position
+getPosition :: Parser c x A.Position
 getPosition =
-  Parser $ \state@(State _ _ _ _ row col _) _ _ eok _ ->
-    eok (R.Position row col) state noError
+  Parser $ \state@(State _ _ _ row col _) _ eok _ _ ->
+    eok (A.Position row col) state
 
 
-getIndent :: Parser Int
+addLocation :: Parser c x a -> Parser c x (A.Located a)
+addLocation (Parser parser) =
+  Parser $ \state@(State _ _ _ srow scol _) cok eok cerr eerr ->
+    let
+      cok' a s@(State _ _ _ erow ecol _) = cok (A.At (A.Region (A.Position srow scol) (A.Position erow ecol)) a) s
+      eok' a s@(State _ _ _ erow ecol _) = eok (A.At (A.Region (A.Position srow scol) (A.Position erow ecol)) a) s
+    in
+    parser state cok' eok' cerr eerr
+
+
+
+-- INDENT
+
+
+getIndent :: Parser c x Word16
 getIndent =
-  Parser $ \state@(State _ _ _ indent _ _ _) _ _ eok _ ->
-    eok indent state noError
+  Parser $ \state@(State _ _ indent _ _ _) _ eok _ _ ->
+    eok indent state
 
 
-getCol :: Parser Int
-getCol =
-  Parser $ \state@(State _ _ _ _ _ col _) _ _ eok _ ->
-    eok col state noError
-
-
-pushContext :: R.Position -> E.Context -> Parser ()
-pushContext pos ctx =
-  Parser $ \state@(State _ _ _ _ _ _ context) _ _ eok _ ->
-    eok () (state { _context = (ctx, pos) : context }) noError
-
-
-popContext :: a -> Parser a
-popContext value =
-  Parser $ \state@(State _ _ _ _ _ _ context) _ _ eok _ ->
-    eok value (state { _context = tail context }) noError
-
-
-setIndent :: Int -> Parser ()
+setIndent :: Word16 -> Parser c x ()
 setIndent indent =
-  Parser $ \state _ _ eok _ ->
-    eok () (state { _indent = indent }) noError
+  Parser $ \(State pos end _ row col context) _ eok _ _ ->
+    let
+      !newState =
+        State pos end indent row col context
+    in
+    eok () newState
 
 
 
--- SPACE PARSER
+-- CONTEXT
 
 
-type SParser a =
-  Parser (a, R.Position, W.SPos)
+pushContext :: A.Position -> c -> Parser c x ()
+pushContext (A.Position r c) ctx =
+  Parser $ \(State pos end indent row col context) _ eok _ _ ->
+    let
+      !newContext = Frame r c ctx context
+      !newState = State pos end indent row col newContext
+    in
+    eok () newState
+
+
+popContext :: a -> Parser c x a
+popContext value =
+  Parser $ \(State pos end indent row col context) _ eok _ _ ->
+    case context of
+      Frame _ _ _ context ->
+        let
+          !newState =
+            State pos end indent row col context
+        in
+        eok value newState
+
+      NoContext ->
+        error "compiler error, trying to popContext on NoContext"
+
+
+inContext :: c -> Parser c x start -> Parser c x a -> Parser c x a
+inContext tag (Parser parserStart) (Parser parserA) =
+  Parser $ \state@(State _ _ _ frow fcol _) cok eok cerr eerr ->
+    let
+      cokS _ (State pos end indent row col ctx) =
+        let
+          !newContext = Frame frow fcol tag ctx
+          !newState = State pos end indent row col newContext
+          cokA a s = cok a (s { _context = ctx })
+        in
+        parserA newState cokA cokA cerr cerr
+
+      eokS _ (State pos end indent row col ctx) =
+        let
+          !newContext = Frame frow fcol tag ctx
+          !newState = State pos end indent row col newContext
+          cokA a s = cok a (s { _context = ctx })
+          eokA a s = eok a (s { _context = ctx })
+        in
+        parserA newState cokA eokA cerr eerr
+    in
+    parserStart state cokS eokS cerr eerr
 
 
 
--- LOCATION
+-- SYMBOLS
 
 
-addLocation :: Parser a -> Parser (A.Located a)
-addLocation parser =
-  do  start <- getPosition
-      value <- parser
-      end <- getPosition
-      return (A.at start end value)
+word1 :: Word8 -> x -> Parser c x ()
+word1 word x =
+  Parser $ \(State pos end indent row col ctx) cok _ _ eerr ->
+    if pos < end && unsafeIndex pos == word then
+      let !newState = State (plusPtr pos 1) end indent row (col + 1) ctx in
+      cok () newState
+    else
+      eerr row col ctx x
 
 
-inContext :: R.Position -> E.Context -> Parser a -> Parser a
-inContext pos ctx parser =
-  do  pushContext pos ctx
-      a <- parser
-      popContext a
+word2 :: Word8 -> Word8 -> x -> Parser c x ()
+word2 w1 w2 x =
+  Parser $ \(State pos end indent row col ctx) cok _ _ eerr ->
+    let
+      !pos1 = plusPtr pos 1
+    in
+    if pos1 < end && unsafeIndex pos == w1 && unsafeIndex pos1 == w2 then
+      let !newState = State (plusPtr pos 2) end indent row (col + 2) ctx in
+      cok () newState
+    else
+      eerr row col ctx x
 
 
--- WHITESPACE VARIATIONS
+
+-- LOW-LEVEL CHECKS
 
 
-spaces :: Parser ()
-spaces =
-  checkSpace =<< W.whitespace
+unsafeIndex :: Ptr Word8 -> Word8
+unsafeIndex ptr =
+  B.accursedUnutterablePerformIO (peek ptr)
 
 
-noSpace :: R.Position -> W.SPos -> Parser ()
-noSpace pos (W.SPos spos) =
-  if pos == spos
-    then return ()
-    else deadend []
+{-# INLINE isWord #-}
+isWord :: Ptr Word8 -> Ptr Word8 -> Word8 -> Bool
+isWord pos end word =
+  pos < end && unsafeIndex pos == word
 
 
-checkSpace :: W.SPos -> Parser ()
-checkSpace (W.SPos (R.Position _ col)) =
-  do  indent <- getIndent
-      if col > indent && col > 1
-        then return ()
-        else deadend [E.BadSpace]
-
-
-checkAligned :: W.SPos -> Parser ()
-checkAligned (W.SPos (R.Position _ col)) =
-  do  indent <- getIndent
-      if col == indent
-        then return ()
-        else deadend [E.BadSpace]
-
-
-checkFreshLine :: W.SPos -> Parser ()
-checkFreshLine (W.SPos (R.Position _ col)) =
-  if col == 1
-    then return ()
-    else deadend [E.BadSpace]
+getCharWidth :: Ptr Word8 -> Ptr Word8 -> Word8 -> Int
+getCharWidth _pos _end word
+  | word < 0x80 = 1
+  | word < 0xc0 = error "Need UTF-8 encoded input. Ran into unrecognized bits."
+  | word < 0xe0 = 2
+  | word < 0xf0 = 3
+  | word < 0xf8 = 4
+  | True        = error "Need UTF-8 encoded input. Ran into unrecognized bits."
