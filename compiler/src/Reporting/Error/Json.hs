@@ -1,26 +1,93 @@
+{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Json.Decode.Error
+module Reporting.Error.Json
   ( Error(..)
-  , toDoc
+  , Problem(..)
+  , DecodeExpectation(..)
+  , ParseExpectation(..)
+  , Context(..)
+  , toReport
   )
   where
 
 
-import Prelude hiding (userError)
-import qualified Data.Char as Char
-import qualified Data.List as List
-import qualified Data.Map as Map
-import qualified Data.Text as Text
+import qualified Data.Utf8 as Utf8
+import Data.Word (Word16)
 
-import qualified Json.Decode.Internals as Json
-import qualified Json.Encode as E
-import Reporting.Doc ((<+>), (<>))
-import qualified Reporting.Doc as D
-import qualified Reporting.Error.Syntax as Syntax
-import qualified Reporting.Render.Code as Code
+import qualified Parse.Primitives as P
 import qualified Reporting.Report as Report
 
 
+
+-- ERROR
+
+
+data Error e
+  = DecodeProblem (Problem e)
+  | ParseProblem Word16 Word16 (P.Context Context) ParseExpectation
+
+
+
+-- DECODE PROBLEMS
+
+
+data Problem e
+  = Field Utf8.String (Problem e)
+  | Index Int (Problem e)
+  | OneOf (Problem e) [Problem e]
+  | Failure e
+  | Expecting DecodeExpectation
+
+
+data DecodeExpectation
+  = TObject
+  | TArray
+  | TString
+  | TBool
+  | TInt
+  | TObjectWith Utf8.String
+  | TArrayPair Int
+
+
+
+-- PARSE EXPECTATION
+
+
+data ParseExpectation
+  = ObjectStart
+  | ObjectMore
+  | ObjectEnd
+  | ArrayStart
+  | ArrayMore
+  | ArrayEnd
+  | StringStart
+  | StringEnd
+  | IntStart
+  | NoLeadingZeros
+  | NoFloats
+  | Bool
+  | Null
+  | Value
+  | Colon
+  | EndOfFile
+
+
+
+data Context
+  = CIndex Int
+  | CField Utf8.String
+
+
+
+-- TO REPORT
+
+
+toReport :: Error e -> Report.Report
+toReport err =
+  error "TODO Reporting.Error.Json.toReport" err
+
+
+{-
 
 -- ERROR
 
@@ -263,3 +330,5 @@ fieldToName field =
 indexToName :: Int -> String
 indexToName index =
   "[" ++ show index ++ "]"
+
+-}
