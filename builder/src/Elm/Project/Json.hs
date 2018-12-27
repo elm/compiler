@@ -22,21 +22,17 @@ module Elm.Project.Json
 
 import Prelude hiding (read)
 import Control.Monad.Trans (liftIO)
-import qualified Data.ByteString as BS
 import Data.Foldable (traverse_)
-import Data.Map (Map)
-import Data.Text (Text)
 import qualified Data.Map as Map
-import qualified Data.Text as Text
+import qualified Data.Utf8 as Utf8
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
 
+import qualified Elm.Constraint as Con
+import qualified Elm.Licenses as Licenses
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
-import Elm.Package (Name, Version)
-
-import qualified Elm.Project.Constraint as Con
-import qualified Elm.Project.Licenses as Licenses
+import qualified Elm.Version as V
 import qualified Json.Decode as D
 import qualified Json.Encode as E
 import qualified Reporting.Exit as Exit
@@ -59,12 +55,12 @@ data Project
 
 data AppInfo =
   AppInfo
-    { _app_elm_version :: Version
+    { _app_elm_version :: V.Version
     , _app_source_dirs :: [FilePath]
-    , _app_deps_direct :: Map Name Version
-    , _app_deps_trans :: Map Name Version
-    , _app_test_direct :: Map Name Version
-    , _app_test_trans :: Map Name Version
+    , _app_deps_direct :: Map.Map Pkg.Name V.Version
+    , _app_deps_trans :: Map.Map Pkg.Name V.Version
+    , _app_test_direct :: Map.Map Pkg.Name V.Version
+    , _app_test_trans :: Map.Map Pkg.Name V.Version
     }
 
 
@@ -74,27 +70,27 @@ data AppInfo =
 
 data PkgInfo =
   PkgInfo
-    { _pkg_name :: Name
-    , _pkg_summary :: Text
+    { _pkg_name :: Pkg.Name
+    , _pkg_summary :: Utf8.String
     , _pkg_license :: Licenses.License
-    , _pkg_version :: Version
+    , _pkg_version :: V.Version
     , _pkg_exposed :: Exposed
-    , _pkg_deps :: Map Name Con.Constraint
-    , _pkg_test_deps :: Map Name Con.Constraint
+    , _pkg_deps :: Map.Map Pkg.Name Con.Constraint
+    , _pkg_test_deps :: Map.Map Pkg.Name Con.Constraint
     , _pkg_elm_version :: Con.Constraint
     }
 
 
 data Exposed
   = ExposedList [ModuleName.Raw]
-  | ExposedDict [(Text, [ModuleName.Raw])]
+  | ExposedDict [(Utf8.String, [ModuleName.Raw])]
 
 
 
 -- DEFAULTS
 
 
-defaultSummary :: Text
+defaultSummary :: Utf8.String
 defaultSummary =
   "helpful summary of your project, less than 80 characters"
 
@@ -117,7 +113,7 @@ isPlatformPackage project =
       author == "elm" || author == "elm-explorations"
 
 
-getName :: Project -> Name
+getName :: Project -> Pkg.Name
 getName project =
   case project of
     App _ ->
@@ -174,32 +170,32 @@ encode project =
   case project of
     App (AppInfo elm srcDirs depsDirect depsTrans testDirect testTrans) ->
       E.object
-        [ "type" ==> E.text "application"
-        , "source-directories" ==> E.list (E.text . Text.pack) srcDirs
-        , "elm-version" ==> encodeVersion elm
+        [ "type" ==> E.string "application"
+        , "source-directories" ==> E.list (E.string . Utf8.fromChars) srcDirs
+        , "elm-version" ==> V.encode elm
         , "dependencies" ==>
             E.object
-              [ "direct" ==> encodeDeps encodeVersion depsDirect
-              , "indirect" ==> encodeDeps encodeVersion depsTrans
+              [ "direct" ==> encodeDeps V.encode depsDirect
+              , "indirect" ==> encodeDeps V.encode depsTrans
               ]
         , "test-dependencies" ==>
             E.object
-              [ "direct" ==> encodeDeps encodeVersion testDirect
-              , "indirect" ==> encodeDeps encodeVersion testTrans
+              [ "direct" ==> encodeDeps V.encode testDirect
+              , "indirect" ==> encodeDeps V.encode testTrans
               ]
         ]
 
     Pkg (PkgInfo name summary license version exposed deps tests elm) ->
       E.object
-        [ "type" ==> E.text "package"
-        , "name" ==> E.text (Pkg.toText name)
-        , "summary" ==> E.text summary
+        [ "type" ==> E.string "package"
+        , "name" ==> E.string (Pkg.toString name)
+        , "summary" ==> E.string summary
         , "license" ==> Licenses.encode license
-        , "version" ==> E.text (Pkg.versionToText version)
+        , "version" ==> V.encode version
         , "exposed-modules" ==> encodeExposed exposed
-        , "elm-version" ==> encodeConstraint elm
-        , "dependencies" ==> encodeDeps encodeConstraint deps
-        , "test-dependencies" ==> encodeDeps encodeConstraint tests
+        , "elm-version" ==> Con.encode elm
+        , "dependencies" ==> encodeDeps Con.encode deps
+        , "test-dependencies" ==> encodeDeps Con.encode tests
         ]
 
 
@@ -223,19 +219,9 @@ encodeModule name =
   E.name name
 
 
-encodeDeps :: (a -> E.Value) -> Map Pkg.Name a -> E.Value
+encodeDeps :: (a -> E.Value) -> Map.Map Pkg.Name a -> E.Value
 encodeDeps encodeValue deps =
-  E.dict Pkg.toText encodeValue deps
-
-
-encodeConstraint :: Con.Constraint -> E.Value
-encodeConstraint constraint =
-  E.text (Con.toText constraint)
-
-
-encodeVersion :: Pkg.Version -> E.Value
-encodeVersion version =
-  E.text (Pkg.versionToText version)
+  E.dict Pkg.toString encodeValue deps
 
 
 
@@ -244,17 +230,19 @@ encodeVersion version =
 
 read :: FilePath -> Task.Task Project
 read path =
-  do  bytes <- liftIO $ BS.readFile path
-      case D.parse "project" E.badContentToDocs decoder bytes of
+  do  result <- liftIO $ D.fromFile decoder path
+      case result of
+        Right project ->
+          case project of
+            Pkg _ ->
+              do  return project
+
+            App (AppInfo _ srcDirs _ _ _ _) ->
+              do  mapM_ doesDirectoryExist srcDirs
+                  return project
+
         Left err ->
-          throwBadJson (E.BadJson err)
-
-        Right project@(Pkg _) ->
-          return project
-
-        Right project@(App (AppInfo _ srcDirs _ _ _ _)) ->
-          do  mapM_ doesDirectoryExist srcDirs
-              return project
+          throwBadJson (error "TODO bad json" err)
 
 
 throwBadJson :: E.ElmJsonProblem -> Task.Task a
@@ -280,16 +268,16 @@ type Decoder a =
 
 decoder :: Decoder Project
 decoder =
-  do  tipe <- D.field "type" D.text
+  do  tipe <- D.field "type" D.string
       case tipe of
         "application" ->
-          D.map App appDecoder
+          App <$> appDecoder
 
         "package" ->
-          D.map Pkg pkgDecoder
+          Pkg <$> pkgDecoder
 
         other ->
-          D.fail (E.BadType other)
+          D.failure (E.BadType other)
 
 
 appDecoder :: Decoder AppInfo
@@ -325,73 +313,49 @@ pkgNameDecoder =
   D.mapError E.BadPkgName Pkg.decoder
 
 
-summaryDecoder :: Decoder Text
+summaryDecoder :: Decoder Utf8.String
 summaryDecoder =
-  do  summary <- D.text
-      if Text.length summary < 80
-        then D.succeed summary
-        else D.fail E.BadSummaryTooLong
+  do  summary <- D.string
+      if Utf8.size summary < 80
+        then return summary
+        else D.failure E.BadSummaryTooLong
 
 
 licenseDecoder :: Decoder Licenses.License
 licenseDecoder =
-  do  txt <- D.text
-      case Licenses.check txt of
-        Left suggestions ->
-          D.fail (E.BadLicense txt suggestions)
-
-        Right license ->
-          D.succeed license
+  Licenses.decoder E.BadLicense
 
 
-versionDecoder :: Decoder Version
+versionDecoder :: Decoder V.Version
 versionDecoder =
-  do  txt <- D.text
-      case Pkg.versionFromText txt of
-        Just version ->
-          D.succeed version
-
-        Nothing ->
-          D.fail (E.BadVersion txt)
+  D.mapError E.BadVersion V.decoder
 
 
 constraintDecoder :: Decoder Con.Constraint
 constraintDecoder =
-  do  txt <- D.text
-      case Con.fromText txt of
-        Right constraint ->
-          D.succeed constraint
-
-        Left msg ->
-          D.fail (E.BadConstraint msg)
+  D.mapError E.BadConstraint Con.decoder
 
 
-depsDecoder :: Decoder a -> Decoder (Map Name a)
+depsDecoder :: Decoder a -> Decoder (Map.Map Pkg.Name a)
 depsDecoder valueDecoder =
   Map.fromList <$> (
     traverse validateKey =<< D.pairs valueDecoder
   )
 
 
-validateKey :: (Text, a) -> Decoder (Name, a)
+validateKey :: (Utf8.String, a) -> Decoder (Pkg.Name, a)
 validateKey (key, value) =
-  case Pkg.fromText key of
+  case Pkg.fromString key of
     Right name ->
-      D.succeed (name, value)
+      return (name, value)
 
     Left _ ->
-      D.fail (E.BadDependencyName key)
+      D.failure (E.BadDependencyName key)
 
 
 dirDecoder :: Decoder FilePath
 dirDecoder =
-  do  maybeText <- D.maybe D.text
-      case maybeText of
-        Nothing ->
-          D.fail E.BadDirectoryNotString
-
-        Just txt ->
-          D.succeed (Text.unpack txt)
+  Utf8.toChars <$> D.string
 
 
 
@@ -413,9 +377,9 @@ moduleDecoder =
   D.mapError E.BadModuleName ModuleName.decoder
 
 
-checkHeader :: Text -> Decoder ()
+checkHeader :: Utf8.String -> Decoder ()
 checkHeader header =
-  if Text.length header < 20 then
-    D.succeed ()
+  if Utf8.size header < 20 then
+    return ()
   else
-    D.fail (E.BadModuleHeaderTooLong header)
+    D.failure (E.BadModuleHeaderTooLong header)
