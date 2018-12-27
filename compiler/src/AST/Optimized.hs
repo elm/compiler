@@ -3,7 +3,6 @@ module AST.Optimized
   ( Def(..)
   , Expr(..)
   , Global(..)
-  , kernel
   , Path(..)
   , Destructor(..)
   , Decider(..)
@@ -12,28 +11,24 @@ module AST.Optimized
   , Main(..)
   , Node(..)
   , EffectsType(..)
-  , KContent(..)
-  , KChunk(..)
   )
   where
 
 
 import Control.Monad (liftM, liftM2, liftM3, liftM4)
 import Data.Binary
-import qualified Data.ByteString as BS
 import qualified Data.Map as Map
-import qualified Data.Name as Name
 import Data.Name (Name)
 import qualified Data.Set as Set
-import Data.Text (Text)
-import Data.Utf8 (Utf8)
+import qualified Data.Utf8 as Utf8
 
 import qualified AST.Canonical as Can
+import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
+import qualified Elm.Kernel as K
 import qualified Elm.ModuleName as ModuleName
-import qualified Elm.Package as Pkg
 import qualified Optimize.DecisionTree as DT
-import qualified Reporting.Region as R
+import qualified Reporting.Annotation as A
 
 
 
@@ -42,16 +37,16 @@ import qualified Reporting.Region as R
 
 data Expr
   = Bool Bool
-  | Chr Utf8
-  | Str Utf8
+  | Chr Utf8.String
+  | Str Utf8.String
   | Int Int
-  | Float Double
+  | Float (Utf8.Under256 Float)
   | VarLocal Name
   | VarGlobal Global
   | VarEnum Global Index.ZeroBased
   | VarBox Global
   | VarCycle ModuleName.Canonical Name
-  | VarDebug Name ModuleName.Canonical R.Region (Maybe Name)
+  | VarDebug Name ModuleName.Canonical A.Region (Maybe Name)
   | VarKernel Name Name
   | List [Expr]
   | Function [Name] Expr
@@ -67,18 +62,11 @@ data Expr
   | Record (Map.Map Name Expr)
   | Unit
   | Tuple Expr Expr (Maybe Expr)
-  | Shader Text (Set.Set Name) (Set.Set Name)
+  | Shader Shader.Source (Set.Set Name) (Set.Set Name)
 
 
 data Global = Global ModuleName.Canonical Name
   deriving (Eq, Ord)
-
-
--- Provide "List" not "Elm.Kernel.List"
---
-kernel :: Name -> Global
-kernel home =
-  Global (ModuleName.Canonical Pkg.kernel home) Name.dollar
 
 
 
@@ -154,27 +142,12 @@ data Node
   | Link Global
   | Cycle [Name] [(Name, Expr)] [Def] (Set.Set Global)
   | Manager EffectsType
-  | Kernel KContent (Maybe KContent)
+  | Kernel [K.Chunk] (Set.Set Global)
   | PortIncoming Expr (Set.Set Global)
   | PortOutgoing Expr (Set.Set Global)
 
 
 data EffectsType = Cmd | Sub | Fx
-
-
-data KContent =
-  KContent [KChunk] (Set.Set Global)
-
-
-data KChunk
-  = JS BS.ByteString
-  | ElmVar ModuleName.Canonical Name
-  | JsVar Name Name
-  | ElmField Name
-  | JsField Int
-  | JsEnum Int
-  | Debug
-  | Prod
 
 
 
@@ -383,34 +356,3 @@ instance Binary EffectsType where
           1 -> return Sub
           2 -> return Fx
           _ -> error "problem getting Opt.EffectsType binary"
-
-
-instance Binary KContent where
-  get = liftM2 KContent get get
-  put (KContent a b) = put a >> put b
-
-
-instance Binary KChunk where
-  put chunk =
-    case chunk of
-      JS a       -> putWord8 0 >> put a
-      ElmVar a b -> putWord8 1 >> put a >> put b
-      JsVar a b  -> putWord8 2 >> put a >> put b
-      ElmField a -> putWord8 3 >> put a
-      JsField a  -> putWord8 4 >> put a
-      JsEnum a   -> putWord8 5 >> put a
-      Debug      -> putWord8 6
-      Prod       -> putWord8 7
-
-  get =
-    do  word <- getWord8
-        case word of
-          0 -> liftM  JS get
-          1 -> liftM2 ElmVar get get
-          2 -> liftM2 JsVar get get
-          3 -> liftM  ElmField get
-          4 -> liftM  JsField get
-          5 -> liftM  JsEnum get
-          6 -> return Debug
-          7 -> return Prod
-          _ -> error "problem deserializing AST.Optimized.KChunk"
