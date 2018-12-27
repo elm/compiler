@@ -12,12 +12,13 @@ import qualified Data.Map as Map
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
 
+import qualified Elm.Constraint as Con
+import qualified Elm.Licenses as Licenses
 import qualified Elm.Package as Pkg
-import qualified Elm.Project.Constraint as Con
 import qualified Elm.Project.Json as Project
-import qualified Elm.Project.Licenses as Licenses
 import qualified Elm.Project.Summary as Summary
 import qualified Elm.PerUserCache as PerUserCache
+import qualified Elm.Version as V
 import qualified File.IO as IO
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
@@ -86,7 +87,7 @@ replInfo =
     { Project._pkg_name = Pkg.dummyName
     , Project._pkg_summary = "dummy code for the REPL"
     , Project._pkg_license = Licenses.bsd3
-    , Project._pkg_version = Pkg.dummyVersion
+    , Project._pkg_version = V.one
     , Project._pkg_exposed = Project.ExposedList []
     , Project._pkg_deps = Map.singleton Pkg.core Con.anything
     , Project._pkg_test_deps = Map.empty
