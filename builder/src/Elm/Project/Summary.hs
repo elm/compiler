@@ -16,6 +16,7 @@ import qualified Data.Map as Map
 import qualified Elm.Interface as I
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
+import qualified Elm.Version as V
 import Elm.Project.Json (Project(..), AppInfo(..), PkgInfo(..))
 import qualified Elm.Project.Json as Project
 
@@ -39,7 +40,7 @@ type ExposedModules =
 
 
 type DepsGraph =
-  Map.Map Pkg.Name ( Pkg.Version, [Pkg.Name] )
+  Map.Map Pkg.Name ( V.Version, [Pkg.Name] )
 
 
 
