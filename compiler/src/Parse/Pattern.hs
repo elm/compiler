@@ -11,17 +11,16 @@ import qualified Data.List as List
 import qualified Data.Name as Name
 
 import qualified AST.Source as Src
-import Parse.Primitives (Parser, SParser, SPos, addLocation, checkSpace, getPosition, hint, inContext, spaces, oneOf)
+import Parse.Utils (Parser, SParser, SPos, checkSpace, spaces, whitespace)
+import qualified Parse.Keyword as Keyword
+import qualified Parse.Number as Number
+import qualified Parse.Symbol as Symbol
+import qualified Parse.Utf8 as Utf8
+import qualified Parse.Variable as Var
 import qualified Parse.Primitives as P
-import qualified Parse.Primitives.Keyword as Keyword
-import qualified Parse.Primitives.Number as Number
-import qualified Parse.Primitives.Symbol as Symbol
-import qualified Parse.Primitives.Utf8 as Utf8
-import qualified Parse.Primitives.Variable as Var
-import Parse.Primitives.Whitespace (whitespace)
+import Parse.Primitives (addLocation, getPosition, inContext, oneOf, word1)
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as E
-import qualified Reporting.Region as R
 
 
 
@@ -30,19 +29,18 @@ import qualified Reporting.Region as R
 
 term :: Parser Src.Pattern
 term =
-  hint E.Pattern $
-    do  start <- getPosition
-        oneOf
-          [ record start
-          , tuple start
-          , list start
-          , termHelp start
-          ]
+  do  start <- getPosition
+      oneOf E.XXX
+        [ record start
+        , tuple start
+        , list start
+        , termHelp start
+        ]
 
 
-termHelp :: R.Position -> Parser Src.Pattern
+termHelp :: A.Position -> Parser Src.Pattern
 termHelp start =
-  oneOf
+  oneOf E.XXX
     [
       do  Symbol.underscore
           end <- getPosition
@@ -54,7 +52,7 @@ termHelp start =
     ,
       do  upper <- Var.foreignUpper
           end <- getPosition
-          let region = R.Region start end
+          let region = A.Region start end
           return $ A.at start end $
             case upper of
               Var.Unqualified name ->
@@ -70,7 +68,7 @@ termHelp start =
               return (A.at start end (Src.PInt int))
 
             Number.Float _ ->
-              P.noFloatsAllowedInPatterns
+              noFloatsAllowedInPatterns
     ,
       do  str <- Utf8.string
           end <- getPosition
@@ -82,36 +80,39 @@ termHelp start =
     ]
 
 
+noFloatsAllowedInPatterns :: Parser a
+noFloatsAllowedInPatterns =
+  P.Parser $ \(P.State _ _ _ row col ctx) _ _ cerr _ ->
+    cerr row col ctx E.FloatInPattern
 
 
 
 -- RECORDS
 
 
-record :: R.Position -> Parser Src.Pattern
+record :: A.Position -> Parser Src.Pattern
 record start =
-  do  Symbol.leftCurly
-      inContext start E.ExprRecord $
-        do  spaces
-            oneOf
-              [ do  var <- addLocation Var.lower
-                    spaces
-                    recordHelp start [var]
-              , do  Symbol.rightCurly
-                    end <- getPosition
-                    return (A.at start end (Src.PRecord []))
-              ]
+  inContext E.ExprRecord (word1 0x7B {- { -} E.XXX) $
+    do  spaces
+        oneOf E.XXX
+          [ do  var <- addLocation Var.lower
+                spaces
+                recordHelp start [var]
+          , do  word1 0x7D {-}-} E.XXX
+                end <- getPosition
+                return (A.at start end (Src.PRecord []))
+          ]
 
 
-recordHelp :: R.Position -> [A.Located Name.Name] -> Parser Src.Pattern
+recordHelp :: A.Position -> [A.Located Name.Name] -> Parser Src.Pattern
 recordHelp start vars =
-  oneOf
-    [ do  Symbol.comma
+  oneOf E.XXX
+    [ do  word1 0x2C {-,-} E.XXX
           spaces
           var <- addLocation Var.lower
           spaces
           recordHelp start (var:vars)
-    , do  Symbol.rightCurly
+    , do  word1 0x7D {-}-} E.XXX
           end <- getPosition
           return (A.at start end (Src.PRecord vars))
     ]
@@ -121,30 +122,29 @@ recordHelp start vars =
 -- TUPLES
 
 
-tuple :: R.Position -> Parser Src.Pattern
+tuple :: A.Position -> Parser Src.Pattern
 tuple start =
-  do  Symbol.leftParen
-      inContext start E.ExprTuple $
-        do  spaces
-            oneOf
-              [ do  (pattern, sPos) <- expression
-                    checkSpace sPos
-                    tupleHelp start pattern []
-              , do  Symbol.rightParen
-                    end <- getPosition
-                    return (A.at start end Src.PUnit)
-              ]
+  inContext E.ExprTuple (word1 0x28 {-(-} E.XXX) $
+    do  spaces
+        oneOf E.XXX
+          [ do  (pattern, sPos) <- expression
+                checkSpace sPos
+                tupleHelp start pattern []
+          , do  word1 0x29 {-)-} E.XXX
+                end <- getPosition
+                return (A.at start end Src.PUnit)
+          ]
 
 
-tupleHelp :: R.Position -> Src.Pattern -> [Src.Pattern] -> Parser Src.Pattern
+tupleHelp :: A.Position -> Src.Pattern -> [Src.Pattern] -> Parser Src.Pattern
 tupleHelp start firstPattern revPatterns =
-  oneOf
-    [ do  Symbol.comma
+  oneOf E.XXX
+    [ do  word1 0x2C {-,-} E.XXX
           spaces
           (pattern, sPos) <- expression
           checkSpace sPos
           tupleHelp start firstPattern (pattern : revPatterns)
-    , do  Symbol.rightParen
+    , do  word1 0x29 {-)-} E.XXX
           case reverse revPatterns of
             [] ->
               return firstPattern
@@ -159,30 +159,29 @@ tupleHelp start firstPattern revPatterns =
 -- LIST
 
 
-list :: R.Position -> Parser Src.Pattern
+list :: A.Position -> Parser Src.Pattern
 list start =
-  do  Symbol.leftSquare
-      inContext start E.PatternList $
-        do  spaces
-            oneOf
-              [ do  (pattern, sPos) <- expression
-                    checkSpace sPos
-                    listHelp start [pattern]
-              , do  Symbol.rightSquare
-                    end <- getPosition
-                    return (A.at start end (Src.PList []))
-              ]
+  inContext E.PatternList (word1 0x5B {-[-} E.XXX) $
+    do  spaces
+        oneOf E.XXX
+          [ do  (pattern, sPos) <- expression
+                checkSpace sPos
+                listHelp start [pattern]
+          , do  word1 0x5D {-]-} E.XXX
+                end <- getPosition
+                return (A.at start end (Src.PList []))
+          ]
 
 
-listHelp :: R.Position -> [Src.Pattern] -> Parser Src.Pattern
+listHelp :: A.Position -> [Src.Pattern] -> Parser Src.Pattern
 listHelp start patterns =
-  oneOf
-    [ do  Symbol.comma
+  oneOf E.XXX
+    [ do  word1 0x2C {-,-} E.XXX
           spaces
           (pattern, sPos) <- expression
           checkSpace sPos
           listHelp start (pattern:patterns)
-    , do  Symbol.rightSquare
+    , do  word1 0x5D {-]-} E.XXX
           end <- getPosition
           return (A.at start end (Src.PList (reverse patterns)))
     ]
@@ -194,17 +193,16 @@ listHelp start patterns =
 
 expression :: Parser (Src.Pattern, SPos)
 expression =
-  hint E.Pattern $
-    do  start <- getPosition
-        cTerm <- exprTerm
-        exprHelp start [] cTerm
+  do  start <- getPosition
+      cTerm <- exprTerm
+      exprHelp start [] cTerm
 
 
-exprHelp :: R.Position -> [Src.Pattern] -> (Src.Pattern, R.Position, SPos) -> Parser (Src.Pattern, SPos)
+exprHelp :: A.Position -> [Src.Pattern] -> (Src.Pattern, A.Position, SPos) -> Parser (Src.Pattern, SPos)
 exprHelp start patterns (pattern, _end, sPos) =
-  oneOf
+  oneOf E.XXX
     [ do  checkSpace sPos
-          Symbol.cons
+          word1 0x3A {-:-} E.XXX
           spaces
           cTerm <- exprTerm
           exprHelp start (pattern:patterns) cTerm
@@ -228,8 +226,8 @@ exprHelp start patterns (pattern, _end, sPos) =
 
 
 cons :: Src.Pattern -> Src.Pattern -> Src.Pattern
-cons tl@(A.At (R.Region _ end) _) hd@(A.At (R.Region start _) _) =
-  A.at start end (Src.PCons hd tl)
+cons tl hd =
+  A.merge hd tl (Src.PCons hd tl)
 
 
 
@@ -238,24 +236,24 @@ cons tl@(A.At (R.Region _ end) _) hd@(A.At (R.Region start _) _) =
 
 exprTerm :: SParser Src.Pattern
 exprTerm =
-  oneOf
+  oneOf E.XXX
     [
       do  start <- getPosition
           upper <- Var.foreignUpper
           end <- getPosition
-          exprTermHelp (R.Region start end) upper start []
+          exprTermHelp (A.Region start end) upper start []
     ,
-      do  t@(A.At (R.Region _ end) _) <- term
+      do  t@(A.At (A.Region _ end) _) <- term
           pos <- whitespace
           return (t, end, pos)
     ]
 
 
-exprTermHelp :: R.Region -> Var.Upper -> R.Position -> [Src.Pattern] -> SParser Src.Pattern
+exprTermHelp :: A.Region -> Var.Upper -> A.Position -> [Src.Pattern] -> SParser Src.Pattern
 exprTermHelp region upper start revArgs =
   do  end <- getPosition
       sPos <- whitespace
-      oneOf
+      oneOf E.XXX
         [ do  checkSpace sPos
               arg <- term
               exprTermHelp region upper start (arg:revArgs)

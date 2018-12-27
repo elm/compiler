@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, UnboxedTuples #-}
 module Parse.Shader
   ( shader
   )
@@ -9,7 +9,9 @@ module Parse.Shader
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Name as Name
-import qualified Data.Text as Text
+import qualified Data.Utf8 as Utf8
+import Data.Word (Word8, Word16)
+import Foreign.Ptr (Ptr, plusPtr, minusPtr)
 import qualified Language.GLSL.Parser as GLP
 import qualified Language.GLSL.Syntax as GLS
 import qualified Text.Parsec as Parsec
@@ -17,37 +19,101 @@ import qualified Text.Parsec.Error as Parsec
 
 import qualified AST.Source as Src
 import qualified AST.Utils.Shader as Shader
+import Parse.Utils (Parser)
+import qualified Parse.Primitives as P
 import qualified Reporting.Annotation as A
-import qualified Reporting.Region as R
-import Parse.Primitives (Parser, getPosition)
-import qualified Parse.Primitives.Shader as Shader
+import qualified Reporting.Error.Syntax as E
 
 
 
--- SHADERS
+-- SHADER
 
 
-shader :: R.Position -> Parser Src.Expr
-shader start@(R.Position row col) =
-  do  block <- Shader.block
-      shdr <- parseSource row col (Text.unpack block)
-      end@(R.Position row2 col2) <- getPosition
-      let uid = List.intercalate ":" (map show [row, col, row2, col2])
-      let src = Text.replace "\n" "\\n" (Text.replace "\r\n" "\\n" block)
-      return (A.at start end (Src.Shader (Text.pack uid) src shdr))
+shader :: A.Position -> Parser Src.Expr
+shader start@(A.Position row col) =
+  do  block <- parseBlock
+      shdr <- parseGlsl row col block
+      end <- P.getPosition
+      let src = List.intercalate "\\n" (lines block)
+      return (A.at start end (Src.Shader (Utf8.fromChars src) shdr))
 
 
-parseSource :: Int -> Int -> String -> Parser Shader.Shader
-parseSource startRow startCol src =
+
+-- BLOCK
+
+
+parseBlock :: Parser String
+parseBlock =
+  P.Parser $ \(P.State pos end indent row col ctx) cok _ cerr eerr ->
+    let
+      !pos6 = plusPtr pos 6
+    in
+    if pos6 <= end
+      && P.unsafeIndex (        pos  ) == 0x5B {- [ -}
+      && P.unsafeIndex (plusPtr pos 1) == 0x67 {- g -}
+      && P.unsafeIndex (plusPtr pos 2) == 0x6C {- l -}
+      && P.unsafeIndex (plusPtr pos 3) == 0x73 {- s -}
+      && P.unsafeIndex (plusPtr pos 4) == 0x6C {- l -}
+      && P.unsafeIndex (plusPtr pos 5) == 0x7C {- | -}
+    then
+      let
+        (# status, newPos, newRow, newCol #) =
+          eatShader pos6 end row col
+      in
+      case status of
+        Good ->
+          let
+            !size = minusPtr newPos pos
+            !block = error "TODO get a GLSL block" size
+            !newState = P.State (plusPtr newPos 2) end indent newRow newCol ctx
+          in
+          cok block newState
+
+        Unending ->
+          cerr row col ctx E.ShaderEnd
+
+    else
+      eerr row col ctx E.ShaderStart
+
+
+data Status
+  = Good
+  | Unending
+
+
+eatShader :: Ptr Word8 -> Ptr Word8 -> Word16 -> Word16 -> (# Status, Ptr Word8, Word16, Word16 #)
+eatShader pos end row col =
+  if pos >= end then
+    (# Unending, pos, row, col #)
+
+  else
+    let !word = P.unsafeIndex pos in
+    if word == 0x007C {- | -} && P.isWord (plusPtr pos 1) end 0x5D {- ] -} then
+      (# Good, pos, row, col + 2 #)
+
+    else if word == 0x0A {- \n -} then
+      eatShader (plusPtr pos 1) end (row + 1) 1
+
+    else
+      let !newPos = plusPtr pos (P.getCharWidth pos end word) in
+      eatShader newPos end row (col + 1)
+
+
+
+-- GLSL
+
+
+parseGlsl :: Word16 -> Word16 -> String -> Parser Shader.Types
+parseGlsl startRow startCol src =
   case GLP.parse src of
     Right (GLS.TranslationUnit decls) ->
-      return (foldr addInput emptyShader (concatMap extractInputs decls))
+      return (foldr addInput emptyTypes (concatMap extractInputs decls))
 
     Left err ->
       let
         pos = Parsec.errorPos err
-        row = Parsec.sourceLine pos
-        col = Parsec.sourceColumn pos
+        row = fromIntegral (Parsec.sourceLine pos)
+        col = fromIntegral (Parsec.sourceColumn pos)
         msg =
           Parsec.showErrorMessages
             "or"
@@ -58,22 +124,32 @@ parseSource startRow startCol src =
             (Parsec.errorMessages err)
       in
         if row == 1 then
-          Shader.failure startRow (startCol + 6 + col) (Text.pack msg)
+          failure startRow (startCol + 6 + col) msg
         else
-          Shader.failure (startRow + row - 1) col (Text.pack msg)
+          failure (startRow + row - 1) col msg
 
 
-emptyShader :: Shader.Shader
-emptyShader =
-  Shader.Shader Map.empty Map.empty Map.empty
+failure :: Word16 -> Word16 -> String -> Parser a
+failure row col msg =
+  P.Parser $ \(P.State _ _ _ _ _ ctx) _ _ cerr _ ->
+    cerr row col ctx (E.ShaderValid msg)
 
 
-addInput :: (GLS.StorageQualifier, Shader.Type, String) -> Shader.Shader -> Shader.Shader
+
+-- INPUTS
+
+
+emptyTypes :: Shader.Types
+emptyTypes =
+  Shader.Types Map.empty Map.empty Map.empty
+
+
+addInput :: (GLS.StorageQualifier, Shader.Type, String) -> Shader.Types -> Shader.Types
 addInput (qual, tipe, name) glDecls =
   case qual of
-    GLS.Attribute -> glDecls { Shader._attribute = Map.insert (Name.fromString name) tipe (Shader._attribute glDecls) }
-    GLS.Uniform   -> glDecls { Shader._uniform = Map.insert (Name.fromString name) tipe (Shader._uniform glDecls) }
-    GLS.Varying   -> glDecls { Shader._varying = Map.insert (Name.fromString name) tipe (Shader._varying glDecls) }
+    GLS.Attribute -> glDecls { Shader._attribute = Map.insert (Name.fromChars name) tipe (Shader._attribute glDecls) }
+    GLS.Uniform   -> glDecls { Shader._uniform = Map.insert (Name.fromChars name) tipe (Shader._uniform glDecls) }
+    GLS.Varying   -> glDecls { Shader._varying = Map.insert (Name.fromChars name) tipe (Shader._varying glDecls) }
     _             -> error "Should never happen due to `extractInputs` function"
 
 
@@ -101,3 +177,5 @@ extractInputs decl =
                 GLS.Sampler2D -> [(qual, Shader.Texture, name)]
                 _ -> []
     _ -> []
+
+

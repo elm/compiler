@@ -1,117 +1,139 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Parse.Declaration
-  ( declaration
+  ( Decl(..)
+  , declaration
   , infix_
   )
   where
 
 
 import qualified Data.Name as Name
-import qualified Data.Text.Encoding as Text
 
 import qualified AST.Source as Src
 import qualified AST.Utils.Binop as Binop
 import qualified Parse.Expression as Expr
 import qualified Parse.Pattern as Pattern
-import Parse.Primitives
-import qualified Parse.Primitives.Keyword as Keyword
-import qualified Parse.Primitives.Number as Number
-import qualified Parse.Primitives.Symbol as Symbol
-import qualified Parse.Primitives.Variable as Var
-import qualified Parse.Primitives.Whitespace as W
+import qualified Parse.Keyword as Keyword
+import qualified Parse.Number as Number
+import qualified Parse.Symbol as Symbol
 import qualified Parse.Type as Type
+import qualified Parse.Variable as Var
+import Parse.Utils
+import Parse.Primitives hiding (Parser, State)
+import qualified Parse.Primitives as P
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as E
-import qualified Reporting.Region as R
 
 
 
 -- DECLARATION
 
 
-declaration :: SParser Src.Decl
+data Decl
+  = Value (A.Located Src.Value)
+  | Union (A.Located Src.Union)
+  | Alias (A.Located Src.Alias)
+  | Port Src.Port
+
+
+declaration :: SParser Decl
 declaration =
-  hint E.Decl $
   do  start <- getPosition
-      oneOf
-        [ doc_ start
-        , type_ start
-        , port_ start
-        , def_ start
+      oneOf E.XXX
+        [ typeDecl start
+        , portDecl
+        , valueDecl start
         ]
-
-
-
--- DOC COMMENTS
-
-
-{-# INLINE doc_ #-}
-doc_ :: R.Position -> SParser Src.Decl
-doc_ start =
-  do  doc <- W.docComment
-      end <- getPosition
-      pos <- W.whitespace
-      return ( A.at start end (Src.Docs (Text.decodeUtf8 doc)), end, pos )
 
 
 
 -- DEFINITION and ANNOTATION
 
 
-{-# INLINE def_ #-}
-def_ :: R.Position -> SParser Src.Decl
-def_ start =
+{-# INLINE valueDecl #-}
+valueDecl :: A.Position -> SParser Decl
+valueDecl start =
   do  name <- Var.lower
-      nameEnd <- getPosition
-      let locatedName = A.at start nameEnd name
+      end <- getPosition
       spaces
-      oneOf
-        [ do  Symbol.hasType
-              inContext start (E.Annotation name) $
-                do  spaces
-                    (tipe, end, space) <- Type.expression
-                    return ( A.at start end (Src.Annotation locatedName tipe), end, space )
-        , inContext start (E.Definition name) $
-            definitionHelp start locatedName []
+      oneOf E.XXX
+        [
+          do  word1 0x3A {-:-} E.XXX
+              pushContext start (E.Annotation name)
+              spaces
+              (tipe, _, space) <- Type.expression
+              popContext ()
+              checkAligned space
+              defName <- matchingName name
+              let (A.At (A.Region defStart _) _) = defName
+              pushContext defStart (E.Definition name)
+              spaces
+              decl <- valueHelp start defName (Just tipe) []
+              popContext decl
+        ,
+          do  pushContext start (E.Definition name)
+              decl <- valueHelp start (A.at start end name) Nothing []
+              popContext decl
         ]
 
 
-definitionHelp :: R.Position -> A.Located Name.Name -> [Src.Pattern] -> SParser Src.Decl
-definitionHelp start name revArgs =
-  oneOf
-    [ do  arg <- hint E.Arg Pattern.term
+valueHelp :: A.Position -> A.Located Name.Name -> Maybe Src.Type -> [Src.Pattern] -> SParser Decl
+valueHelp start name tipe revArgs =
+  oneOf E.XXX
+    [ do  arg <- Pattern.term
           spaces
-          definitionHelp start name (arg : revArgs)
-    , do  Symbol.equals
+          valueHelp start name tipe (arg : revArgs)
+    , do  word1 0x3D {-=-} E.XXX
           spaces
           (body, end, space) <- Expr.expression
-          let def = A.at start end (Src.Definition name (reverse revArgs) body)
-          return ( def, end, space )
+          let value = A.at start end (Src.Value name (reverse revArgs) body tipe)
+          return ( Value value, end, space )
     ]
+
+
+matchingName :: Name.Name -> Parser (A.Located Name.Name)
+matchingName expectedName =
+  let (P.Parser parserL) = Var.lower in
+  P.Parser $ \state@(P.State _ _ _ sr sc ctx) cok eok cerr eerr ->
+    let
+      cokL name newState@(P.State _ _ _ er ec _) =
+        if expectedName == name
+        then cok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
+        else cerr sr sc ctx (E.MatchingName expectedName)
+
+      eokL name newState@(P.State _ _ _ er ec _) =
+        if expectedName == name
+        then eok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
+        else eerr sr sc ctx (E.MatchingName expectedName)
+    in
+    parserL state cokL eokL cerr eerr
 
 
 
 -- TYPE ALIAS and UNION TYPES
 
 
-{-# INLINE type_ #-}
-type_ :: R.Position -> SParser Src.Decl
-type_ start =
+{-# INLINE typeDecl #-}
+typeDecl :: A.Position -> SParser Decl
+typeDecl start =
   do  Keyword.type_
       spaces
-      oneOf
-        [ do  Keyword.alias_
-              inContext start E.TypeAlias $
-                do  spaces
-                    (name, args) <- nameArgsEquals
-                    (tipe, end, pos) <- Type.expression
-                    return ( A.at start end (Src.Alias name args tipe), end, pos )
-        , inContext start E.TypeUnion $
-            do  (name, args) <- nameArgsEquals
-                (firstCtor, firstEnd, firstSpace) <- Type.unionConstructor
-                (ctors, end, pos) <- chompConstructors [firstCtor] firstEnd firstSpace
-                return ( A.at start end (Src.Union name args ctors), end, pos )
+      oneOf E.XXX
+        [
+          inContext E.TypeAlias Keyword.alias_ $
+            do  spaces
+                (name, args) <- nameArgsEquals
+                (tipe, end, pos) <- Type.expression
+                let alias = A.at start end (Src.Alias name args tipe)
+                return (Alias alias, end, pos)
+        ,
+          do  pushContext start E.TypeUnion
+              (name, args) <- nameArgsEquals
+              (firstCtor, firstEnd, firstSpace) <- Type.unionConstructor
+              (ctors, end, pos) <- chompConstructors [firstCtor] firstEnd firstSpace
+              let union = A.at start end (Src.Union name args ctors)
+              popContext (Union union, end, pos)
         ]
 
 
@@ -124,21 +146,21 @@ nameArgsEquals =
 
 nameArgsEqualsHelp :: A.Located Name.Name -> [A.Located Name.Name] -> Parser (A.Located Name.Name, [A.Located Name.Name])
 nameArgsEqualsHelp name args =
-  oneOf
+  oneOf E.XXX
     [ do  arg <- addLocation Var.lower
           spaces
           nameArgsEqualsHelp name (arg:args)
-    , do  Symbol.equals
+    , do  word1 0x3D {-=-} E.XXX
           spaces
           return ( name, reverse args )
     ]
 
 
-chompConstructors :: [(A.Located Name.Name, [Src.Type])] -> R.Position -> SPos -> SParser [(A.Located Name.Name, [Src.Type])]
+chompConstructors :: [(A.Located Name.Name, [Src.Type])] -> A.Position -> SPos -> SParser [(A.Located Name.Name, [Src.Type])]
 chompConstructors ctors end pos =
-  oneOf
+  oneOf E.XXX
     [ do  checkSpace pos
-          Symbol.pipe
+          word1 0x7C {-|-} E.XXX
           spaces
           (ctor, newEnd, newSpace) <- Type.unionConstructor
           chompConstructors (ctor:ctors) newEnd newSpace
@@ -150,18 +172,17 @@ chompConstructors ctors end pos =
 -- PORT
 
 
-{-# INLINE port_ #-}
-port_ :: R.Position -> SParser Src.Decl
-port_ start =
-  do  Keyword.port_
-      inContext start E.Port $
-        do  spaces
-            name <- addLocation Var.lower
-            spaces
-            Symbol.hasType
-            spaces
-            (tipe, end, pos) <- Type.expression
-            return ( A.at start end (Src.Port name tipe), end, pos )
+{-# INLINE portDecl #-}
+portDecl :: SParser Decl
+portDecl =
+  inContext E.Port Keyword.port_ $
+    do  spaces
+        name <- addLocation Var.lower
+        spaces
+        word1 0x3A {-:-} E.XXX
+        spaces
+        (tipe, end, pos) <- Type.expression
+        return ( Port (Src.Port name tipe), end, pos )
 
 
 
@@ -170,14 +191,13 @@ port_ start =
 
 -- INVARIANT: always chomps to a freshline
 --
-infix_ :: Parser Src.Decl
+infix_ :: Parser (A.Located Src.Binop)
 infix_ =
   do  start <- getPosition
-      Keyword.infix_
-      inContext start E.Infix $
+      inContext E.Infix Keyword.infix_ $
         do  spaces
             associativity <-
-              oneOf
+              oneOf E.XXX
                 [ Keyword.left_  >> return Binop.Left
                 , Keyword.right_ >> return Binop.Right
                 , Keyword.non_   >> return Binop.Non
@@ -185,13 +205,13 @@ infix_ =
             spaces
             precedence <- Number.precedence
             spaces
-            Symbol.leftParen
+            word1 0x28 {-(-} E.XXX
             op <- Symbol.binop
-            Symbol.rightParen
+            word1 0x29 {-)-} E.XXX
             spaces
-            Symbol.equals
+            word1 0x3D {-=-} E.XXX
             spaces
             name <- Var.lower
             end <- getPosition
-            checkFreshLine =<< W.whitespace
+            checkFreshLine =<< whitespace
             return (A.at start end (Src.Binop op associativity precedence name))
