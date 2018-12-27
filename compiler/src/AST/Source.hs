@@ -1,14 +1,16 @@
 {-# OPTIONS_GHC -Wall #-}
 module AST.Source
   ( Expr, Expr_(..), VarType(..)
-  , Decl, Decl_(..)
   , Def(..)
   , Pattern, Pattern_(..)
   , Type, Type_(..)
   , Module(..)
-  , Header(..)
-  , Docs(..)
   , Import(..)
+  , Value(..)
+  , Union(..)
+  , Alias(..)
+  , Binop(..)
+  , Port(..)
   , Effects(..)
   , Manager(..)
   , Exposing(..)
@@ -18,15 +20,12 @@ module AST.Source
   where
 
 
-import qualified Data.ByteString as B
 import Data.Name (Name)
-import Data.Text (Text)
-import Data.Utf8 (Utf8)
+import qualified Data.Utf8 as Utf8
 
 import qualified AST.Utils.Binop as Binop
 import qualified AST.Utils.Shader as Shader
 import qualified Reporting.Annotation as A
-import qualified Reporting.Region as R
 
 
 
@@ -37,10 +36,10 @@ type Expr = A.Located Expr_
 
 
 data Expr_
-  = Chr Utf8
-  | Str Utf8
+  = Chr Utf8.String
+  | Str Utf8.String
   | Int Int
-  | Float Double
+  | Float (Utf8.Under256 Float)
   | Var VarType Name
   | VarQual VarType Name Name
   | List [Expr]
@@ -58,10 +57,10 @@ data Expr_
   | Record [(A.Located Name, Expr)]
   | Unit
   | Tuple Expr Expr [Expr]
-  | Shader Text Text Shader.Shader
+  | Shader Shader.Source Shader.Types
 
 
-data VarType = Value | Ctor
+data VarType = LowVar | CapVar
 
 
 
@@ -69,8 +68,7 @@ data VarType = Value | Ctor
 
 
 data Def
-  = Annotate Name Type
-  | Define (A.Located Name) [Pattern] Expr
+  = Define (A.Located Name) [Pattern] Expr (Maybe Type)
   | Destruct Pattern Expr
 
 
@@ -88,12 +86,12 @@ data Pattern_
   | PAlias Pattern (A.Located Name)
   | PUnit
   | PTuple Pattern Pattern [Pattern]
-  | PCtor R.Region Name [Pattern]
-  | PCtorQual R.Region Name Name [Pattern]
+  | PCtor A.Region Name [Pattern]
+  | PCtorQual A.Region Name Name [Pattern]
   | PList [Pattern]
   | PCons Pattern Pattern
-  | PChr Utf8
-  | PStr Utf8
+  | PChr Utf8.String
+  | PStr Utf8.String
   | PInt Int
 
 
@@ -108,45 +106,28 @@ type Type =
 data Type_
   = TLambda Type Type
   | TVar Name
-  | TType R.Region Name [Type]
-  | TTypeQual R.Region Name Name [Type]
+  | TType A.Region Name [Type]
+  | TTypeQual A.Region Name Name [Type]
   | TRecord [(A.Located Name, Type)] (Maybe (A.Located Name))
   | TUnit
   | TTuple Type Type [Type]
 
 
 
--- DECLARATIONS
-
-
-type Decl = A.Located Decl_
-
-
-data Decl_
-  = Union (A.Located Name) [A.Located Name] [(A.Located Name, [Type])]
-  | Alias (A.Located Name) [A.Located Name] Type
-  | Binop Name Binop.Associativity Binop.Precedence Name
-  | Port (A.Located Name) Type
-  | Docs Text
-  | Annotation (A.Located Name) Type
-  | Definition (A.Located Name) [Pattern] Expr
-
-
-
 -- MODULE
 
 
-data Module decls =
-  Module (Maybe Header) [Import] decls
-
-
-data Header
-  = Header
-      { _name :: Name
-      , _effects :: Effects
-      , _exports :: A.Located Exposing
-      , _docs :: Docs
-      }
+data Module =
+  Module
+    { _name    :: Name
+    , _exports :: A.Located Exposing
+    , _imports :: [Import]
+    , _values  :: [A.Located Value]
+    , _unions  :: [A.Located Union]
+    , _aliases :: [A.Located Alias]
+    , _binops  :: [A.Located Binop]
+    , _effects :: Effects
+    }
 
 
 data Import =
@@ -157,15 +138,17 @@ data Import =
     }
 
 
-data Docs
-  = NoDocs R.Region
-  | YesDocs R.Region B.ByteString
+data Value = Value (A.Located Name) [Pattern] Expr (Maybe Type)
+data Union = Union (A.Located Name) [A.Located Name] [(A.Located Name, [Type])]
+data Alias = Alias (A.Located Name) [A.Located Name] Type
+data Binop = Binop Name Binop.Associativity Binop.Precedence Name
+data Port = Port (A.Located Name) Type
 
 
 data Effects
   = NoEffects
-  | Ports R.Region
-  | Manager R.Region Manager
+  | Ports [Port]
+  | Manager A.Region Manager
 
 
 data Manager
@@ -180,13 +163,13 @@ data Manager
 
 data Exposing
   = Open
-  | Explicit ![A.Located Exposed]
+  | Explicit [A.Located Exposed]
 
 
 data Exposed
-  = Lower !Name
-  | Upper !Name !Privacy
-  | Operator !Name
+  = Lower Name
+  | Upper Name Privacy
+  | Operator Name
 
 
 data Privacy
