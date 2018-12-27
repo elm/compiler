@@ -21,13 +21,12 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
-import Data.Utf8 (Utf8)
+import qualified Data.Utf8 as Utf8
 
 import qualified AST.Canonical as Can
 import qualified Data.Index as Index
 import qualified Elm.ModuleName as ModuleName
 import qualified Reporting.Annotation as A
-import qualified Reporting.Region as R
 
 
 
@@ -41,8 +40,8 @@ data Pattern
 
 
 data Literal
-  = Chr Utf8
-  | Str Utf8
+  = Chr Utf8.String
+  | Str Utf8.String
   | Int Int
   deriving (Eq)
 
@@ -189,8 +188,8 @@ nilName = "[]"
 
 
 data Error
-  = Incomplete R.Region Context [Pattern]
-  | Redundant R.Region R.Region Int
+  = Incomplete A.Region Context [Pattern]
+  | Redundant A.Region A.Region Int
 
 
 data Context
@@ -204,7 +203,7 @@ data Context
 
 
 check :: Can.Module -> Either [Error] ()
-check (Can.Module _ _ _ decls _ _ _ _) =
+check (Can.Module _ _ decls _ _ _ _) =
   case checkDecls decls [] of
     [] ->
       Right ()
@@ -351,7 +350,7 @@ checkExpr (A.At region expression) errors =
             Just c ->
               checkExpr c errors
 
-    Can.Shader _ _ _ ->
+    Can.Shader _ _ ->
       errors
 
 
@@ -377,7 +376,7 @@ checkIfBranch (condition, branch) errs =
 -- CHECK CASE EXPRESSION
 
 
-checkCases :: R.Region -> [Can.CaseBranch] -> [Error] -> [Error]
+checkCases :: A.Region -> [Can.CaseBranch] -> [Error] -> [Error]
 checkCases region branches errors =
   let
     (patterns, newErrors) =
@@ -397,7 +396,7 @@ checkCaseBranch (Can.CaseBranch pattern expr) (patterns, errors) =
 -- CHECK PATTERNS
 
 
-checkPatterns :: R.Region -> Context -> [Can.Pattern] -> [Error] -> [Error]
+checkPatterns :: A.Region -> Context -> [Can.Pattern] -> [Error] -> [Error]
 checkPatterns region context patterns errors =
   case toNonRedundantRows region patterns of
     Left err ->
@@ -480,13 +479,13 @@ recoverCtor union name arity patterns =
 
 
 -- INVARIANT: Produces a list of rows where (forall row. length row == 1)
-toNonRedundantRows :: R.Region -> [Can.Pattern] -> Either Error [[Pattern]]
+toNonRedundantRows :: A.Region -> [Can.Pattern] -> Either Error [[Pattern]]
 toNonRedundantRows region patterns =
   toSimplifiedUsefulRows region [] patterns
 
 
 -- INVARIANT: Produces a list of rows where (forall row. length row == 1)
-toSimplifiedUsefulRows :: R.Region -> [[Pattern]] -> [Can.Pattern] -> Either Error [[Pattern]]
+toSimplifiedUsefulRows :: A.Region -> [[Pattern]] -> [Can.Pattern] -> Either Error [[Pattern]]
 toSimplifiedUsefulRows overallRegion checkedRows uncheckedPatterns =
   case uncheckedPatterns of
     [] ->
