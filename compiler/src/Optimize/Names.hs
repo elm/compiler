@@ -25,7 +25,7 @@ import qualified AST.Optimized as Opt
 import qualified Data.Index as Index
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
-import qualified Reporting.Region as R
+import qualified Reporting.Annotation as A
 
 
 
@@ -73,7 +73,7 @@ registerGlobal home name =
     ok uid (Set.insert global deps) fields (Opt.VarGlobal global)
 
 
-registerDebug :: Name.Name -> ModuleName.Canonical -> R.Region -> Tracker Opt.Expr
+registerDebug :: Name.Name -> ModuleName.Canonical -> A.Region -> Tracker Opt.Expr
 registerDebug name home region =
   Tracker $ \uid deps fields ok ->
     let global = Opt.Global ModuleName.debug name in

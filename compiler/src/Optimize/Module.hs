@@ -24,7 +24,6 @@ import qualified Optimize.Names as Names
 import qualified Optimize.Port as Port
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Main as E
-import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
 import qualified Reporting.Warning as W
 
@@ -42,7 +41,7 @@ type Annotations =
 
 
 optimize :: Annotations -> Can.Module -> Result i [W.Warning] Opt.Graph
-optimize annotations (Can.Module home _ _ decls unions aliases _ effects) =
+optimize annotations (Can.Module home _ decls unions aliases _ effects) =
   addDecls home annotations decls $
     addEffects home effects $
       addUnions home unions $
@@ -204,7 +203,7 @@ addDecls home annotations decls graph =
       Result.ok graph
 
 
-findMain :: [Can.Def] -> Maybe R.Region
+findMain :: [Can.Def] -> Maybe A.Region
 findMain defs =
   case defs of
     [] ->
@@ -242,7 +241,7 @@ addDef home annotations def graph =
       addDefHelp region annotations home name (map fst typedArgs) body graph
 
 
-addDefHelp :: R.Region -> Annotations -> ModuleName.Canonical -> Name.Name -> [Can.Pattern] -> Can.Expr -> Opt.Graph -> Result i w Opt.Graph
+addDefHelp :: A.Region -> Annotations -> ModuleName.Canonical -> Name.Name -> [Can.Pattern] -> Can.Expr -> Opt.Graph -> Result i w Opt.Graph
 addDefHelp region annotations home name args body graph@(Opt.Graph mains nodes fieldCounts) =
   if name /= Name.main then
     Result.ok (addDefNode home name args body Set.empty graph)

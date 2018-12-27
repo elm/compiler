@@ -170,7 +170,7 @@ optimize cycle (A.At region expression) =
         <*> optimize cycle b
         <*> traverse (optimize cycle) maybeC
 
-    Can.Shader _ src (Shader.Shader attributes uniforms _varyings) ->
+    Can.Shader src (Shader.Types attributes uniforms _varyings) ->
       pure (Opt.Shader src (Map.keysSet attributes) (Map.keysSet uniforms))
 
 
