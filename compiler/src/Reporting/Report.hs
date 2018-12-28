@@ -8,8 +8,8 @@ module Reporting.Report
     where
 
 
+import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
-import qualified Reporting.Region as R
 import qualified Reporting.Render.Code as Code
 
 
@@ -20,7 +20,7 @@ import qualified Reporting.Render.Code as Code
 data Report =
   Report
     { _title :: String
-    , _region :: R.Region
+    , _region :: A.Region
     , _sgstns :: [String]
     , _message :: D.Doc
     }
@@ -42,7 +42,7 @@ messageBar title filePath =
     usedSpace =
       4 + length title + 1 + length filePath
   in
-    D.dullcyan $ D.fromString $
+    D.dullcyan $ D.fromChars $
       "-- " ++ title
       ++ " " ++ replicate (max 1 (80 - usedSpace)) '-'
       ++ " " ++ filePath
@@ -52,7 +52,7 @@ messageBar title filePath =
 -- CODE FORMATTING
 
 
-toCodeSnippet :: Code.Source -> R.Region -> Maybe R.Region -> (D.Doc, D.Doc) -> D.Doc
+toCodeSnippet :: Code.Source -> A.Region -> Maybe A.Region -> (D.Doc, D.Doc) -> D.Doc
 toCodeSnippet source region highlight (preHint, postHint) =
   D.vcat
     [ preHint
@@ -62,7 +62,7 @@ toCodeSnippet source region highlight (preHint, postHint) =
     ]
 
 
-toCodePair :: Code.Source -> R.Region -> R.Region -> (D.Doc, D.Doc) -> (D.Doc, D.Doc, D.Doc) -> D.Doc
+toCodePair :: Code.Source -> A.Region -> A.Region -> (D.Doc, D.Doc) -> (D.Doc, D.Doc, D.Doc) -> D.Doc
 toCodePair source r1 r2 (oneStart, oneEnd) (twoStart, twoMiddle, twoEnd) =
   case Code.renderPair source r1 r2 of
     Code.OneLine codeDocs ->

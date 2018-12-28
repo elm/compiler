@@ -3,7 +3,7 @@
 module Reporting.Render.Type.Localizer
   ( Localizer
   , toDoc
-  , toString
+  , toChars
   , empty
   , fromNames
   , fromModule
@@ -18,10 +18,8 @@ import qualified Data.Name as Name
 import qualified Data.Set as Set
 
 import qualified AST.Source as Src
-import qualified AST.Valid as Valid
 import qualified Elm.Compiler.Imports as Imports
 import qualified Elm.ModuleName as ModuleName
-import qualified Elm.Package as Pkg
 import Reporting.Doc ((<>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Annotation as A
@@ -58,27 +56,27 @@ empty =
 
 toDoc :: Localizer -> ModuleName.Canonical -> Name.Name -> D.Doc
 toDoc localizer home name =
-  D.fromString (toString localizer home name)
+  D.fromChars (toChars localizer home name)
 
 
-toString :: Localizer -> ModuleName.Canonical -> Name.Name -> String
-toString (Localizer localizer) moduleName@(ModuleName.Canonical _ home) name =
+toChars :: Localizer -> ModuleName.Canonical -> Name.Name -> String
+toChars (Localizer localizer) moduleName@(ModuleName.Canonical _ home) name =
   case Map.lookup home localizer of
     Nothing ->
-      Name.toString home <> "." <> Name.toString name
+      Name.toChars home <> "." <> Name.toChars name
 
     Just (Import alias exposing) ->
       case exposing of
         All ->
-          Name.toString name
+          Name.toChars name
 
         Only set ->
           if Set.member name set then
-            Name.toString name
+            Name.toChars name
           else if name == Name.list && moduleName == ModuleName.list then
             "List"
           else
-            Name.toString (maybe home id alias) <> "." <> Name.toString name
+            Name.toChars (maybe home id alias) <> "." <> Name.toChars name
 
 
 
@@ -94,8 +92,8 @@ fromNames names =
 -- FROM MODULE
 
 
-fromModule :: Valid.Module -> Localizer
-fromModule (Valid.Module name _ _ _ imports _ _ _ _ _) =
+fromModule :: Src.Module -> Localizer
+fromModule (Src.Module name _ imports _ _ _ _ _) =
   Localizer $ Map.fromList $
     (name, Import Nothing All) : map toPair imports
 
@@ -133,7 +131,7 @@ replEmpty :: Localizer
 replEmpty =
   Localizer $
     Map.insert Name.replModule (Import Nothing All) $
-      Map.fromList $ map toPair $ Imports.addDefaults Pkg.dummyName []
+      Map.fromList $ map toPair $ Imports.addDefaults []
 
 
 replAdd :: Name.Name -> Maybe Name.Name -> Src.Exposing -> Localizer -> Localizer

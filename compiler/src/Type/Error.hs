@@ -282,7 +282,7 @@ toDiff localizer ctx tipe1 tipe2 =
 
     -- start trying to find specific problems
 
-    (Type home1 name1 args1, Type home2 name2 args2) | L.toString localizer home1 name1 == L.toString localizer home2 name2 ->
+    (Type home1 name1 args1, Type home2 name2 args2) | L.toChars localizer home1 name1 == L.toChars localizer home2 name2 ->
       different
         (nameClashToDoc ctx localizer home1 name1 args1)
         (nameClashToDoc ctx localizer home2 name2 args2)
@@ -307,7 +307,7 @@ toDiff localizer ctx tipe1 tipe2 =
 
         Nothing ->
           case t2 of
-            Type home2 name2 args2 | L.toString localizer home1 name1 == L.toString localizer home2 name2 ->
+            Type home2 name2 args2 | L.toChars localizer home1 name1 == L.toChars localizer home2 name2 ->
               different
                 (nameClashToDoc ctx localizer home1 name1 (map snd args1))
                 (nameClashToDoc ctx localizer home2 name2 args2)
@@ -326,7 +326,7 @@ toDiff localizer ctx tipe1 tipe2 =
 
         Nothing ->
           case t1 of
-            Type home1 name1 args1 | L.toString localizer home1 name1 == L.toString localizer home2 name2 ->
+            Type home1 name1 args1 | L.toChars localizer home1 name1 == L.toChars localizer home2 name2 ->
               different
                 (nameClashToDoc ctx localizer home1 name1 args1)
                 (nameClashToDoc ctx localizer home2 name2 (map snd args2))

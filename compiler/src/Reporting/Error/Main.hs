@@ -10,9 +10,9 @@ module Reporting.Error.Main
 import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
+import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
 import qualified Reporting.Error.Canonicalize as E
-import qualified Reporting.Region as R
 import qualified Reporting.Render.Code as Code
 import qualified Reporting.Render.Type as RT
 import qualified Reporting.Render.Type.Localizer as L
@@ -24,9 +24,9 @@ import qualified Reporting.Report as Report
 
 
 data Error
-  = BadType R.Region Can.Type
-  | BadCycle R.Region [Name.Name]
-  | BadFlags R.Region Can.Type E.InvalidPayload
+  = BadType A.Region Can.Type
+  | BadCycle A.Region [Name.Name]
+  | BadFlags A.Region Can.Type E.InvalidPayload
 
 
 
@@ -101,14 +101,14 @@ toReport localizer source err =
               "an unspecified type"
             ,
               D.reflow $
-                "But type variables like `" ++ Name.toString name ++ "` cannot be given as flags.\
+                "But type variables like `" ++ Name.toChars name ++ "` cannot be given as flags.\
                 \ I need to know exactly what type of data I am getting, so I can guarantee that\
                 \ unexpected data cannot sneak in and crash the Elm program."
             )
 
           E.UnsupportedType name ->
             (
-              "a `" ++ Name.toString name ++ "` value"
+              "a `" ++ Name.toChars name ++ "` value"
             ,
               D.stack
                 [ D.reflow $ "I cannot handle that. The types that CAN be in flags include:"

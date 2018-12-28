@@ -9,22 +9,22 @@ module Reporting.Error.Docs
 
 import qualified Data.Name as Name
 
+import qualified Reporting.Annotation as A
 import Reporting.Doc ((<>))
 import qualified Reporting.Doc as D
-import qualified Reporting.Region as R
 import qualified Reporting.Render.Code as Code
 import qualified Reporting.Report as Report
 
 
 
 data Error
-  = NoDocs R.Region
-  | ImplicitExposing R.Region
-  | Duplicate Name.Name R.Region R.Region
-  | OnlyInDocs Name.Name R.Region
-  | OnlyInExports Name.Name R.Region
-  | NoComment Name.Name R.Region
-  | NoAnnotation Name.Name R.Region
+  = NoDocs A.Region
+  | ImplicitExposing A.Region
+  | Duplicate Name.Name A.Region A.Region
+  | OnlyInDocs Name.Name A.Region
+  | OnlyInExports Name.Name A.Region
+  | NoComment Name.Name A.Region
+  | NoAnnotation Name.Name A.Region
 
 
 
@@ -66,14 +66,14 @@ toReport source err =
         Report.toCodePair source r1 r2
           (
             D.reflow $
-              "There can only be one `" <> Name.toString name
+              "There can only be one `" <> Name.toChars name
               <> "` in your module documentation, but it is listed twice:"
           ,
             "Remove one of them!"
           )
           (
             D.reflow $
-              "There can only be one `" <> Name.toString name
+              "There can only be one `" <> Name.toChars name
               <> "` in your module documentation, but I see two. One here:"
           ,
             "And another one over here:"
@@ -86,12 +86,12 @@ toReport source err =
         Report.toCodeSnippet source region Nothing
           (
             D.reflow $
-              "I do not see `" <> Name.toString name
+              "I do not see `" <> Name.toChars name
               <> "` in the `exposing` list, but it is in your module documentation:"
           ,
             D.reflow $
               "Does it need to be added to the `exposing` list as well? Or maybe you removed `"
-              <> Name.toString name <> "` and forgot to delete it here?"
+              <> Name.toChars name <> "` and forgot to delete it here?"
           )
 
     OnlyInExports name region ->
@@ -99,12 +99,12 @@ toReport source err =
         Report.toCodeSnippet source region Nothing
           (
             D.reflow $
-              "I do not see `" <> Name.toString name
+              "I do not see `" <> Name.toChars name
               <> "` in your module documentation, but it is in your `exposing` list:"
           ,
             D.stack
               [ D.reflow $
-                  "Add a line like `@docs " <> Name.toString name
+                  "Add a line like `@docs " <> Name.toChars name
                   <> "` to your module documentation!"
               , D.link "Note" "See" "docs" "for more guidance on writing high quality docs."
               ]
@@ -115,7 +115,7 @@ toReport source err =
         Report.toCodeSnippet source region Nothing
           (
             D.reflow $
-              "The `" <> Name.toString name <> "` definition does not have a documentation comment."
+              "The `" <> Name.toChars name <> "` definition does not have a documentation comment."
           ,
             D.stack
               [ D.reflow $
@@ -129,7 +129,7 @@ toReport source err =
         Report.toCodeSnippet source region Nothing
           (
             D.reflow $
-              "The `" <> Name.toString name <> "` definition does not have a type annotation."
+              "The `" <> Name.toChars name <> "` definition does not have a type annotation."
           ,
             D.stack
               [ D.reflow $

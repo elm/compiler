@@ -13,8 +13,8 @@ import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
 import qualified AST.Utils.Type as Type
+import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
-import qualified Reporting.Region as R
 import qualified Reporting.Report as Report
 import qualified Reporting.Render.Code as Code
 import qualified Reporting.Render.Type as RT
@@ -26,9 +26,9 @@ import qualified Reporting.Render.Type.Localizer as L
 
 
 data Warning
-  = UnusedImport R.Region Name.Name
-  | UnusedVariable R.Region Context Name.Name
-  | MissingTypeAnnotation R.Region Name.Name Can.Type
+  = UnusedImport A.Region Name.Name
+  | UnusedVariable A.Region Context Name.Name
+  | MissingTypeAnnotation A.Region Name.Name Can.Type
 
 
 data Context = Def | Pattern
@@ -46,7 +46,7 @@ toReport localizer source warning =
         Report.toCodeSnippet source region Nothing
           (
             D.reflow $
-              "Nothing from the `" <> Name.toString moduleName <> "` module is used in this file."
+              "Nothing from the `" <> Name.toChars moduleName <> "` module is used in this file."
           ,
             "I recommend removing unused imports."
           )
@@ -57,18 +57,18 @@ toReport localizer source warning =
         Report.toCodeSnippet source region Nothing
           (
             D.reflow $
-              "You are not using `" <> Name.toString name <> "` anywhere."
+              "You are not using `" <> Name.toChars name <> "` anywhere."
           ,
             D.stack
               [ D.reflow $
-                  "Is there a typo? Maybe you intended to use `" <> Name.toString name
+                  "Is there a typo? Maybe you intended to use `" <> Name.toChars name
                   <> "` somewhere but typed another name instead?"
               , D.reflow $
                   defOrPat context
                     ( "If you are sure there is no typo, remove the definition.\
                       \ This way future readers will not have to wonder why it is there!"
                     )
-                    ( "If you are sure there is no typo, replace `" <> Name.toString name
+                    ( "If you are sure there is no typo, replace `" <> Name.toChars name
                       <> "` with _ so future readers will not have to wonder why it is there!"
                     )
               ]
@@ -81,10 +81,10 @@ toReport localizer source warning =
               D.reflow $
                 case Type.deepDealias inferredType of
                   Can.TLambda _ _ ->
-                    "The `" <> Name.toString name <> "` function has no type annotation."
+                    "The `" <> Name.toChars name <> "` function has no type annotation."
 
                   _ ->
-                    "The `" <> Name.toString name <> "` definition has no type annotation."
+                    "The `" <> Name.toChars name <> "` definition has no type annotation."
             ,
               D.stack
                 [ "I inferred the type annotation myself though! You can copy it into your code:"
