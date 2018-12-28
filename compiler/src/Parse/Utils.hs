@@ -42,32 +42,35 @@ spaces =
 
 noSpace :: A.Position -> SPos -> Parser ()
 noSpace pos (SPos spos) =
-  if pos == spos
-    then return ()
-    else error "TODO what is this again? can it be written better?"
+  P.Parser $ \state@(P.State _ _ _ r c context) _ eok _ eerr ->
+    if pos == spos
+    then eok () state
+    else eerr r c context (E.TODO "noSpace")
 
 
 checkSpace :: SPos -> Parser ()
 checkSpace (SPos (A.Position _ col)) =
-  do  indent <- P.getIndent
-      if col > indent && col > 1
-        then return ()
-        else error "TODO what is this again? can it be written better?"
+  P.Parser $ \state@(P.State _ _ indent r c context) _ eok _ eerr ->
+    if col > indent && col > 1
+    then eok () state
+    else eerr r c context (E.TODO "checkSpace")
 
 
 checkAligned :: SPos -> Parser ()
 checkAligned (SPos (A.Position _ col)) =
-  do  indent <- P.getIndent
-      if col == indent
-        then return ()
-        else error "TODO what is this again? can it be written better?"
+  P.Parser $ \state@(P.State _ _ indent r c context) _ eok _ eerr ->
+    if col == indent
+    then eok () state
+    else eerr r c context (E.TODO "checkAligned")
 
 
 checkFreshLine :: SPos -> Parser ()
 checkFreshLine (SPos (A.Position _ col)) =
-  if col == 1
-    then return ()
-    else error "TODO what is this again?"
+  P.Parser $ \state@(P.State _ _ _ r c context) _ eok _ eerr ->
+    if col == 1
+    then eok () state
+    else eerr r c context (E.TODO "checkFreshLine")
+
 
 
 -- WHITESPACE
@@ -94,14 +97,14 @@ whitespace =
       HasTab ->
         eerr newRow newCol ctx E.NoTabs
 
-      UnendingMultiComment ->
-        eerr newRow newCol ctx E.MultiCommentEnd
+      UnendingMultiComment sr sc ->
+        eerr newRow newCol ctx (E.MultiCommentEnd sr sc)
 
 
 data Status
   = Good
   | HasTab
-  | UnendingMultiComment
+  | UnendingMultiComment Word16 Word16
 
 
 
@@ -180,7 +183,7 @@ eatMultiComment pos end row col =
       if yesDash && noBar then
         let
           (# status, newPos, newRow, newCol #) =
-            eatMultiCommentHelp pos2 end row (col + 2) 1
+            eatMultiCommentHelp pos2 end row (col + 2) 1 row col
         in
         case status of
           Good ->
@@ -189,35 +192,35 @@ eatMultiComment pos end row col =
           HasTab ->
             (# status, newPos, newRow, newCol #)
 
-          UnendingMultiComment ->
+          UnendingMultiComment _ _ ->
             (# status, newPos, newRow, newCol #)
 
       else
         (# Good, pos, row, col #)
 
 
-eatMultiCommentHelp :: Ptr Word8 -> Ptr Word8 -> Word16 -> Word16 -> Int -> (# Status, Ptr Word8, Word16, Word16 #)
-eatMultiCommentHelp pos end row col openComments =
+eatMultiCommentHelp :: Ptr Word8 -> Ptr Word8 -> Word16 -> Word16 -> Int -> Word16 -> Word16 -> (# Status, Ptr Word8, Word16, Word16 #)
+eatMultiCommentHelp pos end row col openComments sr sc =
   if pos >= end then
-    (# UnendingMultiComment, pos, row, col #)
+    (# UnendingMultiComment sr sc, pos, row, col #)
 
   else
     let !word = P.unsafeIndex pos in
     if word == 0x0A {- \n -} then
-      eatMultiCommentHelp (plusPtr pos 1) end (row + 1) 1 openComments
+      eatMultiCommentHelp (plusPtr pos 1) end (row + 1) 1 openComments sr sc
 
     else if word == 0x2D {- - -} && P.isWord (plusPtr pos 1) end 0x7D {- } -} then
       if openComments == 1 then
         (# Good, plusPtr pos 2, row, col + 2 #)
       else
-        eatMultiCommentHelp (plusPtr pos 2) end row (col + 2) (openComments - 1)
+        eatMultiCommentHelp (plusPtr pos 2) end row (col + 2) (openComments - 1) sr sc
 
     else if word == 0x7B {- { -} && P.isWord (plusPtr pos 1) end 0x2D {- - -} then
-      eatMultiCommentHelp (plusPtr pos 2) end row (col + 2) (openComments + 1)
+      eatMultiCommentHelp (plusPtr pos 2) end row (col + 2) (openComments + 1) sr sc
 
     else
       let !newPos = plusPtr pos (P.getCharWidth pos end word) in
-      eatMultiCommentHelp newPos end row (col + 1) openComments
+      eatMultiCommentHelp newPos end row (col + 1) openComments sr sc
 
 
 
@@ -237,7 +240,7 @@ docComment =
     then
       let
         (# status, newPos, newRow, newCol #) =
-           eatMultiCommentHelp pos3 end row col 1
+           eatMultiCommentHelp pos3 end row (col + 3) 1 row col
       in
       case status of
         Good ->
@@ -249,8 +252,8 @@ docComment =
         HasTab ->
           eerr newRow newCol ctx E.NoTabs
 
-        UnendingMultiComment ->
-          eerr newRow newCol ctx E.MultiCommentEnd
+        UnendingMultiComment sr sc ->
+          eerr newRow newCol ctx (E.MultiCommentEnd sr sc)
 
     else
       eerr row col ctx E.DocComment
