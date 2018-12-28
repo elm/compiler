@@ -6,7 +6,7 @@ module Reporting.Exit.Bump
   where
 
 
-import qualified Elm.Package as Pkg
+import qualified Elm.Version as V
 import Reporting.Doc ((<>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit.Help as Help
@@ -18,7 +18,7 @@ import qualified Reporting.Exit.Help as Help
 
 data Exit
   = Application
-  | Unbumpable Pkg.Version [Pkg.Version]
+  | Unbumpable V.Version [V.Version]
 
 
 
@@ -38,7 +38,7 @@ toReport exit =
       Help.docReport "UNBUMPABLE" (Just "elm.json")
         ( D.fillSep
             ["Your","elm.json","says","I","should","bump","relative","to","version"
-            ,D.red (D.fromText (Pkg.versionToText vsn)) <> ","
+            ,D.red (D.fromUtf8 (V.toString vsn)) <> ","
             ,"but","I","cannot","find","that","version","on","<https://package.elm-lang.org>."
             ,"That","means","there","is","no","API","for","me","to","diff","against","and"
             ,"figure","out","if","these","are","MAJOR,","MINOR,","or","PATCH","changes."
@@ -47,5 +47,5 @@ toReport exit =
         [ D.fillSep $
             ["Try","bumping","again","after","changing","the",D.dullyellow "\"version\"","in","elm.json"]
             ++ if length versions == 1 then ["to:"] else ["to","one","of","these:"]
-        , D.vcat $ map (D.green . D.fromText . Pkg.versionToText) versions
+        , D.vcat $ map (D.green . D.fromUtf8 . V.toString) versions
         ]

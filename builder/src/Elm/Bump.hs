@@ -11,10 +11,9 @@ import qualified Data.List as List
 
 import qualified Deps.Cache as Cache
 import qualified Deps.Diff as Diff
-import qualified Elm.Package as Pkg
-import qualified Elm.Project as Project
 import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Summary as Summary
+import qualified Elm.Version as V
 import Reporting.Doc ((<>), (<+>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
@@ -56,7 +55,7 @@ bump summary@(Summary.Summary root project _ _ _) =
 -- VALID BUMPS
 
 
-toPossibleBumps :: [Pkg.Version] -> [(Pkg.Version, Pkg.Version, Diff.Magnitude)]
+toPossibleBumps :: [V.Version] -> [(V.Version, V.Version, Diff.Magnitude)]
 toPossibleBumps publishedVersions =
   case publishedVersions of
     [] ->
@@ -65,17 +64,17 @@ toPossibleBumps publishedVersions =
     _ ->
       let
         patchPoints =
-          Pkg.filterLatest Pkg.majorAndMinor publishedVersions
+          V.filterLatest V.majorAndMinor publishedVersions
 
         minorPoints =
-          Pkg.filterLatest Pkg._major publishedVersions
+          V.filterLatest V._major publishedVersions
 
         majorPoint =
           maximum publishedVersions
       in
-        (majorPoint, Pkg.bumpMajor majorPoint, Diff.MAJOR)
-        :  map (\v -> (v, Pkg.bumpMinor v, Diff.MINOR)) minorPoints
-        ++ map (\v -> (v, Pkg.bumpPatch v, Diff.PATCH)) patchPoints
+        (majorPoint, V.bumpMajor majorPoint, Diff.MAJOR)
+        :  map (\v -> (v, V.bumpMinor v, Diff.MINOR)) minorPoints
+        ++ map (\v -> (v, V.bumpPatch v, Diff.PATCH)) patchPoints
 
 
 
@@ -85,14 +84,14 @@ toPossibleBumps publishedVersions =
 checkNewPackage :: FilePath -> Project.PkgInfo -> Task.Task ()
 checkNewPackage root info@(Project.PkgInfo _ _ _ version _ _ _ _) =
   do  liftIO $ putStrLn Terminal.newPackageOverview
-      if version == Pkg.initialVersion
+      if version == V.one
         then
           liftIO $ putStrLn "The version number in elm.json is correct so you are all set!"
         else
-          changeVersion root info Pkg.initialVersion $
+          changeVersion root info V.one $
             "It looks like the version in elm.json has been changed though!\n\
             \Would you like me to change it back to "
-            <> D.fromText (Pkg.versionToText Pkg.initialVersion) <> "? [Y/n] "
+            <> D.fromUtf8 (V.toString V.one) <> "? [Y/n] "
 
 
 
@@ -100,16 +99,16 @@ checkNewPackage root info@(Project.PkgInfo _ _ _ version _ _ _ _) =
 
 
 suggestVersion :: Summary.Summary -> Project.PkgInfo -> Task.Task ()
-suggestVersion summary@(Summary.Summary root _ _ _ _) info@(Project.PkgInfo name _ _ version _ _ _ _) =
+suggestVersion (Summary.Summary root _ _ _ _) info@(Project.PkgInfo name _ _ version _ _ _ _) =
   do  oldDocs <- Cache.getDocs name version
-      newDocs <- Task.silently (Project.generateDocs summary)
+      newDocs <- Task.silently (error "TODO Project.generateDocs summary")
       let changes = Diff.diff oldDocs newDocs
       let newVersion = Diff.bump changes version
       changeVersion root info newVersion $
         let
-          old = D.fromText $ Pkg.versionToText version
-          new = D.fromText $ Pkg.versionToText newVersion
-          mag = D.fromString $ Diff.magnitudeToString (Diff.toMagnitude changes)
+          old = D.fromUtf8 $ V.toString version
+          new = D.fromUtf8 $ V.toString newVersion
+          mag = D.fromChars $ Diff.magnitudeToString (Diff.toMagnitude changes)
         in
           "Based on your new API, this should be a" <+> D.green mag <+> "change (" <> old <> " => " <> new <> ")\n"
           <> "Bail out of this command and run 'elm diff' for a full explanation.\n"
@@ -121,7 +120,7 @@ suggestVersion summary@(Summary.Summary root _ _ _ _) info@(Project.PkgInfo name
 -- CHANGE VERSION
 
 
-changeVersion :: FilePath -> Project.PkgInfo -> Pkg.Version -> D.Doc -> Task.Task ()
+changeVersion :: FilePath -> Project.PkgInfo -> V.Version -> D.Doc -> Task.Task ()
 changeVersion root info targetVersion explanation =
   do  approved <- Task.getApproval explanation
       if not approved
@@ -134,5 +133,5 @@ changeVersion root info targetVersion explanation =
 
               liftIO $ Help.toStdout $
                 "Version changed to "
-                <> D.green (D.fromText (Pkg.versionToText targetVersion))
+                <> D.green (D.fromUtf8 (V.toString targetVersion))
                 <> "!\n"

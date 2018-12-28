@@ -16,7 +16,8 @@ import Control.Concurrent.Chan (Chan, writeChan)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, readMVar)
 import qualified Elm.ModuleName as ModuleName
 import Deps.Diff (Magnitude)
-import Elm.Package (Name, Version)
+import qualified Elm.Package as Pkg
+import qualified Elm.Version as V
 import qualified Reporting.Doc as D
 import Reporting.Exit (Exit)
 
@@ -72,9 +73,9 @@ data Msg
 data Progress
   -- download packages
   = DownloadSkip
-  | DownloadStart [(Name, Version)]
-  | DownloadPkgStart Name Version
-  | DownloadPkgEnd Name Version Outcome
+  | DownloadStart [(Pkg.Name, V.Version)]
+  | DownloadPkgStart Pkg.Name V.Version
+  | DownloadPkgEnd Pkg.Name V.Version Outcome
   | DownloadEnd Outcome
 
   -- build dependencies
@@ -89,8 +90,8 @@ data Progress
   | CompileEnd
 
   -- publish
-  | PublishStart Name Version (Maybe [Version])
-  | PublishCheckBump Version BumpPhase
+  | PublishStart Pkg.Name V.Version (Maybe [V.Version])
+  | PublishCheckBump V.Version BumpPhase
   | PublishProgress PublishPhase (Maybe Outcome)
   | PublishEnd
 
@@ -104,7 +105,7 @@ data Outcome = Good | Bad
 data PublishPhase
   = CheckReadme
   | CheckLicense
-  | CheckTag Version
+  | CheckTag V.Version
   | CheckDownload
   | CheckBuild
   | CheckChanges
@@ -113,5 +114,5 @@ data PublishPhase
 data BumpPhase
   = StatedVersion
   | GoodStart
-  | GoodBump Version Magnitude
+  | GoodBump V.Version Magnitude
   | BadBump

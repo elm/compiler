@@ -12,7 +12,7 @@ import Control.Concurrent.MVar (newEmptyMVar, putMVar)
 import qualified System.Info as Info
 import System.IO (hFlush, hPutStr, stdout)
 import qualified Elm.Package as Pkg
-import Elm.Package (Name, Version)
+import qualified Elm.Version as V
 
 import qualified Deps.Diff as Diff
 import Reporting.Doc ((<>), (<+>))
@@ -182,7 +182,7 @@ loopHelp chan progress state@(State total good bad) =
               loop chan state
 
         Just _ ->
-          do  putStrLn $ unwords [ "Verifying", Pkg.toString name, Pkg.versionToString version, "..."  ]
+          do  putStrLn $ unwords [ "Verifying", Pkg.toChars name, V.toChars version, "..."  ]
               putStrLn ""
               loop chan state
 
@@ -214,11 +214,11 @@ loopHelp chan progress state@(State total good bad) =
 -- BULLETS
 
 
-makeBullet :: Name -> Version -> Outcome -> D.Doc
+makeBullet :: Pkg.Name -> V.Version -> Outcome -> D.Doc
 makeBullet name version outcome =
   let
-    nm = D.fromText (Pkg.toText name)
-    vsn = D.fromText (Pkg.versionToText version)
+    nm = D.fromUtf8 (Pkg.toString name)
+    vsn = D.fromUtf8 (V.toString version)
 
     bullet =
       case outcome of
@@ -257,7 +257,7 @@ newPackageOverview =
     , ""
     , "  - Versions all have exactly three parts: MAJOR.MINOR.PATCH"
     , ""
-    , "  - All packages start with initial version " ++ Pkg.versionToString Pkg.initialVersion
+    , "  - All packages start with initial version " ++ V.toChars V.one
     , ""
     , "  - Versions are incremented based on how the API changes:"
     , ""
@@ -282,13 +282,13 @@ toChecklistDoc status (ChecklistMessages waiting success failure) =
   in
     case status of
       Nothing ->
-        "  " <> waitingMark <+> D.fromString waiting
+        "  " <> waitingMark <+> D.fromChars waiting
 
       Just Good ->
-        "\r  " <> goodMark <+> D.fromString (padded success ++ "\n")
+        "\r  " <> goodMark <+> D.fromChars (padded success ++ "\n")
 
       Just Bad ->
-        "\r  " <> badMark <+> D.fromString (padded failure ++ "\n\n")
+        "\r  " <> badMark <+> D.fromChars (padded failure ++ "\n\n")
 
 
 data ChecklistMessages =
@@ -316,9 +316,9 @@ toChecklistMessages phase =
 
     CheckTag version ->
       ChecklistMessages
-        ("Is version " ++ Pkg.versionToString version ++ " tagged on GitHub?")
-        ("Version " ++ Pkg.versionToString version ++ " is tagged on GitHub")
-        ("Version " ++ Pkg.versionToString version ++ " is not tagged on GitHub!")
+        ("Is version " ++ V.toChars version ++ " tagged on GitHub?")
+        ("Version " ++ V.toChars version ++ " is tagged on GitHub")
+        ("Version " ++ V.toChars version ++ " is not tagged on GitHub!")
 
     CheckDownload ->
       ChecklistMessages
@@ -343,14 +343,14 @@ toChecklistMessages phase =
 -- BUMP PHASE
 
 
-bumpPhaseToChecklistDoc :: Pkg.Version -> BumpPhase -> D.Doc
+bumpPhaseToChecklistDoc :: V.Version -> BumpPhase -> D.Doc
 bumpPhaseToChecklistDoc version bumpPhase =
   let
     mkMsgs success =
       ChecklistMessages
-        ("Checking semantic versioning rules. Is " ++ Pkg.versionToString version ++ " correct?")
+        ("Checking semantic versioning rules. Is " ++ V.toChars version ++ " correct?")
         success
-        ("Version " ++ Pkg.versionToString version ++ " is not correct!")
+        ("Version " ++ V.toChars version ++ " is not correct!")
   in
 
   case bumpPhase of
@@ -359,7 +359,7 @@ bumpPhaseToChecklistDoc version bumpPhase =
 
     GoodStart ->
       toChecklistDoc (Just Good) $ mkMsgs $
-        "All packages start at version " ++ Pkg.versionToString Pkg.initialVersion
+        "All packages start at version " ++ V.toChars V.one
 
     GoodBump old magnitude ->
       toChecklistDoc (Just Good) $ mkMsgs $
@@ -369,11 +369,11 @@ bumpPhaseToChecklistDoc version bumpPhase =
       toChecklistDoc (Just Bad) $ mkMsgs ""
 
 
-toCheckVersionSuccessMessage :: Pkg.Version -> Pkg.Version -> Diff.Magnitude -> String
+toCheckVersionSuccessMessage :: V.Version -> V.Version -> Diff.Magnitude -> String
 toCheckVersionSuccessMessage oldVersion newVersion magnitude =
   let
-    old = Pkg.versionToString oldVersion
-    new = Pkg.versionToString newVersion
+    old = V.toChars oldVersion
+    new = V.toChars newVersion
     mag = Diff.magnitudeToString magnitude
   in
     "Version number " ++ new ++ " verified (" ++ mag ++ " change, " ++ old ++ " => " ++ new ++ ")"

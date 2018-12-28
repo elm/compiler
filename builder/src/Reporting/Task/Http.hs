@@ -23,8 +23,7 @@ import qualified Network.HTTP as Http (urlEncodeVars)
 import qualified Network.HTTP.Client as Http
 import qualified Network.HTTP.Types.Header as Http (hAcceptEncoding, hUserAgent)
 
-import qualified Elm.Compiler as Compiler
-import qualified Elm.Package as Pkg
+import qualified Elm.Version as V
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Http as E
 import qualified Reporting.Progress as Progress
@@ -192,4 +191,4 @@ addHeaders request =
 {-# NOINLINE userAgent #-}
 userAgent :: BS.ByteString
 userAgent =
-  BS.pack ("elm/" ++ Pkg.versionToString Compiler.version)
+  BS.pack ("elm/" ++ V.toChars V.compiler)

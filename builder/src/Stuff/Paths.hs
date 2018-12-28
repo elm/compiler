@@ -16,9 +16,8 @@ import Control.Monad.Trans (liftIO)
 import qualified System.Directory as Dir
 import System.FilePath ((</>), (<.>))
 
-import qualified Elm.Compiler as Compiler
 import qualified Elm.ModuleName as ModuleName
-import qualified Elm.Package as Pkg
+import qualified Elm.Version as V
 import qualified Reporting.Task as Task
 
 
@@ -28,7 +27,7 @@ import qualified Reporting.Task as Task
 
 stuff :: FilePath
 stuff =
-  "elm-stuff" </> Pkg.versionToString Compiler.version
+  "elm-stuff" </> V.toChars V.compiler
 
 
 docs :: FilePath

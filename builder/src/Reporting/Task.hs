@@ -30,9 +30,9 @@ import qualified System.Directory as Dir
 import qualified System.Exit as Exit
 import System.FilePath ((</>))
 
-import Elm.Package (Name, Version)
 import qualified Elm.Package as Pkg
 import qualified Elm.PerUserCache as PerUserCache
+import qualified Elm.Version as V
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Progress as Progress
@@ -104,10 +104,10 @@ getPackageCacheDir =
   R.asks _cacheDir
 
 
-getPackageCacheDirFor :: Name -> Version -> Task_ e FilePath
+getPackageCacheDirFor :: Pkg.Name -> V.Version -> Task_ e FilePath
 getPackageCacheDirFor name version =
   do  cacheDir <- getPackageCacheDir
-      let dir = cacheDir </> Pkg.toFilePath name </> Pkg.versionToString version
+      let dir = cacheDir </> Pkg.toFilePath name </> V.toChars version
       liftIO (Dir.createDirectoryIfMissing True dir)
       return dir
 

@@ -7,7 +7,7 @@ module Reporting.Exit.Publish
 
 
 import Deps.Diff (Magnitude, magnitudeToString)
-import qualified Elm.Package as Pkg
+import qualified Elm.Version as V
 import Reporting.Doc ((<>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit.Help as Help
@@ -19,18 +19,18 @@ import qualified Reporting.Exit.Help as Help
 
 data Exit
   = Application
-  | NotInitialVersion Pkg.Version
-  | AlreadyPublished Pkg.Version
-  | InvalidBump Pkg.Version Pkg.Version
-  | BadBump Pkg.Version Pkg.Version Magnitude Pkg.Version Magnitude
+  | NotInitialVersion V.Version
+  | AlreadyPublished V.Version
+  | InvalidBump V.Version V.Version
+  | BadBump V.Version V.Version Magnitude V.Version Magnitude
   | NoSummary
   | NoExposed
   | NoReadme
   | ShortReadme
   | NoLicense
-  | MissingTag Pkg.Version
+  | MissingTag V.Version
   | NoGit
-  | LocalChanges Pkg.Version
+  | LocalChanges V.Version
 
 
 
@@ -47,7 +47,7 @@ toReport exit =
       Help.docReport "INVALID VERSION" Nothing
         ( D.fillSep
             ["I","cannot","publish"
-            ,D.red (D.fromString (Pkg.versionToString vsn))
+            ,D.red (D.fromUtf8 (V.toString vsn))
             ,"as","the","initial","version."
             ]
         )
@@ -61,7 +61,7 @@ toReport exit =
       Help.docReport "ALREADY PUBLISHED" Nothing
         ( D.vcat
             [ D.fillSep
-                [ "Version", D.green (D.fromString (Pkg.versionToString vsn))
+                [ "Version", D.green (D.fromUtf8 (V.toString vsn))
                 , "has", "already", "been", "published.", "You", "cannot"
                 , "publish", "it", "again!"
                 ]
@@ -78,14 +78,14 @@ toReport exit =
       Help.docReport "INVALID VERSION" (Just "elm.json")
         ( D.fillSep $
             ["Your","elm.json","says","the","next","version","should","be"
-            ,D.red (D.fromString (Pkg.versionToString statedVersion)) <> ","
+            ,D.red (D.fromUtf8 (V.toString statedVersion)) <> ","
             ,"but","that","is","not","valid","based","on","the","previously"
             ,"published","versions."
             ]
         )
         [ D.fillSep $
             ["Change","the","version","back","to"
-            ,D.green (D.fromString (Pkg.versionToString latestVersion))
+            ,D.green (D.fromUtf8 (V.toString latestVersion))
             ,"which","is","the","most","recently","published","version."
             ,"From","there,","have","Elm","bump","the","version","by","running:"
             ]
@@ -100,20 +100,20 @@ toReport exit =
         (
           D.fillSep $
             ["Your","elm.json","says","the","next","version","should","be"
-            ,D.red (D.fromString (Pkg.versionToString new)) <> ","
-            ,"indicating","a",D.fromString (magnitudeToString magnitude)
+            ,D.red (D.fromUtf8 (V.toString new)) <> ","
+            ,"indicating","a",D.fromChars (magnitudeToString magnitude)
             ,"change","to","the","public","API."
             ,"This","does","not","match","the","API","diff","given","by:"
             ]
         )
-        [ D.indent 4 $ D.fromString $
-            "elm diff " ++ Pkg.versionToString old
+        [ D.indent 4 $ D.fromChars $
+            "elm diff " ++ V.toChars old
 
         , D.fillSep $
             ["This","command","says","this","is","a"
-            ,D.fromString (magnitudeToString realMagnitude)
+            ,D.fromChars (magnitudeToString realMagnitude)
             ,"change,","so","the","next","version","should","be"
-            ,D.green (D.fromString (Pkg.versionToString realNew)) <> "."
+            ,D.green (D.fromUtf8 (V.toString realNew)) <> "."
             ,"Double","check","everything","to","make","sure","you"
             ,"are","publishing","what","you","want!"
             ]
@@ -170,18 +170,18 @@ toReport exit =
         ]
 
     MissingTag version ->
-      let vsn = Pkg.versionToString version in
+      let vsn = V.toChars version in
       Help.docReport "NO TAG" Nothing
         ( D.fillSep $
             [ "Packages", "must", "be", "tagged", "in", "git,", "but", "I"
-            , "cannot", "find", "a", D.green (D.fromString vsn), "tag."
+            , "cannot", "find", "a", D.green (D.fromChars vsn), "tag."
             ]
         )
         [ D.vcat
             [ "These tags make it possible to find this specific version on GitHub."
             , "To tag the most recent commit and push it to GitHub, run this:"
             ]
-        , D.indent 4 $ D.dullyellow $ D.vcat $ map D.fromString $
+        , D.indent 4 $ D.dullyellow $ D.vcat $ map D.fromChars $
             [ "git tag -a " ++ vsn ++ " -m \"new release\""
             , "git push origin " ++ vsn
             ]
@@ -202,10 +202,10 @@ toReport exit =
         ]
 
     LocalChanges version ->
-      let vsn = Pkg.versionToString version in
+      let vsn = V.toChars version in
       Help.docReport "LOCAL CHANGES" Nothing
         ( D.fillSep $
-            [ "The", "code", "tagged", "as", D.green (D.fromString vsn), "in"
+            [ "The", "code", "tagged", "as", D.green (D.fromChars vsn), "in"
             , "git", "does", "not", "match", "the", "code", "in", "your"
             , "working", "directory.", "This", "means", "you", "have"
             , "commits", "or", "local", "changes", "that", "are", "not"

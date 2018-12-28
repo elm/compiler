@@ -42,7 +42,7 @@ toReport exit =
     CannotOptimizeDebugValues m ms ->
       Help.report "DEBUG REMNANTS" Nothing
         "There are uses of the `Debug` module in the following modules:"
-        [ D.indent 4 $ D.red $ D.vcat $ map (D.fromString . ModuleName.nameToString) (m:ms)
+        [ D.indent 4 $ D.red $ D.vcat $ map (D.fromChars . ModuleName.nameToChars) (m:ms)
         , D.reflow "But the --optimize flag only works if all `Debug` functions are removed!"
         , D.toSimpleNote $
             "The issue is that --optimize strips out info needed by `Debug` functions.\

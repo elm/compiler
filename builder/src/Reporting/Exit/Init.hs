@@ -6,10 +6,9 @@ module Reporting.Exit.Init
   where
 
 
+import qualified Elm.Package as Pkg
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit.Help as Help
-
-import qualified Elm.Package as Pkg
 
 
 
@@ -32,7 +31,7 @@ toReport exit =
       Help.report "NO SOLUTION" Nothing
         "I tried to create an elm.json with the following direct dependencies:"
         [ D.indent 4 $ D.vcat $
-            map (D.dullyellow . D.fromString . Pkg.toString) pkgs
+            map (D.dullyellow . D.fromChars . Pkg.toChars) pkgs
         , D.reflow $
             "I could not find compatible versions though! This should not happen, so please\
             \ ask around one of the community forums <http://elm-lang.org/community> to learn\
@@ -43,7 +42,7 @@ toReport exit =
       Help.report "EXISTING PROJECT" Nothing
         "You already have an elm.json file, so there is nothing for me to initialize!"
         [ D.fillSep
-            ["Maybe",D.green (D.fromString (D.makeLink "init")),"can","help"
+            ["Maybe",D.green (D.fromChars (D.makeLink "init")),"can","help"
             ,"you","figure","out","what","to","do","next?"
             ]
         ]

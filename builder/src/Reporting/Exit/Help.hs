@@ -14,11 +14,12 @@ module Reporting.Exit.Help
   where
 
 
-import qualified Data.Text as Text
+import qualified Data.Utf8 as Utf8
 import GHC.IO.Handle (hIsTerminalDevice)
 import System.IO (Handle, hPutStr, stderr, stdout)
 
-import qualified Json.Encode as Encode
+import qualified Json.Encode as E
+import Json.Encode ((==>))
 import Reporting.Doc ((<+>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit.Compile as Compile
@@ -82,7 +83,7 @@ reportToDoc report_ =
 
         errorBar =
           D.dullcyan $
-            "--" <+> D.fromString title <+> D.fromString errorBarEnd
+            "--" <+> D.fromChars title <+> D.fromChars errorBarEnd
       in
         D.stack [errorBar, message, ""]
 
@@ -91,21 +92,21 @@ reportToDoc report_ =
 -- TO JSON
 
 
-reportToJson :: Report -> Encode.Value
+reportToJson :: Report -> E.Value
 reportToJson report_ =
   case report_ of
     CompilerReport e es ->
-      Encode.object
-        [ ("type", Encode.text "compile-errors")
-        , ("errors", Encode.list Compile.toJson (e:es))
+      E.object
+        [ "type" ==> E.string "compile-errors"
+        , "errors" ==> E.list Compile.toJson (e:es)
         ]
 
     Report title maybePath message ->
-      Encode.object
-        [ ("type", Encode.text "error")
-        , ("path", maybe Encode.null (Encode.text . Text.pack) maybePath)
-        , ("title", Encode.text (Text.pack title))
-        , ("message", D.encode message)
+      E.object
+        [ "type" ==> E.string "error"
+        , "path" ==> maybe E.null (E.string . Utf8.fromChars) maybePath
+        , "title" ==> E.string (Utf8.fromChars title)
+        , "message" ==> D.encode message
         ]
 
 

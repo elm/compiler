@@ -6,9 +6,9 @@ module Reporting.Exit.Deps
   where
 
 
-import qualified Elm.Compiler as Compiler
+import qualified Elm.Constraint as Con
 import qualified Elm.Package as Pkg
-import qualified Elm.Project.Constraint as Con
+import qualified Elm.Version as V
 import Reporting.Doc ((<>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit.Help as Help
@@ -23,10 +23,10 @@ data Exit
   | PackageNotFound Pkg.Name [Pkg.Name]
   -- verify
   | PkgBadElm Con.Constraint
-  | AppBadElm Pkg.Version
-  | AppMissingTrans [(Pkg.Name, Pkg.Version)]
+  | AppBadElm V.Version
+  | AppMissingTrans [(Pkg.Name, V.Version)]
   | BadDeps
-  | BuildFailure FilePath Pkg.Name Pkg.Version
+  | BuildFailure FilePath Pkg.Name V.Version
 
 
 
@@ -40,7 +40,7 @@ toReport exit =
       Help.report "CORRUPT CACHE" Nothing
         ( "I ran into an unknown package while exploring dependencies:"
         )
-        [ D.indent 4 $ D.dullyellow $ D.fromString $ Pkg.toString pkg
+        [ D.indent 4 $ D.dullyellow $ D.fromUtf8 $ Pkg.toString pkg
         , D.reflow $
             "This suggests that your " ++ elmHome ++ " directory has been corrupted.\
             \ Maybe some program is messing with it? It is just cached files,\
@@ -51,22 +51,22 @@ toReport exit =
       Help.docReport "PACKAGE NOT FOUND" Nothing
         ( D.fillSep
             ["I","cannot","find","a"
-            ,D.red (D.fromString (Pkg.toString package))
+            ,D.red (D.fromUtf8 (Pkg.toString package))
             ,"package","on","the","package","website."
             ]
         )
         [ "Maybe you want one of these instead?"
-        , D.indent 4 $ D.dullyellow $ D.vcat $ map (D.fromString . Pkg.toString) suggestions
+        , D.indent 4 $ D.dullyellow $ D.vcat $ map (D.fromUtf8 . Pkg.toString) suggestions
         , "But check <https://package.elm-lang.org> to see all possibilities!"
         ]
 
     PkgBadElm constraint ->
       Help.report "ELM VERSION MISMATCH" (Just "elm.json")
         "Your elm.json says this package needs a version of Elm in this range:"
-        [ D.indent 4 $ D.dullyellow $ D.fromString $ Con.toString constraint
+        [ D.indent 4 $ D.dullyellow $ D.fromUtf8 $ Con.toString constraint
         , D.fillSep
             [ "But", "you", "are", "using", "Elm"
-            , D.red (D.fromString (Pkg.versionToString Compiler.version))
+            , D.red (D.fromUtf8 (V.toString V.compiler))
             , "right", "now."
             ]
         ]
@@ -76,9 +76,9 @@ toReport exit =
         "Your elm.json says this application needs a different version of Elm."
         [ D.fillSep
             [ "It", "requires"
-            , D.green (D.fromString (Pkg.versionToString version)) <> ","
+            , D.green (D.fromUtf8 (V.toString version)) <> ","
             , "but", "you", "are", "using"
-            , D.red (D.fromString (Pkg.versionToString Compiler.version))
+            , D.red (D.fromUtf8 (V.toString V.compiler))
             , "right", "now."
             ]
         ]
@@ -86,11 +86,11 @@ toReport exit =
     AppMissingTrans missingDeps ->
       let
         toEntry (pkg, vsn) =
-          "\"" ++ Pkg.toString pkg ++ "\": \"" ++ Pkg.versionToString vsn ++ "\""
+          "\"" ++ Pkg.toChars pkg ++ "\": \"" ++ V.toChars vsn ++ "\""
       in
       Help.report "MISSING DEPENDENCIES" (Just "elm.json")
         "Your elm.json is missing some \"indirect\" dependencies:"
-        [ D.indent 4 $ D.dullyellow $ D.vcat $ map (D.fromString . toEntry) missingDeps
+        [ D.indent 4 $ D.dullyellow $ D.vcat $ map (D.fromChars . toEntry) missingDeps
         , D.fillSep
             ["This","usually","means","you","are","editing","elm.json","by","hand."
             ,"It","is","much","more","reliable","to","use","the"
@@ -114,10 +114,10 @@ toReport exit =
     BuildFailure elmHome pkg vsn ->
       Help.report "CORRUPT DEPENDENCY" Nothing
         "I ran into a problem while building the following package:"
-        [ D.indent 4 $ D.red $ D.fromString $ Pkg.toString pkg ++ " " ++ Pkg.versionToString vsn
+        [ D.indent 4 $ D.red $ D.fromChars $ Pkg.toChars pkg ++ " " ++ V.toChars vsn
         , D.fillSep
             ["This","probably","means","the","downloaded","files","got","corrupted","somehow."
-            ,"Try","deleting",D.dullyellow (D.fromString elmHome),"(a","directory","for"
+            ,"Try","deleting",D.dullyellow (D.fromChars elmHome),"(a","directory","for"
             ,"caching","build","artifacts)","and","see","if","that","resolves","the","issue."
             ]
         ]

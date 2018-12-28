@@ -6,8 +6,8 @@ module Reporting.Exit.Install
   where
 
 
-import qualified Elm.Compiler as Compiler
 import qualified Elm.Package as Pkg
+import qualified Elm.Version as V
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit.Help as Help
 
@@ -40,7 +40,7 @@ toReport exit =
             ["In","JavaScript","folks","run","`npm install`","to","start","projects."
             ,"\"Gotta","download","everything!\"","But","why","download","packages"
             ,"again","and","again?","Instead,","Elm","caches","packages","in"
-            ,D.dullyellow (D.fromString elmHome)
+            ,D.dullyellow (D.fromChars elmHome)
             ,"so","each","one","is","downloaded","and","built","ONCE","on","your","machine."
             ,"Elm","projects","check","that","cache","before","trying","the","internet."
             ,"This","reduces","build","times,","reduces","server","costs,","and","makes","it"
@@ -65,9 +65,9 @@ toReport exit =
 
         _:_ ->
           Help.report "OLD DEPENDENCIES" (Just "elm.json")
-            ( "The following packages do not work with Elm " ++ Pkg.versionToString Compiler.version ++ " right now:"
+            ( "The following packages do not work with Elm " ++ V.toChars V.compiler ++ " right now:"
             )
-            [ D.indent 4 $ D.vcat $ map (D.red . D.fromString . Pkg.toString) badPackages
+            [ D.indent 4 $ D.vcat $ map (D.red . D.fromUtf8 . Pkg.toString) badPackages
             , D.reflow $
                 "This may be because it is not upgraded yet. It may be because a\
                 \ better solution came along, so there was no need to upgrade it.\

@@ -9,6 +9,7 @@ module Reporting.Exit.Diff
 import qualified Data.List as List
 
 import qualified Elm.Package as Pkg
+import qualified Elm.Version as V
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit.Help as Help
 
@@ -21,7 +22,7 @@ data Exit
   = Application
   | Unpublished
   | UnknownPackage Pkg.Name [Pkg.Name]
-  | UnknownVersion Pkg.Name Pkg.Version [Pkg.Version]
+  | UnknownVersion Pkg.Name V.Version [V.Version]
 
 
 
@@ -47,16 +48,16 @@ toReport exit =
       Help.report "UNKNOWN PACKAGE" Nothing
         ( "I cannot find a package called:"
         )
-        [ D.indent 4 $ D.red $ D.fromText $ Pkg.toText pkg
+        [ D.indent 4 $ D.red $ D.fromUtf8 $ Pkg.toString pkg
         , "Maybe you want one of these instead?"
-        , D.indent 4 $ D.dullyellow $ D.vcat $ map (D.fromText . Pkg.toText) suggestions
+        , D.indent 4 $ D.dullyellow $ D.vcat $ map (D.fromUtf8 . Pkg.toString) suggestions
         , "But check <https://package.elm-lang.org> to see all possibilities!"
         ]
 
     UnknownVersion _pkg vsn realVersions ->
       Help.docReport "UNKNOWN VERSION" Nothing
         ( D.fillSep $
-            [ "Version", D.red (D.fromText (Pkg.versionToText vsn))
+            [ "Version", D.red (D.fromUtf8 (V.toString vsn))
             , "has", "never", "been", "published,", "so", "I"
             , "cannot", "diff", "against", "it."
             ]
@@ -64,8 +65,8 @@ toReport exit =
         [ "Here are all the versions that HAVE been published:"
         , D.indent 4 $ D.dullyellow $ D.vcat $
             let
-              sameMajor v1 v2 = Pkg._major v1 == Pkg._major v2
-              mkRow vsns = D.hsep $ map (D.fromText . Pkg.versionToText) vsns
+              sameMajor v1 v2 = V._major v1 == V._major v2
+              mkRow vsns = D.hsep $ map (D.fromUtf8 . V.toString) vsns
             in
               map mkRow $ List.groupBy sameMajor (List.sort realVersions)
         , "Want one of those instead?"

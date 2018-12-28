@@ -18,10 +18,10 @@ import Deps.Explorer (Explorer)
 import qualified Deps.Explorer as Explorer
 import qualified Deps.Verify as Verify
 import qualified Deps.Solver as Solver
-import Elm.Project.Constraint (Constraint)
-import qualified Elm.Project.Constraint as Con
+import qualified Elm.Constraint as C
 import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Root as Root
+import qualified Elm.Version as V
 import Reporting.Doc ((<>), (<+>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
@@ -41,15 +41,15 @@ install pkg =
       case oldProject of
         Project.App info ->
           do  changes <- makeAppPlan registry pkg info
-              attemptElmJsonChange root oldProject Pkg.versionToString changes
+              attemptElmJsonChange root oldProject V.toChars changes
 
         Project.Pkg info ->
           do  changes <- makePkgPlan registry pkg info
-              attemptElmJsonChange root oldProject Con.toString changes
+              attemptElmJsonChange root oldProject C.toChars changes
 
 
 attemptElmJsonChange :: FilePath -> Project.Project -> (a -> String) -> Changes a -> Task.Task ()
-attemptElmJsonChange root oldProject toString changes =
+attemptElmJsonChange root oldProject toChars changes =
   let
     attempt newProject question =
       do  approved <- Task.getApproval question
@@ -97,8 +97,8 @@ attemptElmJsonChange root oldProject toString changes =
 
     Changes changeDict newProject ->
       let
-        widths = Map.foldrWithKey (widen toString) (Widths 0 0 0) changeDict
-        changeDocs = Map.foldrWithKey (addChange toString widths) (Docs [] [] []) changeDict
+        widths = Map.foldrWithKey (widen toChars) (Widths 0 0 0) changeDict
+        changeDocs = Map.foldrWithKey (addChange toChars widths) (Docs [] [] []) changeDict
       in
       attempt newProject $ D.vcat $
         [ "Here is my plan:"
@@ -119,7 +119,7 @@ data Changes vsn
   | Changes (Map.Map Pkg.Name (Change vsn)) Project.Project
 
 
-makeAppPlan :: Cache.PackageRegistry -> Pkg.Name -> Project.AppInfo -> Task.Task (Changes Pkg.Version)
+makeAppPlan :: Cache.PackageRegistry -> Pkg.Name -> Project.AppInfo -> Task.Task (Changes V.Version)
 makeAppPlan registry pkg info@(Project.AppInfo _ _ depsDirect depsTrans testDirect testTrans) =
   if Map.member pkg depsDirect then
     return AlreadyInstalled
@@ -137,7 +137,7 @@ makeAppPlan registry pkg info@(Project.AppInfo _ _ depsDirect depsTrans testDire
             Changes (detectChanges old new) (Project.App newInfo)
 
 
-makePkgPlan :: Cache.PackageRegistry -> Pkg.Name -> Project.PkgInfo -> Task.Task (Changes Constraint)
+makePkgPlan :: Cache.PackageRegistry -> Pkg.Name -> Project.PkgInfo -> Task.Task (Changes C.Constraint)
 makePkgPlan registry pkg info@(Project.PkgInfo _ _ _ _ _ deps test _) =
   if Map.member pkg deps then
     return AlreadyInstalled
@@ -217,8 +217,8 @@ keepNew change =
 
 data AppAnswer =
   AppAnswer
-    { _old :: Map.Map Pkg.Name Pkg.Version
-    , _new :: Map.Map Pkg.Name Pkg.Version
+    { _old :: Map.Map Pkg.Name V.Version
+    , _new :: Map.Map Pkg.Name V.Version
     , _info :: Project.AppInfo
     }
 
@@ -252,8 +252,8 @@ toAppAnswerHelp pkg (Project.AppInfo elm srcDirs depsDirect depsTrans testDirect
       Map.union directs (Map.union depsTrans testTrans)
 
     try toConstraint deps =
-      do  solution <- Solver.solve $ Map.insert pkg Con.anything (Map.map toConstraint deps)
-          let newDepsDirect = Map.intersection solution (Map.insert pkg Pkg.dummyVersion depsDirect)
+      do  solution <- Solver.solve $ Map.insert pkg C.anything (Map.map toConstraint deps)
+          let newDepsDirect = Map.intersection solution (Map.insert pkg V.one depsDirect)
           newDeps <- lift $ foldM (collectTransitive solution) Map.empty (Map.keys newDepsDirect)
           return $
             AppAnswer
@@ -270,19 +270,19 @@ toAppAnswerHelp pkg (Project.AppInfo elm srcDirs depsDirect depsTrans testDirect
               }
   in
   msum
-    [ try Con.exactly directAndTrans
-    , try Con.exactly directs
-    , try Con.untilNextMinor directs
-    , try Con.untilNextMajor directs
-    , try (\_ -> Con.anything) directs
+    [ try C.exactly directAndTrans
+    , try C.exactly directs
+    , try C.untilNextMinor directs
+    , try C.untilNextMajor directs
+    , try (\_ -> C.anything) directs
     ]
 
 
 collectTransitive
-  :: Map.Map Pkg.Name Pkg.Version
-  -> Map.Map Pkg.Name Pkg.Version
+  :: Map.Map Pkg.Name V.Version
+  -> Map.Map Pkg.Name V.Version
   -> Pkg.Name
-  -> Explorer (Map.Map Pkg.Name Pkg.Version)
+  -> Explorer (Map.Map Pkg.Name V.Version)
 collectTransitive solution state name =
   do  let version = solution ! name
       (Explorer.Info _ trans) <- Explorer.getConstraints name version
@@ -298,7 +298,7 @@ collectTransitive solution state name =
 -- ADD TO PKG
 
 
-addToPkg :: Cache.PackageRegistry -> Pkg.Name -> Project.PkgInfo -> Task.Task (Map.Map Pkg.Name (Change Constraint))
+addToPkg :: Cache.PackageRegistry -> Pkg.Name -> Project.PkgInfo -> Task.Task (Map.Map Pkg.Name (Change C.Constraint))
 addToPkg registry pkg info@(Project.PkgInfo _ _ _ _ _ deps tests _) =
   Explorer.run registry $
     do  Explorer.exists pkg
@@ -314,12 +314,12 @@ addToPkg registry pkg info@(Project.PkgInfo _ _ _ _ _ deps tests _) =
                 lift $ Task.throw (Exit.Install (E.NoSolution badNames))
 
 
-addToPkgHelp :: Pkg.Name -> Project.PkgInfo -> Solver.Solver (Map.Map Pkg.Name Constraint)
+addToPkgHelp :: Pkg.Name -> Project.PkgInfo -> Solver.Solver (Map.Map Pkg.Name C.Constraint)
 addToPkgHelp pkg (Project.PkgInfo _ _ _ _ _ deps tests _) =
   do  let directs = Map.union deps tests
-      let newCons = Map.insert pkg Con.anything directs
+      let newCons = Map.insert pkg C.anything directs
       solution <- Solver.solve newCons
-      let con = Con.untilNextMajor (solution ! pkg)
+      let con = C.untilNextMajor (solution ! pkg)
       return $ Map.insert pkg con directs
 
 
@@ -334,7 +334,7 @@ isBadElm name =
       elmVersions <- forM versions $ \vsn ->
         Explorer._elm <$> Explorer.getConstraints name vsn
 
-      return (not (any Con.goodElm elmVersions))
+      return (not (any C.goodElm elmVersions))
 
 
 
@@ -364,7 +364,7 @@ viewNonZero title entries =
     []
   else
     [ ""
-    , D.fromString title
+    , D.fromChars title
     , D.indent 2 (D.vcat entries)
     ]
 
@@ -374,46 +374,46 @@ viewNonZero title entries =
 
 
 addChange :: (a -> String) -> Widths -> Pkg.Name -> Change a -> ChangeDocs -> ChangeDocs
-addChange toString widths name change (Docs inserts changes removes) =
+addChange toChars widths name change (Docs inserts changes removes) =
   case change of
     Insert new ->
-      Docs (viewInsert toString widths name new : inserts) changes removes
+      Docs (viewInsert toChars widths name new : inserts) changes removes
 
     Change old new ->
-      Docs inserts (viewChange toString widths name old new : changes) removes
+      Docs inserts (viewChange toChars widths name old new : changes) removes
 
     Remove old ->
-      Docs inserts changes (viewRemove toString widths name old : removes)
+      Docs inserts changes (viewRemove toChars widths name old : removes)
 
 
 viewInsert :: (a -> String) -> Widths -> Pkg.Name -> a -> D.Doc
-viewInsert toString (Widths nameWidth leftWidth _) name new =
-  viewName nameWidth name <+> pad leftWidth (toString new)
+viewInsert toChars (Widths nameWidth leftWidth _) name new =
+  viewName nameWidth name <+> pad leftWidth (toChars new)
 
 
 viewChange :: (a -> String) -> Widths -> Pkg.Name -> a -> a -> D.Doc
-viewChange toString (Widths nameWidth leftWidth rightWidth) name old new =
+viewChange toChars (Widths nameWidth leftWidth rightWidth) name old new =
   D.hsep
     [ viewName nameWidth name
-    , pad leftWidth (toString old)
+    , pad leftWidth (toChars old)
     , "=>"
-    , pad rightWidth (toString new)
+    , pad rightWidth (toChars new)
     ]
 
 
 viewRemove :: (a -> String) -> Widths -> Pkg.Name -> a -> D.Doc
-viewRemove toString (Widths nameWidth leftWidth _) name old =
-  viewName nameWidth name <+> pad leftWidth (toString old)
+viewRemove toChars (Widths nameWidth leftWidth _) name old =
+  viewName nameWidth name <+> pad leftWidth (toChars old)
 
 
 viewName :: Int -> Pkg.Name -> D.Doc
 viewName width name =
-  D.fill (width + 3) (D.fromText (Pkg.toText name))
+  D.fill (width + 3) (D.fromUtf8 (Pkg.toString name))
 
 
 pad :: Int -> String -> D.Doc
 pad width string =
-  D.fromString (replicate (width - length string) ' ') <> D.fromString string
+  D.fromChars (replicate (width - length string) ' ') <> D.fromChars string
 
 
 
@@ -429,13 +429,13 @@ data Widths =
 
 
 widen :: (a -> String) -> Pkg.Name -> Change a -> Widths -> Widths
-widen toString pkg change (Widths name left right) =
+widen toChars pkg change (Widths name left right) =
   let
     toLength a =
-      length (toString a)
+      length (toChars a)
 
     newName =
-      max name (length (Pkg.toString pkg))
+      max name (length (Pkg.toChars pkg))
   in
     case change of
       Insert new ->
