@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE BangPatterns, UnboxedTuples, OverloadedStrings #-}
 module Parse.Symbol
-  ( underscore
+  ( wildcard
   , binop
   )
   where
@@ -24,11 +24,11 @@ import qualified Reporting.Error.Syntax as E
 -- UNDERSCORE
 
 
-underscore :: Parser ()
-underscore =
+wildcard :: Parser ()
+wildcard =
   P.Parser $ \(P.State pos end indent row col ctx) cok _ cerr eerr ->
     if pos == end || P.unsafeIndex pos /= 0x5F {- _ -} then
-      eerr row col ctx E.Underscore
+      eerr row col ctx E.Wildcard
     else
       let
         !newPos = plusPtr pos 1
@@ -36,7 +36,7 @@ underscore =
       in
       if Var.getInnerWidth newPos end > 0 then
         let (# _, badCol #) = Var.chompInnerChars newPos end newCol in
-        cerr row newCol ctx (E.UnderscoreNotVar (fromIntegral (badCol - newCol)))
+        cerr row col ctx (E.WildcardNotVar newCol badCol)
       else
         let !newState = P.State newPos end indent row newCol ctx in
         cok () newState
@@ -51,15 +51,15 @@ binop =
   P.Parser $ \(P.State pos end indent row col ctx) cok _ cerr eerr ->
     let !newPos = chompOps pos end in
     if pos == newPos then
-      eerr row col ctx E.Binop
+      eerr row col ctx E.XXX
 
     else
       case Name.fromPtr pos newPos of
-        "."  -> cerr row col ctx (E.ReservedBinop E.Dot)
-        "|"  -> cerr row col ctx (E.ReservedBinop E.Pipe)
-        "->" -> cerr row col ctx (E.ReservedBinop E.Arrow)
-        "="  -> cerr row col ctx (E.ReservedBinop E.Equals)
-        ":"  -> cerr row col ctx (E.ReservedBinop E.HasType)
+        "."  -> cerr row col ctx (E.ReservedOperator E.Dot)
+        "|"  -> cerr row col ctx (E.ReservedOperator E.Pipe)
+        "->" -> cerr row col ctx (E.ReservedOperator E.Arrow)
+        "="  -> cerr row col ctx (E.ReservedOperator E.Equals)
+        ":"  -> cerr row col ctx (E.ReservedOperator E.HasType)
         op   ->
           let
             !newCol = col + fromIntegral (minusPtr newPos pos)

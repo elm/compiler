@@ -101,7 +101,7 @@ string =
         !pos1 = plusPtr pos 1
         result =
           if isDoubleQuote pos1 end && isDoubleQuote (plusPtr pos 2) end then
-            multiString (plusPtr pos 3) end row (col + 3) (plusPtr pos 3) mempty
+            multiString (plusPtr pos 3) end row (col + 3) (plusPtr pos 3) row col mempty
           else
             singleString pos1 end row (col + 1) pos1 mempty
       in
@@ -198,10 +198,10 @@ singleString pos end row col initialPos revChunks =
 -- MULTI STRINGS
 
 
-multiString :: Ptr Word8 -> Ptr Word8 -> Word16 -> Word16 -> Ptr Word8 -> [Utf8.Chunk] -> StringResult
-multiString pos end row col initialPos revChunks =
+multiString :: Ptr Word8 -> Ptr Word8 -> Word16 -> Word16 -> Ptr Word8 -> Word16 -> Word16 -> [Utf8.Chunk] -> StringResult
+multiString pos end row col initialPos sr sc revChunks =
   if pos >= end then
-    Err row col E.StringEnd_Multi
+    Err row col (E.StringEnd_Multi sr sc)
 
   else
     let !word = P.unsafeIndex pos in
@@ -211,38 +211,38 @@ multiString pos end row col initialPos revChunks =
 
     else if word == 0x27 {- ' -} then
       let !pos1 = plusPtr pos 1 in
-      multiString pos1 end row (col + 1) pos1 $
+      multiString pos1 end row (col + 1) pos1 sr sc $
         addEscape singleQuote initialPos pos revChunks
 
     else if word == 0x0A {- \n -} then
       let !pos1 = plusPtr pos 1 in
-      multiString pos1 end (row + 1) 1 pos1 $
+      multiString pos1 end (row + 1) 1 pos1 sr sc $
         addEscape newline initialPos pos revChunks
 
     else if word == 0x0D {- \r -} then
       let !pos1 = plusPtr pos 1 in
-      multiString pos1 end row col pos1 $
+      multiString pos1 end row col pos1 sr sc $
         addEscape carriageReturn initialPos pos revChunks
 
     else if word == 0x5C {- \ -} then
       case eatEscape (plusPtr pos 1) end col of
         EscapeNormal ->
-          multiString (plusPtr pos 2) end row (col + 2) initialPos revChunks
+          multiString (plusPtr pos 2) end row (col + 2) initialPos sr sc revChunks
 
         EscapeUnicode delta code ->
           let !newPos = plusPtr pos delta in
-          multiString newPos end row (col + fromIntegral delta) newPos $
+          multiString newPos end row (col + fromIntegral delta) newPos sr sc $
             addEscape (Utf8.CodePoint code) initialPos pos revChunks
 
         EscapeProblem x ->
           Err row col x
 
         EscapeEndOfFile ->
-          Err row (col + 1) E.StringEnd_Multi
+          Err row (col + 1) (E.StringEnd_Multi sr sc)
 
     else
       let !newPos = plusPtr pos (P.getCharWidth pos end word) in
-      multiString newPos end row (col + 1) initialPos revChunks
+      multiString newPos end row (col + 1) initialPos sr sc revChunks
 
 
 
@@ -276,7 +276,7 @@ eatEscape pos end startCol =
 eatUnicode :: Ptr Word8 -> Ptr Word8 -> Word16 -> Escape
 eatUnicode pos end startCol =
   if pos >= end || P.unsafeIndex pos /= 0x7B {- { -} then
-    EscapeProblem $ E.BadUnicodeStart startCol (startCol + 1)
+    EscapeProblem $ E.BadUnicodeFormat startCol (startCol + 1)
   else
     let
       !digitPos = plusPtr pos 1
@@ -284,16 +284,16 @@ eatUnicode pos end startCol =
       !numDigits = minusPtr newPos digitPos
     in
     if newPos >= end || P.unsafeIndex newPos /= 0x7D {- } -} then
-      EscapeProblem $ E.BadUnicodeEnd startCol $
+      EscapeProblem $ E.BadUnicodeFormat startCol $
         startCol + fromIntegral (minusPtr newPos pos)
 
     else if code < 0 || 0x10FFFF < code then
-      EscapeProblem $ E.BadUnicodeRange startCol $
+      EscapeProblem $ E.BadUnicodeCode startCol $
         startCol + fromIntegral (minusPtr newPos pos) + 1
 
     else if numDigits < 4 || 6 < numDigits then
       EscapeProblem $
-        E.BadUnicodeFormat
+        E.BadUnicodeLength
           startCol
           (startCol + fromIntegral (minusPtr newPos pos) + 1)
           numDigits

@@ -50,12 +50,12 @@ number :: Parser Number
 number =
   P.Parser $ \(P.State pos end indent row col ctx) cok _ cerr eerr ->
     if pos >= end then
-      eerr row col ctx E.Number
+      eerr row col ctx E.Number_Start
 
     else
       let !word = P.unsafeIndex pos in
       if not (isDecimalDigit word) then
-        eerr row col ctx E.Number
+        eerr row col ctx E.Number_Start
 
       else
         let
@@ -176,7 +176,7 @@ chompFractionHelp pos end =
 chompExponent :: Ptr Word8 -> Ptr Word8 -> Outcome
 chompExponent pos end =
   if pos >= end then
-    Err pos E.Number_Exp
+    Err pos E.Number_End
 
   else
     let !word = P.unsafeIndex pos in
@@ -189,10 +189,10 @@ chompExponent pos end =
       if pos1 < end && isDecimalDigit (P.unsafeIndex pos1) then
         chompExponentHelp (plusPtr pos 2) end
       else
-        Err pos E.Number_Exp
+        Err pos E.Number_End
 
     else
-      Err pos E.Number_Exp
+      Err pos E.Number_End
 
 
 chompExponentHelp :: Ptr Word8 -> Ptr Word8 -> Outcome

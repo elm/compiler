@@ -70,7 +70,7 @@ parseBlock =
           cok block newState
 
         Unending ->
-          cerr row col ctx E.ShaderEnd
+          cerr row col ctx (E.ShaderEnd col (col + 6))
 
     else
       eerr row col ctx E.ShaderStart
@@ -123,16 +123,15 @@ parseGlsl startRow startCol src =
             "end of input"
             (Parsec.errorMessages err)
       in
-        if row == 1 then
-          failure startRow (startCol + 6 + col) msg
-        else
-          failure (startRow + row - 1) col msg
+      if row == 1
+        then failure startRow (startCol + 6 + col) msg
+        else failure (startRow + row - 1) col msg
 
 
 failure :: Word16 -> Word16 -> String -> Parser a
 failure row col msg =
   P.Parser $ \(P.State _ _ _ _ _ ctx) _ _ cerr _ ->
-    cerr row col ctx (E.ShaderValid msg)
+    cerr row col ctx (E.ShaderProblem msg)
 
 
 
