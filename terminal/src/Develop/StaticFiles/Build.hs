@@ -36,7 +36,7 @@ compile =
         Task.run reporter $
           do  summary <- Project.getRoot
               let jsOutput = Just (Output.JavaScript Nothing tempFileName)
-              Project.compile Output.Prod Output.Client jsOutput Nothing summary rootPaths
+              Project.compile Output.Prod Output.Client jsOutput summary rootPaths
 
         result <- BS.readFile tempFileName
         seq (BS.length result) (Dir.removeFile tempFileName)

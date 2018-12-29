@@ -6,6 +6,7 @@ module File.Plan
   )
   where
 
+
 import Control.Concurrent (forkIO)
 import Control.Concurrent.Chan (Chan, newChan, readChan, writeChan)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, readMVar)
@@ -35,11 +36,11 @@ import qualified Stuff.Paths
 type Dict value = Map.Map ModuleName.Raw value
 
 
-plan :: Maybe FilePath -> Summary.Summary -> Crawl.Result -> Task.Task (Dict Info, I.Interfaces)
-plan docs (Summary.Summary root project _ ifaces _) (Crawl.Graph _ locals _ foreigns _) =
+plan :: Summary.Summary -> Crawl.Result -> Task.Task (Dict Info, I.Interfaces)
+plan (Summary.Summary root project _ ifaces _) (Crawl.Graph _ locals _ foreigns _) =
   liftIO $
   do  queue <- newChan
-      let env = Env queue root (Project.getName project) docs
+      let env = Env queue root (Project.getName project)
 
       mvar <- newEmptyMVar
       statusMVars <- Map.traverseWithKey (getStatus env mvar foreigns) locals
@@ -57,7 +58,6 @@ data Env =
     { _queue :: Chan Msg
     , _root :: FilePath
     , _pkg :: Pkg.Name
-    , _docs :: Maybe FilePath
     }
 
 
@@ -100,29 +100,21 @@ getStatus env statusMVars foreigns name (Header.Info path time src deps) =
             info <- foldM (addDep statuses foreigns) (Info path time src [] [] []) deps
 
             let elmi = Stuff.Paths.elmi (_root env) name
-            let docs = Stuff.Paths.moduleDocs (_root env) name
 
             case _dirty info of
               _ : _ ->
                 do  remove elmi
-                    remove docs
                     return (Just info)
 
               [] ->
                 do  freshElmi <- isFresh time elmi
-                    freshDocs <-
-                      case _docs env of
-                        Nothing -> return True
-                        Just _ -> isFresh time docs
-
-                    if name /= "Main" && freshElmi && freshDocs
+                    if name /= "Main" && freshElmi
                       then
                         do  let canonical = ModuleName.Canonical (_pkg env) name
                             writeChan (_queue env) (Get canonical elmi)
                             return Nothing
                       else
                         do  remove elmi
-                            remove docs
                             return (Just info)
 
       return mvar

@@ -1,7 +1,6 @@
 module Generate.Artifacts
   ( ignore
   , write
-  , writeDocs
   )
   where
 
@@ -11,15 +10,12 @@ import Control.Concurrent.MVar (newEmptyMVar, putMVar, readMVar)
 import Control.Monad (foldM, void)
 import Control.Monad.Except (liftIO)
 import qualified Data.Binary as Binary
+import qualified Data.ByteString.UTF8 as BS_UTF8
 import Data.Map (Map)
 import qualified Data.Map as Map
-import qualified Data.Maybe as Maybe
-import qualified Data.Text.Encoding as Text
 
 import qualified Elm.Compiler as Compiler
-import qualified Elm.Docs as Docs
 import qualified Elm.ModuleName as ModuleName
-import qualified Json.Encode as Encode
 
 import File.Compile (Answer(..))
 import qualified Reporting.Exit.Compile as E
@@ -48,7 +44,7 @@ ignore answers =
 write :: FilePath -> Map ModuleName.Raw Answer -> Task.Task (Map ModuleName.Raw Compiler.Artifacts)
 write root answers =
   let
-    writer name result@(Compiler.Artifacts elmi elmo _) =
+    writer name result@(Compiler.Artifacts elmi elmo) =
       do  mvar <- newEmptyMVar
           void $ forkIO $
             do  Binary.encodeFile (Path.elmi root name) elmi
@@ -58,21 +54,6 @@ write root answers =
   in
     do  mvars <- gather writer answers
         liftIO $ traverse readMVar mvars
-
-
-writeDocs :: Map ModuleName.Raw Compiler.Artifacts -> FilePath -> Task.Task Docs.Documentation
-writeDocs results path =
-  let
-    getDocs (Compiler.Artifacts _ _ docs) =
-      docs
-  in
-    case Maybe.mapMaybe getDocs (Map.elems results) of
-      [] ->
-        return Map.empty
-
-      docs ->
-        do  liftIO $ Encode.writeUgly path $ Encode.list Docs.encode docs
-            return $ Docs.toDict docs
 
 
 
@@ -102,7 +83,7 @@ gatherHelp onGood summary (name, answer) =
       return summary
 
     Bad path time src errors ->
-      do  let err = E.Exit name path time (Text.decodeUtf8 src) errors
+      do  let err = E.Exit name path time (BS_UTF8.toString src) errors
           return (addErr err summary)
 
     Good result ->

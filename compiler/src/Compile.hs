@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Compile
-  ( DocsFlag(..)
-  , compile
+  ( compile
   , Artifacts(..)
   )
   where
@@ -14,13 +13,12 @@ import qualified Data.Name as Name
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
 import qualified Canonicalize.Module as Canonicalize
-import qualified Elm.Docs as Docs
 import qualified Elm.Interface as I
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Nitpick.PatternMatches as PatternMatches
 import qualified Optimize.Module as Optimize
-import qualified Parse.Parse as Parse
+import qualified Parse.Module as Parse
 import qualified Reporting.Error as Error
 import qualified Reporting.Render.Type.Localizer as L
 import qualified Reporting.Result as Result
@@ -47,15 +45,14 @@ data Artifacts =
   Artifacts
     { _elmi :: I.Interface
     , _elmo :: Opt.Graph
-    , _docs :: Maybe Docs.Module
     }
 
 
-compile :: DocsFlag -> Pkg.Name -> ImportDict -> I.Interfaces -> BS.ByteString -> Result i Artifacts
-compile flag pkg importDict interfaces source =
+compile :: Pkg.Name -> ImportDict -> I.Interfaces -> BS.ByteString -> Result i Artifacts
+compile pkg importDict interfaces source =
   do
       valid <- Result.mapError Error.Syntax $
-        Parse.program pkg source
+        Parse.fromByteString pkg source
 
       canonical <- Result.mapError Error.Canonicalize $
         Canonicalize.canonicalize pkg importDict interfaces valid
@@ -71,14 +68,10 @@ compile flag pkg importDict interfaces source =
       graph <- Result.mapError (Error.Main localizer) $
         Optimize.optimize annotations canonical
 
-      documentation <-
-        genarateDocs flag canonical
-
       Result.ok $
         Artifacts
           { _elmi = I.fromModule annotations canonical
           , _elmo = graph
-          , _docs = documentation
           }
 
 
@@ -108,20 +101,3 @@ exhaustivenessCheck canonical =
 
     Right () ->
       Result.ok ()
-
-
-
--- DOCUMENTATION
-
-
-data DocsFlag = YesDocs | NoDocs
-
-
-genarateDocs :: DocsFlag -> Can.Module -> Result.Result i w Error.Error (Maybe Docs.Module)
-genarateDocs flag modul =
-  case flag of
-    NoDocs ->
-      Result.ok Nothing
-
-    YesDocs ->
-      Just <$> Docs.fromModule modul

@@ -26,8 +26,8 @@ import qualified Reporting.Task as Task
 -- COMPILE
 
 
-compile :: Project -> Maybe FilePath -> I.Interfaces -> Dict Plan.Info -> Task.Task (Dict Answer)
-compile project maybeDocsPath ifaces modules =
+compile :: Project -> I.Interfaces -> Dict Plan.Info -> Task.Task (Dict Answer)
+compile project ifaces modules =
   do  Task.report (Progress.CompileStart (Map.size modules))
 
       tell <- Task.getReporter
@@ -35,7 +35,7 @@ compile project maybeDocsPath ifaces modules =
       answers <- liftIO $
         do  mvar <- newEmptyMVar
             iMVar <- newMVar ifaces
-            answerMVars <- Map.traverseWithKey (compileModule tell project maybeDocsPath mvar iMVar) modules
+            answerMVars <- Map.traverseWithKey (compileModule tell project mvar iMVar) modules
             putMVar mvar answerMVars
             traverse readMVar answerMVars
 
@@ -64,13 +64,12 @@ type Dict a = Map.Map ModuleName.Raw a
 compileModule
   :: (Progress.Progress -> IO ())
   -> Project
-  -> Maybe FilePath
   -> MVar (Dict (MVar Answer))
   -> MVar I.Interfaces
   -> ModuleName.Raw
   -> Plan.Info
   -> IO (MVar Answer)
-compileModule tell project maybeDocsPath answersMVar ifacesMVar name info =
+compileModule tell project answersMVar ifacesMVar name info =
   do  mvar <- newEmptyMVar
 
       void $ forkIO $
@@ -81,18 +80,17 @@ compileModule tell project maybeDocsPath answersMVar ifacesMVar name info =
               else
                 do  tell (Progress.CompileFileStart name)
                     let pkg = Project.getName project
-                    let docs = toDocsFlag name project maybeDocsPath
                     let imports = makeImports project info
                     ifaces <- readMVar ifacesMVar
                     let source = Plan._src info
-                    case Compiler.compile docs pkg imports ifaces source of
+                    case Compiler.compile pkg imports ifaces source of
                       (_warnings, Left errors) ->
                         do  tell (Progress.CompileFileEnd name Progress.Bad)
                             let time = Plan._time info
                             let path = Plan._path info
                             putMVar mvar (Bad path time source errors)
 
-                      (_warnings, Right result@(Compiler.Artifacts elmi _ _)) ->
+                      (_warnings, Right result@(Compiler.Artifacts elmi _)) ->
                         do  tell (Progress.CompileFileEnd name Progress.Good)
                             let canonicalName = ModuleName.Canonical pkg name
                             lock <- takeMVar ifacesMVar
@@ -100,38 +98,6 @@ compileModule tell project maybeDocsPath answersMVar ifacesMVar name info =
                             putMVar mvar (Good result)
 
       return mvar
-
-
-
--- TO DOCS FLAG
-
-
-toDocsFlag :: ModuleName.Raw -> Project -> Maybe FilePath -> Compiler.DocsFlag
-toDocsFlag name project maybeDocsPath =
-  case maybeDocsPath of
-    Nothing ->
-      Compiler.NoDocs
-
-    Just _ ->
-      case project of
-        Project.App _ ->
-          Compiler.NoDocs
-
-        Project.Pkg info ->
-          if isExposed name (Project._pkg_exposed info) then
-            Compiler.YesDocs
-          else
-            Compiler.NoDocs
-
-
-isExposed :: ModuleName.Raw -> Project.Exposed -> Bool
-isExposed name exposed =
-  case exposed of
-    Project.ExposedList modules ->
-      elem name modules
-
-    Project.ExposedDict chunks ->
-      elem name (concatMap snd chunks)
 
 
 
