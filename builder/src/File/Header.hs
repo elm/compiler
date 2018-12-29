@@ -16,12 +16,18 @@ import qualified Data.Time.Calendar as Day
 import qualified Data.Time.Clock as Time
 import qualified System.Directory as Dir
 
-import qualified Elm.Header as Header
+import qualified AST.Source as Src
+import qualified Elm.Compiler.Imports as Imports
 import qualified Elm.ModuleName as ModuleName
+import qualified Elm.Package as Pkg
 import qualified Elm.Project.Json as Project
 import Elm.Project.Json (Project)
 import Elm.Project.Summary (Summary(..))
 import qualified File.IO as IO
+import qualified Parse.Module as Module
+import Parse.Utils (Parser)
+import qualified Parse.Primitives as P
+import qualified Reporting.Annotation as A
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Crawl as E
 import qualified Reporting.Task as Task
@@ -82,7 +88,7 @@ readOneFile summary path =
 
 readOneHelp :: FilePath -> Task.Task_ E.Exit (Time.UTCTime, BS.ByteString)
 readOneHelp path =
-  do  exists <- IO.exists path
+  do  exists <- liftIO $ IO.exists path
       if exists
         then liftIO $ (,) <$> Dir.getModificationTime path <*> IO.readUtf8 path
         else Task.throw $ E.RootFileNotFound path
@@ -150,41 +156,48 @@ fakeTime =
 parse :: Project -> FilePath -> Time.UTCTime -> BS.ByteString -> Task.Task_ E.Problem (Maybe ModuleName.Raw, Info)
 parse project path time source =
   -- TODO get regions on data extracted here
-  case Header.parse (Project.getName project) source of
-    Right (maybeDecl, deps) ->
-      do  maybeName <- checkTag project path maybeDecl
+  case P.fromByteString parser source of
+    P.Ok (maybeHeader, imports) _ ->
+      let
+        deps =
+          map (\(Src.Import (A.At _ name) _ _) -> name) $
+            if Project.getName project == Pkg.core
+            then imports
+            else Imports.addDefaults imports
+      in
+      do  maybeName <- checkTag project path maybeHeader
           return ( maybeName, Info path time source deps )
 
-    Left msg ->
-      Task.throw (E.BadHeader path time source msg)
+    P.Err _ _ _ _ ->
+      Task.throw (error "TODO give an error on bad headers / stop having a double parse")
 
 
-checkTag :: Project -> FilePath -> Maybe (Header.Tag, ModuleName.Raw) -> Task.Task_ E.Problem (Maybe ModuleName.Raw)
-checkTag project path maybeDecl =
-  case maybeDecl of
+parser :: Parser (Maybe Module.Header, [Src.Import])
+parser =
+  do  Module.freshLine
+      header <- Module.chompHeader
+      Module.maybeSkipDocComment
+      imports <- Module.chompImports []
+      return (header, imports)
+
+
+checkTag :: Project -> FilePath -> Maybe Module.Header -> Task.Task_ E.Problem (Maybe ModuleName.Raw)
+checkTag project path maybeHeader =
+  case maybeHeader of
     Nothing ->
       return Nothing
 
-    Just (tag, name) ->
-      let
-        success =
+    Just (Module.Header name effects _) ->
+      case effects of
+        Module.NoEffects _ ->
           return (Just name)
-      in
-      case tag of
-        Header.Normal ->
-          success
 
-        Header.Port ->
+        Module.Ports _ ->
           case project of
-            Project.App _ ->
-              success
+            Project.App _ -> return (Just name)
+            Project.Pkg _ -> Task.throw (E.PortsInPackage path name)
 
-            Project.Pkg _ ->
-              Task.throw (E.PortsInPackage path name)
-
-        Header.Effect ->
-          if Project.isPlatformPackage project then
-            success
-
-          else
-            Task.throw (E.EffectsUnexpected path name)
+        Module.Manager _ _ ->
+          if Project.isPlatformPackage project
+          then return (Just name)
+          else Task.throw (E.EffectsUnexpected path name)
