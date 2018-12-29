@@ -67,13 +67,13 @@ diff args =
     CodeVsLatest ->
       do  (summary, name, vsns) <- getPackageInfo
           oldDocs <- getDocs name vsns (maximum vsns)
-          newDocs <- Task.silently (Project.generateDocs summary)
+          newDocs <- Task.silently (error "TODO Project.generateDocs summary" summary)
           writeDiff oldDocs newDocs
 
     CodeVsExactly version ->
       do  (summary, name, vsns) <- getPackageInfo
           oldDocs <- getDocs name vsns version
-          newDocs <- Task.silently (Project.generateDocs summary)
+          newDocs <- Task.silently (error "TODO Project.generateDocs summary" summary)
           writeDiff oldDocs newDocs
 
 

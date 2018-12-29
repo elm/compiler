@@ -51,7 +51,7 @@ publish summary@(Summary.Summary root project _ _ _) =
 
           verifyReadme root
           verifyLicense root
-          docs <- Task.silently (Project.generateDocs summary)
+          docs <- Task.silently (error "TODO Project.generateDocs summary" summary)
           verifyVersion name version docs maybePublishedVersions
           commitHash <- verifyTag name version
           verifyNoChanges commitHash version

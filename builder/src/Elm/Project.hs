@@ -5,7 +5,6 @@ module Elm.Project
   , getRootWithReplFallback
   , compile
   , compileForRepl
-  , generateDocs
   )
   where
 
@@ -13,10 +12,8 @@ module Elm.Project
 import qualified Data.ByteString as BS
 import Data.Map ((!))
 import qualified Data.Name as Name
-import System.FilePath ((</>))
 
 import qualified Elm.Compiler as Compiler
-import qualified Elm.Docs as Docs
 import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Root as Root
 import qualified Elm.Project.Summary as Summary
@@ -29,7 +26,6 @@ import qualified Generate.Artifacts as Artifacts
 import qualified Generate.Output as Output
 import qualified Reporting.Render.Type.Localizer as L
 import qualified Reporting.Task as Task
-import qualified Stuff.Paths as Path
 
 
 
@@ -54,18 +50,17 @@ compile
   :: Output.Mode
   -> Output.Target
   -> Maybe Output.Output
-  -> Maybe FilePath
   -> Summary
   -> [FilePath]
   -> Task.Task ()
-compile mode target maybeOutput docs summary@(Summary.Summary root project _ _ _) paths =
+compile mode target maybeOutput summary@(Summary.Summary root project _ _ _) paths =
   do  Project.check project
       args <- Args.fromPaths summary paths
       graph <- Crawl.crawl summary args
-      (dirty, ifaces) <- Plan.plan docs summary graph
-      answers <- Compile.compile project docs ifaces dirty
+      (dirty, ifaces) <- Plan.plan summary graph
+      answers <- Compile.compile project ifaces dirty
       results <- Artifacts.write root answers
-      _ <- traverse (Artifacts.writeDocs results) docs
+      -- _ <- traverse (Artifacts.writeDocs results) docs
       Output.generate mode target maybeOutput summary graph results
 
 
@@ -78,24 +73,8 @@ compileForRepl noColors localizer source maybeName =
   do  summary@(Summary.Summary root project _ _ _) <- getRoot
       Project.check project
       graph <- Crawl.crawlFromSource summary source
-      (dirty, ifaces) <- Plan.plan Nothing summary graph
-      answers <- Compile.compile project Nothing ifaces dirty
+      (dirty, ifaces) <- Plan.plan summary graph
+      answers <- Compile.compile project ifaces dirty
       results <- Artifacts.write root answers
-      let (Compiler.Artifacts elmi _ _) = results ! Name.replModule
+      let (Compiler.Artifacts elmi _) = results ! Name.replModule
       traverse (Output.generateReplFile noColors localizer summary graph elmi) maybeName
-
-
-
--- GENERATE DOCS
-
-
-generateDocs :: Summary.Summary -> Task.Task Docs.Documentation
-generateDocs summary@(Summary.Summary root project _ _ _) =
-  do  let docsPath = root </> Path.docs
-      args <- Args.fromSummary summary
-      graph <- Crawl.crawl summary args
-      (dirty, ifaces) <- Plan.plan (Just docsPath) summary graph
-      answers <- Compile.compile project (Just docsPath) ifaces dirty
-      results <- Artifacts.write root answers
-      Output.noDebugUsesInPackage summary graph
-      Artifacts.writeDocs results docsPath
