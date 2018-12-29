@@ -12,9 +12,8 @@ import qualified Text.PrettyPrint.ANSI.Leijen as P
 import Text.PrettyPrint.ANSI.Leijen ((<>))
 import Text.Read (readMaybe)
 
-import qualified Elm.Compiler as Compiler
 import qualified Elm.Diff as Diff
-import qualified Elm.Package as Pkg
+import qualified Elm.Version as V
 import qualified Generate.Output as Output
 import Terminal.Args
 import Terminal.Args.Helpers
@@ -54,7 +53,7 @@ intro =
     [ P.fillSep
         ["Hi,","thank","you","for","trying","out"
         ,P.green "Elm"
-        ,P.green (P.text (Pkg.versionToString Compiler.version)) <> "."
+        ,P.green (P.text (V.toChars V.compiler)) <> "."
         ,"I hope you like it!"
         ]
     , ""

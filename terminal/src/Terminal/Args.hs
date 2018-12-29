@@ -24,8 +24,7 @@ import System.IO (hPutStr, hPutStrLn, stdout)
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 import qualified Text.Read as Read
 
-import qualified Elm.Compiler as Compiler
-import qualified Elm.Package as Pkg
+import qualified Elm.Version as V
 import Terminal.Args.Internal
 import qualified Terminal.Args.Chomp as Chomp
 import qualified Terminal.Args.Error as Error
@@ -40,7 +39,7 @@ simple details example args_ flags_ callback =
   do  argStrings <- Env.getArgs
       case argStrings of
         ["--version"] ->
-          do  hPutStrLn stdout (Pkg.versionToString Compiler.version)
+          do  hPutStrLn stdout (V.toChars V.compiler)
               Exit.exitSuccess
 
         chunks ->
@@ -67,7 +66,7 @@ complex intro outro interfaces =
           Error.exitWithOverview intro outro interfaces
 
         ["--version"] ->
-          do  hPutStrLn stdout (Pkg.versionToString Compiler.version)
+          do  hPutStrLn stdout (V.toChars V.compiler)
               Exit.exitSuccess
 
         command : chunks ->

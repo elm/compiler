@@ -9,7 +9,6 @@ module Reporting.Exit.Compile
 
 
 import qualified Data.List as List
-import qualified Data.Text as Text
 import qualified Data.Time.Clock as Time
 
 import qualified Elm.Compiler as Compiler
@@ -27,7 +26,7 @@ data Exit =
     { _name :: ModuleName.Raw
     , _path :: FilePath
     , _time :: Time.UTCTime
-    , _source :: Text.Text
+    , _source :: String
     , _errors :: [Compiler.Error]
     }
 
@@ -71,13 +70,13 @@ exitToDoc (Exit _name path _time source errors) =
 separator :: ModuleName.Raw -> ModuleName.Raw -> D.Doc
 separator beforeName afterName =
   let
-    before = ModuleName.nameToString beforeName ++ "  ↑    "
-    after  = "    ↓  " ++  ModuleName.nameToString afterName
+    before = ModuleName.nameToChars beforeName ++ "  ↑    "
+    after  = "    ↓  " ++  ModuleName.nameToChars afterName
   in
     D.dullred $ D.vcat $
-      [ D.indent (80 - length before) (D.fromString before)
+      [ D.indent (80 - length before) (D.fromChars before)
       , "====o======================================================================o===="
-      , D.fromString after
+      , D.fromChars after
       , D.empty
       , D.empty
       ]

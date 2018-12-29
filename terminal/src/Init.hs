@@ -13,10 +13,10 @@ import qualified System.Directory as Dir
 import qualified Deps.Cache as Cache
 import qualified Deps.Explorer as Explorer
 import qualified Deps.Solver as Solver
-import qualified Elm.Compiler.Version as Compiler
+import qualified Elm.Constraint as Con
 import qualified Elm.Package as Pkg
-import qualified Elm.Project.Constraint as Con
 import qualified Elm.Project.Json as Project
+import qualified Elm.Version as V
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Init as E
@@ -58,7 +58,7 @@ question =
         \ my project? How do I see it in the browser? How will my code grow? Do I need\
         \ more directories? What about tests? Etc."
     , D.fillSep
-        ["Check","out",D.cyan (D.fromString (D.makeLink "init"))
+        ["Check","out",D.cyan (D.fromChars (D.makeLink "init"))
         ,"for","all","the","answers!"
         ]
     , "Knowing all that, would you like me to create an elm.json file now? [Y/n]: "
@@ -85,7 +85,7 @@ init =
           liftIO $
             do  Dir.createDirectoryIfMissing True "src"
                 Project.write "." $ Project.App $
-                  Project.AppInfo Compiler.version ["src"] directs indirects Map.empty Map.empty
+                  Project.AppInfo V.compiler ["src"] directs indirects Map.empty Map.empty
 
         Nothing ->
           Task.throw (Exit.Init (E.NoSolution (Map.keys defaults)))
