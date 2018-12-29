@@ -6,7 +6,7 @@ import Control.Monad (when)
 import Control.Monad.Except (catchError, runExceptT)
 import Control.Monad.Trans (liftIO, lift)
 import qualified Data.List as List
-import qualified Data.Text as Text
+import qualified Data.Utf8 as Utf8
 import qualified System.Directory as Dir
 import qualified System.Exit as Exit
 import System.FilePath ((</>))
@@ -19,9 +19,9 @@ import qualified Deps.Website as Website
 import qualified Elm.Bump as Bump
 import qualified Elm.Docs as Docs
 import qualified Elm.Package as Pkg
-import qualified Elm.Project as Project
 import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Summary as Summary
+import qualified Elm.Version as V
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Publish as E
 import qualified Reporting.Progress as Progress
@@ -71,9 +71,9 @@ throw exit =
 -- VERIFY SUMMARY
 
 
-badSummary :: Text.Text -> Bool
+badSummary :: Utf8.String -> Bool
 badSummary summary =
-  Text.null summary || Project.defaultSummary == summary
+  Utf8.isEmpty summary || Project.defaultSummary == summary
 
 
 noExposed :: Project.Exposed -> Bool
@@ -124,7 +124,7 @@ verifyLicense root =
 -- VERIFY GITHUB TAG
 
 
-verifyTag :: Pkg.Name -> Pkg.Version -> Task.Task String
+verifyTag :: Pkg.Name -> V.Version -> Task.Task String
 verifyTag name version =
   phase (Progress.CheckTag version) $
     Website.githubCommit name version `catchError` \_ ->
@@ -135,7 +135,7 @@ verifyTag name version =
 -- VERIFY NO LOCAL CHANGES SINCE TAG
 
 
-verifyNoChanges :: String -> Pkg.Version -> Task.Task ()
+verifyNoChanges :: String -> V.Version -> Task.Task ()
 verifyNoChanges commitHash version =
   phase Progress.CheckChanges $
     do  maybeGit <- liftIO $ Dir.findExecutable "git"
@@ -160,7 +160,7 @@ verifyNoChanges commitHash version =
 -- VERIFY THAT ZIP BUILDS / COMPUTE HASH
 
 
-verifyZip :: Pkg.Name -> Pkg.Version -> Task.Task Website.Sha
+verifyZip :: Pkg.Name -> V.Version -> Task.Task Website.Sha
 verifyZip name version =
   withTempDir $ \dir ->
     do  hash <- phase Progress.CheckDownload $
@@ -169,7 +169,7 @@ verifyZip name version =
         phase Progress.CheckBuild $
           do  runner <- Task.getSilentRunner
               result <- liftIO $ Dir.withCurrentDirectory dir $ runner $
-                Task.silently $ Project.generateDocs =<< Project.getRoot
+                Task.silently $ error "TODO Project.generateDocs =<< Project.getRoot"
               either Task.throw (\_ -> return ()) result
 
         return hash
@@ -204,7 +204,7 @@ phase publishPhase task =
 -- VERIFY VERSION
 
 
-verifyVersion :: Pkg.Name -> Pkg.Version -> Docs.Documentation -> Maybe [Pkg.Version] -> Task.Task ()
+verifyVersion :: Pkg.Name -> V.Version -> Docs.Documentation -> Maybe [V.Version] -> Task.Task ()
 verifyVersion name version docs maybePublishedVersions =
   let
     reportBumpPhase bumpPhase =
@@ -213,7 +213,7 @@ verifyVersion name version docs maybePublishedVersions =
   do  reportBumpPhase Progress.StatedVersion
       case maybePublishedVersions of
         Nothing ->
-          if version == Pkg.initialVersion then
+          if version == V.one then
             reportBumpPhase Progress.GoodStart
           else
             throw (E.NotInitialVersion version)
@@ -230,7 +230,7 @@ verifyVersion name version docs maybePublishedVersions =
         Task.throw exit
 
 
-verifyBump :: Pkg.Name -> Pkg.Version -> Docs.Documentation -> [Pkg.Version] -> Task.Task (Pkg.Version, Diff.Magnitude)
+verifyBump :: Pkg.Name -> V.Version -> Docs.Documentation -> [V.Version] -> Task.Task (V.Version, Diff.Magnitude)
 verifyBump name statedVersion newDocs publishedVersions =
   let
     possibleBumps =

@@ -23,6 +23,7 @@ import qualified Elm.Package as Pkg
 import qualified Elm.Project as Project
 import qualified Elm.Project.Json as Project
 import qualified Elm.Project.Summary as Summary
+import qualified Elm.Version as V
 import Reporting.Doc ((<>), (<+>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
@@ -38,9 +39,9 @@ import qualified Reporting.Task as Task
 
 data Args
   = CodeVsLatest
-  | CodeVsExactly Pkg.Version
-  | LocalInquiry Pkg.Version Pkg.Version
-  | GlobalInquiry Pkg.Name Pkg.Version Pkg.Version
+  | CodeVsExactly V.Version
+  | LocalInquiry V.Version V.Version
+  | GlobalInquiry Pkg.Name V.Version V.Version
 
 
 diff :: Args -> Task.Task ()
@@ -85,7 +86,7 @@ throw exit =
 -- DIFF HELPERS
 
 
-getDocs :: Pkg.Name -> [Pkg.Version] -> Pkg.Version -> Task.Task Docs.Documentation
+getDocs :: Pkg.Name -> [V.Version] -> V.Version -> Task.Task Docs.Documentation
 getDocs name allVersions version =
   if elem version allVersions then
     Cache.getDocs name version
@@ -93,7 +94,7 @@ getDocs name allVersions version =
     throw $ E.UnknownVersion name version allVersions
 
 
-getPackageInfo :: Task.Task (Summary.Summary, Pkg.Name, [Pkg.Version])
+getPackageInfo :: Task.Task (Summary.Summary, Pkg.Name, [V.Version])
 getPackageInfo =
   do  summary <- Project.getRoot
       case Summary._project summary of
@@ -134,7 +135,7 @@ toDoc localizer changes@(PackageChanges added changed removed) =
   else
     let
       magDoc =
-        D.fromString (Diff.magnitudeToString (Diff.toMagnitude changes))
+        D.fromChars (Diff.magnitudeToString (Diff.toMagnitude changes))
 
       header =
         "This is a" <+> D.green magDoc <+> "change."
@@ -142,13 +143,13 @@ toDoc localizer changes@(PackageChanges added changed removed) =
       addedChunk =
         if null added then [] else
           [ Chunk "ADDED MODULES" MINOR $
-              D.vcat $ map (D.fromString . ModuleName.nameToString) added
+              D.vcat $ map (D.fromUtf8 . ModuleName.nameToString) added
           ]
 
       removedChunk =
         if null removed then [] else
           [ Chunk "REMOVED MODULES" MAJOR $
-              D.vcat $ map (D.fromString . ModuleName.nameToString) removed
+              D.vcat $ map (D.fromUtf8 . ModuleName.nameToString) removed
           ]
 
       chunks =
@@ -172,7 +173,7 @@ chunkToDoc (Chunk title magnitude details) =
       Diff.magnitudeToString magnitude
 
     header =
-      "----" <+> D.fromString title <+> "-" <+> D.fromString magDoc <+> "----"
+      "----" <+> D.fromChars title <+> "-" <+> D.fromChars magDoc <+> "----"
   in
     D.vcat
       [ D.dullcyan header
@@ -201,7 +202,7 @@ changesToChunk localizer (name, changes@(ModuleChanges unions aliases values bin
     (binopAdd, binopChange, binopRemove) =
       changesToDocTriple (binopToDoc localizer) binops
   in
-    Chunk (Name.toString name) magnitude $
+    Chunk (Name.toChars name) magnitude $
       D.vcat $ List.intersperse "" $ Maybe.catMaybes $
         [ changesToDoc "Added" unionAdd aliasAdd valueAdd binopAdd
         , changesToDoc "Removed" unionRemove aliasRemove valueRemove binopRemove
@@ -235,7 +236,7 @@ changesToDoc categoryName unions aliases values binops =
 
   else
     Just $ D.vcat $
-      D.fromString categoryName <> ":" : unions ++ aliases ++ binops ++ values
+      D.fromChars categoryName <> ":" : unions ++ aliases ++ binops ++ values
 
 
 unionToDoc :: L.Localizer -> Name.Name -> Docs.Union -> D.Doc
