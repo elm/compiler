@@ -11,6 +11,7 @@ var root =
   "/binaries-for-";
 
 module.exports = binwrap({
+  dirname: __dirname,
   binaries: ["elm"],
   urls: {
     "darwin-x64": root + "mac.tar.gz",
