@@ -1,6 +1,6 @@
 {
   "name": "elm",
-  "version": "0.19.0-bugfix2",
+  "version": "0.19.0-bugfix6",
   "description": "The Elm Platform: Binaries for the Elm programming language.",
   "main": "index.js",
   "preferGlobal": true,
@@ -27,8 +27,7 @@
   },
   "files": [
     "index.js",
-    "bin",
-    "bin/elm"
+    "bin"
   ],
   "keywords": [
     "bin",
