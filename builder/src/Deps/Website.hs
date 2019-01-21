@@ -29,7 +29,7 @@ import qualified Network.HTTP.Client as Client
 import qualified Network.HTTP.Client.MultipartFormData as Multi
 import qualified Network.HTTP.Types as Http
 import qualified System.Directory as Dir
-import System.FilePath ((</>), splitFileName)
+import System.FilePath ((</>), takeDirectory, splitFileName, hasTrailingPathSeparator)
 
 import Elm.Package (Name, Version)
 import qualified Elm.Package as Pkg
@@ -248,18 +248,26 @@ readArchive body (AS len sha zip) =
 writeArchive :: Zip.Archive -> FilePath -> FilePath -> IO ()
 writeArchive archive destination newRoot =
   do  Dir.createDirectoryIfMissing True destination
-      let opts = [Zip.OptDestination destination]
-      mapM_ (Zip.writeEntry opts . replaceRoot newRoot) (Zip.zEntries archive)
+      mapM_ (writeZipEntry (destination </> newRoot)) (Zip.zEntries archive)
 
 
-replaceRoot :: String -> Zip.Entry -> Zip.Entry
-replaceRoot root entry =
+writeZipEntry :: String -> Zip.Entry -> IO ()
+writeZipEntry root entry =
   let
-    rootless =
-      dropWhile (/='/') (Zip.eRelativePath entry)
+    path = replaceRootPath root $ Zip.eRelativePath entry
+    dir = takeDirectory path
+    bytes = Zip.fromEntry entry
   in
-    entry { Zip.eRelativePath = root ++ rootless }
+    if hasTrailingPathSeparator path then
+      return ()
+    else do
+      Dir.createDirectoryIfMissing True dir
+      LBS.writeFile path bytes
 
+
+replaceRootPath :: String -> FilePath -> FilePath
+replaceRootPath root path =
+  root ++ dropWhile (/='/') path
 
 
 -- FIND TAGGED COMMIT ON GITHUB
