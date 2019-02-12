@@ -1,27 +1,25 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Elm.Project.Json
-  ( Project(..)
-  , AppInfo(..)
-  , PkgInfo(..)
+module Elm.Outline
+  ( Outline(..)
+  , AppOutline(..)
+  , PkgOutline(..)
   , Exposed(..)
-  , defaultSummary
-  -- json
+  , read
   , write
   , encode
-  , read
-  , pkgDecoder
-  -- queries
+  , decoder
+  , defaultSummary
   , isPlatformPackage
   , getName
   , getExposed
-  , check
   )
   where
 
 
 import Prelude hiding (read)
-import Control.Monad.Trans (liftIO)
+import Control.Monad (filterM, liftM)
+import Data.Binary (Binary, get, put, getWord8, putWord8)
 import Data.Foldable (traverse_)
 import qualified Data.Map as Map
 import qualified Data.Utf8 as Utf8
@@ -37,39 +35,30 @@ import qualified Json.Decode as D
 import qualified Json.Encode as E
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Assets as E
-import qualified Reporting.Task as Task
 
 
 
--- PROJECT
+-- OUTLINE
 
 
-data Project
-  = App AppInfo
-  | Pkg PkgInfo
+data Outline
+  = App AppOutline
+  | Pkg PkgOutline
 
 
-
--- APPLICATION
-
-
-data AppInfo =
-  AppInfo
+data AppOutline =
+  AppOutline
     { _app_elm_version :: V.Version
     , _app_source_dirs :: [FilePath]
     , _app_deps_direct :: Map.Map Pkg.Name V.Version
-    , _app_deps_trans :: Map.Map Pkg.Name V.Version
+    , _app_deps_indirect :: Map.Map Pkg.Name V.Version
     , _app_test_direct :: Map.Map Pkg.Name V.Version
-    , _app_test_trans :: Map.Map Pkg.Name V.Version
+    , _app_test_indirect :: Map.Map Pkg.Name V.Version
     }
 
 
-
--- PACKAGE
-
-
-data PkgInfo =
-  PkgInfo
+data PkgOutline =
+  PkgOutline
     { _pkg_name :: Pkg.Name
     , _pkg_summary :: Utf8.String
     , _pkg_license :: Licenses.License
@@ -99,76 +88,54 @@ defaultSummary =
 -- QUERIES
 
 
-isPlatformPackage :: Project -> Bool
-isPlatformPackage project =
-  case project of
+isPlatformPackage :: Outline -> Bool
+isPlatformPackage outline =
+  case outline of
     App _ ->
       False
 
-    Pkg info ->
-      let
-        (Pkg.Name author _) =
-          _pkg_name info
-      in
+    Pkg pkgOutline ->
+      let author = Pkg._author (_pkg_name pkgOutline) in
       author == "elm" || author == "elm-explorations"
 
 
-getName :: Project -> Pkg.Name
-getName project =
-  case project of
+getName :: Outline -> Pkg.Name
+getName outline =
+  case outline of
     App _ ->
       Pkg.dummyName
 
-    Pkg info ->
-      _pkg_name info
+    Pkg (PkgOutline name _ _ _ _ _ _ _) ->
+      name
 
 
-getExposed :: PkgInfo -> [ModuleName.Raw]
-getExposed info =
-  case _pkg_exposed info of
-    ExposedList modules ->
-      modules
+getExposed :: PkgOutline -> [ModuleName.Raw]
+getExposed (PkgOutline _ _ _ _ exposed _ _ _) =
+  case exposed of
+    ExposedList names ->
+      names
 
-    ExposedDict chunks ->
-      concatMap snd chunks
-
-
-check :: Project -> Task.Task ()
-check project =
-  case project of
-    Pkg (PkgInfo name _ _ _ _ deps _ _) ->
-      if name == Pkg.core || Map.member Pkg.core deps
-        then return ()
-        else throwBadJson E.NoPkgCore
-
-    App (AppInfo _ _ direct indirect _ _) ->
-      if Map.member Pkg.core direct then
-
-        if Map.member Pkg.json direct || Map.member Pkg.json indirect
-          then return ()
-          else throwBadJson E.NoAppJson
-
-      else
-        throwBadJson E.NoAppCore
+    ExposedDict sections ->
+      concatMap snd sections
 
 
 
 -- WRITE
 
 
-write :: FilePath -> Project -> IO ()
-write root project =
-  E.write (root </> "elm.json") (encode project)
+write :: FilePath -> Outline -> IO ()
+write root outline =
+  E.write (root </> "elm.json") (encode outline)
 
 
 
 -- JSON ENCODE
 
 
-encode :: Project -> E.Value
-encode project =
-  case project of
-    App (AppInfo elm srcDirs depsDirect depsTrans testDirect testTrans) ->
+encode :: Outline -> E.Value
+encode outline =
+  case outline of
+    App (AppOutline elm srcDirs depsDirect depsTrans testDirect testTrans) ->
       E.object
         [ "type" ==> E.string "application"
         , "source-directories" ==> E.list (E.string . Utf8.fromChars) srcDirs
@@ -185,10 +152,10 @@ encode project =
               ]
         ]
 
-    Pkg (PkgInfo name summary license version exposed deps tests elm) ->
+    Pkg (PkgOutline name summary license version exposed deps tests elm) ->
       E.object
         [ "type" ==> E.string "package"
-        , "name" ==> E.string (Pkg.toString name)
+        , "name" ==> Pkg.encode name
         , "summary" ==> E.string summary
         , "license" ==> Licenses.encode license
         , "version" ==> V.encode version
@@ -228,34 +195,28 @@ encodeDeps encodeValue deps =
 -- PARSE AND VERIFY
 
 
-read :: FilePath -> Task.Task Project
-read path =
-  do  result <- liftIO $ D.fromFile decoder path
+read :: FilePath -> IO (Either Exit.OutlineProblem Outline)
+read root =
+  do  result <- D.fromFile decoder (root </> "elm.json")
       case result of
-        Right project ->
-          case project of
-            Pkg _ ->
-              do  return project
-
-            App (AppInfo _ srcDirs _ _ _ _) ->
-              do  mapM_ doesDirectoryExist srcDirs
-                  return project
-
         Left err ->
-          throwBadJson (error "TODO bad json" err)
+          return $ Left (Exit.BadOutlineStructure err)
+
+        Right outline ->
+          case outline of
+            Pkg _ ->
+              return $ Right outline
+
+            App (AppOutline _ srcDirs _ _ _ _) ->
+              do  badDirs <- filterM (isBadSrcDir root) srcDirs
+                  case badDirs of
+                    []   -> return $ Right outline
+                    d:ds -> return $ Left (Exit.BadOutlineSrcDirs d ds)
 
 
-throwBadJson :: E.ElmJsonProblem -> Task.Task a
-throwBadJson problem =
-  Task.throw (Exit.Assets (E.BadElmJson problem))
-
-
-doesDirectoryExist :: FilePath -> Task.Task ()
-doesDirectoryExist dir =
-  do  exists <- liftIO $ Dir.doesDirectoryExist dir
-      if exists
-        then return ()
-        else throwBadJson (E.BadSrcDir dir)
+isBadSrcDir :: FilePath -> FilePath -> IO Bool
+isBadSrcDir root dir =
+  not <$> Dir.doesDirectoryExist (root </> dir)
 
 
 
@@ -266,7 +227,7 @@ type Decoder a =
   D.Decoder E.BadElmJsonContent a
 
 
-decoder :: Decoder Project
+decoder :: Decoder Outline
 decoder =
   do  tipe <- D.field "type" D.string
       case tipe of
@@ -280,9 +241,9 @@ decoder =
           D.failure (E.BadType other)
 
 
-appDecoder :: Decoder AppInfo
+appDecoder :: Decoder AppOutline
 appDecoder =
-  AppInfo
+  AppOutline
     <$> D.field "elm-version" versionDecoder
     <*> D.field "source-directories" (D.list dirDecoder)
     <*> D.field "dependencies" (D.field "direct" (depsDecoder versionDecoder))
@@ -291,12 +252,12 @@ appDecoder =
     <*> D.field "test-dependencies" (D.field "indirect" (depsDecoder versionDecoder))
 
 
-pkgDecoder :: Decoder PkgInfo
+pkgDecoder :: Decoder PkgOutline
 pkgDecoder =
-  PkgInfo
-    <$> D.field "name" pkgNameDecoder
+  PkgOutline
+    <$> D.field "name" (D.mapError E.BadPkgName Pkg.decoder)
     <*> D.field "summary" summaryDecoder
-    <*> D.field "license" licenseDecoder
+    <*> D.field "license" (Licenses.decoder E.BadLicense)
     <*> D.field "version" versionDecoder
     <*> D.field "exposed-modules" exposedDecoder
     <*> D.field "dependencies" (depsDecoder constraintDecoder)
@@ -308,22 +269,12 @@ pkgDecoder =
 -- JSON DECODE HELPERS
 
 
-pkgNameDecoder :: Decoder Pkg.Name
-pkgNameDecoder =
-  D.mapError E.BadPkgName Pkg.decoder
-
-
 summaryDecoder :: Decoder Utf8.String
 summaryDecoder =
   do  summary <- D.string
       if Utf8.size summary < 80
         then return summary
         else D.failure E.BadSummaryTooLong
-
-
-licenseDecoder :: Decoder Licenses.License
-licenseDecoder =
-  Licenses.decoder E.BadLicense
 
 
 versionDecoder :: Decoder V.Version
@@ -379,7 +330,68 @@ moduleDecoder =
 
 checkHeader :: Utf8.String -> Decoder ()
 checkHeader header =
-  if Utf8.size header < 20 then
-    return ()
-  else
-    D.failure (E.BadModuleHeaderTooLong header)
+  if Utf8.size header < 20
+    then return ()
+    else D.failure (E.BadModuleHeaderTooLong header)
+
+
+
+-- BINARY
+
+
+instance Binary Outline where
+  put outline =
+    case outline of
+      App a -> putWord8 0 >> put a
+      Pkg a -> putWord8 1 >> put a
+
+  get =
+    do  n <- getWord8
+        case n of
+          0 -> liftM App get
+          1 -> liftM Pkg get
+          _ -> error "binary encoding of Outline was corrupted"
+
+
+instance Binary AppOutline where
+  put (AppOutline a b c d e f) =
+    put a >> put b >> put c >> put d >> put e >> put f
+
+  get =
+    do  a <- get
+        b <- get
+        c <- get
+        d <- get
+        e <- get
+        f <- get
+        return (AppOutline a b c d e f)
+
+
+instance Binary PkgOutline where
+  put (PkgOutline a b c d e f g h) =
+    put a >> put b >> put c >> put d >> put e >> put f >> put g >> put h
+
+  get =
+    do  a <- get
+        b <- get
+        c <- get
+        d <- get
+        e <- get
+        f <- get
+        g <- get
+        h <- get
+        return (PkgOutline a b c d e f g h)
+
+
+instance Binary Exposed where
+  put exposed =
+    case exposed of
+      ExposedList a -> putWord8 0 >> put a
+      ExposedDict a -> putWord8 1 >> put a
+
+  get =
+    do  n <- getWord8
+        case n of
+          0 -> liftM ExposedList get
+          1 -> liftM ExposedDict get
+          _ -> error "binary encoding of ProjectDeps was corrupted"
