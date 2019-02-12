@@ -1,16 +1,15 @@
-module File.IO
-  ( writeBinary, readBinary
-  , writeUtf8, readUtf8
+module File
+  ( Time
+  , getTime
+  , withLock
+  , writeBinary
+  , readBinary
+  , writeUtf8
+  , readUtf8
   , writeBuilder
-  , Writer
-  , put
-  , putByteString
-  , putBuilder
-  , putFile
   , exists
-  , remove, removeDir
-  , find
-  , andM
+  , remove
+  , removeDir
   )
   where
 
@@ -20,14 +19,45 @@ import qualified Data.Binary as Binary
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Internal as BS
 import qualified Data.ByteString.Builder as B
-import qualified Data.ByteString.Builder.Extra as B (defaultChunkSize)
+import qualified Data.Fixed as Fixed
+import qualified Data.Time.Clock.POSIX as Time
 import qualified Foreign.ForeignPtr as FPtr
 import GHC.IO.Exception (IOException, IOErrorType(InvalidArgument))
 import qualified System.Directory as Dir
-import System.FilePath ((</>))
+import qualified System.FileLock as Lock
 import qualified System.FilePath as FP
 import qualified System.IO as IO
 import System.IO.Error (ioeGetErrorType, annotateIOError, modifyIOError)
+
+
+
+-- TIME
+
+
+newtype Time = Time Fixed.Pico
+  deriving (Eq, Ord)
+
+
+getTime :: FilePath -> IO Time
+getTime path =
+  fmap
+    (Time . realToFrac . Time.utcTimeToPOSIXSeconds)
+-- TODO    (Time . Time.nominalDiffTimeToSeconds . Time.utcTimeToPOSIXSeconds)
+    (Dir.getModificationTime path)
+
+
+instance Binary.Binary Time where
+  put (Time time) = Binary.put time
+  get = Time <$> Binary.get
+
+
+
+-- LOCK
+
+
+withLock :: FilePath -> IO a -> IO a
+withLock path work =
+  Lock.withFileLock path Lock.Exclusive (\_ -> work)
 
 
 
@@ -43,14 +73,10 @@ writeBinary path value =
 
 readBinary :: (Binary.Binary a) => FilePath -> IO (Maybe a)
 readBinary path =
-  do  exists_ <- Dir.doesFileExist path
-      if not exists_
-        then return Nothing
-        else
-          do  result <- Binary.decodeFileOrFail path
-              case result of
-                Left _  -> return Nothing
-                Right a -> return (Just a)
+  do  result <- Binary.decodeFileOrFail path
+      case result of
+        Right a -> return (Just a)
+        Left  _ -> return Nothing
 
 
 
@@ -58,14 +84,14 @@ readBinary path =
 
 
 writeUtf8 :: FilePath -> BS.ByteString -> IO ()
-writeUtf8 filePath content =
-  withUtf8 filePath IO.WriteMode $ \handle ->
+writeUtf8 path content =
+  withUtf8 path IO.WriteMode $ \handle ->
     BS.hPut handle content
 
 
 withUtf8 :: FilePath -> IO.IOMode -> (IO.Handle -> IO a) -> IO a
-withUtf8 filePath mode callback =
-  IO.withFile filePath mode $ \handle ->
+withUtf8 path mode callback =
+  IO.withFile path mode $ \handle ->
     do  IO.hSetEncoding handle IO.utf8
         callback handle
 
@@ -75,9 +101,9 @@ withUtf8 filePath mode callback =
 
 
 readUtf8 :: FilePath -> IO BS.ByteString
-readUtf8 filePath =
-  withUtf8 filePath IO.ReadMode $ \handle ->
-    modifyIOError (encodingError filePath) $
+readUtf8 path =
+  withUtf8 path IO.ReadMode $ \handle ->
+    modifyIOError (encodingError path) $
       do  fileSize <- catch (IO.hFileSize handle) useZeroIfNotRegularFile
           let readSize = max 0 (fromIntegral fileSize) + 1
           hGetContentsSizeHint handle readSize (max 255 readSize)
@@ -102,14 +128,14 @@ hGetContentsSizeHint handle =
 
 
 encodingError :: FilePath -> IOError -> IOError
-encodingError filePath ioErr =
+encodingError path ioErr =
   case ioeGetErrorType ioErr of
     InvalidArgument ->
       annotateIOError
         (userError "Bad encoding; the file must be valid UTF-8")
         ""
         Nothing
-        (Just filePath)
+        (Just path)
 
     _ ->
       ioErr
@@ -127,54 +153,12 @@ writeBuilder path builder =
 
 
 
--- WRITER
-
-
-newtype Writer =
-  Writer (IO.Handle -> IO ())
-
-
-put :: FilePath -> Writer -> IO ()
-put path (Writer callback) =
-  IO.withBinaryFile path IO.WriteMode callback
-
-
-putByteString :: BS.ByteString -> Writer
-putByteString chunk =
-  Writer $ \handle ->
-    BS.hPut handle chunk
-
-
-putBuilder :: B.Builder -> Writer
-putBuilder builder =
-  Writer $ \handle ->
-    B.hPutBuilder handle builder
-
-
-putFile :: FilePath -> Writer
-putFile path =
-  Writer $ \sink ->
-    IO.withBinaryFile path IO.ReadMode $ \source ->
-      putHelp source sink
-
-
-putHelp :: IO.Handle -> IO.Handle -> IO ()
-putHelp source sink =
-  do  chunk <- BS.hGet source B.defaultChunkSize
-      if BS.null chunk
-        then return ()
-        else
-          do  BS.hPut sink chunk
-              putHelp source sink
-
-
-
 -- EXISTS
 
 
 exists :: FilePath -> IO Bool
-exists =
-  Dir.doesFileExist
+exists path =
+  Dir.doesFileExist path
 
 
 
@@ -182,10 +166,10 @@ exists =
 
 
 remove :: FilePath -> IO ()
-remove filePath =
-  do  exists_ <- Dir.doesFileExist filePath
+remove path =
+  do  exists_ <- Dir.doesFileExist path
       if exists_
-        then Dir.removeFile filePath
+        then Dir.removeFile path
         else return ()
 
 
@@ -195,40 +179,3 @@ removeDir path =
       if exists_
         then Dir.removeDirectoryRecursive path
         else return ()
-
-
-
--- FIND FILES
-
-
-find :: FilePath -> IO (Maybe FilePath)
-find name =
-  do  subDir <- Dir.getCurrentDirectory
-      findHelp name (FP.splitDirectories subDir)
-
-
-findHelp :: FilePath -> [String] -> IO (Maybe FilePath)
-findHelp name dirs =
-  if null dirs then
-    return Nothing
-
-  else
-    do  exists_ <- Dir.doesFileExist (FP.joinPath dirs </> name)
-        if exists_
-          then return (Just (FP.joinPath dirs))
-          else findHelp name (init dirs)
-
-
-
--- HELPER
-
-
-andM :: (Monad m) => [m Bool] -> m Bool
-andM checks =
-  case checks of
-    [] ->
-      return True
-
-    check : otherChecks ->
-      do  bool <- check
-          if bool then andM otherChecks else return False
