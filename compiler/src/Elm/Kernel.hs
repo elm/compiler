@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE EmptyDataDecls, OverloadedStrings, UnboxedTuples #-}
+{-# LANGUAGE BangPatterns, EmptyDataDecls, OverloadedStrings, UnboxedTuples #-}
 module Elm.Kernel
   ( Content(..)
   , Chunk(..)
