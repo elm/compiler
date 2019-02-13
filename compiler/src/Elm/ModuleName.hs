@@ -1,10 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Elm.ModuleName
   ( Raw
-  , nameToChars
-  , nameToString
-  , nameToSlashPath
-  , nameToHyphenPath
+  , toChars
+  , toString
+  , toSlashPath
+  , toHyphenPath
   , fromHyphenPath
   , encode
   , decoder
@@ -41,23 +41,23 @@ import qualified Json.Encode as Encode
 type Raw = Name.Name
 
 
-nameToChars :: Raw -> String
-nameToChars =
+toChars :: Raw -> String
+toChars =
   Name.toChars
 
 
-nameToString :: Raw -> Utf8.String
-nameToString =
+toString :: Raw -> Utf8.String
+toString =
   Name.toUtf8
 
 
-nameToSlashPath :: Raw -> FilePath
-nameToSlashPath name =
+toSlashPath :: Raw -> FilePath
+toSlashPath name =
   map (\c -> if c == '.' then FP.pathSeparator else c) (Name.toChars name)
 
 
-nameToHyphenPath :: Raw -> FilePath
-nameToHyphenPath name =
+toHyphenPath :: Raw -> FilePath
+toHyphenPath name =
   map (\c -> if c == '.' then '-' else c) (Name.toChars name)
 
 
