@@ -1,6 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
-module Generate.Functions (functions) where
+module Generate.Functions
+  ( functions
+  )
+  where
+
 
 import qualified Data.ByteString.Builder as B
 import Text.RawString.QQ (r)
