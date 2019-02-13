@@ -1,4 +1,4 @@
-module Generate.Nitpick
+module Nitpick.Debug
   ( findDebugUses
   )
   where
