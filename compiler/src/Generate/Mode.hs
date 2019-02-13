@@ -1,11 +1,8 @@
-module Generate.JavaScript.Mode
+module Generate.Mode
   ( Mode(..)
-  , Target(..)
-  , debug
-  , dev
-  , prod
   , isDebug
-  , isServer
+  , ShortFieldNames
+  , shortenFieldNames
   )
   where
 
@@ -16,7 +13,7 @@ import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
 
 import qualified AST.Optimized as Opt
-import qualified Elm.Interface as I
+import qualified Elm.Compiler.Type.Extract as Extract
 import qualified Generate.JavaScript.Name as JsName
 
 
@@ -25,54 +22,15 @@ import qualified Generate.JavaScript.Name as JsName
 
 
 data Mode
-  = Dev Target (Maybe I.Interfaces)
-  | Prod Target ShortFieldNames
-
-
-data Target = Client | Server
-
-
-debug :: Target -> I.Interfaces -> Mode
-debug target interfaces =
-  Dev target (Just interfaces)
-
-
-dev :: Target -> Mode
-dev target =
-  Dev target Nothing
-
-
-prod :: Target -> Opt.Graph -> Mode
-prod target (Opt.Graph _ _ fieldCounts) =
-  Prod target (shortenFieldNames fieldCounts)
-
-
-
--- IS DEBUG?
+  = Dev (Maybe Extract.Types)
+  | Prod ShortFieldNames
 
 
 isDebug :: Mode -> Bool
 isDebug mode =
   case mode of
-    Dev _ mi -> Maybe.isJust mi
-    Prod _ _ -> False
-
-
--- IS SERVER?
-
-
-isServer :: Mode -> Bool
-isServer mode =
-  case mode of
-    Dev target _ -> isServerHelp target
-    Prod target _ -> isServerHelp target
-
-
-isServerHelp :: Target -> Bool
-isServerHelp target =
-  case target of
-    Client -> False
-    Server -> True
+    Dev mi -> Maybe.isJust mi
+    Prod _ -> False
 
 
 
@@ -83,8 +41,8 @@ type ShortFieldNames =
   Map.Map Name.Name JsName.Name
 
 
-shortenFieldNames :: Map.Map Name.Name Int -> ShortFieldNames
-shortenFieldNames frequencies =
+shortenFieldNames :: Opt.Graph -> ShortFieldNames
+shortenFieldNames (Opt.Graph _ _ frequencies) =
   Map.foldr addToShortNames Map.empty $
     Map.foldrWithKey addToBuckets Map.empty frequencies
 

@@ -26,7 +26,8 @@ import qualified Elm.ModuleName as ModuleName
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Expression as Expr
 import qualified Generate.JavaScript.Name as JsName
-import qualified Generate.JavaScript.Mode as Mode
+import qualified Generate.Mode as Mode
+import qualified Reporting.Doc as D
 import qualified Reporting.Render.Type as RT
 import qualified Reporting.Render.Type.Localizer as L
 
@@ -41,7 +42,7 @@ data Output
 
 
 generate :: Mode.Mode -> Opt.Graph -> [ModuleName.Canonical] -> Output
-generate mode (Opt.Graph mains graph _fields) roots =
+generate mode (Opt.Graph mains graph _) roots =
   let
     rootSet = Set.fromList roots
     rootMap = Map.restrictKeys mains rootSet
@@ -66,15 +67,15 @@ addMain mode graph home _ state =
 perfNote :: Mode.Mode -> B.Builder
 perfNote mode =
   case mode of
-    Mode.Prod _ _ ->
+    Mode.Prod _ ->
       ""
 
-    Mode.Dev _ Nothing ->
+    Mode.Dev Nothing ->
       "console.warn('Compiled in DEV mode. Follow the advice at "
       <> B.stringUtf8 (D.makeNakedLink "optimize")
       <> " for better performance and smaller assets.');"
 
-    Mode.Dev _ (Just _) ->
+    Mode.Dev (Just _) ->
       "console.warn('Compiled in DEBUG mode. Follow the advice at "
       <> B.stringUtf8 (D.makeNakedLink "optimize")
       <> " for better performance and smaller assets.');"
@@ -87,13 +88,13 @@ perfNote mode =
 generateForRepl :: Bool -> L.Localizer -> Opt.Graph -> I.Interface -> ModuleName.Canonical -> Name.Name -> B.Builder
 generateForRepl ansi localizer (Opt.Graph _ graph _) iface home name =
   let
-    mode = Mode.dev Mode.Client
+    mode = Mode.Dev Nothing
     debugState = addGlobal mode graph emptyState (Opt.Global ModuleName.debug "toString")
     evalState = addGlobal mode graph debugState (Opt.Global home name)
   in
   stateToBuilder evalState
   <>
-  print ansi localizer home name (I._types iface ! name)
+  print ansi localizer home name (I._values iface ! name)
 
 
 print :: Bool -> L.Localizer -> ModuleName.Canonical -> Name.Name -> Can.Annotation -> B.Builder
@@ -258,10 +259,10 @@ generateCycle mode (Opt.Global home _) names values functions =
 
         realBlock@(_:_) ->
             case mode of
-              Mode.Prod _ _ ->
+              Mode.Prod _ ->
                 JS.Block realBlock
 
-              Mode.Dev _ _ ->
+              Mode.Dev _ ->
                 JS.Try (JS.Block realBlock) JsName.dollar $ JS.Throw $ JS.String $
                   "Some top-level definitions from `" <> Name.toBuilder (ModuleName._module home) <> "` are causing infinite recursion:\\n"
                   <> drawCycle names
@@ -343,18 +344,18 @@ addChunk mode chunk builder =
 
     K.Debug ->
       case mode of
-        Mode.Dev _ _ ->
+        Mode.Dev _ ->
           builder
 
-        Mode.Prod _ _ ->
+        Mode.Prod _ ->
           "_UNUSED" <> builder
 
     K.Prod ->
       case mode of
-        Mode.Dev _ _ ->
+        Mode.Dev _ ->
           "_UNUSED" <> builder
 
-        Mode.Prod _ _ ->
+        Mode.Prod _ ->
           builder
 
 
@@ -367,10 +368,10 @@ generateEnum mode global@(Opt.Global home name) index =
   let
     definition =
       case mode of
-        Mode.Dev _ _ ->
+        Mode.Dev _ ->
           Expr.codeToExpr (Expr.generateCtor mode global index 0)
 
-        Mode.Prod _ _ ->
+        Mode.Prod _ ->
           JS.Int (Index.toMachine index)
   in
   JS.Var [ (JsName.fromGlobal home name, Just definition) ]
@@ -385,10 +386,10 @@ generateBox mode global@(Opt.Global home name) =
   let
     definition =
       case mode of
-        Mode.Dev _ _ ->
+        Mode.Dev _ ->
           Expr.codeToExpr (Expr.generateCtor mode global Index.first 1)
 
-        Mode.Prod _ _ ->
+        Mode.Prod _ ->
           JS.Ref (JsName.fromGlobal ModuleName.basics Name.identity)
   in
   JS.Var [ (JsName.fromGlobal home name, Just definition) ]
