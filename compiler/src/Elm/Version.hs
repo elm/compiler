@@ -6,8 +6,6 @@ module Elm.Version
   , bumpPatch
   , bumpMinor
   , bumpMajor
-  , filterLatest
-  , majorAndMinor
   , toChars
   , toString
   , fromString
@@ -20,8 +18,6 @@ module Elm.Version
 import Prelude hiding (max)
 import Control.Monad (liftM, liftM3)
 import Data.Binary (Binary, get, put, getWord8, putWord8)
-import Data.Function (on)
-import qualified Data.List as List
 import qualified Data.Utf8 as Utf8
 import qualified Data.Version as Version
 import Data.Word (Word16)
@@ -87,20 +83,6 @@ bumpMinor (Version major minor _patch) =
 bumpMajor :: Version -> Version
 bumpMajor (Version major _minor _patch) =
   Version (major + 1) 0 0
-
-
-
--- FILTERING
-
-
-filterLatest :: (Ord a) => (Version -> a) -> [Version] -> [Version]
-filterLatest characteristic versions =
-  map last (List.groupBy ((==) `on` characteristic) (List.sort versions))
-
-
-majorAndMinor :: Version -> ( Int, Int )
-majorAndMinor (Version major minor _patch) =
-  ( fromIntegral major, fromIntegral minor )
 
 
 
