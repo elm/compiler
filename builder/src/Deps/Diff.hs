@@ -4,11 +4,10 @@ module Deps.Diff
   , PackageChanges(..)
   , ModuleChanges(..)
   , Changes(..)
-  , Magnitude(..)
   , moduleChangeMagnitude
-  , magnitudeToString
   , toMagnitude
   , bump
+  , getDocs
   )
   where
 
@@ -21,10 +20,18 @@ import qualified Data.Name as Name
 import qualified Data.Set as Set
 import qualified Data.Utf8 as Utf8
 
+import qualified Deps.Website as Website
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Docs as Docs
+import qualified Elm.Magnitude as M
 import qualified Elm.ModuleName as ModuleName
+import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
+import qualified File
+import qualified Http
+import qualified Json.Decode as D
+import qualified Reporting.Exit as Exit
+import qualified Stuff
 
 
 
@@ -73,7 +80,7 @@ diff :: Docs.Documentation -> Docs.Documentation -> PackageChanges
 diff oldDocs newDocs =
   let
     filterOutPatches chngs =
-      Map.filter (\chng -> moduleChangeMagnitude chng /= PATCH) chngs
+      Map.filter (\chng -> moduleChangeMagnitude chng /= M.PATCH) chngs
 
     (Changes added changed removed) =
       getChanges (\_ _ -> False) oldDocs newDocs
@@ -298,50 +305,30 @@ categorizeVar name
 -- MAGNITUDE
 
 
-data Magnitude
-  = PATCH
-  | MINOR
-  | MAJOR
-  deriving (Eq, Ord)
-
-
-magnitudeToString :: Magnitude -> String
-magnitudeToString magnitude =
-  case magnitude of
-    PATCH ->
-      "PATCH"
-
-    MINOR ->
-      "MINOR"
-
-    MAJOR ->
-      "MAJOR"
-
-
 bump :: PackageChanges -> V.Version -> V.Version
 bump changes version =
   case toMagnitude changes of
-    PATCH ->
+    M.PATCH ->
       V.bumpPatch version
 
-    MINOR ->
+    M.MINOR ->
       V.bumpMinor version
 
-    MAJOR ->
+    M.MAJOR ->
       V.bumpMajor version
 
 
-toMagnitude :: PackageChanges -> Magnitude
+toMagnitude :: PackageChanges -> M.Magnitude
 toMagnitude (PackageChanges added changed removed) =
   let
-    addMag = if null added then PATCH else MINOR
-    removeMag = if null removed then PATCH else MAJOR
+    addMag = if null added then M.PATCH else M.MINOR
+    removeMag = if null removed then M.PATCH else M.MAJOR
     changeMags = map moduleChangeMagnitude (Map.elems changed)
   in
     maximum (addMag : removeMag : changeMags)
 
 
-moduleChangeMagnitude :: ModuleChanges -> Magnitude
+moduleChangeMagnitude :: ModuleChanges -> M.Magnitude
 moduleChangeMagnitude (ModuleChanges unions aliases values binops) =
   maximum
     [ changeMagnitude unions
@@ -351,13 +338,43 @@ moduleChangeMagnitude (ModuleChanges unions aliases values binops) =
     ]
 
 
-changeMagnitude :: Changes k v -> Magnitude
+changeMagnitude :: Changes k v -> M.Magnitude
 changeMagnitude (Changes added changed removed) =
   if Map.size removed > 0 || Map.size changed > 0 then
-    MAJOR
+    M.MAJOR
 
   else if Map.size added > 0 then
-    MINOR
+    M.MINOR
 
   else
-    PATCH
+    M.PATCH
+
+
+
+-- GET DOCS
+
+
+getDocs :: Stuff.PackageCache -> Http.Manager -> Pkg.Name -> V.Version -> IO (Either Exit.DocsProblem Docs.Documentation)
+getDocs cache manager name version =
+  do  let path = Stuff.metadata cache name version "docs.json"
+      exists <- File.exists path
+      if exists
+        then
+          do  result <- D.fromFile Docs.decoder path
+              case result of
+                Right docs ->
+                  return $ Right docs
+
+                Left _ ->
+                  do  File.remove path
+                      return $ Left Exit.DP_Cache
+        else
+          do  let url = Website.metadata name version "docs.json"
+              Http.post manager url [] Exit.DP_Http $ \body ->
+                case D.fromByteString Docs.decoder body of
+                  Right docs ->
+                    do  File.writeUtf8 path body
+                        return $ Right docs
+
+                  Left _ ->
+                    return $ Left Exit.DP_Data
