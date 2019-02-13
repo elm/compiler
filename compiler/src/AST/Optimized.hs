@@ -11,12 +11,16 @@ module AST.Optimized
   , Main(..)
   , Node(..)
   , EffectsType(..)
+  , empty
+  , union
+  , unions
   )
   where
 
 
 import Control.Monad (liftM, liftM2, liftM3, liftM4)
-import Data.Binary
+import Data.Binary (Binary, get, put, getWord8, putWord8)
+import qualified Data.List as List
 import qualified Data.Map as Map
 import Data.Name (Name)
 import qualified Data.Set as Set
@@ -148,6 +152,34 @@ data Node
 
 
 data EffectsType = Cmd | Sub | Fx
+
+
+
+-- GRAPHS
+
+
+{-# NOINLINE empty #-}
+empty :: Graph
+empty =
+  Graph Map.empty Map.empty Map.empty
+
+
+union :: Graph -> Graph -> Graph
+union (Graph mains1 graph1 fields1) (Graph mains2 graph2 fields2) =
+  Graph
+    (Map.union mains1 mains2)
+    (Map.union graph1 graph2)
+    (Map.union fields1 fields2)
+
+
+unions :: [Graph] -> Graph
+unions graphs =
+  case graphs of
+    [] ->
+      empty
+
+    g:gs ->
+      List.foldl' union g gs
 
 
 
