@@ -5,6 +5,7 @@ module Data.OneOrMore
   , more
   , toList
   , map
+  , destruct
   )
   where
 
@@ -62,3 +63,22 @@ map func oneOrMore =
 
     More left right ->
       More (map func left) (map func right)
+
+
+
+-- DESTRUCT
+
+
+destruct :: (a -> [a] -> b) -> OneOrMore a -> b
+destruct func oneOrMore =
+  destructHelp func oneOrMore []
+
+
+destructHelp :: (a -> [a] -> b) -> OneOrMore a -> [a] -> b
+destructHelp func oneOrMore xs =
+  case oneOrMore of
+    One x ->
+      func x xs
+
+    More a b ->
+      destructHelp func a (toListHelp b xs)
