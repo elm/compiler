@@ -12,7 +12,7 @@ module Elm.Outline
   , defaultSummary
   , isPlatformPackage
   , getName
-  , getExposed
+  , flattenExposed
   )
   where
 
@@ -109,8 +109,8 @@ getName outline =
       name
 
 
-getExposed :: PkgOutline -> [ModuleName.Raw]
-getExposed (PkgOutline _ _ _ _ exposed _ _ _) =
+flattenExposed :: Exposed -> [ModuleName.Raw]
+flattenExposed exposed =
   case exposed of
     ExposedList names ->
       names
