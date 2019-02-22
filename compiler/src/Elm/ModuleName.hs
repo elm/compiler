@@ -3,7 +3,7 @@ module Elm.ModuleName
   ( Raw
   , toChars
   , toString
-  , toSlashPath
+  , toFilePath
   , toHyphenPath
   , fromHyphenPath
   , encode
@@ -51,8 +51,8 @@ toString =
   Name.toUtf8
 
 
-toSlashPath :: Raw -> FilePath
-toSlashPath name =
+toFilePath :: Raw -> FilePath
+toFilePath name =
   map (\c -> if c == '.' then FP.pathSeparator else c) (Name.toChars name)
 
 
