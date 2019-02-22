@@ -1,9 +1,8 @@
 {-# LANGUAGE OverloadedStrings, Rank2Types #-}
 module Deps.Solver
-  ( Solver
+  ( online
+  , offline
   , Details(..)
-  , Connection(..)
-  , solve
   )
   where
 
@@ -11,6 +10,7 @@ module Deps.Solver
 import Control.Monad (foldM)
 import qualified Data.Map as Map
 import qualified System.Directory as Dir
+import System.FilePath ((</>))
 
 import qualified Deps.Registry as Registry
 import qualified Deps.Website as Website
@@ -22,6 +22,48 @@ import qualified File
 import qualified Http
 import qualified Json.Decode as D
 import qualified Stuff
+
+
+
+-- ONLINE / OFFLINE
+
+
+online :: Stuff.PackageCache -> Http.Manager -> Registry.Registry -> Map.Map Pkg.Name C.Constraint -> IO (Either [Problem] (Map.Map Pkg.Name Details))
+online cache manager registry constraints =
+  solve cache (Online manager) registry constraints
+
+
+offline :: Stuff.PackageCache -> Registry.Registry -> Map.Map Pkg.Name C.Constraint -> IO (Either [Problem] (Map.Map Pkg.Name Details))
+offline cache registry constraints =
+  solve cache Offline registry constraints
+
+
+
+-- SOLVE
+
+
+data Details =
+  Details V.Version (Map.Map Pkg.Name C.Constraint)
+
+
+solve :: Stuff.PackageCache -> Connection -> Registry.Registry -> Map.Map Pkg.Name C.Constraint -> IO (Either [Problem] (Map.Map Pkg.Name Details))
+solve cache connection registry constraints =
+  let
+    (Solver solver) = exploreGoals (Goals constraints Map.empty)
+  in
+  solver (State cache connection registry Map.empty [])
+    (\(State _ _ _ cs _) vs _ -> return $ Right $ Map.mapWithKey (toDetails cs) vs)
+    (\(State _ _ _ _ ps) -> return $ Left ps)
+
+
+toDetails :: Map.Map (Pkg.Name, V.Version) Constraints -> Pkg.Name -> V.Version -> Details
+toDetails constraints name vsn =
+  case Map.lookup (name, vsn) constraints of
+    Just (Constraints _ deps) ->
+      Details vsn deps
+
+    Nothing ->
+      error "compiler bug in Deps.Solver manifesting in toDetails"
 
 
 
@@ -37,6 +79,10 @@ newtype Solver a =
       -> (State -> IO b)
       -> IO b
   )
+
+
+
+-- STATE
 
 
 data State =
@@ -68,39 +114,6 @@ data Problem
   | UnknownPackage [Pkg.Name]
   | ImpossibleConstraint Pkg.Name C.Constraint
   | UnavailableOffline Pkg.Name V.Version
-
-
-
--- SOLVE
-
-
-data Details =
-  Details V.Version [Pkg.Name]
-
-
-solve :: Stuff.PackageCache -> Connection -> Registry.Registry -> Map.Map Pkg.Name C.Constraint -> IO (Either [Problem] (Map.Map Pkg.Name Details))
-solve cache connection registry constraints =
-  let
-    (Solver solver) = exploreGoals (Goals constraints Map.empty)
-  in
-  solver (State cache connection registry Map.empty [])
-    (\(State _ _ _ cs _) vs _ -> return $ Right $ getDetails vs cs)
-    (\(State _ _ _ _ ps) -> return $ Left ps)
-
-
-getDetails :: Map.Map Pkg.Name V.Version -> Map.Map (Pkg.Name, V.Version) Constraints -> Map.Map Pkg.Name Details
-getDetails solution constraints =
-  Map.mapWithKey (getDetailsHelp constraints) solution
-
-
-getDetailsHelp :: Map.Map (Pkg.Name, V.Version) Constraints -> Pkg.Name -> V.Version -> Details
-getDetailsHelp constraints name vsn =
-  case Map.lookup (name, vsn) constraints of
-    Just (Constraints _ deps) ->
-      Details vsn (Map.keys deps)
-
-    Nothing ->
-      error "compiler bug in Deps.Solver manifesting in getDetailsHelp"
 
 
 
@@ -207,7 +220,7 @@ getConstraints name version =
 
 getConstraintsHelp :: Stuff.PackageCache -> Connection -> Pkg.Name -> V.Version -> IO (Either Problem Constraints)
 getConstraintsHelp cache connection name version =
-  do  let path = Stuff.metadata cache name version "elm.json"
+  do  let path = Stuff.package cache name version </> "elm.json"
       outlineExists <- File.exists path
       if outlineExists
         then
@@ -219,7 +232,7 @@ getConstraintsHelp cache connection name version =
                       return $ Right cs
 
                     Offline ->
-                      do  srcExists <- Dir.doesDirectoryExist (Stuff.metadata cache name version "src")
+                      do  srcExists <- Dir.doesDirectoryExist (Stuff.package cache name version </> "src")
                           if srcExists
                             then return $ Right cs
                             else return $ Left (UnavailableOffline name version)
