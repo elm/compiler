@@ -180,6 +180,7 @@ data PatternCtorArg =
 
 
 data Annotation = Forall FreeVars Type
+  deriving (Eq)
 
 
 type FreeVars = Map.Map Name ()
@@ -193,15 +194,17 @@ data Type
   | TUnit
   | TTuple Type Type (Maybe Type)
   | TAlias ModuleName.Canonical Name [(Name, Type)] AliasType
+  deriving (Eq)
 
 
 data AliasType
   = Holey Type
   | Filled Type
+  deriving (Eq)
 
 
-data FieldType =
-  FieldType {-# UNPACK #-} !Word16 Type
+data FieldType = FieldType {-# UNPACK #-} !Word16 Type
+  deriving (Eq)
 
 
 -- NOTE: The Word16 marks the source order, but it may not be available
@@ -237,7 +240,11 @@ data Module =
 
 
 data Alias = Alias [Name] Type
+  deriving (Eq)
+
+
 data Binop = Binop_ Binop.Associativity Binop.Precedence Name
+  deriving (Eq)
 
 
 data Union =
@@ -247,6 +254,7 @@ data Union =
     , _u_numAlts :: Int -- CACHE numAlts for exhaustiveness checking
     , _u_opts :: CtorOpts -- CACHE which optimizations are available
     }
+  deriving (Eq)
 
 
 data CtorOpts
@@ -256,8 +264,8 @@ data CtorOpts
   deriving (Eq, Ord)
 
 
-data Ctor =
-  Ctor Name Index.ZeroBased Int [Type] -- CACHE length args
+data Ctor = Ctor Name Index.ZeroBased Int [Type] -- CACHE length args
+  deriving (Eq)
 
 
 
