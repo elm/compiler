@@ -19,6 +19,7 @@ import qualified Data.Map as Map
 import qualified Data.Name as Name
 import qualified Data.Set as Set
 import qualified Data.Utf8 as Utf8
+import System.FilePath ((</>))
 
 import qualified Deps.Website as Website
 import qualified Elm.Compiler.Type as Type
@@ -356,7 +357,7 @@ changeMagnitude (Changes added changed removed) =
 
 getDocs :: Stuff.PackageCache -> Http.Manager -> Pkg.Name -> V.Version -> IO (Either Exit.DocsProblem Docs.Documentation)
 getDocs cache manager name version =
-  do  let path = Stuff.metadata cache name version "docs.json"
+  do  let path = Stuff.package cache name version </> "docs.json"
       exists <- File.exists path
       if exists
         then
