@@ -10,6 +10,7 @@ module Canonicalize.Environment.Foreign
 import Control.Monad (foldM)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
+import Data.Map.Strict ((!))
 import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
@@ -30,24 +31,10 @@ type Result i w a =
   Result.Result i w Error.Error a
 
 
-
--- CREATE ENVIRONMENT
-
-
-type ImportDict =
-  Map.Map Name.Name ModuleName.Canonical
-
-
-createInitialEnv :: ModuleName.Canonical -> ImportDict -> I.Interfaces -> [Src.Import] -> Result i w Env.Env
-createInitialEnv home importDict interfaces sourceImports =
-  do  imports <- traverse (verifyImport importDict interfaces) (filter isNotKernel sourceImports)
-      (State vs ts cs bs qvs qts qcs) <- foldM addImport emptyState imports
+createInitialEnv :: ModuleName.Canonical -> Map.Map ModuleName.Raw I.Interface -> [Src.Import] -> Result i w Env.Env
+createInitialEnv home ifaces imports =
+  do  (State vs ts cs bs qvs qts qcs) <- foldM (addImport ifaces) emptyState imports
       Result.ok (Env.Env home (Map.map Env.Foreign vs) ts cs bs qvs qts qcs)
-
-
-isNotKernel :: Src.Import -> Bool
-isNotKernel (Src.Import (A.At _ name) _ _) =
-  not (Name.isKernel name)
 
 
 
@@ -80,9 +67,13 @@ emptyTypes =
 -- ADD IMPORTS
 
 
-addImport :: State -> Import -> Result i w State
-addImport (State vs ts cs bs qvs qts qcs) (Import home (I.Interface defs unions aliases binops) prefix exposing) =
+addImport :: Map.Map ModuleName.Raw I.Interface -> State -> Src.Import -> Result i w State
+addImport ifaces (State vs ts cs bs qvs qts qcs) (Src.Import (A.At _ name) maybeAlias exposing) =
   let
+    (I.Interface pkg defs unions aliases binops) = ifaces ! name
+    !prefix = maybe name id maybeAlias
+    !home = ModuleName.Canonical pkg name
+
     !rawTypeInfo =
       Map.union
         (Map.mapMaybeWithKey (unionToType home) unions)
@@ -276,31 +267,3 @@ toCtors types =
 
         _ ->
           dict
-
-
-
--- VERIFY IMPORT
-
-
-data Import =
-  Import
-    { _name :: ModuleName.Canonical
-    , _interface :: I.Interface
-    , _prefix :: Name.Name
-    , _exposing :: Src.Exposing
-    }
-
-
-verifyImport :: ImportDict -> I.Interfaces -> Src.Import -> Result i w Import
-verifyImport importDict interfaces (Src.Import (A.At region name) alias exposing) =
-  case Map.lookup name importDict of
-    Just canonicalName ->
-      case Map.lookup canonicalName interfaces of
-        Just interface ->
-          Result.ok (Import canonicalName interface (maybe name id alias) exposing)
-
-        Nothing ->
-          Result.throw $ Error.ImportNotFound region name (Map.keys interfaces)
-
-    Nothing ->
-      Result.throw $ Error.ImportNotFound region name (Map.elems importDict)
