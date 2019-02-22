@@ -1,6 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 module Stuff
   ( details
+  , interfaces
+  , objects
   , prepublishDir
   , elmi
   , elmo
@@ -9,7 +11,7 @@ module Stuff
   , PackageCache
   , getPackageCache
   , registry
-  , metadata
+  , package
   , getReplCache
   )
   where
@@ -36,7 +38,17 @@ stuff =
 
 details :: FilePath
 details =
-  stuff </> "details.dat"
+  stuff </> "d.dat"
+
+
+interfaces :: FilePath
+interfaces =
+  stuff </> "i.dat"
+
+
+objects :: FilePath
+objects =
+  stuff </> "o.dat"
 
 
 prepublishDir :: FilePath
@@ -117,9 +129,9 @@ registry (PackageCache dir) =
   dir </> "registry.dat"
 
 
-metadata :: PackageCache -> Pkg.Name -> V.Version -> String -> FilePath
-metadata (PackageCache dir) name version path =
-  dir </> Pkg.toFilePath name </> V.toChars version </> path
+package :: PackageCache -> Pkg.Name -> V.Version -> FilePath
+package (PackageCache dir) name version =
+  dir </> Pkg.toFilePath name </> V.toChars version
 
 
 
