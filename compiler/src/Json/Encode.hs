@@ -30,7 +30,8 @@ import qualified Data.Scientific as Sci
 import Data.Monoid ((<>))
 import qualified Data.Name as Name
 import qualified Data.Utf8 as Utf8
-import System.IO (IOMode(WriteMode), withBinaryFile)
+
+import qualified File
 
 
 
@@ -112,14 +113,12 @@ list encodeEntry entries =
 
 write :: FilePath -> Value -> IO ()
 write path value =
-  withBinaryFile path WriteMode $ \handle ->
-    B.hPutBuilder handle (encode value <> "\n")
+  File.writeBuilder path (encode value <> "\n")
 
 
 writeUgly :: FilePath -> Value -> IO ()
 writeUgly path value =
-  withBinaryFile path WriteMode $ \handle ->
-    B.hPutBuilder handle (encodeUgly value)
+  File.writeBuilder path (encodeUgly value)
 
 
 
