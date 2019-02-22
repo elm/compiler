@@ -1,15 +1,16 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Compile
-  ( compile
-  , Artifacts(..)
+  ( Artifacts(..)
+  , compile
   )
   where
 
 
-import qualified Data.ByteString as BS
 import qualified Data.Map as Map
 import qualified Data.Name as Name
+import qualified Data.OneOrMore as OneOrMore
 
+import qualified AST.Source as Src
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
 import qualified Canonicalize.Module as Canonicalize
@@ -18,11 +19,9 @@ import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Nitpick.PatternMatches as PatternMatches
 import qualified Optimize.Module as Optimize
-import qualified Parse.Module as Parse
-import qualified Reporting.Error as Error
-import qualified Reporting.Render.Type.Localizer as L
-import qualified Reporting.Result as Result
-import qualified Reporting.Warning as Warning
+import qualified Reporting.Error as E
+import qualified Reporting.Result as R
+import qualified Reporting.Warning as W
 import qualified Type.Constrain.Module as Type
 import qualified Type.Solve as Type
 
@@ -33,71 +32,53 @@ import System.IO.Unsafe (unsafePerformIO)
 -- COMPILE
 
 
-type Result i a =
-  Result.Result i [Warning.Warning] Error.Error a
-
-
-type ImportDict =
-  Map.Map Name.Name ModuleName.Canonical
-
-
 data Artifacts =
   Artifacts
-    { _elmi :: I.Interface
-    , _elmo :: Opt.Graph
+    { _modul :: Can.Module
+    , _types :: Map.Map Name.Name Can.Annotation
+    , _graph :: Opt.Graph
     }
 
 
-compile :: Pkg.Name -> ImportDict -> I.Interfaces -> BS.ByteString -> Result i Artifacts
-compile pkg importDict interfaces source =
-  do
-      valid <- Result.mapError Error.Syntax $
-        Parse.fromByteString pkg source
-
-      canonical <- Result.mapError Error.Canonicalize $
-        Canonicalize.canonicalize pkg importDict interfaces valid
-
-      let localizer = L.fromModule valid -- TODO should this be strict for GC?
-
-      annotations <-
-        runTypeInference localizer canonical
-
-      () <-
-        exhaustivenessCheck canonical
-
-      graph <- Result.mapError (Error.Main localizer) $
-        Optimize.optimize annotations canonical
-
-      Result.ok $
-        Artifacts
-          { _elmi = I.fromModule annotations canonical
-          , _elmo = graph
-          }
+compile :: Pkg.Name -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> ([W.Warning], Either (OneOrMore.OneOrMore E.Error) Artifacts)
+compile pkg ifaces modul =
+  R.run $
+  do  canonical   <- canonicalize pkg ifaces modul
+      annotations <- typeCheck canonical
+      ()          <- nitpick canonical
+      objects     <- optimize annotations canonical
+      return (Artifacts canonical annotations objects)
 
 
 
--- TYPE INFERENCE
+-- PHASES
 
 
-runTypeInference :: L.Localizer -> Can.Module -> Result i (Map.Map Name.Name Can.Annotation)
-runTypeInference localizer canonical =
+canonicalize :: Pkg.Name -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> R.Result i [W.Warning] E.Error Can.Module
+canonicalize pkg ifaces modul =
+  R.mapError E.Canonicalize $ Canonicalize.canonicalize pkg ifaces modul
+
+
+typeCheck :: Can.Module -> R.Result i w E.Error (Map.Map Name.Name Can.Annotation)
+typeCheck canonical =
   case unsafePerformIO (Type.run =<< Type.constrain canonical) of
     Right annotations ->
-      Result.ok annotations
+      R.ok annotations
 
     Left errors ->
-      Result.throw (Error.Type localizer errors)
+      R.throw (E.Type errors)
 
 
-
--- EXHAUSTIVENESS CHECK
-
-
-exhaustivenessCheck :: Can.Module -> Result i ()
-exhaustivenessCheck canonical =
+nitpick :: Can.Module -> R.Result i w E.Error ()
+nitpick canonical =
   case PatternMatches.check canonical of
-    Left errors ->
-      Result.throw (Error.Pattern errors)
-
     Right () ->
-      Result.ok ()
+      R.ok ()
+
+    Left errors ->
+      R.throw (E.Pattern errors)
+
+
+optimize :: Map.Map Name.Name Can.Annotation -> Can.Module -> R.Result i [W.Warning] E.Error Opt.Graph
+optimize annotations canonical =
+  R.mapError E.Main $ Optimize.optimize annotations canonical
