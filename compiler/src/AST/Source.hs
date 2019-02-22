@@ -1,10 +1,13 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE OverloadedStrings #-}
 module AST.Source
   ( Expr, Expr_(..), VarType(..)
   , Def(..)
   , Pattern, Pattern_(..)
   , Type, Type_(..)
   , Module(..)
+  , getName
+  , getImport
   , Import(..)
   , Value(..)
   , Union(..)
@@ -119,7 +122,7 @@ data Type_
 
 data Module =
   Module
-    { _name    :: Name
+    { _name    :: Maybe Name
     , _exports :: A.Located Exposing
     , _imports :: [Import]
     , _values  :: [A.Located Value]
@@ -128,6 +131,18 @@ data Module =
     , _binops  :: [A.Located Binop]
     , _effects :: Effects
     }
+
+
+getName :: Module -> Name
+getName (Module maybeName _ _ _ _ _ _ _) =
+  case maybeName of
+    Just name -> name
+    Nothing -> "Main"
+
+
+getImport :: Import -> Name
+getImport (Import (A.At _ name) _ _) =
+  name
 
 
 data Import =
