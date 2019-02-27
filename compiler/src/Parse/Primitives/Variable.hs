@@ -133,14 +133,14 @@ foreignUpper =
       let
         !newState = State fp end terminal indent row newCol ctx
         !name = N.fromForeignPtr fp start (end - start)
-        !foreign =
+        !foreign_ =
           if start == offset then
             Unqualified name
           else
             let !home = N.fromForeignPtr fp offset ((start - 1) - offset) in
             Qualified home name
       in
-      cok foreign newState noError
+      cok foreign_ newState noError
 
 
 foreignUpperHelp :: ForeignPtr Word8 -> Int -> Int -> Int -> (# Int, Int, Int #)
