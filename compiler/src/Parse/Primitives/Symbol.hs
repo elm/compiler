@@ -17,7 +17,9 @@ import qualified Data.ByteString.Char8 as Char8
 import qualified Data.Char as Char
 import qualified Data.IntSet as IntSet
 import qualified Data.Vector as Vector
-import Foreign.ForeignPtr (ForeignPtr)
+import Foreign.Ptr (plusPtr)
+import Foreign.ForeignPtr (withForeignPtr, ForeignPtr)
+import Foreign.Storable
 import GHC.Word (Word8)
 
 import qualified Elm.Name as N
@@ -98,6 +100,12 @@ binopCharSet =
   IntSet.fromList (map Char.ord "+-/*=.<>:&|^?%!")
 
 
+isOpCharAt ::ForeignPtr Word8 -> Int -> Int -> Int -> Bool
+isOpCharAt fp fpOffset fpLength index =
+  if index >= fpLength - fpOffset then False
+  else B.accursedUnutterablePerformIO $ do
+    withForeignPtr fp $ \p -> peek (plusPtr p (fpOffset + index)) >>= pure . isBinopCharHelp
+
 
 -- PRIVATE SYMBOL IMPLEMENTATION
 
@@ -106,8 +114,8 @@ binopCharSet =
 That means the `symbol` function should only be used within this file on
 values tagged as NOINLINE.
 -}
-symbol :: B.ByteString -> Parser ()
-symbol sym@(B.PS symFp symOffset symLength) =
+symbol :: Bool -> B.ByteString -> Parser ()
+symbol op sym@(B.PS symFp symOffset symLength) =
   let
     !theory =
       assert
@@ -115,13 +123,26 @@ symbol sym@(B.PS symFp symOffset symLength) =
         (Symbol (Char8.unpack sym))
   in
   Parser $ \(State fp offset terminal indent row col ctx) cok _ _ eerr ->
-    if I.isSubstring symFp symOffset symLength fp offset terminal then
+    if I.isSubstring symFp symOffset symLength fp offset terminal
+       && ( not op
+          || not (isOpCharAt fp symOffset terminal (offset + symLength))
+          )
+    then
       let !newState = State fp (offset + symLength) terminal indent row (col + symLength) ctx in
       cok () newState noError
 
     else
       eerr (expect row col ctx theory)
 
+
+-- Operator that cannot be followed by bin op char
+operator :: Char8.ByteString -> Parser ()
+operator = symbol True
+
+
+-- Section marker like comment or bracket which will not stick to operators
+sectionSymbol :: Char8.ByteString -> Parser ()
+sectionSymbol = symbol False
 
 
 -- COMMON SYMBOLS
@@ -130,61 +151,61 @@ symbol sym@(B.PS symFp symOffset symLength) =
 {-# NOINLINE equals #-}
 equals :: Parser ()
 equals =
-  symbol "="
+  operator "="
 
 
 {-# NOINLINE rightArrow #-}
 rightArrow :: Parser ()
 rightArrow =
-  symbol "->"
+  operator "->"
 
 
 {-# NOINLINE hasType #-}
 hasType :: Parser ()
 hasType =
-  symbol ":"
+  operator ":"
 
 
 {-# NOINLINE comma #-}
 comma :: Parser ()
 comma =
-  symbol ","
+  operator ","
 
 
 {-# NOINLINE pipe #-}
 pipe :: Parser ()
 pipe =
-  symbol "|"
+  operator "|"
 
 
 {-# NOINLINE cons #-}
 cons :: Parser ()
 cons =
-  symbol "::"
+  operator "::"
 
 
 {-# NOINLINE dot #-}
 dot :: Parser ()
 dot =
-  symbol "."
+  operator "."
 
 
 {-# NOINLINE doubleDot #-}
 doubleDot :: Parser ()
 doubleDot =
-  symbol ".."
+  operator ".."
 
 
 {-# NOINLINE minus #-}
 minus :: Parser ()
 minus =
-  symbol "-"
+  operator "-"
 
 
 {-# NOINLINE lambda #-}
 lambda :: Parser ()
 lambda =
-  symbol "\\"
+  operator "\\"
 
 
 
@@ -194,37 +215,37 @@ lambda =
 {-# NOINLINE leftParen #-}
 leftParen :: Parser ()
 leftParen =
-  symbol "("
+  sectionSymbol "("
 
 
 {-# NOINLINE rightParen #-}
 rightParen :: Parser ()
 rightParen =
-  symbol ")"
+  sectionSymbol ")"
 
 
 {-# NOINLINE leftSquare #-}
 leftSquare :: Parser ()
 leftSquare =
-  symbol "["
+  sectionSymbol "["
 
 
 {-# NOINLINE rightSquare #-}
 rightSquare :: Parser ()
 rightSquare =
-  symbol "]"
+  sectionSymbol "]"
 
 
 {-# NOINLINE leftCurly #-}
 leftCurly :: Parser ()
 leftCurly =
-  symbol "{"
+  sectionSymbol "{"
 
 
 {-# NOINLINE rightCurly #-}
 rightCurly :: Parser ()
 rightCurly =
-  symbol "}"
+  sectionSymbol "}"
 
 
 
@@ -234,19 +255,19 @@ rightCurly =
 {-# NOINLINE elmDocCommentOpen #-}
 elmDocCommentOpen :: Parser ()
 elmDocCommentOpen =
-  symbol "{-|"
+  sectionSymbol "{-|"
 
 
 {-# NOINLINE jsMultiCommentOpen #-}
 jsMultiCommentOpen :: Parser ()
 jsMultiCommentOpen =
-  symbol "/*"
+  sectionSymbol "/*"
 
 
 {-# NOINLINE jsMultiCommentClose #-}
 jsMultiCommentClose :: Parser ()
 jsMultiCommentClose =
-  symbol "*/"
+  sectionSymbol "*/"
 
 
 
@@ -256,4 +277,5 @@ jsMultiCommentClose =
 {-# NOINLINE shaderBlockOpen #-}
 shaderBlockOpen :: Parser ()
 shaderBlockOpen =
-  symbol "[glsl|"
+  sectionSymbol "[glsl|"
+
