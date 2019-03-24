@@ -57,8 +57,8 @@ constrainDecls decls finalConstraint =
     Can.Declare def otherDecls ->
       Expr.constrainDef Map.empty def =<< constrainDecls otherDecls finalConstraint
 
-    Can.DeclareRec defs otherDecls ->
-      Expr.constrainRecursiveDefs Map.empty defs =<< constrainDecls otherDecls finalConstraint
+    Can.DeclareRec def defs otherDecls ->
+      Expr.constrainRecursiveDefs Map.empty (def:defs) =<< constrainDecls otherDecls finalConstraint
 
     Can.SaveTheEnvironment ->
       return finalConstraint

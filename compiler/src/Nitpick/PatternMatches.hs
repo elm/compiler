@@ -222,8 +222,8 @@ checkDecls decls errors =
     Can.Declare def subDecls ->
       checkDef def $ checkDecls subDecls errors
 
-    Can.DeclareRec defs subDecls ->
-      foldr checkDef (checkDecls subDecls errors) defs
+    Can.DeclareRec def defs subDecls ->
+      checkDef def (foldr checkDef (checkDecls subDecls errors) defs)
 
     Can.SaveTheEnvironment ->
       errors
