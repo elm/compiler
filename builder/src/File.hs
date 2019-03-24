@@ -1,7 +1,6 @@
 module File
   ( Time
   , getTime
-  , withLock
   , writeBinary
   , readBinary
   , writeUtf8
@@ -28,7 +27,6 @@ import qualified Data.Time.Clock.POSIX as Time
 import qualified Foreign.ForeignPtr as FPtr
 import GHC.IO.Exception (IOException, IOErrorType(InvalidArgument))
 import qualified System.Directory as Dir
-import qualified System.FileLock as Lock
 import qualified System.FilePath as FP
 import System.FilePath ((</>))
 import qualified System.IO as IO
@@ -54,15 +52,6 @@ getTime path =
 instance Binary.Binary Time where
   put (Time time) = Binary.put time
   get = Time <$> Binary.get
-
-
-
--- LOCK
-
-
-withLock :: FilePath -> IO a -> IO a
-withLock path work =
-  Lock.withFileLock path Lock.Exclusive (\_ -> work)
 
 
 
