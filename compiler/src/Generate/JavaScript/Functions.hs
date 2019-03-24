@@ -1,6 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes #-}
-module Generate.Functions
+{-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
+module Generate.JavaScript.Functions
   ( functions
   )
   where
