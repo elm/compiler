@@ -93,13 +93,11 @@ detectCycles sccs =
         Graph.AcyclicSCC (def, _, _) ->
           Can.Declare def <$> detectCycles otherSccs
 
-        Graph.CyclicSCC [] ->
-          detectCycles otherSccs
-
         Graph.CyclicSCC subNodes ->
-          Can.DeclareRec
-            <$> traverse detectBadCycles (Graph.stronglyConnComp subNodes)
-            <*> detectCycles otherSccs
+          do  defs <- traverse detectBadCycles (Graph.stronglyConnComp subNodes)
+              case defs of
+                []   -> detectCycles otherSccs
+                d:ds -> Can.DeclareRec d ds <$> detectCycles otherSccs
 
 
 detectBadCycles :: Graph.SCC Can.Def -> Result i w Can.Def
@@ -108,8 +106,22 @@ detectBadCycles scc =
     Graph.AcyclicSCC def ->
       Result.ok def
 
-    Graph.CyclicSCC cyclicValueDefs ->
-      Result.throw (Error.RecursiveDecl cyclicValueDefs)
+    Graph.CyclicSCC [] ->
+      error "The definition of Data.Graph.SCC should not allow empty CyclicSCC!"
+
+    Graph.CyclicSCC (def:defs) ->
+      let
+        (A.At region name) = extractDefName def
+        names = map (A.toValue . extractDefName) defs
+      in
+      Result.throw (Error.RecursiveDecl region name names)
+
+
+extractDefName :: Can.Def -> A.Located Name.Name
+extractDefName def =
+  case def of
+    Can.Def name _ _ -> name
+    Can.TypedDef name _ _ _ _ -> name
 
 
 

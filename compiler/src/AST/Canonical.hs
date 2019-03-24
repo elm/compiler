@@ -128,7 +128,7 @@ data Def
 
 data Decls
   = Declare Def Decls
-  | DeclareRec [Def] Decls
+  | DeclareRec Def [Def] Decls
   | SaveTheEnvironment
 
 
