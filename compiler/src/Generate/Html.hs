@@ -24,18 +24,30 @@ sandwich moduleName javascript =
 <head>
   <meta charset="UTF-8">
   <title>|] <> name <> [r|</title>
+  <style>body { padding: 0; margin: 0; }</style>
 </head>
 
 <body>
-<div id="elm-df98db9626"></div>
+
+<pre id="elm">
+This is a headless program, meaning there is nothing to show here.
+
+I started the program anyway though!
+
+You can access it as `app` in the developer console.
+</pre>
+
 <script>
 |] <> javascript <> [r|
 
-var app = Elm.|] <> name <> [r|.init({ node: document.getElementById("elm-df98db9626") });
-if (document.getElementById("elm-df98db9626"))
-{
-  document.getElementById("elm-df98db9626").innerText = 'This is a headless program, meaning there is nothing to show here.\n\nI started the program anyway though, and you can access it as `app` in the developer console.';
+try {
+  var app = Elm.|] <> name <> [r|.init({ node: document.getElementById("elm") });
+} catch (e) {
+  // display initialization errors (e.g. bad flags, infinite recursion)
+  document.getElementById("elm").innerText = e;
+  throw e;
 }
 </script>
+
 </body>
 </html>|]
