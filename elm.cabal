@@ -1,6 +1,6 @@
 
 Name: elm
-Version: 0.19.0
+Version: 0.19.1
 
 Synopsis:
     The `elm` command line interface.
@@ -38,7 +38,7 @@ Executable elm
     if flag(dev)
         ghc-options: -O0 -Wall -Werror
     else
-        ghc-options: -O2 -fsimpl-tick-factor=200 -rtsopts
+        ghc-options: -O2 -rtsopts
 
     Hs-Source-Dirs:
         compiler/src
@@ -52,18 +52,9 @@ Executable elm
         Main.hs
 
     other-modules:
-        Bump
-        Develop
-        Develop.Generate.Help
-        Develop.Generate.Index
         Develop.StaticFiles
         Develop.StaticFiles.Build
-        Diff
-        Init
-        Install
         Make
-        Publish
-        Repl
 
         -- terminal args
         Terminal.Args
@@ -72,82 +63,58 @@ Executable elm
         Terminal.Args.Helpers
         Terminal.Args.Internal
 
-        -- shared from builder/
-        Elm.Bump
-        Elm.Diff
-        Elm.Install
-        Elm.PerUserCache
-        Elm.Project
-        Elm.Project.Constraint
-        Elm.Project.Json
-        Elm.Project.Licenses
-        Elm.Publish
-        File.IO
-        Reporting.Progress.Json
-        Reporting.Progress.Repl
-        Reporting.Progress.Terminal
-        Reporting.Task
-
-        -- private from builder/
-        Deps.Cache
+        -- from builder/
+        Build
+        Deps.Registry
         Deps.Diff
-        Deps.Explorer
         Deps.Solver
-        Deps.Verify
         Deps.Website
-        Elm.Project.Root
-        Elm.Project.Summary
-        File.Args
-        File.Compile
-        File.Crawl
-        File.Find
-        File.Hash
-        File.Header
-        File.Plan
-        Generate.Artifacts
-        Generate.Functions
-        Generate.Html
-        Generate.Nitpick
-        Generate.Output
+        File
+        Http
+        Reporting
         Reporting.Exit
-        Reporting.Exit.Assets
-        Reporting.Exit.Bump
-        Reporting.Exit.Compile
-        Reporting.Exit.Crawl
-        Reporting.Exit.Deps
-        Reporting.Exit.Diff
         Reporting.Exit.Help
-        Reporting.Exit.Http
-        Reporting.Exit.Make
-        Reporting.Exit.Init
-        Reporting.Exit.Install
-        Reporting.Exit.Publish
-        Reporting.Progress
-        Reporting.Progress.Bar
-        Reporting.Task.Http
-        Stuff.Paths
-        Stuff.Verify
+        Reporting.Problem
+        Reporting.Task
+        Stuff
 
-        -- shared from compiler/
-        Elm.Compiler
-        Elm.Compiler.Objects
+        -- Elm things
+        Elm.Outline
+        Elm.Details
+        --
+        Elm.Compiler.Imports
         Elm.Compiler.Type
+        Elm.Compiler.Type.Extract
+        Elm.Constraint
         Elm.Docs
-        Elm.Header
+        Elm.Interface
         Elm.Kernel
+        Elm.Licenses
+        Elm.Magnitude
         Elm.ModuleName
         Elm.Package
+        Elm.Version
+
+        -- data structures
+        Data.Bag
+        Data.Index
+        Data.Map.Utils
+        Data.Name
+        Data.NonEmptyList
+        Data.OneOrMore
+        Data.Utf8
+
+        -- json
         Json.Decode
         Json.Encode
 
-        -- private from compiler/
+        -- from compiler/
         AST.Canonical
         AST.Optimized
         AST.Source
         AST.Utils.Binop
         AST.Utils.Shader
         AST.Utils.Type
-        AST.Valid
         Canonicalize.Effects
         Canonicalize.Environment
         Canonicalize.Environment.Dups
@@ -158,22 +125,14 @@ Executable elm
         Canonicalize.Pattern
         Canonicalize.Type
         Compile
-        Data.Bag
-        Data.Index
-        Data.Name
-        Data.OneOrMore
-        Data.Utf8
-        Elm.Compiler.Imports
-        Elm.Compiler.Type.Extract
-        Elm.Compiler.Version
-        Elm.Interface
+        Generate.Html
         Generate.JavaScript
         Generate.JavaScript.Builder
         Generate.JavaScript.Expression
-        Generate.JavaScript.Mode
+        Generate.JavaScript.Functions
         Generate.JavaScript.Name
-        Json.Decode.Error
-        Json.Decode.Internals
+        Generate.Mode
+        Nitpick.Debug
         Nitpick.PatternMatches
         Optimize.Case
         Optimize.DecisionTree
@@ -183,32 +142,28 @@ Executable elm
         Optimize.Port
         Parse.Declaration
         Parse.Expression
+        Parse.Keyword
         Parse.Module
-        Parse.Parse
+        Parse.Number
         Parse.Pattern
-        Parse.Primitives
-        Parse.Primitives.Internals
-        Parse.Primitives.Kernel
-        Parse.Primitives.Keyword
-        Parse.Primitives.Number
-        Parse.Primitives.Shader
-        Parse.Primitives.Symbol
-        Parse.Primitives.Utf8
-        Parse.Primitives.Variable
-        Parse.Primitives.Whitespace
         Parse.Repl
         Parse.Shader
+        Parse.Symbol
         Parse.Type
+        Parse.Utf8
+        Parse.Utils
+        Parse.Variable
+        Parse.Primitives
         Reporting.Annotation
         Reporting.Doc
         Reporting.Error
         Reporting.Error.Canonicalize
         Reporting.Error.Docs
+        Reporting.Error.Json
         Reporting.Error.Main
         Reporting.Error.Pattern
         Reporting.Error.Syntax
         Reporting.Error.Type
-        Reporting.Region
         Reporting.Render.Code
         Reporting.Render.Type
         Reporting.Render.Type.Localizer
@@ -226,7 +181,6 @@ Executable elm
         Type.Type
         Type.Unify
         Type.UnionFind
-        Validate
         Paths_elm
 
     Build-depends:
@@ -244,11 +198,11 @@ Executable elm
         ghc-prim >= 0.5.2,
         haskeline,
         HTTP >= 4000.2.5 && < 4000.4,
-        http-client >= 0.5 && < 0.6,
+        http-client >= 0.6 && < 0.7,
         http-client-tls >= 0.3 && < 0.4,
-        http-types >= 0.9 && < 1.0,
+        http-types >= 0.12 && < 1.0,
         language-glsl >= 0.3,
-        logict,
+        mmap,
         mtl >= 2.2.1 && < 3,
         network >= 2.4 && < 2.7,
         parsec,
@@ -259,7 +213,6 @@ Executable elm
         snap-core,
         snap-server,
         template-haskell,
-        text >= 1 && < 2,
         time,
         unordered-containers,
         utf8-string,
