@@ -7,7 +7,9 @@ module Stuff
   , elmi
   , elmo
   , temp
-  , getRoot
+  , findRoot
+  , withProjectLock
+  , withCacheLock
   , PackageCache
   , getPackageCache
   , registry
@@ -19,6 +21,7 @@ module Stuff
 
 import qualified System.Directory as Dir
 import qualified System.Environment as Env
+import qualified System.FileLock as Lock
 import qualified System.FilePath as FP
 import System.FilePath ((</>), (<.>))
 
@@ -31,29 +34,29 @@ import qualified Elm.Version as V
 -- PATHS
 
 
-stuff :: FilePath
-stuff =
-  "elm-stuff" </> compilerVersion
+stuff :: FilePath -> FilePath
+stuff root =
+  root </> "elm-stuff" </> compilerVersion
 
 
-details :: FilePath
-details =
-  stuff </> "d.dat"
+details :: FilePath -> FilePath
+details root =
+  stuff root </> "d.dat"
 
 
-interfaces :: FilePath
-interfaces =
-  stuff </> "i.dat"
+interfaces :: FilePath -> FilePath
+interfaces root =
+  stuff root </> "i.dat"
 
 
-objects :: FilePath
-objects =
-  stuff </> "o.dat"
+objects :: FilePath -> FilePath
+objects root =
+  stuff root </> "o.dat"
 
 
-prepublishDir :: FilePath
-prepublishDir  =
-  stuff </> "prepublish"
+prepublishDir :: FilePath -> FilePath
+prepublishDir root =
+  stuff root </> "prepublish"
 
 
 compilerVersion :: FilePath
@@ -77,39 +80,56 @@ elmo root name =
 
 toArtifactPath :: FilePath -> ModuleName.Raw -> String -> FilePath
 toArtifactPath root name ext =
-  root </> stuff </> ModuleName.toHyphenPath name <.> ext
+  stuff root </> ModuleName.toHyphenPath name <.> ext
 
 
 
 -- TEMP
 
 
-temp :: String -> FilePath
-temp ext =
-  stuff </> "temp" <.> ext
+temp :: FilePath -> String -> FilePath
+temp root ext =
+  stuff root </> "temp" <.> ext
 
 
 
--- GET ROOT
+-- ROOT
 
 
-getRoot :: IO (Maybe FilePath)
-getRoot =
+findRoot :: IO (Maybe FilePath)
+findRoot =
   do  dir <- Dir.getCurrentDirectory
-      getRootHelp (FP.splitDirectories dir)
+      findRootHelp (FP.splitDirectories dir)
 
 
-getRootHelp :: [String] -> IO (Maybe FilePath)
-getRootHelp dirs =
+findRootHelp :: [String] -> IO (Maybe FilePath)
+findRootHelp dirs =
   case dirs of
     [] ->
       return Nothing
 
     _:_ ->
-      do  exists_ <- Dir.doesFileExist (FP.joinPath dirs </> "elm.json")
-          if exists_
+      do  exists <- Dir.doesFileExist (FP.joinPath dirs </> "elm.json")
+          if exists
             then return (Just (FP.joinPath dirs))
-            else getRootHelp (init dirs)
+            else findRootHelp (init dirs)
+
+
+
+-- LOCKS
+
+
+withProjectLock :: FilePath -> IO a -> IO a
+withProjectLock root work =
+  do  let dir = stuff root
+      Dir.createDirectoryIfMissing True dir
+      Lock.withFileLock (dir </> "project.lock") Lock.Exclusive (\_ -> work)
+
+
+withCacheLock :: PackageCache -> IO a -> IO a
+withCacheLock (PackageCache dir) work =
+  Lock.withFileLock (dir </> "cache.lock") Lock.Exclusive (\_ -> work)
+
 
 
 
