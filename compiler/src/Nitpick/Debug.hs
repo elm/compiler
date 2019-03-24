@@ -1,33 +1,21 @@
 module Nitpick.Debug
-  ( findDebugUses
+  ( hasDebugUses
   )
   where
 
 
-import qualified Data.Map as Map
-import qualified Data.Name as Name
-import qualified Data.Set as Set
+import qualified Data.Map.Utils as Map
 
 import qualified AST.Optimized as Opt
-import qualified Elm.ModuleName as ModuleName
-import qualified Elm.Package as Pkg
 
 
 
--- FIND DEBUG USES
+-- HAS DEBUG USES
 
 
-findDebugUses :: Pkg.Name -> Opt.Graph -> [Name.Name]
-findDebugUses pkg (Opt.Graph _ graph _) =
-  Set.toList $ Map.foldrWithKey (addDebugUses pkg) Set.empty graph
-
-
-addDebugUses :: Pkg.Name -> Opt.Global -> Opt.Node -> Set.Set Name.Name -> Set.Set Name.Name
-addDebugUses here (Opt.Global (ModuleName.Canonical pkg home) _) node uses =
-  if pkg == here && nodeHasDebug node then
-    Set.insert home uses
-  else
-    uses
+hasDebugUses :: Opt.LocalGraph -> Bool
+hasDebugUses (Opt.LocalGraph _ graph _) =
+  Map.any nodeHasDebug graph
 
 
 nodeHasDebug :: Opt.Node -> Bool
