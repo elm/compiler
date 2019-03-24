@@ -220,7 +220,8 @@ getConstraints name version =
 
 getConstraintsHelp :: Stuff.PackageCache -> Connection -> Pkg.Name -> V.Version -> IO (Either Problem Constraints)
 getConstraintsHelp cache connection name version =
-  do  let path = Stuff.package cache name version </> "elm.json"
+  do  let home = Stuff.package cache name version
+      let path = home </> "elm.json"
       outlineExists <- File.exists path
       if outlineExists
         then
@@ -246,10 +247,11 @@ getConstraintsHelp cache connection name version =
               return (Left (UnavailableOffline name version))
 
             Online manager ->
-              Http.post manager (Website.metadata name version "elm.json") [] BadHttp $ \body ->
+              Http.get manager (Website.metadata name version "elm.json") [] BadHttp $ \body ->
                 case D.fromByteString constraintsDecoder body of
                   Right cs ->
-                    do  File.writeUtf8 path body
+                    do  Dir.createDirectoryIfMissing True home
+                        File.writeUtf8 path body
                         return $ Right cs
 
                   Left _ ->

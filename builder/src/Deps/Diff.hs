@@ -371,7 +371,7 @@ getDocs cache manager name version =
                       return $ Left Exit.DP_Cache
         else
           do  let url = Website.metadata name version "docs.json"
-              Http.post manager url [] Exit.DP_Http $ \body ->
+              Http.get manager url [] Exit.DP_Http $ \body ->
                 case D.fromByteString Docs.decoder body of
                   Right docs ->
                     do  File.writeUtf8 path body
