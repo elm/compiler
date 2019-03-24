@@ -16,7 +16,7 @@ module Elm.Version
 
 
 import Prelude hiding (max)
-import Control.Monad (liftM, liftM3)
+import Control.Monad (liftM3)
 import Data.Binary (Binary, get, put, getWord8, putWord8)
 import qualified Data.Utf8 as Utf8
 import qualified Data.Version as Version
@@ -147,21 +147,20 @@ encode version =
 instance Binary Version where
   get =
     do  word <- getWord8
-        if word == 0
+        if word == 255
           then liftM3 Version get get get
           else
-            do  minor <- liftM fromIntegral getWord8
-                patch <- liftM fromIntegral getWord8
-                return (Version (fromIntegral word) minor patch)
+            do  minor <- getWord8
+                patch <- getWord8
+                return (Version (fromIntegral word) (fromIntegral minor) (fromIntegral patch))
 
   put (Version major minor patch) =
-    if major < 256 && minor < 256 && patch < 256 then
+    if major < 255 && minor < 256 && patch < 256 then
       do  putWord8 (fromIntegral major)
           putWord8 (fromIntegral minor)
           putWord8 (fromIntegral patch)
     else
-      do  putWord8 0
+      do  putWord8 255
           put major
           put minor
           put patch
-
