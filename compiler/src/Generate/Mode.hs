@@ -41,8 +41,8 @@ type ShortFieldNames =
   Map.Map Name.Name JsName.Name
 
 
-shortenFieldNames :: Opt.Graph -> ShortFieldNames
-shortenFieldNames (Opt.Graph _ _ frequencies) =
+shortenFieldNames :: Opt.GlobalGraph -> ShortFieldNames
+shortenFieldNames (Opt.GlobalGraph _ frequencies) =
   Map.foldr addToShortNames Map.empty $
     Map.foldrWithKey addToBuckets Map.empty frequencies
 
