@@ -3,7 +3,8 @@ module Http
   ( Manager
   , getManager
   , toUrl
-  -- post
+  -- fetch
+  , get
   , post
   , Header
   , accept
@@ -11,7 +12,7 @@ module Http
   -- archives
   , Sha
   , shaToChars
-  , fetchArchive
+  , getArchive
   -- upload
   , upload
   , filePart
@@ -32,7 +33,7 @@ import Network.HTTP (urlEncodeVars)
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.HTTP.Types.Header (Header, hAccept, hAcceptEncoding, hUserAgent)
-import Network.HTTP.Types.Method (methodPost)
+import Network.HTTP.Types.Method (Method, methodGet, methodPost)
 import qualified Network.HTTP.Client.MultipartFormData as Multi
 
 import qualified Elm.Version as V
@@ -59,17 +60,27 @@ toUrl url params =
 
 
 
--- POST
+-- FETCH
+
+
+get :: Manager -> String -> [Header] -> (Error -> e) -> (BS.ByteString -> IO (Either e a)) -> IO (Either e a)
+get =
+  fetch methodGet
 
 
 post :: Manager -> String -> [Header] -> (Error -> e) -> (BS.ByteString -> IO (Either e a)) -> IO (Either e a)
-post manager url headers onError onSuccess =
+post =
+  fetch methodPost
+
+
+fetch :: Method -> Manager -> String -> [Header] -> (Error -> e) -> (BS.ByteString -> IO (Either e a)) -> IO (Either e a)
+fetch methodVerb manager url headers onError onSuccess =
   handle (handleSomeException url onError) $
   handle (handleHttpException url onError) $
   do  req0 <- parseUrlThrow url
       let req1 =
             req0
-              { method = methodPost
+              { method = methodVerb
               , requestHeaders = addDefaultHeaders headers
               }
       withResponse req1 manager $ \response ->
@@ -134,20 +145,20 @@ shaToChars =
 -- FETCH ARCHIVE
 
 
-fetchArchive
+getArchive
   :: Manager
   -> String
   -> (Error -> e)
   -> e
   -> ((Sha, Zip.Archive) -> IO (Either e a))
   -> IO (Either e a)
-fetchArchive manager url onError err onSuccess =
+getArchive manager url onError err onSuccess =
   handle (handleSomeException url onError) $
   handle (handleHttpException url onError) $
   do  req0 <- parseUrlThrow url
       let req1 =
             req0
-              { method = methodPost
+              { method = methodGet
               , requestHeaders = addDefaultHeaders []
               }
       withResponse req1 manager $ \response ->
