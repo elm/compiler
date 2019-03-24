@@ -6,17 +6,20 @@ module Elm.Details
   , Local(..)
   , Foreign(..)
   , verify
+  , loadObjects
+  , loadInterfaces
   )
   where
 
 
 import Control.Concurrent (forkIO)
-import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar, readMVar, takeMVar)
-import Control.Monad (liftM, liftM2, liftM3, liftM4)
+import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, readMVar, takeMVar)
+import Control.Monad (liftM, liftM2, liftM4)
 import Data.Binary (Binary, get, put, getWord8, putWord8)
-import Data.Foldable (traverse_)
 import qualified Data.Map as Map
+import qualified Data.Map.Utils as Map
 import qualified Data.Map.Merge.Strict as Map
+import qualified Data.Name as Name
 import qualified Data.OneOrMore as OneOrMore
 import qualified Data.Set as Set
 import qualified Data.Utf8 as Utf8
@@ -31,6 +34,7 @@ import qualified Deps.Solver as Solver
 import qualified Deps.Website as Website
 import qualified Elm.Constraint as Con
 import qualified Elm.Interface as I
+import qualified Elm.Kernel as Kernel
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Outline as Outline
 import qualified Elm.Package as Pkg
@@ -39,6 +43,7 @@ import qualified File
 import qualified Http
 import qualified Json.Decode as D
 import qualified Parse.Module as Parse
+import qualified Reporting
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
 import qualified Stuff
@@ -67,6 +72,7 @@ data Local =
     { _path :: FilePath
     , _time :: File.Time
     , _deps :: [ModuleName.Raw]
+    , _main :: Bool
     }
 
 
@@ -75,37 +81,68 @@ data Foreign =
 
 
 
+-- LOAD
+
+
+loadObjects :: FilePath -> Details -> IO (MVar (Maybe Opt.GlobalGraph))
+loadObjects root _ =
+  fork (File.readBinary (Stuff.objects root))
+
+
+loadInterfaces :: FilePath -> Details -> IO (MVar (Maybe Interfaces))
+loadInterfaces root _ =
+  fork (File.readBinary (Stuff.interfaces root))
+
+
+type Interfaces =
+  Map.Map ModuleName.Canonical I.DependencyInterface
+
+
+
 -- VERIFY
 
 
-verify :: FilePath -> Task.Task Details
-verify root =
-  do  newTime      <- Task.io $ File.getTime (root </> "elm.json")
-      maybeDetails <- Task.io $ File.readBinary (root </> Stuff.details)
+verify :: Reporting.Style -> FilePath -> IO (Either Exit.Details Details)
+verify style root =
+  do  newTime <- File.getTime (root </> "elm.json")
+      maybeDetails <- File.readBinary (Stuff.details root)
       case maybeDetails of
         Nothing ->
-          rebuild root newTime
+          verifyFromScratch style root newTime
 
         Just details@(Details oldTime _ _ _) ->
           if oldTime == newTime
-          then return details
-          else rebuild root newTime
+          then return (Right details)
+          else verifyFromScratch style root newTime
 
 
 
--- REBUILD
+-- VERIFY FROM SCRATCH
 
 
-rebuild :: FilePath -> File.Time -> Task.Task Details
-rebuild root time =
-  do  (outline, info) <- rebuildHelp root
-      case outline of
-        Outline.Pkg pkg -> solvePkg info time pkg
-        Outline.App app -> solveApp info time app
+verifyFromScratch :: Reporting.Style -> FilePath -> File.Time -> IO (Either Exit.Details Details)
+verifyFromScratch style root time =
+  Reporting.trackDetails style $ \key ->
+    do  result <- initEnv key root
+        case result of
+          Left exit ->
+            return (Left exit)
+
+          Right (env, outline) ->
+            case outline of
+              Outline.Pkg pkg -> Task.run (verifyPkg env time pkg)
+              Outline.App app -> Task.run (verifyApp env time app)
 
 
-data Info =
-  Info Stuff.PackageCache Http.Manager Connection Registry.Registry
+data Env =
+  Env
+    { _key :: Reporting.DKey
+    , _root :: FilePath
+    , _cache :: Stuff.PackageCache
+    , _manager :: Http.Manager
+    , _connection :: Connection
+    , _registry :: Registry.Registry
+    }
 
 
 data Connection
@@ -113,9 +150,8 @@ data Connection
   | Offline
 
 
-rebuildHelp :: FilePath -> Task.Task (Outline.Outline, Info)
-rebuildHelp root =
-  Task.eio id $
+initEnv :: Reporting.DKey -> FilePath -> IO (Either Exit.Details (Env, Outline.Outline))
+initEnv key root =
   do  cacheMVar     <- fork Stuff.getPackageCache
       managerMVar   <- fork Http.getManager
       registryMVar  <- fork (Registry.read =<< readMVar cacheMVar)
@@ -133,7 +169,7 @@ rebuildHelp root =
               do  eitherRegistry <- Registry.fetch manager cache
                   case eitherRegistry of
                     Right latestRegistry ->
-                      return $ Right (outline, Info cache manager Online latestRegistry)
+                      return $ Right (Env key root cache manager Online latestRegistry, outline)
 
                     Left problem ->
                       return $ Left $ Exit.DetailsCannotGetRegistry problem
@@ -142,49 +178,44 @@ rebuildHelp root =
               do  eitherRegistry <- Registry.update manager cache cachedRegistry
                   case eitherRegistry of
                     Right latestRegistry ->
-                      return $ Right (outline, Info cache manager Online latestRegistry)
+                      return $ Right (Env key root cache manager Online latestRegistry, outline)
 
                     Left _ ->
-                      return $ Right (outline, Info cache manager Offline cachedRegistry)
+                      return $ Right (Env key root cache manager Offline cachedRegistry, outline)
 
 
 
--- SOLVE PKG
+-- VERIFY PROJECT
 
 
-solvePkg :: Info -> File.Time -> Outline.PkgOutline -> Task.Task Details
-solvePkg info time outline@(Outline.PkgOutline _ _ _ _ _ direct testDirect elm) =
+type Task a = Task.Task Exit.Details a
+
+
+verifyPkg :: Env -> File.Time -> Outline.PkgOutline -> Task Details
+verifyPkg env time outline@(Outline.PkgOutline _ _ _ _ _ direct testDirect elm) =
   if Con.goodElm elm
   then
-    do  solution <- solve info =<< union noDups direct testDirect
-        foreigns <- verifyDependencies info solution direct
+    do  solution <- solve env =<< union noDups direct testDirect
         let vsns = Map.map (\(Solver.Details v _) -> v) solution
-        return $ Details time (ValidPkg outline vsns) Map.empty foreigns
+        verifyDependencies env time (ValidPkg outline vsns) solution direct
   else
     Task.throw $ Exit.DetailsBadElmInPkg elm
 
 
-
--- SOLVE APP
-
-
-solveApp :: Info -> File.Time -> Outline.AppOutline -> Task.Task Details
-solveApp info time outline@(Outline.AppOutline elmVersion _ direct _ _ _) =
+verifyApp :: Env -> File.Time -> Outline.AppOutline -> Task Details
+verifyApp env time outline@(Outline.AppOutline elmVersion _ direct _ _ _) =
   if elmVersion == V.compiler
   then
     do  stated <- checkAppDeps outline
-        actual <- solve info (Map.map Con.exactly stated)
+        actual <- solve env (Map.map Con.exactly stated)
         if Map.size stated == Map.size actual
-          then
-            do  foreigns <- verifyDependencies info actual direct
-                return $ Details time (ValidApp outline) Map.empty foreigns
-          else
-            Task.throw $ error "TODO solveApp"
+          then verifyDependencies env time (ValidApp outline) actual direct
+          else Task.throw $ Exit.DetailsHandEditedDependencies
   else
-    Task.throw $ Exit.DetailsBadElmInApp elmVersion
+    Task.throw $ Exit.DetailsBadElmInAppOutline elmVersion
 
 
-checkAppDeps :: Outline.AppOutline -> Task.Task (Map.Map Pkg.Name V.Version)
+checkAppDeps :: Outline.AppOutline -> Task (Map.Map Pkg.Name V.Version)
 checkAppDeps (Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
   do  x <- union allowEqualDups indirect testDirect
       y <- union noDups direct testIndirect
@@ -195,8 +226,8 @@ checkAppDeps (Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
 -- SOLVE
 
 
-solve :: Info -> Map.Map Pkg.Name Con.Constraint -> Task.Task (Map.Map Pkg.Name Solver.Details)
-solve (Info cache manager connection registry) constraints =
+solve :: Env -> Map.Map Pkg.Name Con.Constraint -> Task (Map.Map Pkg.Name Solver.Details)
+solve (Env _ _ cache manager connection registry) constraints =
   Task.eio (error "TODO solve problem") $
     case connection of
       Online -> Solver.online cache manager registry constraints
@@ -207,17 +238,17 @@ solve (Info cache manager connection registry) constraints =
 -- UNION
 
 
-union :: (Ord k) => (k -> v -> v -> Task.Task v) -> Map.Map k v -> Map.Map k v -> Task.Task (Map.Map k v)
+union :: (Ord k) => (k -> v -> v -> Task v) -> Map.Map k v -> Map.Map k v -> Task (Map.Map k v)
 union tieBreaker deps1 deps2 =
   Map.mergeA Map.preserveMissing Map.preserveMissing (Map.zipWithAMatched tieBreaker) deps1 deps2
 
 
-noDups :: k -> v -> v -> Task.Task v
+noDups :: k -> v -> v -> Task v
 noDups _ _ _ =
   Task.throw Exit.DetailsHandEditedDependencies
 
 
-allowEqualDups :: (Eq v) => k -> v -> v -> Task.Task v
+allowEqualDups :: (Eq v) => k -> v -> v -> Task v
 allowEqualDups _ v1 v2 =
   if v1 == v2
   then return v1
@@ -239,36 +270,39 @@ fork work =
 -- VERIFY DEPENDENCIES
 
 
-verifyDependencies :: Info -> Map.Map Pkg.Name Solver.Details -> Map.Map Pkg.Name a -> Task.Task (Map.Map ModuleName.Raw Foreign)
-verifyDependencies info solution directDeps =
-  Task.eio (error "TODO verifyDependencies") $
-  do  mvar <- newEmptyMVar
-      mvars <- Map.traverseWithKey (\k v -> fork (verifyDep info mvar solution k v)) solution
+verifyDependencies :: Env -> File.Time -> ValidOutline -> Map.Map Pkg.Name Solver.Details -> Map.Map Pkg.Name a -> Task Details
+verifyDependencies env@(Env key root _ _ _ _) time outline solution directDeps =
+  Task.eio id $
+  do  Reporting.report key (Reporting.DStart (Map.size solution))
+      mvar <- newEmptyMVar
+      mvars <- Map.traverseWithKey (\k v -> fork (verifyDep env mvar solution k v)) solution
       putMVar mvar mvars
-      results <- traverse readMVar mvars
-      case sequence results of
-        Left _ ->
-          return (Left (error "TODO one of the dependencies did not build"))
+      deps <- traverse readMVar mvars
+      case sequence deps of
+        Left problem ->
+          error "TODO problem in verifyDependencies"
 
         Right artifacts ->
           let
-            objs = Map.foldr gatherObjects Opt.empty artifacts
-            ifaces = Map.foldrWithKey (gatherInterfaces directDeps) Map.empty artifacts
+            objs = Map.foldr addObjects Opt.empty artifacts
+            ifaces = Map.foldrWithKey (addInterfaces directDeps) Map.empty artifacts
             foreigns = Map.map (OneOrMore.destruct Foreign) $ Map.foldrWithKey gatherForeigns Map.empty artifacts
+            details = Details time outline Map.empty foreigns
           in
-          do  File.writeBinary Stuff.objects objs
-              File.writeBinary Stuff.interfaces ifaces
-              return (Right foreigns)
+          do  File.writeBinary (Stuff.objects    root) objs
+              File.writeBinary (Stuff.interfaces root) ifaces
+              File.writeBinary (Stuff.details    root) details
+              return (Right details)
 
 
-gatherObjects :: Artifacts -> Opt.Graph -> Opt.Graph
-gatherObjects (Artifacts _ objs) graph =
-  Opt.union objs graph
+addObjects :: Artifacts -> Opt.GlobalGraph -> Opt.GlobalGraph
+addObjects (Artifacts _ objs) graph =
+  Opt.addGlobalGraph objs graph
 
 
-gatherInterfaces :: Map.Map Pkg.Name a -> Pkg.Name -> Artifacts -> Map.Map ModuleName.Canonical I.DependencyInterface -> Map.Map ModuleName.Canonical I.DependencyInterface
-gatherInterfaces directDeps pkg (Artifacts ifaces _) dependencyInterfaces =
-  Map.union dependencyInterfaces $ Map.mapKeys (ModuleName.Canonical pkg) $
+addInterfaces :: Map.Map Pkg.Name a -> Pkg.Name -> Artifacts -> Interfaces -> Interfaces
+addInterfaces directDeps pkg (Artifacts ifaces _) dependencyInterfaces =
+  Map.union dependencyInterfaces $ Map.mapKeysMonotonic (ModuleName.Canonical pkg) $
     if Map.member pkg directDeps
       then ifaces
       else Map.map I.privatize ifaces
@@ -279,8 +313,8 @@ gatherForeigns pkg (Artifacts ifaces _) foreigns =
   let
     isPublic di =
       case di of
-        I.Public _    -> Just (OneOrMore.one pkg)
-        I.Private _ _ -> Nothing
+        I.Public _      -> Just (OneOrMore.one pkg)
+        I.Private _ _ _ -> Nothing
   in
   Map.unionWith OneOrMore.more foreigns (Map.mapMaybe isPublic ifaces)
 
@@ -292,11 +326,11 @@ gatherForeigns pkg (Artifacts ifaces _) foreigns =
 data Artifacts =
   Artifacts
     { _ifaces :: Map.Map ModuleName.Raw I.DependencyInterface
-    , _objects :: Opt.Graph
+    , _objects :: Opt.GlobalGraph
     }
 
 
-type Result =
+type Dep =
   Either Problem Artifacts
 
 
@@ -306,28 +340,35 @@ data Problem
   | BadDependency
 
 
-verifyDep :: Info -> MVar (Map.Map Pkg.Name (MVar Result)) -> Map.Map Pkg.Name Solver.Details -> Pkg.Name -> Solver.Details -> IO Result
-verifyDep (Info cache manager _ _) resultsMVar solution name details@(Solver.Details version directDeps) =
+verifyDep :: Env -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Map.Map Pkg.Name Solver.Details -> Pkg.Name -> Solver.Details -> IO Dep
+verifyDep (Env key _ cache manager _ _) depsMVar solution pkg details@(Solver.Details vsn directDeps) =
   let
     fingerprint = Map.intersectionWith (\(Solver.Details v _) _ -> v) solution directDeps
   in
-  do  exists <- Dir.doesDirectoryExist (Stuff.package cache name version </> "src")
+  do  exists <- Dir.doesDirectoryExist (Stuff.package cache pkg vsn </> "src")
       if exists
         then
-          do  maybeCache <- File.readBinary (Stuff.package cache name version </> "artifacts.dat")
+          do  Reporting.report key Reporting.DCached
+              maybeCache <- File.readBinary (Stuff.package cache pkg vsn </> "artifacts.dat")
               case maybeCache of
                 Nothing ->
-                  build cache resultsMVar name details (Set.singleton fingerprint)
+                  build key cache depsMVar pkg details (Set.singleton fingerprint)
 
                 Just (ArtifactCache fingerprints artifacts) ->
                   if Set.member fingerprint fingerprints
-                    then return (Right artifacts)
-                    else build cache resultsMVar name details (Set.insert fingerprint fingerprints)
+                    then Reporting.report key Reporting.DBuilt >> return (Right artifacts)
+                    else build key cache depsMVar pkg details (Set.insert fingerprint fingerprints)
         else
-          do  result <- downloadPackage cache manager name version
+          do  Reporting.report key Reporting.DRequested
+              result <- downloadPackage cache manager pkg vsn
               case result of
-                Left p -> return (Left (BadDownload p))
-                Right () -> build cache resultsMVar name details (Set.singleton fingerprint)
+                Left p ->
+                  do  Reporting.report key (Reporting.DFailed pkg vsn)
+                      return (Left (BadDownload p))
+
+                Right () ->
+                  do  Reporting.report key (Reporting.DReceived pkg vsn)
+                      build key cache depsMVar pkg details (Set.singleton fingerprint)
 
 
 
@@ -349,65 +390,101 @@ type Fingerprint =
 -- BUILD
 
 
-build :: Stuff.PackageCache -> MVar (Map.Map Pkg.Name (MVar Result)) -> Pkg.Name -> Solver.Details -> Set.Set Fingerprint -> IO Result
-build cache resultsMVar name (Solver.Details version _) fingerprints =
-  do  eitherOutline <- Outline.read (Stuff.package cache name version </> "elm.json")
+build :: Reporting.DKey -> Stuff.PackageCache -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Pkg.Name -> Solver.Details -> Set.Set Fingerprint -> IO Dep
+build key cache depsMVar pkg (Solver.Details vsn _) fingerprints =
+  do  eitherOutline <- Outline.read (Stuff.package cache pkg vsn)
       case eitherOutline of
         Left _ ->
-          return (Left BadBuild)
+          do  Reporting.report key Reporting.DBroken
+              return (Left BadBuild)
 
         Right (Outline.App _) ->
-          return (Left BadBuild)
+          do  Reporting.report key Reporting.DBroken
+              return (Left BadBuild)
 
         Right (Outline.Pkg (Outline.PkgOutline _ _ _ _ exposed deps _ _)) ->
-          do  allResults <- readMVar resultsMVar
-              directResults <- traverse readMVar (Map.intersection allResults deps)
-              case sequence directResults of
+          do  allDeps <- readMVar depsMVar
+              directDeps <- traverse readMVar (Map.intersection allDeps deps)
+              case sequence directDeps of
                 Left _ ->
-                  return (Left BadDependency)
+                  do  Reporting.report key Reporting.DBroken
+                      return (Left BadDependency)
 
                 Right directArtifacts ->
-                  do  mvar <- newMVar Map.empty
-                      let src = Stuff.package cache name version </> "src"
+                  do  let src = Stuff.package cache pkg vsn </> "src"
                       let foreignDeps = gatherForeignInterfaces directArtifacts
-                      let exposedDict = Map.fromList $ map (\n -> (n,())) (Outline.flattenExposed exposed)
-                      traverse_ readMVar =<<
-                        Map.traverseWithKey (const . fork . buildModule foreignDeps mvar name src) exposedDict
-                      result <- traverse readMVar =<< readMVar mvar
-                      case Map.traverseMaybeWithKey checkStatus result of
+                      let exposedDict = Map.fromKeys (\_ -> ()) (Outline.flattenExposed exposed)
+                      mvar <- newEmptyMVar
+                      mvars <- Map.traverseWithKey (const . fork . crawlModule foreignDeps mvar pkg src) exposedDict
+                      putMVar mvar mvars
+                      mapM_ readMVar mvars
+                      maybeStatuses <- traverse readMVar =<< readMVar mvar
+                      case sequence maybeStatuses of
                         Nothing ->
-                          return (Left BadBuild)
+                          do  Reporting.report key Reporting.DBroken
+                              return (Left BadBuild)
 
-                        Just artifactsDict ->
-                          let
-                            path = Stuff.package cache name version </> "artifacts.dat"
-                            ifaces = gatherPackageInterfaces exposedDict artifactsDict
-                            objects = Map.foldr (Opt.union . snd) Opt.empty artifactsDict
-                            artifacts = Artifacts ifaces objects
-                          in
-                          do  File.writeBinary path (ArtifactCache fingerprints artifacts)
-                              return (Right artifacts)
+                        Just statuses ->
+                          do  rmvar <- newEmptyMVar
+                              rmvars <- traverse (fork . compile pkg rmvar) statuses
+                              putMVar rmvar rmvars
+                              maybeResults <- traverse readMVar rmvars
+                              case sequence maybeResults of
+                                Nothing ->
+                                  do  Reporting.report key Reporting.DBroken
+                                      return (Left BadBuild)
+
+                                Just results ->
+                                  let
+                                    path = Stuff.package cache pkg vsn </> "artifacts.dat"
+                                    ifaces = gatherInterfaces exposedDict results
+                                    objects = gatherObjects results
+                                    artifacts = Artifacts ifaces objects
+                                  in
+                                  do  File.writeBinary path (ArtifactCache fingerprints artifacts)
+                                      Reporting.report key Reporting.DBuilt
+                                      return (Right artifacts)
 
 
-checkStatus :: ModuleName.Raw -> Status -> Maybe (Maybe (I.Interface, Opt.Graph))
-checkStatus _ status =
+
+-- GATHER
+
+
+gatherObjects :: Map.Map ModuleName.Raw Result -> Opt.GlobalGraph
+gatherObjects results =
+  Map.foldrWithKey addLocalGraph Opt.empty results
+
+
+addLocalGraph :: ModuleName.Raw -> Result -> Opt.GlobalGraph -> Opt.GlobalGraph
+addLocalGraph name status graph =
   case status of
-    SFailure   -> Nothing
-    SLocal i g -> Just (Just (i,g))
-    SForeign _ -> Just Nothing
+    RLocal _ objs   -> Opt.addLocalGraph objs graph
+    RForeign _      -> graph
+    RKernelLocal cs -> Opt.addKernel (Name.getKernel name) cs graph
+    RKernelForeign  -> graph
 
 
-gatherPackageInterfaces :: Map.Map ModuleName.Raw () -> Map.Map ModuleName.Raw (I.Interface, Opt.Graph) -> Map.Map ModuleName.Raw I.DependencyInterface
-gatherPackageInterfaces exposed artifacts =
-    Map.merge onLeft onRight onBoth exposed artifacts
-  where
-    onLeft = Map.mapMissing (error "compiler bug manifesting in Elm.Details.gatherPackageInterfaces")
-    onRight = Map.mapMissing (\_ (i,_) -> I.private i)
-    onBoth = Map.zipWithMatched (\_ () (i,_) -> I.public i)
+gatherInterfaces :: Map.Map ModuleName.Raw () -> Map.Map ModuleName.Raw Result -> Map.Map ModuleName.Raw I.DependencyInterface
+gatherInterfaces exposed artifacts =
+  let
+    onLeft  = Map.mapMissing (error "compiler bug manifesting in Elm.Details.gatherInterfaces")
+    onRight = Map.mapMaybeMissing     (\_    iface -> toLocalInterface I.private iface)
+    onBoth  = Map.zipWithMaybeMatched (\_ () iface -> toLocalInterface I.public  iface)
+  in
+  Map.merge onLeft onRight onBoth exposed artifacts
+
+
+toLocalInterface :: (I.Interface -> a) -> Result -> Maybe a
+toLocalInterface func result =
+  case result of
+    RLocal iface _ -> Just (func iface)
+    RForeign _     -> Nothing
+    RKernelLocal _ -> Nothing
+    RKernelForeign -> Nothing
 
 
 
--- FOREIGN INTERFACES
+-- GATHER FOREIGN INTERFACES
 
 
 data ForeignInterface
@@ -433,72 +510,143 @@ gatherForeignInterfaces directArtifacts =
     isPublic :: I.DependencyInterface -> Maybe (OneOrMore.OneOrMore I.Interface)
     isPublic di =
       case di of
-        I.Public iface -> Just (OneOrMore.one iface)
-        I.Private _ _ -> Nothing
+        I.Public iface  -> Just (OneOrMore.one iface)
+        I.Private _ _ _ -> Nothing
 
 
 
--- BUILD MODULE
+-- CRAWL
 
 
 type StatusDict =
-  Map.Map ModuleName.Raw (MVar Status)
+  Map.Map ModuleName.Raw (MVar (Maybe Status))
 
 
 data Status
-  = SLocal !I.Interface !Opt.Graph
+  = SLocal (Map.Map ModuleName.Raw ()) Src.Module
   | SForeign I.Interface
-  | SFailure
+  | SKernelLocal [Kernel.Chunk]
+  | SKernelForeign
 
 
-buildModule :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> ModuleName.Raw -> IO Status
-buildModule foreignDeps mvar pkg src name =
+crawlModule :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> ModuleName.Raw -> IO (Maybe Status)
+crawlModule foreignDeps mvar pkg src name =
   do  let path = src </> ModuleName.toFilePath name <.> "elm"
       exists <- File.exists path
       case Map.lookup name foreignDeps of
         Just ForeignAmbiguous ->
-          return SFailure
+          return Nothing
 
         Just (ForeignSpecific iface) ->
           if exists
-          then return SFailure
-          else return (SForeign iface)
+          then return Nothing
+          else return (Just (SForeign iface))
 
         Nothing ->
-          if not exists
-          then return SFailure
+          if exists then
+            crawlFile foreignDeps mvar pkg src name path
+
+          else if Pkg.isKernel pkg && Name.isKernel name then
+            crawlKernel foreignDeps mvar pkg src name
+
           else
-            do  result <- Parse.fromFile pkg path
-                case result of
-                  Right modul@(Src.Module (Just actualName) _ deps _ _ _ _ _) | name == actualName ->
-                    do  statusDict <- takeMVar mvar
-                        let depsDict = Map.fromList $ map (\i -> (Src.getImport i, ())) deps
-                        let newsDict = Map.difference depsDict statusDict
-                        statusMVars <- Map.traverseWithKey (const . fork . buildModule foreignDeps mvar pkg src) newsDict
-                        putMVar mvar (Map.union statusMVars statusDict)
-                        statuses <- traverse readMVar statusMVars
-                        case traverse getInterface statuses of
-                          Nothing ->
-                            return SFailure
-
-                          Just imports ->
-                            case Compile.compile pkg imports modul of
-                              (_, Right (Compile.Artifacts canonical annotations objects)) ->
-                                return (SLocal (I.fromModule pkg canonical annotations) objects)
-
-                              (_, Left _) ->
-                                return SFailure
-
-                  _ ->
-                    return SFailure
+            return Nothing
 
 
-getInterface :: Status -> Maybe I.Interface
-getInterface status =
+crawlFile :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> ModuleName.Raw -> FilePath -> IO (Maybe Status)
+crawlFile foreignDeps mvar pkg src name path =
+  do  result <- Parse.fromFile pkg path
+      case result of
+        Right modul@(Src.Module (Just actualName) _ imports _ _ _ _ _) | name == actualName ->
+          do  deps <- crawlImports foreignDeps mvar pkg src imports
+              return (Just (SLocal deps modul))
+
+        _ ->
+          return Nothing
+
+
+crawlImports :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> [Src.Import] -> IO (Map.Map ModuleName.Raw ())
+crawlImports foreignDeps mvar pkg src imports =
+  do  statusDict <- takeMVar mvar
+      let deps = Map.fromList (map (\i -> (Src.getImportName i, ())) imports)
+      let news = Map.difference deps statusDict
+      mvars <- Map.traverseWithKey (const . fork . crawlModule foreignDeps mvar pkg src) news
+      putMVar mvar (Map.union mvars statusDict)
+      mapM_ readMVar mvars
+      return deps
+
+
+crawlKernel :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> ModuleName.Raw -> IO (Maybe Status)
+crawlKernel foreignDeps mvar pkg src name =
+  do  let path = src </> ModuleName.toFilePath name <.> "js"
+      exists <- File.exists path
+      if exists
+        then
+          do  maybeContent <- Kernel.fromFile pkg (Map.mapMaybe getDepHome foreignDeps) path
+              case maybeContent of
+                Nothing ->
+                  return Nothing
+
+                Just (Kernel.Content imports chunks) ->
+                  do  _ <- crawlImports foreignDeps mvar pkg src imports
+                      return (Just (SKernelLocal chunks))
+        else
+          return (Just SKernelForeign)
+
+
+getDepHome :: ForeignInterface -> Maybe Pkg.Name
+getDepHome fi =
+  case fi of
+    ForeignSpecific (I.Interface pkg _ _ _ _) -> Just pkg
+    ForeignAmbiguous                          -> Nothing
+
+
+
+-- COMPILE
+
+
+data Result
+  = RLocal !I.Interface !Opt.LocalGraph
+  | RForeign I.Interface
+  | RKernelLocal [Kernel.Chunk]
+  | RKernelForeign
+
+
+compile :: Pkg.Name -> MVar (Map.Map ModuleName.Raw (MVar (Maybe Result))) -> Status -> IO (Maybe Result)
+compile pkg mvar status =
   case status of
-    SLocal iface _ -> Just iface
-    SForeign iface -> Just iface
-    SFailure       -> Nothing
+    SLocal deps modul ->
+      do  resultsDict <- readMVar mvar
+          maybeResults <- traverse readMVar (Map.intersection resultsDict deps)
+          case sequence maybeResults of
+            Nothing ->
+              return Nothing
+
+            Just results ->
+              case Compile.compile pkg (Map.mapMaybe getInterface results) modul of
+                Left _ ->
+                  return Nothing
+
+                Right (Compile.Artifacts canonical annotations objects) ->
+                  return (Just (RLocal (I.fromModule pkg canonical annotations) objects))
+
+    SForeign iface ->
+      return (Just (RForeign iface))
+
+    SKernelLocal chunks ->
+      return (Just (RKernelLocal chunks))
+
+    SKernelForeign ->
+      return (Just RKernelForeign)
+
+
+getInterface :: Result -> Maybe I.Interface
+getInterface result =
+  case result of
+    RLocal iface _ -> Just iface
+    RForeign iface -> Just iface
+    RKernelLocal _ -> Nothing
+    RKernelForeign -> Nothing
 
 
 
@@ -506,9 +654,9 @@ getInterface status =
 
 
 downloadPackage :: Stuff.PackageCache -> Http.Manager -> Pkg.Name -> V.Version -> IO (Either Exit.PackageProblem ())
-downloadPackage cache manager name version =
+downloadPackage cache manager pkg vsn =
   do  eitherByteString <-
-        Http.post manager (Website.metadata name version "endpoint.json") [] id (return . Right)
+        Http.get manager (Website.metadata pkg vsn "endpoint.json") [] id (return . Right)
 
       case eitherByteString of
         Left err ->
@@ -520,10 +668,10 @@ downloadPackage cache manager name version =
               return (Left Exit.PP_BadEndpointContent)
 
             Right (endpoint, expectedHash) ->
-              Http.fetchArchive manager endpoint Exit.PP_BadArchiveRequest Exit.PP_BadArchiveContent $
+              Http.getArchive manager endpoint Exit.PP_BadArchiveRequest Exit.PP_BadArchiveContent $
                 \(sha, archive) ->
                   if expectedHash == Http.shaToChars sha
-                  then Right <$> File.writeArchive (Stuff.package cache name version) archive
+                  then Right <$> File.writePackage (Stuff.package cache pkg vsn) archive
                   else return $ Left $ Exit.PP_BadArchiveHash expectedHash (Http.shaToChars sha)
 
 
@@ -558,8 +706,8 @@ instance Binary ValidOutline where
 
 
 instance Binary Local where
-  get = liftM3 Local get get get
-  put (Local a b c) = put a >> put b >> put c
+  get = liftM4 Local get get get get
+  put (Local a b c d) = put a >> put b >> put c >> put d
 
 
 instance Binary Foreign where
