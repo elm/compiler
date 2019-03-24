@@ -3,8 +3,8 @@
 module Elm.Kernel
   ( Content(..)
   , Chunk(..)
-  , Dep(..)
-  , parser
+  , fromFile
+  , countFields
   )
   where
 
@@ -15,7 +15,6 @@ import Data.Coerce (coerce)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Name as Name
-import qualified Data.Set as Set
 import qualified Data.Utf8 as Utf8
 import Data.Word (Word8, Word16)
 import Foreign.Ptr (Ptr, plusPtr)
@@ -26,28 +25,14 @@ import qualified Elm.Package as Pkg
 import qualified Parse.Module as Module
 import qualified Parse.Variable as Var
 import Parse.Utils
-import Parse.Primitives hiding (Parser, State)
+import Parse.Primitives hiding (Parser, fromFile)
 import qualified Parse.Primitives as P
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as E
 
 
 
--- CONTENT
-
-
-data Content =
-  Content [Chunk] (Set.Set Dep)
-
-
-data Dep
-  = ElmDep ModuleName.Canonical Name.Name
-  | KernelDep Name.Name
-  deriving (Eq, Ord)
-
-
-
--- CHUNKS
+-- CHUNK
 
 
 data Chunk
@@ -65,22 +50,55 @@ data UNCHECKED
 
 
 
--- PARSE
+-- COUNT FIELDS
 
 
-type ImportDict =
-  Map.Map Name.Name [Pkg.Name]
+countFields :: [Chunk] -> Map.Map Name.Name Int
+countFields chunks =
+  foldr addField Map.empty chunks
 
 
-parser :: ImportDict -> Parser Content
-parser importDict =
+addField :: Chunk -> Map.Map Name.Name Int -> Map.Map Name.Name Int
+addField chunk fields =
+  case chunk of
+    JS _       -> fields
+    ElmVar _ _ -> fields
+    JsVar _ _  -> fields
+    ElmField f -> Map.insertWith (+) f 1 fields
+    JsField _  -> fields
+    JsEnum _   -> fields
+    Debug      -> fields
+    Prod       -> fields
+
+
+
+-- FROM FILE
+
+
+data Content =
+  Content [Src.Import] [Chunk]
+
+
+type Foreigns =
+  Map.Map ModuleName.Raw Pkg.Name
+
+
+fromFile :: Pkg.Name -> Foreigns -> FilePath -> IO (Maybe Content)
+fromFile pkg foreigns path =
+  do  result <- P.fromFile (parser pkg foreigns) path
+      case result of
+        P.Ok content _ -> return (Just content)
+        P.Err _ _ _ _  -> return Nothing
+
+
+parser :: Pkg.Name -> Foreigns -> Parser Content
+parser pkg foreigns =
   do  word2 0x2F 0x2A {-/*-} E.XXX
       Module.freshLine
       imports <- Module.chompImports []
       word2 0x2A 0x2F {-*/-} E.XXX
-      let (vtable, deps) = processImports importDict imports
-      chunks <- parseChunks vtable Map.empty Map.empty
-      return $ Content chunks deps
+      chunks <- parseChunks (toVarTable pkg foreigns imports) Map.empty Map.empty
+      return (Content imports chunks)
 
 
 
@@ -100,17 +118,11 @@ parseChunks vtable enums fields =
       cerr row col ctx E.XXX
 
 
-addJS :: Ptr Word8 -> Ptr Word8 -> [Chunk] -> [Chunk]
-addJS start end revChunks =
-  if start == end
-    then revChunks
-    else JS (Utf8.fromPtr start end) : revChunks
-
-
 chompChunks :: VarTable -> Enums -> Fields -> Ptr Word8 -> Ptr Word8 -> Word16 -> Word16 -> Ptr Word8 -> [Chunk] -> (# [Chunk], Ptr Word8, Word16, Word16 #)
 chompChunks vs es fs pos end row col lastPos revChunks =
   if pos >= end then
-    (# reverse (addJS lastPos end revChunks), pos, row, col #)
+    let !js = Utf8.fromPtr lastPos end in
+    (# reverse (JS js : revChunks), pos, row, col #)
 
   else
     let !word = unsafeIndex pos in
@@ -120,7 +132,8 @@ chompChunks vs es fs pos end row col lastPos revChunks =
         !pos3 = plusPtr pos 3
       in
       if pos3 <= end && unsafeIndex pos1 == 0x5F {-_-} then
-        chompTag vs es fs pos3 end row (col + 3) (addJS lastPos pos revChunks)
+        let !js = Utf8.fromPtr lastPos pos in
+        chompTag vs es fs pos3 end row (col + 3) (JS js : revChunks)
       else
         chompChunks vs es fs pos1 end row (col + 1) lastPos revChunks
 
@@ -143,8 +156,11 @@ chompTag vs es fs pos end row col revChunks =
     !word = unsafeIndex tagPos
   in
   if word == 0x24 {-$-} then
+    let
+      !name = Name.fromPtr pos newPos
+    in
     chompChunks vs es fs newPos end row newCol newPos $
-      ElmField (Name.fromPtr pos newPos) : revChunks
+      ElmField name : revChunks
   else
     let
       !name = Name.fromPtr tagPos newPos
@@ -230,60 +246,34 @@ type VarTable =
   Map.Map Name.Name Chunk
 
 
-type State =
-  (VarTable, Set.Set Dep)
+toVarTable :: Pkg.Name -> Foreigns -> [Src.Import] -> VarTable
+toVarTable pkg foreigns imports =
+  List.foldl' (addImport pkg foreigns) Map.empty imports
 
 
-processImports :: ImportDict -> [Src.Import] -> State
-processImports importDict imports =
-  List.foldl' (addImport importDict) (Map.empty, Set.empty) imports
-
-
-addImport :: ImportDict -> State -> Src.Import -> State
-addImport importDict state (Src.Import (A.At _ home) maybeAlias exposing) =
-  if Name.isKernel home then
+addImport :: Pkg.Name -> Foreigns -> VarTable -> Src.Import -> VarTable
+addImport pkg foreigns vtable (Src.Import (A.At _ importName) maybeAlias exposing) =
+  if Name.isKernel importName then
     case maybeAlias of
       Just _ ->
-        error ("Cannot use aliases on kernel import of: " ++ Name.toChars home)
+        error ("cannot use `as` with kernel import of: " ++ Name.toChars importName)
 
       Nothing ->
-        addKernelImport (Name.getKernel home) exposing state
+        let
+          home = Name.getKernel importName
+          add table name =
+            Map.insert (Name.sepBy 0x5F {-_-} home name) (JsVar home name) table
+        in
+        List.foldl' add vtable (toNames exposing)
 
   else
-    case Map.lookup home importDict of
-      Just [pkg] ->
-        let
-          canonicalHome = ModuleName.Canonical pkg home
-          prefix = toPrefix home maybeAlias
-        in
-        addNormalImport canonicalHome prefix exposing state
-
-      _ ->
-        error ("Cannot find kernel import of: " ++ Name.toChars home)
-
-
--- INVARIANT: the `home` is the * in `Elm.Kernel.*`
---
-addKernelImport :: Name.Name -> Src.Exposing -> State -> State
-addKernelImport home exposing (vtable, deps) =
-  let
-    addVar table name =
-      Map.insert (Name.sepBy 0x5F {-_-} home name) (JsVar home name) table
-  in
-  ( List.foldl' addVar vtable (toNames exposing)
-  , Set.insert (KernelDep home) deps
-  )
-
-
-addNormalImport :: ModuleName.Canonical -> Name.Name -> Src.Exposing -> State -> State
-addNormalImport home prefix exposing state =
-  let
-    addVar (vtable, deps) name =
-      ( Map.insert (Name.sepBy 0x5F {-_-} prefix name) (ElmVar home name) vtable
-      , Set.insert (ElmDep home name) deps
-      )
-  in
-  List.foldl' addVar state (toNames exposing)
+    let
+      home = ModuleName.Canonical (Map.findWithDefault pkg importName foreigns) importName
+      prefix = toPrefix importName maybeAlias
+      add table name =
+        Map.insert (Name.sepBy 0x5F {-_-} prefix name) (ElmVar home name) table
+    in
+    List.foldl' add vtable (toNames exposing)
 
 
 toPrefix :: Name.Name -> Maybe Name.Name -> Name.Name
@@ -303,7 +293,7 @@ toNames :: Src.Exposing -> [Name.Name]
 toNames exposing =
   case exposing of
     Src.Open ->
-      error "Cannot have `exposing (..)` in kernel code."
+      error "cannot have `exposing (..)` in kernel code."
 
     Src.Explicit exposedList ->
       map toName exposedList
