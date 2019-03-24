@@ -11,11 +11,13 @@ module Elm.Interface
   , public
   , private
   , privatize
+  , extractUnion
+  , extractAlias
   )
   where
 
 
-import Control.Monad (liftM, liftM2, liftM4, liftM5)
+import Control.Monad (liftM, liftM3, liftM4, liftM5)
 import Data.Binary
 import Data.Map.Strict ((!))
 import qualified Data.Map.Strict as Map
@@ -153,7 +155,10 @@ toPublicAlias iAlias =
 
 data DependencyInterface
   = Public Interface
-  | Private (Map.Map Name.Name Can.Union) (Map.Map Name.Name Can.Alias)
+  | Private
+      Pkg.Name
+      (Map.Map Name.Name Can.Union)
+      (Map.Map Name.Name Can.Alias)
 
 
 public :: Interface -> DependencyInterface
@@ -162,10 +167,8 @@ public =
 
 
 private :: Interface -> DependencyInterface
-private (Interface _ _ unions aliases _) =
-  Private
-    (Map.map extractUnion unions)
-    (Map.map extractAlias aliases)
+private (Interface pkg _ unions aliases _) =
+  Private pkg (Map.map extractUnion unions) (Map.map extractAlias aliases)
 
 
 extractUnion :: Union -> Can.Union
@@ -187,7 +190,7 @@ privatize :: DependencyInterface -> DependencyInterface
 privatize di =
   case di of
     Public i -> private i
-    Private _ _ -> di
+    Private _ _ _ -> di
 
 
 
@@ -240,12 +243,12 @@ instance Binary Binop where
 instance Binary DependencyInterface where
   put union =
     case union of
-      Public  a   -> putWord8 0 >> put a
-      Private a b -> putWord8 1 >> put a >> put b
+      Public  a     -> putWord8 0 >> put a
+      Private a b c -> putWord8 1 >> put a >> put b >> put c
 
   get =
     do  n <- getWord8
         case n of
           0 -> liftM  Public get
-          1 -> liftM2 Private get get
+          1 -> liftM3 Private get get get
           _ -> error "binary encoding of DependencyInterface was corrupted"
