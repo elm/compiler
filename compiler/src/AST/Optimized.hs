@@ -7,21 +7,24 @@ module AST.Optimized
   , Destructor(..)
   , Decider(..)
   , Choice(..)
-  , Graph(..)
+  , GlobalGraph(..)
+  , LocalGraph(..)
   , Main(..)
   , Node(..)
   , EffectsType(..)
   , empty
-  , union
-  , unions
+  , addGlobalGraph
+  , addLocalGraph
+  , addKernel
+  , toKernelGlobal
   )
   where
 
 
 import Control.Monad (liftM, liftM2, liftM3, liftM4)
 import Data.Binary (Binary, get, put, getWord8, putWord8)
-import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Name as Name
 import Data.Name (Name)
 import qualified Data.Set as Set
 import qualified Data.Utf8 as Utf8
@@ -31,6 +34,7 @@ import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
 import qualified Elm.Kernel as K
 import qualified Elm.ModuleName as ModuleName
+import qualified Elm.Package as Pkg
 import qualified Optimize.DecisionTree as DT
 import qualified Reporting.Annotation as A
 
@@ -121,11 +125,18 @@ data Choice
 -- OBJECT GRAPH
 
 
-data Graph =
-  Graph
-    { _mains :: Map.Map ModuleName.Canonical Main
-    , _nodes :: Map.Map Global Node
-    , _fields :: Map.Map Name Int
+data GlobalGraph =
+  GlobalGraph
+    { _g_nodes :: Map.Map Global Node
+    , _g_fields :: Map.Map Name Int
+    }
+
+
+data LocalGraph =
+  LocalGraph
+    { _l_main :: Maybe Main
+    , _l_nodes :: Map.Map Global Node  -- TODO profile switching Global to Name
+    , _l_fields :: Map.Map Name Int
     }
 
 
@@ -159,27 +170,55 @@ data EffectsType = Cmd | Sub | Fx
 
 
 {-# NOINLINE empty #-}
-empty :: Graph
+empty :: GlobalGraph
 empty =
-  Graph Map.empty Map.empty Map.empty
+  GlobalGraph Map.empty Map.empty
 
 
-union :: Graph -> Graph -> Graph
-union (Graph mains1 graph1 fields1) (Graph mains2 graph2 fields2) =
-  Graph
-    (Map.union mains1 mains2)
-    (Map.union graph1 graph2)
-    (Map.union fields1 fields2)
+addGlobalGraph :: GlobalGraph -> GlobalGraph -> GlobalGraph
+addGlobalGraph (GlobalGraph nodes1 fields1) (GlobalGraph nodes2 fields2) =
+  GlobalGraph
+    { _g_nodes = Map.union nodes1 nodes2
+    , _g_fields = Map.union fields1 fields2
+    }
 
 
-unions :: [Graph] -> Graph
-unions graphs =
-  case graphs of
-    [] ->
-      empty
+addLocalGraph :: LocalGraph -> GlobalGraph -> GlobalGraph
+addLocalGraph (LocalGraph _ nodes1 fields1) (GlobalGraph nodes2 fields2) =
+  GlobalGraph
+    { _g_nodes = Map.union nodes1 nodes2
+    , _g_fields = Map.union fields1 fields2
+    }
 
-    g:gs ->
-      List.foldl' union g gs
+
+addKernel :: Name.Name -> [K.Chunk] -> GlobalGraph -> GlobalGraph
+addKernel shortName chunks (GlobalGraph nodes fields) =
+  let
+    global = toKernelGlobal shortName
+    node = Kernel chunks (foldr addKernelDep Set.empty chunks)
+  in
+  GlobalGraph
+    { _g_nodes = Map.insert global node nodes
+    , _g_fields = Map.union (K.countFields chunks) fields
+    }
+
+
+addKernelDep :: K.Chunk -> Set.Set Global -> Set.Set Global
+addKernelDep chunk deps =
+  case chunk of
+    K.JS _              -> deps
+    K.ElmVar home name  -> Set.insert (Global home name) deps
+    K.JsVar shortName _ -> Set.insert (toKernelGlobal shortName) deps
+    K.ElmField _        -> deps
+    K.JsField _         -> deps
+    K.JsEnum _          -> deps
+    K.Debug             -> deps
+    K.Prod              -> deps
+
+
+toKernelGlobal :: Name.Name -> Global
+toKernelGlobal shortName =
+  Global (ModuleName.Canonical Pkg.kernel shortName) Name.dollar
 
 
 
@@ -323,9 +362,14 @@ instance Binary Choice where
 
 
 
-instance Binary Graph where
-  get = liftM3 Graph get get get
-  put (Graph a b c) = put a >> put b >> put c
+instance Binary GlobalGraph where
+  get = liftM2 GlobalGraph get get
+  put (GlobalGraph a b) = put a >> put b
+
+
+instance Binary LocalGraph where
+  get = liftM3 LocalGraph get get get
+  put (LocalGraph a b c) = put a >> put b >> put c
 
 
 instance Binary Main where
