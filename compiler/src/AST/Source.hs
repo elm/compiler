@@ -7,7 +7,7 @@ module AST.Source
   , Type, Type_(..)
   , Module(..)
   , getName
-  , getImport
+  , getImportName
   , Import(..)
   , Value(..)
   , Union(..)
@@ -140,8 +140,8 @@ getName (Module maybeName _ _ _ _ _ _ _) =
     Nothing -> "Main"
 
 
-getImport :: Import -> Name
-getImport (Import (A.At _ name) _ _) =
+getImportName :: Import -> Name
+getImportName (Import (A.At _ name) _ _) =
   name
 
 
