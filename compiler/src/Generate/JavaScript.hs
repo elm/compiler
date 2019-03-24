@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Generate.JavaScript
-  ( Output(..)
-  , generate
+  ( generate
   , generateForRepl
   )
   where
@@ -20,11 +19,11 @@ import qualified Data.Utf8 as Utf8
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
 import qualified Data.Index as Index
-import qualified Elm.Interface as I
 import qualified Elm.Kernel as K
 import qualified Elm.ModuleName as ModuleName
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Expression as Expr
+import qualified Generate.JavaScript.Functions as Functions
 import qualified Generate.JavaScript.Name as JsName
 import qualified Generate.Mode as Mode
 import qualified Reporting.Doc as D
@@ -33,33 +32,27 @@ import qualified Reporting.Render.Type.Localizer as L
 
 
 
--- GENERATE MAINS
+-- GENERATE
 
 
-data Output
-  = None
-  | Some Name.Name [Name.Name] B.Builder
+type Graph = Map.Map Opt.Global Opt.Node
+type Mains = Map.Map ModuleName.Canonical Opt.Main
 
 
-generate :: Mode.Mode -> Opt.Graph -> [ModuleName.Canonical] -> Output
-generate mode (Opt.Graph mains graph _) roots =
+generate :: Mode.Mode -> Opt.GlobalGraph -> Mains -> B.Builder
+generate mode (Opt.GlobalGraph graph _) mains =
   let
-    rootSet = Set.fromList roots
-    rootMap = Map.restrictKeys mains rootSet
+    state = Map.foldrWithKey (addMain mode graph) emptyState mains
   in
-  case map ModuleName._module (Map.keys rootMap) of
-    [] ->
-      None
-
-    name:names ->
-      let
-        state = Map.foldrWithKey (addMain mode graph) emptyState rootMap
-        builder = perfNote mode <> stateToBuilder state <> toMainExports mode rootMap
-      in
-      Some name names builder
+  "(function(scope){\n'use strict';"
+  <> Functions.functions
+  <> perfNote mode
+  <> stateToBuilder state
+  <> toMainExports mode mains
+  <> "}(this));"
 
 
-addMain :: Mode.Mode -> Graph -> ModuleName.Canonical -> main -> State -> State
+addMain :: Mode.Mode -> Graph -> ModuleName.Canonical -> Opt.Main -> State -> State
 addMain mode graph home _ state =
   addGlobal mode graph state (Opt.Global home "main")
 
@@ -85,20 +78,19 @@ perfNote mode =
 -- GENERATE FOR REPL
 
 
-generateForRepl :: Bool -> L.Localizer -> Opt.Graph -> I.Interface -> ModuleName.Canonical -> Name.Name -> B.Builder
-generateForRepl ansi localizer (Opt.Graph _ graph _) iface home name =
+generateForRepl :: Bool -> L.Localizer -> Opt.GlobalGraph -> ModuleName.Canonical -> Name.Name -> Can.Annotation -> B.Builder
+generateForRepl ansi localizer (Opt.GlobalGraph graph _) home name (Can.Forall _ tipe) =
   let
     mode = Mode.Dev Nothing
     debugState = addGlobal mode graph emptyState (Opt.Global ModuleName.debug "toString")
     evalState = addGlobal mode graph debugState (Opt.Global home name)
   in
   stateToBuilder evalState
-  <>
-  print ansi localizer home name (I._values iface ! name)
+  <> print ansi localizer home name tipe
 
 
-print :: Bool -> L.Localizer -> ModuleName.Canonical -> Name.Name -> Can.Annotation -> B.Builder
-print ansi localizer home name (Can.Forall _ tipe) =
+print :: Bool -> L.Localizer -> ModuleName.Canonical -> Name.Name -> Can.Type -> B.Builder
+print ansi localizer home name tipe =
   let
     value = JsName.toBuilder (JsName.fromGlobal home name)
     toString = JsName.toBuilder (JsName.fromKernel Name.debug "toAnsiString")
@@ -144,9 +136,6 @@ prependBuilders revBuilders monolith =
 
 
 -- ADD DEPENDENCIES
-
-
-type Graph = Map.Map Opt.Global Opt.Node
 
 
 addGlobal :: Mode.Mode -> Graph -> State -> Opt.Global -> State
@@ -487,7 +476,7 @@ generateManagerHelp home effectsType =
 -- MAIN EXPORTS
 
 
-toMainExports :: Mode.Mode -> Map.Map ModuleName.Canonical Opt.Main -> B.Builder
+toMainExports :: Mode.Mode -> Mains -> B.Builder
 toMainExports mode mains =
   let
     export = JsName.fromKernel Name.platform "export"
