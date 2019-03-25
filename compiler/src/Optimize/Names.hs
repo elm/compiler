@@ -24,7 +24,6 @@ import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
 import qualified Data.Index as Index
 import qualified Elm.ModuleName as ModuleName
-import qualified Elm.Package as Pkg
 import qualified Reporting.Annotation as A
 
 
@@ -58,12 +57,7 @@ generate =
 registerKernel :: Name.Name -> a -> Tracker a
 registerKernel home value =
   Tracker $ \uid deps fields ok ->
-    ok uid (Set.insert (toKernelGlobal home) deps) fields value
-
-
-toKernelGlobal :: Name.Name -> Opt.Global
-toKernelGlobal home =
-  Opt.Global (ModuleName.Canonical Pkg.kernel home) Name.dollar
+    ok uid (Set.insert (Opt.toKernelGlobal home) deps) fields value
 
 
 registerGlobal :: ModuleName.Canonical -> Name.Name -> Tracker Opt.Expr
