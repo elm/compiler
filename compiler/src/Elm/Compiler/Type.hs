@@ -15,19 +15,18 @@ module Elm.Compiler.Type
 
 
 import qualified Data.Name as Name
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import qualified Data.Utf8 as Utf8
 
 import qualified AST.Source as Src
-import qualified Parse.Primitives as Parse
+import qualified Parse.Primitives as P
 import qualified Parse.Type as Type
 import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
 import qualified Reporting.Render.Type as RT
 import qualified Reporting.Render.Type.Localizer as L
 
-import qualified Json.Decode as Decode
-import qualified Json.Encode as Encode
+import qualified Json.Decode as D
+import qualified Json.Encode as E
 import Json.Encode ((==>))
 
 
@@ -113,20 +112,20 @@ collectLambdas tipe =
 -- JSON for TYPE
 
 
-encode :: Type -> Encode.Value
+encode :: Type -> E.Value
 encode tipe =
-  Encode.text $ Text.pack $ D.toLine (toDoc L.empty RT.None tipe)
+  E.string $ Utf8.fromChars $ D.toLine (toDoc L.empty RT.None tipe)
 
 
-decoder :: Decode.Decoder () Type
+decoder :: D.Decoder () Type
 decoder =
-  do  txt <- Decode.text
-      case Parse.run Type.expression (Text.encodeUtf8 (Text.replace "'" "_" txt)) of
-        Left _ ->
-          Decode.fail ()
+  do  str <- D.string
+      case P.fromByteString Type.expression (error "TODO turn Utf8 to something that can be parsed" str) of
+        P.Ok (tipe, _, _) _ ->
+          return (fromRawType tipe)
 
-        Right (tipe, _, _) ->
-          Decode.succeed (fromRawType tipe)
+        P.Err _ _ _ _ ->
+          D.failure ()
 
 
 fromRawType :: Src.Type -> Type
@@ -164,33 +163,33 @@ fromRawType (A.At _ astType) =
 -- JSON for PROGRAM
 
 
-encodeMetadata :: DebugMetadata -> Encode.Value
+encodeMetadata :: DebugMetadata -> E.Value
 encodeMetadata (DebugMetadata msg aliases unions) =
-  Encode.object
+  E.object
     [ "message" ==> encode msg
-    , "aliases" ==> Encode.object (map toAliasField aliases)
-    , "unions" ==> Encode.object (map toUnionField unions)
+    , "aliases" ==> E.object (map toAliasField aliases)
+    , "unions" ==> E.object (map toUnionField unions)
     ]
 
 
-toAliasField :: Alias -> ( Text.Text, Encode.Value )
+toAliasField :: Alias -> ( Utf8.String, E.Value )
 toAliasField (Alias name args tipe) =
-  Name.toText name ==>
-    Encode.object
-      [ "args" ==> Encode.list Encode.name args
+  Name.toUtf8 name ==>
+    E.object
+      [ "args" ==> E.list E.name args
       , "type" ==> encode tipe
       ]
 
 
-toUnionField :: Union -> ( Text.Text, Encode.Value )
+toUnionField :: Union -> ( Utf8.String, E.Value )
 toUnionField (Union name args constructors) =
-  Name.toText name ==>
-    Encode.object
-      [ "args" ==> Encode.list Encode.name args
-      , "tags" ==> Encode.object (map toCtorObject constructors)
+  Name.toUtf8 name ==>
+    E.object
+      [ "args" ==> E.list E.name args
+      , "tags" ==> E.object (map toCtorObject constructors)
       ]
 
 
-toCtorObject :: (Name.Name, [Type]) -> ( Text.Text, Encode.Value )
+toCtorObject :: (Name.Name, [Type]) -> ( Utf8.String, E.Value )
 toCtorObject (name, args) =
-  Name.toText name ==> Encode.list encode args
+  Name.toUtf8 name ==> E.list encode args
