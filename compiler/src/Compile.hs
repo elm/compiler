@@ -36,13 +36,13 @@ data Artifacts =
   Artifacts
     { _modul :: Can.Module
     , _types :: Map.Map Name.Name Can.Annotation
-    , _graph :: Opt.Graph
+    , _graph :: Opt.LocalGraph
     }
 
 
-compile :: Pkg.Name -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> ([W.Warning], Either (OneOrMore.OneOrMore E.Error) Artifacts)
+compile :: Pkg.Name -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> Either (OneOrMore.OneOrMore E.Error) Artifacts
 compile pkg ifaces modul =
-  R.run $
+  snd $ R.run $
   do  canonical   <- canonicalize pkg ifaces modul
       annotations <- typeCheck canonical
       ()          <- nitpick canonical
@@ -79,6 +79,6 @@ nitpick canonical =
       R.throw (E.Pattern errors)
 
 
-optimize :: Map.Map Name.Name Can.Annotation -> Can.Module -> R.Result i [W.Warning] E.Error Opt.Graph
+optimize :: Map.Map Name.Name Can.Annotation -> Can.Module -> R.Result i [W.Warning] E.Error Opt.LocalGraph
 optimize annotations canonical =
   R.mapError E.Main $ Optimize.optimize annotations canonical
