@@ -10,18 +10,17 @@ import Control.Monad.Trans (liftIO)
 import qualified Data.Map as Map
 import qualified System.Directory as Dir
 
-import qualified Deps.Cache as Cache
-import qualified Deps.Explorer as Explorer
+import qualified Deps.Registry as Registry
 import qualified Deps.Solver as Solver
 import qualified Elm.Constraint as Con
+import qualified Elm.Outline as Outline
 import qualified Elm.Package as Pkg
-import qualified Elm.Project.Json as Project
 import qualified Elm.Version as V
+import qualified Http
+import qualified Reporting
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
-import qualified Reporting.Exit.Init as E
-import qualified Reporting.Task as Task
-import qualified Reporting.Progress.Terminal as Terminal
+import qualified Stuff
 
 
 
@@ -30,19 +29,17 @@ import qualified Reporting.Progress.Terminal as Terminal
 
 run :: () -> () -> IO ()
 run () () =
-  do  reporter <- Terminal.create
-      exists <- Dir.doesFileExist "elm.json"
-      Task.run reporter $
-        if exists then
-          Task.throw (Exit.Init E.AlreadyStarted)
+  Reporting.attempt Exit.initToReport $
+  do  exists <- Dir.doesFileExist "elm.json"
+      if exists
+        then return (Left Exit.InitAlreadyExists)
         else
-          do  approved <- Task.getApproval question
+          do  approved <- Reporting.ask question
               if approved
-                then
-                  do  init
-                      liftIO $ putStrLn "Okay, I created it. Now read that link!"
+                then init
                 else
-                  liftIO $ putStrLn "Okay, I did not make any changes!"
+                  do  putStrLn "Okay, I did not make any changes!"
+                      return (Right ())
 
 
 question :: D.Doc
@@ -69,26 +66,32 @@ question =
 -- INIT
 
 
-init :: Task.Task ()
+init :: IO (Either Exit.Init ())
 init =
-  do  registry <- Cache.optionalUpdate
+  do  cache <- Stuff.getPackageCache
+      manager <- Http.getManager
+      eregistry <- Registry.latest manager cache
+      case eregistry of
+        Left rp ->
+          return (Left (Exit.InitRegistryProblem rp))
 
-      maybeSolution <-
-        Explorer.run registry $ Solver.run $ Solver.solve defaults
+        Right registry ->
+          do  result <- Solver.online cache manager registry defaults
+              case result of
+                Left _ ->
+                  return (Left (Exit.InitNoSolution (Map.keys defaults)))
 
-      case maybeSolution of
-        Just solution ->
-          let
-            directs = Map.intersection solution defaults
-            indirects = Map.difference solution defaults
-          in
-          liftIO $
-            do  Dir.createDirectoryIfMissing True "src"
-                Project.write "." $ Project.App $
-                  Project.AppInfo V.compiler ["src"] directs indirects Map.empty Map.empty
-
-        Nothing ->
-          Task.throw (Exit.Init (E.NoSolution (Map.keys defaults)))
+                Right details ->
+                  let
+                    solution = Map.map (\(Solver.Details vsn _) -> vsn) details
+                    directs = Map.intersection solution defaults
+                    indirects = Map.difference solution defaults
+                  in
+                  do  Dir.createDirectoryIfMissing True "src"
+                      Outline.write "." $ Outline.App $
+                        Outline.AppOutline V.compiler ["src"] directs indirects Map.empty Map.empty
+                      putStrLn "Okay, I created it. Now read that link!"
+                      return (Right ())
 
 
 defaults :: Map.Map Pkg.Name Con.Constraint
