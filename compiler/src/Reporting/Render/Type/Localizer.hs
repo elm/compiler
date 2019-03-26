@@ -93,9 +93,9 @@ fromNames names =
 
 
 fromModule :: Src.Module -> Localizer
-fromModule (Src.Module name _ imports _ _ _ _ _) =
+fromModule modul@(Src.Module _ _ imports _ _ _ _ _) =
   Localizer $ Map.fromList $
-    (name, Import Nothing All) : map toPair imports
+    (Src.getName modul, Import Nothing All) : map toPair imports
 
 
 toPair :: Src.Import -> (Name.Name, Import)
