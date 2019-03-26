@@ -15,6 +15,7 @@ module Stuff
   , registry
   , package
   , getReplCache
+  , getElmHome
   )
   where
 

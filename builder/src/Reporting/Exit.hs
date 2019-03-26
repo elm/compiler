@@ -190,13 +190,19 @@ diffToReport diff =
 
 
 data Install
-  = InstallNoArgs FilePath
+  = InstallNoProject
+  | InstallNoArgs FilePath
   | InstallNoSolution [Pkg.Name]
 
 
 installToReport :: Install -> Help.Report
 installToReport exit =
   case exit of
+    InstallNoProject ->
+      Help.report "NEW PROJECT?" Nothing
+        (error "TODO InstallNoProject")
+        (error "TODO InstallNoProject details")
+
     InstallNoArgs elmHome ->
       Help.report "INSTALL WHAT?" Nothing
         "I am expecting commands like:"

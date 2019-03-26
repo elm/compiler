@@ -28,6 +28,7 @@ import Data.Monoid ((<>))
 import qualified Data.Name as Name
 import qualified Data.Utf8 as Utf8
 import qualified System.Console.ANSI.Types as Ansi
+import qualified System.Info as Info
 import System.IO (Handle)
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 
@@ -204,16 +205,25 @@ intToOrdinal number =
 
 
 
-cycle :: Int -> [Name.Name] -> P.Doc
-cycle indent names =
+cycle :: Int -> Name.Name -> [Name.Name] -> P.Doc
+cycle indent name names =
   let
-    topLine       = "┌─────┐"
-    nameLine name = "│    " <> P.dullyellow (fromName name)
-    midLine       = "│     ↓"
-    bottomLine    = "└─────┘"
+    toLn n = cycleLn <> P.dullyellow (fromName n)
   in
   P.indent indent $ P.vcat $
-    topLine : List.intersperse midLine (map nameLine names) ++ [ bottomLine ]
+    cycleTop : List.intersperse cycleMid (toLn name : map toLn names) ++ [ cycleEnd ]
+
+
+cycleTop, cycleLn, cycleMid, cycleEnd :: P.Doc
+cycleTop = if isWindows then "+-----+" else "┌─────┐"
+cycleLn  = if isWindows then "|    "   else "│    "
+cycleMid = if isWindows then "|     |" else "│     ↓"
+cycleEnd = if isWindows then "+-<---+" else "└─────┘"
+
+
+isWindows :: Bool
+isWindows =
+  Info.os == "mingw32"
 
 
 
