@@ -5,10 +5,11 @@ module Reporting
   , terminal
   --
   , attempt
-  , exit
+  , attemptWithStyle
   --
   , Key
   , report
+  , ask
   --
   , DKey
   , DMsg(..)
@@ -24,6 +25,7 @@ module Reporting
 
 
 import Control.Concurrent
+import Control.Exception (SomeException, AsyncException(UserInterrupt), catch, fromException, throw)
 import Control.Monad (when)
 import qualified Data.ByteString.Builder as B
 import qualified Data.NonEmptyList as NE
@@ -64,25 +66,31 @@ terminal =
 -- ATTEMPT
 
 
-attempt :: Style -> IO (Either Help.Report a) -> IO a
-attempt style work =
-  do  result <- work
+attempt :: (x -> Help.Report) -> IO (Either x a) -> IO a
+attempt toReport work =
+  do  result <- work `catch` reportExceptionsNicely
       case result of
         Right a -> return a
-        Left ex -> exit style ex
+        Left x ->
+          do  Exit.toStderr (toReport x)
+              Exit.exitFailure
 
 
-exit :: Style -> Help.Report -> IO a
-exit style rep =
-  case style of
-    Json ->
-      do  B.hPutBuilder stderr (Encode.encodeUgly (Exit.toJson rep))
-          Exit.exitFailure
+attemptWithStyle :: Style -> (x -> Help.Report) -> IO (Either x a) -> IO a
+attemptWithStyle style toReport work =
+  do  result <- work `catch` reportExceptionsNicely
+      case result of
+        Right a -> return a
+        Left x ->
+          case style of
+            Json ->
+              do  B.hPutBuilder stderr (Encode.encodeUgly (Exit.toJson (toReport x)))
+                  Exit.exitFailure
 
-    Terminal mvar ->
-      do  readMVar mvar
-          Exit.toStderr rep
-          Exit.exitFailure
+            Terminal mvar ->
+              do  readMVar mvar
+                  Exit.toStderr (toReport x)
+                  Exit.exitFailure
 
 
 
@@ -120,6 +128,29 @@ report :: Key msg -> msg -> IO ()
 report (Key send) msg =
   send msg
 
+
+
+-- ASK
+
+
+ask :: D.Doc -> IO Bool
+ask doc =
+  do  Help.toStdout doc
+      askHelp
+
+
+askHelp :: IO Bool
+askHelp =
+  do  hFlush stdout
+      input <- getLine
+      case input of
+        ""  -> return True
+        "Y" -> return True
+        "y" -> return True
+        "n" -> return False
+        _   ->
+          do  putStr "Must type 'y' for yes or 'n' for no: "
+              askHelp
 
 
 -- DETAILS
@@ -377,3 +408,40 @@ vbottom = if isWindows then '+' else '┘'
 putStrFlush :: String -> IO ()
 putStrFlush str =
   hPutStr stdout str >> hFlush stdout
+
+
+
+-- REPORT EXCEPTIONS NICELY
+
+
+reportExceptionsNicely :: SomeException -> IO a
+reportExceptionsNicely e =
+  case fromException e of
+    Just UserInterrupt -> throw e
+    _                  -> putException e >> throw e
+
+
+putException :: SomeException -> IO ()
+putException e =
+  Help.toStderr $ D.stack $
+    [ D.reflow $
+        "Oh no! I ran into something that bypassed the normal error reporting process!\
+        \ I extracted whatever information I could from the internal error:"
+    , D.vcat $ map (\line -> D.red ">" <> "   " <> D.fromChars line) (lines (show e))
+    , D.reflow $
+        "These errors are usually pretty confusing, so start by asking around on Slack\
+        \ or Discourse to see if anyone can get you unstuck quickly."
+    , "------------------------------------------------------------"
+    , D.reflow $
+        "From there, if you are feeling up to it, please try to get your code down to the\
+        \ smallest version that still triggers this message. Ideally in a single Main.elm\
+        \ and elm.json file."
+    , D.reflow $
+        "From there open a NEW issue at https://github.com/elm/compiler/issues with\
+        \ your reduced example pasted in directly. (Not a link to a repo or gist!) Do not\
+        \ worry about if someone else saw something similar. More examples is better!"
+    , D.reflow $
+        "This kind of error is usually tied up in larger architectural choices that are\
+        \ hard to change, so even when we have a couple good examples, it can take some\
+        \ time to resolve in a solid way."
+    ]
