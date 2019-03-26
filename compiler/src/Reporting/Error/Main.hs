@@ -25,7 +25,7 @@ import qualified Reporting.Report as Report
 
 data Error
   = BadType A.Region Can.Type
-  | BadCycle A.Region [Name.Name]
+  | BadCycle A.Region Name.Name [Name.Name]
   | BadFlags A.Region Can.Type E.InvalidPayload
 
 
@@ -51,7 +51,7 @@ toReport localizer source err =
               ]
           )
 
-    BadCycle region cycleNames ->
+    BadCycle region name names ->
       Report.Report "BAD MAIN" region [] $
         Report.toCodeSnippet source region Nothing
           (
@@ -61,7 +61,7 @@ toReport localizer source err =
               [ D.reflow $
                   "It should be a boring value with no recursion. But\
                   \ instead it is involved in this cycle of definitions:"
-              , D.cycle 4 cycleNames
+              , D.cycle 4 name names
               ]
           )
 

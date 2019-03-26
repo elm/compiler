@@ -68,7 +68,7 @@ data Error
   | PortPayloadInvalid A.Region Name.Name Can.Type InvalidPayload
   | PortTypeInvalid A.Region Name.Name PortProblem
   | RecursiveAlias A.Region Name.Name [Name.Name] Src.Type [Name.Name]
-  | RecursiveDecl [Can.Def]
+  | RecursiveDecl A.Region Name.Name [Name.Name]
   | RecursiveLet (A.Located Name.Name) [Name.Name]
   | Shadowing Name.Name A.Region A.Region
   | TupleLargerThanThree A.Region
@@ -668,64 +668,51 @@ toReport source err =
     RecursiveAlias region name args tipe others ->
         aliasRecursionReport source region name args tipe others
 
-    RecursiveDecl cyclicValueDefs ->
+    RecursiveDecl region name names ->
       let
-        toName def =
-          case def of
-            Can.Def name _ _ -> name
-            Can.TypedDef name _ _ _ _ -> name
-
         makeTheory question details =
           D.fillSep $ map (D.dullyellow . D.fromChars) (words question) ++ map D.fromChars (words details)
       in
-      case map toName cyclicValueDefs of
-        [] ->
-          error
-            "There is some compiler bug in reporting cyclic definitions.\n\
-            \Please get a <http://sscce.org/> and share the details at\n\
-            \<https://github.com/elm/compiler/issues>"
+      Report.Report "CYCLIC DEFINITION" region [] $
+        Report.toCodeSnippet source region Nothing $
+          case names of
+            [] ->
+              (
+                D.reflow $
+                  "The `" <> Name.toChars name <> "` value is defined directly in terms of itself, causing an infinite loop."
+              ,
+                D.stack
+                  [ makeTheory "Are you are trying to mutate a variable?" $
+                      "Elm does not have mutation, so when I see " ++ Name.toChars name
+                      ++ " defined in terms of " ++ Name.toChars name
+                      ++ ", I treat it as a recursive definition. Try giving the new value a new name!"
+                  , makeTheory "Maybe you DO want a recursive value?" $
+                      "To define " ++ Name.toChars name ++ " we need to know what " ++ Name.toChars name
+                      ++ " is, so let’s expand it. Wait, but now we need to know what " ++ Name.toChars name
+                      ++ " is, so let’s expand it... This will keep going infinitely!"
+                  , D.link "Hint"
+                      "The root problem is often a typo in some variable name, but I recommend reading"
+                      "bad-recursion"
+                      "for more detailed advice, especially if you actually do need a recursive value."
+                  ]
+              )
 
-        A.At region name : otherNames ->
-          Report.Report "CYCLIC DEFINITION" region [] $
-            Report.toCodeSnippet source region Nothing $
-              case map A.toValue otherNames of
-                [] ->
-                  (
-                    D.reflow $
-                      "The `" <> Name.toChars name <> "` value is defined directly in terms of itself, causing an infinite loop."
-                  ,
-                    D.stack
-                      [ makeTheory "Are you are trying to mutate a variable?" $
-                          "Elm does not have mutation, so when I see " ++ Name.toChars name
-                          ++ " defined in terms of " ++ Name.toChars name
-                          ++ ", I treat it as a recursive definition. Try giving the new value a new name!"
-                      , makeTheory "Maybe you DO want a recursive value?" $
-                          "To define " ++ Name.toChars name ++ " we need to know what " ++ Name.toChars name
-                          ++ " is, so let’s expand it. Wait, but now we need to know what " ++ Name.toChars name
-                          ++ " is, so let’s expand it... This will keep going infinitely!"
-                      , D.link "Hint"
-                          "The root problem is often a typo in some variable name, but I recommend reading"
-                          "bad-recursion"
-                          "for more detailed advice, especially if you actually do need a recursive value."
-                      ]
-                  )
-
-                names ->
-                  (
-                    D.reflow $
-                      "The `" <> Name.toChars name <> "` definition is causing a very tricky infinite loop."
-                  ,
-                    D.stack
-                      [ D.reflow $
-                          "The `" <> Name.toChars name
-                          <> "` value depends on itself through the following chain of definitions:"
-                      , D.cycle 4 (name:names)
-                      , D.link "Hint"
-                          "The root problem is often a typo in some variable name, but I recommend reading"
-                          "bad-recursion"
-                          "for more detailed advice, especially if you actually do want mutually recursive values."
-                      ]
-                  )
+            _:_ ->
+              (
+                D.reflow $
+                  "The `" <> Name.toChars name <> "` definition is causing a very tricky infinite loop."
+              ,
+                D.stack
+                  [ D.reflow $
+                      "The `" <> Name.toChars name
+                      <> "` value depends on itself through the following chain of definitions:"
+                  , D.cycle 4 name names
+                  , D.link "Hint"
+                      "The root problem is often a typo in some variable name, but I recommend reading"
+                      "bad-recursion"
+                      "for more detailed advice, especially if you actually do want mutually recursive values."
+                  ]
+              )
 
     RecursiveLet (A.At region name) names ->
       Report.Report "CYCLIC VALUE" region [] $
@@ -765,7 +752,7 @@ toReport source err =
                     [ D.reflow $
                         "The `" <> Name.toChars name
                         <> "` value depends on itself through the following chain of definitions:"
-                    , D.cycle 4 (name:names)
+                    , D.cycle 4 name names
                     , D.link "Hint"
                         "The root problem is often a typo in some variable name, but I recommend reading"
                         "bad-recursion"
@@ -1252,7 +1239,7 @@ aliasRecursionReport source region name args tipe others =
           ,
             D.stack
               [ "It is part of this cycle of type aliases:"
-              , D.cycle 4 (name:others)
+              , D.cycle 4 name others
               , D.reflow $
                   "You need to convert at least one of these type aliases into a `type`."
               , D.link "Note" "Read" "recursive-alias"
