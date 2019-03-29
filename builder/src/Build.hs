@@ -63,7 +63,7 @@ data Env =
 
 
 makeEnv :: Reporting.BKey -> FilePath -> Details.Details -> Env
-makeEnv key root (Details.Details _ validOutline locals foreigns) =
+makeEnv key root (Details.Details _ validOutline locals foreigns _) =
   case validOutline of
     Details.ValidApp (Outline.AppOutline _ srcDirs _ _ _ _) ->
       Env key root Pkg.dummyName srcDirs locals foreigns
@@ -626,9 +626,9 @@ compile (Env key root pkg _ _ _) local@(Details.Local path time _ _) ifaces modu
 
 
 writeDetails :: FilePath -> Details.Details -> Map.Map ModuleName.Raw Result -> IO ()
-writeDetails root (Details.Details time outline locals foreigns) results =
+writeDetails root (Details.Details time outline locals foreigns extras) results =
   File.writeBinary (Stuff.details root) $
-    Details.Details time outline (Map.foldrWithKey addNewLocal locals results) foreigns
+    Details.Details time outline (Map.foldrWithKey addNewLocal locals results) foreigns extras
 
 
 addNewLocal :: ModuleName.Raw -> Result -> Map.Map ModuleName.Raw Details.Local -> Map.Map ModuleName.Raw Details.Local

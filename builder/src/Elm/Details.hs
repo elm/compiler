@@ -13,7 +13,7 @@ module Elm.Details
 
 
 import Control.Concurrent (forkIO)
-import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, readMVar, takeMVar)
+import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar, readMVar, takeMVar)
 import Control.Monad (liftM, liftM2, liftM4)
 import Data.Binary (Binary, get, put, getWord8, putWord8)
 import qualified Data.Map as Map
@@ -59,6 +59,7 @@ data Details =
     , _outline :: ValidOutline
     , _locals :: Map.Map ModuleName.Raw Local
     , _foreigns :: Map.Map ModuleName.Raw Foreign
+    , _extras :: Extras
     }
 
 
@@ -80,22 +81,31 @@ data Foreign =
   Foreign Pkg.Name [Pkg.Name]
 
 
+data Extras
+  = ArtifactsCached
+  | ArtifactsFresh Interfaces Opt.GlobalGraph
+
+
+type Interfaces =
+  Map.Map ModuleName.Canonical I.DependencyInterface
+
+
 
 -- LOAD
 
 
 loadObjects :: FilePath -> Details -> IO (MVar (Maybe Opt.GlobalGraph))
-loadObjects root _ =
-  fork (File.readBinary (Stuff.objects root))
+loadObjects root (Details _ _ _ _ extras) =
+  case extras of
+    ArtifactsFresh _ o -> newMVar (Just o)
+    ArtifactsCached    -> fork (File.readBinary (Stuff.objects root))
 
 
 loadInterfaces :: FilePath -> Details -> IO (MVar (Maybe Interfaces))
-loadInterfaces root _ =
-  fork (File.readBinary (Stuff.interfaces root))
-
-
-type Interfaces =
-  Map.Map ModuleName.Canonical I.DependencyInterface
+loadInterfaces root (Details _ _ _ _ extras) =
+  case extras of
+    ArtifactsFresh i _ -> newMVar (Just i)
+    ArtifactsCached    -> fork (File.readBinary (Stuff.interfaces root))
 
 
 
@@ -110,7 +120,7 @@ verify style root =
         Nothing ->
           verifyFromScratch style root newTime
 
-        Just details@(Details oldTime _ _ _) ->
+        Just details@(Details oldTime _ _ _ _) ->
           if oldTime == newTime
           then return (Right details)
           else verifyFromScratch style root newTime
@@ -140,14 +150,9 @@ data Env =
     , _root :: FilePath
     , _cache :: Stuff.PackageCache
     , _manager :: Http.Manager
-    , _connection :: Connection
+    , _connection :: Solver.Connection
     , _registry :: Registry.Registry
     }
-
-
-data Connection
-  = Online
-  | Offline
 
 
 initEnv :: Reporting.DKey -> FilePath -> IO (Either Exit.Details (Env, Outline.Outline))
@@ -169,7 +174,11 @@ initEnv key root =
               do  eitherRegistry <- Registry.fetch manager cache
                   case eitherRegistry of
                     Right latestRegistry ->
-                      return $ Right (Env key root cache manager Online latestRegistry, outline)
+                      let
+                        conn = Solver.Online manager
+                        env = Env key root cache manager conn latestRegistry
+                      in
+                      return $ Right (env, outline)
 
                     Left problem ->
                       return $ Left $ Exit.DetailsCannotGetRegistry problem
@@ -178,10 +187,17 @@ initEnv key root =
               do  eitherRegistry <- Registry.update manager cache cachedRegistry
                   case eitherRegistry of
                     Right latestRegistry ->
-                      return $ Right (Env key root cache manager Online latestRegistry, outline)
+                      let
+                        conn = Solver.Online manager
+                        env = Env key root cache manager conn latestRegistry
+                      in
+                      return $ Right (env, outline)
 
                     Left _ ->
-                      return $ Right (Env key root cache manager Offline cachedRegistry, outline)
+                      let
+                        env = Env key root cache manager Solver.Offline cachedRegistry
+                      in
+                      return $ Right (env, outline)
 
 
 
@@ -195,7 +211,7 @@ verifyPkg :: Env -> File.Time -> Outline.PkgOutline -> Task Details
 verifyPkg env time outline@(Outline.PkgOutline _ _ _ _ _ direct testDirect elm) =
   if Con.goodElm elm
   then
-    do  solution <- solve env =<< union noDups direct testDirect
+    do  solution <- verifyConstraints env =<< union noDups direct testDirect
         let vsns = Map.map (\(Solver.Details v _) -> v) solution
         verifyDependencies env time (ValidPkg outline vsns) solution direct
   else
@@ -207,7 +223,7 @@ verifyApp env time outline@(Outline.AppOutline elmVersion _ direct _ _ _) =
   if elmVersion == V.compiler
   then
     do  stated <- checkAppDeps outline
-        actual <- solve env (Map.map Con.exactly stated)
+        actual <- verifyConstraints env (Map.map Con.exactly stated)
         if Map.size stated == Map.size actual
           then verifyDependencies env time (ValidApp outline) actual direct
           else Task.throw $ Exit.DetailsHandEditedDependencies
@@ -223,15 +239,17 @@ checkAppDeps (Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
 
 
 
--- SOLVE
+-- VERIFY CONSTRAINTS
 
 
-solve :: Env -> Map.Map Pkg.Name Con.Constraint -> Task (Map.Map Pkg.Name Solver.Details)
-solve (Env _ _ cache manager connection registry) constraints =
-  Task.eio (error "TODO solve problem") $
-    case connection of
-      Online -> Solver.online cache manager registry constraints
-      Offline -> Solver.offline cache registry constraints
+verifyConstraints :: Env -> Map.Map Pkg.Name Con.Constraint -> Task (Map.Map Pkg.Name Solver.Details)
+verifyConstraints (Env _ _ cache _ connection registry) constraints =
+  do  result <- Task.io $ Solver.verify cache connection registry constraints
+      case result of
+        Solver.Ok details        -> return details
+        Solver.NoSolution        -> Task.throw $ Exit.DetailsNoSolution
+        Solver.NoOfflineSolution -> Task.throw $ Exit.DetailsNoOfflineSolution
+        Solver.Err exit          -> Task.throw $ Exit.DetailsSolverProblem exit
 
 
 
@@ -280,14 +298,14 @@ verifyDependencies env@(Env key root _ _ _ _) time outline solution directDeps =
       deps <- traverse readMVar mvars
       case sequence deps of
         Left problem ->
-          error "TODO problem in verifyDependencies"
+          error "TODO verifyDependencies" problem
 
         Right artifacts ->
           let
             objs = Map.foldr addObjects Opt.empty artifacts
             ifaces = Map.foldrWithKey (addInterfaces directDeps) Map.empty artifacts
             foreigns = Map.map (OneOrMore.destruct Foreign) $ Map.foldrWithKey gatherForeigns Map.empty artifacts
-            details = Details time outline Map.empty foreigns
+            details = Details time outline Map.empty foreigns (ArtifactsFresh ifaces objs)
           in
           do  File.writeBinary (Stuff.objects    root) objs
               File.writeBinary (Stuff.interfaces root) ifaces
@@ -687,8 +705,8 @@ endpointDecoder =
 
 
 instance Binary Details where
-  get = liftM4 Details get get get get
-  put (Details a b c d) = put a >> put b >> put c >> put d
+  get = do { a <- get; b <- get; c <- get; d <- get; return (Details a b c d ArtifactsCached) }
+  put (Details a b c d _) = put a >> put b >> put c >> put d
 
 
 instance Binary ValidOutline where
