@@ -10,8 +10,6 @@ module Elm.Outline
   , encode
   , decoder
   , defaultSummary
-  , isPlatformPackage
-  , getName
   , flattenExposed
   )
   where
@@ -34,7 +32,6 @@ import qualified Elm.Version as V
 import qualified Json.Decode as D
 import qualified Json.Encode as E
 import qualified Reporting.Exit as Exit
-import qualified Reporting.Exit.Assets as E
 
 
 
@@ -85,28 +82,7 @@ defaultSummary =
 
 
 
--- QUERIES
-
-
-isPlatformPackage :: Outline -> Bool
-isPlatformPackage outline =
-  case outline of
-    App _ ->
-      False
-
-    Pkg pkgOutline ->
-      let author = Pkg._author (_pkg_name pkgOutline) in
-      author == "elm" || author == "elm-explorations"
-
-
-getName :: Outline -> Pkg.Name
-getName outline =
-  case outline of
-    App _ ->
-      Pkg.dummyName
-
-    Pkg (PkgOutline name _ _ _ _ _ _ _) ->
-      name
+-- HELPERS
 
 
 flattenExposed :: Exposed -> [ModuleName.Raw]
@@ -195,12 +171,12 @@ encodeDeps encodeValue deps =
 -- PARSE AND VERIFY
 
 
-read :: FilePath -> IO (Either Exit.OutlineProblem Outline)
+read :: FilePath -> IO (Either Exit.Outline Outline)
 read root =
   do  result <- D.fromFile decoder (root </> "elm.json")
       case result of
         Left err ->
-          return $ Left (Exit.BadOutlineStructure err)
+          return $ Left (Exit.OutlineHasBadStructure err)
 
         Right outline ->
           case outline of
@@ -211,7 +187,7 @@ read root =
               do  badDirs <- filterM (isBadSrcDir root) srcDirs
                   case badDirs of
                     []   -> return $ Right outline
-                    d:ds -> return $ Left (Exit.BadOutlineSrcDirs d ds)
+                    d:ds -> return $ Left (Exit.OutlineHasBadSrcDirs d ds)
 
 
 isBadSrcDir :: FilePath -> FilePath -> IO Bool
@@ -224,7 +200,7 @@ isBadSrcDir root dir =
 
 
 type Decoder a =
-  D.Decoder E.BadElmJsonContent a
+  D.Decoder Exit.OutlineProblem a
 
 
 decoder :: Decoder Outline
@@ -238,7 +214,7 @@ decoder =
           Pkg <$> pkgDecoder
 
         other ->
-          D.failure (E.BadType other)
+          D.failure (Exit.OP_BadType other)
 
 
 appDecoder :: Decoder AppOutline
@@ -255,9 +231,9 @@ appDecoder =
 pkgDecoder :: Decoder PkgOutline
 pkgDecoder =
   PkgOutline
-    <$> D.field "name" (D.mapError E.BadPkgName Pkg.decoder)
+    <$> D.field "name" (D.mapError Exit.OP_BadPkgName Pkg.decoder)
     <*> D.field "summary" summaryDecoder
-    <*> D.field "license" (Licenses.decoder E.BadLicense)
+    <*> D.field "license" (Licenses.decoder Exit.OP_BadLicense)
     <*> D.field "version" versionDecoder
     <*> D.field "exposed-modules" exposedDecoder
     <*> D.field "dependencies" (depsDecoder constraintDecoder)
@@ -274,17 +250,17 @@ summaryDecoder =
   do  summary <- D.string
       if Utf8.size summary < 80
         then return summary
-        else D.failure E.BadSummaryTooLong
+        else D.failure Exit.OP_BadSummaryTooLong
 
 
 versionDecoder :: Decoder V.Version
 versionDecoder =
-  D.mapError E.BadVersion V.decoder
+  D.mapError Exit.OP_BadVersion V.decoder
 
 
 constraintDecoder :: Decoder Con.Constraint
 constraintDecoder =
-  D.mapError E.BadConstraint Con.decoder
+  D.mapError Exit.OP_BadConstraint Con.decoder
 
 
 depsDecoder :: Decoder a -> Decoder (Map.Map Pkg.Name a)
@@ -301,7 +277,7 @@ validateKey (key, value) =
       return (name, value)
 
     Left _ ->
-      D.failure (E.BadDependencyName key)
+      D.failure (Exit.OP_BadDependencyName key)
 
 
 dirDecoder :: Decoder FilePath
@@ -325,14 +301,14 @@ exposedDecoder =
 
 moduleDecoder :: Decoder ModuleName.Raw
 moduleDecoder =
-  D.mapError E.BadModuleName ModuleName.decoder
+  D.mapError Exit.OP_BadModuleName ModuleName.decoder
 
 
 checkHeader :: Utf8.String -> Decoder ()
 checkHeader header =
   if Utf8.size header < 20
     then return ()
-    else D.failure (E.BadModuleHeaderTooLong header)
+    else D.failure (Exit.OP_BadModuleHeaderTooLong header)
 
 
 
