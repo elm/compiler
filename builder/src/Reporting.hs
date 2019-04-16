@@ -9,6 +9,7 @@ module Reporting
   --
   , Key
   , report
+  , ignorer
   , ask
   --
   , DKey
@@ -127,6 +128,11 @@ newtype Key msg = Key (msg -> IO ())
 report :: Key msg -> msg -> IO ()
 report (Key send) msg =
   send msg
+
+
+ignorer :: Key msg
+ignorer =
+  Key (\_ -> return ())
 
 
 
