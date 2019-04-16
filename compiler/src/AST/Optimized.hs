@@ -74,7 +74,6 @@ data Expr
 
 
 data Global = Global ModuleName.Canonical Name
-  deriving (Eq, Ord)
 
 
 
@@ -219,6 +218,23 @@ addKernelDep chunk deps =
 toKernelGlobal :: Name.Name -> Global
 toKernelGlobal shortName =
   Global (ModuleName.Canonical Pkg.kernel shortName) Name.dollar
+
+
+
+-- INSTANCES
+
+
+instance Eq Global where
+  (==) (Global home1 name1) (Global home2 name2) =
+    name1 == name2 && home1 == home2
+
+
+instance Ord Global where
+  compare (Global home1 name1) (Global home2 name2) =
+    case compare name1 name2 of
+      LT -> LT
+      EQ -> compare home1 home2
+      GT -> GT
 
 
 

@@ -9,7 +9,6 @@ module Elm.ModuleName
   , encode
   , decoder
   , Canonical(..)
-  , canonicalIsKernel
   , basics, char, string
   , maybe, result, list, array, dict, tuple
   , platform, cmd, sub
@@ -104,13 +103,6 @@ data Canonical =
     { _package :: !Pkg.Name
     , _module :: !Name.Name
     }
-    deriving (Ord)
-
-
-canonicalIsKernel :: Canonical -> Bool
-canonicalIsKernel (Canonical _ name) =
-  Name.isKernel name
-
 
 
 -- INSTANCES
@@ -119,6 +111,14 @@ canonicalIsKernel (Canonical _ name) =
 instance Eq Canonical where
   (==) (Canonical pkg1 name1) (Canonical pkg2 name2) =
     name1 == name2 && pkg1 == pkg2
+
+
+instance Ord Canonical where
+  compare (Canonical pkg1 name1) (Canonical pkg2 name2) =
+    case compare name1 name2 of
+      LT -> LT
+      EQ -> compare pkg1 pkg2
+      GT -> GT
 
 
 instance Binary Canonical where

@@ -44,7 +44,6 @@ data Name =
     { _author :: !Name.Name
     , _project :: !Name.Name
     }
-    deriving (Eq, Ord)
 
 
 data Canonical =
@@ -52,7 +51,7 @@ data Canonical =
     { _name :: !Name
     , _version :: !V.Version
     }
-    deriving (Eq, Ord)
+    deriving (Ord)
 
 
 
@@ -202,25 +201,35 @@ suggestions =
 
 
 
--- BINARY
+-- INSTANCES
+
+
+instance Eq Name where
+  (==) (Name author1 project1) (Name author2 project2) =
+    project1 == project2 && author1 == author2
+
+
+instance Eq Canonical where
+  (==) (Canonical package1 version1) (Canonical package2 version2) =
+    version1 == version2 && package1 == package2
+
+
+instance Ord Name where
+  compare (Name author1 project1) (Name author2 project2) =
+    case compare project1 project2 of
+      LT -> LT
+      EQ -> compare author1 author2
+      GT -> GT
 
 
 instance Binary Name where
-  get =
-    liftM2 Name get get
-
-  put (Name author project) =
-    do  put author
-        put project
+  get = liftM2 Name get get
+  put (Name a b) = put a >> put b
 
 
 instance Binary Canonical where
-  get =
-    liftM2 Canonical get get
-
-  put (Canonical name version) =
-    do  put name
-        put version
+  get = liftM2 Canonical get get
+  put (Canonical a b) = put a >> put b
 
 
 
