@@ -5,9 +5,10 @@ module Elm.Details
   , ValidOutline(..)
   , Local(..)
   , Foreign(..)
-  , verify
+  , load
   , loadObjects
   , loadInterfaces
+  , verifyInstall
   )
   where
 
@@ -91,7 +92,7 @@ type Interfaces =
 
 
 
--- LOAD
+-- LOAD ARTIFACTS
 
 
 loadObjects :: FilePath -> Details -> IO (MVar (Maybe Opt.GlobalGraph))
@@ -109,29 +110,43 @@ loadInterfaces root (Details _ _ _ _ extras) =
 
 
 
--- VERIFY
+-- VERIFY INSTALL -- used by Install
 
 
-verify :: Reporting.Style -> FilePath -> IO (Either Exit.Details Details)
-verify style root =
+verifyInstall :: FilePath -> Solver.Env -> Outline.Outline -> IO (Either Exit.Details ())
+verifyInstall root (Solver.Env cache manager connection registry) outline =
+  do  time <- File.getTime (root </> "elm.json")
+      let key = Reporting.ignorer
+      let env = Env key root cache manager connection registry
+      case outline of
+        Outline.Pkg pkg -> Task.run (verifyPkg env time pkg >> return ())
+        Outline.App app -> Task.run (verifyApp env time app >> return ())
+
+
+
+-- LOAD -- used by Make, Repl, Reactor
+
+
+load :: Reporting.Style -> FilePath -> IO (Either Exit.Details Details)
+load style root =
   do  newTime <- File.getTime (root </> "elm.json")
       maybeDetails <- File.readBinary (Stuff.details root)
       case maybeDetails of
         Nothing ->
-          verifyFromScratch style root newTime
+          generate style root newTime
 
         Just details@(Details oldTime _ _ _ _) ->
           if oldTime == newTime
           then return (Right details)
-          else verifyFromScratch style root newTime
+          else generate style root newTime
 
 
 
--- VERIFY FROM SCRATCH
+-- GENERATE
 
 
-verifyFromScratch :: Reporting.Style -> FilePath -> File.Time -> IO (Either Exit.Details Details)
-verifyFromScratch style root time =
+generate :: Reporting.Style -> FilePath -> File.Time -> IO (Either Exit.Details Details)
+generate style root time =
   Reporting.trackDetails style $ \key ->
     do  result <- initEnv key root
         case result of
@@ -142,6 +157,10 @@ verifyFromScratch style root time =
             case outline of
               Outline.Pkg pkg -> Task.run (verifyPkg env time pkg)
               Outline.App app -> Task.run (verifyApp env time app)
+
+
+
+-- ENV
 
 
 data Env =
@@ -157,47 +176,20 @@ data Env =
 
 initEnv :: Reporting.DKey -> FilePath -> IO (Either Exit.Details (Env, Outline.Outline))
 initEnv key root =
-  do  cacheMVar     <- fork Stuff.getPackageCache
-      managerMVar   <- fork Http.getManager
-      registryMVar  <- fork (Registry.read =<< readMVar cacheMVar)
+  do  mvar <- fork Solver.initEnv
       eitherOutline <- Outline.read root
-      cache         <- readMVar cacheMVar
-      manager       <- readMVar managerMVar
-      maybeRegistry <- readMVar registryMVar
       case eitherOutline of
         Left problem ->
           return $ Left $ Exit.DetailsBadOutline problem
 
         Right outline ->
-          case maybeRegistry of
-            Nothing ->
-              do  eitherRegistry <- Registry.fetch manager cache
-                  case eitherRegistry of
-                    Right latestRegistry ->
-                      let
-                        conn = Solver.Online manager
-                        env = Env key root cache manager conn latestRegistry
-                      in
-                      return $ Right (env, outline)
+          do  maybeEnv <- readMVar mvar
+              case maybeEnv of
+                Left problem ->
+                  return $ Left $ Exit.DetailsCannotGetRegistry problem
 
-                    Left problem ->
-                      return $ Left $ Exit.DetailsCannotGetRegistry problem
-
-            Just cachedRegistry ->
-              do  eitherRegistry <- Registry.update manager cache cachedRegistry
-                  case eitherRegistry of
-                    Right latestRegistry ->
-                      let
-                        conn = Solver.Online manager
-                        env = Env key root cache manager conn latestRegistry
-                      in
-                      return $ Right (env, outline)
-
-                    Left _ ->
-                      let
-                        env = Env key root cache manager Solver.Offline cachedRegistry
-                      in
-                      return $ Right (env, outline)
+                Right (Solver.Env cache manager connection registry) ->
+                  return $ Right (Env key root cache manager connection registry, outline)
 
 
 
@@ -573,8 +565,8 @@ crawlModule foreignDeps mvar pkg src name =
 
 crawlFile :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> ModuleName.Raw -> FilePath -> IO (Maybe Status)
 crawlFile foreignDeps mvar pkg src name path =
-  do  result <- Parse.fromFile pkg path
-      case result of
+  do  bytes <- File.readUtf8 path
+      case Parse.fromByteString pkg bytes of
         Right modul@(Src.Module (Just actualName) _ imports _ _ _ _ _) | name == actualName ->
           do  deps <- crawlImports foreignDeps mvar pkg src imports
               return (Just (SLocal deps modul))
@@ -600,8 +592,8 @@ crawlKernel foreignDeps mvar pkg src name =
       exists <- File.exists path
       if exists
         then
-          do  maybeContent <- Kernel.fromFile pkg (Map.mapMaybe getDepHome foreignDeps) path
-              case maybeContent of
+          do  bytes <- File.readUtf8 path
+              case Kernel.fromByteString pkg (Map.mapMaybe getDepHome foreignDeps) bytes of
                 Nothing ->
                   return Nothing
 
