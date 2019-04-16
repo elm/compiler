@@ -11,9 +11,12 @@ module Reporting.Exit
   , Install(..)
   , installToReport
   --
-  , Details(..)
+  , Solver(..)
+  --
+  , Outline(..)
   , OutlineProblem(..)
-  , OutlineStructureProblem(..)
+  --
+  , Details(..)
   , RegistryProblem(..)
   , PackageProblem(..)
   --
@@ -91,6 +94,8 @@ data DocsProblem
 
 data Init
   = InitNoSolution [Pkg.Name]
+  | InitNoOfflineSolution [Pkg.Name]
+  | InitSolverProblem Solver
   | InitAlreadyExists
   | InitRegistryProblem RegistryProblem
 
@@ -108,6 +113,16 @@ initToReport exit =
             \ ask around one of the community forums at https://elm-lang.org/community to learn\
             \ what is going on!"
         ]
+
+    InitNoOfflineSolution pkgs ->
+      Help.report "NO OFFLINE SOLUTION" Nothing
+        (error "TODO InitNoOfflineSolution" pkgs)
+        (error "TODO InitNoOfflineSolution" pkgs)
+        -- note about Russia IP addresses?
+        -- ask if they are on a plane or train
+
+    InitSolverProblem solver ->
+      error "TODO InitSolverProblem" solver
 
     InitAlreadyExists ->
       Help.report "EXISTING PROJECT" Nothing
@@ -192,7 +207,12 @@ diffToReport diff =
 data Install
   = InstallNoProject
   | InstallNoArgs FilePath
-  | InstallNoSolution [Pkg.Name]
+  | InstallNoOnlineSolution
+  | InstallNoOfflineSolution
+  | InstallHadSolverTrouble Solver
+  | InstallUnknownPackageOnline [Pkg.Name]
+  | InstallUnknownPackageOffline [Pkg.Name]
+  | InstallHasBadDetails Details
 
 
 installToReport :: Install -> Help.Report
@@ -200,8 +220,10 @@ installToReport exit =
   case exit of
     InstallNoProject ->
       Help.report "NEW PROJECT?" Nothing
-        (error "TODO InstallNoProject")
-        (error "TODO InstallNoProject details")
+        "Are you trying to start a new project? Try this command instead:"
+        [ D.indent 4 $ D.green "elm init"
+        , D.reflow "It will help you get started!"
+        ]
 
     InstallNoArgs elmHome ->
       Help.report "INSTALL WHAT?" Nothing
@@ -226,35 +248,81 @@ installToReport exit =
             ]
         ]
 
-    InstallNoSolution badPackages ->
-      case badPackages of
-        [] ->
-          Help.report "UNSOLVABLE DEPENDENCIES" (Just "elm.json") -- TODO give better advice!
-            "This usually happens if you try to modify dependency constraints by\
-            \ hand. I recommend deleting any dependency you added recently (or all\
-            \ of them if things are bad) and then adding them again with:"
-            [ D.indent 4 $ D.green "elm install"
-            , D.reflow $
-                "And do not be afaid to ask for help on Slack if you get stuck!"
-            ]
+    InstallNoOnlineSolution ->
+      Help.report "UNSOLVABLE DEPENDENCIES" (Just "elm.json") -- TODO recommend using solver in `elm reactor`
+        "This usually happens if you try to modify dependency constraints by\
+        \ hand. I recommend deleting any dependency you added recently (or all\
+        \ of them if things are bad) and then adding them again with:"
+        [ D.indent 4 $ D.green "elm install"
+        , D.reflow $
+            "And do not be afaid to ask for help on Slack if you get stuck!"
+        ]
 
-        _:_ ->
-          Help.report "OLD DEPENDENCIES" (Just "elm.json")
-            ( "The following packages do not work with Elm " ++ V.toChars V.compiler ++ " right now:"
-            )
-            [ D.indent 4 $ D.vcat $ map (D.red . D.fromUtf8 . Pkg.toString) badPackages
-            , D.reflow $
-                "This may be because it is not upgraded yet. It may be because a\
-                \ better solution came along, so there was no need to upgrade it.\
-                \ Etc. Try asking around on Slack to learn more about the topic."
-            , D.toSimpleNote
-                "Whatever the case, please be kind to the relevant package authors! Having\
-                \ friendly interactions with users is great motivation, and conversely, getting\
-                \ berated by strangers on the internet sucks your soul dry. Furthermore, package\
-                \ authors are humans with families, friends, jobs, vacations, responsibilities,\
-                \ goals, etc. They face obstacles outside of their technical work you will never\
-                \ know about, so please assume the best and try to be patient and supportive!"
-            ]
+    InstallNoOfflineSolution ->
+      error "TODO InstallNoOfflineSolution"
+
+    InstallHadSolverTrouble solver ->
+      error "TODO InstallHadSolverTrouble" solver
+
+    InstallUnknownPackageOnline suggestions ->
+      error "TODO InstallUnknownPackageOnline" suggestions
+
+    InstallUnknownPackageOffline suggestions ->
+      error "TODO InstallUnknownPackageOffline" suggestions
+
+    InstallHasBadDetails _ ->
+      error "TODO InstallHasBadDetails"
+
+
+{- TODO detect if library has no 0.19.0 version. Maybe do this on website though?
+  Help.report "OLD DEPENDENCIES" (Just "elm.json")
+    ( "The following packages do not work with Elm " ++ V.toChars V.compiler ++ " right now:"
+    )
+    [ D.indent 4 $ D.vcat $ map (D.red . D.fromUtf8 . Pkg.toString) badPackages
+    , D.reflow $
+        "This may be because it is not upgraded yet. It may be because a\
+        \ better solution came along, so there was no need to upgrade it.\
+        \ Etc. Try asking around on Slack to learn more about the topic."
+    , D.toSimpleNote
+        "Whatever the case, please be kind to the relevant package authors! Having\
+        \ friendly interactions with users is great motivation, and conversely, getting\
+        \ berated by strangers on the internet sucks your soul dry. Furthermore, package\
+        \ authors are humans with families, friends, jobs, vacations, responsibilities,\
+        \ goals, etc. They face obstacles outside of their technical work you will never\
+        \ know about, so please assume the best and try to be patient and supportive!"
+    ]
+-}
+
+
+
+-- SOLVER
+
+
+data Solver
+  = SolverBadCacheData Pkg.Name V.Version
+  | SolverBadHttpData Pkg.Name V.Version
+  | SolverBadHttp Http.Error
+
+
+
+-- OUTLINE
+
+
+data Outline
+  = OutlineHasBadStructure (Json.Error OutlineProblem)
+  | OutlineHasBadSrcDirs FilePath [FilePath]
+
+
+data OutlineProblem
+  = OP_BadType Utf8.String
+  | OP_BadPkgName Pkg.BadName
+  | OP_BadVersion Utf8.String
+  | OP_BadConstraint C.Error
+  | OP_BadModuleName Utf8.String
+  | OP_BadModuleHeaderTooLong Utf8.String
+  | OP_BadDependencyName Utf8.String
+  | OP_BadLicense Utf8.String [Utf8.String]
+  | OP_BadSummaryTooLong
 
 
 
@@ -263,29 +331,15 @@ installToReport exit =
 
 data Details
   = DetailsCorrupt
+  | DetailsNoSolution
+  | DetailsNoOfflineSolution
+  | DetailsSolverProblem Solver
   | DetailsBadElmInPkg C.Constraint
   | DetailsBadElmInAppOutline V.Version
   | DetailsHandEditedDependencies
-  | DetailsBadOutline OutlineProblem
+  | DetailsBadOutline Outline
   | DetailsCannotGetRegistry RegistryProblem
   | DetailsCannotBuildPackage Pkg.Name V.Version PackageProblem
-
-
-data OutlineProblem
-  = BadOutlineStructure (Json.Error OutlineStructureProblem)
-  | BadOutlineSrcDirs FilePath [FilePath]
-
-
-data OutlineStructureProblem
-  = OSP_BadType Utf8.String
-  | OSP_BadPkgName Pkg.BadName
-  | OSP_BadVersion Utf8.String
-  | OSP_BadConstraint C.Error
-  | OSP_BadModuleName Utf8.String
-  | OSP_BadModuleHeaderTooLong Utf8.String
-  | OSP_BadDependencyName Utf8.String
-  | OSP_BadLicense Utf8.String [Utf8.String]
-  | OSP_BadSummaryTooLong
 
 
 data RegistryProblem
@@ -651,6 +705,16 @@ detailsToReport details =
 
     DetailsCannotBuildPackage name version problem ->
       error "TODO DetailsCannotBuildPackage" name version problem
+
+    DetailsNoSolution ->
+      error "TODO DetailsNoSolution"
+
+    DetailsNoOfflineSolution ->
+      error "TODO DetailsNoOfflineSolution"
+
+    DetailsSolverProblem _ ->
+      error "TODO DetailsSolverProblem"
+
 
 
 makeToReport :: Make -> Help.Report
