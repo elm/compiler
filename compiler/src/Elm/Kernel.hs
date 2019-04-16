@@ -3,7 +3,7 @@
 module Elm.Kernel
   ( Content(..)
   , Chunk(..)
-  , fromFile
+  , fromByteString
   , countFields
   )
   where
@@ -11,6 +11,7 @@ module Elm.Kernel
 
 import Control.Monad (liftM, liftM2)
 import Data.Binary (Binary, get, put, getWord8, putWord8)
+import qualified Data.ByteString as BS
 import Data.Coerce (coerce)
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -25,7 +26,7 @@ import qualified Elm.Package as Pkg
 import qualified Parse.Module as Module
 import qualified Parse.Variable as Var
 import Parse.Utils
-import Parse.Primitives hiding (Parser, fromFile)
+import Parse.Primitives hiding (Parser, fromByteString)
 import qualified Parse.Primitives as P
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as E
@@ -83,12 +84,11 @@ type Foreigns =
   Map.Map ModuleName.Raw Pkg.Name
 
 
-fromFile :: Pkg.Name -> Foreigns -> FilePath -> IO (Maybe Content)
-fromFile pkg foreigns path =
-  do  result <- P.fromFile (parser pkg foreigns) path
-      case result of
-        P.Ok content _ -> return (Just content)
-        P.Err _ _ _ _  -> return Nothing
+fromByteString :: Pkg.Name -> Foreigns -> BS.ByteString -> Maybe Content
+fromByteString pkg foreigns bytes =
+  case P.fromByteString (parser pkg foreigns) bytes of
+    P.Ok content _ -> Just content
+    P.Err _ _ _ _  -> Nothing
 
 
 parser :: Pkg.Name -> Foreigns -> Parser Content
