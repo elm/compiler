@@ -1,14 +1,25 @@
 {-# LANGUAGE OverloadedStrings, Rank2Types #-}
 module Deps.Solver
-  ( online
-  , offline
+  ( Solver
+  , Result(..)
+  , Connection(..)
+  --
   , Details(..)
+  , verify
+  --
+  , AppSolution(..)
+  , addToApp
+  --
+  , Env(..)
+  , initEnv
   )
   where
 
 
 import Control.Monad (foldM)
+import Control.Concurrent (forkIO, newEmptyMVar, putMVar, readMVar)
 import qualified Data.Map as Map
+import Data.Map ((!))
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
 
@@ -21,49 +32,8 @@ import qualified Elm.Version as V
 import qualified File
 import qualified Http
 import qualified Json.Decode as D
+import qualified Reporting.Exit as Exit
 import qualified Stuff
-
-
-
--- ONLINE / OFFLINE
-
-
-online :: Stuff.PackageCache -> Http.Manager -> Registry.Registry -> Map.Map Pkg.Name C.Constraint -> IO (Either [Problem] (Map.Map Pkg.Name Details))
-online cache manager registry constraints =
-  solve cache (Online manager) registry constraints
-
-
-offline :: Stuff.PackageCache -> Registry.Registry -> Map.Map Pkg.Name C.Constraint -> IO (Either [Problem] (Map.Map Pkg.Name Details))
-offline cache registry constraints =
-  solve cache Offline registry constraints
-
-
-
--- SOLVE
-
-
-data Details =
-  Details V.Version (Map.Map Pkg.Name C.Constraint)
-
-
-solve :: Stuff.PackageCache -> Connection -> Registry.Registry -> Map.Map Pkg.Name C.Constraint -> IO (Either [Problem] (Map.Map Pkg.Name Details))
-solve cache connection registry constraints =
-  let
-    (Solver solver) = exploreGoals (Goals constraints Map.empty)
-  in
-  solver (State cache connection registry Map.empty [])
-    (\(State _ _ _ cs _) vs _ -> return $ Right $ Map.mapWithKey (toDetails cs) vs)
-    (\(State _ _ _ _ ps) -> return $ Left ps)
-
-
-toDetails :: Map.Map (Pkg.Name, V.Version) Constraints -> Pkg.Name -> V.Version -> Details
-toDetails constraints name vsn =
-  case Map.lookup (name, vsn) constraints of
-    Just (Constraints _ deps) ->
-      Details vsn deps
-
-    Nothing ->
-      error "compiler bug in Deps.Solver manifesting in toDetails"
 
 
 
@@ -77,21 +47,17 @@ newtype Solver a =
       State
       -> (State -> a -> (State -> IO b) -> IO b)
       -> (State -> IO b)
+      -> (Exit.Solver -> IO b)
       -> IO b
   )
-
-
-
--- STATE
 
 
 data State =
   State
     { _cache :: Stuff.PackageCache
-    , _internet :: Connection
+    , _connection :: Connection
     , _registry :: Registry.Registry
     , _constraints :: Map.Map (Pkg.Name, V.Version) Constraints
-    , _problems :: [Problem]
     }
 
 
@@ -107,13 +73,124 @@ data Connection
   | Offline
 
 
-data Problem
-  = BadCacheData Pkg.Name V.Version
-  | BadHttpData Pkg.Name V.Version
-  | BadHttp Http.Error
-  | UnknownPackage [Pkg.Name]
-  | ImpossibleConstraint Pkg.Name C.Constraint
-  | UnavailableOffline Pkg.Name V.Version
+
+-- RESULT
+
+
+data Result a
+  = Ok a
+  | NoSolution
+  | NoOfflineSolution
+  | Err Exit.Solver
+
+
+
+-- VERIFY -- used by Elm.Details
+
+
+data Details =
+  Details V.Version (Map.Map Pkg.Name C.Constraint)
+
+
+verify :: Stuff.PackageCache -> Connection -> Registry.Registry -> Map.Map Pkg.Name C.Constraint -> IO (Result (Map.Map Pkg.Name Details))
+verify cache connection registry constraints =
+  case try constraints of
+    Solver solver ->
+      solver (State cache connection registry Map.empty)
+        (\s a _ -> return $ Ok (Map.mapWithKey (addDeps s) a))
+        (\_     -> return $ noSolution connection)
+        (\e     -> return $ Err e)
+
+
+addDeps :: State -> Pkg.Name -> V.Version -> Details
+addDeps (State _ _ _ constraints) name vsn =
+  case Map.lookup (name, vsn) constraints of
+    Just (Constraints _ deps) -> Details vsn deps
+    Nothing                   -> error "compiler bug manifesting in Deps.Solver.addDeps"
+
+
+noSolution :: Connection -> Result a
+noSolution connection =
+  case connection of
+    Online _ -> NoSolution
+    Offline -> NoOfflineSolution
+
+
+
+-- ADD TO APP - used in Install
+
+
+data AppSolution =
+  AppSolution
+    { _old :: Map.Map Pkg.Name V.Version
+    , _new :: Map.Map Pkg.Name V.Version
+    , _app :: Outline.AppOutline
+    }
+
+
+addToApp :: Stuff.PackageCache -> Connection -> Registry.Registry -> Pkg.Name -> Outline.AppOutline -> IO (Result AppSolution)
+addToApp cache connection registry pkg outline@(Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
+  let
+    allIndirects = Map.union indirect testIndirect
+    allDirects = Map.union direct testDirect
+    allDeps = Map.union allDirects allIndirects
+
+    attempt toConstraint deps =
+      try (Map.insert pkg C.anything (Map.map toConstraint deps))
+  in
+  case
+    oneOf
+      ( attempt C.exactly allDeps )
+      [ attempt C.exactly allDirects
+      , attempt C.untilNextMinor allDirects
+      , attempt C.untilNextMajor allDirects
+      , attempt (\_ -> C.anything) allDirects
+      ]
+  of
+    Solver solver ->
+      solver (State cache connection registry Map.empty)
+        (\s a _ -> return $ Ok (toApp s pkg outline allDeps a))
+        (\_     -> return $ noSolution connection)
+        (\e     -> return $ Err e)
+
+
+toApp :: State -> Pkg.Name -> Outline.AppOutline -> Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name V.Version -> AppSolution
+toApp (State _ _ _ constraints) pkg (Outline.AppOutline elm srcDirs direct _ testDirect _) old new =
+  let
+    d   = Map.intersection new (Map.insert pkg V.one direct)
+    i   = Map.difference (getTransitive constraints new (Map.toList d) Map.empty) d
+    td  = Map.intersection new (Map.delete pkg testDirect)
+    ti  = Map.difference new (Map.unions [d,i,td])
+  in
+  AppSolution old new (Outline.AppOutline elm srcDirs d i td ti)
+
+
+getTransitive :: Map.Map (Pkg.Name, V.Version) Constraints -> Map.Map Pkg.Name V.Version -> [(Pkg.Name,V.Version)] -> Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name V.Version
+getTransitive constraints solution unvisited visited =
+  case unvisited of
+    [] ->
+      visited
+
+    info@(pkg,vsn) : infos ->
+      if Map.member pkg visited
+      then getTransitive constraints solution infos visited
+      else
+        let
+          newDeps = _deps (constraints ! info)
+          newUnvisited = Map.toList (Map.intersection solution (Map.difference newDeps visited))
+          newVisited = Map.insert pkg vsn visited
+        in
+        getTransitive constraints solution infos $
+          getTransitive constraints solution newUnvisited newVisited
+
+
+
+-- TRY
+
+
+try :: Map.Map Pkg.Name C.Constraint -> Solver (Map.Map Pkg.Name V.Version)
+try constraints =
+  exploreGoals (Goals constraints Map.empty)
 
 
 
@@ -149,7 +226,7 @@ addVersion (Goals pending solved) name version =
           do  newPending <- foldM (addConstraint solved) pending (Map.toList deps)
               return (Goals newPending (Map.insert name version solved))
         else
-          deadend
+          backtrack
 
 
 addConstraint :: Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name C.Constraint -> (Pkg.Name, C.Constraint) -> Solver (Map.Map Pkg.Name C.Constraint)
@@ -158,7 +235,7 @@ addConstraint solved unsolved (name, newConstraint) =
     Just version ->
       if C.satisfies newConstraint version
       then return unsolved
-      else deadend
+      else backtrack
 
     Nothing ->
       case Map.lookup name unsolved of
@@ -168,7 +245,7 @@ addConstraint solved unsolved (name, newConstraint) =
         Just oldConstraint ->
           case C.intersect oldConstraint newConstraint of
             Nothing ->
-              deadend
+              backtrack
 
             Just mergedConstraint ->
               if oldConstraint == mergedConstraint
@@ -182,18 +259,15 @@ addConstraint solved unsolved (name, newConstraint) =
 
 getRelevantVersions :: Pkg.Name -> C.Constraint -> Solver (V.Version, [V.Version])
 getRelevantVersions name constraint =
-  Solver $ \state@(State _ _ registry _ _) ok err ->
-    case Registry.getVersions' name registry of
-      Right (Registry.KnownVersions newest previous) ->
+  Solver $ \state@(State _ _ registry _) ok back _ ->
+    case Registry.getVersions name registry of
+      Just (Registry.KnownVersions newest previous) ->
         case filter (C.satisfies constraint) (newest:previous) of
-          [] ->
-            err (addProblem (ImpossibleConstraint name constraint) state)
+          []   -> back state
+          v:vs -> ok state (v,vs) back
 
-          v:vs ->
-            ok state (v,vs) err
-
-      Left suggestions ->
-        err (addProblem (UnknownPackage suggestions) state)
+      Nothing ->
+        back state
 
 
 
@@ -201,63 +275,60 @@ getRelevantVersions name constraint =
 
 
 getConstraints :: Pkg.Name -> V.Version -> Solver Constraints
-getConstraints name version =
-  Solver $ \state@(State cache connection registry cDict ps) ok err ->
-    do  let key = (name, version)
+getConstraints pkg vsn =
+  Solver $ \state@(State cache connection registry cDict) ok back err ->
+    do  let key = (pkg, vsn)
         case Map.lookup key cDict of
           Just cs ->
-            ok state cs err
+            ok state cs back
 
           Nothing ->
-            do  result <- getConstraintsHelp cache connection name version
-                case result of
-                  Right cs ->
-                    ok (State cache connection registry (Map.insert key cs cDict) ps) cs err
+            do  let toNewState cs = State cache connection registry (Map.insert key cs cDict)
+                let home = Stuff.package cache pkg vsn
+                let path = home </> "elm.json"
+                outlineExists <- File.exists path
+                if outlineExists
+                  then
+                    do  bytes <- File.readUtf8 path
+                        case D.fromByteString constraintsDecoder bytes of
+                          Right cs ->
+                            case connection of
+                              Online _ ->
+                                ok (toNewState cs) cs back
 
-                  Left p ->
-                    err (State cache connection registry cDict (p:ps))
+                              Offline ->
+                                do  srcExists <- Dir.doesDirectoryExist (Stuff.package cache pkg vsn </> "src")
+                                    if srcExists
+                                      then ok (toNewState cs) cs back
+                                      else back state
 
+                          Left  _  ->
+                            do  File.remove path
+                                err (Exit.SolverBadCacheData pkg vsn)
+                  else
+                    case connection of
+                      Offline ->
+                        back state
 
-getConstraintsHelp :: Stuff.PackageCache -> Connection -> Pkg.Name -> V.Version -> IO (Either Problem Constraints)
-getConstraintsHelp cache connection name version =
-  do  let home = Stuff.package cache name version
-      let path = home </> "elm.json"
-      outlineExists <- File.exists path
-      if outlineExists
-        then
-          do  result <- D.fromFile constraintsDecoder path
-              case result of
-                Right cs ->
-                  case connection of
-                    Online _ ->
-                      return $ Right cs
+                      Online manager ->
+                        do  result <- Http.get manager (Website.metadata pkg vsn "elm.json") [] id (return . Right)
+                            case result of
+                              Left httpProblem ->
+                                err (Exit.SolverBadHttp httpProblem)
 
-                    Offline ->
-                      do  srcExists <- Dir.doesDirectoryExist (Stuff.package cache name version </> "src")
-                          if srcExists
-                            then return $ Right cs
-                            else return $ Left (UnavailableOffline name version)
+                              Right body ->
+                                case D.fromByteString constraintsDecoder body of
+                                  Right cs ->
+                                    do  Dir.createDirectoryIfMissing True home
+                                        File.writeUtf8 path body
+                                        ok (toNewState cs) cs back
 
-                Left  _  ->
-                  do  File.remove path
-                      return $ Left (BadCacheData name version)
-        else
-          case connection of
-            Offline ->
-              return (Left (UnavailableOffline name version))
-
-            Online manager ->
-              Http.get manager (Website.metadata name version "elm.json") [] BadHttp $ \body ->
-                case D.fromByteString constraintsDecoder body of
-                  Right cs ->
-                    do  Dir.createDirectoryIfMissing True home
-                        File.writeUtf8 path body
-                        return $ Right cs
-
-                  Left _ ->
-                    return $ Left (BadHttpData name version)
+                                  Left _ ->
+                                    err (Exit.SolverBadHttpData pkg vsn)
 
 
+-- TODO write constraintsDecoder to be a bit faster
+--
 constraintsDecoder :: D.Decoder () Constraints
 constraintsDecoder =
   do  outline <- D.mapError (const ()) Outline.decoder
@@ -270,46 +341,82 @@ constraintsDecoder =
 
 
 
+-- ENVIRONMENT
+
+
+data Env =
+  Env Stuff.PackageCache Http.Manager Connection Registry.Registry
+
+
+initEnv :: IO (Either Exit.RegistryProblem Env)
+initEnv =
+  do  mvar          <- newEmptyMVar
+      _             <- forkIO $ putMVar mvar =<< Http.getManager
+      cache         <- Stuff.getPackageCache
+      maybeRegistry <- Registry.read cache
+      manager       <- readMVar mvar
+
+      case maybeRegistry of
+        Nothing ->
+          do  eitherRegistry <- Registry.fetch manager cache
+              case eitherRegistry of
+                Right latestRegistry ->
+                  return $ Right $ Env cache manager (Online manager) latestRegistry
+
+                Left problem ->
+                  return $ Left $ problem
+
+        Just cachedRegistry ->
+          do  eitherRegistry <- Registry.update manager cache cachedRegistry
+              case eitherRegistry of
+                Right latestRegistry ->
+                  return $ Right $ Env cache manager (Online manager) latestRegistry
+
+                Left _ ->
+                  return $ Right $ Env cache manager Offline cachedRegistry
+
+
+
 -- INSTANCES
 
 
 instance Functor Solver where
   fmap func (Solver solver) =
-    Solver $ \state ok err ->
+    Solver $ \state ok back err ->
       let
-        okA stateA arg errA = ok stateA (func arg) errA
+        okA stateA arg backA = ok stateA (func arg) backA
       in
-      solver state okA err
+      solver state okA back err
 
 
 instance Applicative Solver where
   pure a =
-    Solver $ \state ok err -> ok state a err
+    Solver $ \state ok back _ -> ok state a back
 
   (<*>) (Solver solverFunc) (Solver solverArg) =
-    Solver $ \state ok err ->
+    Solver $ \state ok back err ->
       let
-        okF stateF func errF =
+        okF stateF func backF =
           let
-            okA stateA arg errA = ok stateA (func arg) errA
+            okA stateA arg backA = ok stateA (func arg) backA
           in
-          solverArg stateF okA errF
+          solverArg stateF okA backF err
       in
-      solverFunc state okF err
+      solverFunc state okF back err
 
 
 instance Monad Solver where
   return a =
-    Solver $ \state ok err -> ok state a err
+    Solver $ \state ok back _ -> ok state a back
 
   (>>=) (Solver solverA) callback =
-    Solver $ \state ok err ->
+    Solver $ \state ok back err ->
       let
-        okA stateA a errA =
+        okA stateA a backA =
           case callback a of
-            Solver solverB -> solverB stateA ok errA
+            Solver solverB -> solverB stateA ok backA err
       in
-      solverA state okA err
+      solverA state okA back err
 
 
 oneOf :: Solver a -> [Solver a] -> Solver a
@@ -319,19 +426,17 @@ oneOf solver@(Solver solverHead) solvers =
       solver
 
     s:ss ->
-      Solver $ \state0 ok err ->
-        solverHead state0 ok $ \state1 ->
-          let
-            (Solver solverTail) = oneOf s ss
-          in
-          solverTail state1 ok err
+      Solver $ \state0 ok back err ->
+        let
+          tryTail state1 =
+            let
+              (Solver solverTail) = oneOf s ss
+            in
+            solverTail state1 ok back err
+        in
+        solverHead state0 ok tryTail err
 
 
-deadend :: Solver a
-deadend =
-  Solver $ \state _ err -> err state
-
-
-addProblem :: Problem -> State -> State
-addProblem problem (State cache registry cDict maybeManager problems) =
-  State cache registry cDict maybeManager (problem:problems)
+backtrack :: Solver a
+backtrack =
+  Solver $ \state _ back _ -> back state
