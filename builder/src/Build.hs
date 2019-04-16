@@ -258,9 +258,9 @@ crawlModule env@(Env _ root pkg srcDirs locals foreigns) mvar name =
 crawlFile :: Env -> MVar StatusDict -> ModuleName.Raw -> FilePath -> IO Status
 crawlFile env@(Env _ root pkg _ _ _) mvar expectedName path =
   do  time <- File.getTime path
-      result <- Parse.fromFile pkg (root </> path)
+      bytes <- File.readUtf8 (root </> path)
 
-      case result of
+      case Parse.fromByteString pkg bytes of
         Right modul@(Src.Module maybeActualName _ imports values _ _ _ _) ->
           case maybeActualName of
             Just actualName ->
@@ -317,8 +317,8 @@ checkModule env@(Env _ root pkg _ _ _) foreigns resultsMVar name status =
           depsStatus <- checkDeps root results deps
           case depsStatus of
             DepsChange ifaces ->
-              do  result <- Parse.fromFile pkg path
-                  case result of
+              do  bytes <- File.readUtf8 path
+                  case Parse.fromByteString pkg bytes of
                     Right modul -> compile env local ifaces modul
                     Left syntaxError ->
                       return $ RProblem $ Problem.BadSyntax $
@@ -811,8 +811,8 @@ crawlMain env@(Env _ _ pkg _ _ _) mvar given =
 
     LOutside path ->
       do  time <- File.getTime path
-          result <- Parse.fromFile pkg path
-          case result of
+          bytes <- File.readUtf8 path
+          case Parse.fromByteString pkg bytes of
             Right modul@(Src.Module _ _ imports values _ _ _ _) ->
               do  let deps = map Src.getImportName imports
                   let local = Details.Local path time deps (any isMain values)

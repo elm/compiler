@@ -2,7 +2,6 @@
 {-# LANGUAGE BangPatterns, Rank2Types, OverloadedStrings, UnboxedTuples #-}
 module Json.Decode
   ( fromByteString
-  , fromFile
   , Decoder
   , string
   , bool
@@ -35,11 +34,6 @@ import qualified Reporting.Error.Json as E
 fromByteString :: Decoder e a -> B.ByteString -> Either (E.Error e) a
 fromByteString decoder src =
   fromAST decoder (P.fromByteString pFile src)
-
-
-fromFile :: Decoder e a -> FilePath -> IO (Either (E.Error e) a)
-fromFile decoder path =
-  fromAST decoder <$> P.fromFile pFile path
 
 
 fromAST :: Decoder e a -> P.Result E.Context E.ParseExpectation AST -> Either (E.Error e) a

@@ -3,7 +3,6 @@
 module Parse.Primitives
   ( Result(..)
   , fromByteString
-  , fromFile
   , Parser(..)
   , State(..)
   , Context(..)
@@ -26,7 +25,6 @@ import Foreign.Ptr (Ptr, plusPtr)
 import Foreign.Storable (peek)
 import GHC.ForeignPtr (touchForeignPtr, unsafeForeignPtrToPtr)
 
-import qualified File.IO as IO
 import qualified Reporting.Annotation as A
 
 
@@ -155,7 +153,7 @@ instance Monad (Parser c x) where
 
 
 data Result c x a
-  = Ok a (State c)
+  = Ok !a (State c)
   | Err Word16 Word16 (Context c) x
 
 
@@ -169,11 +167,6 @@ fromByteString (Parser parser) (B.PS fp offset length) =
     in
     do  touchForeignPtr fp
         return result
-
-
-fromFile :: Parser c x a -> FilePath -> IO (Result c x a)
-fromFile parser path =
-  fromByteString parser <$> IO.readUtf8 path -- TODO try mmap
 
 
 

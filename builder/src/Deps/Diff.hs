@@ -361,8 +361,8 @@ getDocs cache manager name version =
       exists <- File.exists path
       if exists
         then
-          do  result <- D.fromFile Docs.decoder path
-              case result of
+          do  bytes <- File.readUtf8 path
+              case D.fromByteString Docs.decoder bytes of
                 Right docs ->
                   return $ Right docs
 

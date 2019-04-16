@@ -29,6 +29,7 @@ import qualified Elm.Licenses as Licenses
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
+import qualified File
 import qualified Json.Decode as D
 import qualified Json.Encode as E
 import qualified Reporting.Exit as Exit
@@ -173,8 +174,8 @@ encodeDeps encodeValue deps =
 
 read :: FilePath -> IO (Either Exit.Outline Outline)
 read root =
-  do  result <- D.fromFile decoder (root </> "elm.json")
-      case result of
+  do  bytes <- File.readUtf8 (root </> "elm.json")
+      case D.fromByteString decoder bytes of
         Left err ->
           return $ Left (Exit.OutlineHasBadStructure err)
 
