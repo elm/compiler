@@ -6,21 +6,17 @@ module Init
 
 
 import Prelude hiding (init)
-import Control.Monad.Trans (liftIO)
 import qualified Data.Map as Map
 import qualified System.Directory as Dir
 
-import qualified Deps.Registry as Registry
 import qualified Deps.Solver as Solver
 import qualified Elm.Constraint as Con
 import qualified Elm.Outline as Outline
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
-import qualified Http
 import qualified Reporting
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
-import qualified Stuff
 
 
 
@@ -68,20 +64,24 @@ question =
 
 init :: IO (Either Exit.Init ())
 init =
-  do  cache <- Stuff.getPackageCache
-      manager <- Http.getManager
-      eregistry <- Registry.latest manager cache
-      case eregistry of
-        Left rp ->
-          return (Left (Exit.InitRegistryProblem rp))
+  do  eitherEnv <- Solver.initEnv
+      case eitherEnv of
+        Left problem ->
+          return (Left (Exit.InitRegistryProblem problem))
 
-        Right registry ->
-          do  result <- Solver.online cache manager registry defaults
+        Right (Solver.Env cache _ connection registry) ->
+          do  result <- Solver.verify cache connection registry defaults
               case result of
-                Left _ ->
+                Solver.Err exit ->
+                  return (Left (Exit.InitSolverProblem exit))
+
+                Solver.NoSolution ->
                   return (Left (Exit.InitNoSolution (Map.keys defaults)))
 
-                Right details ->
+                Solver.NoOfflineSolution ->
+                  return (Left (Exit.InitNoOfflineSolution (Map.keys defaults)))
+
+                Solver.Ok details ->
                   let
                     solution = Map.map (\(Solver.Details vsn _) -> vsn) details
                     directs = Map.intersection solution defaults
