@@ -28,7 +28,7 @@ import qualified Elm.Version as V
 import qualified File
 import qualified Http
 import qualified Json.Decode as D
-import qualified Reporting.Exit as E
+import qualified Reporting.Exit as Exit
 import qualified Reporting.Suggest as Suggest
 import qualified Stuff
 
@@ -68,7 +68,7 @@ read cache =
 -- FETCH
 
 
-fetch :: Http.Manager -> Stuff.PackageCache -> IO (Either E.RegistryProblem Registry)
+fetch :: Http.Manager -> Stuff.PackageCache -> IO (Either Exit.RegistryProblem Registry)
 fetch manager cache =
   post manager "/all-packages" allPkgsDecoder $
     \versions ->
@@ -112,7 +112,7 @@ allPkgsDecoder =
 -- UPDATE
 
 
-update :: Http.Manager -> Stuff.PackageCache -> Registry -> IO (Either E.RegistryProblem Registry)
+update :: Http.Manager -> Stuff.PackageCache -> Registry -> IO (Either Exit.RegistryProblem Registry)
 update manager cache oldRegistry@(Registry size packages) =
   post manager ("/all-packages/since/" ++ show size) (D.list newPkgDecoder) $
     \news ->
@@ -166,7 +166,7 @@ newPkgDecoder =
 -- LATEST
 
 
-latest :: Http.Manager -> Stuff.PackageCache -> IO (Either E.RegistryProblem Registry)
+latest :: Http.Manager -> Stuff.PackageCache -> IO (Either Exit.RegistryProblem Registry)
 latest manager cache =
   do  maybeOldRegistry <- read cache
       case maybeOldRegistry of
@@ -223,13 +223,13 @@ projectDistance bad possibility =
 -- POST
 
 
-post :: Http.Manager -> String -> D.Decoder x a -> (a -> IO b) -> IO (Either E.RegistryProblem b)
+post :: Http.Manager -> String -> D.Decoder x a -> (a -> IO b) -> IO (Either Exit.RegistryProblem b)
 post manager path decoder callback =
-  Http.post manager (Website.route path []) [] E.RP_Http $
+  Http.post manager (Website.route path []) [] Exit.RP_Http $
     \body ->
       case D.fromByteString decoder body of
         Right a -> Right <$> callback a
-        Left _ -> return $ Left E.RP_Data
+        Left _ -> return $ Left Exit.RP_Data
 
 
 
