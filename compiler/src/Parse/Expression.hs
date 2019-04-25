@@ -7,19 +7,18 @@ module Parse.Expression
 
 
 import qualified Data.Name as Name
-import Data.Word (Word16)
 
 import qualified AST.Source as Src
 import qualified Parse.Keyword as Keyword
 import qualified Parse.Number as Number
 import qualified Parse.Pattern as Pattern
 import qualified Parse.Shader as Shader
+import qualified Parse.Space as Space
 import qualified Parse.Symbol as Symbol
 import qualified Parse.Type as Type
 import qualified Parse.Utf8 as Utf8
 import qualified Parse.Variable as Var
-import Parse.Utils
-import Parse.Primitives hiding (Parser, State)
+import Parse.Primitives hiding (State)
 import qualified Parse.Primitives as P
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as E
@@ -29,10 +28,10 @@ import qualified Reporting.Error.Syntax as E
 -- TERMS
 
 
-term :: Parser Src.Expr
+term :: Parser E.Expr Src.Expr
 term =
   do  start <- getPosition
-      oneOf E.XXX
+      oneOf E.Start
         [ variable start >>= accessible start
         , string start
         , number start
@@ -45,90 +44,80 @@ term =
         ]
 
 
-string :: A.Position -> Parser Src.Expr
+string :: A.Position -> Parser E.Expr Src.Expr
 string start =
-  do  str <- Utf8.string
-      end <- getPosition
-      return (A.at start end (Src.Str str))
+  do  str <- Utf8.string E.Start E.String
+      addEnd start (Src.Str str)
 
 
-character :: A.Position -> Parser Src.Expr
+character :: A.Position -> Parser E.Expr Src.Expr
 character start =
-  do  chr <- Utf8.character
-      end <- getPosition
-      return (A.at start end (Src.Chr chr))
+  do  chr <- Utf8.character E.Start E.Char
+      addEnd start (Src.Chr chr)
 
 
-number :: A.Position -> Parser Src.Expr
+number :: A.Position -> Parser E.Expr Src.Expr
 number start =
-  do  nmbr <- Number.number
-      end <- getPosition
-      return $ A.at start end $
+  do  nmbr <- Number.number E.Start E.Number
+      addEnd start $
         case nmbr of
-          Number.Int int ->
-            Src.Int int
-
-          Number.Float float ->
-            Src.Float float
+          Number.Int int -> Src.Int int
+          Number.Float float -> Src.Float float
 
 
-accessor :: A.Position -> Parser Src.Expr
+accessor :: A.Position -> Parser E.Expr Src.Expr
 accessor start =
-  do  word1 0x2E {-.-} E.XXX
-      field <- Var.lower
-      end <- getPosition
-      return (A.at start end (Src.Accessor field))
+  do  word1 0x2E {-.-} E.Dot
+      field <- Var.lower E.Access
+      addEnd start (Src.Accessor field)
 
 
-variable :: A.Position -> Parser Src.Expr
+variable :: A.Position -> Parser E.Expr Src.Expr
 variable start =
-  do  var <- Var.foreignAlpha
-      end <- getPosition
-      return (A.at start end var)
+  do  var <- Var.foreignAlpha E.Start
+      addEnd start var
 
 
-accessible :: A.Position -> Src.Expr -> Parser Src.Expr
+accessible :: A.Position -> Src.Expr -> Parser E.Expr Src.Expr
 accessible start expr =
-  oneOf E.XXX
-    [ do  word1 0x2E {-.-} E.XXX
+  oneOfWithFallback
+    [ do  word1 0x2E {-.-} E.Dot
           pos <- getPosition
-          field <- Var.lower
+          field <- Var.lower E.Access
           end <- getPosition
-          let newExpr = A.at start end (Src.Access expr (A.at pos end field))
-          accessible start newExpr
-    , return expr
+          accessible start $
+            A.at start end (Src.Access expr (A.at pos end field))
     ]
+    expr
 
 
 
 -- LISTS
 
 
-list :: A.Position -> Parser Src.Expr
+list :: A.Position -> Parser E.Expr Src.Expr
 list start =
-  inContext E.ExprList (word1 0x5B {-[-} E.XXX) $
-    do  spaces
-        oneOf E.XXX
-          [ do  (entry, _, pos) <- expression
-                checkSpace pos
-                listHelp start [entry]
-          , do  word1 0x5D {-]-} E.XXX
-                end <- getPosition
-                return (A.at start end (Src.List []))
+  inContext E.List (word1 0x5B {-[-} E.Start) $
+    do  Space.chompAndCheckIndent E.ListSpace E.ListIndentOpen
+        oneOf E.ListOpen
+          [ do  (entry, end) <- specialize E.ListExpr expression
+                Space.checkIndent end E.ListIndentEnd
+                chompListEnd start [entry]
+          , do  word1 0x5D {-]-} E.ListOpen
+                addEnd start (Src.List [])
           ]
 
 
-listHelp :: A.Position -> [Src.Expr] -> Parser Src.Expr
-listHelp start entries =
-  oneOf E.XXX
-    [ do  word1 0x2C {-,-} E.XXX
-          spaces
-          (entry, _, pos) <- expression
-          checkSpace pos
-          listHelp start (entry:entries)
-    , do  word1 0x5D {-]-} E.XXX
-          end <- getPosition
-          return (A.at start end (Src.List (reverse entries)))
+chompListEnd :: A.Position -> [Src.Expr] -> Parser E.List Src.Expr
+chompListEnd start entries =
+  oneOf E.ListEnd
+    [ do  word1 0x2C {-,-} E.ListEnd
+          Space.chompAndCheckIndent E.ListSpace E.ListIndentExpr
+          (entry, end) <- specialize E.ListExpr expression
+          Space.checkIndent end E.ListIndentEnd
+          chompListEnd start (entry:entries)
+    , do  word1 0x5D {-]-} E.ListEnd
+          addEnd start (Src.List (reverse entries))
     ]
 
 
@@ -136,52 +125,55 @@ listHelp start entries =
 -- TUPLES
 
 
-tuple :: A.Position -> Parser Src.Expr
-tuple start =
-  inContext E.ExprTuple (word1 0x28 {-(-} E.XXX) $
-  do  pos <- getPosition
-      spos <- whitespace
-      oneOf E.XXX
-        [ do  noSpace pos spos
-              word2 0x2D 0x29 {--)-} E.XXX
-              end <- getPosition
-              return $ A.at start end (Src.Op "-")
+tuple :: A.Position -> Parser E.Expr Src.Expr
+tuple start@(A.Position row col) =
+  inContext E.Tuple (word1 0x28 {-(-} E.Start) $
+    oneOf E.TupleOpen
+      [
+        do  op <- Symbol.operator E.TupleOpen E.TupleOperatorReserved
+            if op == "-"
+              then
+                oneOf E.TupleOperatorClose
+                  [
+                    do  word1 0x29 {-)-} E.TupleOperatorClose
+                        addEnd start (Src.Op op)
+                  ,
+                    specialize E.TupleExpr $
+                    do  negatedExpr@(A.At (A.Region _ end) _) <- term
+                        Space.chomp E.Space
+                        let exprStart = A.Position row (col + 2)
+                        let expr = A.at exprStart end (Src.Negate negatedExpr)
+                        fst <$> chompExprEnd exprStart (State [] expr [] end)
+                  ]
+              else
+                do  word1 0x29 {-)-} E.TupleOperatorClose
+                    addEnd start (Src.Op op)
+      ,
+        do  word1 0x29 {-)-} E.TupleOpen
+            addEnd start Src.Unit
+      ,
+        do  Space.chompAndCheckIndent E.TupleSpace E.TupleIndentExpr
+            (entry, end) <- specialize E.TupleExpr expression
+            Space.checkIndent end E.TupleIndentEnd
+            chompTupleEnd start entry []
+      ]
 
-        , do  checkSpace spos
-              (entry, _, spos2) <- expression
-              checkSpace spos2
-              tupleHelp start entry []
 
-        , do  noSpace pos spos
-              op <- Symbol.binop
-              word1 0x29 {-)-} E.XXX
-              end <- getPosition
-              return $ A.at start end (Src.Op op)
-
-        , do  noSpace pos spos
-              word1 0x29 {-)-} E.XXX
-              end <- getPosition
-              return (A.at start end Src.Unit)
-
-        ]
-
-
-tupleHelp :: A.Position -> Src.Expr -> [Src.Expr] -> Parser Src.Expr
-tupleHelp start firstExpr revExprs =
-  oneOf E.XXX
-    [ do  word1 0x2C {-,-} E.XXX
-          spaces
-          (entry, _, pos) <- expression
-          checkSpace pos
-          tupleHelp start firstExpr (entry : revExprs)
-    , do  word1 0x29 {-)-} E.XXX
-          end <- getPosition
+chompTupleEnd :: A.Position -> Src.Expr -> [Src.Expr] -> Parser E.Tuple Src.Expr
+chompTupleEnd start firstExpr revExprs =
+  oneOf E.TupleEnd
+    [ do  word1 0x2C {-,-} E.TupleEnd
+          Space.chompAndCheckIndent E.TupleSpace E.TupleIndentExpr
+          (entry, end) <- specialize E.TupleExpr expression
+          Space.checkIndent end E.TupleIndentEnd
+          chompTupleEnd start firstExpr (entry : revExprs)
+    , do  word1 0x29 {-)-} E.TupleEnd
           case reverse revExprs of
             [] ->
               return firstExpr
 
-            secondExpr : others ->
-              return (A.at start end (Src.Tuple firstExpr secondExpr others))
+            secondExpr : otherExprs ->
+              addEnd start (Src.Tuple firstExpr secondExpr otherExprs)
     ]
 
 
@@ -189,30 +181,27 @@ tupleHelp start firstExpr revExprs =
 -- RECORDS
 
 
-record :: A.Position -> Parser Src.Expr
+record :: A.Position -> Parser E.Expr Src.Expr
 record start =
-  inContext E.ExprRecord (word1 0x7B {- { -} E.XXX) $
-    do  spaces
-        oneOf E.XXX
-          [ do  word1 0x7D {-}-} E.XXX
-                end <- getPosition
-                return (A.at start end (Src.Record []))
-          , do  starter <- addLocation Var.lower
-                spaces
-                oneOf E.XXX
-                  [ do  word1 0x7C {-|-} E.XXX
-                        spaces
+  inContext E.Record (word1 0x7B {- { -} E.Start) $
+    do  Space.chompAndCheckIndent E.RecordSpace E.RecordIndentOpen
+        oneOf E.RecordOpen
+          [ do  word1 0x7D {-}-} E.RecordOpen
+                addEnd start (Src.Record [])
+          , do  starter <- addLocation (Var.lower E.RecordField)
+                Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
+                oneOf E.RecordEquals
+                  [ do  word1 0x7C {-|-} E.RecordEquals
+                        Space.chompAndCheckIndent E.RecordSpace E.RecordIndentField
                         firstField <- chompField
                         fields <- chompFields [firstField]
-                        end <- getPosition
-                        return (A.at start end (Src.Update starter fields))
-                  , do  word1 0x3D {-=-} E.XXX
-                        spaces
-                        (value, _, nextPos) <- expression
-                        checkSpace nextPos
+                        addEnd start (Src.Update starter fields)
+                  , do  word1 0x3D {-=-} E.RecordEquals
+                        Space.chompAndCheckIndent E.RecordSpace E.RecordIndentExpr
+                        (value, end) <- specialize E.RecordExpr expression
+                        Space.checkIndent end E.RecordIndentEnd
                         fields <- chompFields [(starter, value)]
-                        end <- getPosition
-                        return (A.at start end (Src.Record fields))
+                        addEnd start (Src.Record fields)
                   ]
           ]
 
@@ -220,26 +209,26 @@ record start =
 type Field = ( A.Located Name.Name, Src.Expr )
 
 
-chompFields :: [Field] -> Parser [Field]
+chompFields :: [Field] -> Parser E.Record [Field]
 chompFields fields =
-  oneOf E.XXX
-    [ do  word1 0x2C {-,-} E.XXX
-          spaces
+  oneOf E.RecordEnd
+    [ do  word1 0x2C {-,-} E.RecordEnd
+          Space.chompAndCheckIndent E.RecordSpace E.RecordField
           f <- chompField
           chompFields (f : fields)
-    , do  word1 0x7D {-}-} E.XXX
+    , do  word1 0x7D {-}-} E.RecordEnd
           return (reverse fields)
     ]
 
 
-chompField :: Parser Field
+chompField :: Parser E.Record Field
 chompField =
-  do  key <- addLocation Var.lower
-      spaces
-      word1 0x3D {-=-} E.XXX
-      spaces
-      (value, _, pos) <- expression
-      checkSpace pos
+  do  key <- addLocation (Var.lower E.RecordField)
+      Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
+      word1 0x3D {-=-} E.RecordEquals
+      Space.chompAndCheckIndent E.RecordSpace E.RecordIndentExpr
+      (value, end) <- specialize E.RecordExpr expression
+      Space.checkIndent end E.RecordIndentEnd
       return (key, value)
 
 
@@ -247,22 +236,18 @@ chompField =
 -- EXPRESSIONS
 
 
-type ExprParser =
-  SParser Src.Expr
-
-
-expression :: ExprParser
+expression :: Space.Parser E.Expr Src.Expr
 expression =
   do  start <- getPosition
-      oneOf E.XXX
+      oneOf E.Start
         [ let_ start
         , if_ start
         , case_ start
         , function start
         , do  expr <- possiblyNegativeTerm start
               end <- getPosition
-              space <- whitespace
-              exprHelp start (State [] expr [] end space)
+              Space.chomp E.Space
+              chompExprEnd start (State [] expr [] end)
         ]
 
 
@@ -272,77 +257,76 @@ data State =
     , _expr :: !Src.Expr
     , _args :: ![Src.Expr]
     , _end  :: !A.Position
-    , _pos  :: !SPos
     }
 
 
-exprHelp :: A.Position -> State -> ExprParser
-exprHelp start (State ops expr args end pos) =
-  oneOf E.XXX
+chompExprEnd :: A.Position -> State -> Space.Parser E.Expr Src.Expr
+chompExprEnd start (State ops expr args end) =
+  oneOfWithFallback
     [ -- argument
-      do  checkSpace pos
+      do  Space.checkIndent end E.IndentMoreExpr
           arg <- term
           newEnd <- getPosition
-          newPos <- whitespace
-          exprHelp start (State ops expr (arg:args) newEnd newPos)
+          Space.chomp E.Space
+          chompExprEnd start (State ops expr (arg:args) newEnd)
 
-    , -- infix operator
-      do  checkSpace pos
-          opStart <- getPosition
-          opName <- Symbol.binop
-          opEnd <- getPosition
-          let op = A.at opStart opEnd opName
-          spos <- whitespace
-          checkSpace spos
+    , -- operator
+      do  Space.checkIndent end E.IndentMoreExpr
+          op@(A.At (A.Region opStart opEnd) opName) <- addLocation (Symbol.operator E.Start E.OperatorReserved)
+          Space.chompAndCheckIndent E.Space E.IndentOperatorRight
           newStart <- getPosition
           if "-" == opName && end /= opStart && opEnd == newStart
             then
               -- negative terms
-              do  rawTerm <- term
+              do  negatedExpr <- term
                   newEnd <- getPosition
-                  newPos <- whitespace
-                  let arg = A.at opStart newEnd (Src.Negate rawTerm)
-                  exprHelp start (State ops expr (arg:args) newEnd newPos)
+                  Space.chomp E.Space
+                  let arg = A.at opStart newEnd (Src.Negate negatedExpr)
+                  chompExprEnd start (State ops expr (arg:args) newEnd)
             else
-              oneOf E.XXX
+              oneOf E.OperatorRight
                 [ -- term
                   do  newExpr <- possiblyNegativeTerm newStart
                       newEnd <- getPosition
-                      newPos <- whitespace
+                      Space.chomp E.Space
                       let newOps = (toCall expr args, op) : ops
-                      exprHelp start (State newOps newExpr [] newEnd newPos)
+                      chompExprEnd start (State newOps newExpr [] newEnd)
 
                 , -- final term
-                  do  (newLast, newEnd, newPos) <-
-                        oneOf E.XXX
+                  do  (newLast, newEnd) <-
+                        oneOf E.OperatorRight
                           [ let_ newStart
                           , case_ newStart
                           , if_ newStart
                           , function newStart
                           ]
                       let newOps = (toCall expr args, op) : ops
-                      let finalExpr = A.at start newEnd (Src.Binops (reverse newOps) newLast)
-                      return ( finalExpr, newEnd, newPos )
+                      let finalExpr = Src.Binops (reverse newOps) newLast
+                      return ( A.at start newEnd finalExpr, newEnd )
                 ]
 
-    , -- done
-      let finalExpr = toCall expr args in
+    ]
+    -- done
+    (
       case ops of
         [] ->
-          return ( finalExpr, end, pos )
+          ( toCall expr args
+          , end
+          )
 
         _ ->
-          return ( A.at start end (Src.Binops (reverse ops) finalExpr), end, pos )
-    ]
+          ( A.at start end (Src.Binops (reverse ops) (toCall expr args))
+          , end
+          )
+    )
 
 
-possiblyNegativeTerm :: A.Position -> Parser Src.Expr
+possiblyNegativeTerm :: A.Position -> Parser E.Expr Src.Expr
 possiblyNegativeTerm start =
-  oneOf E.XXX
-    [ do  word1 0x2D {---} E.XXX
+  oneOf E.Start
+    [ do  word1 0x2D {---} E.Start
           expr <- term
-          end <- getPosition
-          return (A.at start end (Src.Negate expr))
+          addEnd start (Src.Negate expr)
     , term
     ]
 
@@ -361,30 +345,32 @@ toCall func revArgs =
 -- IF EXPRESSION
 
 
-if_ :: A.Position -> ExprParser
+if_ :: A.Position -> Space.Parser E.Expr Src.Expr
 if_ start =
-  inContext E.ExprIf Keyword.if_ $
-    ifHelp start []
+  inContext E.If (Keyword.if_ E.Start) $
+    chompIfEnd start []
 
 
-ifHelp :: A.Position -> [(Src.Expr, Src.Expr)] -> ExprParser
-ifHelp start branches =
-  do  spaces
-      (condition, _, condPos) <- expression
-      checkSpace condPos
-      Keyword.then_
-      spaces
-      (thenBranch, _, thenPos) <- expression
-      checkSpace thenPos
-      Keyword.else_
-      spaces
+chompIfEnd :: A.Position -> [(Src.Expr, Src.Expr)] -> Space.Parser E.If Src.Expr
+chompIfEnd start branches =
+  do  Space.chompAndCheckIndent E.IfSpace E.IfIndentCondition
+      (condition, condEnd) <- specialize E.IfCondition expression
+      Space.checkIndent condEnd E.IfIndentThen
+      Keyword.then_ E.IfThen
+      Space.chompAndCheckIndent E.IfSpace E.IfIndentThenBranch
+      (thenBranch, thenEnd) <- specialize E.IfThenBranch expression
+      Space.checkIndent thenEnd E.IfIndentElse
+      Keyword.else_ E.IfElse
+      Space.chompAndCheckIndent E.IfSpace E.IfIndentElseBranch
       let newBranches = (condition, thenBranch) : branches
-      oneOf E.XXX
-        [ do  Keyword.if_
-              ifHelp start newBranches
-        , do  (elseBranch, elseEnd, elseSpace) <- expression
-              let ifExpr = A.at start elseEnd (Src.If (reverse newBranches) elseBranch)
-              return ( ifExpr, elseEnd, elseSpace )
+      oneOf E.IfElseBranchStart
+        [
+          do  Keyword.if_ E.IfElseBranchStart
+              chompIfEnd start newBranches
+        ,
+          do  (elseBranch, elseEnd) <- specialize E.IfElseBranch expression
+              let ifExpr = Src.If (reverse newBranches) elseBranch
+              return ( A.at start elseEnd ifExpr, elseEnd )
         ]
 
 
@@ -392,27 +378,27 @@ ifHelp start branches =
 -- LAMBDA EXPRESSION
 
 
-function :: A.Position -> ExprParser
+function :: A.Position -> Space.Parser E.Expr Src.Expr
 function start =
-  inContext E.ExprFunc (word1 0x5C {-\-} E.XXX) $
-    do  spaces
-        arg <- Pattern.term
-        spaces
-        revArgs <- gatherArgs [arg]
-        spaces
-        (body, end, space) <- expression
-        let func = A.at start end (Src.Lambda (reverse revArgs) body)
-        return ( func, end, space )
+  inContext E.Func (word1 0x5C {-\-} E.Start) $
+    do  Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArg
+        arg <- specialize E.FuncArg Pattern.term
+        Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArrow
+        revArgs <- chompArgs [arg]
+        Space.chompAndCheckIndent E.FuncSpace E.FuncIndentBody
+        (body, end) <- specialize E.FuncBody expression
+        let funcExpr = Src.Lambda (reverse revArgs) body
+        return (A.at start end funcExpr, end)
 
 
-gatherArgs :: [Src.Pattern] -> Parser [Src.Pattern]
-gatherArgs args =
-  oneOf E.XXX
-    [ do  arg <- Pattern.term
-          spaces
-          gatherArgs (arg:args)
-    , do  word2 0x2D 0x3E {-->-} E.XXX
-          return args
+chompArgs :: [Src.Pattern] -> Parser E.Func [Src.Pattern]
+chompArgs revArgs =
+  oneOf E.FuncArrow
+    [ do  arg <- specialize E.FuncArg Pattern.term
+          Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArrow
+          chompArgs (arg:revArgs)
+    , do  word2 0x2D 0x3E {-->-} E.FuncArrow
+          return revArgs
     ]
 
 
@@ -420,90 +406,84 @@ gatherArgs args =
 -- CASE EXPRESSIONS
 
 
-case_ :: A.Position -> ExprParser
+case_ :: A.Position -> Space.Parser E.Expr Src.Expr
 case_ start =
-  inContext E.ExprCase Keyword.case_ $
-    do  spaces
-        (switcher, _, switcherPos) <- expression
-        checkSpace switcherPos
-        Keyword.of_
-        spaces
-        oldIndent <- getIndent
-        newIndent <- getCol
-        setIndent newIndent
-        (firstBranch, firstEnd, firstPos) <- branchHelp
-        (branches, end, pos) <- caseHelp [firstBranch] firstEnd firstPos
-        setIndent oldIndent
-        return
-          ( A.at start end (Src.Case switcher branches)
-          , end
-          , pos
-          )
+  inContext E.Case (Keyword.case_ E.Start) $
+    do  Space.chompAndCheckIndent E.CaseSpace E.CaseIndentExpr
+        (expr, exprEnd) <- specialize E.CaseExpr expression
+        Space.checkIndent exprEnd E.CaseIndentOf
+        Keyword.of_ E.CaseOf
+        Space.chompAndCheckIndent E.CaseSpace E.CaseIndentPattern
+        withIndent $
+          do  (firstBranch, firstEnd) <- chompBranch
+              (branches, end) <- chompCaseEnd [firstBranch] firstEnd
+              return
+                ( A.at start end (Src.Case expr branches)
+                , end
+                )
 
 
-branchHelp :: SParser (Src.Pattern, Src.Expr)
-branchHelp =
-  do  (pattern, patternPos) <- Pattern.expression
-      checkSpace patternPos
-      word2 0x2D 0x3E {-->-} E.XXX
-      spaces
-      (branchExpr, end, pos) <- expression
-      return ( (pattern, branchExpr), end, pos )
+chompBranch :: Space.Parser E.Case (Src.Pattern, Src.Expr)
+chompBranch =
+  do  (pattern, patternEnd) <- specialize E.CasePattern Pattern.expression
+      Space.checkIndent patternEnd E.CaseIndentArrow
+      word2 0x2D 0x3E {-->-} E.CaseArrow
+      Space.chompAndCheckIndent E.CaseSpace E.CaseIndentBranch
+      (branchExpr, end) <- specialize E.CaseBranch expression
+      return ( (pattern, branchExpr), end )
 
 
-caseHelp :: [(Src.Pattern, Src.Expr)] -> A.Position -> SPos -> SParser [(Src.Pattern, Src.Expr)]
-caseHelp branches end pos =
-  oneOf E.XXX
-    [ do  checkAligned pos
-          (branch, newEnd, newPos) <- branchHelp
-          caseHelp (branch:branches) newEnd newPos
-    , return ( reverse branches, end, pos )
+chompCaseEnd :: [(Src.Pattern, Src.Expr)] -> A.Position -> Space.Parser E.Case [(Src.Pattern, Src.Expr)]
+chompCaseEnd branches end =
+  oneOfWithFallback
+    [ do  Space.checkAligned E.CasePatternAlignment
+          (branch, newEnd) <- chompBranch
+          chompCaseEnd (branch:branches) newEnd
     ]
+    (reverse branches, end)
 
 
 
 -- LET EXPRESSION
 
 
-let_ :: A.Position -> ExprParser
+let_ :: A.Position -> Space.Parser E.Expr Src.Expr
 let_ start =
-  do  oldIndent <- getIndent
-      letIndent <- getCol
-      Keyword.let_
-      pushContext start E.ExprLet
-      setIndent letIndent
-      spaces
-      defIndent <- getCol
-      setIndent defIndent
-      (def, end, space) <- letDef
-      letHelp start oldIndent [def] end space
+  inContext E.Let (Keyword.let_ E.Start) $
+    do  (defs, defsEnd) <-
+          withBacksetIndent 3 $
+            do  Space.chompAndCheckIndent E.LetSpace E.LetIndentDef
+                withIndent $
+                  do  (def, end) <- chompLetDef
+                      chompLetDefs [def] end
+
+        Space.checkIndent defsEnd E.LetIndentIn
+        Keyword.in_ E.LetIn
+        Space.chompAndCheckIndent E.LetSpace E.LetIndentBody
+        (body, end) <- specialize E.LetBody expression
+        return
+          ( A.at start end (Src.Let defs body)
+          , end
+          )
 
 
-letHelp :: A.Position -> Word16 -> [A.Located Src.Def] -> A.Position -> SPos -> ExprParser
-letHelp start oldIndent revDefs end pos =
-  oneOf E.XXX
-    [ do  checkAligned pos
-          (def, newEnd, newPos) <- letDef
-          letHelp start oldIndent (def:revDefs) newEnd newPos
-
-    , do  setIndent oldIndent
-          checkSpace pos
-          Keyword.in_
-          popContext ()
-          spaces
-          (body, newEnd, newPos) <- expression
-          let letExpr = A.at start end (Src.Let (reverse revDefs) body)
-          return ( letExpr, newEnd, newPos )
+chompLetDefs :: [A.Located Src.Def] -> A.Position -> Space.Parser E.Let [A.Located Src.Def]
+chompLetDefs revDefs end =
+  oneOfWithFallback
+    [ do  Space.checkAligned E.LetDefAlignment
+          (def, newEnd) <- chompLetDef
+          chompLetDefs (def:revDefs) newEnd
     ]
+    (reverse revDefs, end)
 
 
 
 -- LET DEFINITIONS
 
 
-letDef :: SParser (A.Located Src.Def)
-letDef =
-  oneOf E.XXX
+chompLetDef :: Space.Parser E.Let (A.Located Src.Def)
+chompLetDef =
+  oneOf E.LetDefName
     [ definition
     , destructure
     ]
@@ -513,61 +493,57 @@ letDef =
 -- DEFINITION
 
 
-definition :: SParser (A.Located Src.Def)
+definition :: Space.Parser E.Let (A.Located Src.Def)
 definition =
-  do  start <- getPosition
-      name <- Var.lower
-      end <- getPosition
-      spaces
-      oneOf E.XXX
-        [
-          do  word1 0x3A {-:-} E.XXX
-              pushContext start (E.Annotation name)
-              spaces
-              (tipe, _, space) <- Type.expression
-              popContext ()
-              checkAligned space
-              defName <- matchingName name
-              let (A.At (A.Region defStart _) _) = defName
-              pushContext defStart (E.Definition name)
-              spaces
-              def <- definitionHelp start defName (Just tipe) []
-              popContext def
-        ,
-          do  pushContext start (E.Definition name)
-              def <- definitionHelp start (A.at start end name) Nothing []
-              popContext def
-        ]
+  do  aname@(A.At (A.Region start _) name) <- addLocation (Var.lower E.LetDefName)
+      specialize (E.LetDef name) $
+        do  Space.chompAndCheckIndent E.DefSpace E.DefIndentEquals
+            oneOf E.DefEquals
+              [
+                do  word1 0x3A {-:-} E.DefEquals
+                    Space.chompAndCheckIndent E.DefSpace E.DefIndentType
+                    (tipe, _) <- specialize E.DefType Type.expression
+                    Space.checkAligned E.DefAlignment
+                    defName <- chompMatchingName name
+                    Space.chompAndCheckIndent E.DefSpace E.DefIndentEquals
+                    chompDefArgsAndBody start defName (Just tipe) []
+              ,
+                chompDefArgsAndBody start aname Nothing []
+              ]
 
 
-definitionHelp :: A.Position -> A.Located Name.Name -> Maybe Src.Type -> [Src.Pattern] -> SParser (A.Located Src.Def)
-definitionHelp start name tipe revArgs =
-  oneOf E.XXX
-    [ do  arg <- Pattern.term
-          spaces
-          definitionHelp start name tipe (arg : revArgs)
-    , do  word1 0x3D {-=-} E.XXX
-          spaces
-          (body, end, space) <- expression
-          let def = A.at start end (Src.Define name (reverse revArgs) body tipe)
-          return ( def, end, space )
+chompDefArgsAndBody :: A.Position -> A.Located Name.Name -> Maybe Src.Type -> [Src.Pattern] -> Space.Parser E.Def (A.Located Src.Def)
+chompDefArgsAndBody start name tipe revArgs =
+  oneOf E.DefEquals
+    [ do  arg <- specialize E.DefArg Pattern.term
+          Space.chompAndCheckIndent E.DefSpace E.DefIndentEquals
+          chompDefArgsAndBody start name tipe (arg : revArgs)
+    , do  word1 0x3D {-=-} E.DefEquals
+          Space.chompAndCheckIndent E.DefSpace E.DefIndentBody
+          (body, end) <- specialize E.DefBody expression
+          return
+            ( A.at start end (Src.Define name (reverse revArgs) body tipe)
+            , end
+            )
     ]
 
 
-matchingName :: Name.Name -> Parser (A.Located Name.Name)
-matchingName expectedName =
-  let (P.Parser parserL) = Var.lower in
-  P.Parser $ \state@(P.State _ _ _ sr sc ctx) cok eok cerr eerr ->
+chompMatchingName :: Name.Name -> Parser E.Def (A.Located Name.Name)
+chompMatchingName expectedName =
+  let
+    (P.Parser parserL) = Var.lower (E.DefNameRepeat expectedName)
+  in
+  P.Parser $ \state@(P.State _ _ _ sr sc) cok eok cerr eerr ->
     let
-      cokL name newState@(P.State _ _ _ er ec _) =
+      cokL name newState@(P.State _ _ _ er ec) =
         if expectedName == name
         then cok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
-        else cerr sr sc ctx (E.MatchingName expectedName)
+        else cerr sr sc (E.DefNameMatch expectedName name)
 
-      eokL name newState@(P.State _ _ _ er ec _) =
+      eokL name newState@(P.State _ _ _ er ec) =
         if expectedName == name
         then eok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
-        else eerr sr sc ctx (E.MatchingName expectedName)
+        else eerr sr sc (E.DefNameMatch expectedName name)
     in
     parserL state cokL eokL cerr eerr
 
@@ -577,12 +553,13 @@ matchingName expectedName =
 -- DESTRUCTURE
 
 
-destructure :: SParser (A.Located Src.Def)
+destructure :: Space.Parser E.Let (A.Located Src.Def)
 destructure =
+  specialize E.LetDestruct $
   do  start <- getPosition
-      pattern <- Pattern.term
-      spaces
-      word1 0x3D {-=-} E.XXX
-      spaces
-      (expr, end, space) <- expression
-      return ( A.at start end (Src.Destruct pattern expr), end, space )
+      pattern <- specialize E.DestructPattern Pattern.term
+      Space.chompAndCheckIndent E.DestructSpace E.DestructIndentEquals
+      word1 0x3D {-=-} E.DestructEquals
+      Space.chompAndCheckIndent E.DestructSpace E.DestructIndentBody
+      (expr, end) <- specialize E.DestructBody expression
+      return ( A.at start end (Src.Destruct pattern expr), end )

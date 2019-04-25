@@ -9,16 +9,17 @@ module Parse.Pattern
 
 import qualified Data.List as List
 import qualified Data.Name as Name
+import qualified Data.Utf8 as Utf8
 
 import qualified AST.Source as Src
-import Parse.Utils (Parser, SParser, SPos, checkSpace, spaces, whitespace)
 import qualified Parse.Keyword as Keyword
 import qualified Parse.Number as Number
+import qualified Parse.Space as Space
 import qualified Parse.Symbol as Symbol
 import qualified Parse.Utf8 as Utf8
 import qualified Parse.Variable as Var
 import qualified Parse.Primitives as P
-import Parse.Primitives (addLocation, getPosition, inContext, oneOf, word1)
+import Parse.Primitives (Parser, addLocation, addEnd, getPosition, inContext, oneOf, oneOfWithFallback, word1, word2)
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as E
 
@@ -27,10 +28,10 @@ import qualified Reporting.Error.Syntax as E
 -- TERM
 
 
-term :: Parser Src.Pattern
+term :: Parser E.Pattern Src.Pattern
 term =
   do  start <- getPosition
-      oneOf E.XXX
+      oneOf E.PStart
         [ record start
         , tuple start
         , list start
@@ -38,19 +39,17 @@ term =
         ]
 
 
-termHelp :: A.Position -> Parser Src.Pattern
+termHelp :: A.Position -> Parser E.Pattern Src.Pattern
 termHelp start =
-  oneOf E.XXX
+  oneOf E.PStart
     [
-      do  Symbol.underscore
-          end <- getPosition
-          return (A.at start end Src.PAnything)
+      do  Symbol.wildcard
+          addEnd start Src.PAnything
     ,
-      do  name <- Var.lower
-          end <- getPosition
-          return (A.at start end (Src.PVar name))
+      do  name <- Var.lower E.PStart
+          addEnd start (Src.PVar name)
     ,
-      do  upper <- Var.foreignUpper
+      do  upper <- Var.foreignUpper E.PStart
           end <- getPosition
           let region = A.Region start end
           return $ A.at start end $
@@ -61,60 +60,51 @@ termHelp start =
               Var.Qualified home name ->
                 Src.PCtorQual region home name []
     ,
-      do  number <- Number.number
+      do  number <- Number.number E.PStart E.PNumber
           end <- getPosition
           case number of
             Number.Int int ->
               return (A.at start end (Src.PInt int))
 
-            Number.Float _ ->
-              noFloatsAllowedInPatterns
+            Number.Float float ->
+              P.Parser $ \(P.State _ _ _ row col) _ _ cerr _ ->
+                cerr row col (E.PFloat (Utf8.size float))
     ,
-      do  str <- Utf8.string
-          end <- getPosition
-          return (A.at start end (Src.PStr str))
+      do  str <- Utf8.string E.PStart E.PString
+          addEnd start (Src.PStr str)
     ,
-      do  chr <- Utf8.character
-          end <- getPosition
-          return (A.at start end (Src.PChr chr))
+      do  chr <- Utf8.character E.PStart E.PChar
+          addEnd start (Src.PChr chr)
     ]
-
-
-noFloatsAllowedInPatterns :: Parser a
-noFloatsAllowedInPatterns =
-  P.Parser $ \(P.State _ _ _ row col ctx) _ _ cerr _ ->
-    cerr row col ctx E.FloatInPattern
 
 
 
 -- RECORDS
 
 
-record :: A.Position -> Parser Src.Pattern
+record :: A.Position -> Parser E.Pattern Src.Pattern
 record start =
-  inContext E.ExprRecord (word1 0x7B {- { -} E.XXX) $
-    do  spaces
-        oneOf E.XXX
-          [ do  var <- addLocation Var.lower
-                spaces
+  inContext E.PRecord (word1 0x7B {- { -} E.PStart) $
+    do  Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentOpen
+        oneOf E.PRecordOpen
+          [ do  var <- addLocation (Var.lower E.PRecordField)
+                Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentEnd
                 recordHelp start [var]
-          , do  word1 0x7D {-}-} E.XXX
-                end <- getPosition
-                return (A.at start end (Src.PRecord []))
+          , do  word1 0x7D {-}-} E.PRecordEnd
+                addEnd start (Src.PRecord [])
           ]
 
 
-recordHelp :: A.Position -> [A.Located Name.Name] -> Parser Src.Pattern
+recordHelp :: A.Position -> [A.Located Name.Name] -> Parser E.PRecord Src.Pattern
 recordHelp start vars =
-  oneOf E.XXX
-    [ do  word1 0x2C {-,-} E.XXX
-          spaces
-          var <- addLocation Var.lower
-          spaces
+  oneOf E.PRecordEnd
+    [ do  word1 0x2C {-,-} E.PRecordEnd
+          Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentField
+          var <- addLocation (Var.lower E.PRecordField)
+          Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentEnd
           recordHelp start (var:vars)
-    , do  word1 0x7D {-}-} E.XXX
-          end <- getPosition
-          return (A.at start end (Src.PRecord vars))
+    , do  word1 0x7D {-}-} E.PRecordEnd
+          addEnd start (Src.PRecord vars)
     ]
 
 
@@ -122,36 +112,34 @@ recordHelp start vars =
 -- TUPLES
 
 
-tuple :: A.Position -> Parser Src.Pattern
+tuple :: A.Position -> Parser E.Pattern Src.Pattern
 tuple start =
-  inContext E.ExprTuple (word1 0x28 {-(-} E.XXX) $
-    do  spaces
-        oneOf E.XXX
-          [ do  (pattern, sPos) <- expression
-                checkSpace sPos
+  inContext E.PTuple (word1 0x28 {-(-} E.PStart) $
+    do  Space.chompAndCheckIndent E.PTupleSpace E.PTupleIndentOpen
+        oneOf E.PTupleOpen
+          [ do  (pattern, end) <- P.specialize E.PTupleExpr expression
+                Space.checkIndent end E.PTupleIndentEnd
                 tupleHelp start pattern []
-          , do  word1 0x29 {-)-} E.XXX
-                end <- getPosition
-                return (A.at start end Src.PUnit)
+          , do  word1 0x29 {-)-} E.PTupleEnd
+                addEnd start Src.PUnit
           ]
 
 
-tupleHelp :: A.Position -> Src.Pattern -> [Src.Pattern] -> Parser Src.Pattern
+tupleHelp :: A.Position -> Src.Pattern -> [Src.Pattern] -> Parser E.PTuple Src.Pattern
 tupleHelp start firstPattern revPatterns =
-  oneOf E.XXX
-    [ do  word1 0x2C {-,-} E.XXX
-          spaces
-          (pattern, sPos) <- expression
-          checkSpace sPos
+  oneOf E.PTupleEnd
+    [ do  word1 0x2C {-,-} E.PTupleEnd
+          Space.chompAndCheckIndent E.PTupleSpace E.PTupleIndentExpr
+          (pattern, end) <- P.specialize E.PTupleExpr expression
+          Space.checkIndent end E.PTupleIndentEnd
           tupleHelp start firstPattern (pattern : revPatterns)
-    , do  word1 0x29 {-)-} E.XXX
+    , do  word1 0x29 {-)-} E.PTupleEnd
           case reverse revPatterns of
             [] ->
               return firstPattern
 
             secondPattern : otherPatterns ->
-              do  end <- getPosition
-                  return (A.at start end (Src.PTuple firstPattern secondPattern otherPatterns))
+              addEnd start (Src.PTuple firstPattern secondPattern otherPatterns)
     ]
 
 
@@ -159,31 +147,29 @@ tupleHelp start firstPattern revPatterns =
 -- LIST
 
 
-list :: A.Position -> Parser Src.Pattern
+list :: A.Position -> Parser E.Pattern Src.Pattern
 list start =
-  inContext E.PatternList (word1 0x5B {-[-} E.XXX) $
-    do  spaces
-        oneOf E.XXX
-          [ do  (pattern, sPos) <- expression
-                checkSpace sPos
+  inContext E.PList (word1 0x5B {-[-} E.PStart) $
+    do  Space.chompAndCheckIndent E.PListSpace E.PListIndentOpen
+        oneOf E.PListOpen
+          [ do  (pattern, end) <- P.specialize E.PListExpr expression
+                Space.checkIndent end E.PListIndentEnd
                 listHelp start [pattern]
-          , do  word1 0x5D {-]-} E.XXX
-                end <- getPosition
-                return (A.at start end (Src.PList []))
+          , do  word1 0x5D {-]-} E.PListEnd
+                addEnd start (Src.PList [])
           ]
 
 
-listHelp :: A.Position -> [Src.Pattern] -> Parser Src.Pattern
+listHelp :: A.Position -> [Src.Pattern] -> Parser E.PList Src.Pattern
 listHelp start patterns =
-  oneOf E.XXX
-    [ do  word1 0x2C {-,-} E.XXX
-          spaces
-          (pattern, sPos) <- expression
-          checkSpace sPos
+  oneOf E.PListEnd
+    [ do  word1 0x2C {-,-} E.PListEnd
+          Space.chompAndCheckIndent E.PListSpace E.PListIndentExpr
+          (pattern, end) <- P.specialize E.PListExpr expression
+          Space.checkIndent end E.PListIndentEnd
           listHelp start (pattern:patterns)
-    , do  word1 0x5D {-]-} E.XXX
-          end <- getPosition
-          return (A.at start end (Src.PList (reverse patterns)))
+    , do  word1 0x5D {-]-} E.PListEnd
+          addEnd start (Src.PList (reverse patterns))
     ]
 
 
@@ -191,38 +177,37 @@ listHelp start patterns =
 -- EXPRESSION
 
 
-expression :: Parser (Src.Pattern, SPos)
+expression :: Space.Parser E.Pattern Src.Pattern
 expression =
   do  start <- getPosition
       cTerm <- exprTerm
       exprHelp start [] cTerm
 
 
-exprHelp :: A.Position -> [Src.Pattern] -> (Src.Pattern, A.Position, SPos) -> Parser (Src.Pattern, SPos)
-exprHelp start patterns (pattern, _end, sPos) =
-  oneOf E.XXX
-    [ do  checkSpace sPos
-          word1 0x3A {-:-} E.XXX
-          spaces
+exprHelp :: A.Position -> [Src.Pattern] -> (Src.Pattern, A.Position) -> Space.Parser E.Pattern Src.Pattern
+exprHelp start patterns (pattern, end) =
+  oneOfWithFallback
+    [ do  Space.checkIndent end E.PIndentStart
+          word2 0x3A 0x3A {-::-} E.PStart
+          Space.chompAndCheckIndent E.PSpace E.PIndentStart
           cTerm <- exprTerm
           exprHelp start (pattern:patterns) cTerm
-    , do  checkSpace sPos
-          Keyword.as_
-          spaces
+    , do  Space.checkIndent end E.PIndentStart
+          Keyword.as_ E.PStart
+          Space.chompAndCheckIndent E.PSpace E.PIndentAlias
           nameStart <- getPosition
-          name <- Var.lower
+          name <- Var.lower E.PAlias
           newEnd <- getPosition
-          newSpace <- whitespace
+          Space.chomp E.PSpace
           let alias = A.at nameStart newEnd name
           return
             ( A.at start newEnd (Src.PAlias (List.foldl' cons pattern patterns) alias)
-            , newSpace
+            , newEnd
             )
-    , return
-        ( List.foldl' cons pattern patterns
-        , sPos
-        )
     ]
+    ( List.foldl' cons pattern patterns
+    , end
+    )
 
 
 cons :: Src.Pattern -> Src.Pattern -> Src.Pattern
@@ -234,38 +219,36 @@ cons tl hd =
 -- EXPRESSION TERM
 
 
-exprTerm :: SParser Src.Pattern
+exprTerm :: Space.Parser E.Pattern Src.Pattern
 exprTerm =
-  oneOf E.XXX
+  oneOf E.PStart
     [
       do  start <- getPosition
-          upper <- Var.foreignUpper
+          upper <- Var.foreignUpper E.PStart
           end <- getPosition
           exprTermHelp (A.Region start end) upper start []
     ,
-      do  t@(A.At (A.Region _ end) _) <- term
-          pos <- whitespace
-          return (t, end, pos)
+      do  eterm@(A.At (A.Region _ end) _) <- term
+          Space.chomp E.PSpace
+          return (eterm, end)
     ]
 
 
-exprTermHelp :: A.Region -> Var.Upper -> A.Position -> [Src.Pattern] -> SParser Src.Pattern
+exprTermHelp :: A.Region -> Var.Upper -> A.Position -> [Src.Pattern] -> Space.Parser E.Pattern Src.Pattern
 exprTermHelp region upper start revArgs =
   do  end <- getPosition
-      sPos <- whitespace
-      oneOf E.XXX
-        [ do  checkSpace sPos
+      Space.chomp E.PSpace
+      oneOfWithFallback
+        [ do  Space.checkIndent end E.PIndentStart
               arg <- term
               exprTermHelp region upper start (arg:revArgs)
-        , return
-            ( A.at start end $
-                case upper of
-                  Var.Unqualified name ->
-                    Src.PCtor region name (reverse revArgs)
-
-                  Var.Qualified home name ->
-                    Src.PCtorQual region home name (reverse revArgs)
-            , end
-            , sPos
-            )
         ]
+        ( A.at start end $
+            case upper of
+              Var.Unqualified name ->
+                Src.PCtor region name (reverse revArgs)
+
+              Var.Qualified home name ->
+                Src.PCtorQual region home name (reverse revArgs)
+        , end
+        )

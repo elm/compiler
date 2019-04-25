@@ -16,112 +16,111 @@ module Parse.Keyword
 import Foreign.Ptr (plusPtr)
 import Data.Word (Word8)
 
-import Parse.Utils (Parser)
+import Parse.Primitives (Parser, Row, Col)
 import qualified Parse.Variable as Var
 import qualified Parse.Primitives as P
-import qualified Reporting.Error.Syntax as E
 
 
 
 -- DECLARATIONS
 
 
-type_ :: Parser ()
-type_ = k4 0x74 0x79 0x70 0x65 E.KeywordType
+type_ :: (Row -> Col -> x) -> Parser x ()
+type_ tx = k4 0x74 0x79 0x70 0x65 tx
 
-alias_ :: Parser ()
-alias_ = k5 0x61 0x6C 0x69 0x61 0x73 E.KeywordAlias
+alias_ :: (Row -> Col -> x) -> Parser x ()
+alias_ tx = k5 0x61 0x6C 0x69 0x61 0x73 tx
 
-port_ :: Parser ()
-port_ = k4 0x70 0x6F 0x72 0x74 E.KeywordPort
+port_ :: (Row -> Col -> x) -> Parser x ()
+port_ tx = k4 0x70 0x6F 0x72 0x74 tx
 
 
 
 -- IF EXPRESSIONS
 
 
-if_ :: Parser ()
-if_ = k2 0x69 0x66 E.KeywordIf
+if_ :: (Row -> Col -> x) -> Parser x ()
+if_ tx = k2 0x69 0x66 tx
 
-then_ :: Parser ()
-then_ = k4 0x74 0x68 0x65 0x6E E.KeywordThen
+then_ :: (Row -> Col -> x) -> Parser x ()
+then_ tx = k4 0x74 0x68 0x65 0x6E tx
 
-else_ :: Parser ()
-else_ = k4 0x65 0x6C 0x73 0x65 E.KeywordElse
+else_ :: (Row -> Col -> x) -> Parser x ()
+else_ tx = k4 0x65 0x6C 0x73 0x65 tx
 
 
 
 -- CASE EXPRESSIONS
 
 
-case_ :: Parser ()
-case_ = k4 0x63 0x61 0x73 0x65 E.KeywordCase
+case_ :: (Row -> Col -> x) -> Parser x ()
+case_ tx = k4 0x63 0x61 0x73 0x65 tx
 
-of_ :: Parser ()
-of_ = k2 0x6F 0x66 E.KeywordOf
+of_ :: (Row -> Col -> x) -> Parser x ()
+of_ tx = k2 0x6F 0x66 tx
 
 
 
 -- LET EXPRESSIONS
 
 
-let_ :: Parser ()
-let_ = k3 0x6C 0x65 0x74 E.KeywordLet
+let_ :: (Row -> Col -> x) -> Parser x ()
+let_ tx = k3 0x6C 0x65 0x74 tx
 
-in_ :: Parser ()
-in_ = k2 0x69 0x6E E.KeywordIn
+in_ :: (Row -> Col -> x) -> Parser x ()
+in_ tx = k2 0x69 0x6E tx
 
 
 
 -- INFIXES
 
 
-infix_ :: Parser ()
-infix_ = k5 0x69 0x6E 0x66 0x69 0x78 E.KeywordInfix
+infix_ :: (Row -> Col -> x) -> Parser x ()
+infix_ tx = k5 0x69 0x6E 0x66 0x69 0x78 tx
 
-left_ :: Parser ()
-left_ = k4 0x6C 0x65 0x66 0x74 E.Associativity
+left_ :: (Row -> Col -> x) -> Parser x ()
+left_ tx = k4 0x6C 0x65 0x66 0x74 tx
 
-right_ :: Parser ()
-right_ = k5 0x72 0x69 0x67 0x68 0x74 E.Associativity
+right_ :: (Row -> Col -> x) -> Parser x ()
+right_ tx = k5 0x72 0x69 0x67 0x68 0x74 tx
 
-non_ :: Parser ()
-non_ = k3 0x6E 0x6F 0x6E E.Associativity
+non_ :: (Row -> Col -> x) -> Parser x ()
+non_ tx = k3 0x6E 0x6F 0x6E tx
 
 
 
 -- IMPORTS
 
 
-module_ :: Parser ()
-module_ = k6 0x6D 0x6F 0x64 0x75 0x6C 0x65 E.KeywordModule
+module_ :: (Row -> Col -> x) -> Parser x ()
+module_ tx = k6 0x6D 0x6F 0x64 0x75 0x6C 0x65 tx
 
-import_ :: Parser ()
-import_ = k6 0x69 0x6D 0x70 0x6F 0x72 0x74 E.KeywordImport
+import_ :: (Row -> Col -> x) -> Parser x ()
+import_ tx = k6 0x69 0x6D 0x70 0x6F 0x72 0x74 tx
 
-exposing_ :: Parser ()
-exposing_ = k8 0x65 0x78 0x70 0x6F 0x73 0x69 0x6E 0x67 E.KeywordExposing
+exposing_ :: (Row -> Col -> x) -> Parser x ()
+exposing_ tx = k8 0x65 0x78 0x70 0x6F 0x73 0x69 0x6E 0x67 tx
 
-as_ :: Parser ()
-as_ = k2 0x61 0x73 E.KeywordAs
+as_ :: (Row -> Col -> x) -> Parser x ()
+as_ tx = k2 0x61 0x73 tx
 
 
 
 -- EFFECTS
 
 
-effect_ :: Parser ()
-effect_ = k6 0x65 0x66 0x66 0x65 0x63 0x74 E.EffectStuff
+effect_ :: (Row -> Col -> x) -> Parser x ()
+effect_ tx = k6 0x65 0x66 0x66 0x65 0x63 0x74 tx
 
-where_ :: Parser ()
-where_ = k5 0x77 0x68 0x65 0x72 0x65 E.EffectStuff
+where_ :: (Row -> Col -> x) -> Parser x ()
+where_ tx = k5 0x77 0x68 0x65 0x72 0x65 tx
 
-command_ :: Parser ()
-command_ = k7 0x63 0x6F 0x6D 0x6D 0x61 0x6E 0x64 E.EffectStuff
+command_ :: (Row -> Col -> x) -> Parser x ()
+command_ tx = k7 0x63 0x6F 0x6D 0x6D 0x61 0x6E 0x64 tx
 
-subscription_ :: Parser ()
-subscription_ =
-  P.Parser $ \(P.State pos end indent row col ctx) cok _ _ eerr ->
+subscription_ :: (Row -> Col -> x) -> Parser x ()
+subscription_ toError =
+  P.Parser $ \(P.State pos end indent row col) cok _ _ eerr ->
     let !pos12 = plusPtr pos 12 in
     if pos12 <= end
       && P.unsafeIndex (        pos   ) == 0x73
@@ -138,32 +137,32 @@ subscription_ =
       && P.unsafeIndex (plusPtr pos 11) == 0x6E
       && Var.getInnerWidth pos12 end == 0
     then
-      let !s = P.State pos12 end indent row (col + 12) ctx in cok () s
+      let !s = P.State pos12 end indent row (col + 12) in cok () s
     else
-      eerr row col ctx E.EffectStuff
+      eerr row col toError
 
 
 
 -- KEYWORDS
 
 
-k2 :: Word8 -> Word8 -> x -> P.Parser c x ()
-k2 w1 w2 x =
-  P.Parser $ \(P.State pos end indent row col ctx) cok _ _ eerr ->
+k2 :: Word8 -> Word8 -> (Row -> Col -> x) -> Parser x ()
+k2 w1 w2 toError =
+  P.Parser $ \(P.State pos end indent row col) cok _ _ eerr ->
     let !pos2 = plusPtr pos 2 in
     if pos2 <= end
       && P.unsafeIndex (        pos  ) == w1
       && P.unsafeIndex (plusPtr pos 1) == w2
       && Var.getInnerWidth pos2 end == 0
     then
-      let !s = P.State pos2 end indent row (col + 2) ctx in cok () s
+      let !s = P.State pos2 end indent row (col + 2) in cok () s
     else
-      eerr row col ctx x
+      eerr row col toError
 
 
-k3 :: Word8 -> Word8 -> Word8 -> x -> P.Parser c x ()
-k3 w1 w2 w3 x =
-  P.Parser $ \(P.State pos end indent row col ctx) cok _ _ eerr ->
+k3 :: Word8 -> Word8 -> Word8 -> (Row -> Col -> x) -> Parser x ()
+k3 w1 w2 w3 toError =
+  P.Parser $ \(P.State pos end indent row col) cok _ _ eerr ->
     let !pos3 = plusPtr pos 3 in
     if pos3 <= end
       && P.unsafeIndex (        pos  ) == w1
@@ -171,14 +170,14 @@ k3 w1 w2 w3 x =
       && P.unsafeIndex (plusPtr pos 2) == w3
       && Var.getInnerWidth pos3 end == 0
     then
-      let !s = P.State pos3 end indent row (col + 3) ctx in cok () s
+      let !s = P.State pos3 end indent row (col + 3) in cok () s
     else
-      eerr row col ctx x
+      eerr row col toError
 
 
-k4 :: Word8 -> Word8 -> Word8 -> Word8 -> x -> P.Parser c x ()
-k4 w1 w2 w3 w4 x =
-  P.Parser $ \(P.State pos end indent row col ctx) cok _ _ eerr ->
+k4 :: Word8 -> Word8 -> Word8 -> Word8 -> (Row -> Col -> x) -> Parser x ()
+k4 w1 w2 w3 w4 toError =
+  P.Parser $ \(P.State pos end indent row col) cok _ _ eerr ->
     let !pos4 = plusPtr pos 4 in
     if pos4 <= end
       && P.unsafeIndex (        pos  ) == w1
@@ -187,14 +186,14 @@ k4 w1 w2 w3 w4 x =
       && P.unsafeIndex (plusPtr pos 3) == w4
       && Var.getInnerWidth pos4 end == 0
     then
-      let !s = P.State pos4 end indent row (col + 4) ctx in cok () s
+      let !s = P.State pos4 end indent row (col + 4) in cok () s
     else
-      eerr row col ctx x
+      eerr row col toError
 
 
-k5 :: Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> x -> P.Parser c x ()
-k5 w1 w2 w3 w4 w5 x =
-  P.Parser $ \(P.State pos end indent row col ctx) cok _ _ eerr ->
+k5 :: Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> (Row -> Col -> x) -> Parser x ()
+k5 w1 w2 w3 w4 w5 toError =
+  P.Parser $ \(P.State pos end indent row col) cok _ _ eerr ->
     let !pos5 = plusPtr pos 5 in
     if pos5 <= end
       && P.unsafeIndex (        pos  ) == w1
@@ -204,14 +203,14 @@ k5 w1 w2 w3 w4 w5 x =
       && P.unsafeIndex (plusPtr pos 4) == w5
       && Var.getInnerWidth pos5 end == 0
     then
-      let !s = P.State pos5 end indent row (col + 5) ctx in cok () s
+      let !s = P.State pos5 end indent row (col + 5) in cok () s
     else
-      eerr row col ctx x
+      eerr row col toError
 
 
-k6 :: Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> x -> P.Parser c x ()
-k6 w1 w2 w3 w4 w5 w6 x =
-  P.Parser $ \(P.State pos end indent row col ctx) cok _ _ eerr ->
+k6 :: Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> (Row -> Col -> x) -> Parser x ()
+k6 w1 w2 w3 w4 w5 w6 toError =
+  P.Parser $ \(P.State pos end indent row col) cok _ _ eerr ->
     let !pos6 = plusPtr pos 6 in
     if pos6 <= end
       && P.unsafeIndex (        pos  ) == w1
@@ -222,14 +221,14 @@ k6 w1 w2 w3 w4 w5 w6 x =
       && P.unsafeIndex (plusPtr pos 5) == w6
       && Var.getInnerWidth pos6 end == 0
     then
-      let !s = P.State pos6 end indent row (col + 6) ctx in cok () s
+      let !s = P.State pos6 end indent row (col + 6) in cok () s
     else
-      eerr row col ctx x
+      eerr row col toError
 
 
-k7 :: Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> x -> P.Parser c x ()
-k7 w1 w2 w3 w4 w5 w6 w7 x =
-  P.Parser $ \(P.State pos end indent row col ctx) cok _ _ eerr ->
+k7 :: Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> (Row -> Col -> x) -> Parser x ()
+k7 w1 w2 w3 w4 w5 w6 w7 toError =
+  P.Parser $ \(P.State pos end indent row col) cok _ _ eerr ->
     let !pos7 = plusPtr pos 7 in
     if pos7 <= end
       && P.unsafeIndex (        pos  ) == w1
@@ -241,14 +240,14 @@ k7 w1 w2 w3 w4 w5 w6 w7 x =
       && P.unsafeIndex (plusPtr pos 6) == w7
       && Var.getInnerWidth pos7 end == 0
     then
-      let !s = P.State pos7 end indent row (col + 7) ctx in cok () s
+      let !s = P.State pos7 end indent row (col + 7) in cok () s
     else
-      eerr row col ctx x
+      eerr row col toError
 
 
-k8 :: Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> x -> P.Parser c x ()
-k8 w1 w2 w3 w4 w5 w6 w7 w8 x =
-  P.Parser $ \(P.State pos end indent row col ctx) cok _ _ eerr ->
+k8 :: Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> (Row -> Col -> x) -> Parser x ()
+k8 w1 w2 w3 w4 w5 w6 w7 w8 toError =
+  P.Parser $ \(P.State pos end indent row col) cok _ _ eerr ->
     let !pos8 = plusPtr pos 8 in
     if pos8 <= end
       && P.unsafeIndex (        pos  ) == w1
@@ -261,6 +260,6 @@ k8 w1 w2 w3 w4 w5 w6 w7 w8 x =
       && P.unsafeIndex (plusPtr pos 7) == w8
       && Var.getInnerWidth pos8 end == 0
     then
-      let !s = P.State pos8 end indent row (col + 8) ctx in cok () s
+      let !s = P.State pos8 end indent row (col + 8) in cok () s
     else
-      eerr row col ctx x
+      eerr row col toError

@@ -17,57 +17,55 @@ module Parse.Variable
 import qualified Data.Char as Char
 import qualified Data.Name as Name
 import qualified Data.Set as Set
-import Data.Word (Word8, Word16)
+import Data.Word (Word8)
 import Foreign.Ptr (Ptr, plusPtr)
 import GHC.Exts (Char(C#), Int#, (+#), (-#), chr#, uncheckedIShiftL#, word2Int#)
 import GHC.Word (Word8(W8#))
 
 import qualified AST.Source as Src
-import Parse.Utils (Parser)
-import Parse.Primitives (unsafeIndex)
+import Parse.Primitives (Parser, Row, Col, unsafeIndex)
 import qualified Parse.Primitives as P
-import qualified Reporting.Error.Syntax as E
 
 
 
 -- LOCAL UPPER
 
 
-upper :: Parser Name.Name
-upper =
-  P.Parser $ \(P.State pos end indent row col ctx) cok _ _ eerr ->
+upper :: (Row -> Col -> x) -> Parser x Name.Name
+upper toError =
+  P.Parser $ \(P.State pos end indent row col) cok _ _ eerr ->
     let (# newPos, newCol #) = chompUpper pos end col in
     if pos == newPos then
-      eerr row col ctx E.Upper
+      eerr row col toError
     else
       let !name = Name.fromPtr pos newPos in
-      cok name (P.State newPos end indent row newCol ctx)
+      cok name (P.State newPos end indent row newCol)
 
 
 
 -- LOCAL LOWER
 
 
-lower :: Parser Name.Name
-lower =
-  P.Parser $ \(P.State pos end indent row col ctx) cok _ _ eerr ->
+lower :: (Row -> Col -> x) -> Parser x Name.Name
+lower toError =
+  P.Parser $ \(P.State pos end indent row col) cok _ _ eerr ->
     let (# newPos, newCol #) = chompLower pos end col in
     if pos == newPos then
-      eerr row col ctx E.Lower
+      eerr row col toError
     else
       let !name = Name.fromPtr pos newPos in
       if Set.member name reservedWords then
-        eerr row col ctx E.Lower
+        eerr row col toError
       else
         let
           !newState =
-            P.State newPos end indent row newCol ctx
+            P.State newPos end indent row newCol
         in
         cok name newState
 
 
 {-# NOINLINE reservedWords #-}
-reservedWords :: Set.Set Name.Name
+reservedWords :: Set.Set Name.Name  -- TODO try using a trie instead
 reservedWords =
   Set.fromList
     [ "if", "then", "else"
@@ -85,9 +83,9 @@ reservedWords =
 -- MODULE NAME
 
 
-moduleName :: Parser Name.Name
-moduleName =
-  P.Parser $ \(P.State pos end indent row col ctx) cok _ _ eerr ->
+moduleName :: (Row -> Col -> x) -> Parser x Name.Name
+moduleName toError =
+  P.Parser $ \(P.State pos end indent row col) cok _ _ eerr ->
     let
       (# pos1, col1 #) = chompUpper pos end col
       (# status, newPos, newCol #) = moduleNameHelp pos1 end col1
@@ -96,12 +94,12 @@ moduleName =
       Good ->
         let
           !name = Name.fromPtr pos newPos
-          !newState = P.State newPos end indent row newCol ctx
+          !newState = P.State newPos end indent row newCol
         in
         cok name newState
 
       Bad ->
-        eerr row newCol ctx E.ModuleName
+        eerr row newCol toError
 
 
 data ModuleNameStatus
@@ -109,7 +107,7 @@ data ModuleNameStatus
   | Bad
 
 
-moduleNameHelp :: Ptr Word8 -> Ptr Word8 -> Word16 -> (# ModuleNameStatus, Ptr Word8, Word16 #)
+moduleNameHelp :: Ptr Word8 -> Ptr Word8 -> Col -> (# ModuleNameStatus, Ptr Word8, Col #)
 moduleNameHelp pos end col =
   if isDot pos end then
     let
@@ -134,15 +132,15 @@ data Upper
   | Qualified Name.Name Name.Name
 
 
-foreignUpper :: Parser Upper
-foreignUpper =
-  P.Parser $ \(P.State pos end indent row col ctx) cok _ _ eerr ->
+foreignUpper :: (Row -> Col -> x) -> Parser x Upper
+foreignUpper toError =
+  P.Parser $ \(P.State pos end indent row col) cok _ _ eerr ->
     let (# upperStart, upperEnd, newCol #) = foreignUpperHelp pos end col in
     if upperStart == upperEnd then
-      eerr row newCol ctx E.Upper
+      eerr row newCol toError
     else
       let
-        !newState = P.State upperEnd end indent row newCol ctx
+        !newState = P.State upperEnd end indent row newCol
         !name = Name.fromPtr upperStart upperEnd
         !foreign =
           if upperStart == pos then
@@ -154,7 +152,7 @@ foreignUpper =
       cok foreign newState
 
 
-foreignUpperHelp :: Ptr Word8 -> Ptr Word8 -> Word16 -> (# Ptr Word8, Ptr Word8, Word16 #)
+foreignUpperHelp :: Ptr Word8 -> Ptr Word8 -> Col -> (# Ptr Word8, Ptr Word8, Col #)
 foreignUpperHelp pos end col =
   let
     (# newPos, newCol #) = chompUpper pos end col
@@ -173,20 +171,20 @@ foreignUpperHelp pos end col =
 -- FOREIGN ALPHA
 
 
-foreignAlpha :: Parser Src.Expr_
-foreignAlpha =
-  P.Parser $ \(P.State pos end indent row col ctx) cok _ _ eerr ->
+foreignAlpha :: (Row -> Col -> x) -> Parser x Src.Expr_
+foreignAlpha toError =
+  P.Parser $ \(P.State pos end indent row col) cok _ _ eerr ->
     let (# alphaStart, alphaEnd, newCol, varType #) = foreignAlphaHelp pos end col in
     if alphaStart == alphaEnd then
-      eerr row newCol ctx E.Alpha
+      eerr row newCol toError
     else
       let
-        !newState = P.State alphaEnd end indent row newCol ctx
+        !newState = P.State alphaEnd end indent row newCol
         !name = Name.fromPtr alphaStart alphaEnd
       in
       if alphaStart == pos then
         if Set.member name reservedWords then
-          eerr row col ctx E.Alpha
+          eerr row col toError
         else
           cok (Src.Var varType name) newState
       else
@@ -194,7 +192,7 @@ foreignAlpha =
         cok (Src.VarQual varType home name) newState
 
 
-foreignAlphaHelp :: Ptr Word8 -> Ptr Word8 -> Word16 -> (# Ptr Word8, Ptr Word8, Word16, Src.VarType #)
+foreignAlphaHelp :: Ptr Word8 -> Ptr Word8 -> Col -> (# Ptr Word8, Ptr Word8, Col, Src.VarType #)
 foreignAlphaHelp pos end col =
   let
     (# lowerPos, lowerCol #) = chompLower pos end col
@@ -234,7 +232,7 @@ isDot pos end =
 -- UPPER CHARS
 
 
-chompUpper :: Ptr Word8 -> Ptr Word8 -> Word16 -> (# Ptr Word8, Word16 #)
+chompUpper :: Ptr Word8 -> Ptr Word8 -> Col -> (# Ptr Word8, Col #)
 chompUpper pos end col =
   let !width = getUpperWidth pos end in
   if width == 0 then
@@ -267,7 +265,7 @@ getUpperWidthHelp pos _ word
 -- LOWER CHARS
 
 
-chompLower :: Ptr Word8 -> Ptr Word8 -> Word16 -> (# Ptr Word8, Word16 #)
+chompLower :: Ptr Word8 -> Ptr Word8 -> Col -> (# Ptr Word8, Col #)
 chompLower pos end col =
   let !width = getLowerWidth pos end in
   if width == 0 then
@@ -300,7 +298,7 @@ getLowerWidthHelp pos _ word
 -- INNER CHARS
 
 
-chompInnerChars :: Ptr Word8 -> Ptr Word8 -> Word16 -> (# Ptr Word8, Word16 #)
+chompInnerChars :: Ptr Word8 -> Ptr Word8 -> Col -> (# Ptr Word8, Col #)
 chompInnerChars !pos end !col =
   let !width = getInnerWidth pos end in
   if width == 0 then

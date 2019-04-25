@@ -2,7 +2,7 @@
 {-# LANGUAGE BangPatterns, UnboxedTuples, OverloadedStrings #-}
 module Parse.Symbol
   ( wildcard
-  , binop
+  , operator
   )
   where
 
@@ -14,7 +14,7 @@ import qualified Data.Vector as Vector
 import Foreign.Ptr (Ptr, plusPtr, minusPtr)
 import GHC.Word (Word8)
 
-import Parse.Utils
+import Parse.Primitives (Parser, Row, Col)
 import qualified Parse.Variable as Var
 import qualified Parse.Primitives as P
 import qualified Reporting.Error.Syntax as E
@@ -24,11 +24,11 @@ import qualified Reporting.Error.Syntax as E
 -- UNDERSCORE
 
 
-wildcard :: Parser ()
+wildcard :: Parser E.Pattern ()
 wildcard =
-  P.Parser $ \(P.State pos end indent row col ctx) cok _ cerr eerr ->
+  P.Parser $ \(P.State pos end indent row col) cok _ cerr eerr ->
     if pos == end || P.unsafeIndex pos /= 0x5F {- _ -} then
-      eerr row col ctx E.Wildcard
+      eerr row col E.PStart
     else
       let
         !newPos = plusPtr pos 1
@@ -36,34 +36,34 @@ wildcard =
       in
       if Var.getInnerWidth newPos end > 0 then
         let (# _, badCol #) = Var.chompInnerChars newPos end newCol in
-        cerr row col ctx (E.WildcardNotVar newCol badCol)
+        cerr row col (E.PWildcardNotVar (fromIntegral (badCol - col)))
       else
-        let !newState = P.State newPos end indent row newCol ctx in
+        let !newState = P.State newPos end indent row newCol in
         cok () newState
 
 
 
--- BINOP
+-- OPERATOR
 
 
-binop :: Parser Name.Name
-binop =
-  P.Parser $ \(P.State pos end indent row col ctx) cok _ cerr eerr ->
+operator :: (Row -> Col -> x) -> (E.Operator -> Row -> Col -> x) -> Parser x Name.Name
+operator toExpectation toError =
+  P.Parser $ \(P.State pos end indent row col) cok _ cerr eerr ->
     let !newPos = chompOps pos end in
     if pos == newPos then
-      eerr row col ctx E.XXX
+      eerr row col toExpectation
 
     else
       case Name.fromPtr pos newPos of
-        "."  -> cerr row col ctx (E.ReservedOperator E.Dot)
-        "|"  -> cerr row col ctx (E.ReservedOperator E.Pipe)
-        "->" -> cerr row col ctx (E.ReservedOperator E.Arrow)
-        "="  -> cerr row col ctx (E.ReservedOperator E.Equals)
-        ":"  -> cerr row col ctx (E.ReservedOperator E.HasType)
+        "."  -> cerr row col (toError E.OpDot)
+        "|"  -> cerr row col (toError E.OpPipe)
+        "->" -> cerr row col (toError E.OpArrow)
+        "="  -> cerr row col (toError E.OpEquals)
+        ":"  -> cerr row col (toError E.OpHasType)
         op   ->
           let
             !newCol = col + fromIntegral (minusPtr newPos pos)
-            !newState = P.State newPos end indent row newCol ctx
+            !newState = P.State newPos end indent row newCol
           in
           cok op newState
 

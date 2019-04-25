@@ -10,8 +10,8 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Name as Name
 import qualified Data.Utf8 as Utf8
-import Data.Word (Word8, Word16)
-import Foreign.Ptr (Ptr, plusPtr, minusPtr)
+import Data.Word (Word8)
+import Foreign.Ptr (Ptr, plusPtr)
 import qualified Language.GLSL.Parser as GLP
 import qualified Language.GLSL.Syntax as GLS
 import qualified Text.Parsec as Parsec
@@ -19,7 +19,7 @@ import qualified Text.Parsec.Error as Parsec
 
 import qualified AST.Source as Src
 import qualified AST.Utils.Shader as Shader
-import Parse.Utils (Parser)
+import Parse.Primitives (Parser, Row, Col)
 import qualified Parse.Primitives as P
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as E
@@ -29,7 +29,7 @@ import qualified Reporting.Error.Syntax as E
 -- SHADER
 
 
-shader :: A.Position -> Parser Src.Expr
+shader :: A.Position -> Parser E.Expr Src.Expr
 shader start@(A.Position row col) =
   do  block <- parseBlock
       shdr <- parseGlsl row col block
@@ -42,9 +42,9 @@ shader start@(A.Position row col) =
 -- BLOCK
 
 
-parseBlock :: Parser String
+parseBlock :: Parser E.Expr String
 parseBlock =
-  P.Parser $ \(P.State pos end indent row col ctx) cok _ cerr eerr ->
+  P.Parser $ \(P.State pos end indent row col) cok _ cerr eerr ->
     let
       !pos6 = plusPtr pos 6
     in
@@ -63,17 +63,17 @@ parseBlock =
       case status of
         Good ->
           let
-            !size = minusPtr newPos pos
-            !block = error "TODO get a GLSL block" size
-            !newState = P.State (plusPtr newPos 2) end indent newRow newCol ctx
+            !block = Utf8.fromPtr pos newPos
+            !source = Utf8.toChars block
+            !newState = P.State (plusPtr newPos 2) end indent newRow newCol
           in
-          cok block newState
+          cok source newState
 
         Unending ->
-          cerr row col ctx (E.ShaderEnd col (col + 6))
+          cerr row col E.EndlessShader
 
     else
-      eerr row col ctx E.ShaderStart
+      eerr row col E.Start
 
 
 data Status
@@ -81,7 +81,7 @@ data Status
   | Unending
 
 
-eatShader :: Ptr Word8 -> Ptr Word8 -> Word16 -> Word16 -> (# Status, Ptr Word8, Word16, Word16 #)
+eatShader :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> (# Status, Ptr Word8, Row, Col #)
 eatShader pos end row col =
   if pos >= end then
     (# Unending, pos, row, col #)
@@ -103,7 +103,7 @@ eatShader pos end row col =
 -- GLSL
 
 
-parseGlsl :: Word16 -> Word16 -> String -> Parser Shader.Types
+parseGlsl :: Row -> Col -> String -> Parser E.Expr Shader.Types
 parseGlsl startRow startCol src =
   case GLP.parse src of
     Right (GLS.TranslationUnit decls) ->
@@ -128,10 +128,10 @@ parseGlsl startRow startCol src =
         else failure (startRow + row - 1) col msg
 
 
-failure :: Word16 -> Word16 -> String -> Parser a
+failure :: Row -> Col -> String -> Parser E.Expr a
 failure row col msg =
-  P.Parser $ \(P.State _ _ _ _ _ ctx) _ _ cerr _ ->
-    cerr row col ctx (E.ShaderProblem msg)
+  P.Parser $ \(P.State _ _ _ _ _) _ _ cerr _ ->
+    cerr row col (E.ShaderProblem msg)
 
 
 

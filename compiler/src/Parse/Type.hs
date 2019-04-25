@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Parse.Type
   ( expression
-  , unionConstructor
+  , variant
   )
   where
 
@@ -10,8 +10,8 @@ module Parse.Type
 import qualified Data.Name as Name
 
 import qualified AST.Source as Src
-import Parse.Primitives (addLocation, getPosition, inContext, oneOf, word1, word2)
-import Parse.Utils (Parser, SParser, SPos, checkSpace, spaces, whitespace)
+import Parse.Primitives (Parser, addLocation, addEnd, getPosition, inContext, specialize, oneOf, oneOfWithFallback, word1, word2)
+import qualified Parse.Space as Space
 import qualified Parse.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as E
@@ -21,13 +21,13 @@ import qualified Reporting.Error.Syntax as E
 -- TYPE TERMS
 
 
-term :: Parser Src.Type
+term :: Parser E.Type Src.Type
 term =
   do  start <- getPosition
-      oneOf E.XXX
+      oneOf E.TStart
         [
           -- types with no arguments (Int, Float, etc.)
-          do  upper <- Var.foreignUpper
+          do  upper <- Var.foreignUpper E.TStart
               end <- getPosition
               let region = A.Region start end
               return $ A.At region $
@@ -39,45 +39,40 @@ term =
                     Src.TTypeQual region home name []
         ,
           -- type variables
-          do  var <- Var.lower
-              end <- getPosition
-              return (A.at start end (Src.TVar var))
+          do  var <- Var.lower E.TStart
+              addEnd start (Src.TVar var)
         ,
           -- tuples
-          inContext E.TypeTuple (word1 0x28 {-(-} E.XXX) $
-            oneOf E.XXX
-              [ do  word1 0x29 {-)-} E.XXX
-                    end <- getPosition
-                    return (A.at start end Src.TUnit)
-              , do  spaces
-                    (tipe, _, pos) <- expression
-                    checkSpace pos
-                    tupleEnding start tipe []
+          inContext E.TTuple (word1 0x28 {-(-} E.TStart) $
+            oneOf E.TTupleOpen
+              [ do  word1 0x29 {-)-} E.TTupleOpen
+                    addEnd start Src.TUnit
+              , do  Space.chompAndCheckIndent E.TTupleSpace E.TTupleIndentType
+                    (tipe, end) <- specialize E.TTupleType expression
+                    Space.checkIndent end E.TTupleIndentEnd
+                    chompTupleEnd start tipe []
               ]
         ,
           -- records
-          inContext E.TypeRecord (word1 0x7B {- { -} E.XXX) $
-            do  spaces
-                oneOf E.XXX
-                  [ do  word1 0x7D {-}-} E.XXX
-                        end <- getPosition
-                        return (A.at start end (Src.TRecord [] Nothing))
-                  , do  var <- addLocation Var.lower
-                        spaces
-                        oneOf E.XXX
-                          [ do  word1 0x7C {-|-} E.XXX
-                                spaces
-                                firstField <- field
-                                fields <- chompFields [firstField]
-                                end <- getPosition
-                                return (A.at start end (Src.TRecord fields (Just var)))
-                          , do  word1 0x3A {-:-} E.XXX
-                                spaces
-                                (tipe, _, nextPos) <- expression
-                                checkSpace nextPos
-                                fields <- chompFields [(var, tipe)]
-                                end <- getPosition
-                                return (A.at start end (Src.TRecord fields Nothing))
+          inContext E.TRecord (word1 0x7B {- { -} E.TStart) $
+            do  Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentOpen
+                oneOf E.TRecordOpen
+                  [ do  word1 0x7D {-}-} E.TRecordEnd
+                        addEnd start (Src.TRecord [] Nothing)
+                  , do  name <- addLocation (Var.lower E.TRecordField)
+                        Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentColon
+                        oneOf E.TRecordColon
+                          [ do  word1 0x7C {-|-} E.TRecordColon
+                                Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentField
+                                field <- chompField
+                                fields <- chompRecordEnd [field]
+                                addEnd start (Src.TRecord fields (Just name))
+                          , do  word1 0x3A {-:-} E.TRecordColon
+                                Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentType
+                                (tipe, end) <- specialize E.TRecordType expression
+                                Space.checkIndent end E.TRecordIndentEnd
+                                fields <- chompRecordEnd [(name, tipe)]
+                                addEnd start (Src.TRecord fields Nothing)
                           ]
                   ]
         ]
@@ -87,37 +82,40 @@ term =
 -- TYPE EXPRESSIONS
 
 
-expression :: SParser Src.Type
+expression :: Space.Parser E.Type Src.Type
 expression =
   do  start <- getPosition
-      (tipe1, end1, pos1) <-
-        oneOf E.XXX
+      term1@(tipe1, end1) <-
+        oneOf E.TStart
           [ app start
-          , (,,) <$> term <*> getPosition <*> whitespace
+          , do  eterm <- term
+                end <- getPosition
+                Space.chomp E.TSpace
+                return (eterm, end)
           ]
-      oneOf E.XXX
-        [ do  checkSpace pos1
-              word2 0x2D 0x3E {-->-} E.XXX
-              spaces
-              (tipe2, end2, pos2) <- expression
+      oneOfWithFallback
+        [ do  Space.checkIndent end1 E.TIndentStart -- should never trigger
+              word2 0x2D 0x3E {-->-} E.TArrow
+              Space.chompAndCheckIndent E.TSpace E.TIndentStart
+              (tipe2, end2) <- expression
               let tipe = A.at start end2 (Src.TLambda tipe1 tipe2)
-              return ( tipe, end2, pos2 )
-        , return ( tipe1, end1, pos1 )
+              return ( tipe, end2 )
         ]
+        term1
 
 
 
 -- TYPE CONSTRUCTORS
 
 
-app :: A.Position -> SParser Src.Type
+app :: A.Position -> Space.Parser E.Type Src.Type
 app start =
-  do  upper <- Var.foreignUpper
-      nameEnd <- getPosition
-      namePos <- whitespace
-      (args, end, pos) <- eatArgs [] nameEnd namePos
+  do  upper <- Var.foreignUpper E.TStart
+      upperEnd <- getPosition
+      Space.chomp E.TSpace
+      (args, end) <- chompArgs [] upperEnd
 
-      let region = A.Region start nameEnd
+      let region = A.Region start upperEnd
       let tipe =
             case upper of
               Var.Unqualified name ->
@@ -126,52 +124,40 @@ app start =
               Var.Qualified home name ->
                 Src.TTypeQual region home name args
 
-      return ( A.at start end tipe, end, pos )
+      return ( A.at start end tipe, end )
 
 
-unionConstructor :: SParser (A.Located Name.Name, [Src.Type])
-unionConstructor =
-  do  start <- getPosition
-      name <- Var.upper
-      nameEnd <- getPosition
-      namePos <- whitespace
-      (args, end, pos) <- eatArgs [] nameEnd namePos
-      return ( (A.at start nameEnd name, args), end, pos )
-
-
-eatArgs :: [Src.Type] -> A.Position -> SPos -> SParser [Src.Type]
-eatArgs args end pos =
-  oneOf E.XXX
-    [ do  checkSpace pos
+chompArgs :: [Src.Type] -> A.Position -> Space.Parser E.Type [Src.Type]
+chompArgs args end =
+  oneOfWithFallback
+    [ do  Space.checkIndent end E.TIndentStart
           arg <- term
           newEnd <- getPosition
-          newSpace <- whitespace
-          eatArgs (arg:args) newEnd newSpace
-    , return ( reverse args, end, pos )
+          Space.chomp E.TSpace
+          chompArgs (arg:args) newEnd
     ]
+    (reverse args, end)
 
 
 
 -- TUPLES
 
 
-tupleEnding :: A.Position -> Src.Type -> [Src.Type] -> Parser Src.Type
-tupleEnding start firstType revTypes =
-  oneOf E.XXX
-    [ do  word1 0x2C {-,-} E.XXX
-          spaces
-          (tipe, _, pos) <- expression
-          checkSpace pos
-          tupleEnding start firstType (tipe : revTypes)
-    , do  word1 0x29 {-)-} E.XXX
-          end <- getPosition
+chompTupleEnd :: A.Position -> Src.Type -> [Src.Type] -> Parser E.TTuple Src.Type
+chompTupleEnd start firstType revTypes =
+  oneOf E.TTupleEnd
+    [ do  word1 0x2C {-,-} E.TTupleEnd
+          Space.chompAndCheckIndent E.TTupleSpace E.TTupleIndentType
+          (tipe, end) <- specialize E.TTupleType expression
+          Space.checkIndent end E.TTupleIndentEnd
+          chompTupleEnd start firstType (tipe : revTypes)
+    , do  word1 0x29 {-)-} E.TTupleEnd
           case reverse revTypes of
             [] ->
               return firstType
 
             secondType : otherTypes ->
-              return $ A.at start end $
-                Src.TTuple firstType secondType otherTypes
+              addEnd start (Src.TTuple firstType secondType otherTypes)
     ]
 
 
@@ -182,24 +168,41 @@ tupleEnding start firstType revTypes =
 type Field = ( A.Located Name.Name, Src.Type )
 
 
-chompFields :: [Field] -> Parser [Field]
-chompFields fields =
-  oneOf E.XXX
-    [ do  word1 0x2C {-,-} E.XXX
-          spaces
-          f <- field
-          chompFields (f : fields)
-    , do  word1 0x7D {-}-} E.XXX
+chompRecordEnd :: [Field] -> Parser E.TRecord [Field]
+chompRecordEnd fields =
+  oneOf E.TRecordEnd
+    [ do  word1 0x2C {-,-} E.TRecordEnd
+          Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentField
+          field <- chompField
+          chompRecordEnd (field : fields)
+    , do  word1 0x7D {-}-} E.TRecordEnd
           return (reverse fields)
     ]
 
 
-field :: Parser Field
-field =
-  do  name <- addLocation Var.lower
-      spaces
-      word1 0x3A {-:-} E.XXX
-      spaces
-      (tipe, _, endPos) <- expression
-      checkSpace endPos
+chompField :: Parser E.TRecord Field
+chompField =
+  do  name <- addLocation (Var.lower E.TRecordField)
+      Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentColon
+      word1 0x3A {-:-} E.TRecordColon
+      Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentType
+      (tipe, end) <- specialize E.TRecordType expression
+      Space.checkIndent end E.TRecordIndentEnd
       return (name, tipe)
+
+
+
+-- VARIANT
+
+
+variant :: Space.Parser E.CustomType (A.Located Name.Name, [Src.Type])
+variant =
+  do  start <- getPosition
+      name <- Var.upper E.CT_Variant
+      nameEnd <- getPosition
+      Space.chomp E.CT_Space
+      (args, end) <- specialize E.CT_Type (chompArgs [] nameEnd)
+      return
+        ( (A.at start nameEnd name, args)
+        , end
+        )

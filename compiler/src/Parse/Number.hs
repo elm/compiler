@@ -16,7 +16,7 @@ import Data.Word (Word8)
 import Foreign.Ptr (Ptr, plusPtr, minusPtr)
 
 import qualified AST.Utils.Binop as Binop
-import Parse.Utils (Parser)
+import Parse.Primitives (Parser, Row, Col)
 import qualified Parse.Variable as Var
 import qualified Parse.Primitives as P
 import qualified Reporting.Error.Syntax as E
@@ -46,16 +46,16 @@ data Number
   | Float (Utf8.Under256 Float)
 
 
-number :: Parser Number
-number =
-  P.Parser $ \(P.State pos end indent row col ctx) cok _ cerr eerr ->
+number :: (Row -> Col -> x) -> (E.Number -> Row -> Col -> x) -> Parser x Number
+number toExpectation toError =
+  P.Parser $ \(P.State pos end indent row col) cok _ cerr eerr ->
     if pos >= end then
-      eerr row col ctx E.Number_Start
+      eerr row col toExpectation
 
     else
       let !word = P.unsafeIndex pos in
       if not (isDecimalDigit word) then
-        eerr row col ctx E.Number_Start
+        eerr row col toExpectation
 
       else
         let
@@ -70,13 +70,13 @@ number =
               let
                 !newCol = col + fromIntegral (minusPtr newPos pos)
               in
-              cerr row newCol ctx problem
+              cerr row newCol (toError problem)
 
             OkInt newPos n ->
               let
                 !newCol = col + fromIntegral (minusPtr newPos pos)
                 !integer = Int n
-                !newState = P.State newPos end indent row newCol ctx
+                !newState = P.State newPos end indent row newCol
               in
               cok integer newState
 
@@ -85,7 +85,7 @@ number =
                 !newCol = col + fromIntegral (minusPtr newPos pos)
                 !copy = Utf8.fromPtr pos newPos
                 !float = Float copy
-                !newState = P.State newPos end indent row newCol ctx
+                !newState = P.State newPos end indent row newCol
               in
               cok float newState
 
@@ -97,7 +97,7 @@ number =
 -- first Int is newPos
 --
 data Outcome
-  = Err (Ptr Word8) E.Expectation
+  = Err (Ptr Word8) E.Number
   | OkInt (Ptr Word8) Int
   | OkFloat (Ptr Word8)
 
@@ -127,7 +127,7 @@ chompInt !pos end !n =
         chompExponent (plusPtr pos 1) end
 
       else if isDirtyEnd pos end word then
-        Err pos E.Number_End
+        Err pos E.NumberEnd
 
       else
         OkInt pos n
@@ -140,13 +140,13 @@ chompInt !pos end !n =
 chompFraction :: Ptr Word8 -> Ptr Word8 -> Int -> Outcome
 chompFraction pos end n =
   if pos >= end then
-    Err pos (E.Number_Dot n)
+    Err pos (E.NumberDot n)
 
   else if isDecimalDigit (P.unsafeIndex pos) then
     chompFractionHelp (plusPtr pos 1) end
 
   else
-    Err pos (E.Number_Dot n)
+    Err pos (E.NumberDot n)
 
 
 chompFractionHelp :: Ptr Word8 -> Ptr Word8 -> Outcome
@@ -163,7 +163,7 @@ chompFractionHelp pos end =
       chompExponent (plusPtr pos 1) end
 
     else if isDirtyEnd pos end word then
-      Err pos E.Number_End
+      Err pos E.NumberEnd
 
     else
       OkFloat pos
@@ -176,7 +176,7 @@ chompFractionHelp pos end =
 chompExponent :: Ptr Word8 -> Ptr Word8 -> Outcome
 chompExponent pos end =
   if pos >= end then
-    Err pos E.Number_End
+    Err pos E.NumberEnd
 
   else
     let !word = P.unsafeIndex pos in
@@ -189,10 +189,10 @@ chompExponent pos end =
       if pos1 < end && isDecimalDigit (P.unsafeIndex pos1) then
         chompExponentHelp (plusPtr pos 2) end
       else
-        Err pos E.Number_End
+        Err pos E.NumberEnd
 
     else
-      Err pos E.Number_End
+      Err pos E.NumberEnd
 
 
 chompExponentHelp :: Ptr Word8 -> Ptr Word8 -> Outcome
@@ -225,10 +225,10 @@ chompZero pos end =
       chompFraction (plusPtr pos 1) end 0
 
     else if isDecimalDigit word then
-      Err pos E.Number_NoLeadingZero
+      Err pos E.NumberNoLeadingZero
 
     else if isDirtyEnd pos end word then
-      Err pos E.Number_End
+      Err pos E.NumberEnd
 
     else
       OkInt pos 0
@@ -238,7 +238,7 @@ chompHexInt :: Ptr Word8 -> Ptr Word8 -> Outcome
 chompHexInt pos end =
   let (# newPos, answer #) = chompHex pos end in
   if answer < 0 then
-    Err newPos E.Number_HexDigit
+    Err newPos E.NumberHexDigit
   else
     OkInt newPos answer
 
@@ -285,18 +285,18 @@ stepHex pos end word acc
 -- PRECEDENCE
 
 
-precedence :: Parser Binop.Precedence
+precedence :: Parser E.Infix Binop.Precedence
 precedence =
-  P.Parser $ \(P.State pos end indent row col ctx) cok _ _ eerr ->
+  P.Parser $ \(P.State pos end indent row col) cok _ _ eerr ->
     if pos >= end then
-      eerr row col ctx E.Precedence
+      eerr row col E.Precedence
 
     else
       let !word = P.unsafeIndex pos in
       if isDecimalDigit word then
         cok
           (Binop.Precedence (fromIntegral (word - 0x30 {-0-})))
-          (P.State (plusPtr pos 1) end indent row (col + 1) ctx)
+          (P.State (plusPtr pos 1) end indent row (col + 1))
 
       else
-        eerr row col ctx E.Precedence
+        eerr row col E.Precedence
