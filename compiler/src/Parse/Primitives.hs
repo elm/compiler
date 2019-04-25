@@ -5,11 +5,12 @@ module Parse.Primitives
   , fromByteString
   , Parser(..)
   , State(..)
-  , Context(..)
-  , oneOf
-  , pushContext, popContext, inContext
-  , getPosition, getCol, addLocation
-  , getIndent, setIndent
+  , Row
+  , Col
+  , oneOf, oneOfWithFallback
+  , inContext, specialize
+  , getPosition, getCol, addLocation, addEnd
+  , getIndent, setIndent, withIndent, withBacksetIndent
   , word1, word2
   , unsafeIndex, isWord, getCharWidth
   )
@@ -32,39 +33,37 @@ import qualified Reporting.Annotation as A
 -- PARSER
 
 
-newtype Parser c x a =
+newtype Parser x a =
   Parser (
     forall b.
-      State c
-      -> (a -> State c -> b)                        -- consumed ok
-      -> (a -> State c -> b)                        -- empty ok
-      -> (Word16 -> Word16 -> Context c -> x -> b)  -- consumed err
-      -> (Word16 -> Word16 -> Context c -> x -> b)  -- empty err
+      State
+      -> (a -> State -> b)                       -- consumed ok
+      -> (a -> State -> b)                       -- empty ok
+      -> (Row -> Col -> (Row -> Col -> x) -> b)  -- consumed err
+      -> (Row -> Col -> (Row -> Col -> x) -> b)  -- empty err
       -> b
   )
 
 
-data State c =
+data State = -- TODO try adding UNPACK to everything
   State
     { _pos :: !(Ptr Word8)
     , _end :: !(Ptr Word8)
     , _indent :: !Word16
-    , _row :: !Word16
-    , _col :: !Word16
-    , _context :: Context c
+    , _row :: !Row
+    , _col :: !Col
     }
 
 
-data Context c
-  = NoContext
-  | Frame {-# UNPACK #-} !Word16 {-# UNPACK #-} !Word16 c (Context c)
+type Row = Word16
+type Col = Word16
 
 
 
 -- FUNCTOR
 
 
-instance Functor (Parser c x) where
+instance Functor (Parser x) where
   {-# INLINE fmap #-}
   fmap f (Parser parser) =
     Parser $ \state cok eok cerr eerr ->
@@ -79,7 +78,7 @@ instance Functor (Parser c x) where
 -- APPLICATIVE
 
 
-instance Applicative.Applicative (Parser c x) where
+instance Applicative.Applicative (Parser x) where
   {-# INLINE pure #-}
   pure = return
 
@@ -92,42 +91,74 @@ instance Applicative.Applicative (Parser c x) where
 
 
 {-# INLINE oneOf #-}
-oneOf :: x -> [Parser c x a] -> Parser c x a
-oneOf x parsers =
+oneOf :: (Row -> Col -> x) -> [Parser x a] -> Parser x a
+oneOf toError parsers =
   Parser $ \state cok eok cerr eerr ->
-    oneOfHelp state cok eok cerr eerr x parsers
+    oneOfHelp state cok eok cerr eerr toError parsers
 
 
 oneOfHelp
-  :: State c
-  -> (a -> State c -> b)
-  -> (a -> State c -> b)
-  -> (Word16 -> Word16 -> Context c -> x -> b)
-  -> (Word16 -> Word16 -> Context c -> x -> b)
-  -> x
-  -> [Parser c x a]
+  :: State
+  -> (a -> State -> b)
+  -> (a -> State -> b)
+  -> (Row -> Col -> (Row -> Col -> x) -> b)
+  -> (Row -> Col -> (Row -> Col -> x) -> b)
+  -> (Row -> Col -> x)
+  -> [Parser x a]
   -> b
-oneOfHelp state cok eok cerr eerr x parsers =
+oneOfHelp state cok eok cerr eerr toError parsers =
   case parsers of
     Parser parser : parsers ->
       let
-        eerr' _ _ _ _ =
-          oneOfHelp state cok eok cerr eerr x parsers
+        eerr' _ _ _ =
+          oneOfHelp state cok eok cerr eerr toError parsers
       in
       parser state cok eok cerr eerr'
 
     [] ->
       let
-        (State _ _ _ row col ctx) = state
+        (State _ _ _ row col) = state
       in
-      eerr row col ctx x
+      eerr row col toError
+
+
+
+-- ONE OF WITH FALLBACK
+
+
+{-# INLINE oneOfWithFallback #-}
+oneOfWithFallback :: [Parser x a] -> a -> Parser x a -- TODO is this function okay? Worried about allocation/laziness with fallback values.
+oneOfWithFallback parsers fallback =
+  Parser $ \state cok eok cerr _ ->
+    oowfHelp state cok eok cerr parsers fallback
+
+
+oowfHelp
+  :: State
+  -> (a -> State -> b)
+  -> (a -> State -> b)
+  -> (Row -> Col -> (Row -> Col -> x) -> b)
+  -> [Parser x a]
+  -> a
+  -> b
+oowfHelp state cok eok cerr parsers fallback =
+  case parsers of
+    [] ->
+      eok fallback state
+
+    Parser parser : parsers ->
+      let
+        eerr' _ _ _ =
+          oowfHelp state cok eok cerr parsers fallback
+      in
+      parser state cok eok cerr eerr'
 
 
 
 -- MONAD
 
 
-instance Monad (Parser c x) where
+instance Monad (Parser x) where
   {-# INLINE return #-}
   return value =
     Parser $ \state _ eok _ _ ->
@@ -152,148 +183,152 @@ instance Monad (Parser c x) where
 -- FROM BYTESTRING
 
 
-data Result c x a
-  = Ok !a (State c)
-  | Err Word16 Word16 (Context c) x
+data Result x a
+  = Ok !a State
+  | Err x
 
 
-fromByteString :: Parser c x a -> B.ByteString -> Result c x a
+fromByteString :: Parser x a -> B.ByteString -> Result x a
 fromByteString (Parser parser) (B.PS fp offset length) =
   B.accursedUnutterablePerformIO $
     let
       !pos = plusPtr (unsafeForeignPtrToPtr fp) offset
       !end = plusPtr pos length
-      !result = parser (State pos end 0 1 1 NoContext) Ok Ok Err Err
+      !result = parser (State pos end 0 1 1) Ok Ok toErr toErr
     in
     do  touchForeignPtr fp
         return result
+
+
+toErr :: Row -> Col -> (Row -> Col -> x) -> Result x a
+toErr row col toError =
+  Err (toError row col)
 
 
 
 -- POSITION
 
 
-getCol :: Parser c x Word16
+getCol :: Parser x Word16
 getCol =
-  Parser $ \state@(State _ _ _ _ col _) _ eok _ _ ->
+  Parser $ \state@(State _ _ _ _ col) _ eok _ _ ->
     eok col state
 
 
 {-# INLINE getPosition #-}
-getPosition :: Parser c x A.Position
+getPosition :: Parser x A.Position
 getPosition =
-  Parser $ \state@(State _ _ _ row col _) _ eok _ _ ->
+  Parser $ \state@(State _ _ _ row col) _ eok _ _ ->
     eok (A.Position row col) state
 
 
-addLocation :: Parser c x a -> Parser c x (A.Located a)
+addLocation :: Parser x a -> Parser x (A.Located a)
 addLocation (Parser parser) =
-  Parser $ \state@(State _ _ _ srow scol _) cok eok cerr eerr ->
+  Parser $ \state@(State _ _ _ sr sc) cok eok cerr eerr ->
     let
-      cok' a s@(State _ _ _ erow ecol _) = cok (A.At (A.Region (A.Position srow scol) (A.Position erow ecol)) a) s
-      eok' a s@(State _ _ _ erow ecol _) = eok (A.At (A.Region (A.Position srow scol) (A.Position erow ecol)) a) s
+      cok' a s@(State _ _ _ er ec) = cok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) a) s
+      eok' a s@(State _ _ _ er ec) = eok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) a) s
     in
     parser state cok' eok' cerr eerr
+
+
+addEnd :: A.Position -> a -> Parser x (A.Located a)
+addEnd start value =
+  Parser $ \state@(State _ _ _ row col) _ eok _ _ ->
+    eok (A.at start (A.Position row col) value) state
 
 
 
 -- INDENT
 
 
-getIndent :: Parser c x Word16
+getIndent :: Parser x Word16
 getIndent =
-  Parser $ \state@(State _ _ indent _ _ _) _ eok _ _ ->
+  Parser $ \state@(State _ _ indent _ _) _ eok _ _ ->
     eok indent state
 
 
-setIndent :: Word16 -> Parser c x ()
+setIndent :: Word16 -> Parser x ()
 setIndent indent =
-  Parser $ \(State pos end _ row col context) _ eok _ _ ->
+  Parser $ \(State pos end _ row col) _ eok _ _ ->
     let
-      !newState =
-        State pos end indent row col context
+      !newState = State pos end indent row col
     in
     eok () newState
+
+
+withIndent :: Parser x a -> Parser x a
+withIndent (Parser parser) =
+  Parser $ \(State pos end oldIndent row col) cok eok cerr eerr ->
+    let
+      cok' a (State p e _ r c) = cok a (State p e oldIndent r c)
+      eok' a (State p e _ r c) = eok a (State p e oldIndent r c)
+    in
+    parser (State pos end col row col) cok' eok' cerr eerr
+
+
+withBacksetIndent :: Word16 -> Parser x a -> Parser x a
+withBacksetIndent backset (Parser parser) =
+  Parser $ \(State pos end oldIndent row col) cok eok cerr eerr ->
+    let
+      cok' a (State p e _ r c) = cok a (State p e oldIndent r c)
+      eok' a (State p e _ r c) = eok a (State p e oldIndent r c)
+    in
+    parser (State pos end (col - backset) row col) cok' eok' cerr eerr
 
 
 
 -- CONTEXT
 
 
-pushContext :: A.Position -> c -> Parser c x ()
-pushContext (A.Position r c) ctx =
-  Parser $ \(State pos end indent row col context) _ eok _ _ ->
+inContext :: (x -> Row -> Col -> y) -> Parser y start -> Parser x a -> Parser y a
+inContext addContext (Parser parserStart) (Parser parserA) =
+  Parser $ \state@(State _ _ _ row col) cok eok cerr eerr ->
     let
-      !newContext = Frame r c ctx context
-      !newState = State pos end indent row col newContext
-    in
-    eok () newState
+      cerrA r c tx = cerr row col (addContext (tx r c))
+      eerrA r c tx = eerr row col (addContext (tx r c))
 
-
-popContext :: a -> Parser c x a
-popContext value =
-  Parser $ \(State pos end indent row col context) _ eok _ _ ->
-    case context of
-      Frame _ _ _ context ->
-        let
-          !newState =
-            State pos end indent row col context
-        in
-        eok value newState
-
-      NoContext ->
-        error "compiler error, trying to popContext on NoContext"
-
-
-inContext :: c -> Parser c x start -> Parser c x a -> Parser c x a
-inContext tag (Parser parserStart) (Parser parserA) =
-  Parser $ \state@(State _ _ _ frow fcol _) cok eok cerr eerr ->
-    let
-      cokS _ (State pos end indent row col ctx) =
-        let
-          !newContext = Frame frow fcol tag ctx
-          !newState = State pos end indent row col newContext
-          cokA a s = cok a (s { _context = ctx })
-        in
-        parserA newState cokA cokA cerr cerr
-
-      eokS _ (State pos end indent row col ctx) =
-        let
-          !newContext = Frame frow fcol tag ctx
-          !newState = State pos end indent row col newContext
-          cokA a s = cok a (s { _context = ctx })
-          eokA a s = eok a (s { _context = ctx })
-        in
-        parserA newState cokA eokA cerr eerr
+      cokS _ s = parserA s cok cok cerrA cerrA
+      eokS _ s = parserA s cok eok cerrA eerrA
     in
     parserStart state cokS eokS cerr eerr
+
+
+specialize :: (x -> Row -> Col -> y) -> Parser x a -> Parser y a
+specialize addContext (Parser parser) =
+  Parser $ \state@(State _ _ _ row col) cok eok cerr eerr ->
+    let
+      cerr' r c tx = cerr row col (addContext (tx r c))
+      eerr' r c tx = eerr row col (addContext (tx r c))
+    in
+    parser state cok eok cerr' eerr'
 
 
 
 -- SYMBOLS
 
 
-word1 :: Word8 -> x -> Parser c x ()
-word1 word x =
-  Parser $ \(State pos end indent row col ctx) cok _ _ eerr ->
+word1 :: Word8 -> (Row -> Col -> x) -> Parser x ()
+word1 word toError =
+  Parser $ \(State pos end indent row col) cok _ _ eerr ->
     if pos < end && unsafeIndex pos == word then
-      let !newState = State (plusPtr pos 1) end indent row (col + 1) ctx in
+      let !newState = State (plusPtr pos 1) end indent row (col + 1) in
       cok () newState
     else
-      eerr row col ctx x
+      eerr row col toError
 
 
-word2 :: Word8 -> Word8 -> x -> Parser c x ()
-word2 w1 w2 x =
-  Parser $ \(State pos end indent row col ctx) cok _ _ eerr ->
+word2 :: Word8 -> Word8 -> (Row -> Col -> x) -> Parser x ()
+word2 w1 w2 toError =
+  Parser $ \(State pos end indent row col) cok _ _ eerr ->
     let
       !pos1 = plusPtr pos 1
     in
     if pos1 < end && unsafeIndex pos == w1 && unsafeIndex pos1 == w2 then
-      let !newState = State (plusPtr pos 2) end indent row (col + 2) ctx in
+      let !newState = State (plusPtr pos 2) end indent row (col + 2) in
       cok () newState
     else
-      eerr row col ctx x
+      eerr row col toError
 
 
 
