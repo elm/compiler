@@ -197,12 +197,7 @@ chompField =
 
 variant :: Space.Parser E.CustomType (A.Located Name.Name, [Src.Type])
 variant =
-  do  start <- getPosition
-      name <- Var.upper E.CT_Variant
-      nameEnd <- getPosition
+  do  name@(A.At (A.Region _ nameEnd) _) <- addLocation (Var.upper E.CT_Variant)
       Space.chomp E.CT_Space
-      (args, end) <- specialize E.CT_Type (chompArgs [] nameEnd)
-      return
-        ( (A.at start nameEnd name, args)
-        , end
-        )
+      (args, end) <- specialize E.CT_VariantArg (chompArgs [] nameEnd)
+      return ( (name, args), end )
