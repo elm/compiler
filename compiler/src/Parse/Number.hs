@@ -285,11 +285,11 @@ stepHex pos end word acc
 -- PRECEDENCE
 
 
-precedence :: Parser E.Infix Binop.Precedence
-precedence =
+precedence :: (Row -> Col -> x) -> Parser x Binop.Precedence
+precedence toExpectation =
   P.Parser $ \(P.State pos end indent row col) cok _ _ eerr ->
     if pos >= end then
-      eerr row col E.Precedence
+      eerr row col toExpectation
 
     else
       let !word = P.unsafeIndex pos in
@@ -299,4 +299,4 @@ precedence =
           (P.State (plusPtr pos 1) end indent row (col + 1))
 
       else
-        eerr row col E.Precedence
+        eerr row col toExpectation

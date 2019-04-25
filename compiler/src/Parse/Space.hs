@@ -240,8 +240,8 @@ eatMultiCommentHelp pos end row col openComments =
 -- DOCUMENTATION COMMENT
 
 
-docComment :: P.Parser E.Decl ()
-docComment =
+docComment :: (Row -> Col -> x) -> (Row -> Col -> x) -> (Row -> Col -> x) -> P.Parser x ()
+docComment toExpectation toTabError toEndlessError =
   P.Parser $ \(P.State pos end indent row col) cok _ cerr eerr ->
     let
       !pos3 = plusPtr pos 3
@@ -262,7 +262,7 @@ docComment =
           in
           cok () newState
 
-        MultiTab -> cerr newRow newCol (E.DeclSpace E.HasTab)
-        MultiEndless -> cerr row col E.EndlessDocComment
+        MultiTab -> cerr newRow newCol toTabError
+        MultiEndless -> cerr row col toEndlessError
     else
-      eerr row col E.DeclDeadend
+      eerr row col toExpectation
