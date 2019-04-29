@@ -36,14 +36,14 @@ fromByteString decoder src =
   fromAST decoder (P.fromByteString pFile src)
 
 
-fromAST :: Decoder e a -> P.Result E.Context E.ParseExpectation AST -> Either (E.Error e) a
+fromAST :: Decoder e a -> P.Result E.ParseError AST -> Either (E.Error e) a
 fromAST (Decoder decode) parserResult =
   case parserResult of
     P.Ok ast _ ->
       decode ast Right (Left . E.DecodeProblem)
 
-    P.Err row col ctx expectation ->
-      Left (E.ParseProblem row col ctx expectation)
+    P.Err err ->
+      Left (E.ParseProblem err)
 
 
 
@@ -51,7 +51,14 @@ fromAST (Decoder decode) parserResult =
 
 
 newtype Decoder e a =
-  Decoder (forall b. AST -> (a -> b) -> (E.Problem e -> b) -> b)
+  Decoder
+  (
+    forall b.
+      AST
+      -> (a -> b)
+      -> (E.Problem e -> b)
+      -> b
+  )
 
 
 
@@ -352,7 +359,7 @@ data AST
 
 
 type Parser a =
-  P.Parser E.Context E.ParseExpectation a
+  P.Parser E.ParseError a
 
 
 pFile :: Parser AST
@@ -379,9 +386,9 @@ pValue =
 
 endOfFile :: Parser ()
 endOfFile =
-  P.Parser $ \state@(P.State pos end _ row col ctx) _ eok _ eerr ->
+  P.Parser $ \state@(P.State pos end _ row col) _ eok _ eerr ->
     if pos < end then
-      eerr row col ctx E.EndOfFile
+      eerr row col E.EndOfFile
     else
       eok () state
 
@@ -466,7 +473,7 @@ pArrayHelp !len revEntries =
 
 pString :: Parser Utf8.String
 pString =
-  P.Parser $ \(P.State pos end indent row col ctx) cok _ cerr eerr ->
+  P.Parser $ \(P.State pos end indent row col) cok _ cerr eerr ->
     if pos < end && P.unsafeIndex pos == 0x22 {-"-} then
 
       let
@@ -478,16 +485,16 @@ pString =
       case status of
         GoodString ->
           let
-            !newState = P.State newPos end indent newRow newCol ctx
+            !newState = P.State newPos end indent newRow newCol
             !content = Utf8.fromPtr pos1 (plusPtr newPos (-1))
           in
           cok content newState
 
         BadStringEnd ->
-          cerr newRow newCol ctx E.StringEnd
+          cerr newRow newCol E.StringEnd
 
     else
-      eerr row col ctx E.StringStart
+      eerr row col E.StringStart
 
 
 data StringStatus
@@ -534,7 +541,7 @@ pStringHelp pos end row col =
 
 spaces :: Parser ()
 spaces =
-  P.Parser $ \state@(P.State pos end indent row col ctx) cok eok _ _ ->
+  P.Parser $ \state@(P.State pos end indent row col) cok eok _ _ ->
     let
       (# newPos, newRow, newCol #) =
         eatSpaces pos end row col
@@ -544,7 +551,7 @@ spaces =
     else
       let
         !newState =
-          P.State newPos end indent newRow newCol ctx
+          P.State newPos end indent newRow newCol
       in
       cok () newState
 
@@ -570,27 +577,27 @@ eatSpaces pos end row col =
 
 pInt :: Parser AST
 pInt =
-  P.Parser $ \(P.State pos end indent row col ctx) cok _ cerr eerr ->
+  P.Parser $ \(P.State pos end indent row col) cok _ cerr eerr ->
     if pos >= end then
-      eerr row col ctx E.IntStart
+      eerr row col E.IntStart
 
     else
       let !word = P.unsafeIndex pos in
       if not (isDecimalDigit word) then
-        eerr row col ctx E.IntStart
+        eerr row col E.IntStart
 
       else if word == 0x30 {-0-} then
 
         let
           !pos1 = plusPtr pos 1
-          !newState = P.State pos1 end indent row (col + 1) ctx
+          !newState = P.State pos1 end indent row (col + 1)
         in
         if pos1 < end then
           let !word1 = P.unsafeIndex pos1 in
           if isDecimalDigit word1 then
-            cerr row (col + 1) ctx E.NoLeadingZeros
+            cerr row (col + 1) E.NoLeadingZeros
           else if word1 == 0x2E {-.-} then
-            cerr row (col + 1) ctx E.NoFloats
+            cerr row (col + 1) E.NoFloats
           else
             cok (Int 0) newState
         else
@@ -607,12 +614,12 @@ pInt =
           GoodInt ->
             let
               !newState =
-                P.State newPos end indent row (col + len) ctx
+                P.State newPos end indent row (col + len)
             in
             cok (Int n) newState
 
           BadIntEnd ->
-            cerr row (col + len) ctx E.NoFloats
+            cerr row (col + len) E.NoFloats
 
 
 data IntStatus = GoodInt | BadIntEnd
