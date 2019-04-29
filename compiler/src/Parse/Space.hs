@@ -10,6 +10,7 @@ module Parse.Space
   , checkAligned
   , checkFreshLine
   --
+  , DocComment(..)
   , docComment
   )
   where
@@ -87,7 +88,7 @@ checkFreshLine toError =
 
 
 chompAndCheckIndent :: (E.Space -> Row -> Col -> x) -> (Row -> Col -> x) -> P.Parser x ()
-chompAndCheckIndent toWhitespaceError toIndentError =
+chompAndCheckIndent toSpaceError toIndentError =
   P.Parser $ \(P.State pos end indent row col) cok _ cerr _ ->
     let
       (# status, newPos, newRow, newCol #) = eatSpaces pos end row col
@@ -105,9 +106,9 @@ chompAndCheckIndent toWhitespaceError toIndentError =
         else
           cerr row col toIndentError
 
-      HasTab               -> cerr newRow newCol (toWhitespaceError E.HasTab)
-      EndlessMultiComment  -> cerr newRow newCol (toWhitespaceError E.EndlessMultiComment)
-      UnexpectedDocComment -> cerr newRow newCol (toWhitespaceError E.UnexpectedDocComment)
+      HasTab               -> cerr newRow newCol (toSpaceError E.HasTab)
+      EndlessMultiComment  -> cerr newRow newCol (toSpaceError E.EndlessMultiComment)
+      UnexpectedDocComment -> cerr newRow newCol (toSpaceError E.UnexpectedDocComment)
 
 
 
@@ -240,8 +241,15 @@ eatMultiCommentHelp pos end row col openComments =
 -- DOCUMENTATION COMMENT
 
 
-docComment :: (Row -> Col -> x) -> (Row -> Col -> x) -> (Row -> Col -> x) -> P.Parser x ()
-docComment toExpectation toTabError toEndlessError =
+data DocComment =
+  DocComment
+    { _start :: Ptr Word8
+    , _end :: Ptr Word8
+    }
+
+
+docComment :: (Row -> Col -> x) -> (E.Space -> Row -> Col -> x) -> P.Parser x DocComment
+docComment toExpectation toSpaceError =
   P.Parser $ \(P.State pos end indent row col) cok _ cerr eerr ->
     let
       !pos3 = plusPtr pos 3
@@ -258,11 +266,12 @@ docComment toExpectation toTabError toEndlessError =
       case status of
         MultiGood ->
           let
+            !comment = DocComment pos3 (plusPtr newPos (-2))
             !newState = P.State newPos end indent newRow newCol
           in
-          cok () newState
+          cok comment newState
 
-        MultiTab -> cerr newRow newCol toTabError
-        MultiEndless -> cerr row col toEndlessError
+        MultiTab -> cerr newRow newCol (toSpaceError E.HasTab)
+        MultiEndless -> cerr row col (toSpaceError E.EndlessMultiComment)
     else
       eerr row col toExpectation
