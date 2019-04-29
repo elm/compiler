@@ -20,6 +20,7 @@ import qualified Parse.Space as Space
 import qualified Parse.Symbol as Symbol
 import qualified Parse.Type as Type
 import qualified Parse.Variable as Var
+import Parse.Space (DocComment)
 import Parse.Primitives hiding (State)
 import qualified Parse.Primitives as P
 import qualified Reporting.Annotation as A
@@ -31,20 +32,37 @@ import qualified Reporting.Error.Syntax as E
 
 
 data Decl
-  = Value (A.Located Src.Value)
-  | Union (A.Located Src.Union)
-  | Alias (A.Located Src.Alias)
-  | Port Src.Port
+  = Value (Maybe DocComment) (A.Located Src.Value)
+  | Union (Maybe DocComment) (A.Located Src.Union)
+  | Alias (Maybe DocComment) (A.Located Src.Alias)
+  | Port (Maybe DocComment) Src.Port
 
 
 declaration :: Space.Parser E.Decl Decl
 declaration =
-  do  start <- getPosition
+  do  maybeDocs <- chompDocComment
+      start <- getPosition
       oneOf E.DeclStart
-        [ typeDecl start
-        , portDecl
-        , valueDecl start
+        [ typeDecl maybeDocs start
+        , portDecl maybeDocs
+        , valueDecl maybeDocs start
         ]
+
+
+
+-- DOC COMMENT
+
+
+chompDocComment :: Parser E.Decl (Maybe DocComment)
+chompDocComment =
+  oneOfWithFallback
+    [
+      do  docComment <- Space.docComment E.DeclStart E.DeclSpace
+          Space.chomp E.DeclSpace
+          Space.checkFreshLine E.DeclFreshLineAfterDocComment
+          return (Just docComment)
+    ]
+    Nothing
 
 
 
@@ -52,8 +70,8 @@ declaration =
 
 
 {-# INLINE valueDecl #-}
-valueDecl :: A.Position -> Space.Parser E.Decl Decl
-valueDecl start =
+valueDecl :: Maybe DocComment -> A.Position -> Space.Parser E.Decl Decl
+valueDecl maybeDocs start =
   do  name <- Var.lower E.DeclStart
       end <- getPosition
       specialize (E.DeclDef name) $
@@ -63,28 +81,27 @@ valueDecl start =
                 do  word1 0x3A {-:-} E.DeclDefEquals
                     Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentType
                     (tipe, _) <- specialize E.DeclDefType Type.expression
-                    Space.checkFreshLine E.DeclDefAlignment
+                    Space.checkFreshLine E.DeclDefFreshLineAfterType
                     defName <- chompMatchingName name
                     Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
-                    chompDefArgsAndBody start defName (Just tipe) []
+                    chompDefArgsAndBody maybeDocs start defName (Just tipe) []
               ,
-                chompDefArgsAndBody start (A.at start end name) Nothing []
+                chompDefArgsAndBody maybeDocs start (A.at start end name) Nothing []
               ]
 
 
-chompDefArgsAndBody :: A.Position -> A.Located Name.Name -> Maybe Src.Type -> [Src.Pattern] -> Space.Parser E.DeclDef Decl
-chompDefArgsAndBody start name tipe revArgs =
+chompDefArgsAndBody :: Maybe DocComment -> A.Position -> A.Located Name.Name -> Maybe Src.Type -> [Src.Pattern] -> Space.Parser E.DeclDef Decl
+chompDefArgsAndBody maybeDocs start name tipe revArgs =
   oneOf E.DeclDefEquals
     [ do  arg <- specialize E.DeclDefArg Pattern.term
           Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
-          chompDefArgsAndBody start name tipe (arg : revArgs)
+          chompDefArgsAndBody maybeDocs start name tipe (arg : revArgs)
     , do  word1 0x3D {-=-} E.DeclDefEquals
           Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentBody
           (body, end) <- specialize E.DeclDefBody Expr.expression
-          return
-            ( Value (A.at start end (Src.Value name (reverse revArgs) body tipe))
-            , end
-            )
+          let value = Src.Value name (reverse revArgs) body tipe
+          let avalue = A.at start end value
+          return (Value maybeDocs avalue, end)
     ]
 
 
@@ -113,8 +130,8 @@ chompMatchingName expectedName =
 
 
 {-# INLINE typeDecl #-}
-typeDecl :: A.Position -> Space.Parser E.Decl Decl
-typeDecl start =
+typeDecl :: Maybe DocComment -> A.Position -> Space.Parser E.Decl Decl
+typeDecl maybeDocs start =
   inContext E.DeclType (Keyword.type_ E.DeclStart) $
     do  Space.chompAndCheckIndent E.DT_Space E.DT_IndentName
         oneOf E.DT_Name
@@ -124,14 +141,14 @@ typeDecl start =
                   (name, args) <- chompAliasNameToEquals
                   (tipe, end) <- specialize E.AliasBody Type.expression
                   let alias = A.at start end (Src.Alias name args tipe)
-                  return (Alias alias, end)
+                  return (Alias maybeDocs alias, end)
           ,
             specialize E.DT_Union $
               do  (name, args) <- chompCustomNameToEquals
                   (firstVariant, firstEnd) <- Type.variant
                   (variants, end) <- chompVariants [firstVariant] firstEnd
                   let union = A.at start end (Src.Union name args variants)
-                  return (Union union, end)
+                  return (Union maybeDocs union, end)
           ]
 
 
@@ -198,8 +215,8 @@ chompVariants variants end =
 
 
 {-# INLINE portDecl #-}
-portDecl :: Space.Parser E.Decl Decl
-portDecl =
+portDecl :: Maybe DocComment -> Space.Parser E.Decl Decl
+portDecl maybeDocs =
   inContext E.Port (Keyword.port_ E.DeclStart) $
     do  Space.chompAndCheckIndent E.PortSpace E.PortIndentName
         name <- addLocation (Var.lower E.PortName)
@@ -207,7 +224,10 @@ portDecl =
         word1 0x3A {-:-} E.PortColon
         Space.chompAndCheckIndent E.PortSpace E.PortIndentType
         (tipe, end) <- specialize E.PortType Type.expression
-        return ( Port (Src.Port name tipe), end )
+        return
+          ( Port maybeDocs (Src.Port name tipe)
+          , end
+          )
 
 
 
