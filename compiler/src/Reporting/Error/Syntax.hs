@@ -4,6 +4,8 @@ module Reporting.Error.Syntax
   ( Error(..)
   --
   , Module(..)
+  , Exposing(..)
+  --
   , Decl(..)
   , DeclType(..)
   , TypeAlias(..)
@@ -65,7 +67,7 @@ data Error
   = CommentOnNothing A.Region
   | UnexpectedPort A.Region
   | NoPorts A.Region
-  | ParseError Decl
+  | ParseError Module
 
 
 
@@ -73,11 +75,64 @@ data Error
 
 
 data Module
-  = Module Row Col
-  | ModuleSpace Space Row Col
-  | Import Row Col
+  = ModuleSpace Space Row Col
+  | ModuleEndOfFile Row Col
+  | Module Row Col
+  | ModuleName Row Col
+  | ModuleExposing Row Col
+  | ModuleExposingList Exposing Row Col
+  --
+  | ModulePortModule Row Col
+  | ModuleEffect Row Col
+  --
+  | ModuleIndentStart Row Col
+  | ModuleIndentName Row Col
+  | ModuleIndentExposing Row Col
+  | ModuleIndentExposingList Row Col
+  | ModuleIndentPortModule Row Col
+  --
+  | FreshLineModuleStart Row Col
+  | FreshLineAfterModuleLine Row Col
+  | FreshLineAfterDocComment Row Col
+  --
+  | ImportStart Row Col
+  | ImportName Row Col
+  | ImportAs Row Col
+  | ImportAlias Row Col
+  | ImportExposing Row Col
+  | ImportExposingList Exposing Row Col
+  | ImportEnd Row Col -- different based on col=1 or if greater
+  --
+  | ImportIndentName Row Col
+  | ImportIndentAs Row Col
+  | ImportIndentAlias Row Col
+  | ImportIndentExposing Row Col
+  | ImportIndentExposingList Row Col
+  --
   | Infix Row Col
+  --
   | Declarations Decl Row Col
+
+
+data Exposing
+  = ExposingSpace Space Row Col
+  | ExposingStart Row Col
+  | ExposingValue Row Col
+  | ExposingOperator Row Col
+  | ExposingOperatorReserved Operator Row Col
+  | ExposingOperatorRightParen Row Col
+  | ExposingEnd Row Col
+  --
+  | ExposingTypePrivacy Row Col
+  | ExposingTypePrivacyDots Row Col
+  | ExposingTypePrivacyEnd Row Col
+  --
+  | ExposingIndentEnd Row Col
+  | ExposingIndentValue Row Col
+  | ExposingIndentValueEnd Row Col
+  | ExposingIndentTypePrivacy Row Col
+  | ExposingIndentTypePrivacyDots Row Col
+  | ExposingIndentTypePrivacyEnd Row Col
 
 
 
@@ -91,20 +146,25 @@ data Decl
   | Port Port Row Col
   | DeclType DeclType Row Col
   | DeclDef Name.Name DeclDef Row Col
+  --
+  | DeclFreshLineStart Row Col
+  | DeclFreshLineAfterDocComment Row Col
 
 
 data DeclDef
   = DeclDefSpace Space Row Col
   | DeclDefEquals Row Col
   | DeclDefType Type Row Col
-  | DeclDefAlignment Row Col
   | DeclDefArg Pattern Row Col
   | DeclDefBody Expr Row Col
   | DeclDefNameRepeat Name.Name Row Col
   | DeclDefNameMatch Name.Name Name.Name Row Col
+  --
   | DeclDefIndentType Row Col
   | DeclDefIndentEquals Row Col
   | DeclDefIndentBody Row Col
+  --
+  | DeclDefFreshLineAfterType Row Col
 
 
 data Port
