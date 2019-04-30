@@ -47,7 +47,7 @@ import Reporting.Doc ((<>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Error.Json as Json
 import qualified Reporting.Exit.Help as Help
-import qualified Reporting.Problem as Problem
+import qualified Reporting.Error as Error
 
 
 
@@ -373,7 +373,7 @@ data Make
 
 
 data BuildProblem
-  = BuildModuleProblems Problem.Problem [Problem.Problem]
+  = BuildModuleProblems Error.Module [Error.Module]
   | BuildProjectProblem BuildProjectProblem
 
 
@@ -804,7 +804,7 @@ makeToReport make =
 
 
         BuildModuleProblems p ps ->
-          error "TODO MakeCannotBuild" p ps
+          Help.compilerReport p ps
 
     MakeCannotLoadArtifacts ->
       error "TODO MakeCannotLoadArtifacts"
