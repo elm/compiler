@@ -51,6 +51,7 @@ import qualified Data.Name as Name
 import Data.Word (Word16)
 --import Numeric (showHex)
 
+import qualified Elm.ModuleName as ModuleName
 import Parse.Primitives (Row, Col)
 --import qualified Parse.Primitives as P
 import qualified Reporting.Annotation as A
@@ -64,7 +65,8 @@ import qualified Reporting.Render.Code as Code
 
 
 data Error
-  = CommentOnNothing A.Region
+  = ModuleNameUnspecified ModuleName.Raw
+  | ModuleNameMismatch ModuleName.Raw ModuleName.Raw
   | UnexpectedPort A.Region
   | NoPorts A.Region
   | ParseError Module
