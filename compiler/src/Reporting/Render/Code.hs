@@ -10,6 +10,8 @@ module Reporting.Render.Code
   where
 
 
+import qualified Data.ByteString as B
+import qualified Data.ByteString.UTF8 as UTF8_BS
 import qualified Data.List as List
 import Data.Word (Word16)
 
@@ -26,10 +28,10 @@ newtype Source =
   Source [(Word16, String)]
 
 
-toSource :: String -> Source
+toSource :: B.ByteString -> Source
 toSource source =
   Source $ zip [1..] $
-    lines source ++ [""]
+    lines (UTF8_BS.toString source) ++ [""]
 
 
 
