@@ -24,12 +24,11 @@ import qualified AST.Source as Src
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Parse.Module as Module
+import qualified Parse.Space as Space
 import qualified Parse.Variable as Var
-import Parse.Utils
-import Parse.Primitives hiding (Parser, fromByteString)
+import Parse.Primitives hiding (fromByteString)
 import qualified Parse.Primitives as P
 import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Syntax as E
 
 
 
@@ -87,35 +86,49 @@ type Foreigns =
 fromByteString :: Pkg.Name -> Foreigns -> BS.ByteString -> Maybe Content
 fromByteString pkg foreigns bytes =
   case P.fromByteString (parser pkg foreigns) bytes of
-    P.Ok content _ -> Just content
-    P.Err _ _ _ _  -> Nothing
+    P.Ok content _ ->
+      Just content
+
+    P.Err () ->
+      Nothing
 
 
-parser :: Pkg.Name -> Foreigns -> Parser Content
+parser :: Pkg.Name -> Foreigns -> Parser () Content
 parser pkg foreigns =
-  do  word2 0x2F 0x2A {-/*-} E.XXX
-      Module.freshLine
-      imports <- Module.chompImports []
-      word2 0x2A 0x2F {-*/-} E.XXX
+  do  word2 0x2F 0x2A {-/*-} toError
+      Space.chomp ignoreError
+      Space.checkFreshLine toError
+      imports <- specialize ignoreError (Module.chompImports [])
+      word2 0x2A 0x2F {-*/-} toError
       chunks <- parseChunks (toVarTable pkg foreigns imports) Map.empty Map.empty
       return (Content imports chunks)
+
+
+toError :: Row -> Col -> ()
+toError _ _ =
+  ()
+
+
+ignoreError :: a -> Row -> Col -> ()
+ignoreError _ _ _ =
+  ()
 
 
 
 -- PARSE CHUNKS
 
 
-parseChunks :: VarTable -> Enums -> Fields -> Parser [Chunk]
+parseChunks :: VarTable -> Enums -> Fields -> Parser () [Chunk]
 parseChunks vtable enums fields =
-  P.Parser $ \(P.State pos end indent row col ctx) cok _ cerr _ ->
+  P.Parser $ \(P.State pos end indent row col) cok _ cerr _ ->
     let
       (# chunks, newPos, newRow, newCol #) =
         chompChunks vtable enums fields pos end row col pos []
     in
     if newPos == end then
-      cok chunks (P.State newPos end indent newRow newCol ctx)
+      cok chunks (P.State newPos end indent newRow newCol)
     else
-      cerr row col ctx E.XXX
+      cerr row col toError
 
 
 chompChunks :: VarTable -> Enums -> Fields -> Ptr Word8 -> Ptr Word8 -> Word16 -> Word16 -> Ptr Word8 -> [Chunk] -> (# [Chunk], Ptr Word8, Word16, Word16 #)
