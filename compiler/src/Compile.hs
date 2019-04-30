@@ -8,7 +8,6 @@ module Compile
 
 import qualified Data.Map as Map
 import qualified Data.Name as Name
-import qualified Data.OneOrMore as OneOrMore
 
 import qualified AST.Source as Src
 import qualified AST.Canonical as Can
@@ -21,7 +20,6 @@ import qualified Nitpick.PatternMatches as PatternMatches
 import qualified Optimize.Module as Optimize
 import qualified Reporting.Error as E
 import qualified Reporting.Result as R
-import qualified Reporting.Warning as W
 import qualified Type.Constrain.Module as Type
 import qualified Type.Solve as Type
 
@@ -40,9 +38,8 @@ data Artifacts =
     }
 
 
-compile :: Pkg.Name -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> Either (OneOrMore.OneOrMore E.Error) Artifacts
+compile :: Pkg.Name -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> Either E.Error Artifacts
 compile pkg ifaces modul =
-  snd $ R.run $
   do  canonical   <- canonicalize pkg ifaces modul
       annotations <- typeCheck canonical
       ()          <- nitpick canonical
@@ -54,31 +51,33 @@ compile pkg ifaces modul =
 -- PHASES
 
 
-canonicalize :: Pkg.Name -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> R.Result i [W.Warning] E.Error Can.Module
+canonicalize :: Pkg.Name -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> Either E.Error Can.Module
 canonicalize pkg ifaces modul =
-  R.mapError E.Canonicalize $ Canonicalize.canonicalize pkg ifaces modul
+  snd $ R.run E.BadNames $
+    Canonicalize.canonicalize pkg ifaces modul
 
 
-typeCheck :: Can.Module -> R.Result i w E.Error (Map.Map Name.Name Can.Annotation)
+typeCheck :: Can.Module -> Either E.Error (Map.Map Name.Name Can.Annotation)
 typeCheck canonical =
   case unsafePerformIO (Type.run =<< Type.constrain canonical) of
     Right annotations ->
-      R.ok annotations
+      Right annotations
 
     Left errors ->
-      R.throw (E.Type errors)
+      Left (E.BadTypes errors)
 
 
-nitpick :: Can.Module -> R.Result i w E.Error ()
+nitpick :: Can.Module -> Either E.Error ()
 nitpick canonical =
   case PatternMatches.check canonical of
     Right () ->
-      R.ok ()
+      Right ()
 
     Left errors ->
-      R.throw (E.Pattern errors)
+      Left (E.BadPatterns errors)
 
 
-optimize :: Map.Map Name.Name Can.Annotation -> Can.Module -> R.Result i [W.Warning] E.Error Opt.LocalGraph
+optimize :: Map.Map Name.Name Can.Annotation -> Can.Module -> Either E.Error Opt.LocalGraph
 optimize annotations canonical =
-  R.mapError E.Main $ Optimize.optimize annotations canonical
+  snd $ R.run E.BadMains $
+    Optimize.optimize annotations canonical
