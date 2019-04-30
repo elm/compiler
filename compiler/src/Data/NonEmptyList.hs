@@ -1,8 +1,12 @@
 module Data.NonEmptyList
   ( List(..)
   , toList
+  , sortBy
   )
   where
+
+
+import qualified Data.List as List
 
 
 
@@ -34,3 +38,20 @@ instance Foldable List where
   foldr step state (List x xs) = step x (foldr step state xs)
   foldl step state (List x xs) = foldl step (step state x) xs
   foldl1 step      (List x xs) = foldl step x xs
+
+
+
+-- SORT BY
+
+
+sortBy :: (a -> a -> Ordering) -> List a -> List a
+sortBy comparison (List x xs) =
+  case List.sortBy comparison xs of
+    [] ->
+      List x []
+
+    y:ys ->
+      case comparison x y of
+        LT -> List x (y:ys)
+        EQ -> List x (y:ys)
+        GT -> List y (List.insertBy comparison x ys)

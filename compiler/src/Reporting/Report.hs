@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Reporting.Report
     ( Report(..)
-    , toDoc
     , toCodeSnippet
     , toCodePair
     )
@@ -24,28 +23,6 @@ data Report =
     , _sgstns :: [String]
     , _message :: D.Doc
     }
-
-
-toDoc :: FilePath -> Report -> D.Doc
-toDoc filePath (Report title _ _ message) =
-  D.vcat
-    [ messageBar title filePath
-    , ""
-    , message
-    , ""
-    ]
-
-
-messageBar :: String -> FilePath -> D.Doc
-messageBar title filePath =
-  let
-    usedSpace =
-      4 + length title + 1 + length filePath
-  in
-    D.dullcyan $ D.fromChars $
-      "-- " ++ title
-      ++ " " ++ replicate (max 1 (80 - usedSpace)) '-'
-      ++ " " ++ filePath
 
 
 
