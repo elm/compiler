@@ -10,6 +10,7 @@ import Control.Monad
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict ((!))
 import qualified Data.Name as Name
+import qualified Data.NonEmptyList as NE
 import qualified Data.Vector as Vector
 import qualified Data.Vector.Mutable as MVector
 
@@ -29,7 +30,7 @@ import qualified Type.UnionFind as UF
 -- RUN SOLVER
 
 
-run :: Constraint -> IO (Either [Error.Error] (Map.Map Name.Name Can.Annotation))
+run :: Constraint -> IO (Either (NE.List Error.Error) (Map.Map Name.Name Can.Annotation))
 run constraint =
   do  pools <- MVector.replicate 8 []
 
@@ -40,8 +41,8 @@ run constraint =
         [] ->
           Right <$> traverse Type.toAnnotation env
 
-        _ ->
-          return $ Left errors
+        e:es ->
+          return $ Left (NE.List e es)
 
 
 

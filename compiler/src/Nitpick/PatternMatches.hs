@@ -21,6 +21,7 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
+import qualified Data.NonEmptyList as NE
 import qualified Data.Utf8 as Utf8
 
 import qualified AST.Canonical as Can
@@ -202,14 +203,14 @@ data Context
 -- CHECK
 
 
-check :: Can.Module -> Either [Error] ()
+check :: Can.Module -> Either (NE.List Error) ()
 check (Can.Module _ _ decls _ _ _ _) =
   case checkDecls decls [] of
     [] ->
       Right ()
 
-    errors ->
-      Left errors
+    e:es ->
+      Left (NE.List e es)
 
 
 
