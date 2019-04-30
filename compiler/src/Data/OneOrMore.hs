@@ -3,7 +3,6 @@ module Data.OneOrMore
   ( OneOrMore(..)
   , one
   , more
-  , toList
   , map
   , destruct
   )
@@ -33,25 +32,6 @@ more =
 
 
 
--- TO LIST
-
-
-toList :: OneOrMore a -> [a]
-toList oneOrMore =
-  toListHelp oneOrMore []
-
-
-toListHelp :: OneOrMore a -> [a] -> [a]
-toListHelp oneOrMore list =
-  case oneOrMore of
-    One x ->
-      x : list
-
-    More a b ->
-      toListHelp a (toListHelp b list)
-
-
-
 -- MAP
 
 
@@ -71,14 +51,24 @@ map func oneOrMore =
 
 destruct :: (a -> [a] -> b) -> OneOrMore a -> b
 destruct func oneOrMore =
-  destructHelp func oneOrMore []
+  destructLeft func oneOrMore []
 
 
-destructHelp :: (a -> [a] -> b) -> OneOrMore a -> [a] -> b
-destructHelp func oneOrMore xs =
+destructLeft :: (a -> [a] -> b) -> OneOrMore a -> [a] -> b
+destructLeft func oneOrMore xs =
   case oneOrMore of
     One x ->
       func x xs
 
     More a b ->
-      destructHelp func a (toListHelp b xs)
+      destructLeft func a (destructRight b xs)
+
+
+destructRight :: OneOrMore a -> [a] -> [a]
+destructRight oneOrMore xs =
+  case oneOrMore of
+    One x ->
+      x : xs
+
+    More a b ->
+      destructRight a (destructRight b xs)
