@@ -4,8 +4,7 @@ module Reporting.Error.Json
   ( Error(..)
   , Problem(..)
   , DecodeExpectation(..)
-  , ParseExpectation(..)
-  , Context(..)
+  , ParseError(..)
   , toReport
   )
   where
@@ -14,7 +13,6 @@ module Reporting.Error.Json
 import qualified Data.Utf8 as Utf8
 import Data.Word (Word16)
 
-import qualified Parse.Primitives as P
 import qualified Reporting.Report as Report
 
 
@@ -24,7 +22,7 @@ import qualified Reporting.Report as Report
 
 data Error e
   = DecodeProblem (Problem e)
-  | ParseProblem Word16 Word16 (P.Context Context) ParseExpectation
+  | ParseProblem ParseError
 
 
 
@@ -50,32 +48,32 @@ data DecodeExpectation
 
 
 
--- PARSE EXPECTATION
+-- PARSE ERROR
 
 
-data ParseExpectation
-  = ObjectStart
-  | ObjectMore
-  | ObjectEnd
-  | ArrayStart
-  | ArrayMore
-  | ArrayEnd
-  | StringStart
-  | StringEnd
-  | IntStart
-  | NoLeadingZeros
-  | NoFloats
-  | Bool
-  | Null
-  | Value
-  | Colon
-  | EndOfFile
+data ParseError
+  = PIndex Int ParseError Row Col
+  | PField Utf8.String ParseError Row Col
+  | ObjectStart Row Col
+  | ObjectMore Row Col
+  | ObjectEnd Row Col
+  | ArrayStart Row Col
+  | ArrayMore Row Col
+  | ArrayEnd Row Col
+  | StringStart Row Col
+  | StringEnd Row Col
+  | IntStart Row Col
+  | NoLeadingZeros Row Col
+  | NoFloats Row Col
+  | Bool Row Col
+  | Null Row Col
+  | Value Row Col
+  | Colon Row Col
+  | EndOfFile Row Col
 
 
-
-data Context
-  = CIndex Int
-  | CField Utf8.String
+type Row = Word16
+type Col = Word16
 
 
 
