@@ -5,6 +5,7 @@ module Data.OneOrMore
   , more
   , map
   , destruct
+  , getFirstTwo
   )
   where
 
@@ -72,3 +73,27 @@ destructRight oneOrMore xs =
 
     More a b ->
       destructRight a (destructRight b xs)
+
+
+
+-- GET FIRST TWO
+
+
+getFirstTwo :: OneOrMore a -> OneOrMore a -> (a,a)
+getFirstTwo left right =
+  case left of
+    One x ->
+      (x, getFirstOne right)
+
+    More lleft lright ->
+      getFirstTwo lleft lright
+
+
+getFirstOne :: OneOrMore a -> a
+getFirstOne oneOrMore =
+  case oneOrMore of
+    One x ->
+      x
+
+    More left _ ->
+      getFirstOne left

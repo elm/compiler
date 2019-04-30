@@ -57,8 +57,11 @@ detectHelp toError name values =
     OneOrMore.One (Info _ value) ->
       return value
 
-    OneOrMore.More _ _ ->
-      let (Info r1 _ : Info r2 _ : _) = OneOrMore.toList values in
+    OneOrMore.More left right ->
+      let
+        (Info r1 _, Info r2 _) =
+          OneOrMore.getFirstTwo left right
+      in
       Result.throw (toError name r1 r2)
 
 
