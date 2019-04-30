@@ -7,8 +7,6 @@ module Reporting.Error.Import
 
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
-import qualified File
-import qualified Reporting.Error as Error
 import qualified Reporting.Report as Report
 
 
@@ -17,10 +15,10 @@ import qualified Reporting.Report as Report
 
 
 data Error
-  = NotFound
-  | Ambiguous FilePath [FilePath] Pkg.Name [Pkg.Name]
-  | AmbiguousLocal FilePath FilePath [FilePath]
-  | AmbiguousForeign Pkg.Name Pkg.Name [Pkg.Name]
+  = NotFound ModuleName.Raw
+  | Ambiguous ModuleName.Raw FilePath [FilePath] Pkg.Name [Pkg.Name]
+  | AmbiguousLocal ModuleName.Raw FilePath FilePath [FilePath]
+  | AmbiguousForeign ModuleName.Raw Pkg.Name Pkg.Name [Pkg.Name]
 
 
 
@@ -30,14 +28,27 @@ data Error
 toReport :: Error -> Report.Report
 toReport err =
   case err of
-    NotFound ->
-      error "TODO NotFound"
+    NotFound name ->
+      error "TODO NotFound" name
 
-    Ambiguous path paths pkg pkgs ->
-      error "TODO Ambiguous" path paths pkg pkgs
+    Ambiguous name path paths pkg pkgs ->
+      error "TODO Ambiguous" name path paths pkg pkgs
 
-    AmbiguousLocal path1 path2 paths ->
-      error "TODO AmbiguousLocal" path1 path2 paths
+    AmbiguousLocal name path1 path2 paths ->
+      error "TODO AmbiguousLocal" name path1 path2 paths
 
-    AmbiguousForeign pkg1 pkg2 pkgs ->
-      error "TODO AmbiguousForeign" pkg1 pkg2 pkgs
+    AmbiguousForeign name pkg1 pkg2 pkgs ->
+      error "TODO AmbiguousForeign" name pkg1 pkg2 pkgs
+
+
+{-
+
+-- MODULE NOT FOUND ---------------------------------------------- src/Main.elm
+
+You are trying to import a `Whatever` module:
+
+  import Whatever
+
+But I cannot find `Whatever` in your project or packages.
+
+-}
