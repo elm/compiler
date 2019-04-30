@@ -137,7 +137,13 @@ getName :: Module -> Name
 getName (Module maybeName _ _ _ _ _ _ _) =
   case maybeName of
     Just name -> name
-    Nothing -> "Main"
+    Nothing -> defaultModuleName
+
+
+{-# NOINLINE defaultModuleName #-}
+defaultModuleName :: Name
+defaultModuleName =
+  "Main"
 
 
 getImportName :: Import -> Name
