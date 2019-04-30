@@ -6,6 +6,7 @@ module Data.Utf8
   , VeryLong
   , Under256
   , isEmpty
+  , empty
   , size
   , contains
   , containsDouble
