@@ -43,7 +43,6 @@ data Module =
     , _time :: File.Time
     , _source :: B.ByteString
     , _error :: Error
-    , _localizer :: L.Localizer
     }
 
 
@@ -55,35 +54,35 @@ data Error
   = BadSyntax Syntax.Error
   | BadImports (NE.List Import.Error)
   | BadNames (OneOrMore.OneOrMore Canonicalize.Error)
-  | BadTypes (NE.List Type.Error)
+  | BadTypes L.Localizer (NE.List Type.Error)
+  | BadMains L.Localizer (OneOrMore.OneOrMore Main.Error)
   | BadPatterns (NE.List Pattern.Error)
-  | BadMains (OneOrMore.OneOrMore Main.Error)
 
 
 
 -- TO REPORT
 
 
-toReports :: L.Localizer -> Code.Source -> Error -> NE.List Report.Report
-toReports localizer source err =
+toReports :: Code.Source -> Error -> NE.List Report.Report
+toReports source err =
   case err of
     BadSyntax syntaxError ->
       NE.List (Syntax.toReport source syntaxError) []
 
     BadImports errs ->
-      fmap Import.toReport errs
+      fmap (Import.toReport source) errs
 
     BadNames errs ->
       fmap (Canonicalize.toReport source) (OneOrMore.destruct NE.List errs)
 
-    BadTypes errs ->
+    BadTypes localizer errs ->
       fmap (Type.toReport source localizer) errs
+
+    BadMains localizer errs ->
+      fmap (Main.toReport localizer source) (OneOrMore.destruct NE.List errs)
 
     BadPatterns errs ->
       fmap (Pattern.toReport source) errs
-
-    BadMains errs ->
-      fmap (Main.toReport localizer source) (OneOrMore.destruct NE.List errs)
 
 
 
@@ -131,10 +130,10 @@ toSeparator beforeModule afterModule =
 
 
 moduleToDoc :: Module -> D.Doc
-moduleToDoc (Module _ path _ source err localizer) =
+moduleToDoc (Module _ path _ source err) =
   let
     reports =
-      toReports localizer (Code.toSource source) err
+      toReports (Code.toSource source) err
   in
   D.vcat $ map (reportToDoc path) (NE.toList reports)
 
@@ -171,10 +170,10 @@ toJson modules =
 
 
 moduleToJson :: Module -> E.Value
-moduleToJson (Module name path _ source err localizer) =
+moduleToJson (Module name path _ source err) =
   let
     reports =
-      toReports localizer (Code.toSource source) err
+      toReports (Code.toSource source) err
   in
   E.object
     [ "path" ==> E.string (Utf8.fromChars path)
