@@ -45,6 +45,7 @@ import qualified Http
 import qualified Json.Decode as D
 import qualified Parse.Module as Parse
 import qualified Reporting
+import qualified Reporting.Annotation as A
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
 import qualified Stuff
@@ -564,10 +565,10 @@ crawlModule foreignDeps mvar pkg src name =
 
 
 crawlFile :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> ModuleName.Raw -> FilePath -> IO (Maybe Status)
-crawlFile foreignDeps mvar pkg src name path =
+crawlFile foreignDeps mvar pkg src expectedName path =
   do  bytes <- File.readUtf8 path
       case Parse.fromByteString pkg bytes of
-        Right modul@(Src.Module (Just actualName) _ imports _ _ _ _ _) | name == actualName ->
+        Right modul@(Src.Module (Just (A.At _ actualName)) _ imports _ _ _ _ _) | expectedName == actualName ->
           do  deps <- crawlImports foreignDeps mvar pkg src imports
               return (Just (SLocal deps modul))
 
