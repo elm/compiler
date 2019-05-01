@@ -1,54 +1,58 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Reporting.Error.Import
   ( Error(..)
+  , Problem(..)
   , toReport
   )
   where
 
 
+import qualified Data.Set as Set
+
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
+import qualified Reporting.Doc as D
+import qualified Reporting.Render.Code as Code
 import qualified Reporting.Report as Report
+import qualified Reporting.Annotation as A
 
 
 
 -- ERROR
 
 
-data Error
-  = NotFound ModuleName.Raw
-  | Ambiguous ModuleName.Raw FilePath [FilePath] Pkg.Name [Pkg.Name]
-  | AmbiguousLocal ModuleName.Raw FilePath FilePath [FilePath]
-  | AmbiguousForeign ModuleName.Raw Pkg.Name Pkg.Name [Pkg.Name]
+data Error =
+  Error A.Region ModuleName.Raw (Set.Set ModuleName.Raw) Problem
+
+
+data Problem
+  = NotFound
+  | Ambiguous FilePath [FilePath] Pkg.Name [Pkg.Name]
+  | AmbiguousLocal FilePath FilePath [FilePath]
+  | AmbiguousForeign Pkg.Name Pkg.Name [Pkg.Name]
 
 
 
 -- TO REPORT
 
 
-toReport :: Error -> Report.Report
-toReport err =
-  case err of
-    NotFound name ->
-      error "TODO NotFound" name
+toReport :: Code.Source -> Error -> Report.Report
+toReport source (Error region name knownModules problem) =
+  case problem of
+    NotFound ->
+      Report.Report "MODULE NOT FOUND" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            "You are trying to import a `" <> D.fromName name <> "` module:"
+          ,
+            error "TODO But I cannot find `Whatever` in your project or packages." knownModules
+          )
 
-    Ambiguous name path paths pkg pkgs ->
-      error "TODO Ambiguous" name path paths pkg pkgs
+    Ambiguous path paths pkg pkgs ->
+      error "TODO Ambiguous" path paths pkg pkgs
 
-    AmbiguousLocal name path1 path2 paths ->
-      error "TODO AmbiguousLocal" name path1 path2 paths
+    AmbiguousLocal path1 path2 paths ->
+      error "TODO AmbiguousLocal" path1 path2 paths
 
-    AmbiguousForeign name pkg1 pkg2 pkgs ->
-      error "TODO AmbiguousForeign" name pkg1 pkg2 pkgs
-
-
-{-
-
--- MODULE NOT FOUND ---------------------------------------------- src/Main.elm
-
-You are trying to import a `Whatever` module:
-
-  import Whatever
-
-But I cannot find `Whatever` in your project or packages.
-
--}
+    AmbiguousForeign pkg1 pkg2 pkgs ->
+      error "TODO AmbiguousForeign" pkg1 pkg2 pkgs
