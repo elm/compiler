@@ -122,7 +122,7 @@ data Type_
 
 data Module =
   Module
-    { _name    :: Maybe Name
+    { _name    :: Maybe (A.Located Name)
     , _exports :: A.Located Exposing
     , _imports :: [Import]
     , _values  :: [A.Located Value]
@@ -136,8 +136,11 @@ data Module =
 getName :: Module -> Name
 getName (Module maybeName _ _ _ _ _ _ _) =
   case maybeName of
-    Just name -> name
-    Nothing -> defaultModuleName
+    Just (A.At _ name) ->
+      name
+
+    Nothing ->
+      defaultModuleName
 
 
 {-# NOINLINE defaultModuleName #-}

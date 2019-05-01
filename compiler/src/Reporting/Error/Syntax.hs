@@ -66,7 +66,7 @@ import qualified Reporting.Render.Code as Code
 
 data Error
   = ModuleNameUnspecified ModuleName.Raw
-  | ModuleNameMismatch ModuleName.Raw ModuleName.Raw
+  | ModuleNameMismatch ModuleName.Raw (A.Located ModuleName.Raw)
   | UnexpectedPort A.Region
   | NoPorts A.Region
   | ParseError Module

@@ -205,7 +205,7 @@ chompModuleDocComment =
 
 
 data Header =
-  Header Name.Name Effects (A.Located Src.Exposing)
+  Header (A.Located Name.Name) Effects (A.Located Src.Exposing)
 
 
 data Effects
@@ -223,7 +223,7 @@ chompHeader =
           do  Keyword.module_ E.Module
               end <- getPosition
               Space.chompAndCheckIndent E.ModuleSpace E.ModuleIndentName
-              name <- Var.moduleName E.ModuleName
+              name <- addLocation (Var.moduleName E.ModuleName)
               Space.chompAndCheckIndent E.ModuleSpace E.ModuleIndentExposing
               Keyword.exposing_ E.ModuleExposing
               Space.chompAndCheckIndent E.ModuleSpace E.ModuleIndentExposingList
@@ -237,7 +237,7 @@ chompHeader =
               Keyword.module_ E.ModulePortModule
               end <- getPosition
               Space.chompAndCheckIndent E.ModuleSpace E.ModuleIndentName
-              name <- Var.moduleName E.ModuleName
+              name <- addLocation (Var.moduleName E.ModuleName)
               Space.chompAndCheckIndent E.ModuleSpace E.ModuleIndentExposing
               Keyword.exposing_ E.ModuleExposing
               Space.chompAndCheckIndent E.ModuleSpace E.ModuleIndentExposingList
@@ -251,7 +251,7 @@ chompHeader =
               Keyword.module_ E.ModuleEffect
               end <- getPosition
               Space.chompAndCheckIndent E.ModuleSpace E.ModuleEffect
-              name <- Var.moduleName E.ModuleName
+              name <- addLocation (Var.moduleName E.ModuleName)
               Space.chompAndCheckIndent E.ModuleSpace E.ModuleEffect
               Keyword.where_ E.ModuleEffect
               Space.chompAndCheckIndent E.ModuleSpace E.ModuleEffect
