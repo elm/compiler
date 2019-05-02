@@ -189,12 +189,24 @@ linearAlgebra =
 
 suggestions :: Map.Map Name.Name Name
 suggestions =
+  let
+    random = Name "elm" "random"
+    time = Name "elm" "time"
+    file = Name "elm" "file"
+  in
   Map.fromList
     [ ("Browser", browser)
+    , ("File", file)
+    , ("File.Download", file)
+    , ("File.Select", file)
     , ("Html", html)
+    , ("Html.Attributes", html)
+    , ("Html.Events", html)
     , ("Http", http)
     , ("Json.Decode", json)
     , ("Json.Encode", json)
+    , ("Random", random)
+    , ("Time", time)
     , ("Url.Parser", url)
     , ("Url", url)
     ]
