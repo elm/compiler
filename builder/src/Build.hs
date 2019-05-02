@@ -69,7 +69,7 @@ makeEnv :: Reporting.BKey -> FilePath -> Details.Details -> Env
 makeEnv key root (Details.Details _ validOutline locals foreigns _) =
   case validOutline of
     Details.ValidApp (Outline.AppOutline _ srcDirs _ _ _ _) ->
-      Env key root Pkg.dummyName srcDirs locals foreigns
+      Env key root Pkg.dummyName (NE.toList srcDirs) locals foreigns
 
     Details.ValidPkg (Outline.PkgOutline pkg _ _ _ _ _ _ _) _ ->
       Env key root pkg ["src"] locals foreigns
@@ -121,7 +121,7 @@ fromExposed style root details (NE.List e es) =
               putMVar rmvar resultMVars
               results <- traverse readMVar resultMVars
               writeDetails root details results
-              return (detectProblems results)
+              return (detectProblems results) -- TODO error if "exposed-modules" are not found
 
 
 
@@ -174,7 +174,7 @@ fromMains style root details paths =
                       rmvar <- newEmptyMVar
                       resultsMVars <- forkWithKey (checkModule env foreigns rmvar) statuses
                       putMVar rmvar resultsMVars
-                      rmainMVars <- traverse (fork . checkMain env foreigns resultsMVars) smains
+                      rmainMVars <- traverse (fork . checkMain env resultsMVars) smains
                       results <- traverse readMVar resultsMVars
                       writeDetails root details results
                       toArtifacts env foreigns results <$> traverse readMVar rmainMVars
@@ -340,7 +340,7 @@ checkModule env@(Env _ root pkg _ _ _) foreigns resultsMVar name status =
                   return $ RProblem $ Error.Module name path time source $
                     case Parse.fromByteString pkg source of
                       Right (Src.Module _ _ imports _ _ _ _ _) ->
-                         Error.BadImports (toImportErrors foreigns results imports problems)
+                         Error.BadImports (toImportErrors env results imports problems)
 
                       Left err ->
                         Error.BadSyntax err
@@ -367,7 +367,7 @@ checkModule env@(Env _ root pkg _ _ _) foreigns resultsMVar name status =
 
             DepsNotFound problems ->
               return $ RProblem $ Error.Module name path time source $
-                Error.BadImports (toImportErrors foreigns results imports problems)
+                Error.BadImports (toImportErrors env results imports problems)
 
     SBadImport importProblem ->
       return (RNotFound importProblem)
@@ -447,19 +447,24 @@ checkDepsHelp root results deps new same cached importProblems isBlocked =
 -- TO IMPORT ERROR
 
 
-toImportErrors :: Dependencies -> ResultDict -> [Src.Import] -> NE.List (ModuleName.Raw, Import.Problem) -> NE.List Import.Error
-toImportErrors foreigns results imports problems =
+toImportErrors :: Env -> ResultDict -> [Src.Import] -> NE.List (ModuleName.Raw, Import.Problem) -> NE.List Import.Error
+toImportErrors (Env _ _ _ _ locals foreigns) results imports problems =
   let
     knownModules =
-      Set.union
-        (Set.fromList (map ModuleName._module (Map.keys foreigns)))
-        (Map.keysSet results)
+      Set.unions
+        [ Map.keysSet foreigns
+        , Map.keysSet locals
+        , Map.keysSet results
+        ]
+
+    unimportedModules =
+      Set.difference knownModules (Set.fromList (map Src.getImportName imports))
 
     regionDict =
       Map.fromList (map (\(Src.Import (A.At region name) _ _) -> (name, region)) imports)
 
     toError (name, problem) =
-      Import.Error (regionDict ! name) name knownModules problem
+      Import.Error (regionDict ! name) name unimportedModules problem
   in
   fmap toError problems
 
@@ -788,6 +793,7 @@ isInsideSrcDirs (Env _ root _ srcDirs _ _) path absolutePath =
           (exits, maybes) =
             Either.partitionEithers (map (isInsideSrcDirsHelp relativeSegments) srcDirs)
         in
+        -- TODO make sure this is all correct
         case (exits, Maybe.catMaybes maybes) of
           (_, [(_,name)])      -> Right (Location absolutePath path (LInside name))
           ([], [])             -> Right (Location absolutePath path (LOutside path))
@@ -874,8 +880,8 @@ data MainResult
   | ROutsideBlocked
 
 
-checkMain :: Env -> Dependencies -> ResultDict -> MainStatus -> IO MainResult
-checkMain env@(Env _ root _ _ _ _) foreigns results pendingMain =
+checkMain :: Env -> ResultDict -> MainStatus -> IO MainResult
+checkMain env@(Env _ root _ _ _ _) results pendingMain =
   case pendingMain of
     SInside name ->
       return (RInside name)
@@ -904,7 +910,7 @@ checkMain env@(Env _ root _ _ _ _) foreigns results pendingMain =
 
             DepsNotFound problems ->
               return $ ROutsideErr $ Error.Module (Src.getName modul) path time source $
-                  Error.BadImports (toImportErrors foreigns results imports problems)
+                  Error.BadImports (toImportErrors env results imports problems)
 
 
 compileOutside :: Env -> Details.Local -> B.ByteString -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> MainResult
