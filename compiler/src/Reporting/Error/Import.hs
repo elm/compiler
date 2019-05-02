@@ -56,8 +56,8 @@ toReport source (Error region name unimportedModules problem) =
             D.stack
               [
                 D.reflow $
-                  "But I cannot find it! I checked the \"dependencies\" and \"source-directories\"\
-                  \ listend in your elm.json, but the closest module names I could find were:"
+                  "I checked the \"dependencies\" and \"source-directories\" listend in your elm.json,\
+                  \ but I cannot find it! Maybe it is a typo for one of these names?"
               ,
                 D.dullyellow $ D.indent 4 $ D.vcat $
                   map D.fromName (toSuggestions name unimportedModules)
