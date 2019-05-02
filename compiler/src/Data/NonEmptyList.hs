@@ -6,6 +6,8 @@ module Data.NonEmptyList
   where
 
 
+import Control.Monad (liftM2)
+import Data.Binary (Binary, get, put)
 import qualified Data.List as List
 
 
@@ -55,3 +57,12 @@ sortBy comparison (List x xs) =
         LT -> List x (y:ys)
         EQ -> List x (y:ys)
         GT -> List y (List.insertBy comparison x ys)
+
+
+
+-- BINARY
+
+
+instance (Binary a) => Binary (List a) where
+  put (List x xs) = put x >> put xs
+  get = liftM2 List get get
