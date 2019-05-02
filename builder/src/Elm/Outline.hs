@@ -20,6 +20,7 @@ import Control.Monad (filterM, liftM)
 import Data.Binary (Binary, get, put, getWord8, putWord8)
 import Data.Foldable (traverse_)
 import qualified Data.Map as Map
+import qualified Data.NonEmptyList as NE
 import qualified Data.Utf8 as Utf8
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
@@ -47,7 +48,7 @@ data Outline
 data AppOutline =
   AppOutline
     { _app_elm_version :: V.Version
-    , _app_source_dirs :: [FilePath]
+    , _app_source_dirs :: NE.List FilePath
     , _app_deps_direct :: Map.Map Pkg.Name V.Version
     , _app_deps_indirect :: Map.Map Pkg.Name V.Version
     , _app_test_direct :: Map.Map Pkg.Name V.Version
@@ -115,7 +116,7 @@ encode outline =
     App (AppOutline elm srcDirs depsDirect depsTrans testDirect testTrans) ->
       E.object
         [ "type" ==> E.string "application"
-        , "source-directories" ==> E.list (E.string . Utf8.fromChars) srcDirs
+        , "source-directories" ==> E.list (E.string . Utf8.fromChars) (NE.toList srcDirs)
         , "elm-version" ==> V.encode elm
         , "dependencies" ==>
             E.object
@@ -185,7 +186,7 @@ read root =
               return $ Right outline
 
             App (AppOutline _ srcDirs _ _ _ _) ->
-              do  badDirs <- filterM (isBadSrcDir root) srcDirs
+              do  badDirs <- filterM (isBadSrcDir root) (NE.toList srcDirs)
                   case badDirs of
                     []   -> return $ Right outline
                     d:ds -> return $ Left (Exit.OutlineHasBadSrcDirs d ds)
@@ -222,7 +223,7 @@ appDecoder :: Decoder AppOutline
 appDecoder =
   AppOutline
     <$> D.field "elm-version" versionDecoder
-    <*> D.field "source-directories" (D.list dirDecoder)
+    <*> D.field "source-directories" dirsDecoder
     <*> D.field "dependencies" (D.field "direct" (depsDecoder versionDecoder))
     <*> D.field "dependencies" (D.field "indirect" (depsDecoder versionDecoder))
     <*> D.field "test-dependencies" (D.field "direct" (depsDecoder versionDecoder))
@@ -281,9 +282,12 @@ validateKey (key, value) =
       D.failure (Exit.OP_BadDependencyName key)
 
 
-dirDecoder :: Decoder FilePath
-dirDecoder =
-  Utf8.toChars <$> D.string
+dirsDecoder :: Decoder (NE.List FilePath)
+dirsDecoder =
+  do  dirs <- D.list D.string
+      case map Utf8.toChars dirs of
+        d:ds -> return (NE.List d ds)
+        []   -> D.failure Exit.OP_NoSrcDirs
 
 
 

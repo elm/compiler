@@ -323,6 +323,7 @@ data OutlineProblem
   | OP_BadDependencyName Utf8.String
   | OP_BadLicense Utf8.String [Utf8.String]
   | OP_BadSummaryTooLong
+  | OP_NoSrcDirs
 
 
 
