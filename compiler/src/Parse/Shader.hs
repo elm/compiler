@@ -58,14 +58,14 @@ parseBlock =
     then
       let
         (# status, newPos, newRow, newCol #) =
-          eatShader pos6 end row col
+          eatShader pos6 end row (col + 6)
       in
       case status of
         Good ->
           let
-            !block = Utf8.fromPtr pos newPos
+            !block = Utf8.fromPtr pos6 newPos
             !source = Utf8.toChars block
-            !newState = P.State (plusPtr newPos 2) end indent newRow newCol
+            !newState = P.State (plusPtr newPos 2) end indent newRow (newCol + 2)
           in
           cok source newState
 
@@ -89,7 +89,7 @@ eatShader pos end row col =
   else
     let !word = P.unsafeIndex pos in
     if word == 0x007C {- | -} && P.isWord (plusPtr pos 1) end 0x5D {- ] -} then
-      (# Good, pos, row, col + 2 #)
+      (# Good, pos, row, col #)
 
     else if word == 0x0A {- \n -} then
       eatShader (plusPtr pos 1) end (row + 1) 1
