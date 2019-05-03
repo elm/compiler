@@ -121,7 +121,7 @@ chompInt !pos end !n =
         chompInt (plusPtr pos 1) end (10 * n + fromIntegral (word - 0x30 {-0-}))
 
       else if word == 0x2E {-.-} then
-        chompFraction (plusPtr pos 1) end n
+        chompFraction pos end n
 
       else if word == 0x65 {-e-} || word == 0x45 {-E-} then
         chompExponent (plusPtr pos 1) end
@@ -139,11 +139,14 @@ chompInt !pos end !n =
 
 chompFraction :: Ptr Word8 -> Ptr Word8 -> Int -> Outcome
 chompFraction pos end n =
-  if pos >= end then
+  let
+    !pos1 = plusPtr pos 1
+  in
+  if pos1 >= end then
     Err pos (E.NumberDot n)
 
-  else if isDecimalDigit (P.unsafeIndex pos) then
-    chompFractionHelp (plusPtr pos 1) end
+  else if isDecimalDigit (P.unsafeIndex pos1) then
+    chompFractionHelp (plusPtr pos1 1) end
 
   else
     Err pos (E.NumberDot n)
@@ -222,7 +225,7 @@ chompZero pos end =
       chompHexInt (plusPtr pos 1) end
 
     else if word == 0x2E {-.-} then
-      chompFraction (plusPtr pos 1) end 0
+      chompFraction pos end 0
 
     else if isDecimalDigit word then
       Err pos E.NumberNoLeadingZero
