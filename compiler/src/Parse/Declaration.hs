@@ -108,19 +108,19 @@ chompDefArgsAndBody maybeDocs start name tipe revArgs =
 chompMatchingName :: Name.Name -> Parser E.DeclDef (A.Located Name.Name)
 chompMatchingName expectedName =
   let
-    (P.Parser parserL) = Var.lower (E.DeclDefNameRepeat expectedName)
+    (P.Parser parserL) = Var.lower E.DeclDefNameRepeat
   in
   P.Parser $ \state@(P.State _ _ _ sr sc) cok eok cerr eerr ->
     let
       cokL name newState@(P.State _ _ _ er ec) =
         if expectedName == name
         then cok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
-        else cerr sr sc (E.DeclDefNameMatch expectedName name)
+        else cerr sr sc (E.DeclDefNameMatch name)
 
       eokL name newState@(P.State _ _ _ er ec) =
         if expectedName == name
         then eok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
-        else eerr sr sc (E.DeclDefNameMatch expectedName name)
+        else eerr sr sc (E.DeclDefNameMatch name)
     in
     parserL state cokL eokL cerr eerr
 
