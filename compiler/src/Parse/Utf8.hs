@@ -28,7 +28,7 @@ character toExpectation toError =
       eerr row col toExpectation
 
     else
-      case chompChar (plusPtr pos 1) end (col + 1) 0 placeholder of
+      case chompChar (plusPtr pos 1) end row (col + 1) 0 placeholder of
         Good newPos newCol numChars mostRecent ->
           if numChars /= 1 then
             cerr row col (toError (E.CharNotString (fromIntegral (newCol - col))))
@@ -42,18 +42,18 @@ character toExpectation toError =
         CharEndless newCol ->
           cerr row newCol (toError E.CharEndless)
 
-        CharEscape newCol escape ->
-          cerr row newCol (toError (E.CharEscape escape))
+        CharEscape r c escape ->
+          cerr r c (toError (E.CharEscape escape))
 
 
 data CharResult
   = Good (Ptr Word8) Col Word16 Utf8.Chunk
   | CharEndless Col
-  | CharEscape Col E.Escape
+  | CharEscape Row Col E.Escape
 
 
-chompChar :: Ptr Word8 -> Ptr Word8 -> Col -> Word16 -> Utf8.Chunk -> CharResult
-chompChar pos end col numChars mostRecent =
+chompChar :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> Word16 -> Utf8.Chunk -> CharResult
+chompChar pos end row col numChars mostRecent =
   if pos >= end then
     CharEndless col
 
@@ -68,18 +68,18 @@ chompChar pos end col numChars mostRecent =
         CharEndless col
 
       else if word == 0x22 {- " -} then
-        chompChar (plusPtr pos 1) end (col + 1) (numChars + 1) doubleQuote
+        chompChar (plusPtr pos 1) end row (col + 1) (numChars + 1) doubleQuote
 
       else if word == 0x5C {- \ -} then
-        case eatEscape (plusPtr pos 1) end col of
+        case eatEscape (plusPtr pos 1) end row col of
           EscapeNormal ->
-            chompChar (plusPtr pos 2) end (col + 2) (numChars + 1) (Utf8.Slice pos 2)
+            chompChar (plusPtr pos 2) end row (col + 2) (numChars + 1) (Utf8.Slice pos 2)
 
           EscapeUnicode delta code ->
-            chompChar (plusPtr pos delta) end (col + fromIntegral delta) (numChars + 1) (Utf8.CodePoint code)
+            chompChar (plusPtr pos delta) end row (col + fromIntegral delta) (numChars + 1) (Utf8.CodePoint code)
 
-          EscapeProblem badEscape ->
-            CharEscape col badEscape
+          EscapeProblem r c badEscape ->
+            CharEscape r c badEscape
 
           EscapeEndOfFile ->
             CharEndless col
@@ -89,7 +89,7 @@ chompChar pos end col numChars mostRecent =
           !width = P.getCharWidth pos end word
           !newPos = plusPtr pos width
         in
-        chompChar newPos end (col + 1) (numChars + 1) (Utf8.Slice pos width)
+        chompChar newPos end row (col + 1) (numChars + 1) (Utf8.Slice pos width)
 
 
 
@@ -186,7 +186,7 @@ singleString pos end row col initialPos revChunks =
           addEscape singleQuote initialPos pos revChunks
 
       else if word == 0x5C {- \ -} then
-        case eatEscape (plusPtr pos 1) end col of
+        case eatEscape (plusPtr pos 1) end row col of
           EscapeNormal ->
             singleString (plusPtr pos 2) end row (col + 2) initialPos revChunks
 
@@ -195,8 +195,8 @@ singleString pos end row col initialPos revChunks =
             singleString newPos end row (col + fromIntegral delta) newPos $
               addEscape (Utf8.CodePoint code) initialPos pos revChunks
 
-          EscapeProblem x ->
-            Err row col (E.StringEscape x)
+          EscapeProblem r c x ->
+            Err r c (E.StringEscape x)
 
           EscapeEndOfFile ->
             Err row (col + 1) E.StringEndless_Single
@@ -237,7 +237,7 @@ multiString pos end row col initialPos sr sc revChunks =
         addEscape carriageReturn initialPos pos revChunks
 
     else if word == 0x5C {- \ -} then
-      case eatEscape (plusPtr pos 1) end col of
+      case eatEscape (plusPtr pos 1) end row col of
         EscapeNormal ->
           multiString (plusPtr pos 2) end row (col + 2) initialPos sr sc revChunks
 
@@ -246,8 +246,8 @@ multiString pos end row col initialPos sr sc revChunks =
           multiString newPos end row (col + fromIntegral delta) newPos sr sc $
             addEscape (Utf8.CodePoint code) initialPos pos revChunks
 
-        EscapeProblem x ->
-          Err row col (E.StringEscape x)
+        EscapeProblem r c x ->
+          Err r c (E.StringEscape x)
 
         EscapeEndOfFile ->
           Err sr sc E.StringEndless_Multi
@@ -265,11 +265,11 @@ data Escape
   = EscapeNormal
   | EscapeUnicode !Int !Int
   | EscapeEndOfFile
-  | EscapeProblem E.Escape
+  | EscapeProblem Row Col E.Escape
 
 
-eatEscape :: Ptr Word8 -> Ptr Word8 -> Word16 -> Escape
-eatEscape pos end startCol =
+eatEscape :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> Escape
+eatEscape pos end row col =
   if pos >= end then
     EscapeEndOfFile
 
@@ -281,14 +281,14 @@ eatEscape pos end startCol =
       0x22 {- " -} -> EscapeNormal
       0x27 {- ' -} -> EscapeNormal
       0x5C {- \ -} -> EscapeNormal
-      0x75 {- u -} -> eatUnicode (plusPtr pos 1) end startCol
-      _            -> EscapeProblem (E.EscapeUnknown startCol (startCol + 1))
+      0x75 {- u -} -> eatUnicode (plusPtr pos 1) end row col
+      _            -> EscapeProblem row col E.EscapeUnknown
 
 
-eatUnicode :: Ptr Word8 -> Ptr Word8 -> Word16 -> Escape
-eatUnicode pos end startCol =
+eatUnicode :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> Escape
+eatUnicode pos end row col =
   if pos >= end || P.unsafeIndex pos /= 0x7B {- { -} then
-    EscapeProblem $ E.BadUnicodeFormat startCol (startCol + 1)
+    EscapeProblem row col (E.BadUnicodeFormat 2)
   else
     let
       !digitPos = plusPtr pos 1
@@ -296,18 +296,15 @@ eatUnicode pos end startCol =
       !numDigits = minusPtr newPos digitPos
     in
     if newPos >= end || P.unsafeIndex newPos /= 0x7D {- } -} then
-      EscapeProblem $ E.BadUnicodeFormat startCol $
-        startCol + fromIntegral (minusPtr newPos pos)
+      EscapeProblem row col $ E.BadUnicodeFormat (2 + fromIntegral (minusPtr newPos pos))
 
     else if code < 0 || 0x10FFFF < code then
-      EscapeProblem $ E.BadUnicodeCode startCol $
-        startCol + fromIntegral (minusPtr newPos pos) + 1
+      EscapeProblem row col $ E.BadUnicodeCode (3 + fromIntegral (minusPtr newPos pos))
 
     else if numDigits < 4 || 6 < numDigits then
-      EscapeProblem $
+      EscapeProblem row col $
         E.BadUnicodeLength
-          startCol
-          (startCol + fromIntegral (minusPtr newPos pos) + 1)
+          (3 + fromIntegral (minusPtr newPos pos))
           numDigits
           code
 

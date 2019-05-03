@@ -49,7 +49,7 @@ import Prelude hiding (Char, String)
 import qualified Data.Char as Char
 import qualified Data.Name as Name
 import Data.Word (Word16)
---import Numeric (showHex)
+import Numeric (showHex)
 
 import qualified Elm.ModuleName as ModuleName
 import Parse.Primitives (Row, Col)
@@ -470,7 +470,7 @@ data TTuple
 data Char
   = CharEndless
   | CharEscape Escape
-  | CharNotString Int
+  | CharNotString Word16
 
 
 data String
@@ -480,10 +480,10 @@ data String
 
 
 data Escape
-  = EscapeUnknown Word16 Word16
-  | BadUnicodeFormat Word16 Word16
-  | BadUnicodeCode Word16 Word16
-  | BadUnicodeLength Word16 Word16 Int Int
+  = EscapeUnknown
+  | BadUnicodeFormat Word16
+  | BadUnicodeCode Word16
+  | BadUnicodeLength Word16 Int Int
 
 
 data Number
@@ -550,7 +550,7 @@ toReport source err =
                   ++ ModuleName.toChars expectedName
                   ++ "` here. Make the following change, and you should be all set!"
               , D.indent 4 $
-                  D.red (D.fromName actualName) <> " -> " <> D.green (D.fromName expectedName)
+                  D.dullyellow (D.fromName actualName) <> " -> " <> D.green (D.fromName expectedName)
               , D.toSimpleNote $
                   "I require that module names correspond to file paths. This makes it much\
                   \ easier to explore unfamiliar codebases! So if you want to keep the current\
@@ -835,11 +835,11 @@ toExprReport source _ expr _ _ =
     Start _ _ ->
       error "TODO Start"
 
-    Char _ _ _ ->
-      error "TODO Char"
+    Char char row col ->
+      toCharReport source char row col
 
-    String _ _ _ ->
-      error "TODO String"
+    String string row col ->
+      toStringReport source string row col
 
     Number number row col ->
       toNumberReport source number row col
@@ -882,6 +882,196 @@ toExprReport source _ expr _ _ =
 
     IndentMoreExpr _ _ ->
       error "TODO IndentMoreExpr"
+
+
+toCharReport :: Code.Source -> Char -> Row -> Col -> Report.Report
+toCharReport source char row col =
+  case char of
+    CharEndless ->
+      let
+        region = toRegion row col
+      in
+      Report.Report "MISSING SINGLE QUOTE" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            D.reflow $
+              "I thought I was parsing a character, but I got to the end of\
+              \ the line without seeing the closing single quote:"
+          ,
+            D.reflow $
+              "Add a closing single quote here!"
+          )
+
+    CharEscape escape ->
+      toEscapeReport source escape row col
+
+    CharNotString width ->
+      let
+        region = toWiderRegion row col width
+      in
+      Report.Report "NEEDS DOUBLE QUOTES" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            "The following string uses single quotes:"
+          ,
+            D.stack
+              [ "Please switch to double quotes instead:"
+              , D.indent 4 $
+                  D.dullyellow "'this'" <> " => " <> D.green "\"this\""
+              , D.toSimpleNote $
+                  "Elm uses double quotes for strings like \"hello\", whereas it uses single\
+                  \ quotes for individual characters like 'a' and 'ø'. This distinction helps with\
+                  \ code like (String.any (\\c -> c == 'X') \"90210\") where you are inspecting\
+                  \ individual characters."
+              ]
+          )
+
+
+toStringReport :: Code.Source -> String -> Row -> Col -> Report.Report
+toStringReport source string row col =
+  case string of
+    StringEndless_Single ->
+      let
+        region = toRegion row col
+      in
+      Report.Report "ENDLESS STRING" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            D.reflow $
+              "I got to the end of the line without seeing the closing double quote:"
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["Strings","look","like",D.green "\"this\"","with","double"
+                  ,"quotes","on","each","end.","Is","the","closing","double"
+                  ,"quote","missing","in","your","code?"
+                  ]
+              , D.link "Note" "Read" "TODO" "if you want a string that spans multiple lines."
+              ]
+          )
+
+    StringEndless_Multi ->
+      let
+        region = toWiderRegion row col 3
+      in
+      Report.Report "ENDLESS STRING" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            D.reflow $
+              "I cannot find the end of this multi-line string:"
+          ,
+            D.stack
+              [ D.reflow "Add a \"\"\" somewhere after this to end the string."
+              , D.link "Hint" "Read" "TODO" "for more information on strings and multi-line strings."
+              ]
+          )
+
+    StringEscape escape ->
+      toEscapeReport source escape row col
+
+
+toEscapeReport :: Code.Source -> Escape -> Row -> Col -> Report.Report
+toEscapeReport source escape row col =
+  case escape of
+    EscapeUnknown ->
+      let
+        region = toWiderRegion row col 2
+      in
+      Report.Report "UNKNOWN ESCAPE" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            D.reflow $
+              "Backslashes always start escaped characters, but I do not recognize this one:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "Valid escape characters include:"
+              , D.dullyellow $ D.indent 4 $ D.vcat $
+                    [ "\\n"
+                    , "\\r"
+                    , "\\t"
+                    , "\\\""
+                    , "\\\'"
+                    , "\\\\"
+                    , "\\u{003D}"
+                    ]
+              , D.reflow $
+                  "Do you want one of those instead? Maybe you need \\\\ to escape a backslash?"
+              , D.toSimpleNote $
+                  "The last style lets encode ANY character by its Unicode code\
+                  \ point. That means \\u{0009} and \\t are the same. You can use\
+                  \ that style for anything not covered by the other six escapes!"
+              ]
+          )
+
+    BadUnicodeFormat width ->
+      let
+        region = toWiderRegion row col width
+      in
+      Report.Report "BAD UNICODE ESCAPE" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            D.reflow $
+              "I ran into an invalid Unicode escape:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "Here are some examples of valid Unicode escapes:"
+              , D.dullyellow $ D.indent 4 $ D.vcat $
+                  [ "\\u{0041}"
+                  , "\\u{03BB}"
+                  , "\\u{6728}"
+                  , "\\u{1F60A}"
+                  ]
+              , D.reflow $
+                  "Notice that the code point is always surrounded by curly braces.\
+                  \ Maybe you are missing the opening or closing curly brace?"
+              ]
+            )
+    BadUnicodeCode width ->
+      let
+        region = toWiderRegion row col width
+      in
+      Report.Report "BAD UNICODE ESCAPE" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            D.reflow $
+              "This is not a valid code point:"
+          ,
+            D.reflow $
+              "The valid code points are between 0 and 10FFFF inclusive."
+          )
+
+    BadUnicodeLength width numDigits badCode ->
+      let
+        region = toWiderRegion row col width
+      in
+      Report.Report "BAD UNICODE ESCAPE" region [] $
+        Report.toCodeSnippet source region Nothing $
+          if numDigits < 4 then
+            (
+              D.reflow $
+                "Every code point needs at least four digits:"
+            ,
+              let
+                goodCode = replicate (4 - numDigits) '0' ++ map Char.toUpper (showHex badCode "")
+                suggestion = "\\u{" <> D.fromChars goodCode <> "}"
+              in
+              D.fillSep ["Try",D.green suggestion,"instead?"]
+            )
+
+          else
+            (
+              D.reflow $
+                "This code point has too many digits:"
+            ,
+              D.fillSep $
+                ["Valid","code","points","are","between"
+                ,D.green "\\u{0000}","and",D.green "\\u{10FFFF}" <> ","
+                ,"so","try","trimming","any","leading","zeros","until"
+                ,"you","have","between","four","and","six","digits."
+                ]
+            )
 
 
 toNumberReport :: Code.Source -> Number -> Row -> Col -> Report.Report
@@ -1050,233 +1240,6 @@ toNumberReport source number row col =
                 D.reflow $
                   "I need a single digit between 0 and 9 inclusive."
               )
-
-        -- Parse.Utf8
-
-        CharStart ->
-          Report.Report "EXPECTING A CHARACTER" region [] $
-            Report.toCodeSnippet source region Nothing
-              (
-                D.reflow $
-                  "I was expecting a character here:"
-              ,
-                D.stack
-                  [ D.reflow $
-                      "Characters start and end with single quotes, like this:"
-                  , D.indent 4 $ D.vcat $
-                      [ "'a'"
-                      , "'b'"
-                      , "'ø'"
-                      , "'\\n'"
-                      , "'\\u{00F8}'"
-                      ]
-                  , D.reflow $
-                      "That last style lets you encode characters by their unicode\
-                      \ code point, so 'a' is equivalent to '\\u{0061}', 'ø' is\
-                      \ equivalent to '\\u{00F8}', and so on for all code points."
-                  ]
-              )
-
-        CharEnd ->
-          Report.Report "MISSING SINGLE QUOTE" region [] $
-            Report.toCodeSnippet source region Nothing
-              (
-                D.reflow $
-                  "I thought I was parsing a character, but I got to the end of\
-                  \ the line without seeing the closing single quote:"
-              ,
-                D.stack
-                  [ D.reflow $
-                      "Characters start and end with single quotes, like this:"
-                  , D.indent 4 $ D.vcat $
-                      [ "'a'"
-                      , "'b'"
-                      , "'ø'"
-                      , "'\\n'"
-                      , "'\\u{00F8}'"
-                      ]
-                  , D.reflow $
-                      "That last style lets you encode characters by their unicode\
-                      \ code point, so 'a' is equivalent to '\\u{0061}', 'ø' is\
-                      \ equivalent to '\\u{00F8}', and so on for all code points."
-                  ]
-              )
-
-        CharNotString startRow startCol ->
-          let
-            stringRegion =
-              A.Region (A.Position startRow startCol) pos
-          in
-          Report.Report "NEEDS DOUBLE QUOTES" stringRegion [] $
-            Report.toCodeSnippet source stringRegion Nothing
-              (
-                "The following string uses single quotes:"
-              ,
-                D.stack
-                  [ "Please switch to double quotes instead:"
-                  , D.indent 4 $
-                      D.dullyellow "'this'" <> " => " <> D.green "\"this\""
-                  , D.toSimpleNote $
-                      "Elm uses double quotes for strings like \"hello\", whereas it uses single\
-                      \ quotes for individual characters like 'a' and 'ø'. This distinction helps with\
-                      \ code like (String.any (\\c -> c == 'X') \"90210\") where you are inspecting\
-                      \ individual characters."
-                  ]
-              )
-
-        StringStart ->
-          Report.Report "EXPECTING A STRING" region [] $
-            Report.toCodeSnippet source region Nothing
-              (
-                D.reflow $
-                  "I was expecting a string here:"
-              ,
-                D.fillSep
-                  ["Something","like"
-                  ,D.green "\"this\""
-                  ,"or"
-                  ,D.green "\"that\""
-                  ,"with","double","quotes."
-                  ]
-              )
-
-        StringEnd_Single ->
-          Report.Report "ENDLESS STRING" region [] $
-            Report.toCodeSnippet source region Nothing
-              (
-                D.reflow $
-                  "I got to the end of the line without seeing the closing double quote:"
-              ,
-                D.stack
-                  [ D.fillSep $
-                      ["Strings","look","like",D.green "\"this\"","with","double"
-                      ,"quotes","on","each","end.","Is","the","closing","double"
-                      ,"quote","missing","in","your","code?"
-                      ]
-                  , D.link "Note" "Read" "TODO" "if you want a string that spans multiple lines."
-                  ]
-              )
-
-        StringEnd_Multi startRow startCol ->
-          let
-            startRegion =
-              A.Region
-                (A.Position startRow startCol)
-                (A.Position startRow (startCol + 3))
-          in
-          Report.Report "ENDLESS STRING" startRegion [] $
-            Report.toCodeSnippet source startRegion Nothing
-              (
-                D.reflow $
-                  "I cannot find the end of this multi-line string:"
-              ,
-                D.stack
-                  [ D.reflow "Add a \"\"\" somewhere after this to end the string."
-                  , D.link "Hint" "Read" "TODO" "for more information on strings and multi-line strings."
-                  ]
-              )
-
-        EscapeUnknown startCol endCol ->
-          let
-            escapeRegion =
-              A.Region (A.Position row startCol) (A.Position row endCol)
-          in
-          Report.Report "UNKNOWN ESCAPE" escapeRegion [] $
-            Report.toCodeSnippet source escapeRegion Nothing
-              (
-                D.reflow $
-                  "Backslashes always start escaped characters, but I do not recognize this one:"
-              ,
-                D.stack
-                  [ D.reflow $
-                      "Valid escape characters include:"
-                  , D.indent 4 $ D.vcat $
-                        [ "\\n"
-                        , "\\r"
-                        , "\\t"
-                        , "\\\""
-                        , "\\\'"
-                        , "\\\\"
-                        , "\\u{03BB}"
-                        ]
-                  , D.reflow $
-                      "The last one lets encode ANY character by its Unicode code\
-                      \ point, so use that for anything outside the ordinary six."
-                  ]
-              )
-
-        BadUnicodeFormat startCol endCol ->
-          let
-            escapeRegion =
-              A.Region (A.Position row startCol) (A.Position row endCol)
-          in
-          Report.Report "BAD UNICODE ESCAPE" escapeRegion [] $
-            Report.toCodeSnippet source escapeRegion Nothing
-              (
-                D.reflow $
-                  "I ran into an invalid Unicode escape:"
-              ,
-                D.stack
-                  [ D.reflow $
-                      "Here are some examples of valid Unicode escapes:"
-                  , D.green $ D.indent 4 $ D.vcat $
-                      [ "\\u{0041}"
-                      , "\\u{03BB}"
-                      , "\\u{6728}"
-                      , "\\u{1F60A}"
-                      ]
-                  , D.reflow $
-                      "Notice that the code point is always surrounded by curly\
-                      \ braces. They are required!"
-                  ]
-                )
-
-        BadUnicodeCode startCol endCol ->
-          let
-            escapeRegion =
-              A.Region (A.Position row startCol) (A.Position row endCol)
-          in
-          Report.Report "BAD UNICODE ESCAPE" escapeRegion [] $
-            Report.toCodeSnippet source escapeRegion Nothing
-              (
-                D.reflow $
-                  "This is not a valid code point:"
-              ,
-                D.reflow $
-                  "The valid code points are between 0 and 10FFFF inclusive."
-              )
-
-        BadUnicodeLength startCol endCol numDigits badCode ->
-          let
-            escapeRegion =
-              A.Region (A.Position row startCol) (A.Position row endCol)
-          in
-          Report.Report "BAD UNICODE ESCAPE" escapeRegion [] $
-            Report.toCodeSnippet source escapeRegion Nothing $
-              if numDigits < 4 then
-                (
-                  D.reflow $
-                    "Every code point needs at least four digits:"
-                ,
-                  let
-                    goodCode = replicate (4 - numDigits) '0' ++ showHex badCode ""
-                    escape = "\\u{" <> D.fromChars goodCode <> "}"
-                  in
-                  D.fillSep ["Try",D.green escape,"instead?"]
-                )
-
-              else
-                (
-                  D.reflow $
-                    "This code point has too many digits:"
-                ,
-                  D.fillSep $
-                    ["Valid","code","points","are","between"
-                    ,D.green "\\u{0000}","and",D.green "\\u{10FFFF}" <> ","
-                    ,"so","try","trimming","any","leading","zeros","until"
-                    ,"you","have","between","four","and","six","digits."
-                    ]
-                )
 
         Operator ->
           Report.Report "EXPECTING AN OPERATOR" region [] $
