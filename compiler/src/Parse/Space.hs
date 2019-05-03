@@ -52,7 +52,6 @@ chomp toError =
 
       HasTab               -> cerr newRow newCol (toError E.HasTab)
       EndlessMultiComment  -> cerr newRow newCol (toError E.EndlessMultiComment)
-      UnexpectedDocComment -> cerr newRow newCol (toError E.UnexpectedDocComment)
 
 
 
@@ -108,7 +107,6 @@ chompAndCheckIndent toSpaceError toIndentError =
 
       HasTab               -> cerr newRow newCol (toSpaceError E.HasTab)
       EndlessMultiComment  -> cerr newRow newCol (toSpaceError E.EndlessMultiComment)
-      UnexpectedDocComment -> cerr newRow newCol (toSpaceError E.UnexpectedDocComment)
 
 
 
@@ -119,7 +117,6 @@ data Status
   = Good
   | HasTab
   | EndlessMultiComment
-  | UnexpectedDocComment
 
 
 eatSpaces :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> (# Status, Ptr Word8, Row, Col #)
@@ -189,7 +186,7 @@ eatMultiComment pos end row col =
   else if P.unsafeIndex pos1 == 0x2D {- - -} then
 
     if P.unsafeIndex pos2 == 0x7C {- | -} then
-      (# UnexpectedDocComment, pos, row, col #)
+      (# Good, pos, row, col #)
     else
       let
         (# status, newPos, newRow, newCol #) =
