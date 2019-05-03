@@ -53,9 +53,8 @@ import Data.Word (Word16)
 
 import qualified Elm.ModuleName as ModuleName
 import Parse.Primitives (Row, Col)
---import qualified Parse.Primitives as P
 import qualified Reporting.Annotation as A
---import qualified Reporting.Doc as D
+import qualified Reporting.Doc as D
 import qualified Reporting.Report as Report
 import qualified Reporting.Render.Code as Code
 
@@ -159,8 +158,8 @@ data DeclDef
   | DeclDefType Type Row Col
   | DeclDefArg Pattern Row Col
   | DeclDefBody Expr Row Col
-  | DeclDefNameRepeat Name.Name Row Col
-  | DeclDefNameMatch Name.Name Name.Name Row Col
+  | DeclDefNameRepeat Row Col
+  | DeclDefNameMatch Name.Name Row Col
   --
   | DeclDefIndentType Row Col
   | DeclDefIndentEquals Row Col
@@ -501,7 +500,6 @@ data Number
 data Space
   = HasTab
   | EndlessMultiComment
-  | UnexpectedDocComment
 
 
 data Operator
@@ -518,7 +516,446 @@ data Operator
 
 toReport :: Code.Source -> Error -> Report.Report
 toReport source err =
-  error "TODO" source err
+  case err of
+    ModuleNameUnspecified name ->
+      let
+        region = toRegion 1 1
+      in
+      Report.Report "MODULE NAME MISSING" region [] $
+        D.stack
+          [ D.reflow $
+              "I need the module name to be declared at the top of this file, like this:"
+          , D.indent 4 $ D.green $ D.fromChars $
+              "module " ++ ModuleName.toChars name ++ " exposing (..)"
+          , D.reflow $
+              "Try adding that as the first line of your file!"
+          , D.toSimpleNote $
+              "It is best to replace (..) with an explicit list of types and\
+              \ functions you want to expose. When you know a value is only used\
+              \ within this module, you can refactor without worrying about uses\
+              \ elsewhere. Limiting exposed values can also speed up compilation\
+              \ because I can skip a bunch of work if I see that the exposed API\
+              \ has not changed."
+          ]
+
+    ModuleNameMismatch expectedName (A.At region actualName) ->
+      Report.Report "MODULE NAME MISMATCH" region [ModuleName.toChars expectedName] $
+        Report.toCodeSnippet source region Nothing
+          (
+            "It looks like this module name is out of sync:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I need it to match the file path, so I was expecting it to see `"
+                  ++ ModuleName.toChars expectedName
+                  ++ "` here. Make the following change, and you should be all set!"
+              , D.indent 4 $
+                  D.red (D.fromName actualName) <> " -> " <> D.green (D.fromName expectedName)
+              , D.toSimpleNote $
+                  "I require that module names correspond to file paths. This makes it much\
+                  \ easier to explore unfamiliar codebases! So if you want to keep the current\
+                  \ module name, try renaming the file instead."
+              ]
+          )
+
+    UnexpectedPort region ->
+      error "TODO UnexpectedPort" region
+
+    NoPorts region ->
+      error "TODO NoPorts" region
+
+    ParseError modul ->
+      toParseErrorReport source modul
+
+
+toParseErrorReport :: Code.Source -> Module -> Report.Report
+toParseErrorReport source modul =
+  case modul of
+    ModuleSpace space row col ->
+      toSpaceReport source space row col
+
+    ModuleEndOfFile row col ->
+      let
+        region = toRegion row col
+      in
+      Report.Report "EXPECTING END OF FILE" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            D.reflow $
+              "I was not expecting to see anything more here:"
+          ,
+            D.reflow $
+              "I think I have read all the declarations in the file and that there is nothing\
+              \ left to see, so whatever I am running into is confusing me a lot!"
+          )
+
+    Module row col ->
+      error "TODO Module" row col
+
+    ModuleName row col ->
+      error "TODO ModuleName" row col
+
+    ModuleExposing row col ->
+      error "TODO ModuleExposing" row col
+
+    ModuleExposingList exposing row col ->
+      error "TODO ModuleExposingList" exposing row col
+
+  --
+    ModulePortModule row col ->
+      error "TODO ModulePortModule" row col
+
+    ModuleEffect row col ->
+      error "TODO ModuleEffect" row col
+
+    ModuleIndentStart row col ->
+      error "TODO ModuleIndentStart" row col
+
+    ModuleIndentName row col ->
+      error "TODO ModuleIndentName" row col
+
+    ModuleIndentExposing row col ->
+      error "TODO ModuleIndentExposing" row col
+
+    ModuleIndentExposingList row col ->
+      error "TODO ModuleIndentExposingList" row col
+
+    ModuleIndentPortModule row col ->
+      error "TODO ModuleIndentPortModule" row col
+
+    FreshLineModuleStart row col ->
+      error "TODO FreshLineModuleStart" row col
+
+    FreshLineAfterModuleLine row col ->
+      error "TODO FreshLineAfterModuleLine" row col
+
+    FreshLineAfterDocComment row col ->
+      error "TODO FreshLineAfterDocComment" row col
+
+    ImportStart row col ->
+      error "TODO ImportStart" row col
+
+    ImportName row col ->
+      error "TODO ImportName" row col
+
+    ImportAs row col ->
+      error "TODO ImportAs" row col
+
+    ImportAlias row col ->
+      error "TODO ImportAlias" row col
+
+    ImportExposing row col ->
+      error "TODO ImportExposing" row col
+
+    ImportExposingList exposing row col ->
+      error "TODO ImportExposingList" exposing row col
+
+    ImportEnd row col ->
+      error "TODO ImportEnd" row col
+
+    ImportIndentName row col ->
+      error "TODO ImportIndentName" row col
+
+    ImportIndentAs row col ->
+      error "TODO ImportIndentAs" row col
+
+    ImportIndentAlias row col ->
+      error "TODO ImportIndentAlias" row col
+
+    ImportIndentExposing row col ->
+      error "TODO ImportIndentExposing" row col
+
+    ImportIndentExposingList row col ->
+      error "TODO ImportIndentExposingList" row col
+
+    Infix row col ->
+      error "TODO Infix" row col
+
+    Declarations decl _ _ ->
+      toDeclarationsReport source decl
+
+
+toSpaceReport :: Code.Source -> Space -> Row -> Col -> Report.Report
+toSpaceReport source space row col =
+  case space of
+    HasTab ->
+      let
+        region = toRegion row col
+      in
+      Report.Report "NO TABS" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            D.reflow $
+              "I ran into a tab, but tabs are not allowed in Elm files."
+          ,
+            D.reflow $
+              "Replace the tab with spaces."
+          )
+
+    EndlessMultiComment ->
+      let
+        region = toWiderRegion row col 2
+      in
+      Report.Report "ENDLESS COMMENT" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            D.reflow $
+              "I cannot find the end of this multi-line comment:"
+          ,
+            D.stack -- "{-"
+              [ D.reflow "Add a -} somewhere after this to end the comment."
+              , D.toSimpleHint
+                  "Multi-line comments can be nested in Elm, so {- {- -} -} is a comment\
+                  \ that happens to contain another comment. Like parentheses and curly braces,\
+                  \ the start and end markers must always be balanced. Maybe that is the problem?"
+              ]
+          )
+
+
+toRegion :: Row -> Col -> A.Region
+toRegion row col =
+  let
+    pos = A.Position row col
+  in
+  A.Region pos pos
+
+
+toWiderRegion :: Row -> Col -> Word16 -> A.Region
+toWiderRegion row col extra =
+  A.Region
+    (A.Position row col)
+    (A.Position row (col + extra))
+
+
+toDeclarationsReport :: Code.Source -> Decl -> Report.Report
+toDeclarationsReport source decl =
+  case decl of
+    DeclStart row col ->
+      error "TODO DeclStart" row col
+
+    DeclSpace space row col ->
+      toSpaceReport source space row col
+
+    Port port row col ->
+      error "TODO Port" port row col
+
+    DeclType declType row col ->
+      error "TODO DeclType" declType row col
+
+    DeclDef name declDef row col ->
+      toDeclDefReport source name declDef row col
+
+    DeclFreshLineStart row col ->
+      error "TODO DeclFreshLineStart" row col
+
+    DeclFreshLineAfterDocComment row col ->
+      error "TODO DeclFreshLineAfterDocComment" row col
+
+
+toDeclDefReport :: Code.Source -> Name.Name -> DeclDef -> Row -> Col -> Report.Report
+toDeclDefReport source name declDef _ _ =
+  case declDef of
+    DeclDefSpace space row col ->
+      toSpaceReport source space row col
+
+    DeclDefEquals row col ->
+      error "TODO DeclDefEquals" row col
+
+    DeclDefType tipe row col ->
+      error "TODO DeclDefType" tipe row col
+
+    DeclDefArg pattern row col ->
+      error "TODO DeclDefArg" pattern row col
+
+    DeclDefBody expr row col ->
+      toExprReport source name expr row col
+
+    DeclDefNameRepeat row col ->
+      error "TODO DeclDefNameRepeat" name row col
+
+    DeclDefNameMatch defName row col ->
+      error "TODO DeclDefNameMatch" name defName row col
+
+    DeclDefIndentType row col ->
+      error "TODO DeclDefIndentType" row col
+
+    DeclDefIndentEquals row col ->
+      error "TODO DeclDefIndentEquals" row col
+
+    DeclDefIndentBody row col ->
+      error "TODO DeclDefIndentBody" row col
+
+    DeclDefFreshLineAfterType row col ->
+      error "TODO DeclDefFreshLineAfterType" row col
+
+
+
+toExprReport :: Code.Source -> Name.Name -> Expr -> Row -> Col -> Report.Report
+toExprReport source _ expr _ _ =
+  case expr of
+    Let _ _ _ ->
+      error "TODO Let"
+
+    Case _ _ _ ->
+      error "TODO Case"
+
+    If _ _ _ ->
+      error "TODO If"
+
+    List _ _ _ ->
+      error "TODO List"
+
+    Record _ _ _ ->
+      error "TODO Record"
+
+    Update _ _ _ ->
+      error "TODO Update"
+
+    Tuple _ _ _ ->
+      error "TODO Tuple"
+
+    Func _ _ _ ->
+      error "TODO Func"
+
+    Dot _ _ ->
+      error "TODO Dot"
+
+    Access _ _ ->
+      error "TODO Access"
+
+    OperatorRHS _ _ ->
+      error "TODO OperatorRHS"
+
+    OperatorRight _ _ ->
+      error "TODO OperatorRight"
+
+    OperatorReserved _ _ _ ->
+      error "TODO OperatorReserved"
+
+    Start _ _ ->
+      error "TODO Start"
+
+    Char _ _ _ ->
+      error "TODO Char"
+
+    String _ _ _ ->
+      error "TODO String"
+
+    Number number row col ->
+      toNumberReport source number row col
+
+    Space space row col ->
+      toSpaceReport source space row col
+
+    EndlessShader row col ->
+      let
+        region = toWiderRegion row col 6
+      in
+      Report.Report "ENDLESS SHADER" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            D.reflow "I cannot find the end of this shader:"
+          ,
+            D.reflow "Add a |] somewhere after this to end the shader."
+          )
+
+    ShaderProblem problem row col ->
+      let
+        region = toRegion row col
+      in
+      Report.Report "SHADER PROBLEM" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            D.reflow $
+              "I ran into a problem while parsing this GLSL block."
+          ,
+            D.stack
+              [ D.reflow $
+                  "I use a 3rd party GLSL parser for now, and I did my best to extract their error message:"
+              , D.indent 4 $ D.vcat $
+                  map D.fromChars (filter (/="") (lines problem))
+              ]
+          )
+
+    IndentOperatorRight _ _ ->
+      error "TODO IndentOperatorRight"
+
+    IndentMoreExpr _ _ ->
+      error "TODO IndentMoreExpr"
+
+
+toNumberReport :: Code.Source -> Number -> Row -> Col -> Report.Report
+toNumberReport source number row col =
+  let
+    region = toRegion row col
+  in
+  case number of
+    NumberEnd ->
+      Report.Report "WEIRD NUMBER" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            D.reflow $
+              "I thought I was reading a number, but I ran into some weird stuff here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I recognize numbers in the following formats:"
+              , D.indent 4 $ D.vcat [ "42", "3.14", "6.022e23", "0x002B" ]
+              , D.reflow $
+                  "So is there a way to write it like one of those?"
+              ]
+          )
+
+    NumberDot int ->
+      Report.Report "WEIRD NUMBER" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            D.reflow $
+              "Numbers cannot end with a dot like this:"
+          ,
+            D.fillSep
+              ["Switching","to",D.green (D.fromChars (show int))
+              ,"or",D.green (D.fromChars (show int ++ ".0"))
+              ,"will","work","though!"
+              ]
+          )
+
+    NumberHexDigit ->
+      Report.Report "WEIRD HEXIDECIMAL" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            D.reflow $
+              "I thought I was reading a hexidecimal number until I got here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "Valid hexidecimal digits include 0123456789abcdefABCDEF, so I can\
+                  \ only recognize things like this:"
+              , D.indent 4 $ D.vcat [ "0x2B", "0x002B", "0x00ffb3" ]
+              ]
+          )
+
+    NumberNoLeadingZero ->
+      Report.Report "LEADING ZEROS" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            D.reflow $
+              "I do not accept numbers with leading zeros:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "Just delete the leading zeros and it should work!"
+              , D.toSimpleNote $
+                  "Some languages let you to specify octal numbers by adding a leading zero.\
+                  \ So in C, writing 0111 is the same as writing 73. Some people are used to\
+                  \ that, but others probably want it to equal 111. Either path is going to\
+                  \ surprise people from certain backgrounds, so Elm tries to avoid this whole\
+                  \ situation."
+              ]
+          )
+
+
+
 {-
   case err of
     CommentOnNothing region ->
@@ -601,109 +1038,7 @@ toReport source err =
                   "Check out" "TODO" "for examples of doc comments."
               )
 
-        MultiCommentEnd startRow startCol ->
-          let
-            startRegion =
-              A.Region
-                (A.Position startRow startCol)
-                (A.Position startRow (startCol + 3))
-          in
-          Report.Report "ENDLESS COMMENT" startRegion [] $
-            Report.toCodeSnippet source startRegion Nothing
-              (
-                D.reflow $
-                  "I cannot find the end of this multi-line comment:"
-              ,
-                D.stack -- "{-"
-                  [ D.reflow "Add a -} somewhere after this to end the comment."
-                  , D.toSimpleHint
-                      "Multi-line comments can be nested in Elm, so {- {- -} -} is a comment\
-                      \ that happens to contain another comment. Like parentheses and curly braces,\
-                      \ the start and end markers must always be balanced. Maybe that is the problem?"
-                  ]
-              )
-
         -- Parse.Number
-
-        Number_Start ->
-          Report.Report "EXPECTING NUMBER" region [] $
-            Report.toCodeSnippet source region Nothing
-              (
-                D.reflow $
-                  "I was expecting to see a number here:"
-              ,
-                D.stack
-                  [ D.reflow $
-                      "I recognize numbers in the following formats:"
-                  , D.indent 4 $ D.vcat [ "42", "3.14", "6.022e23", "0x002B" ]
-                  , D.reflow $
-                      "So is there a way to write it like one of those?"
-                  ]
-              )
-
-        Number_End ->
-          Report.Report "WEIRD NUMBER" region [] $
-            Report.toCodeSnippet source region Nothing
-              (
-                D.reflow $
-                  "I thought I was reading a number, but I ran into some weird stuff here:"
-              ,
-                D.stack
-                  [ D.reflow $
-                      "I recognize numbers in the following formats:"
-                  , D.indent 4 $ D.vcat [ "42", "3.14", "6.022e23", "0x002B" ]
-                  , D.reflow $
-                      "So is there a way to write it like one of those?"
-                  ]
-              )
-
-        Number_Dot int ->
-          Report.Report "WEIRD NUMBER" region [] $
-            Report.toCodeSnippet source region Nothing
-              (
-                D.reflow $
-                  "Numbers cannot end with a dot like this:"
-              ,
-                D.fillSep
-                  ["Switching","to",D.green (D.fromChars (show int))
-                  ,"or",D.green (D.fromChars (show int ++ ".0"))
-                  ,"will","work","though!"
-                  ]
-              )
-
-        Number_HexDigit ->
-          Report.Report "WEIRD HEXIDECIMAL" region [] $
-            Report.toCodeSnippet source region Nothing
-              (
-                D.reflow $
-                  "I thought I was reading a hexidecimal number until I got here:"
-              ,
-                D.stack
-                  [ D.reflow $
-                      "Valid hexidecimal digits include 0123456789abcdefABCDEF, so I can\
-                      \ only recognize things like this:"
-                  , D.indent 4 $ D.vcat [ "0x2B", "0x002B", "0x00ffb3" ]
-                  ]
-              )
-
-        Number_NoLeadingZero ->
-          Report.Report "LEADING ZEROS" region [] $
-            Report.toCodeSnippet source region Nothing
-              (
-                D.reflow $
-                  "I do not accept numbers with leading zeros:"
-              ,
-                D.stack
-                  [ D.reflow $
-                      "Just delete the leading zeros and it should work!"
-                  , D.toSimpleNote $
-                      "Some languages let you to specify octal numbers by adding a leading zero.\
-                      \ So in C, writing 0111 is the same as writing 73. Some people are used to\
-                      \ that, but others probably want it to equal 111. Either path is going to\
-                      \ surprise people from certain backgrounds, so Elm tries to avoid this whole\
-                      \ situation."
-                  ]
-              )
 
         Precedence ->
           Report.Report "EXPECTING PRECEDENCE" region [] $
@@ -943,43 +1278,6 @@ toReport source err =
                     ]
                 )
 
-        -- Parse.Shader
-
-        ShaderStart ->
-          Report.Report "EXPECTING A SHADER" region [] $
-            Report.toCodeSnippet source region Nothing $
-              (
-                D.reflow $
-                  "I was expecting a GLSL shader block here:"
-              ,
-                D.reflow $
-                  "These blocks start with [glsl| and end with |] and should be\
-                  \ filled with GLSL code."
-              )
-
-        ShaderEnd startCol endCol ->
-          let
-            shaderRegion =
-              A.Region (A.Position row startCol) (A.Position row endCol)
-          in
-          Report.Report "ENDLESS SHADER" shaderRegion [] $
-            Report.toCodeSnippet source shaderRegion Nothing
-              (
-                D.reflow "I cannot find the end of this shader:"
-              ,
-                D.reflow "Add a |] somewhere after this to end the shader."
-              )
-
-        ShaderProblem problem ->
-          Report.Report "SHADER PROBLEM" region [] $
-            Report.toCodeSnippet source region Nothing
-              (
-                D.reflow $
-                  "I ran into a problem while parsing this GLSL block."
-              ,
-                D.fromChars problem
-              )
-
         Operator ->
           Report.Report "EXPECTING AN OPERATOR" region [] $
             Report.toCodeSnippet source region Nothing
@@ -1027,14 +1325,6 @@ toReport source err =
 
         -- Parse.Pattern
 
-        Pattern ->
-          error "TODO" context
-{-
-          case context of
-            P.Frame r c
-            P.NoContext ->
--}
-
         FloatInPattern ->
           Report.Report "INVALID PATTERN" region [] $
             Report.toCodeSnippet source region Nothing
@@ -1076,20 +1366,6 @@ toReport source err =
               )
 -}
 
-{-
-        EndOfFile ->
-          Report.Report "EXPECTING END OF FILE" region [] $
-            Report.toCodeSnippet source region Nothing
-              (
-                D.reflow $
-                  "I was not expecting to see anything more here:"
-              ,
-                D.reflow $
-                  "I think I have read all the declarations in the file and that there is nothing\
-                  \ left to see, so whatever I am running into is confusing me a lot!"
-              )
-
--}
 {-
 
     TypeWithBadDefinition region annName defName ->
