@@ -22,7 +22,7 @@ import qualified Json.Encode as E
 import Json.Encode ((==>))
 import Reporting.Doc ((<+>))
 import qualified Reporting.Doc as D
-import qualified Reporting.Exit.Compile as Compile
+import qualified Reporting.Error as Error
 
 
 
@@ -30,7 +30,7 @@ import qualified Reporting.Exit.Compile as Compile
 
 
 data Report
-  = CompilerReport Compile.Exit [Compile.Exit]
+  = CompilerReport Error.Module [Error.Module]
   | Report
       { _title :: String
       , _path :: Maybe FilePath
@@ -53,7 +53,7 @@ jsonReport =
   Report
 
 
-compilerReport :: Compile.Exit -> [Compile.Exit] -> Report
+compilerReport :: Error.Module -> [Error.Module] -> Report
 compilerReport =
   CompilerReport
 
@@ -66,7 +66,7 @@ reportToDoc :: Report -> D.Doc
 reportToDoc report_ =
   case report_ of
     CompilerReport e es ->
-      Compile.toDoc e es
+      Error.toDoc e es
 
     Report title maybePath message ->
       let
@@ -98,7 +98,7 @@ reportToJson report_ =
     CompilerReport e es ->
       E.object
         [ "type" ==> E.string "compile-errors"
-        , "errors" ==> E.list Compile.toJson (e:es)
+        , "errors" ==> E.list Error.toJson (e:es)
         ]
 
     Report title maybePath message ->

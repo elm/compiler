@@ -89,11 +89,11 @@ toReports source err =
 -- TO DOC
 
 
-toDoc :: NE.List Module -> D.Doc
-toDoc modules =
+toDoc :: Module -> [Module] -> D.Doc
+toDoc err errs =
   let
     timeCompare m1 m2 = compare (_time m1) (_time m2)
-    (NE.List m ms)    = NE.sortBy timeCompare modules
+    (NE.List m ms)    = NE.sortBy timeCompare (NE.List err errs)
   in
   D.vcat (toDocHelp m ms)
 
@@ -164,13 +164,8 @@ toMessageBar title filePath =
 -- TO JSON
 
 
-toJson :: NE.List Module -> E.Value
-toJson modules =
-  E.array (map moduleToJson (NE.toList modules))
-
-
-moduleToJson :: Module -> E.Value
-moduleToJson (Module name path _ source err) =
+toJson :: Module -> E.Value
+toJson (Module name path _ source err) =
   let
     reports =
       toReports (Code.toSource source) err
