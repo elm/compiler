@@ -801,8 +801,8 @@ toExprReport source name expr _ _ =
     If _ _ _ ->
       error "TODO If"
 
-    List _ _ _ ->
-      error "TODO List"
+    List list row col ->
+      toListReport source name list row col
 
     Record _ _ _ ->
       error "TODO Record"
@@ -1327,8 +1327,121 @@ toOperatorReport source name operator row col =
           )
 
 
+toListReport :: Code.Source -> Name.Name -> List -> Row -> Col -> Report.Report
+toListReport source name func startRow startCol =
+  case func of
+    ListSpace space row col ->
+      toSpaceReport source space row col
+
+    ListOpen row col ->
+      error "TODO ListOpen" row col
+
+    ListExpr expr row col ->
+      toExprReport source name expr row col
+
+    ListEnd row col ->
+      error "TODO ListEnd" row col
+
+    ListIndentOpen row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED LIST" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I cannot find the end of this list:"
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["You","could","change","it","to","something","like"
+                  ,D.dullyellow "[3,4,5]"
+                  ,"or","even","just"
+                  ,D.dullyellow "[]" <> "."
+                  ,"Anything","where","there","is","an","open","and","close","square","brace,"
+                  ,"and","where","the","elements","of","the","list","are","separated","by","commas."
+                  ]
+              , D.toSimpleNote
+                  "I may be confused by indentation. For example, if you are trying to define\
+                  \ a list across multiple lines, I recommend using this format:"
+              , D.indent 4 $ D.vcat $
+                  [ "[ \"Alice\""
+                  , ", \"Bob\""
+                  , ", \"Chuck\""
+                  , "]"
+                  ]
+              , D.reflow $
+                  "Notice that nothing comes directly after a newline. Each line starts with some spaces.\
+                  \ This style can be jarring for people coming from C-like syntax, but folks generally\
+                  \ report that they are used to it (and often prefer it!) after a week or two of using Elm."
+              ]
+          )
+
+    ListIndentEnd row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED LIST" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I cannot find the end of this list:"
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["You","can","just","add","a","closing",D.dullyellow "]"
+                  ,"right","here,","and","I","will","be","all","set!"
+                  ]
+              , D.toSimpleNote
+                  "I may be confused by indentation. For example, if you are trying to define\
+                  \ a list across multiple lines, I recommend using this format:"
+              , D.indent 4 $ D.vcat $
+                  [ "[ \"Alice\""
+                  , ", \"Bob\""
+                  , ", \"Chuck\""
+                  , "]"
+                  ]
+              , D.reflow $
+                  "Notice that nothing comes directly after a newline. Each line starts with some spaces.\
+                  \ This style can be jarring for people coming from C-like syntax, but folks generally\
+                  \ report that they are used to it (and often prefer it!) after a week or two of using Elm."
+              ]
+          )
+
+    ListIndentExpr row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED LIST" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was expecting to see another list entry after this comma:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "Trailing commas are not allowed in lists, so the fix may be to delete the comma?"
+              , D.toSimpleNote
+                  "I recommend using the following format for lists that span multiple lines:"
+              , D.indent 4 $ D.vcat $
+                  [ "[ \"Alice\""
+                  , ", \"Bob\""
+                  , ", \"Chuck\""
+                  , "]"
+                  ]
+              , D.reflow $
+                  "Notice that nothing comes directly after a newline. Each line starts with some spaces.\
+                  \ This style can be jarring for people coming from C-like syntax, but folks generally\
+                  \ report that they are used to it (and often prefer it!) after a week or two of using Elm."
+              ]
+          )
+
+
 toFuncReport :: Code.Source -> Name.Name -> Func -> Row -> Col -> Report.Report
-toFuncReport source name func frow fcol =
+toFuncReport source name func startRow startCol =
   case func of
     FuncSpace space row col ->
       toSpaceReport source space row col
@@ -1341,7 +1454,7 @@ toFuncReport source name func frow fcol =
 
     FuncArrow row col ->
       let
-        surroundings = A.Region (A.Position frow fcol) (A.Position row col)
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
         region = toRegion row col
       in
       Report.Report "UNFINISHED ANONYMOUS FUNCTION" region [] $
@@ -1350,14 +1463,16 @@ toFuncReport source name func frow fcol =
             D.reflow $
               "I was expecting to see an arrow here:"
           ,
-            D.reflow $
-              "The syntax for anonymous functions is (\\x -> x + 1) so I am missing the arrow\
-              \ and the body of the function."
+            D.fillSep $
+              ["The","syntax","for","anonymous","functions","is"
+              ,D.dullyellow "(\\x -> x + 1)"
+              ,"so","I","am","missing","the","arrow","and","the","body","of","the","function."
+              ]
           )
 
     FuncIndentArg row col ->
       let
-        surroundings = A.Region (A.Position frow fcol) (A.Position row col)
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
         region = toRegion row col
       in
       Report.Report "MISSING ARGUMENT" region [] $
@@ -1380,7 +1495,7 @@ toFuncReport source name func frow fcol =
 
     FuncIndentArrow row col ->
       let
-        surroundings = A.Region (A.Position frow fcol) (A.Position row col)
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
         region = toRegion row col
       in
       Report.Report "UNFINISHED ANONYMOUS FUNCTION" region [] $
@@ -1390,9 +1505,11 @@ toFuncReport source name func frow fcol =
               "I was expecting to see an arrow here:"
           ,
             D.stack
-              [ D.reflow $
-                  "The syntax for anonymous functions is (\\x -> x + 1) so I am missing the arrow\
-                  \ and the body of the function."
+              [ D.fillSep $
+                  ["The","syntax","for","anonymous","functions","is"
+                  ,D.dullyellow "(\\x -> x + 1)"
+                  ,"so","I","am","missing","the","arrow","and","the","body","of","the","function."
+                  ]
               , D.toSimpleNote $
                   "It is possible that I am confused about indetation! I generally recommend\
                   \ switching to named functions if the definition cannot fit inline nicely, so\
@@ -1403,7 +1520,7 @@ toFuncReport source name func frow fcol =
 
     FuncIndentBody row col ->
       let
-        surroundings = A.Region (A.Position frow fcol) (A.Position row col)
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
         region = toRegion row col
       in
       Report.Report "UNFINISHED ANONYMOUS FUNCTION" region [] $
@@ -1413,8 +1530,11 @@ toFuncReport source name func frow fcol =
               "I was expecting to see the body of your anonymous function here:"
           ,
             D.stack
-              [ D.reflow $
-                  "The syntax for anonymous functions is (\\x -> x + 1) so I am missing all the stuff after the arrow!"
+              [ D.fillSep $
+                  ["The","syntax","for","anonymous","functions","is"
+                  ,D.dullyellow "(\\x -> x + 1)"
+                  ,"so","I","am","missing","all","the","stuff","after","the","arrow!"
+                  ]
               , D.toSimpleNote $
                   "It is possible that I am confused about indetation! I generally recommend\
                   \ switching to named functions if the definition cannot fit inline nicely, so\
