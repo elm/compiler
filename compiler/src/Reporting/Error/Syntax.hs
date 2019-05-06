@@ -813,8 +813,8 @@ toExprReport source name expr _ _ =
     Tuple _ _ _ ->
       error "TODO Tuple"
 
-    Func _ _ _ ->
-      error "TODO Func"
+    Func func row col ->
+      toFuncReport source name func row col
 
     Dot row col ->
       let region = toRegion row col in
@@ -1325,6 +1325,105 @@ toOperatorReport source name operator row col =
                   \ this new definition is indented a bit too much."
               ]
           )
+
+
+toFuncReport :: Code.Source -> Name.Name -> Func -> Row -> Col -> Report.Report
+toFuncReport source name func frow fcol =
+  case func of
+    FuncSpace space row col ->
+      toSpaceReport source space row col
+
+    FuncArg pattern row col ->
+      error "TODO FuncArg" pattern row col
+
+    FuncBody expr row col ->
+      toExprReport source name expr row col
+
+    FuncArrow row col ->
+      let
+        surroundings = A.Region (A.Position frow fcol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED ANONYMOUS FUNCTION" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was expecting to see an arrow here:"
+          ,
+            D.reflow $
+              "The syntax for anonymous functions is (\\x -> x + 1) so I am missing the arrow\
+              \ and the body of the function."
+          )
+
+    FuncIndentArg row col ->
+      let
+        surroundings = A.Region (A.Position frow fcol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "MISSING ARGUMENT" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I just saw the start of an anonymous function, so I was expecting to see an argument here:"
+          ,
+            D.stack
+              [ D.fillSep
+                  ["Something","like",D.dullyellow"x","or",D.dullyellow "name" <> "."
+                  ,"Anything","that","starts","with","a","lower","case","letter!"
+                  ]
+              , D.toSimpleNote $
+                  "The syntax for anonymous functions is (\\x -> x + 1) where the backslash\
+                  \ is meant to look a bit like a lambda if you squint. This visual pun seemed\
+                  \ like a better idea at the time!"
+              ]
+          )
+
+    FuncIndentArrow row col ->
+      let
+        surroundings = A.Region (A.Position frow fcol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED ANONYMOUS FUNCTION" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was expecting to see an arrow here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "The syntax for anonymous functions is (\\x -> x + 1) so I am missing the arrow\
+                  \ and the body of the function."
+              , D.toSimpleNote $
+                  "It is possible that I am confused about indetation! I generally recommend\
+                  \ switching to named functions if the definition cannot fit inline nicely, so\
+                  \ either (1) try to fit the whole anonymous function on one line or (2) break\
+                  \ the whole thing out into a named function. Things tend to be clearer that way!"
+              ]
+          )
+
+    FuncIndentBody row col ->
+      let
+        surroundings = A.Region (A.Position frow fcol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED ANONYMOUS FUNCTION" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was expecting to see the body of your anonymous function here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "The syntax for anonymous functions is (\\x -> x + 1) so I am missing all the stuff after the arrow!"
+              , D.toSimpleNote $
+                  "It is possible that I am confused about indetation! I generally recommend\
+                  \ switching to named functions if the definition cannot fit inline nicely, so\
+                  \ either (1) try to fit the whole anonymous function on one line or (2) break\
+                  \ the whole thing out into a named function. Things tend to be clearer that way!"
+              ]
+          )
+
+
 
 
 {-
