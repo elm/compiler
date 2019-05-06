@@ -273,7 +273,7 @@ chompExprEnd start (State ops expr args end) =
     , -- operator
       do  Space.checkIndent end E.IndentMoreExpr
           op@(A.At (A.Region opStart opEnd) opName) <- addLocation (Symbol.operator E.Start E.OperatorReserved)
-          Space.chompAndCheckIndent E.Space E.IndentOperatorRight
+          Space.chompAndCheckIndent E.Space (E.IndentOperatorRight opName)
           newStart <- getPosition
           if "-" == opName && end /= opStart && opEnd == newStart
             then
@@ -284,7 +284,8 @@ chompExprEnd start (State ops expr args end) =
                   let arg = A.at opStart newEnd (Src.Negate negatedExpr)
                   chompExprEnd start (State ops expr (arg:args) newEnd)
             else
-              oneOf E.OperatorRight
+              let err = E.OperatorRight opName in
+              oneOf err
                 [ -- term
                   do  newExpr <- possiblyNegativeTerm newStart
                       newEnd <- getPosition
@@ -294,7 +295,7 @@ chompExprEnd start (State ops expr args end) =
 
                 , -- final term
                   do  (newLast, newEnd) <-
-                        oneOf E.OperatorRight
+                        oneOf err
                           [ let_ newStart
                           , case_ newStart
                           , if_ newStart

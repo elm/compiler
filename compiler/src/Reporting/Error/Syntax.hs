@@ -231,8 +231,7 @@ data Expr
   --
   | Dot Row Col
   | Access Row Col
-  | OperatorRHS Row Col
-  | OperatorRight Row Col
+  | OperatorRight Name.Name Row Col
   | OperatorReserved Operator Row Col
   --
   | Start Row Col
@@ -242,7 +241,7 @@ data Expr
   | Space Space Row Col
   | EndlessShader Row Col
   | ShaderProblem [Char.Char] Row Col
-  | IndentOperatorRight Row Col
+  | IndentOperatorRight Name.Name Row Col
   | IndentMoreExpr Row Col
 
 
@@ -791,7 +790,7 @@ toDeclDefReport source name declDef _ _ =
 
 
 toExprReport :: Code.Source -> Name.Name -> Expr -> Row -> Col -> Report.Report
-toExprReport source _ expr _ _ =
+toExprReport source name expr _ _ =
   case expr of
     Let _ _ _ ->
       error "TODO Let"
@@ -817,20 +816,58 @@ toExprReport source _ expr _ _ =
     Func _ _ _ ->
       error "TODO Func"
 
-    Dot _ _ ->
-      error "TODO Dot"
+    Dot row col ->
+      let region = toRegion row col in
+      Report.Report "EXPECTING RECORD ACCESSOR" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            D.reflow $
+              "I was expecting to see a record accessor here:"
+          ,
+            D.fillSep
+              ["Something","like",D.dullyellow".name","or",D.dullyellow".price"
+              ,"that","accesses","a","value","from","a","record."
+              ]
+          )
 
-    Access _ _ ->
-      error "TODO Access"
+    Access row col ->
+      let region = toRegion row col in
+      Report.Report "EXPECTING RECORD ACCESSOR" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            D.reflow $
+              "I am trying to parse a record accessor here:"
+          ,
+            D.stack
+              [
+                D.fillSep
+                  ["Something","like",D.dullyellow".name","or",D.dullyellow".price"
+                  ,"that","accesses","a","value","from","a","record."
+                  ]
+              ,
+                D.toSimpleNote $
+                  "Record field names must start with a lower case letter!"
+              ]
+          )
 
-    OperatorRHS _ _ ->
-      error "TODO OperatorRHS"
+    OperatorRight op row col ->
+      let region = toRegion row col in
+      Report.Report "MISSING EXPRESSION" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            D.reflow $
+              "I need to see an expression after this " ++ Name.toChars op ++ " operator:"
+          ,
+            D.fillSep $
+              ["You","can","just","put","anything","for","now,","like"
+              ,D.dullyellow "42","or",D.dullyellow"\"hello\"" <> "."
+              ,"Once","there","is","something","there,","I","can","give","more"
+              ,"specific","hints","about","what","type","of","value","is","needed!"
+              ]
+          )
 
-    OperatorRight _ _ ->
-      error "TODO OperatorRight"
-
-    OperatorReserved _ _ _ ->
-      error "TODO OperatorReserved"
+    OperatorReserved operator row col ->
+      toOperatorReport source name operator row col
 
     Start _ _ ->
       error "TODO Start"
@@ -877,8 +914,29 @@ toExprReport source _ expr _ _ =
               ]
           )
 
-    IndentOperatorRight _ _ ->
-      error "TODO IndentOperatorRight"
+    IndentOperatorRight op row col ->
+      let region = toRegion row col in
+      Report.Report "MISSING EXPRESSION" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            D.reflow $
+              "I need to see an expression after this " ++ Name.toChars op ++ " operator:"
+          ,
+            D.stack
+              [
+                D.fillSep $
+                  ["You","can","just","put","anything","for","now,","like"
+                  ,D.dullyellow "42","or",D.dullyellow"\"hello\"" <> "."
+                  ,"Once","there","is","something","there,","I","can","give","more"
+                  ,"specific","hints","about","what","type","of","value","is","needed!"
+                  ]
+              ,
+                D.toSimpleNote $
+                  "I may be getting confused by your indentation? The easiest way to make sure\
+                  \ this is not an indentation problem is to put the expression on the right of\
+                  \ the " ++ Name.toChars op ++ " operator on the same line."
+              ]
+          )
 
     IndentMoreExpr _ _ ->
       error "TODO IndentMoreExpr"
@@ -1144,6 +1202,129 @@ toNumberReport source number row col =
               ]
           )
 
+
+toOperatorReport :: Code.Source -> Name.Name -> Operator -> Row -> Col -> Report.Report
+toOperatorReport source name operator row col =
+  case operator of
+    OpDot ->
+      let
+        region = toRegion row col
+      in
+      Report.Report "UNEXPECTED SYMBOL" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            "I was not expecting this dot:"
+          ,
+            D.reflow $
+              "Dots are for record access and decimal points, so\
+              \ they cannot float around on their own. Maybe\
+              \ there is some extra whitespace?"
+          )
+
+    OpPipe ->
+      let
+        region = toRegion row col
+      in
+      Report.Report "UNEXPECTED SYMBOL" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            D.reflow $
+              "I was not expecting this vertical bar:"
+          ,
+            D.reflow $
+              "Vertical bars should only appear in custom type declarations. Maybe you want || instead?"
+          )
+
+    OpArrow ->
+      let
+        region = toWiderRegion row col 2
+      in
+      Report.Report "UNEXPECTED ARROW" region [] $
+        Report.toCodeSnippet source region Nothing $
+          if error "TODO inCase" then
+            (
+              D.reflow $
+                "I was not expecting to see an arrow here:"
+            ,
+              D.stack
+                [
+                  D.reflow $
+                    "I think I am parsing a `case` expression right now, so it makes sense to\
+                    \ see arrows around here. This one is confusing me though!"
+                ,
+                  D.toSimpleHint $
+                    "I may be getting confused by the indentation. Every pattern in a `case` must be\
+                    \ exactly aligned (with exactly the same amount of indentation) so maybe this arrow\
+                    \ appears after the next `case` pattern (correctly!) but the pattern itself is\
+                    \ indented too far?"
+                ]
+            )
+
+          else
+            (
+              D.reflow $
+                "I was not expecting an arrow here:"
+            ,
+              D.reflow $
+                "Arrows should only appear in `case` expressions and anonymous functions. Maybe\
+                \ you want > or >= instead?"
+            )
+
+    OpEquals ->
+      let
+        region = toRegion row col
+      in
+      Report.Report "UNEXPECTED EQUALS" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            D.reflow $
+              "I was not expecting to see this equals sign:"
+          ,
+            D.stack
+              [
+                D.reflow "Maybe you want == instead? To check if two values are equal?"
+              ,
+                D.toSimpleNote $
+                  if error "TODO is within record?" then
+                    "Records look like { x = 3, y = 4 } with the equals sign right\
+                    \ after the field name. So maybe you forgot a comma?"
+                  else
+                    "I may be getting confused by your indentation. Is this supposed to be part of\
+                    \ a definition AFTER the `" ++ Name.toChars name ++ "` definition? If so,\
+                    \ the problem may be a bit before the equals sign. I need all definitions to\
+                    \ be exactly aligned (with exactly the same indentation) so the problem may be that\
+                    \ this new definition is indented a bit too much."
+              ]
+          )
+
+    OpHasType ->
+      let
+        region = toRegion row col
+      in
+      Report.Report "UNEXPECTED SYMBOL" region [] $
+        Report.toCodeSnippet source region Nothing $
+          (
+            D.reflow $
+              "I was not expecting to run into the \"has type\" symbol here:"
+          ,
+            D.stack
+              [
+                D.fillSep
+                  ["Maybe","you","want",D.green "::","instead?"
+                  ,"To","put","something","on","the","front","of","a","list?"
+                  ]
+              , D.toSimpleNote $
+                  "The single colon is reserved for type annotations and record types, but I think\
+                  \ I am parsing the definition of `" ++ Name.toChars name ++ "` right now."
+              ,
+                D.toSimpleNote $
+                  "I may be getting confused by your indentation. Is this supposed to be part of\
+                  \ a type annotation AFTER the `" ++ Name.toChars name ++ "` definition? If so,\
+                  \ the problem may be a bit before the \"has type\" symbol. I need all definitions to\
+                  \ be exactly aligned (with exactly the same indentation) so the problem may be that\
+                  \ this new definition is indented a bit too much."
+              ]
+          )
 
 
 {-
@@ -1471,52 +1652,6 @@ problemToDocs problem =
         "Delete the underscore and it shoulld be fine!"
       )
 
-    BadOp op stack ->
-      case op of
-        HasType ->
-          badOp stack "A" "\"has type\" operator"
-            "type annotations and record types"
-            "Maybe you want :: instead? Or maybe something is indented too much?"
-
-        Equals ->
-          (
-            "I was not expecting this equals sign"
-            <> contextToString " here" " while parsing " stack <> "."
-          ,
-            toBadEqualsHint stack
-          )
-
-        Arrow ->
-          if isCaseRelated stack then
-            (
-              "I ran into a stray arrow while parsing this `case` expression."
-            ,
-              D.reflow $
-                "All branches in a `case` must be indented the exact\
-                \ same amount, so the patterns are vertically\
-                \ aligned. Maybe this branch is indented too much?"
-            )
-
-          else
-            badOp stack "An" "arrow"
-              "cases expressions and anonymous functions"
-              "Maybe you want > or >= instead?"
-
-        Pipe ->
-          badOp stack "A" "vertical bar"
-            "type declarations"
-            "Maybe you want || instead?"
-
-        Dot ->
-          (
-            "I was not expecting this dot."
-          ,
-            D.reflow $
-              "Dots are for record access and decimal points, so\
-              \ they cannot float around on their own. Maybe\
-              \ there is some extra whitespace?"
-          )
-
     Theories stack allTheories ->
       (
         D.reflow $
@@ -1545,60 +1680,6 @@ problemToDocs problem =
               ]
               ++ map (bullet . theoryToString stack) theories
       )
-
-
-
--- BAD OP HELPERS
-
-
-badOp :: ContextStack -> String -> String -> String -> String -> ( D.Doc, D.Doc )
-badOp stack article opName setting hint =
-  (
-    D.reflow $
-      "I was not expecting this " <> opName
-      <> contextToString " here" " while parsing " stack <> "."
-  ,
-    D.reflow $
-      article <> " " <> opName <> " should only appear in "
-      <> setting <> ". " <> hint
-  )
-
-
-toBadEqualsHint :: ContextStack -> D.Doc
-toBadEqualsHint stack =
-  case stack of
-    [] ->
-      D.reflow $
-        "Maybe you want == instead? Or maybe something is indented too much?"
-
-    (ExprRecord, _) : _ ->
-      D.reflow $
-        "Records look like { x = 3, y = 4 } with the equals sign right\
-        \ after the field name. Maybe you forgot a comma?"
-
-    (Definition _, _) : rest ->
-      D.reflow $
-        "Maybe this is supposed to be a separate definition? If so, it\
-        \ is indented too far. "
-        <>
-        if any ((==) ExprLet . fst) rest then
-          "All definitions in a `let` expression must be vertically aligned."
-        else
-          "Spaces are not allowed before top-level definitions."
-
-    _ : rest ->
-      toBadEqualsHint rest
-
-
-
-isCaseRelated :: ContextStack -> Bool
-isCaseRelated stack =
-  case stack of
-    [] ->
-      False
-
-    (context, _) : rest ->
-      context == ExprCase || isCaseRelated rest
 
 
 
