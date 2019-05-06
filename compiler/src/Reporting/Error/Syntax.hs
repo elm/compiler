@@ -1461,7 +1461,7 @@ toFuncReport source name func startRow startCol =
         Report.toCodeSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I was expecting to see an arrow here:"
+              "I just saw the beginning of an anonymous function, so I was expecting to see an arrow next:"
           ,
             D.fillSep $
               ["The","syntax","for","anonymous","functions","is"
@@ -1479,7 +1479,7 @@ toFuncReport source name func startRow startCol =
         Report.toCodeSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I just saw the start of an anonymous function, so I was expecting to see an argument here:"
+              "I just saw the beginning of an anonymous function, so I was expecting to see an argument next:"
           ,
             D.stack
               [ D.fillSep
@@ -1502,7 +1502,7 @@ toFuncReport source name func startRow startCol =
         Report.toCodeSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I was expecting to see an arrow here:"
+              "I just saw the beginning of an anonymous function, so I was expecting to see an arrow next:"
           ,
             D.stack
               [ D.fillSep $
@@ -1527,7 +1527,7 @@ toFuncReport source name func startRow startCol =
         Report.toCodeSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I was expecting to see the body of your anonymous function here:"
+              "I was expecting to see the body of your anonymous function next:"
           ,
             D.stack
               [ D.fillSep $
