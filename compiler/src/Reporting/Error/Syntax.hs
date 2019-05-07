@@ -261,14 +261,14 @@ data Record
 
 
 data Tuple
-  = TupleOpen Row Col
-  | TupleExpr Expr Row Col
+  = TupleExpr Expr Row Col
   | TupleSpace Space Row Col
   | TupleEnd Row Col
   | TupleOperatorClose Row Col
   | TupleOperatorReserved Operator Row Col
   --
-  | TupleIndentExpr Row Col
+  | TupleIndentExpr1 Row Col
+  | TupleIndentExprN Row Col
   | TupleIndentEnd Row Col
 
 
@@ -810,8 +810,8 @@ toExprReport source name expr _ _ =
     Update _ _ _ ->
       error "TODO Update"
 
-    Tuple _ _ _ ->
-      error "TODO Tuple"
+    Tuple tuple row col ->
+      toTupleReport source name tuple row col
 
     Func func row col ->
       toFuncReport source name func row col
@@ -856,21 +856,44 @@ toExprReport source name expr _ _ =
         Report.toCodeSnippet source region Nothing
           (
             D.reflow $
-              "I need to see an expression after this " ++ Name.toChars op ++ " operator:"
+              "I was expecting to see an expression after this " ++ Name.toChars op ++ " operator:"
           ,
-            D.fillSep $
-              ["You","can","just","put","anything","for","now,","like"
-              ,D.dullyellow "42","or",D.dullyellow"\"hello\"" <> "."
-              ,"Once","there","is","something","there,","I","can","give","more"
-              ,"specific","hints","about","what","type","of","value","is","needed!"
+            D.stack
+              [ D.fillSep $
+                  ["You","can","just","put","anything","for","now,","like"
+                  ,D.dullyellow "42","or",D.dullyellow"\"hello\"" <> "."
+                  ,"Once","there","is","something","there,","I","can","give","more"
+                  ,"specific","hints","about","what","type","of","value","is","needed!"
+                  ]
+              , D.toSimpleNote $
+                  "This can happen if see reserved words like `let` or `as` unexpectedly.\
+                  \ I can get confused and not understand what is going on very well!"
               ]
           )
 
     OperatorReserved operator row col ->
       toOperatorReport source name operator row col
 
-    Start _ _ ->
-      error "TODO Start"
+    Start row col ->
+      let region = toRegion row col in
+      Report.Report "MISSING EXPRESSION" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            D.reflow $
+              "I was expecting to see an expression next:"
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["You","can","just","put","anything","for","now,","like"
+                  ,D.dullyellow "42","or",D.dullyellow"\"hello\"" <> "."
+                  ,"Once","there","is","something","there,","I","can","give","more"
+                  ,"specific","hints","about","what","type","of","value","is","needed!"
+                  ]
+              , D.toSimpleNote $
+                  "This can happen if see reserved words like `let` or `as` unexpectedly.\
+                  \ I can get confused and not understand what is going on very well!"
+              ]
+          )
 
     Char char row col ->
       toCharReport source char row col
@@ -1327,9 +1350,128 @@ toOperatorReport source name operator row col =
           )
 
 
+toTupleReport :: Code.Source -> Name.Name -> Tuple -> Row -> Col -> Report.Report
+toTupleReport source name tuple startRow startCol =
+  case tuple of
+    TupleExpr expr row col ->
+      toExprReport source name expr row col
+
+    TupleSpace space row col ->
+      toSpaceReport source space row col
+
+    TupleEnd row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED PARENTHESES" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was expecting to see a closing parenthesis next:"
+          ,
+            D.stack
+              [ D.fillSep ["Try","adding","a",D.dullyellow ")","to","see","if","that","helps?"]
+              , D.toSimpleNote $
+                  "This can happen if I see reserved words like `let` or `as` unexpectedly.\
+                  \ So I could be stuck on some other problem, which is not letting me get to\
+                  \ the closing parenthesis I am expecting to see."
+              ]
+          )
+
+    TupleOperatorClose row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED OPERATOR FUNCTION" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow "I was expecting a closing parenthesis here:"
+          ,
+            D.fillSep ["Try","adding","a",D.dullyellow ")","to","see","if","that","helps!"]
+          )
+
+    TupleOperatorReserved operator row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNEXPECTED SYMBOL" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I ran into an unexpected symbol here:"
+          ,
+            D.fillSep $
+              case operator of
+                OpDot -> ["Maybe","you","wanted","a","record","accessor","like",D.dullyellow ".x","or",D.dullyellow ".name","instead?"]
+                OpPipe -> ["Try",D.dullyellow "(||)","instead?","To","turn","boolean","OR","into","a","function?"]
+                OpArrow -> ["Maybe","you","wanted",D.dullyellow "(>)","or",D.dullyellow "(>=)","instead?"]
+                OpEquals -> ["Try",D.dullyellow "(==)","instead?","To","make","a","function","that","checks","equality?"]
+                OpHasType -> ["Try",D.dullyellow "(::)","instead?","To","add","values","to","the","front","of","lists?"]
+          )
+
+    TupleIndentExpr1 row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED PARENTHESES" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I just saw an open parenthesis, so I was expecting to see an expression next."
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["Something","like",D.dullyellow "(4 + 5)","or"
+                  ,D.dullyellow "(String.reverse \"desserts\")" <> "."
+                  ,"Anything","where","you","are","putting","parentheses","around","normal","expressions."
+                  ]
+              , D.toSimpleNote
+                  "If you are trying to use the (+) syntax for referring to operators as functions (or\
+                  \ the () syntax for the unit value) the issue may be that no spaces are allowed between\
+                  \ the parentheses."
+              ]
+          )
+
+    TupleIndentExprN row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED TUPLE" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I just saw a comma, so I was expecting to see another expression in this tuple."
+          ,
+            D.fillSep $
+              ["A","tuple","looks","like",D.dullyellow "(3,4)","or"
+              ,D.dullyellow "(\"Tom\",42)" <> ","
+              ,"so","I","think","there","is","an","expression","missing","here?"
+              ]
+          )
+
+    TupleIndentEnd row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED PARENTHESES" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was expecting to see a closing parenthesis next:"
+          ,
+            D.fillSep ["Try","adding","a",D.dullyellow ")","to","see","if","that","helps!"]
+          )
+
+
 toListReport :: Code.Source -> Name.Name -> List -> Row -> Col -> Report.Report
-toListReport source name func startRow startCol =
-  case func of
+toListReport source name list startRow startCol =
+  case list of
     ListSpace space row col ->
       toSpaceReport source space row col
 
