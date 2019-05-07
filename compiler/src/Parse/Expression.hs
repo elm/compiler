@@ -128,9 +128,9 @@ chompListEnd start entries =
 tuple :: A.Position -> Parser E.Expr Src.Expr
 tuple start@(A.Position row col) =
   inContext E.Tuple (word1 0x28 {-(-} E.Start) $
-    oneOf E.TupleOpen
+    oneOf E.TupleIndentExpr1
       [
-        do  op <- Symbol.operator E.TupleOpen E.TupleOperatorReserved
+        do  op <- Symbol.operator E.TupleIndentExpr1 E.TupleOperatorReserved
             if op == "-"
               then
                 oneOf E.TupleOperatorClose
@@ -138,21 +138,24 @@ tuple start@(A.Position row col) =
                     do  word1 0x29 {-)-} E.TupleOperatorClose
                         addEnd start (Src.Op op)
                   ,
-                    specialize E.TupleExpr $
-                    do  negatedExpr@(A.At (A.Region _ end) _) <- term
-                        Space.chomp E.Space
-                        let exprStart = A.Position row (col + 2)
-                        let expr = A.at exprStart end (Src.Negate negatedExpr)
-                        fst <$> chompExprEnd exprStart (State [] expr [] end)
+                    do  (entry, end) <-
+                          specialize E.TupleExpr $
+                            do  negatedExpr@(A.At (A.Region _ end) _) <- term
+                                Space.chomp E.Space
+                                let exprStart = A.Position row (col + 2)
+                                let expr = A.at exprStart end (Src.Negate negatedExpr)
+                                chompExprEnd exprStart (State [] expr [] end)
+                        Space.checkIndent end E.TupleIndentEnd
+                        chompTupleEnd start entry []
                   ]
               else
                 do  word1 0x29 {-)-} E.TupleOperatorClose
                     addEnd start (Src.Op op)
       ,
-        do  word1 0x29 {-)-} E.TupleOpen
+        do  word1 0x29 {-)-} E.TupleIndentExpr1
             addEnd start Src.Unit
       ,
-        do  Space.chompAndCheckIndent E.TupleSpace E.TupleIndentExpr
+        do  Space.chompAndCheckIndent E.TupleSpace E.TupleIndentExpr1
             (entry, end) <- specialize E.TupleExpr expression
             Space.checkIndent end E.TupleIndentEnd
             chompTupleEnd start entry []
@@ -163,7 +166,7 @@ chompTupleEnd :: A.Position -> Src.Expr -> [Src.Expr] -> Parser E.Tuple Src.Expr
 chompTupleEnd start firstExpr revExprs =
   oneOf E.TupleEnd
     [ do  word1 0x2C {-,-} E.TupleEnd
-          Space.chompAndCheckIndent E.TupleSpace E.TupleIndentExpr
+          Space.chompAndCheckIndent E.TupleSpace E.TupleIndentExprN
           (entry, end) <- specialize E.TupleExpr expression
           Space.checkIndent end E.TupleIndentEnd
           chompTupleEnd start firstExpr (entry : revExprs)
