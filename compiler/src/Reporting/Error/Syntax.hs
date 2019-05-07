@@ -225,7 +225,6 @@ data Expr
   | If If Row Col
   | List List Row Col
   | Record Record Row Col
-  | Update Expr Row Col
   | Tuple Tuple Row Col
   | Func Func Row Col
   --
@@ -806,9 +805,6 @@ toExprReport source name expr _ _ =
 
     Record _ _ _ ->
       error "TODO Record"
-
-    Update _ _ _ ->
-      error "TODO Update"
 
     Tuple tuple row col ->
       toTupleReport source name tuple row col
