@@ -2291,20 +2291,6 @@ toFuncReport source context func startRow startCol =
                   "I need a single digit between 0 and 9 inclusive."
               )
 
-        Operator ->
-          Report.Report "EXPECTING AN OPERATOR" region [] $
-            Report.toCodeSnippet source region Nothing
-              (
-                D.reflow $
-                  "I was expecting an operator here:"
-              ,
-                D.stack
-                  [ D.reflow "Some of the most common operators are:"
-                  , D.indent 4 $ D.vcat ["+","-","*","&&","||"]
-                  , D.reflow "Something like that!"
-                  ]
-              )
-
         Wildcard ->
           Report.Report "EXPECTING A WILDCARD" region [] $
             Report.toCodeSnippet source region Nothing
@@ -2347,19 +2333,6 @@ toFuncReport source context func startRow startCol =
                   \ are nearby with some sort of (abs (actual - expected) < 0.001) check."
               )
 
-        FieldNamePattern ->
-          Report.Report "EXPECTING A FIELD NAME" region [] $
-            Report.toCodeSnippet source region Nothing
-              (
-                D.reflow $
-                  "I was expecting a field name here:"
-              ,
-                D.fillSep $
-                  ["A","name","like",D.dullyellow "id" <> ",",D.dullyellow "status" <> ","
-                  ,"or","whatever","field","you","want","to","access."
-                  ]
-              )
-
         -- Parse.Expression
 
         MatchingName name ->
@@ -2395,58 +2368,5 @@ toFuncReport source context func startRow startCol =
               , D.dullyellow (D.fromName defName) <> "?"
               ]
           )
-
-
--- CONTEXT
-
-
-contextToString :: String -> String -> ContextStack -> String
-contextToString defaultString prefixString stack =
-  case stack of
-    [] ->
-      defaultString
-
-    (context, _) : rest ->
-      let anchor = getAnchor rest in
-      prefixString <>
-      case context of
-        ExprIf -> "an `if` expression" <> anchor
-        ExprLet -> "a `let` expression" <> anchor
-        ExprFunc -> "an anonymous function" <> anchor
-        ExprCase -> "a `case` expression" <> anchor
-        ExprList -> "a list" <> anchor
-        ExprTuple -> "an expression (in parentheses)" <> anchor
-        ExprRecord -> "a record" <> anchor
-        Definition name -> Name.toChars name <> "'s definition"
-        Annotation name -> Name.toChars name <> "'s type annotation"
-        TypeTuple -> "a type (in parentheses)" <> anchor
-        TypeRecord -> "a record type" <> anchor
-        PatternList -> "a list pattern" <> anchor
-        PatternTuple -> "a pattern (in parentheses)" <> anchor
-        PatternRecord -> "a record pattern" <> anchor
-        Module -> "a module declaration"
-        Import -> "an import"
-        TypeUnion -> "a union type"
-        TypeAlias -> "a type alias"
-        Infix -> "an infix declaration"
-        Port -> "a port declaration"
-
-
-getAnchor :: ContextStack -> String
-getAnchor stack =
-  case stack of
-    [] ->
-      ""
-
-    (context, _) : rest ->
-      case context of
-        Definition name ->
-          " in " <> Name.toChars name <> "'s definition"
-
-        Annotation name ->
-          " in " <> Name.toChars name <> "'s type annotation"
-
-        _ ->
-          getAnchor rest
 
 -}
