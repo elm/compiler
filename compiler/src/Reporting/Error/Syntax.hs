@@ -751,7 +751,7 @@ toDeclarationsReport source decl =
 
 
 toDeclDefReport :: Code.Source -> Name.Name -> DeclDef -> Row -> Col -> Report.Report
-toDeclDefReport source name declDef _ _ =
+toDeclDefReport source name declDef startRow startCol =
   case declDef of
     DeclDefSpace space row col ->
       toSpaceReport source space row col
@@ -766,7 +766,7 @@ toDeclDefReport source name declDef _ _ =
       error "TODO DeclDefArg" pattern row col
 
     DeclDefBody expr row col ->
-      toExprReport source name expr row col
+      toExprReport source (InDef name startRow startCol) expr row col
 
     DeclDefNameRepeat row col ->
       error "TODO DeclDefNameRepeat" name row col
@@ -788,8 +788,34 @@ toDeclDefReport source name declDef _ _ =
 
 
 
-toExprReport :: Code.Source -> Name.Name -> Expr -> Row -> Col -> Report.Report
-toExprReport source name expr _ _ =
+-- CONTEXT
+
+
+data Context
+  = InNode Node Row Col Context
+  | InDef Name.Name Row Col
+
+
+data Node
+  = NRecord
+  | NParens
+  | NList
+  | NFunc
+
+
+getDefName :: Context -> Name.Name
+getDefName context =
+  case context of
+    InDef name _ _ -> name
+    InNode _ _ _ c -> getDefName c
+
+
+
+-- EXPR REPORTS
+
+
+toExprReport :: Code.Source -> Context -> Expr -> Row -> Col -> Report.Report
+toExprReport source context expr startRow startCol =
   case expr of
     Let _ _ _ ->
       error "TODO Let"
@@ -801,16 +827,16 @@ toExprReport source name expr _ _ =
       error "TODO If"
 
     List list row col ->
-      toListReport source name list row col
+      toListReport source context list row col
 
-    Record _ _ _ ->
-      error "TODO Record"
+    Record record row col ->
+      toRecordReport source context record row col
 
     Tuple tuple row col ->
-      toTupleReport source name tuple row col
+      toTupleReport source context tuple row col
 
     Func func row col ->
-      toFuncReport source name func row col
+      toFuncReport source context func row col
 
     Dot row col ->
       let region = toRegion row col in
@@ -858,36 +884,49 @@ toExprReport source name expr _ _ =
               [ D.fillSep $
                   ["You","can","just","put","anything","for","now,","like"
                   ,D.dullyellow "42","or",D.dullyellow"\"hello\"" <> "."
-                  ,"Once","there","is","something","there,","I","can","give","more"
-                  ,"specific","hints","about","what","type","of","value","is","needed!"
+                  ,"Once","there","is","something","there,","I","can","probably"
+                  ,"give","a","more","specific","hint!"
                   ]
               , D.toSimpleNote $
-                  "This can happen if see reserved words like `let` or `as` unexpectedly.\
-                  \ I can get confused and not understand what is going on very well!"
+                  "This can also happen if run into reserved words like `let` or `as` unexpectedly.\
+                  \ Or if I run into operators in unexpected spots. Point is, there are a\
+                  \ couple ways I can get confused and give sort of weird advice!"
               ]
           )
 
     OperatorReserved operator row col ->
-      toOperatorReport source name operator row col
+      toOperatorReport source context operator row col
 
     Start row col ->
-      let region = toRegion row col in
+      let
+        (contextRow, contextCol, aThing) =
+          case context of
+            InDef name r c       -> (r, c, "the `" ++ Name.toChars name ++ "` definition")
+            InNode NRecord r c _ -> (r, c, "a record")
+            InNode NParens r c _ -> (r, c, "some parentheses")
+            InNode NList   r c _ -> (r, c, "a list")
+            InNode NFunc   r c _ -> (r, c, "an anonymous function")
+
+        surroundings = A.Region (A.Position contextRow contextCol) (A.Position row col)
+        region = toRegion row col
+      in
       Report.Report "MISSING EXPRESSION" region [] $
-        Report.toCodeSnippet source region Nothing
+        Report.toCodeSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I was expecting to see an expression next:"
+              "I am partway through parsing " ++ aThing ++ ", but I got stuck here:"
           ,
             D.stack
               [ D.fillSep $
-                  ["You","can","just","put","anything","for","now,","like"
+                  ["I","was","expecting","to","see","an","expression","like"
                   ,D.dullyellow "42","or",D.dullyellow"\"hello\"" <> "."
-                  ,"Once","there","is","something","there,","I","can","give","more"
-                  ,"specific","hints","about","what","type","of","value","is","needed!"
+                  ,"Once","there","is","something","there,","I","can","probably"
+                  ,"give","a","more","specific","hint!"
                   ]
               , D.toSimpleNote $
-                  "This can happen if see reserved words like `let` or `as` unexpectedly.\
-                  \ I can get confused and not understand what is going on very well!"
+                  "This can also happen if run into reserved words like `let` or `as` unexpectedly.\
+                  \ Or if I run into operators in unexpected spots. Point is, there are a\
+                  \ couple ways I can get confused and give sort of weird advice!"
               ]
           )
 
@@ -934,20 +973,23 @@ toExprReport source name expr _ _ =
           )
 
     IndentOperatorRight op row col ->
-      let region = toRegion row col in
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
       Report.Report "MISSING EXPRESSION" region [] $
-        Report.toCodeSnippet source region Nothing
+        Report.toCodeSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I need to see an expression after this " ++ Name.toChars op ++ " operator:"
+              "I was expecting to see an expression after this " ++ Name.toChars op ++ " operator:"
           ,
             D.stack
               [
                 D.fillSep $
                   ["You","can","just","put","anything","for","now,","like"
                   ,D.dullyellow "42","or",D.dullyellow"\"hello\"" <> "."
-                  ,"Once","there","is","something","there,","I","can","give","more"
-                  ,"specific","hints","about","what","type","of","value","is","needed!"
+                  ,"Once","there","is","something","there,","I","can","probably"
+                  ,"give","a","more","specific","hint!"
                   ]
               ,
                 D.toSimpleNote $
@@ -1222,8 +1264,8 @@ toNumberReport source number row col =
           )
 
 
-toOperatorReport :: Code.Source -> Name.Name -> Operator -> Row -> Col -> Report.Report
-toOperatorReport source name operator row col =
+toOperatorReport :: Code.Source -> Context -> Operator -> Row -> Col -> Report.Report
+toOperatorReport source context operator row col =
   case operator of
     OpDot ->
       let
@@ -1292,6 +1334,7 @@ toOperatorReport source name operator row col =
     OpEquals ->
       let
         region = toRegion row col
+        name = getDefName context
       in
       Report.Report "UNEXPECTED EQUALS" region [] $
         Report.toCodeSnippet source region Nothing
@@ -1319,6 +1362,7 @@ toOperatorReport source name operator row col =
     OpHasType ->
       let
         region = toRegion row col
+        name = getDefName context
       in
       Report.Report "UNEXPECTED SYMBOL" region [] $
         Report.toCodeSnippet source region Nothing $
@@ -1346,11 +1390,235 @@ toOperatorReport source name operator row col =
           )
 
 
-toTupleReport :: Code.Source -> Name.Name -> Tuple -> Row -> Col -> Report.Report
-toTupleReport source name tuple startRow startCol =
+
+-- RECORD
+
+
+toRecordReport :: Code.Source -> Context -> Record -> Row -> Col -> Report.Report
+toRecordReport source context record startRow startCol =
+  case record of
+    RecordOpen row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED PARENTHESES" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was expecting to see a closing curly brace next, but I got stuck here:"
+          ,
+            D.stack
+              [ D.fillSep ["Try","adding","a",D.dullyellow "}","to","see","if","that","helps?"]
+              , D.toSimpleNote $
+                  "I can get stuck when I run into keywords, operators, parentheses, or brackets\
+                  \ unexpectedly. So there may be some other syntax trouble (like an extra\
+                  \ parenthesis?) that is confusing me."
+              ]
+          )
+
+    RecordEnd row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED PARENTHESES" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was expecting to see a closing curly brace next, but I got stuck here:"
+          ,
+            D.stack
+              [ D.fillSep ["Try","adding","a",D.dullyellow "}","to","see","if","that","helps?"]
+              , D.toSimpleNote $
+                  "I can get stuck when I run into keywords, operators, parentheses, or brackets\
+                  \ unexpectedly. So there may be some other syntax trouble (like an extra\
+                  \ parenthesis?) that is confusing me."
+              ]
+          )
+
+    RecordField row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED RECORD" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I am partway through parsing a record, but I got stuck after that last comma:"
+          ,
+            addNoteForRecordError $
+              D.reflow $
+                "Trailing commas are not allowed in records, so I was expecting to see another\
+                \ record field defined next. If you are done defining the record, the fix may\
+                \ be to delete that last comma?"
+          )
+
+    RecordEquals row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED RECORD" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I am partway through parsing a record, but I got stuck here:"
+          ,
+            addNoteForRecordError $
+              D.fillSep $
+                ["I","just","saw","a","field","name,","so","I","was","expecting","to","see"
+                ,"an","equals","sign","next.","So","try","putting","an",D.green "=","sign?"
+                ]
+          )
+
+    RecordExpr expr row col ->
+      toExprReport source (InNode NRecord startRow startCol context) expr row col
+
+    RecordSpace space row col ->
+      toSpaceReport source space row col
+
+    RecordIndentOpen row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED RECORD" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I just saw the opening curly brace of a record, but then I got stuck here:"
+          ,
+            addNoteForRecordIndentError $
+              D.fillSep $
+                ["I","am","expecting","a","record","like",D.dullyellow "{ x = 3, y = 4 }","here."
+                ,"Try","defining","some","fields","of","your","own?"
+                ]
+          )
+
+    RecordIndentEnd row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED RECORD" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was expecting to see a closing curly brace next:"
+          ,
+            addNoteForRecordIndentError $
+              D.fillSep $
+                ["Try","putting","an",D.green "}","and","see","if","that","helps?"
+                ]
+          )
+
+    RecordIndentField row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED RECORD" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I am partway through parsing a record, but I got stuck after that last comma:"
+          ,
+            addNoteForRecordError $
+              D.reflow $
+                "Trailing commas are not allowed in records, so the fix may be to\
+                \ delete that last comma? Or maybe you were in the middle of defining\
+                \ an additional field?"
+          )
+
+    RecordIndentEquals row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED RECORD" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I am partway through parsing a record. I just saw a record\
+              \ field, so I was expecting to see an equals sign next:"
+          ,
+            addNoteForRecordIndentError $
+              D.fillSep $
+                ["Try","putting","an",D.green "=","followed","by","an","expression?"
+                ]
+          )
+
+    RecordIndentExpr row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED RECORD" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I am partway through parsing a record, and I was expecting to run into an expression next:"
+          ,
+            addNoteForRecordIndentError $
+              D.fillSep $
+                ["Try","putting","something,","like"
+                ,D.dullyellow "42","or",D.dullyellow"\"hello\"","for","now?"
+                ]
+          )
+
+
+addNoteForRecordError :: D.Doc -> D.Doc
+addNoteForRecordError normalRecommendation =
+  D.stack $
+    normalRecommendation
+    :
+    [ D.toSimpleNote
+        "If you are trying to define a record across multiple lines, I recommend using this format:"
+    , D.indent 4 $ D.vcat $
+        [ "{ name = \"Alice\""
+        , ", age = 42"
+        , ", height = 1.75"
+        , "}"
+        ]
+    , D.reflow $
+        "Notice that nothing comes directly after a newline. Each line starts with some spaces. I\
+        \ know this style can be jarring for people coming from C-like syntax, but folks generally\
+        \ report that they are used to it (and often prefer it!) after a week or two of using Elm."
+    ]
+
+
+addNoteForRecordIndentError :: D.Doc -> D.Doc
+addNoteForRecordIndentError normalRecommendation =
+  D.stack $
+    normalRecommendation
+    :
+    [ D.toSimpleNote
+        "I may be confused by indentation. For example, if you are trying to define\
+        \ a record across multiple lines, I recommend using this format:"
+    , D.indent 4 $ D.vcat $
+        [ "[ \"Alice\""
+        , ", \"Bob\""
+        , ", \"Chuck\""
+        , "]"
+        ]
+    , D.reflow $
+        "Notice that nothing comes directly after a newline. Each line starts with some spaces. I\
+        \ know this style can be jarring for people coming from C-like syntax, but folks generally\
+        \ report that they are used to it (and often prefer it!) after a week or two of using Elm."
+    ]
+
+
+
+-- TUPLE
+
+
+toTupleReport :: Code.Source -> Context -> Tuple -> Row -> Col -> Report.Report
+toTupleReport source context tuple startRow startCol =
   case tuple of
     TupleExpr expr row col ->
-      toExprReport source name expr row col
+      toExprReport source (InNode NParens startRow startCol context) expr row col
 
     TupleSpace space row col ->
       toSpaceReport source space row col
@@ -1364,14 +1632,14 @@ toTupleReport source name tuple startRow startCol =
         Report.toCodeSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I was expecting to see a closing parenthesis next:"
+              "I was expecting to see a closing parentheses next, but I got stuck here:"
           ,
             D.stack
               [ D.fillSep ["Try","adding","a",D.dullyellow ")","to","see","if","that","helps?"]
               , D.toSimpleNote $
-                  "This can happen if I see reserved words like `let` or `as` unexpectedly.\
-                  \ So I could be stuck on some other problem, which is not letting me get to\
-                  \ the closing parenthesis I am expecting to see."
+                  "I can get stuck when I run into keywords, operators, parentheses, or brackets\
+                  \ unexpectedly. So there may be some other syntax trouble (like an extra\
+                  \ square bracket?) that is confusing me."
               ]
           )
 
@@ -1385,7 +1653,13 @@ toTupleReport source name tuple startRow startCol =
           (
             D.reflow "I was expecting a closing parenthesis here:"
           ,
-            D.fillSep ["Try","adding","a",D.dullyellow ")","to","see","if","that","helps!"]
+            D.stack
+              [ D.fillSep ["Try","adding","a",D.dullyellow ")","to","see","if","that","helps!"]
+              , D.toSimpleNote $
+                  "I think I am parsing an operator function right now, so I am expecting to see\
+                  \ something like (+) or (&&) where an operator is surrounded by parentheses with\
+                  \ no extra spaces."
+              ]
           )
 
     TupleOperatorReserved operator row col ->
@@ -1425,10 +1699,9 @@ toTupleReport source name tuple startRow startCol =
                   ,D.dullyellow "(String.reverse \"desserts\")" <> "."
                   ,"Anything","where","you","are","putting","parentheses","around","normal","expressions."
                   ]
-              , D.toSimpleNote
-                  "If you are trying to use the (+) syntax for referring to operators as functions (or\
-                  \ the () syntax for the unit value) the issue may be that no spaces are allowed between\
-                  \ the parentheses."
+              , D.toSimpleNote $
+                  "I can get confused by indentation in cases like this, so\
+                  \ maybe you have an expression but it is not indented enough?"
               ]
           )
 
@@ -1441,12 +1714,17 @@ toTupleReport source name tuple startRow startCol =
         Report.toCodeSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I just saw a comma, so I was expecting to see another expression in this tuple."
+              "I think I am in the middle of parsing a tuple. I just saw a comma, so I was expecting to see expression next."
           ,
-            D.fillSep $
-              ["A","tuple","looks","like",D.dullyellow "(3,4)","or"
-              ,D.dullyellow "(\"Tom\",42)" <> ","
-              ,"so","I","think","there","is","an","expression","missing","here?"
+            D.stack
+              [ D.fillSep $
+                  ["A","tuple","looks","like",D.dullyellow "(3,4)","or"
+                  ,D.dullyellow "(\"Tom\",42)" <> ","
+                  ,"so","I","think","there","is","an","expression","missing","here?"
+                  ]
+              , D.toSimpleNote $
+                  "I can get confused by indentation in cases like this, so\
+                  \ maybe you have an expression but it is not indented enough?"
               ]
           )
 
@@ -1461,24 +1739,94 @@ toTupleReport source name tuple startRow startCol =
             D.reflow $
               "I was expecting to see a closing parenthesis next:"
           ,
-            D.fillSep ["Try","adding","a",D.dullyellow ")","to","see","if","that","helps!"]
+            D.stack
+              [ D.fillSep ["Try","adding","a",D.dullyellow ")","to","see","if","that","helps!"]
+              , D.toSimpleNote $
+                  "I can get confused by indentation in cases like this, so\
+                  \ maybe you have a closing parenthesis but it is not indented enough?"
+              ]
           )
 
 
-toListReport :: Code.Source -> Name.Name -> List -> Row -> Col -> Report.Report
-toListReport source name list startRow startCol =
+toListReport :: Code.Source -> Context -> List -> Row -> Col -> Report.Report
+toListReport source context list startRow startCol =
   case list of
     ListSpace space row col ->
       toSpaceReport source space row col
 
     ListOpen row col ->
-      error "TODO ListOpen" row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED LIST" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was expecting to see a closing square bracket next, but I got stuck here:"
+          ,
+            D.stack
+              [ D.fillSep ["Try","adding","a",D.dullyellow "]","to","see","if","that","helps?"]
+              , D.toSimpleNote $
+                  "I can get stuck when I run into keywords, operators, parentheses, or brackets\
+                  \ unexpectedly. So there may be some other syntax trouble (like an extra\
+                  \ parenthesis?) that is confusing me."
+              ]
+          )
 
     ListExpr expr row col ->
-      toExprReport source name expr row col
+      case expr of
+        Start r c ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position r c)
+            region = toRegion r c
+          in
+          Report.Report "UNFINISHED LIST" region [] $
+            Report.toCodeSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I was expecting to see another list entry after that last comma:"
+              ,
+                D.stack
+                  [ D.reflow $
+                      "Trailing commas are not allowed in lists, so the fix may be to delete the comma?"
+                  , D.toSimpleNote
+                      "I recommend using the following format for lists that span multiple lines:"
+                  , D.indent 4 $ D.vcat $
+                      [ "[ \"Alice\""
+                      , ", \"Bob\""
+                      , ", \"Chuck\""
+                      , "]"
+                      ]
+                  , D.reflow $
+                      "Notice that nothing comes directly after a newline. Each line starts with some spaces.\
+                      \ This style can be jarring for people coming from C-like syntax, but folks generally\
+                      \ report that they are used to it (and often prefer it!) after a week or two of using Elm."
+                  ]
+              )
+
+        _ ->
+          toExprReport source (InNode NList startRow startCol context) expr row col
 
     ListEnd row col ->
-      error "TODO ListEnd" row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED LIST" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was expecting to see a closing square bracket next, but I got stuck here:"
+          ,
+            D.stack
+              [ D.fillSep ["Try","adding","a",D.dullyellow "]","to","see","if","that","helps?"]
+              , D.toSimpleNote $
+                  "I can get stuck when I run into keywords, operators, parentheses, or brackets\
+                  \ unexpectedly. So there may be some other syntax trouble (like an extra\
+                  \ parenthesis?) that is confusing me."
+              ]
+          )
 
     ListIndentOpen row col ->
       let
@@ -1578,8 +1926,8 @@ toListReport source name list startRow startCol =
           )
 
 
-toFuncReport :: Code.Source -> Name.Name -> Func -> Row -> Col -> Report.Report
-toFuncReport source name func startRow startCol =
+toFuncReport :: Code.Source -> Context -> Func -> Row -> Col -> Report.Report
+toFuncReport source context func startRow startCol =
   case func of
     FuncSpace space row col ->
       toSpaceReport source space row col
@@ -1588,7 +1936,7 @@ toFuncReport source name func startRow startCol =
       error "TODO FuncArg" pattern row col
 
     FuncBody expr row col ->
-      toExprReport source name expr row col
+      toExprReport source (InNode NFunc startRow startCol context) expr row col
 
     FuncArrow row col ->
       let
