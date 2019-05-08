@@ -216,7 +216,7 @@ chompFields :: [Field] -> Parser E.Record [Field]
 chompFields fields =
   oneOf E.RecordEnd
     [ do  word1 0x2C {-,-} E.RecordEnd
-          Space.chompAndCheckIndent E.RecordSpace E.RecordField
+          Space.chompAndCheckIndent E.RecordSpace E.RecordIndentField
           f <- chompField
           chompFields (f : fields)
     , do  word1 0x7D {-}-} E.RecordEnd
