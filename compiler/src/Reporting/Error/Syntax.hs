@@ -801,6 +801,10 @@ data Node
   | NParens
   | NList
   | NFunc
+  | NCond
+  | NThen
+  | NElse
+  deriving (Eq)
 
 
 getDefName :: Context -> Name.Name
@@ -808,6 +812,13 @@ getDefName context =
   case context of
     InDef name _ _ -> name
     InNode _ _ _ c -> getDefName c
+
+
+isWithin :: Node -> Context -> Bool
+isWithin desiredNode context =
+  case context of
+    InDef _ _ _             -> False
+    InNode actualNode _ _ _ -> desiredNode == actualNode
 
 
 
@@ -823,8 +834,8 @@ toExprReport source context expr startRow startCol =
     Case _ _ _ ->
       error "TODO Case"
 
-    If _ _ _ ->
-      error "TODO If"
+    If if_ row col ->
+      toIfReport source context if_ row col
 
     List list row col ->
       toListReport source context list row col
@@ -906,6 +917,10 @@ toExprReport source context expr startRow startCol =
             InNode NParens r c _ -> (r, c, "some parentheses")
             InNode NList   r c _ -> (r, c, "a list")
             InNode NFunc   r c _ -> (r, c, "an anonymous function")
+            InNode NCond   r c _ -> (r, c, "an `if` expression")
+            InNode NThen   r c _ -> (r, c, "an `if` expression")
+            InNode NElse   r c _ -> (r, c, "an `if` expression")
+            -- TODO check if this is actually the best way to get error messages here
 
         surroundings = A.Region (A.Position contextRow contextCol) (A.Position row col)
         region = toRegion row col
@@ -1347,7 +1362,7 @@ toOperatorReport source context operator row col =
                 D.reflow "Maybe you want == instead? To check if two values are equal?"
               ,
                 D.toSimpleNote $
-                  if error "TODO is within record?" then
+                  if isWithin NRecord context then
                     "Records look like { x = 3, y = 4 } with the equals sign right\
                     \ after the field name. So maybe you forgot a comma?"
                   else
@@ -1386,6 +1401,173 @@ toOperatorReport source context operator row col =
                   \ the problem may be a bit before the \"has type\" symbol. I need all definitions to\
                   \ be exactly aligned (with exactly the same indentation) so the problem may be that\
                   \ this new definition is indented a bit too much."
+              ]
+          )
+
+
+
+-- IF
+
+
+toIfReport :: Code.Source -> Context -> If -> Row -> Col -> Report.Report
+toIfReport source context if_ startRow startCol =
+  case if_ of
+    IfSpace space row col ->
+      toSpaceReport source space row col
+
+    IfThen row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED IF" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was expecting to see more of this `if` expression, but I got stuck here:"
+          ,
+            D.fillSep $
+              ["I","was","expecting","to","see","the",D.green "then","keyword","next."
+              ]
+          )
+
+    IfElse row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED IF" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was expecting to see more of this `if` expression, but I got stuck here:"
+          ,
+            D.fillSep $
+              ["I","was","expecting","to","see","the",D.green "else","keyword","next."
+              ]
+          )
+
+    IfElseBranchStart row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED IF" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I just saw the start of an `else` branch, but then I got stuck here:"
+          ,
+            D.reflow $
+              "I was expecting to see an expression next. Maybe it is not filled in yet?"
+          )
+
+    IfCondition expr row col ->
+      toExprReport source (InNode NCond startRow startCol context) expr row col
+
+    IfThenBranch expr row col ->
+      toExprReport source (InNode NThen startRow startCol context) expr row col
+
+    IfElseBranch expr row col ->
+      toExprReport source (InNode NElse startRow startCol context) expr row col
+
+    IfIndentCondition row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED IF" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was expecting to see more of this `if` expression, but I got stuck here:"
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["I","was","expecting","to","see","an","expression","like",D.dullyellow "x < 0"
+                  ,"that","evaluates","to","True","or","False."
+                  ]
+              , D.toSimpleNote $
+                  "I can be confused by indentation. Maybe something is not indented enough?"
+              ]
+          )
+
+    IfIndentThen row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED IF" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was expecting to see more of this `if` expression, but I got stuck here:"
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["I","was","expecting","to","see","the",D.green "then","keyword","next."
+                  ]
+              , D.toSimpleNote $
+                  "I can be confused by indentation. Maybe something is not indented enough?"
+              ]
+          )
+
+    IfIndentThenBranch row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED IF" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I got stuck after the start of this `then` branch:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I was expecting to see an expression next. Maybe it is not filled in yet?"
+              , D.toSimpleNote $
+                  "I can be confused by indentation, so if the `then` branch is already\
+                  \ present, it may not be indented enough for me to recognize it."
+              ]
+          )
+
+    IfIndentElseBranch row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED IF" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I got stuck after the start of this `else` branch:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I was expecting to see an expression next. Maybe it is not filled in yet?"
+              , D.toSimpleNote $
+                  "I can be confused by indentation, so if the `else` branch is already\
+                  \ present, it may not be indented enough for me to recognize it."
+              ]
+          )
+
+    IfIndentElse row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED IF" region [] $
+        Report.toCodeSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was expecting to see an `else` branch after this:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I know what to do when the condition is `True`, but not when it is `False`."
+              , D.fillSep
+                  ["Add","an",D.green "else","branch","to","handle","that","scenario!"]
               ]
           )
 
@@ -1469,7 +1651,7 @@ toRecordReport source context record startRow startCol =
             addNoteForRecordError $
               D.fillSep $
                 ["I","just","saw","a","field","name,","so","I","was","expecting","to","see"
-                ,"an","equals","sign","next.","So","try","putting","an",D.green "=","sign?"
+                ,"an","equals","sign","next.","So","try","putting","an",D.green "=","sign","here?"
                 ]
           )
 
