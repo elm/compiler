@@ -85,21 +85,26 @@ reservedWords =
 
 moduleName :: (Row -> Col -> x) -> Parser x Name.Name
 moduleName toError =
-  P.Parser $ \(P.State pos end indent row col) cok _ _ eerr ->
+  P.Parser $ \(P.State pos end indent row col) cok _ cerr eerr ->
     let
       (# pos1, col1 #) = chompUpper pos end col
-      (# status, newPos, newCol #) = moduleNameHelp pos1 end col1
     in
-    case status of
-      Good ->
-        let
-          !name = Name.fromPtr pos newPos
-          !newState = P.State newPos end indent row newCol
-        in
-        cok name newState
+    if pos == pos1 then
+      eerr row col toError
+    else
+      let
+        (# status, newPos, newCol #) = moduleNameHelp pos1 end col1
+      in
+      case status of
+        Good ->
+          let
+            !name = Name.fromPtr pos newPos
+            !newState = P.State newPos end indent row newCol
+          in
+          cok name newState
 
-      Bad ->
-        eerr row newCol toError
+        Bad ->
+          cerr row newCol toError
 
 
 data ModuleNameStatus
