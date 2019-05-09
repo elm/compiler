@@ -341,7 +341,7 @@ chompImports imports =
             [ do  Space.checkFreshLine E.ImportEnd
                   chompImports $
                     Src.Import name Nothing (Src.Explicit []) : imports
-            , do  Space.checkIndent end E.ImportIndentAs
+            , do  Space.checkIndent end E.ImportEnd
                   oneOf E.ImportAs
                     [ chompAs name imports
                     , chompExposing name Nothing imports
@@ -362,7 +362,7 @@ chompAs name imports =
         [ do  Space.checkFreshLine E.ImportEnd
               chompImports $
                 Src.Import name (Just alias) (Src.Explicit []) : imports
-        , do  Space.checkIndent end E.ImportIndentExposing
+        , do  Space.checkIndent end E.ImportEnd
               chompExposing name (Just alias) imports
         ]
 

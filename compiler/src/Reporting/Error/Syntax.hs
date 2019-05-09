@@ -105,9 +105,7 @@ data Module
   | ImportEnd Row Col -- different based on col=1 or if greater
   --
   | ImportIndentName Row Col
-  | ImportIndentAs Row Col
   | ImportIndentAlias Row Col
-  | ImportIndentExposing Row Col
   | ImportIndentExposingList Row Col
   --
   | Infix Row Col
@@ -599,7 +597,6 @@ toParseErrorReport source modul =
     ModuleExposingList exposing row col ->
       error "TODO ModuleExposingList" exposing row col
 
-  --
     ModulePortModule row col ->
       error "TODO ModulePortModule" row col
 
@@ -654,20 +651,47 @@ toParseErrorReport source modul =
     ImportIndentName row col ->
       error "TODO ImportIndentName" row col
 
-    ImportIndentAs row col ->
-      error "TODO ImportIndentAs" row col
-
     ImportIndentAlias row col ->
       error "TODO ImportIndentAlias" row col
 
-    ImportIndentExposing row col ->
-      error "TODO ImportIndentExposing" row col
-
     ImportIndentExposingList row col ->
-      error "TODO ImportIndentExposingList" row col
+      let
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED IMPORT" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            D.reflow $
+              "I was parsing an `import` until I got stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I was expecting to see the list of exposed values next. For example, here\
+                  \ are two ways to expose values from the `Html` module:"
+              , D.indent 4 $ D.vcat $
+                  [ D.fillSep [D.blue "import","Html",D.blue "exposing",D.green "(..)"]
+                  , D.fillSep [D.blue "import","Html",D.blue "exposing",D.green "(Html, div, text)"]
+                  ]
+              , D.reflow $
+                  "I generally recommend the second style. It is more explicit, making it\
+                  \ much easier to figure out where values are coming from in large projects!"
+              ]
+          )
 
     Infix row col ->
-      error "TODO Infix" row col
+      let
+        region = toRegion row col
+      in
+      Report.Report "BAD INFIX" region [] $
+        Report.toCodeSnippet source region Nothing
+          (
+            D.reflow $
+              "Something went wrong in this infix operator declaration:"
+          ,
+            D.reflow $
+              "This feature is used by the @elm organization to define the\
+              \ languages built-in operators."
+          )
 
     Declarations decl _ _ ->
       toDeclarationsReport source decl
