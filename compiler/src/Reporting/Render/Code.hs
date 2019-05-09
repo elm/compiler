@@ -214,8 +214,9 @@ whatIsNext (Source sourceLines) row col =
     Just line ->
       let
         chars = drop (fromIntegral col - 1) line
+        keywords = map Name.toChars (Set.toList reservedWords)
       in
-      case List.find (\kwd -> startsWith kwd chars) (map Name.toChars (Set.toList reservedWords)) of
+      case List.find (startsWithKeyword chars) keywords of
         Just keyword ->
           Keyword keyword
 
@@ -225,12 +226,12 @@ whatIsNext (Source sourceLines) row col =
               Operator op
 
             []
-              | null chars           -> Spaces
-              | startsWith " " chars -> Spaces
-              | startsWith ")" chars -> CloseParen
-              | startsWith "]" chars -> CloseSquare
-              | startsWith "}" chars -> CloseCurly
-              | otherwise            -> Other
+              | null chars       -> Spaces
+              | isNext ' ' chars -> Spaces
+              | isNext ')' chars -> CloseParen
+              | isNext ']' chars -> CloseSquare
+              | isNext '}' chars -> CloseCurly
+              | otherwise        -> Other
 
 
 isSymbol :: Char -> Bool
@@ -238,6 +239,23 @@ isSymbol char =
   IntSet.member (Char.ord char) binopCharSet
 
 
-startsWith :: [Char] -> [Char] -> Bool
-startsWith =
-  List.isPrefixOf
+isNext :: Char -> [Char] -> Bool
+isNext expected chars =
+  case chars of
+    [] ->
+      False
+
+    actual:_ ->
+      actual == expected
+
+
+startsWithKeyword :: [Char] -> [Char] -> Bool
+startsWithKeyword restOfLine keyword =
+  List.isPrefixOf keyword restOfLine
+  &&
+  case drop (length keyword) restOfLine of
+    [] ->
+      True
+
+    c:_ ->
+      not (Char.isAlphaNum c || c == '_')
