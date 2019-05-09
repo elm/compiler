@@ -1001,10 +1001,43 @@ toDeclDefReport source name declDef startRow startCol =
       toExprReport source (InDef name startRow startCol) expr row col
 
     DeclDefNameRepeat row col ->
-      error "TODO DeclDefNameRepeat" name row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "EXPECTING DEFINITION" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I just saw the type annotation for `" ++ Name.toChars name
+              ++ "` so I was expecting to see its definition here:"
+          ,
+            D.reflow $
+              "Type annotations always appear directly above the relevant\
+              \ definition, without anything else (even doc comments) in between."
+          )
 
     DeclDefNameMatch defName row col ->
-      error "TODO DeclDefNameMatch" name defName row col
+      let
+        expected = Name.toChars name
+        actual = Name.toChars defName
+
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "NAME MISMATCH" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I got stuck after parsing the `" ++ expected ++ "` type annotation:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I am seeing `" ++ actual ++ "` defined next. These names do not match! Is there a typo?"
+              , D.indent 4 $ D.fillSep $
+                  [D.dullyellow (D.fromChars actual),"->",D.green (D.fromChars expected)]
+              ]
+          )
 
     DeclDefIndentType row col ->
       error "TODO DeclDefIndentType" row col
@@ -2597,41 +2630,4 @@ toFuncReport source context func startRow startCol =
                   "Equality on floats can be unreliable, so you usually want to check that they\
                   \ are nearby with some sort of (abs (actual - expected) < 0.001) check."
               )
-
-        -- Parse.Expression
-
-        MatchingName name ->
-          Report.Report "EXPECTING A DEFINITION" region [] $
-            Code.toSnippet source region Nothing
-              (
-                D.reflow $
-                  "I just saw the type annotation for `" ++ Name.toChars name
-                  ++ "` so I was expecting to see its definition here:"
-              ,
-                D.reflow $
-                  "Type annotations always appear directly above the relevant\
-                  \ definition, without anything else (even doc comments) in between."
-              )
--}
-
-{-
-
-    TypeWithBadDefinition region annName defName ->
-      Report.Report "ANNOTATION MISMATCH" region [] $
-        Code.toSnippet source region Nothing
-          (
-            D.reflow $
-              "I see a `" <> Name.toChars annName
-              <> "` annotation, but it is followed by a `"
-              <> Name.toChars defName <> "` definition."
-          ,
-            D.fillSep
-              ["The","annotation","and","definition","names","must","match!"
-              ,"Is","there","a","typo","between"
-              , D.dullyellow (D.fromName annName)
-              ,"and"
-              , D.dullyellow (D.fromName defName) <> "?"
-              ]
-          )
-
 -}
