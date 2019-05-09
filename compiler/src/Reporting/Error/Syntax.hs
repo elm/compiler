@@ -620,31 +620,72 @@ toParseErrorReport source modul =
       error "TODO FreshLineAfterDocComment" row col
 
     ImportStart row col ->
-      error "TODO ImportStart" row col
+      toImportReport source row col
 
     ImportName row col ->
-      error "TODO ImportName" row col
+      let
+        region = toRegion row col
+      in
+      Report.Report "EXPECTING IMPORT NAME" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "I was parsing an `import` until I got stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I was expecting to see a module name next, like in these examples:"
+              , D.indent 4 $ D.vcat $
+                  [ D.fillSep [D.blue "import","Dict"]
+                  , D.fillSep [D.blue "import","Maybe"]
+                  , D.fillSep [D.blue "import","Html.Attributes"]
+                  , D.fillSep [D.blue "import","Json.Decode"]
+                  ]
+              , D.reflow $
+                  "Notice that the module names all start with capital letters. That is required!"
+              ]
+          )
 
     ImportAs row col ->
-      error "TODO ImportAs" row col
+      toImportReport source row col
 
     ImportAlias row col ->
-      error "TODO ImportAlias" row col
+      let
+        region = toRegion row col
+      in
+      Report.Report "EXECTING IMPORT ALIAS" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "I was parsing an `import` until I got stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I was expecting to see an alias next, like in these examples:"
+              , D.indent 4 $ D.vcat $
+                  [ D.fillSep [D.blue "import","Html.Attributes",D.blue "as","Attr"]
+                  , D.fillSep [D.blue "import","WebGL.Texture",D.blue "as","Texture"]
+                  , D.fillSep [D.blue "import","Json.Decode",D.blue "as","D"]
+                  ]
+              , D.reflow $
+                  "Notice that the alias always starts with a capital letter. That is required!"
+              ]
+          )
 
     ImportExposing row col ->
-      error "TODO ImportExposing" row col
+      toImportReport source row col
 
     ImportExposingList exposing row col ->
       error "TODO ImportExposingList" exposing row col
 
     ImportEnd row col ->
-      error "TODO ImportEnd" row col
+      toImportReport source row col
 
     ImportIndentName row col ->
-      error "TODO ImportIndentName" row col
+      toImportReport source row col
 
     ImportIndentAlias row col ->
-      error "TODO ImportIndentAlias" row col
+      toImportReport source row col
 
     ImportIndentExposingList row col ->
       let
@@ -661,8 +702,8 @@ toParseErrorReport source modul =
                   "I was expecting to see the list of exposed values next. For example, here\
                   \ are two ways to expose values from the `Html` module:"
               , D.indent 4 $ D.vcat $
-                  [ D.fillSep [D.blue "import","Html",D.blue "exposing",D.green "(..)"]
-                  , D.fillSep [D.blue "import","Html",D.blue "exposing",D.green "(Html, div, text)"]
+                  [ D.fillSep [D.blue "import","Html",D.blue "exposing","(..)"]
+                  , D.fillSep [D.blue "import","Html",D.blue "exposing","(Html, div, text)"]
                   ]
               , D.reflow $
                   "I generally recommend the second style. It is more explicit, making it\
@@ -687,6 +728,40 @@ toParseErrorReport source modul =
 
     Declarations decl _ _ ->
       toDeclarationsReport source decl
+
+
+
+-- IMPORTS
+
+
+toImportReport :: Code.Source -> Row -> Col -> Report.Report
+toImportReport source row col =
+  let
+    region = toRegion row col
+  in
+  Report.Report "UNFINISHED IMPORT" region [] $
+    Code.toSnippet source region Nothing
+      (
+        D.reflow $
+          "I am partway through parsing an import, but I got stuck here:"
+      ,
+        D.stack
+          [ D.reflow $
+              "Here are some examples of valid `import` declarations:"
+          , D.indent 4 $ D.vcat $
+              [ D.fillSep [D.blue "import","Html"]
+              , D.fillSep [D.blue "import","Html",D.blue "as","H"]
+              , D.fillSep [D.blue "import","Html",D.blue "exposing","(Html, div, text)"]
+              , D.fillSep [D.blue "import","Html",D.blue "as","H",D.blue "exposing","(..)"]
+              ]
+          , D.reflow $
+              "You are probably trying to import a different module, but try to make it look like one of these examples!"
+          ]
+      )
+
+
+
+-- SPACES
 
 
 toSpaceReport :: Code.Source -> Space -> Row -> Col -> Report.Report
@@ -724,6 +799,10 @@ toSpaceReport source space row col =
                   \ the start and end markers must always be balanced. Maybe that is the problem?"
               ]
           )
+
+
+
+-- DECLARATIONS
 
 
 toRegion :: Row -> Col -> A.Region
@@ -1621,7 +1700,7 @@ toRecordReport source context record startRow startCol =
         region = toRegion row col
       in
       case Code.whatIsNext source row col of
-        Keyword keyword ->
+        Code.Keyword keyword ->
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
               (
