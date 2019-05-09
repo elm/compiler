@@ -78,19 +78,16 @@ data Error
 data Module
   = ModuleSpace Space Row Col
   | ModuleEndOfFile Row Col
-  | Module Row Col
+  --
+  | ModuleProblem Row Col
   | ModuleName Row Col
-  | ModuleExposing Row Col
-  | ModuleExposingList Exposing Row Col
+  | ModuleExposing Exposing Row Col
   --
-  | ModulePortModule Row Col
-  | ModuleEffect Row Col
+  | PortModuleProblem Row Col
+  | PortModuleName Row Col
+  | PortModuleExposing Exposing Row Col
   --
-  | ModuleIndentStart Row Col
-  | ModuleIndentName Row Col
-  | ModuleIndentExposing Row Col
-  | ModuleIndentExposingList Row Col
-  | ModuleIndentPortModule Row Col
+  | Effect Row Col
   --
   | FreshLineModuleStart Row Col
   | FreshLineAfterModuleLine Row Col
@@ -577,38 +574,118 @@ toParseErrorReport source modul =
               \ left to see, so whatever I am running into is confusing me a lot!"
           )
 
-    Module row col ->
-      error "TODO Module" row col
+    ModuleProblem row col ->
+      let
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED MODULE DECLARATION" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "I am parsing an `module` declaration, but I got stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "Here are some examples of valid `module` declarations:"
+              , D.indent 4 $ D.vcat $
+                  [ D.fillSep [D.blue "module","Main",D.blue "exposing","(..)"]
+                  , D.fillSep [D.blue "module","Dict",D.blue "exposing","(Dict, empty, get)"]
+                  ]
+              , D.reflow $
+                  "I generally recommend using an explicit exposing list. I can skip compiling a bunch\
+                  \ of files when the public interface of a module stays the same, so exposing fewer\
+                  \ values can help improve compile times!"
+              ]
+          )
 
     ModuleName row col ->
-      error "TODO ModuleName" row col
+      let
+        region = toRegion row col
+      in
+      Report.Report "EXPECTING MODULE NAME" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "I was parsing an `module` declaration until I got stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I was expecting to see the module name next, like in these examples:"
+              , D.indent 4 $ D.vcat $
+                  [ D.fillSep [D.blue "module","Dict",D.blue "exposing","(..)"]
+                  , D.fillSep [D.blue "module","Maybe",D.blue "exposing","(..)"]
+                  , D.fillSep [D.blue "module","Html.Attributes",D.blue "exposing","(..)"]
+                  , D.fillSep [D.blue "module","Json.Decode",D.blue "exposing","(..)"]
+                  ]
+              , D.reflow $
+                  "Notice that the module names all start with capital letters. That is required!"
+              ]
+          )
 
-    ModuleExposing row col ->
-      error "TODO ModuleExposing" row col
+    ModuleExposing exposing row col ->
+      error "TODO ModuleExposing" exposing row col
 
-    ModuleExposingList exposing row col ->
-      error "TODO ModuleExposingList" exposing row col
+    PortModuleProblem row col ->
+      let
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED PORT MODULE DECLARATION" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "I am parsing an `port module` declaration, but I got stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "Here are some examples of valid `port module` declarations:"
+              , D.indent 4 $ D.vcat $
+                  [ D.fillSep [D.blue "port",D.blue "module","WebSockets",D.blue "exposing","(send, listen, keepAlive)"]
+                  , D.fillSep [D.blue "port",D.blue "module","Maps",D.blue "exposing","(Location, goto)"]
+                  ]
+              , D.reflow $
+                  "Go to the section in https://guide.elm-lang.org on ports for more information!"
+              ]
+          )
 
-    ModulePortModule row col ->
-      error "TODO ModulePortModule" row col
+    PortModuleName row col ->
+      let
+        region = toRegion row col
+      in
+      Report.Report "EXPECTING MODULE NAME" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "I was parsing an `module` declaration until I got stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I was expecting to see the module name next, like in these examples:"
+              , D.indent 4 $ D.vcat $
+                  [ D.fillSep [D.blue "port",D.blue "module","WebSockets",D.blue "exposing","(send, listen, keepAlive)"]
+                  , D.fillSep [D.blue "port",D.blue "module","Maps",D.blue "exposing","(Location, goto)"]
+                  ]
+              , D.reflow $
+                  "Notice that the module names start with capital letters. That is required!"
+              ]
+          )
 
-    ModuleEffect row col ->
-      error "TODO ModuleEffect" row col
+    PortModuleExposing exposing row col ->
+      error "TODO PortModuleExposing" exposing row col
 
-    ModuleIndentStart row col ->
-      error "TODO ModuleIndentStart" row col
-
-    ModuleIndentName row col ->
-      error "TODO ModuleIndentName" row col
-
-    ModuleIndentExposing row col ->
-      error "TODO ModuleIndentExposing" row col
-
-    ModuleIndentExposingList row col ->
-      error "TODO ModuleIndentExposingList" row col
-
-    ModuleIndentPortModule row col ->
-      error "TODO ModuleIndentPortModule" row col
+    Effect row col ->
+      let
+        region = toRegion row col
+      in
+      Report.Report "BAD MODULE DECLARATION" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "I cannot parse this module declaration:"
+          ,
+            D.reflow $
+              "This type of module is reserved for the @elm organization. It is used to\
+              \ define certain effects, avoiding building them into the compiler."
+          )
 
     FreshLineModuleStart row col ->
       error "TODO FreshLineModuleStart" row col

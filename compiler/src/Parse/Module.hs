@@ -220,46 +220,46 @@ chompHeader =
       oneOfWithFallback
         [
           -- module MyThing exposing (..)
-          do  Keyword.module_ E.Module
+          do  Keyword.module_ E.ModuleProblem
               end <- getPosition
-              Space.chompAndCheckIndent E.ModuleSpace E.ModuleIndentName
+              Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
               name <- addLocation (Var.moduleName E.ModuleName)
-              Space.chompAndCheckIndent E.ModuleSpace E.ModuleIndentExposing
-              Keyword.exposing_ E.ModuleExposing
-              Space.chompAndCheckIndent E.ModuleSpace E.ModuleIndentExposingList
-              exports <- addLocation (specialize E.ModuleExposingList exposing)
+              Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
+              Keyword.exposing_ E.ModuleProblem
+              Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
+              exports <- addLocation (specialize E.ModuleExposing exposing)
               freshLine E.FreshLineAfterModuleLine
               return (Just (Header name (NoEffects (A.Region start end)) exports))
         ,
           -- port module MyThing exposing (..)
-          do  Keyword.port_ E.Module
-              Space.chompAndCheckIndent E.ModuleSpace E.ModuleIndentPortModule
-              Keyword.module_ E.ModulePortModule
+          do  Keyword.port_ E.PortModuleProblem
+              Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem
+              Keyword.module_ E.PortModuleProblem
               end <- getPosition
-              Space.chompAndCheckIndent E.ModuleSpace E.ModuleIndentName
-              name <- addLocation (Var.moduleName E.ModuleName)
-              Space.chompAndCheckIndent E.ModuleSpace E.ModuleIndentExposing
-              Keyword.exposing_ E.ModuleExposing
-              Space.chompAndCheckIndent E.ModuleSpace E.ModuleIndentExposingList
-              exports <- addLocation (specialize E.ModuleExposingList exposing)
+              Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem
+              name <- addLocation (Var.moduleName E.PortModuleName)
+              Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem
+              Keyword.exposing_ E.PortModuleProblem
+              Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem
+              exports <- addLocation (specialize E.PortModuleExposing exposing)
               freshLine E.FreshLineAfterModuleLine
               return (Just (Header name (Ports (A.Region start end)) exports))
         ,
           -- effect module MyThing where { command = MyCmd } exposing (..)
-          do  Keyword.effect_ E.Module
-              Space.chompAndCheckIndent E.ModuleSpace E.ModuleEffect
-              Keyword.module_ E.ModuleEffect
+          do  Keyword.effect_ E.Effect
+              Space.chompAndCheckIndent E.ModuleSpace E.Effect
+              Keyword.module_ E.Effect
               end <- getPosition
-              Space.chompAndCheckIndent E.ModuleSpace E.ModuleEffect
+              Space.chompAndCheckIndent E.ModuleSpace E.Effect
               name <- addLocation (Var.moduleName E.ModuleName)
-              Space.chompAndCheckIndent E.ModuleSpace E.ModuleEffect
-              Keyword.where_ E.ModuleEffect
-              Space.chompAndCheckIndent E.ModuleSpace E.ModuleEffect
+              Space.chompAndCheckIndent E.ModuleSpace E.Effect
+              Keyword.where_ E.Effect
+              Space.chompAndCheckIndent E.ModuleSpace E.Effect
               manager <- chompManager
-              Space.chompAndCheckIndent E.ModuleSpace E.ModuleIndentExposing
-              Keyword.exposing_ E.ModuleExposing
-              Space.chompAndCheckIndent E.ModuleSpace E.ModuleIndentExposingList
-              exports <- addLocation (specialize E.ModuleExposingList exposing)
+              Space.chompAndCheckIndent E.ModuleSpace E.Effect
+              Keyword.exposing_ E.Effect
+              Space.chompAndCheckIndent E.ModuleSpace E.Effect
+              exports <- addLocation (specialize (const E.Effect) exposing)
               freshLine E.FreshLineAfterModuleLine
               return (Just (Header name (Manager (A.Region start end) manager) exports))
         ]
@@ -269,34 +269,34 @@ chompHeader =
 
 chompManager :: Parser E.Module Src.Manager
 chompManager =
-  do  word1 0x7B {- { -} E.ModuleEffect
+  do  word1 0x7B {- { -} E.Effect
       spaces_em
-      oneOf E.ModuleEffect
+      oneOf E.Effect
         [ do  cmd <- chompCommand
               spaces_em
-              oneOf E.ModuleEffect
-                [ do  word1 0x7D {-}-} E.ModuleEffect
+              oneOf E.Effect
+                [ do  word1 0x7D {-}-} E.Effect
                       spaces_em
                       return (Src.Cmd cmd)
-                , do  word1 0x2C {-,-} E.ModuleEffect
+                , do  word1 0x2C {-,-} E.Effect
                       spaces_em
                       sub <- chompSubscription
                       spaces_em
-                      word1 0x7D {-}-} E.ModuleEffect
+                      word1 0x7D {-}-} E.Effect
                       spaces_em
                       return (Src.Fx cmd sub)
                 ]
         , do  sub <- chompSubscription
               spaces_em
-              oneOf E.ModuleEffect
-                [ do  word1 0x7D {-}-} E.ModuleEffect
+              oneOf E.Effect
+                [ do  word1 0x7D {-}-} E.Effect
                       spaces_em
                       return (Src.Sub sub)
-                , do  word1 0x2C {-,-} E.ModuleEffect
+                , do  word1 0x2C {-,-} E.Effect
                       spaces_em
                       cmd <- chompCommand
                       spaces_em
-                      word1 0x7D {-}-} E.ModuleEffect
+                      word1 0x7D {-}-} E.Effect
                       spaces_em
                       return (Src.Fx cmd sub)
                 ]
@@ -305,25 +305,25 @@ chompManager =
 
 chompCommand :: Parser E.Module (A.Located Name.Name)
 chompCommand =
-  do  Keyword.command_ E.ModuleEffect
+  do  Keyword.command_ E.Effect
       spaces_em
-      word1 0x3D {-=-} E.ModuleEffect
+      word1 0x3D {-=-} E.Effect
       spaces_em
-      addLocation (Var.upper E.ModuleEffect)
+      addLocation (Var.upper E.Effect)
 
 
 chompSubscription :: Parser E.Module (A.Located Name.Name)
 chompSubscription =
-  do  Keyword.subscription_ E.ModuleEffect
+  do  Keyword.subscription_ E.Effect
       spaces_em
-      word1 0x3D {-=-} E.ModuleEffect
+      word1 0x3D {-=-} E.Effect
       spaces_em
-      addLocation (Var.upper E.ModuleEffect)
+      addLocation (Var.upper E.Effect)
 
 
 spaces_em :: Parser E.Module ()
 spaces_em =
-  Space.chompAndCheckIndent E.ModuleSpace E.ModuleEffect
+  Space.chompAndCheckIndent E.ModuleSpace E.Effect
 
 
 
