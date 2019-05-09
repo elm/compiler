@@ -542,10 +542,36 @@ toReport source err =
           )
 
     UnexpectedPort region ->
-      error "TODO UnexpectedPort" region
+      Report.Report "UNEXPECTED PORTS" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "You are declaring ports in a normal module."
+          ,
+            D.stack
+              [ D.fillSep
+                  ["Switch","this","to","say",D.green "port module","instead,"
+                  ,"marking","that","this","module","contains","port","declarations."
+                  ]
+              , D.link "Note"
+                  "Ports are not a traditional FFI for calling JS functions directly. They need a different mindset! Read"
+                  "ports"
+                  "to learn the syntax and how to use it effectively."
+              ]
+          )
 
     NoPorts region ->
-      error "TODO NoPorts" region
+      Report.Report "NO PORTS" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "This module does not declare any ports, but it says it will:"
+          ,
+            D.fillSep
+              ["Switch","this","to",D.green "module"
+              ,"and","you","should","be","all","set!"
+              ]
+          )
 
     ParseError modul ->
       toParseErrorReport source modul
@@ -640,8 +666,7 @@ toParseErrorReport source modul =
                   [ D.fillSep [D.blue "port",D.blue "module","WebSockets",D.blue "exposing","(send, listen, keepAlive)"]
                   , D.fillSep [D.blue "port",D.blue "module","Maps",D.blue "exposing","(Location, goto)"]
                   ]
-              , D.reflow $
-                  "Go to the section in https://guide.elm-lang.org on ports for more information!"
+              , D.link "Note" "Read" "ports" "for more help."
               ]
           )
 
@@ -2498,38 +2523,6 @@ toFuncReport source context func startRow startCol =
               "All documentation comments need to be right above the declaration they\
               \ describe. Maybe some code got deleted or commented out by accident? Or\
               \ maybe this comment is here by accident?"
-          )
-
-    UnexpectedPort region ->
-      Report.Report "UNEXPECTED PORTS" region [] $
-        Code.toSnippet source region Nothing
-          (
-            D.reflow $
-              "You are declaring ports in a normal module."
-          ,
-            D.stack
-              [ D.fillSep
-                  ["Switch","this","to","say",D.green "port module","instead,"
-                  ,"marking","that","this","module","contains","port","declarations."
-                  ]
-              , D.link "Note"
-                  "Ports are not a traditional FFI for calling JS functions directly. They need a different mindset! Read"
-                  "ports"
-                  "to learn the syntax and how to use it effectively."
-              ]
-          )
-
-    NoPorts region ->
-      Report.Report "NO PORTS" region [] $
-        Code.toSnippet source region Nothing
-          (
-            D.reflow $
-              "This module does not declare any ports, but it says it will:"
-          ,
-            D.fillSep
-              ["Switch","this","to",D.green "module"
-              ,"and","you","should","be","all","set!"
-              ]
           )
 
     ParseError row col context expectation ->
