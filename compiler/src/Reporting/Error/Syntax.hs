@@ -39,7 +39,6 @@ module Reporting.Error.Syntax
   , Number(..)
   --
   , Space(..)
-  , Operator(..)
   , toReport
   )
   where
@@ -53,6 +52,7 @@ import Numeric (showHex)
 
 import qualified Elm.ModuleName as ModuleName
 import Parse.Primitives (Row, Col)
+import Parse.Symbol (BadOperator(..))
 import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
 import qualified Reporting.Report as Report
@@ -118,7 +118,7 @@ data Exposing
   | ExposingStart Row Col
   | ExposingValue Row Col
   | ExposingOperator Row Col
-  | ExposingOperatorReserved Operator Row Col
+  | ExposingOperatorReserved BadOperator Row Col
   | ExposingOperatorRightParen Row Col
   | ExposingEnd Row Col
   --
@@ -229,7 +229,7 @@ data Expr
   | Dot Row Col
   | Access Row Col
   | OperatorRight Name.Name Row Col
-  | OperatorReserved Operator Row Col
+  | OperatorReserved BadOperator Row Col
   --
   | Start Row Col
   | Char Char Row Col
@@ -262,7 +262,7 @@ data Tuple
   | TupleSpace Space Row Col
   | TupleEnd Row Col
   | TupleOperatorClose Row Col
-  | TupleOperatorReserved Operator Row Col
+  | TupleOperatorReserved BadOperator Row Col
   --
   | TupleIndentExpr1 Row Col
   | TupleIndentExprN Row Col
@@ -498,14 +498,6 @@ data Space
   | EndlessMultiComment
 
 
-data Operator
-  = OpDot
-  | OpPipe
-  | OpArrow
-  | OpEquals
-  | OpHasType
-
-
 
 -- TO REPORT
 
@@ -536,7 +528,7 @@ toReport source err =
 
     ModuleNameMismatch expectedName (A.At region actualName) ->
       Report.Report "MODULE NAME MISMATCH" region [ModuleName.toChars expectedName] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             "It looks like this module name is out of sync:"
           ,
@@ -575,7 +567,7 @@ toParseErrorReport source modul =
         region = toRegion row col
       in
       Report.Report "EXPECTING END OF FILE" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "I was not expecting to see anything more here:"
@@ -659,7 +651,7 @@ toParseErrorReport source modul =
         region = toRegion row col
       in
       Report.Report "UNFINISHED IMPORT" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "I was parsing an `import` until I got stuck here:"
@@ -683,7 +675,7 @@ toParseErrorReport source modul =
         region = toRegion row col
       in
       Report.Report "BAD INFIX" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "Something went wrong in this infix operator declaration:"
@@ -705,7 +697,7 @@ toSpaceReport source space row col =
         region = toRegion row col
       in
       Report.Report "NO TABS" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "I ran into a tab, but tabs are not allowed in Elm files."
@@ -719,7 +711,7 @@ toSpaceReport source space row col =
         region = toWiderRegion row col 2
       in
       Report.Report "ENDLESS COMMENT" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "I cannot find the end of this multi-line comment:"
@@ -876,7 +868,7 @@ toExprReport source context expr startRow startCol =
     Dot row col ->
       let region = toRegion row col in
       Report.Report "EXPECTING RECORD ACCESSOR" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "I was expecting to see a record accessor here:"
@@ -890,7 +882,7 @@ toExprReport source context expr startRow startCol =
     Access row col ->
       let region = toRegion row col in
       Report.Report "EXPECTING RECORD ACCESSOR" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "I am trying to parse a record accessor here:"
@@ -910,7 +902,7 @@ toExprReport source context expr startRow startCol =
     OperatorRight op row col ->
       let region = toRegion row col in
       Report.Report "MISSING EXPRESSION" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "I was expecting to see an expression after this " ++ Name.toChars op ++ " operator:"
@@ -950,7 +942,7 @@ toExprReport source context expr startRow startCol =
         region = toRegion row col
       in
       Report.Report "MISSING EXPRESSION" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I am partway through parsing " ++ aThing ++ ", but I got stuck here:"
@@ -986,7 +978,7 @@ toExprReport source context expr startRow startCol =
         region = toWiderRegion row col 6
       in
       Report.Report "ENDLESS SHADER" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow "I cannot find the end of this shader:"
           ,
@@ -998,7 +990,7 @@ toExprReport source context expr startRow startCol =
         region = toRegion row col
       in
       Report.Report "SHADER PROBLEM" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "I ran into a problem while parsing this GLSL block."
@@ -1017,7 +1009,7 @@ toExprReport source context expr startRow startCol =
         region = toRegion row col
       in
       Report.Report "MISSING EXPRESSION" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I was expecting to see an expression after this " ++ Name.toChars op ++ " operator:"
@@ -1042,6 +1034,10 @@ toExprReport source context expr startRow startCol =
       error "TODO IndentMoreExpr"
 
 
+
+-- CHAR
+
+
 toCharReport :: Code.Source -> Char -> Row -> Col -> Report.Report
 toCharReport source char row col =
   case char of
@@ -1050,7 +1046,7 @@ toCharReport source char row col =
         region = toRegion row col
       in
       Report.Report "MISSING SINGLE QUOTE" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "I thought I was parsing a character, but I got to the end of\
@@ -1068,7 +1064,7 @@ toCharReport source char row col =
         region = toWiderRegion row col width
       in
       Report.Report "NEEDS DOUBLE QUOTES" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             "The following string uses single quotes:"
           ,
@@ -1085,6 +1081,10 @@ toCharReport source char row col =
           )
 
 
+
+-- STRING
+
+
 toStringReport :: Code.Source -> String -> Row -> Col -> Report.Report
 toStringReport source string row col =
   case string of
@@ -1093,7 +1093,7 @@ toStringReport source string row col =
         region = toRegion row col
       in
       Report.Report "ENDLESS STRING" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "I got to the end of the line without seeing the closing double quote:"
@@ -1113,7 +1113,7 @@ toStringReport source string row col =
         region = toWiderRegion row col 3
       in
       Report.Report "ENDLESS STRING" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "I cannot find the end of this multi-line string:"
@@ -1128,6 +1128,10 @@ toStringReport source string row col =
       toEscapeReport source escape row col
 
 
+
+-- ESCAPES
+
+
 toEscapeReport :: Code.Source -> Escape -> Row -> Col -> Report.Report
 toEscapeReport source escape row col =
   case escape of
@@ -1136,7 +1140,7 @@ toEscapeReport source escape row col =
         region = toWiderRegion row col 2
       in
       Report.Report "UNKNOWN ESCAPE" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "Backslashes always start escaped characters, but I do not recognize this one:"
@@ -1167,7 +1171,7 @@ toEscapeReport source escape row col =
         region = toWiderRegion row col width
       in
       Report.Report "BAD UNICODE ESCAPE" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "I ran into an invalid Unicode escape:"
@@ -1191,7 +1195,7 @@ toEscapeReport source escape row col =
         region = toWiderRegion row col width
       in
       Report.Report "BAD UNICODE ESCAPE" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "This is not a valid code point:"
@@ -1205,7 +1209,7 @@ toEscapeReport source escape row col =
         region = toWiderRegion row col width
       in
       Report.Report "BAD UNICODE ESCAPE" region [] $
-        Report.toCodeSnippet source region Nothing $
+        Code.toSnippet source region Nothing $
           if numDigits < 4 then
             (
               D.reflow $
@@ -1232,6 +1236,10 @@ toEscapeReport source escape row col =
             )
 
 
+
+-- NUMBERS
+
+
 toNumberReport :: Code.Source -> Number -> Row -> Col -> Report.Report
 toNumberReport source number row col =
   let
@@ -1240,7 +1248,7 @@ toNumberReport source number row col =
   case number of
     NumberEnd ->
       Report.Report "WEIRD NUMBER" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "I thought I was reading a number, but I ran into some weird stuff here:"
@@ -1256,7 +1264,7 @@ toNumberReport source number row col =
 
     NumberDot int ->
       Report.Report "WEIRD NUMBER" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "Numbers cannot end with a dot like this:"
@@ -1270,7 +1278,7 @@ toNumberReport source number row col =
 
     NumberHexDigit ->
       Report.Report "WEIRD HEXIDECIMAL" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "I thought I was reading a hexidecimal number until I got here:"
@@ -1285,7 +1293,7 @@ toNumberReport source number row col =
 
     NumberNoLeadingZero ->
       Report.Report "LEADING ZEROS" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "I do not accept numbers with leading zeros:"
@@ -1303,15 +1311,19 @@ toNumberReport source number row col =
           )
 
 
-toOperatorReport :: Code.Source -> Context -> Operator -> Row -> Col -> Report.Report
+
+-- OPERATORS
+
+
+toOperatorReport :: Code.Source -> Context -> BadOperator -> Row -> Col -> Report.Report
 toOperatorReport source context operator row col =
   case operator of
-    OpDot ->
+    BadDot ->
       let
         region = toRegion row col
       in
       Report.Report "UNEXPECTED SYMBOL" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             "I was not expecting this dot:"
           ,
@@ -1321,12 +1333,12 @@ toOperatorReport source context operator row col =
               \ there is some extra whitespace?"
           )
 
-    OpPipe ->
+    BadPipe ->
       let
         region = toRegion row col
       in
       Report.Report "UNEXPECTED SYMBOL" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "I was not expecting this vertical bar:"
@@ -1335,12 +1347,12 @@ toOperatorReport source context operator row col =
               "Vertical bars should only appear in custom type declarations. Maybe you want || instead?"
           )
 
-    OpArrow ->
+    BadArrow ->
       let
         region = toWiderRegion row col 2
       in
       Report.Report "UNEXPECTED ARROW" region [] $
-        Report.toCodeSnippet source region Nothing $
+        Code.toSnippet source region Nothing $
           if error "TODO inCase" then
             (
               D.reflow $
@@ -1370,13 +1382,13 @@ toOperatorReport source context operator row col =
                 \ you want > or >= instead?"
             )
 
-    OpEquals ->
+    BadEquals ->
       let
         region = toRegion row col
         name = getDefName context
       in
       Report.Report "UNEXPECTED EQUALS" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "I was not expecting to see this equals sign:"
@@ -1398,13 +1410,13 @@ toOperatorReport source context operator row col =
               ]
           )
 
-    OpHasType ->
+    BadHasType ->
       let
         region = toRegion row col
         name = getDefName context
       in
       Report.Report "UNEXPECTED SYMBOL" region [] $
-        Report.toCodeSnippet source region Nothing $
+        Code.toSnippet source region Nothing $
           (
             D.reflow $
               "I was not expecting to run into the \"has type\" symbol here:"
@@ -1445,7 +1457,7 @@ toIfReport source context if_ startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED IF" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I was expecting to see more of this `if` expression, but I got stuck here:"
@@ -1461,7 +1473,7 @@ toIfReport source context if_ startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED IF" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I was expecting to see more of this `if` expression, but I got stuck here:"
@@ -1477,7 +1489,7 @@ toIfReport source context if_ startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED IF" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I just saw the start of an `else` branch, but then I got stuck here:"
@@ -1501,7 +1513,7 @@ toIfReport source context if_ startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED IF" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I was expecting to see more of this `if` expression, but I got stuck here:"
@@ -1522,7 +1534,7 @@ toIfReport source context if_ startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED IF" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I was expecting to see more of this `if` expression, but I got stuck here:"
@@ -1542,7 +1554,7 @@ toIfReport source context if_ startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED IF" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I got stuck after the start of this `then` branch:"
@@ -1562,7 +1574,7 @@ toIfReport source context if_ startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED IF" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I got stuck after the start of this `else` branch:"
@@ -1582,7 +1594,7 @@ toIfReport source context if_ startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED IF" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I was expecting to see an `else` branch after this:"
@@ -1608,38 +1620,51 @@ toRecordReport source context record startRow startCol =
         surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
         region = toRegion row col
       in
-      Report.Report "UNFINISHED PARENTHESES" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
-          (
-            D.reflow $
-              "I was expecting to see a closing curly brace next, but I got stuck here:"
-          ,
-            D.stack
-              [ D.fillSep ["Try","adding","a",D.dullyellow "}","to","see","if","that","helps?"]
-              , D.toSimpleNote $
-                  "I can get stuck when I run into keywords, operators, parentheses, or brackets\
-                  \ unexpectedly. So there may be some other syntax trouble (like an extra\
-                  \ parenthesis?) that is confusing me."
-              ]
-          )
+      case Code.whatIsNext source row col of
+        Keyword keyword ->
+          Report.Report "RESERVED WORD" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I just started parsing a record, but I got stuck on this field name:"
+              ,
+                D.reflow $
+                  "It looks like you are trying to use `" ++ keyword ++ "` as a field name, but \
+                  \ that is a reserved word. Try using a different name!"
+              )
+
+        _ ->
+          Report.Report "UNFINISHED RECORD" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I just started parsing a record, but I got stuck here:"
+              ,
+                D.fillSep
+                  ["Records","look","like",D.dullyellow "{ x = 3, y = 4 },"
+                  ,"so","I","was","expecting","to","see","a","field","name","next."
+                  ]
+              )
 
     RecordEnd row col ->
       let
         surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
         region = toRegion row col
       in
-      Report.Report "UNFINISHED PARENTHESES" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+      Report.Report "UNFINISHED RECORD" region [] $
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I was expecting to see a closing curly brace next, but I got stuck here:"
+              "I am partway through parsing a record, but I got stuck here:"
           ,
             D.stack
-              [ D.fillSep ["Try","adding","a",D.dullyellow "}","to","see","if","that","helps?"]
+              [ D.fillSep
+                  ["I","was","expecting","to","see","a","closing","curly","brace","before","this,"
+                  ,"so","try","adding","a",D.dullyellow "}","and","see","if","that","helps?"
+                  ]
               , D.toSimpleNote $
-                  "I can get stuck when I run into keywords, operators, parentheses, or brackets\
-                  \ unexpectedly. So there may be some other syntax trouble (like an extra\
-                  \ parenthesis?) that is confusing me."
+                  "When I get stuck like this, it usually means that there is a missing parenthesis\
+                  \ or bracket somewhere earlier. It could also be a stray keyword or operator."
               ]
           )
 
@@ -1648,18 +1673,32 @@ toRecordReport source context record startRow startCol =
         surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
         region = toRegion row col
       in
-      Report.Report "UNFINISHED RECORD" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
-          (
-            D.reflow $
-              "I am partway through parsing a record, but I got stuck after that last comma:"
-          ,
-            addNoteForRecordError $
-              D.reflow $
-                "Trailing commas are not allowed in records, so I was expecting to see another\
-                \ record field defined next. If you are done defining the record, the fix may\
-                \ be to delete that last comma?"
-          )
+      case Code.whatIsNext source row col of
+        Code.Keyword keyword ->
+          Report.Report "RESERVED WORD" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I am partway through parsing a record, but I got stuck on this field name:"
+              ,
+                D.reflow $
+                  "It looks like you are trying to use `" ++ keyword ++ "` as a field name, but \
+                  \ that is a reserved word. Try using a different name!"
+              )
+
+        _ ->
+          Report.Report "UNFINISHED RECORD" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I am partway through parsing a record, but I got stuck after that last comma:"
+              ,
+                addNoteForRecordError $
+                  D.reflow $
+                    "Trailing commas are not allowed in records, so I was expecting to see another\
+                    \ record field defined next. If you are done defining the record, the fix may\
+                    \ be to delete that last comma?"
+              )
 
     RecordEquals row col ->
       let
@@ -1667,7 +1706,7 @@ toRecordReport source context record startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED RECORD" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I am partway through parsing a record, but I got stuck here:"
@@ -1691,7 +1730,7 @@ toRecordReport source context record startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED RECORD" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I just saw the opening curly brace of a record, but then I got stuck here:"
@@ -1709,7 +1748,7 @@ toRecordReport source context record startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED RECORD" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I was expecting to see a closing curly brace next:"
@@ -1726,7 +1765,7 @@ toRecordReport source context record startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED RECORD" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I am partway through parsing a record, but I got stuck after that last comma:"
@@ -1744,7 +1783,7 @@ toRecordReport source context record startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED RECORD" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I am partway through parsing a record. I just saw a record\
@@ -1762,7 +1801,7 @@ toRecordReport source context record startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED RECORD" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I am partway through parsing a record, and I was expecting to run into an expression next:"
@@ -1835,7 +1874,7 @@ toTupleReport source context tuple startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED PARENTHESES" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I was expecting to see a closing parentheses next, but I got stuck here:"
@@ -1844,8 +1883,8 @@ toTupleReport source context tuple startRow startCol =
               [ D.fillSep ["Try","adding","a",D.dullyellow ")","to","see","if","that","helps?"]
               , D.toSimpleNote $
                   "I can get stuck when I run into keywords, operators, parentheses, or brackets\
-                  \ unexpectedly. So there may be some other syntax trouble (like an extra\
-                  \ square bracket?) that is confusing me."
+                  \ unexpectedly. So there may be some earlier syntax trouble (like extra parenthesis\
+                  \ or missing brackets) that is confusing me."
               ]
           )
 
@@ -1855,7 +1894,7 @@ toTupleReport source context tuple startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED OPERATOR FUNCTION" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow "I was expecting a closing parenthesis here:"
           ,
@@ -1874,18 +1913,18 @@ toTupleReport source context tuple startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNEXPECTED SYMBOL" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I ran into an unexpected symbol here:"
           ,
             D.fillSep $
               case operator of
-                OpDot -> ["Maybe","you","wanted","a","record","accessor","like",D.dullyellow ".x","or",D.dullyellow ".name","instead?"]
-                OpPipe -> ["Try",D.dullyellow "(||)","instead?","To","turn","boolean","OR","into","a","function?"]
-                OpArrow -> ["Maybe","you","wanted",D.dullyellow "(>)","or",D.dullyellow "(>=)","instead?"]
-                OpEquals -> ["Try",D.dullyellow "(==)","instead?","To","make","a","function","that","checks","equality?"]
-                OpHasType -> ["Try",D.dullyellow "(::)","instead?","To","add","values","to","the","front","of","lists?"]
+                BadDot -> ["Maybe","you","wanted","a","record","accessor","like",D.dullyellow ".x","or",D.dullyellow ".name","instead?"]
+                BadPipe -> ["Try",D.dullyellow "(||)","instead?","To","turn","boolean","OR","into","a","function?"]
+                BadArrow -> ["Maybe","you","wanted",D.dullyellow "(>)","or",D.dullyellow "(>=)","instead?"]
+                BadEquals -> ["Try",D.dullyellow "(==)","instead?","To","make","a","function","that","checks","equality?"]
+                BadHasType -> ["Try",D.dullyellow "(::)","instead?","To","add","values","to","the","front","of","lists?"]
           )
 
     TupleIndentExpr1 row col ->
@@ -1894,7 +1933,7 @@ toTupleReport source context tuple startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED PARENTHESES" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I just saw an open parenthesis, so I was expecting to see an expression next."
@@ -1917,7 +1956,7 @@ toTupleReport source context tuple startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED TUPLE" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I think I am in the middle of parsing a tuple. I just saw a comma, so I was expecting to see expression next."
@@ -1940,7 +1979,7 @@ toTupleReport source context tuple startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED PARENTHESES" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I was expecting to see a closing parenthesis next:"
@@ -1966,17 +2005,19 @@ toListReport source context list startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED LIST" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I was expecting to see a closing square bracket next, but I got stuck here:"
+              "I am partway through parsing a list, but I got stuck here:"
           ,
             D.stack
-              [ D.fillSep ["Try","adding","a",D.dullyellow "]","to","see","if","that","helps?"]
+              [ D.fillSep
+                  ["I","was","expecting","to","see","a","closing","square","bracket","before","this,"
+                  ,"so","try","adding","a",D.dullyellow "]","and","see","if","that","helps?"
+                  ]
               , D.toSimpleNote $
-                  "I can get stuck when I run into keywords, operators, parentheses, or brackets\
-                  \ unexpectedly. So there may be some other syntax trouble (like an extra\
-                  \ parenthesis?) that is confusing me."
+                  "When I get stuck like this, it usually means that there is a missing parenthesis\
+                  \ or bracket somewhere earlier. It could also be a stray keyword or operator."
               ]
           )
 
@@ -1988,7 +2029,7 @@ toListReport source context list startRow startCol =
             region = toRegion r c
           in
           Report.Report "UNFINISHED LIST" region [] $
-            Report.toCodeSnippet source surroundings (Just region)
+            Code.toSnippet source surroundings (Just region)
               (
                 D.reflow $
                   "I was expecting to see another list entry after that last comma:"
@@ -2020,17 +2061,19 @@ toListReport source context list startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED LIST" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I was expecting to see a closing square bracket next, but I got stuck here:"
+              "I am partway through parsing a list, but I got stuck here:"
           ,
             D.stack
-              [ D.fillSep ["Try","adding","a",D.dullyellow "]","to","see","if","that","helps?"]
+              [ D.fillSep
+                  ["I","was","expecting","to","see","a","closing","square","bracket","before","this,"
+                  ,"so","try","adding","a",D.dullyellow "]","and","see","if","that","helps?"
+                  ]
               , D.toSimpleNote $
-                  "I can get stuck when I run into keywords, operators, parentheses, or brackets\
-                  \ unexpectedly. So there may be some other syntax trouble (like an extra\
-                  \ parenthesis?) that is confusing me."
+                  "When I get stuck like this, it usually means that there is a missing parenthesis\
+                  \ or bracket somewhere earlier. It could also be a stray keyword or operator."
               ]
           )
 
@@ -2040,7 +2083,7 @@ toListReport source context list startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED LIST" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I cannot find the end of this list:"
@@ -2076,7 +2119,7 @@ toListReport source context list startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED LIST" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I cannot find the end of this list:"
@@ -2108,7 +2151,7 @@ toListReport source context list startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED LIST" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I was expecting to see another list entry after this comma:"
@@ -2149,18 +2192,32 @@ toFuncReport source context func startRow startCol =
         surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
         region = toRegion row col
       in
-      Report.Report "UNFINISHED ANONYMOUS FUNCTION" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
-          (
-            D.reflow $
-              "I just saw the beginning of an anonymous function, so I was expecting to see an arrow next:"
-          ,
-            D.fillSep $
-              ["The","syntax","for","anonymous","functions","is"
-              ,D.dullyellow "(\\x -> x + 1)"
-              ,"so","I","am","missing","the","arrow","and","the","body","of","the","function."
-              ]
-          )
+      case Code.whatIsNext source row col of
+        Code.Keyword keyword ->
+          Report.Report "RESERVED WORD" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I was parsing an anonymous function, but I got stuck here:"
+              ,
+                D.reflow $
+                  "It looks like you are trying to use `" ++ keyword ++ "` as an argument, but\
+                  \ it is a reserved word in this language. Try using a different argument name!"
+              )
+
+        _ ->
+          Report.Report "UNFINISHED ANONYMOUS FUNCTION" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I just saw the beginning of an anonymous function, so I was expecting to see an arrow next:"
+              ,
+                D.fillSep $
+                  ["The","syntax","for","anonymous","functions","is"
+                  ,D.dullyellow "(\\x -> x + 1)"
+                  ,"so","I","am","missing","the","arrow","and","the","body","of","the","function."
+                  ]
+              )
 
     FuncIndentArg row col ->
       let
@@ -2168,7 +2225,7 @@ toFuncReport source context func startRow startCol =
         region = toRegion row col
       in
       Report.Report "MISSING ARGUMENT" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I just saw the beginning of an anonymous function, so I was expecting to see an argument next:"
@@ -2191,7 +2248,7 @@ toFuncReport source context func startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED ANONYMOUS FUNCTION" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I just saw the beginning of an anonymous function, so I was expecting to see an arrow next:"
@@ -2216,7 +2273,7 @@ toFuncReport source context func startRow startCol =
         region = toRegion row col
       in
       Report.Report "UNFINISHED ANONYMOUS FUNCTION" region [] $
-        Report.toCodeSnippet source surroundings (Just region)
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
               "I was expecting to see the body of your anonymous function next:"
@@ -2242,7 +2299,7 @@ toFuncReport source context func startRow startCol =
   case err of
     CommentOnNothing region ->
       Report.Report "STRAY COMMENT" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             "This documentation comment is not followed by anything."
           ,
@@ -2254,7 +2311,7 @@ toFuncReport source context func startRow startCol =
 
     UnexpectedPort region ->
       Report.Report "UNEXPECTED PORTS" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "You are declaring ports in a normal module."
@@ -2273,7 +2330,7 @@ toFuncReport source context func startRow startCol =
 
     NoPorts region ->
       Report.Report "NO PORTS" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "This module does not declare any ports, but it says it will:"
@@ -2293,7 +2350,7 @@ toFuncReport source context func startRow startCol =
 
         DocComment ->
           Report.Report "EXPECTING DOC COMMENT" region [] $
-            Report.toCodeSnippet source region Nothing
+            Code.toSnippet source region Nothing
               (
                 D.reflow $
                   "I was expecting a doc comment here:"
@@ -2306,7 +2363,7 @@ toFuncReport source context func startRow startCol =
 
         Precedence ->
           Report.Report "EXPECTING PRECEDENCE" region [] $
-            Report.toCodeSnippet source region Nothing
+            Code.toSnippet source region Nothing
               (
                 D.reflow $
                   "I was expecting the precedence here:"
@@ -2317,7 +2374,7 @@ toFuncReport source context func startRow startCol =
 
         Wildcard ->
           Report.Report "EXPECTING A WILDCARD" region [] $
-            Report.toCodeSnippet source region Nothing
+            Code.toSnippet source region Nothing
               (
                 D.reflow $
                   "I was expecting a _ here:"
@@ -2333,7 +2390,7 @@ toFuncReport source context func startRow startCol =
               A.Region (A.Position row startCol) (A.Position row endCol)
           in
           Report.Report "INVALID PATTERN" badRegion [] $
-            Report.toCodeSnippet source badRegion Nothing
+            Code.toSnippet source badRegion Nothing
               (
                 D.reflow $
                   "I was expecting to see an underscore without any additional characters:"
@@ -2347,7 +2404,7 @@ toFuncReport source context func startRow startCol =
 
         FloatInPattern ->
           Report.Report "INVALID PATTERN" region [] $
-            Report.toCodeSnippet source region Nothing
+            Code.toSnippet source region Nothing
               (
                 D.reflow $
                   "I cannot pattern match with floating point numbers:"
@@ -2361,7 +2418,7 @@ toFuncReport source context func startRow startCol =
 
         MatchingName name ->
           Report.Report "EXPECTING A DEFINITION" region [] $
-            Report.toCodeSnippet source region Nothing
+            Code.toSnippet source region Nothing
               (
                 D.reflow $
                   "I just saw the type annotation for `" ++ Name.toChars name
@@ -2377,7 +2434,7 @@ toFuncReport source context func startRow startCol =
 
     TypeWithBadDefinition region annName defName ->
       Report.Report "ANNOTATION MISMATCH" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "I see a `" <> Name.toChars annName
