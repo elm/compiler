@@ -102,7 +102,9 @@ toDocHelp :: Module -> [Module] -> [D.Doc]
 toDocHelp module1 modules =
   case modules of
     [] ->
-      [moduleToDoc module1]
+      [moduleToDoc module1
+      ,""
+      ]
 
     module2 : otherModules ->
       moduleToDoc module1
