@@ -1,8 +1,9 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE BangPatterns, UnboxedTuples, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, OverloadedStrings #-}
 module Parse.Symbol
-  ( wildcard
-  , operator
+  ( operator
+  , BadOperator(..)
+  , binopCharSet
   )
   where
 
@@ -15,38 +16,22 @@ import Foreign.Ptr (Ptr, plusPtr, minusPtr)
 import GHC.Word (Word8)
 
 import Parse.Primitives (Parser, Row, Col)
-import qualified Parse.Variable as Var
 import qualified Parse.Primitives as P
-import qualified Reporting.Error.Syntax as E
-
-
-
--- UNDERSCORE
-
-
-wildcard :: Parser E.Pattern ()
-wildcard =
-  P.Parser $ \(P.State pos end indent row col) cok _ cerr eerr ->
-    if pos == end || P.unsafeIndex pos /= 0x5F {- _ -} then
-      eerr row col E.PStart
-    else
-      let
-        !newPos = plusPtr pos 1
-        !newCol = col + 1
-      in
-      if Var.getInnerWidth newPos end > 0 then
-        let (# _, badCol #) = Var.chompInnerChars newPos end newCol in
-        cerr row col (E.PWildcardNotVar (fromIntegral (badCol - col)))
-      else
-        let !newState = P.State newPos end indent row newCol in
-        cok () newState
 
 
 
 -- OPERATOR
 
 
-operator :: (Row -> Col -> x) -> (E.Operator -> Row -> Col -> x) -> Parser x Name.Name
+data BadOperator
+  = BadDot
+  | BadPipe
+  | BadArrow
+  | BadEquals
+  | BadHasType
+
+
+operator :: (Row -> Col -> x) -> (BadOperator -> Row -> Col -> x) -> Parser x Name.Name
 operator toExpectation toError =
   P.Parser $ \(P.State pos end indent row col) cok _ cerr eerr ->
     let !newPos = chompOps pos end in
@@ -55,11 +40,11 @@ operator toExpectation toError =
 
     else
       case Name.fromPtr pos newPos of
-        "."  -> cerr row col (toError E.OpDot)
-        "|"  -> cerr row col (toError E.OpPipe)
-        "->" -> cerr row col (toError E.OpArrow)
-        "="  -> cerr row col (toError E.OpEquals)
-        ":"  -> cerr row col (toError E.OpHasType)
+        "."  -> cerr row col (toError BadDot)
+        "|"  -> cerr row col (toError BadPipe)
+        "->" -> cerr row col (toError BadArrow)
+        "="  -> cerr row col (toError BadEquals)
+        ":"  -> cerr row col (toError BadHasType)
         op   ->
           let
             !newCol = col + fromIntegral (minusPtr newPos pos)

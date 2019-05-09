@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, UnboxedTuples, OverloadedStrings #-}
 module Parse.Pattern
   ( term
   , expression
@@ -10,12 +10,12 @@ module Parse.Pattern
 import qualified Data.List as List
 import qualified Data.Name as Name
 import qualified Data.Utf8 as Utf8
+import Foreign.Ptr (plusPtr)
 
 import qualified AST.Source as Src
 import qualified Parse.Keyword as Keyword
 import qualified Parse.Number as Number
 import qualified Parse.Space as Space
-import qualified Parse.Symbol as Symbol
 import qualified Parse.Utf8 as Utf8
 import qualified Parse.Variable as Var
 import qualified Parse.Primitives as P
@@ -43,7 +43,7 @@ termHelp :: A.Position -> Parser E.Pattern Src.Pattern
 termHelp start =
   oneOf E.PStart
     [
-      do  Symbol.wildcard
+      do  wildcard
           addEnd start Src.PAnything
     ,
       do  name <- Var.lower E.PStart
@@ -76,6 +76,28 @@ termHelp start =
       do  chr <- Utf8.character E.PStart E.PChar
           addEnd start (Src.PChr chr)
     ]
+
+
+
+-- WILDCARD
+
+
+wildcard :: Parser E.Pattern ()
+wildcard =
+  P.Parser $ \(P.State pos end indent row col) cok _ cerr eerr ->
+    if pos == end || P.unsafeIndex pos /= 0x5F {- _ -} then
+      eerr row col E.PStart
+    else
+      let
+        !newPos = plusPtr pos 1
+        !newCol = col + 1
+      in
+      if Var.getInnerWidth newPos end > 0 then
+        let (# _, badCol #) = Var.chompInnerChars newPos end newCol in
+        cerr row col (E.PWildcardNotVar (fromIntegral (badCol - col)))
+      else
+        let !newState = P.State newPos end indent row newCol in
+        cok () newState
 
 
 
