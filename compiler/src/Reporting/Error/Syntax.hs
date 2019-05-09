@@ -2578,17 +2578,6 @@ toFuncReport source context func startRow startCol =
 
         -- Parse.Number
 
-        Precedence ->
-          Report.Report "EXPECTING PRECEDENCE" region [] $
-            Code.toSnippet source region Nothing
-              (
-                D.reflow $
-                  "I was expecting the precedence here:"
-              ,
-                D.reflow $
-                  "I need a single digit between 0 and 9 inclusive."
-              )
-
         Wildcard ->
           Report.Report "EXPECTING A WILDCARD" region [] $
             Code.toSnippet source region Nothing
