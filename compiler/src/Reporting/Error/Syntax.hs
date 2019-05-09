@@ -612,8 +612,8 @@ toParseErrorReport source modul =
               [ D.reflow $
                   "Here are some examples of valid `module` declarations:"
               , D.indent 4 $ D.vcat $
-                  [ D.fillSep [D.blue "module","Main",D.blue "exposing","(..)"]
-                  , D.fillSep [D.blue "module","Dict",D.blue "exposing","(Dict, empty, get)"]
+                  [ D.fillSep [D.cyan "module","Main",D.cyan "exposing","(..)"]
+                  , D.fillSep [D.cyan "module","Dict",D.cyan "exposing","(Dict, empty, get)"]
                   ]
               , D.reflow $
                   "I generally recommend using an explicit exposing list. I can skip compiling a bunch\
@@ -636,10 +636,10 @@ toParseErrorReport source modul =
               [ D.reflow $
                   "I was expecting to see the module name next, like in these examples:"
               , D.indent 4 $ D.vcat $
-                  [ D.fillSep [D.blue "module","Dict",D.blue "exposing","(..)"]
-                  , D.fillSep [D.blue "module","Maybe",D.blue "exposing","(..)"]
-                  , D.fillSep [D.blue "module","Html.Attributes",D.blue "exposing","(..)"]
-                  , D.fillSep [D.blue "module","Json.Decode",D.blue "exposing","(..)"]
+                  [ D.fillSep [D.cyan "module","Dict",D.cyan "exposing","(..)"]
+                  , D.fillSep [D.cyan "module","Maybe",D.cyan "exposing","(..)"]
+                  , D.fillSep [D.cyan "module","Html.Attributes",D.cyan "exposing","(..)"]
+                  , D.fillSep [D.cyan "module","Json.Decode",D.cyan "exposing","(..)"]
                   ]
               , D.reflow $
                   "Notice that the module names all start with capital letters. That is required!"
@@ -663,8 +663,8 @@ toParseErrorReport source modul =
               [ D.reflow $
                   "Here are some examples of valid `port module` declarations:"
               , D.indent 4 $ D.vcat $
-                  [ D.fillSep [D.blue "port",D.blue "module","WebSockets",D.blue "exposing","(send, listen, keepAlive)"]
-                  , D.fillSep [D.blue "port",D.blue "module","Maps",D.blue "exposing","(Location, goto)"]
+                  [ D.fillSep [D.cyan "port",D.cyan "module","WebSockets",D.cyan "exposing","(send, listen, keepAlive)"]
+                  , D.fillSep [D.cyan "port",D.cyan "module","Maps",D.cyan "exposing","(Location, goto)"]
                   ]
               , D.link "Note" "Read" "ports" "for more help."
               ]
@@ -684,8 +684,8 @@ toParseErrorReport source modul =
               [ D.reflow $
                   "I was expecting to see the module name next, like in these examples:"
               , D.indent 4 $ D.vcat $
-                  [ D.fillSep [D.blue "port",D.blue "module","WebSockets",D.blue "exposing","(send, listen, keepAlive)"]
-                  , D.fillSep [D.blue "port",D.blue "module","Maps",D.blue "exposing","(Location, goto)"]
+                  [ D.fillSep [D.cyan "port",D.cyan "module","WebSockets",D.cyan "exposing","(send, listen, keepAlive)"]
+                  , D.fillSep [D.cyan "port",D.cyan "module","Maps",D.cyan "exposing","(Location, goto)"]
                   ]
               , D.reflow $
                   "Notice that the module names start with capital letters. That is required!"
@@ -743,7 +743,7 @@ toParseErrorReport source modul =
                       "I am not sure what is going on, but I recommend starting an Elm\
                       \ file with the following lines:"
                   , D.vcat
-                      [ D.fillSep [D.blue "import","Html"]
+                      [ D.fillSep [D.cyan "import","Html"]
                       , ""
                       , D.fillSep [D.green "main","="]
                       , D.indent 2 $ D.fillSep [D.cyan "Html" <> ".text",D.dullyellow "\"Hello!\""]
@@ -773,10 +773,10 @@ toParseErrorReport source modul =
               [ D.reflow $
                   "I was expecting to see a module name next, like in these examples:"
               , D.indent 4 $ D.vcat $
-                  [ D.fillSep [D.blue "import","Dict"]
-                  , D.fillSep [D.blue "import","Maybe"]
-                  , D.fillSep [D.blue "import","Html.Attributes"]
-                  , D.fillSep [D.blue "import","Json.Decode"]
+                  [ D.fillSep [D.cyan "import","Dict"]
+                  , D.fillSep [D.cyan "import","Maybe"]
+                  , D.fillSep [D.cyan "import","Html.Attributes"]
+                  , D.fillSep [D.cyan "import","Json.Decode"]
                   ]
               , D.reflow $
                   "Notice that the module names all start with capital letters. That is required!"
@@ -800,9 +800,9 @@ toParseErrorReport source modul =
               [ D.reflow $
                   "I was expecting to see an alias next, like in these examples:"
               , D.indent 4 $ D.vcat $
-                  [ D.fillSep [D.blue "import","Html.Attributes",D.blue "as","Attr"]
-                  , D.fillSep [D.blue "import","WebGL.Texture",D.blue "as","Texture"]
-                  , D.fillSep [D.blue "import","Json.Decode",D.blue "as","D"]
+                  [ D.fillSep [D.cyan "import","Html.Attributes",D.cyan "as","Attr"]
+                  , D.fillSep [D.cyan "import","WebGL.Texture",D.cyan "as","Texture"]
+                  , D.fillSep [D.cyan "import","Json.Decode",D.cyan "as","D"]
                   ]
               , D.reflow $
                   "Notice that the alias always starts with a capital letter. That is required!"
@@ -839,8 +839,8 @@ toParseErrorReport source modul =
                   "I was expecting to see the list of exposed values next. For example, here\
                   \ are two ways to expose values from the `Html` module:"
               , D.indent 4 $ D.vcat $
-                  [ D.fillSep [D.blue "import","Html",D.blue "exposing","(..)"]
-                  , D.fillSep [D.blue "import","Html",D.blue "exposing","(Html, div, text)"]
+                  [ D.fillSep [D.cyan "import","Html",D.cyan "exposing","(..)"]
+                  , D.fillSep [D.cyan "import","Html",D.cyan "exposing","(Html, div, text)"]
                   ]
               , D.reflow $
                   "I generally recommend the second style. It is more explicit, making it\
@@ -886,10 +886,10 @@ toImportReport source row col =
           [ D.reflow $
               "Here are some examples of valid `import` declarations:"
           , D.indent 4 $ D.vcat $
-              [ D.fillSep [D.blue "import","Html"]
-              , D.fillSep [D.blue "import","Html",D.blue "as","H"]
-              , D.fillSep [D.blue "import","Html",D.blue "exposing","(Html, div, text)"]
-              , D.fillSep [D.blue "import","Html",D.blue "as","H",D.blue "exposing","(..)"]
+              [ D.fillSep [D.cyan "import","Html"]
+              , D.fillSep [D.cyan "import","Html",D.cyan "as","H"]
+              , D.fillSep [D.cyan "import","Html",D.cyan "as","H",D.cyan "exposing","(..)"]
+              , D.fillSep [D.cyan "import","Html",D.cyan "exposing","(Html, div, text)"]
               ]
           , D.reflow $
               "You are probably trying to import a different module, but try to make it look like one of these examples!"
@@ -1019,9 +1019,6 @@ toDeclDefReport source name declDef startRow startCol =
 
     DeclDefNameMatch defName row col ->
       let
-        expected = Name.toChars name
-        actual = Name.toChars defName
-
         surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
         region = toRegion row col
       in
@@ -1029,13 +1026,13 @@ toDeclDefReport source name declDef startRow startCol =
         Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I got stuck after parsing the `" ++ expected ++ "` type annotation:"
+              "I just saw a type annotation for `" ++ Name.toChars name ++ "`, but it is followed by a definition for `" ++ Name.toChars defName ++ "`:"
           ,
             D.stack
               [ D.reflow $
-                  "I am seeing `" ++ actual ++ "` defined next. These names do not match! Is there a typo?"
+                  "These names do not match! Is there a typo?"
               , D.indent 4 $ D.fillSep $
-                  [D.dullyellow (D.fromChars actual),"->",D.green (D.fromChars expected)]
+                  [D.dullyellow (D.fromName defName),"->",D.green (D.fromName name)]
               ]
           )
 
