@@ -5,18 +5,27 @@ module Reporting.Render.Code
   , toSource
   , toSnippet
   , toPair
+  , Next(..)
+  , whatIsNext
   )
   where
 
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.UTF8 as UTF8_BS
+import qualified Data.Char as Char
+import qualified Data.IntSet as IntSet
 import qualified Data.List as List
+import qualified Data.Name as Name
+import qualified Data.Set as Set
 import Data.Word (Word16)
 
 import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
 import Reporting.Doc (Doc)
+import Parse.Primitives (Row, Col)
+import Parse.Symbol (binopCharSet)
+import Parse.Variable (reservedWords)
 
 
 
@@ -180,3 +189,55 @@ renderPair source@(Source sourceLines) region1 region2 =
     TwoChunks
       (render source region1 Nothing)
       (render source region2 Nothing)
+
+
+
+-- WHAT IS NEXT?
+
+
+data Next
+  = Spaces
+  | Keyword String
+  | Operator String
+  | CloseParen
+  | CloseSquare
+  | CloseCurly
+  | Other
+
+
+whatIsNext :: Source -> Row -> Col -> Next
+whatIsNext (Source sourceLines) row col =
+  case List.lookup row sourceLines of
+    Nothing ->
+      Other
+
+    Just line ->
+      let
+        chars = drop (fromIntegral col - 1) line
+      in
+      case List.find (\kwd -> startsWith kwd chars) (map Name.toChars (Set.toList reservedWords)) of
+        Just keyword ->
+          Keyword keyword
+
+        Nothing ->
+          case takeWhile isSymbol chars of
+            op@(_:_) ->
+              Operator op
+
+            []
+              | null chars           -> Spaces
+              | startsWith " " chars -> Spaces
+              | startsWith ")" chars -> CloseParen
+              | startsWith "]" chars -> CloseSquare
+              | startsWith "}" chars -> CloseCurly
+              | otherwise            -> Other
+
+
+isSymbol :: Char -> Bool
+isSymbol char =
+  IntSet.member (Char.ord char) binopCharSet
+
+
+startsWith :: [Char] -> [Char] -> Bool
+startsWith =
+  List.isPrefixOf
