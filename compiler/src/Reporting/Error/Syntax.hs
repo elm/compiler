@@ -89,9 +89,7 @@ data Module
   --
   | Effect Row Col
   --
-  | FreshLineModuleStart Row Col
-  | FreshLineAfterModuleLine Row Col
-  | FreshLineAfterDocComment Row Col
+  | FreshLine Row Col
   --
   | ImportStart Row Col
   | ImportName Row Col
@@ -687,14 +685,51 @@ toParseErrorReport source modul =
               \ define certain effects, avoiding building them into the compiler."
           )
 
-    FreshLineModuleStart row col ->
-      error "TODO FreshLineModuleStart" row col
+    FreshLine row col ->
+      let
+        region = toRegion row col
 
-    FreshLineAfterModuleLine row col ->
-      error "TODO FreshLineAfterModuleLine" row col
+        toBadFirstLineReport keyword =
+          Report.Report "TOO MUCH INDENTATION" region [] $
+            Code.toSnippet source region Nothing
+              (
+                D.reflow $
+                  "This `" ++ keyword ++ "` should not have any spaces before it:"
+              ,
+                D.reflow $
+                  "Delete the spaces before `" ++ keyword ++ "` until there are none left!"
+              )
 
-    FreshLineAfterDocComment row col ->
-      error "TODO FreshLineAfterDocComment" row col
+      in
+      case Code.whatIsNext source row col of
+        Code.Keyword "module" -> toBadFirstLineReport "module"
+        Code.Keyword "import" -> toBadFirstLineReport "import"
+        Code.Keyword "type" -> toBadFirstLineReport "type"
+        Code.Keyword "port" -> toBadFirstLineReport "port"
+        _ ->
+          Report.Report "SYNTAX PROBLEM" region [] $
+            Code.toSnippet source region Nothing
+              (
+                D.reflow $
+                  "I got stuck here:"
+              ,
+                D.stack
+                  [ D.reflow $
+                      "I am not sure what is going on, but I recommend starting an Elm\
+                      \ file with the following lines:"
+                  , D.vcat
+                      [ D.fillSep [D.blue "import","Html"]
+                      , ""
+                      , D.fillSep [D.green "main","="]
+                      , D.indent 2 $ D.fillSep [D.cyan "Html" <> ".text",D.dullyellow "\"Hello!\""]
+                      ]
+                  , D.reflow $
+                      "You should be able to copy those lines directly into your file. Check out\
+                      \ some of the examples on https://elm-lang.org for more help getting started!"
+                  , D.toSimpleNote $
+                      "This can also happen when something is indented too much!"
+                  ]
+              )
 
     ImportStart row col ->
       toImportReport source row col

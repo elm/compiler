@@ -54,7 +54,7 @@ fromByteString pkg source =
 
 normal :: Parser E.Module (Either E.Error Src.Module)
 normal =
-  do  freshLine E.FreshLineModuleStart
+  do  freshLine E.FreshLine
       header <- chompHeader
       comment <- chompModuleDocComment
       imports <- chompImports []
@@ -65,7 +65,7 @@ normal =
 
 core :: Parser E.Module (Either E.Error Src.Module)
 core =
-  do  freshLine E.FreshLineModuleStart
+  do  freshLine E.FreshLine
       header <- chompHeader
       comment <- chompModuleDocComment
       imports <- chompImports []
@@ -77,7 +77,7 @@ core =
 
 platform :: Parser E.Module (Either E.Error Src.Module)
 platform =
-  do  freshLine E.FreshLineModuleStart
+  do  freshLine E.FreshLine
       header <- chompHeader
       comment <- chompModuleDocComment
       imports <- chompImports []
@@ -194,7 +194,7 @@ chompModuleDocComment =
     [
       do  docComment <- Space.docComment E.ImportStart E.ModuleSpace
           Space.chomp E.ModuleSpace
-          Space.checkFreshLine E.FreshLineAfterDocComment
+          Space.checkFreshLine E.FreshLine
           return (Just docComment)
     ]
     Nothing
@@ -228,7 +228,7 @@ chompHeader =
               Keyword.exposing_ E.ModuleProblem
               Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
               exports <- addLocation (specialize E.ModuleExposing exposing)
-              freshLine E.FreshLineAfterModuleLine
+              freshLine E.FreshLine
               return (Just (Header name (NoEffects (A.Region start end)) exports))
         ,
           -- port module MyThing exposing (..)
@@ -242,7 +242,7 @@ chompHeader =
               Keyword.exposing_ E.PortModuleProblem
               Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem
               exports <- addLocation (specialize E.PortModuleExposing exposing)
-              freshLine E.FreshLineAfterModuleLine
+              freshLine E.FreshLine
               return (Just (Header name (Ports (A.Region start end)) exports))
         ,
           -- effect module MyThing where { command = MyCmd } exposing (..)
@@ -260,7 +260,7 @@ chompHeader =
               Keyword.exposing_ E.Effect
               Space.chompAndCheckIndent E.ModuleSpace E.Effect
               exports <- addLocation (specialize (const E.Effect) exposing)
-              freshLine E.FreshLineAfterModuleLine
+              freshLine E.FreshLine
               return (Just (Header name (Manager (A.Region start end) manager) exports))
         ]
         -- default header
