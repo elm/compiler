@@ -3,9 +3,8 @@
 module Reporting.Render.Code
   ( Source
   , toSource
-  , render
-  , CodePair(..)
-  , renderPair
+  , toSnippet
+  , toPair
   )
   where
 
@@ -35,7 +34,44 @@ toSource source =
 
 
 
--- RENDER
+-- CODE FORMATTING
+
+
+toSnippet :: Source -> A.Region -> Maybe A.Region -> (D.Doc, D.Doc) -> D.Doc
+toSnippet source region highlight (preHint, postHint) =
+  D.vcat
+    [ preHint
+    , ""
+    , render source region highlight
+    , postHint
+    ]
+
+
+toPair :: Source -> A.Region -> A.Region -> (D.Doc, D.Doc) -> (D.Doc, D.Doc, D.Doc) -> D.Doc
+toPair source r1 r2 (oneStart, oneEnd) (twoStart, twoMiddle, twoEnd) =
+  case renderPair source r1 r2 of
+    OneLine codeDocs ->
+      D.vcat
+        [ oneStart
+        , ""
+        , codeDocs
+        , oneEnd
+        ]
+
+    TwoChunks code1 code2 ->
+      D.vcat
+        [ twoStart
+        , ""
+        , code1
+        , twoMiddle
+        , ""
+        , code2
+        , twoEnd
+        ]
+
+
+
+-- RENDER SNIPPET
 
 
 (|>) :: a -> (a -> b) -> b

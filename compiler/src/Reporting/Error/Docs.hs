@@ -63,7 +63,7 @@ toReport source err =
 
     Duplicate name r1 r2 ->
       Report.Report "DUPLICATE DOCS" r2 [] $
-        Report.toCodePair source r1 r2
+        Code.toPair source r1 r2
           (
             D.reflow $
               "There can only be one `" <> Name.toChars name
@@ -83,7 +83,7 @@ toReport source err =
 
     OnlyInDocs name region ->
       Report.Report "DOCS MISTAKE" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "I do not see `" <> Name.toChars name
@@ -96,7 +96,7 @@ toReport source err =
 
     OnlyInExports name region ->
       Report.Report "DOCS MISTAKE" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "I do not see `" <> Name.toChars name
@@ -112,7 +112,7 @@ toReport source err =
 
     NoComment name region ->
       Report.Report "NO DOCS" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "The `" <> Name.toChars name <> "` definition does not have a documentation comment."
@@ -126,7 +126,7 @@ toReport source err =
 
     NoAnnotation name region ->
       Report.Report "NO TYPE ANNOTATION" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "The `" <> Name.toChars name <> "` definition does not have a type annotation."

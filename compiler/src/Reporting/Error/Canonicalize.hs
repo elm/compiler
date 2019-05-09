@@ -151,7 +151,7 @@ toReport source err =
         numDefArgs = numTypeArgs + leftovers
       in
       Report.Report "BAD TYPE ANNOTATION" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "The type annotation for `" <> Name.toChars name <> "` says it can accept "
@@ -185,7 +185,7 @@ toReport source err =
       in
       if actual < expected then
         Report.Report "TOO FEW ARGS" region [] $
-          Report.toCodeSnippet source region Nothing
+          Code.toSnippet source region Nothing
             (
               D.reflow $
                 "The `" <> Name.toChars name <> "` " <> thing <> " needs "
@@ -197,7 +197,7 @@ toReport source err =
 
       else
         Report.Report "TOO MANY ARGS" region [] $
-          Report.toCodeSnippet source region Nothing
+          Code.toSnippet source region Nothing
             (
               D.reflow $
                 "The `" <> Name.toChars name <> "` " <> thing <> " needs "
@@ -211,7 +211,7 @@ toReport source err =
 
     Binop region op1 op2 ->
       Report.Report "INFIX PROBLEM" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "You cannot mix (" <> Name.toChars op1 <> ") and (" <> Name.toChars op2 <> ") without parentheses."
@@ -268,7 +268,7 @@ toReport source err =
 
     EffectNotFound region name ->
       Report.Report "EFFECT PROBLEM" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "You have declared that `" ++ Name.toChars name ++ "` is an effect type:"
@@ -279,7 +279,7 @@ toReport source err =
 
     EffectFunctionNotFound region name ->
       Report.Report "EFFECT PROBLEM" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "This kind of effect module must define a `" ++ Name.toChars name ++ "` function."
@@ -295,7 +295,7 @@ toReport source err =
           "You are trying to expose `" <> Name.toChars name <> "` multiple times!"
       in
       Report.Report "REDUNDANT EXPORT" r2 [] $
-        Report.toCodePair source r1 r2
+        Code.toPair source r1 r2
           (
             D.reflow messageThatEndsWithPunctuation
           ,
@@ -339,7 +339,7 @@ toReport source err =
 
     ExportOpenAlias region name ->
       Report.Report "BAD EXPORT" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "The (..) syntax is for exposing union type constructors. It cannot be used with a type alias like `"
@@ -351,7 +351,7 @@ toReport source err =
 
     ImportCtorByName region ctor tipe ->
       Report.Report "BAD IMPORT" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "You are trying to import the `" <> Name.toChars ctor
@@ -371,7 +371,7 @@ toReport source err =
       -- So this error should never actually get printed out.
       --
       Report.Report "UNKNOWN IMPORT" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "I could not find a `" <> Name.toChars name <> "` module to import!"
@@ -381,7 +381,7 @@ toReport source err =
 
     ImportOpenAlias region name ->
       Report.Report "BAD IMPORT" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "The `" <> Name.toChars name <> "` type alias cannot be followed by (..) like this:"
@@ -402,7 +402,7 @@ toReport source err =
             Suggest.sort (Name.toChars home) Name.toChars possibleNames
       in
       Report.Report "BAD IMPORT" region suggestions $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "The `" <> Name.toChars home
@@ -435,7 +435,7 @@ toReport source err =
     NotFoundBinop region op locals ->
       if op == "===" then
         Report.Report "UNKNOWN OPERATOR" region ["=="] $
-          Report.toCodeSnippet source region Nothing
+          Code.toSnippet source region Nothing
             (
               "Elm does not have a (===) operator like JavaScript."
             ,
@@ -444,7 +444,7 @@ toReport source err =
 
       else if op == "!=" || op == "!==" then
         Report.Report "UNKNOWN OPERATOR" region ["/="] $
-          Report.toCodeSnippet source region Nothing
+          Code.toSnippet source region Nothing
             (
               D.reflow $
                 "Elm uses a different name for the “not equal” operator:"
@@ -459,7 +459,7 @@ toReport source err =
 
       else if op == "**" then
         Report.Report "UNKNOWN OPERATOR" region ["^","*"] $
-          Report.toCodeSnippet source region Nothing
+          Code.toSnippet source region Nothing
             (
               D.reflow $
                 "I do not recognize the (**) operator:"
@@ -470,7 +470,7 @@ toReport source err =
 
       else if op == "%" then
         Report.Report "UNKNOWN OPERATOR" region [] $
-          Report.toCodeSnippet source region Nothing
+          Code.toSnippet source region Nothing
             (
               D.reflow $
                 "Elm does not use (%) as the remainder operator:"
@@ -497,7 +497,7 @@ toReport source err =
             D.green $ "(" <> altOp <> ")"
         in
         Report.Report "UNKNOWN OPERATOR" region suggestions $
-          Report.toCodeSnippet source region Nothing
+          Code.toSnippet source region Nothing
             (
               D.reflow $
                 "I do not recognize the (" ++ Name.toChars op ++ ") operator."
@@ -515,7 +515,7 @@ toReport source err =
 
     PatternHasRecordCtor region name ->
       Report.Report "BAD PATTERN" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "You can construct records by using `" <> Name.toChars name
@@ -529,7 +529,7 @@ toReport source err =
       let
         formatDetails (aBadKindOfThing, elaboration) =
           Report.Report "PORT ERROR" region [] $
-            Report.toCodeSnippet source region Nothing
+            Code.toSnippet source region Nothing
               (
                 D.reflow $
                   "The `" <> Name.toChars portName <> "` port is trying to transmit " <> aBadKindOfThing <> ":"
@@ -595,7 +595,7 @@ toReport source err =
       let
         formatDetails (before, after) =
           Report.Report "BAD PORT" region [] $
-            Report.toCodeSnippet source region Nothing $
+            Code.toSnippet source region Nothing $
               (
                 D.reflow before
               ,
@@ -674,7 +674,7 @@ toReport source err =
           D.fillSep $ map (D.dullyellow . D.fromChars) (words question) ++ map D.fromChars (words details)
       in
       Report.Report "CYCLIC DEFINITION" region [] $
-        Report.toCodeSnippet source region Nothing $
+        Code.toSnippet source region Nothing $
           case names of
             [] ->
               (
@@ -716,7 +716,7 @@ toReport source err =
 
     RecursiveLet (A.At region name) names ->
       Report.Report "CYCLIC VALUE" region [] $
-        Report.toCodeSnippet source region Nothing $
+        Code.toSnippet source region Nothing $
           case names of
             [] ->
               let
@@ -762,7 +762,7 @@ toReport source err =
 
     Shadowing name r1 r2 ->
       Report.Report "SHADOWING" r2 [] $
-        Report.toCodePair source r1 r2
+        Code.toPair source r1 r2
           ( "These variables cannot have the same name:"
           , advice
           )
@@ -783,7 +783,7 @@ toReport source err =
 
     TupleLargerThanThree region ->
       Report.Report "BAD TUPLE" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             "I only accept tuples with two or three items. This has too many:"
           ,
@@ -832,7 +832,7 @@ toReport source err =
                   )
           in
           Report.Report title aliasRegion [] $
-            Report.toCodeSnippet source aliasRegion subRegion
+            Code.toSnippet source aliasRegion subRegion
               (
                 D.fillSep overview
               ,
@@ -885,7 +885,7 @@ toReport source err =
 
           in
           Report.Report "TYPE VARIABLE PROBLEMS" aliasRegion [] $
-            Report.toCodeSnippet source aliasRegion Nothing
+            Code.toSnippet source aliasRegion Nothing
               (
                 D.reflow $
                   "Type alias `" <> Name.toChars typeName <> "` has some type variable problems."
@@ -932,7 +932,7 @@ unboundTypeVars source declRegion tipe typeName allVars (unboundVar, varRegion) 
           )
   in
   Report.Report title declRegion [] $
-    Report.toCodeSnippet source declRegion subRegion
+    Code.toSnippet source declRegion subRegion
       (
         D.fillSep overview
       ,
@@ -960,7 +960,7 @@ unboundTypeVars source declRegion tipe typeName allVars (unboundVar, varRegion) 
 nameClash :: Code.Source -> A.Region -> A.Region -> String -> Report.Report
 nameClash source r1 r2 messageThatEndsWithPunctuation =
   Report.Report "NAME CLASH" r2 [] $
-    Report.toCodePair source r1 r2
+    Code.toPair source r1 r2
       (
         D.reflow messageThatEndsWithPunctuation
       ,
@@ -982,7 +982,7 @@ nameClash source r1 r2 messageThatEndsWithPunctuation =
 ambiguousName :: Code.Source -> A.Region -> Maybe Name.Name -> Name.Name -> [ModuleName.Canonical] -> String -> Report.Report
 ambiguousName source region maybePrefix name possibleHomes thing =
   Report.Report "AMBIGUOUS NAME" region [] $
-    Report.toCodeSnippet source region Nothing $
+    Code.toSnippet source region Nothing $
       case maybePrefix of
         Nothing ->
           let
@@ -1065,7 +1065,7 @@ notFound source region maybePrefix name thing (PossibleNames locals quals) =
 
   in
   Report.Report "NAMING ERROR" region nearbyNames $
-    Report.toCodeSnippet source region Nothing
+    Code.toSnippet source region Nothing
       (
         D.reflow $
           "I cannot find a `" ++ givenName ++ "` " ++ thing ++ ":"
@@ -1195,7 +1195,7 @@ _argMismatchReport source region kind name expected actual =
       <> " arguments"
   in
     Report.Report (map Char.toUpper numArgs) region [] $
-      Report.toCodeSnippet source region Nothing
+      Code.toSnippet source region Nothing
         (
           D.reflow $
             kind <> " " <> Name.toChars name <> " has " <> numArgs <> "."
@@ -1214,7 +1214,7 @@ aliasRecursionReport source region name args tipe others =
   case others of
     [] ->
       Report.Report "ALIAS PROBLEM" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             "This type alias is recursive, forming an infinite type!"
           ,
@@ -1233,7 +1233,7 @@ aliasRecursionReport source region name args tipe others =
 
     _ ->
       Report.Report "ALIAS PROBLEM" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             "This type alias is part of a mutually recursive set of type aliases."
           ,

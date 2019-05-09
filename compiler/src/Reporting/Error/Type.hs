@@ -188,7 +188,7 @@ toPatternReport source localizer patternRegion category tipe expected =
   Report.Report "TYPE MISMATCH" patternRegion [] $
   case expected of
     PNoExpectation expectedType ->
-      Report.toCodeSnippet source patternRegion Nothing $
+      Code.toSnippet source patternRegion Nothing $
         ( "This pattern is being used in an unexpected way:"
         , patternTypeComparison localizer tipe expectedType
             (addPatternCategory "It is" category)
@@ -197,7 +197,7 @@ toPatternReport source localizer patternRegion category tipe expected =
         )
 
     PFromContext region context expectedType ->
-      Report.toCodeSnippet source region (Just patternRegion) $
+      Code.toSnippet source region (Just patternRegion) $
         case context of
           PTypedArg name index ->
             ( D.reflow $
@@ -630,7 +630,7 @@ toExprReport source localizer exprRegion category tipe expected =
   case expected of
     NoExpectation expectedType ->
       Report.Report "TYPE MISMATCH" exprRegion [] $
-        Report.toCodeSnippet source exprRegion Nothing
+        Code.toSnippet source exprRegion Nothing
           ( "This expression is being used in an unexpected way:"
           , typeComparison localizer tipe expectedType
               (addCategory "It is" category)
@@ -653,7 +653,7 @@ toExprReport source localizer exprRegion category tipe expected =
             TypedBody             -> "The body is"
       in
       Report.Report "TYPE MISMATCH" exprRegion [] $
-        Report.toCodeSnippet source exprRegion Nothing $
+        Code.toSnippet source exprRegion Nothing $
           ( D.reflow ("Something is off with the " <> thing)
           , typeComparison localizer tipe expectedType
               (addCategory itIs category)
@@ -665,21 +665,21 @@ toExprReport source localizer exprRegion category tipe expected =
       let
         mismatch (maybeHighlight, problem, thisIs, insteadOf, furtherDetails) =
           Report.Report "TYPE MISMATCH" exprRegion [] $
-            Report.toCodeSnippet source region maybeHighlight
+            Code.toSnippet source region maybeHighlight
               ( D.reflow problem
               , typeComparison localizer tipe expectedType (addCategory thisIs category) insteadOf furtherDetails
               )
 
         badType (maybeHighlight, problem, thisIs, furtherDetails) =
           Report.Report "TYPE MISMATCH" exprRegion [] $
-            Report.toCodeSnippet source region maybeHighlight
+            Code.toSnippet source region maybeHighlight
               ( D.reflow problem
               , loneType localizer tipe expectedType (D.reflow (addCategory thisIs category)) furtherDetails
               )
 
         custom maybeHighlight docPair =
           Report.Report "TYPE MISMATCH" exprRegion [] $
-            Report.toCodeSnippet source region maybeHighlight docPair
+            Code.toSnippet source region maybeHighlight docPair
       in
       case context of
         ListEntry index ->
@@ -762,7 +762,7 @@ toExprReport source localizer exprRegion category tipe expected =
 
         CallArity maybeFuncName numGivenArgs ->
           Report.Report "TOO MANY ARGS" exprRegion [] $
-          Report.toCodeSnippet source region (Just exprRegion) $
+          Code.toSnippet source region (Just exprRegion) $
           case countArgs tipe of
             0 ->
               let
@@ -1574,7 +1574,7 @@ badEquality localizer op tipe expected =
 toInfiniteReport :: Code.Source -> L.Localizer -> A.Region -> Name.Name -> T.Type -> Report.Report
 toInfiniteReport source localizer region name overallType =
   Report.Report "INFINITE TYPE" region [] $
-    Report.toCodeSnippet source region Nothing
+    Code.toSnippet source region Nothing
       (
         D.reflow $
           "I am inferring a weird self-referential type for " <> Name.toChars name <> ":"

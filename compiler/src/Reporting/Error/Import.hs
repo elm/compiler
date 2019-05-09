@@ -48,7 +48,7 @@ toReport source (Error region name unimportedModules problem) =
   case problem of
     NotFound ->
       Report.Report "MODULE NOT FOUND" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "You are trying to import a `" ++ ModuleName.toChars name ++ "` module:"
@@ -83,7 +83,7 @@ toReport source (Error region name unimportedModules problem) =
 
     Ambiguous path _ pkg _ ->
       Report.Report "AMBIGUOUS IMPORT" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "You are trying to import a `" ++ ModuleName.toChars name ++ "` module:"
@@ -105,7 +105,7 @@ toReport source (Error region name unimportedModules problem) =
 
     AmbiguousLocal path1 path2 paths ->
       Report.Report "AMBIGUOUS IMPORT" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "You are trying to import a `" ++ ModuleName.toChars name ++ "` module:"
@@ -125,7 +125,7 @@ toReport source (Error region name unimportedModules problem) =
 
     AmbiguousForeign pkg1 pkg2 pkgs ->
       Report.Report "AMBIGUOUS IMPORT" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "You are trying to import a `" ++ ModuleName.toChars name ++ "` module:"

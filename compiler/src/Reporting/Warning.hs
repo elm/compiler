@@ -43,7 +43,7 @@ toReport localizer source warning =
   case warning of
     UnusedImport region moduleName ->
       Report.Report "unused import" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "Nothing from the `" <> Name.toChars moduleName <> "` module is used in this file."
@@ -54,7 +54,7 @@ toReport localizer source warning =
     UnusedVariable region context name ->
       let title = defOrPat context "unused definition" "unused variable" in
       Report.Report title region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
               "You are not using `" <> Name.toChars name <> "` anywhere."
@@ -76,7 +76,7 @@ toReport localizer source warning =
 
     MissingTypeAnnotation region name inferredType ->
         Report.Report "missing type annotation" region [] $
-          Report.toCodeSnippet source region Nothing
+          Code.toSnippet source region Nothing
             (
               D.reflow $
                 case Type.deepDealias inferredType of
