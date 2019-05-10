@@ -76,11 +76,11 @@ function requestWithRedirects(url, maxRedirects, failure, success)
 
 		var redirectUrl = new URL(response.headers['location'], new URL(url).origin).href;
 
-		if (typeof redirectPath === 'string' && response.statusCode >= 300 && response.statusCode < 400)
+		if (typeof redirectUrl === 'string' && response.statusCode >= 300 && response.statusCode < 400)
 		{
 			return (maxRedirects <= 0)
 				? failure(new Error('followed 10 redirects and gave up'))
-				: requestWithRedirects(redirectPath, maxRedirects - 1, failure, success);
+				: requestWithRedirects(redirectUrl, maxRedirects - 1, failure, success);
 		}
 		else
 		{
