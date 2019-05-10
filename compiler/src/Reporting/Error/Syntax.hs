@@ -1066,6 +1066,8 @@ data Node
   | NCond
   | NThen
   | NElse
+  | NCase
+  | NBranch
   deriving (Eq)
 
 
@@ -1093,8 +1095,8 @@ toExprReport source context expr startRow startCol =
     Let _ _ _ ->
       error "TODO Let"
 
-    Case _ _ _ ->
-      error "TODO Case"
+    Case case_ row col ->
+      toCaseReport source context case_ row col
 
     If if_ row col ->
       toIfReport source context if_ row col
@@ -1182,6 +1184,8 @@ toExprReport source context expr startRow startCol =
             InNode NCond   r c _ -> (r, c, "an `if` expression")
             InNode NThen   r c _ -> (r, c, "an `if` expression")
             InNode NElse   r c _ -> (r, c, "an `if` expression")
+            InNode NCase   r c _ -> (r, c, "a `case` expression")
+            InNode NBranch r c _ -> (r, c, "a `case` expression")
             -- TODO check if this is actually the best way to get error messages here
 
         surroundings = A.Region (A.Position contextRow contextCol) (A.Position row col)
@@ -1599,7 +1603,7 @@ toOperatorReport source context operator row col =
       in
       Report.Report "UNEXPECTED ARROW" region [] $
         Code.toSnippet source region Nothing $
-          if error "TODO inCase" then
+          if isWithin NBranch context then
             (
               D.reflow $
                 "I was not expecting to see an arrow here:"
@@ -1685,6 +1689,168 @@ toOperatorReport source context operator row col =
                   \ this new definition is indented a bit too much."
               ]
           )
+
+
+
+-- CASE
+
+
+toCaseReport :: Code.Source -> Context -> Case -> Row -> Col -> Report.Report
+toCaseReport source context case_ startRow startCol =
+  case case_ of
+    CaseSpace space row col ->
+      toSpaceReport source space row col
+
+    CaseOf row col ->
+      toUnfinishCaseReport source row col startRow startCol $
+        D.fillSep ["I","was","expecting","to","see","the",D.dullyellow "of","keyword","next."]
+
+    CasePattern pattern row col ->
+      error "TODO CasePattern" pattern row col
+
+    CaseArrow row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      case Code.whatIsNext source row col of
+        Code.Keyword keyword ->
+          Report.Report "RESERVED WORD" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I am partway through parsing a `case` expression, but I got stuck here:"
+              ,
+                D.reflow $
+                  "It looks like you are trying to use `" ++ keyword ++ "` in one of your\
+                  \ patterns, but it is a reserved word. Try using a different name?"
+              )
+
+        Code.Operator ":" ->
+          Report.Report "UNEXPECTED OPERATOR" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I am partway through parsing a `case` expression, but I got stuck here:"
+              ,
+                D.fillSep $
+                  ["I","am","seeing",D.dullyellow ":","but","maybe","you","want",D.green "::","instead?"
+                  ,"For","pattern","matching","on","lists?"
+                  ]
+              )
+
+        Code.Operator "=" ->
+          Report.Report "UNEXPECTED OPERATOR" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I am partway through parsing a `case` expression, but I got stuck here:"
+              ,
+                D.fillSep $
+                  ["I","am","seeing",D.dullyellow "=","but","maybe","you","want",D.green "->","instead?"
+                  ]
+              )
+
+        _ ->
+          Report.Report "MISSING ARROW" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I am partway through parsing a `case` expression, but I got stuck here:"
+              ,
+                addNoteForCaseIndentError $
+                  D.reflow $
+                    "I was expecting to see an arrow next."
+              )
+
+    CaseExpr expr row col ->
+      toExprReport source (InNode NCase startRow startCol context) expr row col
+
+    CaseBranch expr row col ->
+      toExprReport source (InNode NBranch startRow startCol context) expr row col
+
+    CaseIndentOf row col ->
+      toUnfinishCaseReport source row col startRow startCol $
+        D.fillSep ["I","was","expecting","to","see","the",D.dullyellow "of","keyword","next."]
+
+    CaseIndentExpr row col ->
+      toUnfinishCaseReport source row col startRow startCol $
+        D.reflow "I was expecting to see a expression next."
+
+    CaseIndentPattern row col ->
+      toUnfinishCaseReport source row col startRow startCol $
+        D.reflow "I was expecting to see a pattern next."
+
+    CaseIndentArrow row col ->
+      toUnfinishCaseReport source row col startRow startCol $
+        D.fillSep
+          ["I","just","saw","a","pattern,","so","I","was","expecting"
+          ,"to","see","a",D.dullyellow "->","next."
+          ]
+
+    CaseIndentBranch row col ->
+      toUnfinishCaseReport source row col startRow startCol $
+        D.reflow $
+          "I was expecting to see an expression next. What should I do when\
+          \ I run into this particular pattern?"
+
+    CasePatternAlignment indent row col ->
+      toUnfinishCaseReport source row col startRow startCol $
+        D.reflow $
+          "I suspect this is a pattern that is not indented far enough? (" ++ show indent ++ " spaces)"
+
+
+toUnfinishCaseReport :: Code.Source -> Row -> Col -> Row -> Col -> D.Doc -> Report.Report
+toUnfinishCaseReport source row col startRow startCol message =
+  let
+    surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+    region = toRegion row col
+  in
+  Report.Report "UNFINISHED CASE" region [] $
+    Code.toSnippet source surroundings (Just region)
+      (
+        D.reflow $
+          "I was partway through parsing a `case` expression, but I got stuck here:"
+      ,
+        D.stack
+          [ message
+          , D.toSimpleNote $
+              "Here is an example of a valid `case` expression for reference."
+          , D.vcat $
+              [ D.indent 4 $ D.fillSep [D.cyan "case","maybeWidth",D.cyan "of"]
+              , D.indent 6 $ D.fillSep [D.green "Just","width","->"]
+              , D.indent 8 $ D.fillSep ["width","+",D.yellow "200"]
+              , ""
+              , D.indent 6 $ D.fillSep [D.green "Nothing","->"]
+              , D.indent 8 $ D.fillSep [D.yellow "400"]
+              ]
+          , D.reflow $
+              "Notice the indentation. Each pattern is aligned, and each branch is indented\
+              \ a bit more than the corresponding pattern. That is important!"
+          ]
+      )
+
+
+addNoteForCaseIndentError :: D.Doc -> D.Doc
+addNoteForCaseIndentError message =
+  D.stack $
+    message
+    :
+    [ D.toSimpleNote $
+        "Sometimes I get confused by indentation, so try to make your `case` look\
+        \ something like this:"
+    , D.vcat $
+        [ D.indent 4 $ D.fillSep [D.cyan "case","maybeWidth",D.cyan "of"]
+        , D.indent 6 $ D.fillSep [D.green "Just","width","->"]
+        , D.indent 8 $ D.fillSep ["width","+",D.yellow "200"]
+        , ""
+        , D.indent 6 $ D.fillSep [D.green "Nothing","->"]
+        , D.indent 8 $ D.fillSep [D.yellow "400"]
+        ]
+    , D.reflow $
+        "Notice the indentation! Each pattern is aligned, and each branch is indented\
+        \ a bit more than the corresponding pattern. That is important!"
+    ]
 
 
 
