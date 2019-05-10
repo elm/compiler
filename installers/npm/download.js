@@ -35,27 +35,26 @@ function download(destinationPath, url, callback)
 	requestWithRedirects(url, 10,
 		function(error) {
 			var url = host + '/' + path;
-			throw new Error('Error fetching binary from ' + url + ': ' + error);
+			exitFailure(url, 'Error fetching binary from ' + url + ': ' + error);
 		},
 		function(response) {
 			if (response.statusCode == 404)
 			{
-				// TODO give specific error message
-				throw new Error('Not Found: ' + url);
+				exitFailure(url, 'I got a "404 Not Found" trying to download from the following URL:\n' + url);
 			}
 
 			response.on('error', function() {
-				throw new Error('Error receiving ' + url);
+				exitFailure(url, 'Something went wrong while receiving the following URL:\n\n' + url);
 			});
 
 			var gunzip = zlib.createGunzip().on('error', function(error) {
-				throw new Error('Error decompressing elm.gz: ' + error);
+				exitFailure(url, 'I ran into trouble decompressing the downloaded binary. It is saying:\n\n' + error);
 			});
 			var write = fs.createWriteStream(destinationPath, {
 				encoding: 'binary',
 				mode: 0o755
 			}).on('finish', callback).on('error', function(error) {
-				throw new Error('Error writing file: ' + error);
+				exitFailure(url, 'I had some trouble writing file to disk. It is saying:\n\n' + error);
 			});
 
 			response.pipe(gunzip).pipe(write);
@@ -92,4 +91,21 @@ function requestWithRedirects(url, maxRedirects, failure, success)
 	req.on('error', failure);
 
 	req.end();
+}
+
+
+
+// EXIT FAILURE
+
+
+function exitFailure(url, message)
+{
+	console.error(
+		'-- ERROR -----------------------------------------------------------------------\n\n'
+		+ message
+		+ '\n\nNOTE: You can avoid npm entirely by downloading directly from:\n'
+		+ url + '\nAll this package does is download that file and put it somewhere.\n\n'
+		+ '--------------------------------------------------------------------------------\n'
+	);
+	process.exit(1);
 }
