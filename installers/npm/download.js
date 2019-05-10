@@ -34,13 +34,15 @@ function download(destinationPath, url, callback)
 {
 	requestWithRedirects(url, 10,
 		function(error) {
-			var url = host + '/' + path;
-			exitFailure(url, 'Error fetching binary from ' + url + ': ' + error);
+			exitFailure(url, 'I ran into trouble while fetching ' + url + '\n\n' + error);
 		},
 		function(response) {
 			if (response.statusCode == 404)
 			{
-				exitFailure(url, 'I got a "404 Not Found" trying to download from the following URL:\n' + url);
+				exitFailure(url, 'I got a "404 Not Found" trying to download from the following URL:\n'
+					+ url
+					+ '\n\nThis may mean you are trying to install on an unsupported platform. (e.g. some 32-bit systems?)'
+				);
 			}
 
 			response.on('error', function() {
