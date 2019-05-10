@@ -1,8 +1,7 @@
 {
   "name": "elm",
-  "version": "0.19.0-bugfix2",
-  "description": "The Elm Platform: Binaries for the Elm programming language.",
-  "main": "index.js",
+  "version": "0.19.0-no-deps",
+  "description": "Installer for Elm: just downloads the binary into node_modules",
   "preferGlobal": true,
   "license": "BSD-3-Clause",
   "repository": {
@@ -17,14 +16,14 @@
     "url": "https://github.com/rtfeldman"
   },
   "engines": {
-    "node": ">=4.0.0"
+    "node": ">=7.0.0"
   },
   "scripts": {
-    "install": "binwrap-install",
-    "prepublishOnly": "binwrap-test"
+    "install": "node install.js"
   },
   "files": [
-    "index.js",
+    "install.js",
+    "download.js",
     "bin",
     "bin/elm"
   ],
@@ -33,12 +32,12 @@
     "binary",
     "binaries",
     "elm",
-    "platform"
+    "install",
+    "installer"
   ],
   "bin": {
     "elm": "bin/elm"
   },
   "dependencies": {
-    "binwrap": "0.1.4"
   }
 }
