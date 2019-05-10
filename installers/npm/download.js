@@ -19,7 +19,7 @@ module.exports = function(destinationPath, callback)
 	var arch = { 'x64': '64-bit', 'ia32': '32-bit' }[process.arch];
 
 	download(
-		destinationPath,
+		process.platform === 'win32' ? destinationPath + '.exe' : destinationPath,
 		'https://github.com/elm/compiler/releases/download/' + version + '/binary-for-' + os + '-' + arch + '.gz',
 		callback
 	);

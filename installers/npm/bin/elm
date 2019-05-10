@@ -20,7 +20,9 @@ var fs = require('fs');
 var pathToThisFile = fs.realpathSync(process.argv[1]);
 
 download(pathToThisFile, function() {
+  // Need double quotes and { shell: true } when there are spaces in the path on windows:
+  // https://github.com/nodejs/node/issues/7367#issuecomment-229721296
   child_process
-    .spawn(pathToThisFile, process.argv.slice(2), { stdio: 'inherit' })
+    .spawn('"' + pathToThisFile + '"', process.argv.slice(2), { stdio: 'inherit', shell: true })
     .on('exit', process.exit);
 });
