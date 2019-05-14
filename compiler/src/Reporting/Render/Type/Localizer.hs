@@ -93,7 +93,7 @@ fromNames names =
 
 
 fromModule :: Src.Module -> Localizer
-fromModule modul@(Src.Module _ _ imports _ _ _ _ _) =
+fromModule modul@(Src.Module _ _ _ imports _ _ _ _ _) =
   Localizer $ Map.fromList $
     (Src.getName modul, Import Nothing All) : map toPair imports
 
@@ -131,7 +131,7 @@ replEmpty :: Localizer
 replEmpty =
   Localizer $
     Map.insert Name.replModule (Import Nothing All) $
-      Map.fromList $ map toPair $ Imports.addDefaults []
+      Map.fromList $ map toPair Imports.defaults
 
 
 replAdd :: Name.Name -> Maybe Name.Name -> Src.Exposing -> Localizer -> Localizer

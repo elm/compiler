@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Elm.Compiler.Imports
-  ( addDefaults
+  ( defaults
   )
   where
 
@@ -11,15 +11,6 @@ import qualified Data.Name as Name
 import qualified AST.Source as Src
 import qualified Elm.ModuleName as ModuleName
 import qualified Reporting.Annotation as A
-
-
-
--- ADD DEFAULTS
-
-
-addDefaults :: [Src.Import] -> [Src.Import]
-addDefaults imports =
-  defaults ++ imports
 
 
 
