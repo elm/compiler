@@ -97,7 +97,7 @@ forkWithKey func dict =
 
 
 fromExposed :: Reporting.Style -> FilePath -> Details.Details -> NE.List ModuleName.Raw -> IO (Either Exit.BuildProblem ())
-fromExposed style root details (NE.List e es) =
+fromExposed style root details exposed@(NE.List e es) =
   Reporting.trackBuild style $ \key ->
   do  let env = makeEnv key root details
       dmvar <- Details.loadInterfaces root details
@@ -121,7 +121,7 @@ fromExposed style root details (NE.List e es) =
               putMVar rmvar resultMVars
               results <- traverse readMVar resultMVars
               writeDetails root details results
-              return (detectProblems results) -- TODO error if "exposed-modules" are not found
+              return (detectExposedProblems exposed results)
 
 
 
@@ -688,14 +688,19 @@ addNewLocal name result locals =
 
 
 
--- DETECT PROBLEMS
+-- DETECT EXPOSED PROBLEMS
 
 
-detectProblems :: Map.Map ModuleName.Raw Result -> Either Exit.BuildProblem ()
-detectProblems results =
-  case Map.foldr addErrors [] results of
-    []   -> Right ()
-    e:es -> Left (Exit.BuildModuleProblems e es)
+detectExposedProblems :: NE.List ModuleName.Raw -> Map.Map ModuleName.Raw Result -> Either Exit.BuildProblem ()
+detectExposedProblems exposed results =
+  case foldr addImportProblems [] exposed of
+    p:ps ->
+      Left (Exit.BuildProjectProblem (Exit.BP_MissingExposed (NE.List p ps)))
+
+    [] ->
+      case Map.foldr addErrors [] results of
+        []   -> Right ()
+        e:es -> Left (Exit.BuildModuleProblems e es)
 
 
 addErrors :: Result -> [Error.Module] -> [Error.Module]
@@ -709,6 +714,19 @@ addErrors result errors =
     RBlocked    ->   errors
     RForeign _  ->   errors
     RKernel     ->   errors
+
+
+addImportProblems :: Map.Map ModuleName.Raw Result -> ModuleName.Raw -> [(ModuleName.Raw, Import.Problem)] -> [(ModuleName.Raw, Import.Problem)]
+addImportProblems results name problems =
+  case results ! name of
+    RNew  _ _ _ -> problems
+    RSame _ _ _ -> problems
+    RCached _ _ -> problems
+    RNotFound p -> (name, p) : problems
+    RProblem _  -> problems
+    RBlocked    -> problems
+    RForeign _  -> problems
+    RKernel     -> problems
 
 
 

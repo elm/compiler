@@ -34,6 +34,7 @@ module Reporting.Exit
 
 
 import qualified Data.List as List
+import qualified Data.NonEmptyList as NE
 import qualified Data.Utf8 as Utf8
 
 import qualified Elm.Constraint as C
@@ -45,6 +46,7 @@ import qualified Http
 import qualified Json.Encode as Encode
 import Reporting.Doc ((<>))
 import qualified Reporting.Doc as D
+import qualified Reporting.Error.Import as Import
 import qualified Reporting.Error.Json as Json
 import qualified Reporting.Exit.Help as Help
 import qualified Reporting.Error as Error
@@ -386,6 +388,7 @@ data BuildProjectProblem
   | BP_MainNameDuplicate ModuleName.Raw FilePath FilePath
   | BP_CannotLoadDependencies
   | BP_Cycle ModuleName.Raw [ModuleName.Raw]
+  | BP_MissingExposed (NE.List (ModuleName.Raw, Import.Problem))
 
 
 
