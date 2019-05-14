@@ -58,6 +58,7 @@ import qualified Data.Map as Map
 import Data.Name (Name)
 import qualified Data.Utf8 as Utf8
 
+import qualified AST.Source as Src
 import qualified AST.Utils.Binop as Binop
 import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
@@ -231,6 +232,7 @@ data Module =
   Module
     { _name    :: ModuleName.Canonical
     , _exports :: Exports
+    , _docs    :: Maybe Src.Docs
     , _decls   :: Decls
     , _unions  :: Map.Map Name Union
     , _aliases :: Map.Map Name Alias

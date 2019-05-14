@@ -12,10 +12,12 @@ module AST.Source
   , Value(..)
   , Union(..)
   , Alias(..)
-  , Binop(..)
+  , Infix(..)
   , Port(..)
   , Effects(..)
   , Manager(..)
+  , Docs(..)
+  , Comment(..)
   , Exposing(..)
   , Exposed(..)
   , Privacy(..)
@@ -25,6 +27,8 @@ module AST.Source
 
 import Data.Name (Name)
 import qualified Data.Utf8 as Utf8
+import Data.Word (Word8)
+import Foreign.Ptr (Ptr)
 
 import qualified AST.Utils.Binop as Binop
 import qualified AST.Utils.Shader as Shader
@@ -124,17 +128,18 @@ data Module =
   Module
     { _name    :: Maybe (A.Located Name)
     , _exports :: A.Located Exposing
+    , _docs    :: Maybe Docs
     , _imports :: [Import]
     , _values  :: [A.Located Value]
     , _unions  :: [A.Located Union]
     , _aliases :: [A.Located Alias]
-    , _binops  :: [A.Located Binop]
+    , _binops  :: [A.Located Infix]
     , _effects :: Effects
     }
 
 
 getName :: Module -> Name
-getName (Module maybeName _ _ _ _ _ _ _) =
+getName (Module maybeName _ _ _ _ _ _ _ _) =
   case maybeName of
     Just (A.At _ name) ->
       name
@@ -165,7 +170,7 @@ data Import =
 data Value = Value (A.Located Name) [Pattern] Expr (Maybe Type)
 data Union = Union (A.Located Name) [A.Located Name] [(A.Located Name, [Type])]
 data Alias = Alias (A.Located Name) [A.Located Name] Type
-data Binop = Binop Name Binop.Associativity Binop.Precedence Name
+data Infix = Infix Name Binop.Associativity Binop.Precedence Name
 data Port = Port (A.Located Name) Type
 
 
@@ -179,6 +184,20 @@ data Manager
   = Cmd (A.Located Name)
   | Sub (A.Located Name)
   | Fx (A.Located Name) (A.Located Name)
+
+
+data Docs =
+  Docs
+    { _overview :: Comment
+    , _comments :: [(Name, Comment)]
+    }
+
+
+data Comment =
+  Comment
+    { _start :: Ptr Word8
+    , _end :: Ptr Word8
+    }
 
 
 

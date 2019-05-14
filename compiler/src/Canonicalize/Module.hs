@@ -42,7 +42,7 @@ type Result i w a =
 
 
 canonicalize :: Pkg.Name -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> Result i [W.Warning] Can.Module
-canonicalize pkg ifaces modul@(Src.Module _ exports imports values _ _ binops effects) =
+canonicalize pkg ifaces modul@(Src.Module _ exports docs imports values _ _ binops effects) =
   do  let home = ModuleName.Canonical pkg (Src.getName modul)
       let cbinops = Map.fromList (map canonicalizeBinop binops)
 
@@ -54,15 +54,15 @@ canonicalize pkg ifaces modul@(Src.Module _ exports imports values _ _ binops ef
       ceffects <- Effects.canonicalize env values cunions effects
       cexports <- canonicalizeExports values cunions caliases cbinops ceffects exports
 
-      return $ Can.Module home cexports cvalues cunions caliases cbinops ceffects
+      return $ Can.Module home cexports docs cvalues cunions caliases cbinops ceffects
 
 
 
 -- CANONICALIZE BINOP
 
 
-canonicalizeBinop :: A.Located Src.Binop -> ( Name.Name, Can.Binop )
-canonicalizeBinop (A.At _ (Src.Binop op associativity precedence func)) =
+canonicalizeBinop :: A.Located Src.Infix -> ( Name.Name, Can.Binop )
+canonicalizeBinop (A.At _ (Src.Infix op associativity precedence func)) =
   ( op, Can.Binop_ associativity precedence func )
 
 

@@ -54,7 +54,7 @@ addVars module_ (Env.Env home vs ts cs bs qvs qts qcs) =
 
 
 collectVars :: Src.Module -> Result i w (Map.Map Name.Name Env.Var)
-collectVars (Src.Module _ _ _ values _ _ _ effects) =
+collectVars (Src.Module _ _ _ _ values _ _ _ effects) =
   let
     addDecl dict (A.At _ (Src.Value (A.At region name) _ _ _)) =
       Dups.insert name region (Env.TopLevel region) dict
@@ -95,7 +95,7 @@ toEffectDups effects =
 
 
 addTypes :: Src.Module -> Env.Env -> Result i w Env.Env
-addTypes (Src.Module _ _ _ _ unions aliases _ _) (Env.Env home vs ts cs bs qvs qts qcs) =
+addTypes (Src.Module _ _ _ _ _ unions aliases _ _) (Env.Env home vs ts cs bs qvs qts qcs) =
   let
     addAliasDups dups (A.At _ (Src.Alias (A.At region name) _ _)) = Dups.insert name region () dups
     addUnionDups dups (A.At _ (Src.Union (A.At region name) _ _)) = Dups.insert name region () dups
@@ -262,7 +262,7 @@ addFreeVars freeVars (A.At region tipe) =
 
 
 addCtors :: Src.Module -> Env.Env -> Result i w (Env.Env, Unions, Aliases)
-addCtors (Src.Module _ _ _ _ unions aliases _ _) env@(Env.Env home vs ts cs bs qvs qts qcs) =
+addCtors (Src.Module _ _ _ _ _ unions aliases _ _) env@(Env.Env home vs ts cs bs qvs qts qcs) =
   do  unionInfo <- traverse (canonicalizeUnion env) unions
       aliasInfo <- traverse (canonicalizeAlias env) aliases
 

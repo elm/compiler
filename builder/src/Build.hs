@@ -267,7 +267,7 @@ crawlFile env@(Env _ root pkg _ _ _) mvar expectedName path =
         Left err ->
           return $ SBadSyntax path time source err
 
-        Right modul@(Src.Module maybeActualName _ imports values _ _ _ _) ->
+        Right modul@(Src.Module maybeActualName _ _ imports values _ _ _ _) ->
           case maybeActualName of
             Nothing ->
               return $ SBadSyntax path time source (Syntax.ModuleNameUnspecified expectedName)
@@ -339,13 +339,13 @@ checkModule env@(Env _ root pkg _ _ _) foreigns resultsMVar name status =
               do  source <- File.readUtf8 path
                   return $ RProblem $ Error.Module name path time source $
                     case Parse.fromByteString pkg source of
-                      Right (Src.Module _ _ imports _ _ _ _ _) ->
+                      Right (Src.Module _ _ _ imports _ _ _ _ _) ->
                          Error.BadImports (toImportErrors env results imports problems)
 
                       Left err ->
                         Error.BadSyntax err
 
-    SChanged local@(Details.Local path time deps _) source modul@(Src.Module _ _ imports _ _ _ _ _) ->
+    SChanged local@(Details.Local path time deps _) source modul@(Src.Module _ _ _ imports _ _ _ _ _) ->
       do  results <- readMVar resultsMVar
           depsStatus <- checkDeps root results deps
           case depsStatus of
@@ -859,7 +859,7 @@ crawlMain env@(Env _ _ pkg _ _ _) mvar given =
       do  time <- File.getTime path
           source <- File.readUtf8 path
           case Parse.fromByteString pkg source of
-            Right modul@(Src.Module _ _ imports values _ _ _ _) ->
+            Right modul@(Src.Module _ _ _ imports values _ _ _ _) ->
               do  let deps = map Src.getImportName imports
                   let local = Details.Local path time deps (any isMain values)
                   crawlDeps env mvar deps (SOutsideOk local source modul)
@@ -889,7 +889,7 @@ checkMain env@(Env _ root _ _ _ _) results pendingMain =
     SOutsideErr err ->
       return (ROutsideErr err)
 
-    SOutsideOk local@(Details.Local path time deps _) source modul@(Src.Module _ _ imports _ _ _ _ _) ->
+    SOutsideOk local@(Details.Local path time deps _) source modul@(Src.Module _ _ _ imports _ _ _ _ _) ->
       do  depsStatus <- checkDeps root results deps
           case depsStatus of
             DepsChange ifaces ->

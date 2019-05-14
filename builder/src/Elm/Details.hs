@@ -568,7 +568,7 @@ crawlFile :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.N
 crawlFile foreignDeps mvar pkg src expectedName path =
   do  bytes <- File.readUtf8 path
       case Parse.fromByteString pkg bytes of
-        Right modul@(Src.Module (Just (A.At _ actualName)) _ imports _ _ _ _ _) | expectedName == actualName ->
+        Right modul@(Src.Module (Just (A.At _ actualName)) _ _ imports _ _ _ _ _) | expectedName == actualName ->
           do  deps <- crawlImports foreignDeps mvar pkg src imports
               return (Just (SLocal deps modul))
 

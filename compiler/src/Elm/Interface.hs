@@ -73,7 +73,7 @@ data Binop =
 
 
 fromModule :: Pkg.Name -> Can.Module -> Map.Map Name.Name Can.Annotation -> Interface
-fromModule home (Can.Module _ exports _ unions aliases binops _) annotations =
+fromModule home (Can.Module _ exports _ _ unions aliases binops _) annotations =
   Interface
     { _home = home
     , _values = restrict exports annotations
