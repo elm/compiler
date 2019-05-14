@@ -20,7 +20,6 @@ import qualified Parse.Space as Space
 import qualified Parse.Symbol as Symbol
 import qualified Parse.Type as Type
 import qualified Parse.Variable as Var
-import Parse.Space (DocComment)
 import Parse.Primitives hiding (State)
 import qualified Parse.Primitives as P
 import qualified Reporting.Annotation as A
@@ -32,10 +31,10 @@ import qualified Reporting.Error.Syntax as E
 
 
 data Decl
-  = Value (Maybe DocComment) (A.Located Src.Value)
-  | Union (Maybe DocComment) (A.Located Src.Union)
-  | Alias (Maybe DocComment) (A.Located Src.Alias)
-  | Port (Maybe DocComment) Src.Port
+  = Value (Maybe Src.Comment) (A.Located Src.Value)
+  | Union (Maybe Src.Comment) (A.Located Src.Union)
+  | Alias (Maybe Src.Comment) (A.Located Src.Alias)
+  | Port (Maybe Src.Comment) Src.Port
 
 
 declaration :: Space.Parser E.Decl Decl
@@ -53,7 +52,7 @@ declaration =
 -- DOC COMMENT
 
 
-chompDocComment :: Parser E.Decl (Maybe DocComment)
+chompDocComment :: Parser E.Decl (Maybe Src.Comment)
 chompDocComment =
   oneOfWithFallback
     [
@@ -70,7 +69,7 @@ chompDocComment =
 
 
 {-# INLINE valueDecl #-}
-valueDecl :: Maybe DocComment -> A.Position -> Space.Parser E.Decl Decl
+valueDecl :: Maybe Src.Comment -> A.Position -> Space.Parser E.Decl Decl
 valueDecl maybeDocs start =
   do  name <- Var.lower E.DeclStart
       end <- getPosition
@@ -90,7 +89,7 @@ valueDecl maybeDocs start =
               ]
 
 
-chompDefArgsAndBody :: Maybe DocComment -> A.Position -> A.Located Name.Name -> Maybe Src.Type -> [Src.Pattern] -> Space.Parser E.DeclDef Decl
+chompDefArgsAndBody :: Maybe Src.Comment -> A.Position -> A.Located Name.Name -> Maybe Src.Type -> [Src.Pattern] -> Space.Parser E.DeclDef Decl
 chompDefArgsAndBody maybeDocs start name tipe revArgs =
   oneOf E.DeclDefEquals
     [ do  arg <- specialize E.DeclDefArg Pattern.term
@@ -130,7 +129,7 @@ chompMatchingName expectedName =
 
 
 {-# INLINE typeDecl #-}
-typeDecl :: Maybe DocComment -> A.Position -> Space.Parser E.Decl Decl
+typeDecl :: Maybe Src.Comment -> A.Position -> Space.Parser E.Decl Decl
 typeDecl maybeDocs start =
   inContext E.DeclType (Keyword.type_ E.DeclStart) $
     do  Space.chompAndCheckIndent E.DT_Space E.DT_IndentName
@@ -215,7 +214,7 @@ chompVariants variants end =
 
 
 {-# INLINE portDecl #-}
-portDecl :: Maybe DocComment -> Space.Parser E.Decl Decl
+portDecl :: Maybe Src.Comment -> Space.Parser E.Decl Decl
 portDecl maybeDocs =
   inContext E.Port (Keyword.port_ E.DeclStart) $
     do  Space.chompAndCheckIndent E.PortSpace E.PortIndentName
@@ -236,7 +235,7 @@ portDecl maybeDocs =
 
 -- INVARIANT: always chomps to a freshline
 --
-infix_ :: Parser E.Module (A.Located Src.Binop)
+infix_ :: Parser E.Module (A.Located Src.Infix)
 infix_ =
   let
     err = E.Infix
@@ -264,4 +263,4 @@ infix_ =
       end <- getPosition
       Space.chomp _err
       Space.checkFreshLine err
-      return (A.at start end (Src.Binop op associativity precedence name))
+      return (A.at start end (Src.Infix op associativity precedence name))

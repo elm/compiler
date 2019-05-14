@@ -32,78 +32,59 @@ import qualified Reporting.Error.Syntax as E
 
 fromByteString :: Pkg.Name -> BS.ByteString -> Either E.Error Src.Module
 fromByteString pkg source =
-  let
-    parser
-      | pkg == Pkg.core  = core
-      | Pkg.isKernel pkg = platform
-      | otherwise        = normal
-  in
-  case P.fromByteString parser source of
-    P.Ok outcome _ ->
-      case outcome of
-        Right modul -> Right modul
-        Left err -> Left err
-
-    P.Err err ->
-      Left (E.ParseError err)
+  case P.fromByteString (chompModule pkg) source of
+    P.Ok modul _ -> checkModule modul
+    P.Err err    -> Left (E.ParseError err)
 
 
 
 -- MODULE
 
 
-normal :: Parser E.Module (Either E.Error Src.Module)
-normal =
+data Module =
+  Module
+    { _header :: Maybe Header
+    , _comment :: Maybe Src.Comment
+    , _imports :: [Src.Import]
+    , _infixes :: [A.Located Src.Infix]
+    , _decls :: [Decl.Decl]
+    }
+
+
+chompModule :: Pkg.Name -> Parser E.Module Module
+chompModule pkg =
   do  freshLine E.FreshLine
       header <- chompHeader
       comment <- chompModuleDocComment
-      imports <- chompImports []
+      imports <- chompImports (if pkg == Pkg.core then [] else Imports.defaults)
+      infixes <- if Pkg.isKernel pkg then chompInfixes [] else return []
       decls <- specialize E.Declarations $ chompDecls []
       endOfFile
-      return (checkModule header comment (Imports.addDefaults imports) [] decls)
-
-
-core :: Parser E.Module (Either E.Error Src.Module)
-core =
-  do  freshLine E.FreshLine
-      header <- chompHeader
-      comment <- chompModuleDocComment
-      imports <- chompImports []
-      binops <- chompBinops []
-      decls <- specialize E.Declarations $ chompDecls []
-      endOfFile
-      return (checkModule header comment imports binops decls)
-
-
-platform :: Parser E.Module (Either E.Error Src.Module)
-platform =
-  do  freshLine E.FreshLine
-      header <- chompHeader
-      comment <- chompModuleDocComment
-      imports <- chompImports []
-      binops <- chompBinops []
-      decls <- specialize E.Declarations $ chompDecls []
-      endOfFile
-      return (checkModule header comment (Imports.addDefaults imports) binops decls)
+      return (Module header comment imports infixes decls)
 
 
 
 -- CHECK MODULE
 
 
-checkModule :: Maybe Header -> Maybe Space.DocComment -> [Src.Import] -> [A.Located Src.Binop] -> [Decl.Decl] -> Either E.Error Src.Module
-checkModule maybeHeader _maybeDocs imports binops decls =
+checkModule :: Module -> Either E.Error Src.Module
+checkModule (Module maybeHeader maybeComment imports infixes decls) =
   let
     (values, unions, aliases, ports) = categorizeDecls [] [] [] [] decls
+
+    docs =
+      case maybeComment of
+        Just c  -> Just (Src.Docs c (getComments decls []))
+        Nothing -> Nothing
   in
   case maybeHeader of
     Just (Header name effects exports) ->
-      Src.Module (Just name) exports imports values unions aliases binops
+      Src.Module (Just name) exports docs imports values unions aliases infixes
         <$> checkEffects ports effects
 
     Nothing ->
       Right $
-        Src.Module Nothing (A.At A.one Src.Open) imports values unions aliases binops $
+        Src.Module Nothing (A.At A.one Src.Open) docs imports values unions aliases infixes $
           case ports of
             [] -> Src.NoEffects
             _:_ -> Src.Ports ports
@@ -142,6 +123,27 @@ categorizeDecls values unions aliases ports decls =
         Decl.Port  _ port_ -> categorizeDecls values unions aliases (port_:ports) otherDecls
 
 
+getComments :: [Decl.Decl] -> [(Name.Name,Src.Comment)] -> [(Name.Name,Src.Comment)]
+getComments decls comments =
+  case decls of
+    [] ->
+      comments
+
+    decl:otherDecls ->
+      case decl of
+        Decl.Value c (A.At _ (Src.Value n _ _ _)) -> getComments otherDecls (addComment c n comments)
+        Decl.Union c (A.At _ (Src.Union n _ _  )) -> getComments otherDecls (addComment c n comments)
+        Decl.Alias c (A.At _ (Src.Alias n _ _  )) -> getComments otherDecls (addComment c n comments)
+        Decl.Port  c         (Src.Port  n _    )  -> getComments otherDecls (addComment c n comments)
+
+
+addComment :: Maybe Src.Comment -> A.Located Name.Name -> [(Name.Name,Src.Comment)] -> [(Name.Name,Src.Comment)]
+addComment maybeComment (A.At _ name) comments =
+  case maybeComment of
+    Just comment -> (name, comment) : comments
+    Nothing      -> comments
+
+
 
 -- FRESH LINES
 
@@ -175,20 +177,20 @@ chompDecls decls =
         (reverse (decl:decls))
 
 
-chompBinops :: [A.Located Src.Binop] -> Parser E.Module [A.Located Src.Binop]
-chompBinops binops =
+chompInfixes :: [A.Located Src.Infix] -> Parser E.Module [A.Located Src.Infix]
+chompInfixes infixes =
   oneOfWithFallback
     [ do  binop <- Decl.infix_
-          chompBinops (binop:binops)
+          chompInfixes (binop:infixes)
     ]
-    binops
+    infixes
 
 
 
 -- MODULE DOC COMMENT
 
 
-chompModuleDocComment :: Parser E.Module (Maybe Space.DocComment)
+chompModuleDocComment :: Parser E.Module (Maybe Src.Comment)
 chompModuleDocComment =
   oneOfWithFallback
     [

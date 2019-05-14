@@ -10,7 +10,6 @@ module Parse.Space
   , checkAligned
   , checkFreshLine
   --
-  , DocComment(..)
   , docComment
   )
   where
@@ -19,6 +18,7 @@ module Parse.Space
 import Data.Word (Word8, Word16)
 import Foreign.Ptr (Ptr, plusPtr)
 
+import qualified AST.Source as Src
 import Parse.Primitives (Row, Col)
 import qualified Parse.Primitives as P
 import qualified Reporting.Annotation as A
@@ -238,14 +238,7 @@ eatMultiCommentHelp pos end row col openComments =
 -- DOCUMENTATION COMMENT
 
 
-data DocComment =
-  DocComment
-    { _start :: Ptr Word8
-    , _end :: Ptr Word8
-    }
-
-
-docComment :: (Row -> Col -> x) -> (E.Space -> Row -> Col -> x) -> P.Parser x DocComment
+docComment :: (Row -> Col -> x) -> (E.Space -> Row -> Col -> x) -> P.Parser x Src.Comment
 docComment toExpectation toSpaceError =
   P.Parser $ \(P.State pos end indent row col) cok _ cerr eerr ->
     let
@@ -263,7 +256,7 @@ docComment toExpectation toSpaceError =
       case status of
         MultiGood ->
           let
-            !comment = DocComment pos3 (plusPtr newPos (-2))
+            !comment = Src.Comment pos3 (plusPtr newPos (-2))
             !newState = P.State newPos end indent newRow newCol
           in
           cok comment newState
