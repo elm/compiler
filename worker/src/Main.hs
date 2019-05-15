@@ -13,6 +13,8 @@ import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.HashSet as HashSet
 import qualified Data.Map as Map
+import qualified Data.Map.Utils as Map
+import qualified Data.NonEmptyList as NE
 import qualified Data.OneOrMore as OneOrMore
 import Network.URI (parseURI)
 import Snap.Core
@@ -38,7 +40,9 @@ import qualified Generate.Mode as Mode
 import qualified Json.Encode as Encode
 import qualified Parse.Module as Parse
 import qualified Reporting
+import qualified Reporting.Annotation as A
 import qualified Reporting.Error as Error
+import qualified Reporting.Error.Import as Import
 import qualified Reporting.Render.Code as Code
 
 
@@ -116,20 +120,44 @@ handlePart info stream =
 
 
 compileByteString :: Map.Map ModuleName.Raw I.Interface -> B.ByteString -> Either Error.Error (ModuleName.Canonical, Opt.LocalGraph, Opt.Main)
-compileByteString ifaces source =
+compileByteString interfaces source =
   case Parse.fromByteString Pkg.dummyName source of
     Left err ->
       Left (Error.BadSyntax err)
 
-    Right modul ->
-      case Compile.compile Pkg.dummyName ifaces modul of
+    Right modul@(Src.Module _ _ _ imports _ _ _ _ _) ->
+      case checkImports interfaces imports of
         Left err ->
           Left err
 
-        Right artifacts@(Compile.Artifacts modul _ locals@(Opt.LocalGraph maybeMain _ _)) ->
-          case maybeMain of
-            Just main -> Right (Can._name modul, locals, main)
-            Nothing   -> Left (error "TODO no main")
+        Right ifaces ->
+          case Compile.compile Pkg.dummyName ifaces modul of
+            Left err ->
+              Left err
+
+            Right artifacts@(Compile.Artifacts modul _ locals@(Opt.LocalGraph maybeMain _ _)) ->
+              case maybeMain of
+                Just main -> Right (Can._name modul, locals, main)
+                Nothing   -> Left (error "TODO no main")
+
+
+checkImports :: Map.Map ModuleName.Raw I.Interface -> [Src.Import] -> Either Error.Error (Map.Map ModuleName.Raw I.Interface)
+checkImports interfaces imports =
+  let
+    importDict = Map.fromValues Src.getImportName imports
+    missing = Map.difference importDict interfaces
+  in
+  case Map.elems missing of
+    [] ->
+      Right (Map.intersection interfaces importDict)
+
+    i:is ->
+      let
+        unimported = Map.keysSet (Map.difference interfaces importDict)
+        toError (Src.Import (A.At region name) _ _) =
+          Import.Error region name unimported Import.NotFound
+      in
+      Left (Error.BadImports (fmap toError (NE.List i is)))
 
 
 errorToHtmlBuilder :: B.ByteString -> Error.Error -> B.Builder
