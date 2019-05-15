@@ -53,9 +53,10 @@ import qualified Reporting.Render.Code as Code
 main :: IO ()
 main =
   do  artifacts <- loadArtifacts
+      errorHtml <- compileErrorViewer artifacts
       httpServe config $ msum $
         [ path "compile" $ compile artifacts
-        , path "compile/error.js" $ serveFile "error.js"
+        , path "compile/error.js" $ writeBS errorHtml
         , notFound
         ]
 
@@ -63,14 +64,14 @@ main =
 config :: Config Snap a
 config =
   defaultConfig
-    # setVerbose False
-    # setPort 8000
-    # setAccessLog ConfigNoLog
-    # setErrorLog ConfigNoLog
+    |> setVerbose False
+    |> setPort 8000
+    |> setAccessLog ConfigNoLog
+    |> setErrorLog ConfigNoLog
 
 
-(#) :: a -> (a -> b) -> b
-(#) value func =
+(|>) :: a -> (a -> b) -> b
+(|>) value func =
   func value
 
 
@@ -90,23 +91,17 @@ notFound =
 
 
 compile :: Artifacts -> Snap ()
-compile (Artifacts ifaces objs) =
+compile artifacts =
   applyCORS corsOptions $ method POST $
     do  parts <- handleMultipart defaultUploadPolicy handlePart
         case parts of
           [Just source] ->
-            case compileByteString ifaces source of
+            case compileToBuilder artifacts source of
               Left err ->
                 writeBuilder $ errorToHtmlBuilder source err
 
-              Right (home, locals, main) ->
-                let
-                  mode  = Mode.Dev Nothing
-                  name  = ModuleName._module home
-                  mains = Map.singleton home main
-                  graph = Opt.addLocalGraph locals objs
-                in
-                writeBuilder $ Html.sandwich name $ Generate.generate mode graph mains
+              Right builder ->
+                writeBuilder builder
 
           _ ->
             pass
@@ -119,8 +114,26 @@ handlePart info stream =
   else return Nothing
 
 
-compileByteString :: Map.Map ModuleName.Raw I.Interface -> B.ByteString -> Either Error.Error (ModuleName.Canonical, Opt.LocalGraph, Opt.Main)
-compileByteString interfaces source =
+errorToHtmlBuilder :: B.ByteString -> Error.Error -> B.Builder
+errorToHtmlBuilder source err =
+  let
+    json = Encode.encodeUgly (Error.errorToJson (Code.toSource source) err)
+  in
+  [r|<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>body { padding: 0; margin: 0; }</style>
+  <script src="https://worker.elm-lang.org/compile/error.js"></script>
+  <script>Elm.Error.init({flags:|] <> json <> [r|})</script>
+</head>
+<body></body>
+</html>|]
+
+
+
+compileToBuilder :: Artifacts -> B.ByteString -> Either Error.Error B.Builder
+compileToBuilder (Artifacts interfaces objects) source =
   case Parse.fromByteString Pkg.dummyName source of
     Left err ->
       Left (Error.BadSyntax err)
@@ -137,8 +150,18 @@ compileByteString interfaces source =
 
             Right artifacts@(Compile.Artifacts modul _ locals@(Opt.LocalGraph maybeMain _ _)) ->
               case maybeMain of
-                Just main -> Right (Can._name modul, locals, main)
-                Nothing   -> Left (error "TODO no main")
+                Nothing ->
+                  Left (error "TODO no main")
+
+                Just main ->
+                  let
+                    mode  = Mode.Dev Nothing
+                    home  = Can._name modul
+                    name  = ModuleName._module home
+                    mains = Map.singleton home main
+                    graph = Opt.addLocalGraph locals objects
+                  in
+                  Right $ Html.sandwich name $ Generate.generate mode graph mains
 
 
 checkImports :: Map.Map ModuleName.Raw I.Interface -> [Src.Import] -> Either Error.Error (Map.Map ModuleName.Raw I.Interface)
@@ -160,21 +183,46 @@ checkImports interfaces imports =
       Left (Error.BadImports (fmap toError (NE.List i is)))
 
 
-errorToHtmlBuilder :: B.ByteString -> Error.Error -> B.Builder
-errorToHtmlBuilder source err =
+
+-- COMPILE ERROR VIEWER
+
+
+compileErrorViewer :: Artifacts -> B.ByteString
+compileErrorViewer artifacts =
+  do  source <- File.readUtf8 "src/Error.elm"
+      case compileToBuilder artifacts source of
+        Left err ->
+          error "problem compiling src/Error.elm"
+
+        Right builder ->
+          return (LBS.toStrict (B.toLazyByteString builder))
+
+
+
+-- CORS OPTIONS
+
+
+corsOptions :: (Monad m) => CORSOptions m
+corsOptions =
   let
-    json = Encode.encodeUgly (Error.errorToJson (Code.toSource source) err)
+    allowedOrigins = toOriginList [ "https://elm-lang.org", "https://package.elm-lang.org" ]
+    allowedMethods = HashSet.singleton (HashableMethod POST)
   in
-  [r|<!DOCTYPE HTML>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <style>body { padding: 0; margin: 0; }</style>
-  <script src="https://worker.elm-lang.org/compile/error.js"></script>
-  <script>Elm.Error.init({flags:|] <> json <> [r|})</script>
-</head>
-<body></body>
-</html>|]
+  CORSOptions
+    { corsAllowOrigin = return allowedOrigins
+    , corsAllowCredentials = return True
+    , corsExposeHeaders = return HashSet.empty
+    , corsAllowedMethods = return allowedMethods
+    , corsAllowedHeaders = return
+    }
+
+
+toOriginList :: [String] -> OriginList
+toOriginList origins =
+  Origins $ mkOriginSet $
+    case traverse parseURI origins of
+      Just uris -> uris
+      Nothing -> error "invalid entry given to toOriginList list"
 
 
 
@@ -228,39 +276,3 @@ toUnique oneOrMore =
   case oneOrMore of
     OneOrMore.One value -> Just value
     OneOrMore.More _ _  -> Nothing
-
-
-
--- CORS
-
-
-corsOptions :: (Monad m) => CORSOptions m
-corsOptions =
-  CORSOptions
-    { corsAllowOrigin = return allowedOrigins
-    , corsAllowCredentials = return True
-    , corsExposeHeaders = return HashSet.empty
-    , corsAllowedMethods = return allowedMethods
-    , corsAllowedHeaders = return
-    }
-
-
-{-# NOINLINE allowedMethods #-}
-allowedMethods :: HashSet.HashSet HashableMethod
-allowedMethods =
-  HashSet.singleton (HashableMethod POST)
-
-
-{-# NOINLINE allowedOrigins #-}
-allowedOrigins :: OriginList
-allowedOrigins =
-  let
-    origins =
-      [ "https://elm-lang.org"
-      , "https://package.elm-lang.org"
-      ]
-  in
-  Origins $ mkOriginSet $
-    case traverse parseURI origins of
-      Just uris -> uris
-      Nothing -> error "Invalid entry in allowedOrigins list"
