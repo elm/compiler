@@ -791,12 +791,24 @@ makeToReport make =
       case buildProblem of
         BuildProjectProblem bp ->
           case bp of
-            BP_PathUnknown _ -> error "TODO BP_PathUnknown"
-            BP_WithBadExtension _ -> error "TODO BP_WithBadExtension"
-            BP_WithAmbiguousSrcDir _ _ -> error "TODO BP_WithAmbiguousSrcDir"
-            BP_MainPathDuplicate _ _ -> error "TODO BP_MainPathDuplicate"
-            BP_MainNameDuplicate _ _ _ -> error "TODO BP_MainNameDuplicate"
-            BP_CannotLoadDependencies -> error "TODO BP_CannotLoadDependencies"
+            BP_PathUnknown _ ->
+              error "TODO BP_PathUnknown"
+
+            BP_WithBadExtension _ ->
+              error "TODO BP_WithBadExtension"
+
+            BP_WithAmbiguousSrcDir _ _ ->
+              error "TODO BP_WithAmbiguousSrcDir"
+
+            BP_MainPathDuplicate _ _ ->
+              error "TODO BP_MainPathDuplicate"
+
+            BP_MainNameDuplicate _ _ _ ->
+              error "TODO BP_MainNameDuplicate"
+
+            BP_CannotLoadDependencies ->
+              error "TODO BP_CannotLoadDependencies"
+
             BP_Cycle name names ->
               Help.report "IMPORT CYCLE" Nothing
                 "Your module imports form a cycle:"
@@ -806,6 +818,8 @@ makeToReport make =
                     ++ D.makeLink "import-cycles"
                 ]
 
+            BP_MissingExposed _ ->
+              error "TODO BP_MissingExposed"
 
         BuildModuleProblems p ps ->
           Help.compilerReport p ps
