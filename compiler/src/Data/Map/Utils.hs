@@ -1,6 +1,7 @@
 module Data.Map.Utils
   ( fromKeys
   , fromKeysA
+  , fromValues
   , any
   )
   where
@@ -23,6 +24,11 @@ fromKeys toValue keys =
 fromKeysA :: (Applicative f, Ord k) => (k -> f v) -> [k] -> f (Map.Map k v)
 fromKeysA toValue keys =
   Map.fromList <$> traverse (\k -> (,) k <$> toValue k) keys
+
+
+fromValues :: (Ord k) => (v -> k) -> [v] -> Map.Map k v
+fromValues toKey values =
+  Map.fromList $ map (\v -> (toKey v, v)) values
 
 
 
