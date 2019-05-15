@@ -693,7 +693,7 @@ addNewLocal name result locals =
 
 detectExposedProblems :: NE.List ModuleName.Raw -> Map.Map ModuleName.Raw Result -> Either Exit.BuildProblem ()
 detectExposedProblems exposed results =
-  case foldr addImportProblems [] exposed of
+  case foldr (addImportProblems results) [] (NE.toList exposed) of
     p:ps ->
       Left (Exit.BuildProjectProblem (Exit.BP_MissingExposed (NE.List p ps)))
 
