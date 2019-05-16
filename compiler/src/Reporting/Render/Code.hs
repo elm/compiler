@@ -197,8 +197,8 @@ renderPair source@(Source sourceLines) region1 region2 =
 
 data Next
   = Spaces
-  | Keyword String
-  | Operator String
+  | Keyword [Char]
+  | Operator [Char]
   | CloseParen
   | CloseSquare
   | CloseCurly
