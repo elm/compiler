@@ -7,6 +7,7 @@ module Init
 
 import Prelude hiding (init)
 import qualified Data.Map as Map
+import qualified Data.NonEmptyList as NE
 import qualified System.Directory as Dir
 
 import qualified Deps.Solver as Solver
@@ -89,7 +90,7 @@ init =
                   in
                   do  Dir.createDirectoryIfMissing True "src"
                       Outline.write "." $ Outline.App $
-                        Outline.AppOutline V.compiler ["src"] directs indirects Map.empty Map.empty
+                        Outline.AppOutline V.compiler (NE.List "src" []) directs indirects Map.empty Map.empty
                       putStrLn "Okay, I created it. Now read that link!"
                       return (Right ())
 
