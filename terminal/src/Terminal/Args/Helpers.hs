@@ -8,18 +8,19 @@ module Terminal.Args.Helpers
 
 
 import qualified Data.Char as Char
-import qualified Data.Text as Text
+import qualified Data.Utf8 as Utf8
 import qualified System.FilePath as FP
 
 import Terminal.Args (Parser(..))
 import qualified Elm.Package as Pkg
+import qualified Elm.Version as V
 
 
 
 -- VERSION
 
 
-version :: Parser Pkg.Version
+version :: Parser V.Version
 version =
   Parser
     { _singular = "version"
@@ -30,9 +31,9 @@ version =
     }
 
 
-parseVersion :: String -> Maybe Pkg.Version
-parseVersion str =
-  Pkg.versionFromText (Text.pack str)
+parseVersion :: String -> Maybe V.Version
+parseVersion chars =
+  V.fromString (Utf8.fromChars chars)
 
 
 suggestVersion :: String -> IO [String]
@@ -41,10 +42,10 @@ suggestVersion _ =
 
 
 exampleVersions :: String -> [String]
-exampleVersions string =
+exampleVersions chars =
   let
-    chunks = map Text.unpack (Text.splitOn "." (Text.pack string))
-    isNumber str = not (null str) && all Char.isDigit str
+    chunks = map Utf8.toChars (Utf8.split 0x2E {-.-} (Utf8.fromChars chars))
+    isNumber cs = not (null cs) && all Char.isDigit cs
   in
   if all isNumber chunks then
     case chunks of
@@ -73,9 +74,9 @@ elmFile =
 
 
 parseElmFile :: String -> Maybe FilePath
-parseElmFile string =
-  if FP.takeExtension string == ".elm" then
-    Just string
+parseElmFile chars =
+  if FP.takeExtension chars == ".elm" then
+    Just chars
   else
     Nothing
 
@@ -103,7 +104,7 @@ package =
 parsePackage :: String -> Maybe Pkg.Name
 parsePackage string =
   either (const Nothing) Just $
-    Pkg.fromText (Text.pack string)
+    Pkg.fromString (Utf8.fromChars string)
 
 
 suggestPackages :: String -> IO [String]
@@ -113,9 +114,9 @@ suggestPackages _ =
 
 examplePackages :: String -> IO [String]
 examplePackages string =
-  case Pkg.fromText (Text.pack string) of
-    Left (_, suggestions@(_:_)) ->
-      return suggestions
+  case Pkg.fromString (Utf8.fromChars string) of
+    Left _ ->
+      return (error "TODO need to make suggestions")
 
     _ ->
       return
