@@ -2980,7 +2980,29 @@ toPatternReport source context pattern startRow startCol =
           )
 
     PAlias row col ->
-      error "TODO PAlias" row col
+      let
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED PATTERN" region [] $
+        Code.toSnippet source region Nothing $
+          (
+            D.reflow $
+              "I was expecting to see a variable name after the `as` keyword:"
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["The","`as`","keyword","lets","you","write","patterns","like"
+                  ,"((" <> D.dullyellow "x" <> "," <> D.dullyellow "y" <> ") " <> D.cyan "as" <> D.dullyellow " point" <> ")"
+                  ,"so","you","can","refer","to","individual","parts","of","the","tuple","with"
+                  ,D.dullyellow "x","and",D.dullyellow "y","or","you","refer","to","the","whole"
+                  ,"thing","with",D.dullyellow "point."
+                  ]
+              , D.reflow $
+                  "So I was expecting to see a variable name after the `as` keyword here. Sometimes\
+                  \ people just want to use `as` as a variable name though. Try using a different name\
+                  \ in that case!"
+              ]
+          )
 
     PWildcardNotVar name width row col ->
       let
@@ -3009,7 +3031,29 @@ toPatternReport source context pattern startRow startCol =
       error "TODO PIndentStart" row col
 
     PIndentAlias row col ->
-      error "TODO PIndentAlias" row col
+      let
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED PATTERN" region [] $
+        Code.toSnippet source region Nothing $
+          (
+            D.reflow $
+              "I was expecting to see a variable name after the `as` keyword:"
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["The","`as`","keyword","lets","you","write","patterns","like"
+                  ,"((" <> D.dullyellow "x" <> "," <> D.dullyellow "y" <> ") " <> D.cyan "as" <> D.dullyellow " point" <> ")"
+                  ,"so","you","can","refer","to","individual","parts","of","the","tuple","with"
+                  ,D.dullyellow "x","and",D.dullyellow "y","or","you","refer","to","the","whole"
+                  ,"thing","with",D.dullyellow "point."
+                  ]
+              , D.reflow $
+                  "So I was expecting to see a variable name after the `as` keyword here. Sometimes\
+                  \ people just want to use `as` as a variable name though. Try using a different name\
+                  \ in that case!"
+              ]
+          )
 
 
 toPRecordReport :: Code.Source -> PRecord -> Row -> Col -> Report.Report
