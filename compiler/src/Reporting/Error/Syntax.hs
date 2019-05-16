@@ -368,9 +368,9 @@ data Pattern
   | PChar Char Row Col
   | PString String Row Col
   | PNumber Number Row Col
-  | PFloat Int Row Col
+  | PFloat Word16 Row Col
   | PAlias Row Col
-  | PWildcardNotVar Int Row Col
+  | PWildcardNotVar Name.Name Int Row Col
   | PSpace Space Row Col
   --
   | PIndentStart Row Col
@@ -394,9 +394,9 @@ data PTuple
   | PTupleExpr Pattern Row Col
   | PTupleSpace Space Row Col
   --
-  | PTupleIndentOpen Row Col
   | PTupleIndentEnd Row Col
-  | PTupleIndentExpr Row Col
+  | PTupleIndentExpr1 Row Col
+  | PTupleIndentExprN Row Col
 
 
 data PList
@@ -508,8 +508,8 @@ toReport source err =
         D.stack
           [ D.reflow $
               "I need the module name to be declared at the top of this file, like this:"
-          , D.indent 4 $ D.green $ D.fromChars $
-              "module " ++ ModuleName.toChars name ++ " exposing (..)"
+          , D.indent 4 $ D.fillSep $
+              [ D.cyan "module", D.fromName name, D.cyan "exposing", "(..)" ]
           , D.reflow $
               "Try adding that as the first line of your file!"
           , D.toSimpleNote $
@@ -550,7 +550,7 @@ toReport source err =
           ,
             D.stack
               [ D.fillSep
-                  ["Switch","this","to","say",D.green "port module","instead,"
+                  ["Switch","this","to","say",D.cyan "port module","instead,"
                   ,"marking","that","this","module","contains","port","declarations."
                   ]
               , D.link "Note"
@@ -568,7 +568,7 @@ toReport source err =
               "This module does not declare any ports, but it says it will:"
           ,
             D.fillSep
-              ["Switch","this","to",D.green "module"
+              ["Switch","this","to",D.cyan "module"
               ,"and","you","should","be","all","set!"
               ]
           )
@@ -989,13 +989,77 @@ toDeclDefReport source name declDef startRow startCol =
       toSpaceReport source space row col
 
     DeclDefEquals row col ->
-      error "TODO DeclDefEquals" row col
+      case Code.whatIsNext source row col of
+        Code.Keyword keyword ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toWiderRegion row col (fromIntegral (length keyword))
+          in
+          Report.Report "RESERVED WORD" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "It looks like you are trying to use `" ++ keyword ++ "` as an argument:"
+              ,
+                D.reflow $
+                  "This is a reserved word! Try using some other name?"
+              )
+
+        Code.Operator op ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toWiderRegion row col (fromIntegral (length op))
+          in
+          Report.Report "UNEXPECTED SYMBOL" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I was not expecting to see this symbol here:"
+              ,
+                D.stack
+                  [ D.reflow $
+                      "I am not sure what is going wrong exactly, so here is a valid\
+                      \ definition (with an optional type annotation) for reference:"
+                  , D.vcat
+                      [ D.fillSep [D.green "add",":","Int","->","Int","->","Int"]
+                      , D.fillSep [D.green "add","x","y","="]
+                      , D.fillSep [" ","x","+","y"]
+                      ]
+                  , D.reflow $
+                      "Try to use that format with your `" ++ Name.toChars name ++ "` definition!"
+                  ]
+              )
+
+        _ ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
+          Report.Report "PROBLEM IN DEFINITION" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I got stuck while parsing the `" ++ Name.toChars name ++ "` definition:"
+              ,
+                D.stack
+                  [ D.reflow $
+                      "I am not sure what is going wrong exactly, so here is a valid\
+                      \ definition (with an optional type annotation) for reference:"
+                  , D.vcat
+                      [ D.fillSep [D.green "add",":","Int","->","Int","->","Int"]
+                      , D.fillSep [D.green "add","x","y","="]
+                      , D.fillSep [" ","x","+","y"]
+                      ]
+                  , D.reflow $
+                      "Try to use that format!"
+                  ]
+              )
 
     DeclDefType tipe row col ->
-      error "TODO DeclDefType" tipe row col
+      error "TODO DeclDefType" toTypeReport tipe row col
 
     DeclDefArg pattern row col ->
-      error "TODO DeclDefArg" pattern row col
+      toPatternReport source PArg pattern row col
 
     DeclDefBody expr row col ->
       toExprReport source (InDef name startRow startCol) expr row col
@@ -1092,8 +1156,8 @@ isWithin desiredNode context =
 toExprReport :: Code.Source -> Context -> Expr -> Row -> Col -> Report.Report
 toExprReport source context expr startRow startCol =
   case expr of
-    Let _ _ _ ->
-      error "TODO Let"
+    Let let_ row col ->
+      toLetReport source context let_ row col
 
     Case case_ row col ->
       toCaseReport source context case_ row col
@@ -1695,6 +1759,145 @@ toOperatorReport source context operator row col =
 -- CASE
 
 
+toLetReport :: Code.Source -> Context -> Let -> Row -> Col -> Report.Report
+toLetReport source context let_ startRow startCol =
+  case let_ of
+    LetSpace space row col ->
+      toSpaceReport source space row col
+
+    LetIn row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "LET PROBLEM" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was partway through parsing a `let` expression, but I got stuck here:"
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["Based","on","the","indentation,","I","was","expecting","to","see","the",D.cyan "in"
+                  ,"keyword","next.","Is","there","a","typo?"
+                  ]
+              , D.toSimpleNote $
+                  "This can also happen if you are trying to define another value within the `let` but\
+                  \ it is not indented enough. Make sure each definition has exactly the same amount of\
+                  \ spaces before it. They should line up exactly!"
+              ]
+          )
+
+    LetDefAlignment _ row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "LET PROBLEM" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was partway through parsing a `let` expression, but I got stuck here:"
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["Based","on","the","indentation,","I","was","expecting","to","see","the",D.cyan "in"
+                  ,"keyword","next.","Is","there","a","typo?"
+                  ]
+              , D.toSimpleNote $
+                  "This can also happen if you are trying to define another value within the `let` but\
+                  \ it is not indented enough. Make sure each definition has exactly the same amount of\
+                  \ spaces before it. The should line up exactly!"
+              ]
+          )
+
+    LetDefName row col ->
+      case Code.whatIsNext source row col of
+        Code.Keyword keyword ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toWiderRegion row col (fromIntegral (length keyword))
+          in
+          Report.Report "RESERVED WORD" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I was partway through parsing a `let` expression, but I got stuck here:"
+              ,
+                D.reflow $
+                  "It looks like you are trying to use `" ++ keyword ++ "` as a variable name, but\
+                  \ it is a reserved word! Try using a different name instead."
+              )
+
+        _ ->
+          toUnfinishLetReport source row col startRow startCol $
+            D.reflow $
+              "I was expecting the name of a definition next."
+
+    LetDef name def row col ->
+      error "TODO LetDef" name def row col
+
+    LetDestruct destruct row col ->
+      error "TODO LetDestruct" destruct row col
+
+    LetBody expr row col ->
+      toExprReport source context expr row col
+
+    LetIndentDef row col ->
+      toUnfinishLetReport source row col startRow startCol $
+        D.reflow $
+          "I was expecting a value to be defined here."
+
+    LetIndentIn row col ->
+      toUnfinishLetReport source row col startRow startCol $
+        D.fillSep $
+          ["I","was","expecting","to","see","the",D.cyan "in","keyword","next."
+          ,"Or","maybe","more","of","that","expression?"
+          ]
+
+    LetIndentBody row col ->
+      toUnfinishLetReport source row col startRow startCol $
+        D.reflow $
+          "I was expecting an expression next. Tell me what should happen with the value you just defined!"
+
+
+toUnfinishLetReport :: Code.Source -> Row -> Col -> Row -> Col -> D.Doc -> Report.Report
+toUnfinishLetReport source row col startRow startCol message =
+  let
+    surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+    region = toRegion row col
+  in
+  Report.Report "UNFINISHED LET" region [] $
+    Code.toSnippet source surroundings (Just region)
+      (
+        D.reflow $
+          "I was partway through parsing a `let` expression, but I got stuck here:"
+      ,
+        D.stack
+          [ message
+          , D.toSimpleNote $
+              "Here is an example with a valid `let` expression for reference:"
+          , D.vcat $
+              [ D.indent 0 $ D.fillSep [D.green "viewPerson","person","="]
+              , D.indent 2 $ D.fillSep [D.cyan "let"]
+              , D.indent 4 $ D.fillSep ["fullName","="]
+              , D.indent 6 $ D.fillSep ["person.firstName","++",D.dullyellow "\" \"","++","person.lastName"]
+              , D.indent 2 $ D.fillSep [D.cyan "in"]
+              , D.indent 2 $ D.fillSep ["div","[]","[","text","fullName","]"]
+              ]
+          , D.reflow $
+              "Here we defined a `viewPerson` function that turns a person into some HTML. We use\
+              \ a `let` expression to define the `fullName` we want to show. Notice the indentation! The\
+              \ `fullName` is indented more than the `let` keyword, and the actual value of `fullName` is\
+              \ indented a bit more than that. That is important!"
+          ]
+      )
+
+
+
+-- CASE
+
+
 toCaseReport :: Code.Source -> Context -> Case -> Row -> Col -> Report.Report
 toCaseReport source context case_ startRow startCol =
   case case_ of
@@ -1706,7 +1909,7 @@ toCaseReport source context case_ startRow startCol =
         D.fillSep ["I","was","expecting","to","see","the",D.dullyellow "of","keyword","next."]
 
     CasePattern pattern row col ->
-      error "TODO CasePattern" pattern row col
+      toPatternReport source PCase pattern row col
 
     CaseArrow row col ->
       let
@@ -1819,10 +2022,10 @@ toUnfinishCaseReport source row col startRow startCol message =
           , D.vcat $
               [ D.indent 4 $ D.fillSep [D.cyan "case","maybeWidth",D.cyan "of"]
               , D.indent 6 $ D.fillSep [D.green "Just","width","->"]
-              , D.indent 8 $ D.fillSep ["width","+",D.yellow "200"]
+              , D.indent 8 $ D.fillSep ["width","+",D.dullyellow "200"]
               , ""
               , D.indent 6 $ D.fillSep [D.green "Nothing","->"]
-              , D.indent 8 $ D.fillSep [D.yellow "400"]
+              , D.indent 8 $ D.fillSep [D.dullyellow "400"]
               ]
           , D.reflow $
               "Notice the indentation. Each pattern is aligned, and each branch is indented\
@@ -1842,10 +2045,10 @@ addNoteForCaseIndentError message =
     , D.vcat $
         [ D.indent 4 $ D.fillSep [D.cyan "case","maybeWidth",D.cyan "of"]
         , D.indent 6 $ D.fillSep [D.green "Just","width","->"]
-        , D.indent 8 $ D.fillSep ["width","+",D.yellow "200"]
+        , D.indent 8 $ D.fillSep ["width","+",D.dullyellow "200"]
         , ""
         , D.indent 6 $ D.fillSep [D.green "Nothing","->"]
-        , D.indent 8 $ D.fillSep [D.yellow "400"]
+        , D.indent 8 $ D.fillSep [D.dullyellow "400"]
         ]
     , D.reflow $
         "Notice the indentation! Each pattern is aligned, and each branch is indented\
@@ -1875,7 +2078,7 @@ toIfReport source context if_ startRow startCol =
               "I was expecting to see more of this `if` expression, but I got stuck here:"
           ,
             D.fillSep $
-              ["I","was","expecting","to","see","the",D.green "then","keyword","next."
+              ["I","was","expecting","to","see","the",D.cyan "then","keyword","next."
               ]
           )
 
@@ -1891,7 +2094,7 @@ toIfReport source context if_ startRow startCol =
               "I was expecting to see more of this `if` expression, but I got stuck here:"
           ,
             D.fillSep $
-              ["I","was","expecting","to","see","the",D.green "else","keyword","next."
+              ["I","was","expecting","to","see","the",D.cyan "else","keyword","next."
               ]
           )
 
@@ -1953,7 +2156,7 @@ toIfReport source context if_ startRow startCol =
           ,
             D.stack
               [ D.fillSep $
-                  ["I","was","expecting","to","see","the",D.green "then","keyword","next."
+                  ["I","was","expecting","to","see","the",D.cyan "then","keyword","next."
                   ]
               , D.toSimpleNote $
                   "I can be confused by indentation. Maybe something is not indented enough?"
@@ -2015,7 +2218,7 @@ toIfReport source context if_ startRow startCol =
               [ D.reflow $
                   "I know what to do when the condition is `True`, but not when it is `False`."
               , D.fillSep
-                  ["Add","an",D.green "else","branch","to","handle","that","scenario!"]
+                  ["Add","an",D.cyan "else","branch","to","handle","that","scenario!"]
               ]
           )
 
@@ -2594,7 +2797,7 @@ toFuncReport source context func startRow startCol =
       toSpaceReport source space row col
 
     FuncArg pattern row col ->
-      error "TODO FuncArg" pattern row col
+      toPatternReport source PArg pattern row col
 
     FuncBody expr row col ->
       toExprReport source (InNode NFunc startRow startCol context) expr row col
@@ -2706,80 +2909,418 @@ toFuncReport source context func startRow startCol =
 
 
 
+-- PATTERN
 
-{-
-  case err of
-    CommentOnNothing region ->
-      Report.Report "STRAY COMMENT" region [] $
+
+data PContext
+  = PCase
+  | PArg
+
+
+toPatternReport :: Code.Source -> PContext -> Pattern -> Row -> Col -> Report.Report
+toPatternReport source context pattern startRow startCol =
+  case pattern of
+    PRecord record row col ->
+      toPRecordReport source record row col
+
+    PTuple tuple row col ->
+      toPTupleReport source context tuple row col
+
+    PList list row col ->
+      toPListReport source context list row col
+
+    PStart row col ->
+      case Code.whatIsNext source row col of
+        Code.Keyword keyword ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toWiderRegion row col (fromIntegral (length keyword))
+            aThing =
+              case context of
+                PArg -> "an argument"
+                PCase -> "a pattern"
+          in
+          Report.Report "RESERVED WORD" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "It looks like you are trying to use `" ++ keyword ++ "` as " ++ aThing ++ ":"
+              ,
+                D.reflow $
+                  "This is a reserved word! Try using some other name?"
+              )
+
+        _ ->
+          error "TODO PStart"
+
+    PChar char row col ->
+      toCharReport source char row col
+
+    PString string row col ->
+      toStringReport source string row col
+
+    PNumber number row col ->
+      toNumberReport source number row col
+
+    PFloat width row col ->
+      let
+        region = toWiderRegion row col width
+      in
+      Report.Report "UNEXPECTED PATTERN" region [] $
         Code.toSnippet source region Nothing
           (
-            "This documentation comment is not followed by anything."
-          ,
             D.reflow $
-              "All documentation comments need to be right above the declaration they\
-              \ describe. Maybe some code got deleted or commented out by accident? Or\
-              \ maybe this comment is here by accident?"
+              "I cannot pattern match with floating point numbers:"
+          ,
+            D.fillSep $
+              ["Equality","on","floats","can","be","unreliable,","so","you","usually","want"
+              ,"to","check","that","they","are","nearby","with","some","sort","of"
+              ,D.dullyellow "(abs (actual - expected) < 0.001)","check."
+              ]
           )
 
-    ParseError row col context expectation ->
+    PAlias row col ->
+      error "TODO PAlias" row col
+
+    PWildcardNotVar name width row col ->
       let
-        pos = A.Position row col
-        region = A.Region pos pos
+        region = toWiderRegion row col (fromIntegral width)
+        examples =
+          case dropWhile (=='_') (Name.toChars name) of
+            [] -> [D.dullyellow "x","or",D.dullyellow "age"]
+            c:cs -> [D.dullyellow (D.fromChars (Char.toLower c : cs))]
       in
-      case expectation of
+      Report.Report "UNEXPECTED NAME" region [] $
+        Code.toSnippet source region Nothing $
+          (
+            D.reflow $
+              "Variable names cannot start with underscores like this:"
+          ,
+            D.fillSep $
+              ["You","can","either","have","an","underscore","like",D.dullyellow "_","to"
+              ,"ignore","the","value,","or","you","can","have","a","name","like"
+              ] ++ examples ++ ["to","use","the","matched","value." ]
+          )
 
-        DocComment ->
-          Report.Report "EXPECTING DOC COMMENT" region [] $
-            Code.toSnippet source region Nothing
-              (
-                D.reflow $
-                  "I was expecting a doc comment here:"
-              ,
-                D.reflowLink
-                  "Check out" "TODO" "for examples of doc comments."
-              )
+    PSpace space row col ->
+      toSpaceReport source space row col
 
-        -- Parse.Number
+    PIndentStart row col ->
+      error "TODO PIndentStart" row col
 
-        Wildcard ->
-          Report.Report "EXPECTING A WILDCARD" region [] $
-            Code.toSnippet source region Nothing
-              (
-                D.reflow $
-                  "I was expecting a _ here:"
-              ,
-                D.reflow $
-                  "An underscore indicates that “I do not care about this value” and is\
-                  \ called a wildcard pattern because it will match with any type of values."
-              )
+    PIndentAlias row col ->
+      error "TODO PIndentAlias" row col
 
-        WildcardNotVar startCol endCol ->
+
+toPRecordReport :: Code.Source -> PRecord -> Row -> Col -> Report.Report
+toPRecordReport source record startRow startCol =
+  case record of
+    PRecordOpen row col ->
+      toUnfinishRecordPatternReport source row col startRow startCol $
+        D.reflow "I was expecting to see a field name next."
+
+    PRecordEnd row col ->
+      toUnfinishRecordPatternReport source row col startRow startCol $
+        D.fillSep
+          ["I","was","expecting","to","see","a","closing","curly","brace","next."
+          ,"Try","adding","a",D.dullyellow "}","here?"
+          ]
+
+    PRecordField row col ->
+      case Code.whatIsNext source row col of
+        Code.Keyword keyword ->
           let
-            badRegion =
-              A.Region (A.Position row startCol) (A.Position row endCol)
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toWiderRegion row col (fromIntegral (length keyword))
           in
-          Report.Report "INVALID PATTERN" badRegion [] $
-            Code.toSnippet source badRegion Nothing
+          Report.Report "RESERVED WORD" region [] $
+            Code.toSnippet source surroundings (Just region)
               (
                 D.reflow $
-                  "I was expecting to see an underscore without any additional characters:"
+                  "I was not expecting to see `" ++ keyword ++ "` as a record field name:"
               ,
                 D.reflow $
-                  "There are two options. Either (1) remove the extra characters and ignore the\
-                  \ value or (2) remove the starting underscore to give the value a normal name."
+                  "This is a reserved word, not available for variable names. Try another name!"
               )
 
-        -- Parse.Pattern
+        _ ->
+          toUnfinishRecordPatternReport source row col startRow startCol $
+            D.reflow "I was expecting to see a field name next."
 
-        FloatInPattern ->
-          Report.Report "INVALID PATTERN" region [] $
-            Code.toSnippet source region Nothing
+    PRecordSpace space row col ->
+      toSpaceReport source space row col
+
+    PRecordIndentOpen row col ->
+      toUnfinishRecordPatternReport source row col startRow startCol $
+        D.reflow "I was expecting to see a field name next."
+
+    PRecordIndentEnd row col ->
+      toUnfinishRecordPatternReport source row col startRow startCol $
+        D.fillSep
+          ["I","was","expecting","to","see","a","closing","curly","brace","next."
+          ,"Try","adding","a",D.dullyellow "}","here?"
+          ]
+
+    PRecordIndentField row col ->
+      toUnfinishRecordPatternReport source row col startRow startCol $
+        D.reflow "I was expecting to see a field name next."
+
+
+toUnfinishRecordPatternReport :: Code.Source -> Row -> Col -> Row -> Col -> D.Doc -> Report.Report
+toUnfinishRecordPatternReport source row col startRow startCol message =
+  let
+    surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+    region = toRegion row col
+  in
+  Report.Report "UNFINISHED RECORD PATTERN" region [] $
+    Code.toSnippet source surroundings (Just region)
+      (
+        D.reflow $
+          "I was partway through parsing a record pattern, but I got stuck here:"
+      ,
+        D.stack
+          [ message
+          , D.toFancyHint $
+              ["A","record","pattern","looks","like",D.dullyellow "{x,y}","or",D.dullyellow "{name,age}"
+              ,"where","you","list","the","field","names","you","want","to","access."
+              ]
+          ]
+      )
+
+
+
+toPTupleReport :: Code.Source -> PContext -> PTuple -> Row -> Col -> Report.Report
+toPTupleReport source context tuple startRow startCol =
+  case tuple of
+    PTupleOpen row col ->
+      case Code.whatIsNext source row col of
+        Code.Keyword keyword ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toWiderRegion row col (fromIntegral (length keyword))
+          in
+          Report.Report "RESERVED WORD" region [] $
+            Code.toSnippet source surroundings (Just region)
               (
                 D.reflow $
-                  "I cannot pattern match with floating point numbers:"
+                  "It looks like you are trying to use `" ++ keyword ++ "` as a variable name:"
               ,
                 D.reflow $
-                  "Equality on floats can be unreliable, so you usually want to check that they\
-                  \ are nearby with some sort of (abs (actual - expected) < 0.001) check."
+                  "This is a reserved word! Try using some other name?"
               )
--}
+
+        _ ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
+          Report.Report "UNFINISHED PARENTHESES" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I just saw an open parenthesis, but I got stuck here:"
+              ,
+                D.fillSep
+                  ["I","was","expecting","so","see","a","pattern","next."
+                  ,"Maybe","it","will","end","up","being","something"
+                  ,"like",D.dullyellow "(x,y)","or",D.dullyellow "(name, _)" <> "?"
+                  ]
+              )
+
+    PTupleEnd row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED PARENTHESES" region [] $
+        Code.toSnippet source surroundings (Just region) $
+          (
+            D.reflow $
+              "I was expecting a closing parenthesis next:"
+          ,
+            D.fillSep ["Try","adding","a",D.dullyellow ")","to","see","if","that","helps?"]
+          )
+
+    PTupleExpr pattern row col ->
+      toPatternReport source context pattern row col
+
+    PTupleSpace space row col ->
+      toSpaceReport source space row col
+
+    PTupleIndentEnd row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED PARENTHESES" region [] $
+        Code.toSnippet source surroundings (Just region) $
+          (
+            D.reflow $
+              "I was expecting a closing parenthesis next:"
+          ,
+            D.stack
+              [ D.fillSep ["Try","adding","a",D.dullyellow ")","to","see","if","that","helps?"]
+              , D.toSimpleNote $
+                  "I can get confused by indentation in cases like this, so\
+                  \ maybe you have a closing parenthesis but it is not indented enough?"
+              ]
+          )
+
+    PTupleIndentExpr1 row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED PARENTHESES" region [] $
+        Code.toSnippet source surroundings (Just region) $
+          (
+            D.reflow $
+              "I just saw an open parenthesis, but then I got stuck here:"
+          ,
+            D.fillSep
+              ["I","was","expecting","so","see","a","pattern","next."
+              ,"Maybe","it","will","end","up","being","something"
+              ,"like",D.dullyellow "(x,y)","or",D.dullyellow "(name, _)" <> "?"
+              ]
+          )
+
+    PTupleIndentExprN row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED TUPLE" region [] $
+        Code.toSnippet source surroundings (Just region) $
+          (
+            D.reflow $
+              "I am partway through parsing a tuple pattern, but I got stuck here:"
+          ,
+            D.stack
+              [ D.fillSep
+                  ["I","was","expecting","so","see","a","pattern","next."
+                  ,"I","am","expecting","the","final","result","to","be","something"
+                  ,"like",D.dullyellow "(x,y)","or",D.dullyellow "(name, _)" <> "."
+                  ]
+              , D.toSimpleNote $
+                  "I can get confused by indentation in cases like this, so the problem\
+                  \ may be that the next part is not indented enough?"
+              ]
+          )
+
+
+toPListReport :: Code.Source -> PContext -> PList -> Row -> Col -> Report.Report
+toPListReport source context list startRow startCol =
+  case list of
+    PListOpen row col ->
+      error "TODO PListOpen" row col startRow startCol
+
+    PListEnd row col ->
+      error "TODO PListEnd" row col
+
+    PListExpr pattern row col ->
+      toPatternReport source context pattern row col
+
+    PListSpace space row col ->
+      toSpaceReport source space row col
+
+    PListIndentOpen row col ->
+      error "TODO PListIndentOpen" row col
+
+    PListIndentEnd row col ->
+      error "TODO PListIndentEnd" row col
+
+    PListIndentExpr row col ->
+      error "TODO PListIndentExpr" row col
+
+
+
+-- TYPES
+
+
+toTypeReport :: Code.Source -> Type -> Row -> Col -> Report.Report
+toTypeReport source tipe startRow startCol =
+  case tipe of
+    TRecord record row col ->
+      toTRecordReport source record row col
+
+    TTuple tuple row col ->
+      toTTupleReport source tuple row col
+
+    TVariant row col ->
+      error "TODO TVariant" row col startRow startCol
+
+    TArrow row col ->
+      error "TODO TArrow" row col
+
+    TStart row col ->
+      error "TODO TStart" row col
+
+    TSpace space row col ->
+      toSpaceReport source space row col
+
+    TIndentStart row col ->
+      error "TODO TIndentStart" row col
+
+
+
+toTRecordReport :: Code.Source -> TRecord -> Row -> Col -> Report.Report
+toTRecordReport source record startRow startCol =
+  case record of
+    TRecordOpen row col ->
+      error "TODO TRecordOpen" row col startRow startCol
+
+    TRecordEnd row col ->
+      error "TODO TRecordEnd" row col
+
+    TRecordField row col ->
+      error "TODO TRecordField" row col
+
+    TRecordColon row col ->
+      error "TODO TRecordColon" row col
+
+    TRecordType tipe row col ->
+      error "TODO TRecordType" tipe row col
+
+    TRecordSpace space row col ->
+      toSpaceReport source space row col
+
+    TRecordIndentOpen row col ->
+      error "TODO TRecordIndentOpen" row col
+
+    TRecordIndentField row col ->
+      error "TODO TRecordIndentField" row col
+
+    TRecordIndentColon row col ->
+      error "TODO TRecordIndentColon" row col
+
+    TRecordIndentType row col ->
+      error "TODO TRecordIndentType" row col
+
+    TRecordIndentEnd row col ->
+      error "TODO TRecordIndentEnd" row col
+
+
+
+toTTupleReport :: Code.Source -> TTuple -> Row -> Col -> Report.Report
+toTTupleReport source tuple startRow startCol =
+  case tuple of
+    TTupleOpen row col ->
+      error "TODO TTupleOpen" row col startRow startCol
+
+    TTupleEnd row col ->
+      error "TODO TTupleEnd" row col
+
+    TTupleType tipe row col ->
+      error "TODO TTupleType" tipe row col
+
+    TTupleSpace space row col ->
+      toSpaceReport source space row col
+
+    TTupleIndentOpen row col ->
+      error "TODO TTupleIndentOpen" row col
+
+    TTupleIndentType row col ->
+      error "TODO TTupleIndentType" row col
+
+    TTupleIndentEnd row col ->
+      error "TODO TTupleIndentEnd" row col

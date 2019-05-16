@@ -68,7 +68,10 @@ termHelp start =
 
             Number.Float float ->
               P.Parser $ \(P.State _ _ _ row col) _ _ cerr _ ->
-                cerr row col (E.PFloat (Utf8.size float))
+                let
+                  width = fromIntegral (Utf8.size float)
+                in
+                cerr row (col - width) (E.PFloat width)
     ,
       do  str <- Utf8.string E.PStart E.PString
           addEnd start (Src.PStr str)
@@ -93,8 +96,8 @@ wildcard =
         !newCol = col + 1
       in
       if Var.getInnerWidth newPos end > 0 then
-        let (# _, badCol #) = Var.chompInnerChars newPos end newCol in
-        cerr row col (E.PWildcardNotVar (fromIntegral (badCol - col)))
+        let (# badPos, badCol #) = Var.chompInnerChars newPos end newCol in
+        cerr row col (E.PWildcardNotVar (Name.fromPtr pos badPos) (fromIntegral (badCol - col)))
       else
         let !newState = P.State newPos end indent row newCol in
         cok () newState
@@ -137,7 +140,7 @@ recordHelp start vars =
 tuple :: A.Position -> Parser E.Pattern Src.Pattern
 tuple start =
   inContext E.PTuple (word1 0x28 {-(-} E.PStart) $
-    do  Space.chompAndCheckIndent E.PTupleSpace E.PTupleIndentOpen
+    do  Space.chompAndCheckIndent E.PTupleSpace E.PTupleIndentExpr1
         oneOf E.PTupleOpen
           [ do  (pattern, end) <- P.specialize E.PTupleExpr expression
                 Space.checkIndent end E.PTupleIndentEnd
@@ -151,7 +154,7 @@ tupleHelp :: A.Position -> Src.Pattern -> [Src.Pattern] -> Parser E.PTuple Src.P
 tupleHelp start firstPattern revPatterns =
   oneOf E.PTupleEnd
     [ do  word1 0x2C {-,-} E.PTupleEnd
-          Space.chompAndCheckIndent E.PTupleSpace E.PTupleIndentExpr
+          Space.chompAndCheckIndent E.PTupleSpace E.PTupleIndentExprN
           (pattern, end) <- P.specialize E.PTupleExpr expression
           Space.checkIndent end E.PTupleIndentEnd
           tupleHelp start firstPattern (pattern : revPatterns)
@@ -202,18 +205,18 @@ listHelp start patterns =
 expression :: Space.Parser E.Pattern Src.Pattern
 expression =
   do  start <- getPosition
-      cTerm <- exprTerm
-      exprHelp start [] cTerm
+      ePart <- exprPart
+      exprHelp start [] ePart
 
 
 exprHelp :: A.Position -> [Src.Pattern] -> (Src.Pattern, A.Position) -> Space.Parser E.Pattern Src.Pattern
-exprHelp start patterns (pattern, end) =
+exprHelp start revPatterns (pattern, end) =
   oneOfWithFallback
     [ do  Space.checkIndent end E.PIndentStart
           word2 0x3A 0x3A {-::-} E.PStart
           Space.chompAndCheckIndent E.PSpace E.PIndentStart
-          cTerm <- exprTerm
-          exprHelp start (pattern:patterns) cTerm
+          ePart <- exprPart
+          exprHelp start (pattern:revPatterns) ePart
     , do  Space.checkIndent end E.PIndentStart
           Keyword.as_ E.PStart
           Space.chompAndCheckIndent E.PSpace E.PIndentAlias
@@ -223,11 +226,11 @@ exprHelp start patterns (pattern, end) =
           Space.chomp E.PSpace
           let alias = A.at nameStart newEnd name
           return
-            ( A.at start newEnd (Src.PAlias (List.foldl' cons pattern patterns) alias)
+            ( A.at start newEnd (Src.PAlias (List.foldl' cons pattern revPatterns) alias)
             , newEnd
             )
     ]
-    ( List.foldl' cons pattern patterns
+    ( List.foldl' cons pattern revPatterns
     , end
     )
 
@@ -238,11 +241,11 @@ cons tl hd =
 
 
 
--- EXPRESSION TERM
+-- EXPRESSION PART
 
 
-exprTerm :: Space.Parser E.Pattern Src.Pattern
-exprTerm =
+exprPart :: Space.Parser E.Pattern Src.Pattern
+exprPart =
   oneOf E.PStart
     [
       do  start <- getPosition
