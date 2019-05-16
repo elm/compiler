@@ -2284,12 +2284,12 @@ toRecordReport source context record startRow startCol =
           )
 
     RecordField row col ->
-      let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
-      in
       case Code.whatIsNext source row col of
         Code.Keyword keyword ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toWiderRegion row col (fromIntegral (length keyword))
+          in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
               (
@@ -2302,6 +2302,10 @@ toRecordReport source context record startRow startCol =
               )
 
         _ ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
           Report.Report "UNFINISHED RECORD" region [] $
             Code.toSnippet source surroundings (Just region)
               (
@@ -2443,7 +2447,7 @@ addNoteForRecordError normalRecommendation =
         , "}"
         ]
     , D.reflow $
-        "Notice that nothing comes directly after a newline. Each line starts with some spaces. I\
+        "Notice that each line starts with some indentation. Usually two or four spaces. I\
         \ know this style can be jarring for people coming from C-like syntax, but folks generally\
         \ report that they are used to it (and often prefer it!) after a week or two of using Elm."
     ]
@@ -2458,13 +2462,13 @@ addNoteForRecordIndentError normalRecommendation =
         "I may be confused by indentation. For example, if you are trying to define\
         \ a record across multiple lines, I recommend using this format:"
     , D.indent 4 $ D.vcat $
-        [ "[ \"Alice\""
-        , ", \"Bob\""
-        , ", \"Chuck\""
-        , "]"
+        [ "{ name = \"Alice\""
+        , ", age = 42"
+        , ", height = 1.75"
+        , "}"
         ]
     , D.reflow $
-        "Notice that nothing comes directly after a newline. Each line starts with some spaces. I\
+        "Notice that each line starts with some indentation. Usually two or four spaces. I\
         \ know this style can be jarring for people coming from C-like syntax, but folks generally\
         \ report that they are used to it (and often prefer it!) after a week or two of using Elm."
     ]
@@ -3399,38 +3403,247 @@ toTRecordReport :: Code.Source -> TRecord -> Row -> Col -> Report.Report
 toTRecordReport source record startRow startCol =
   case record of
     TRecordOpen row col ->
-      error "TODO TRecordOpen" row col startRow startCol
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      case Code.whatIsNext source row col of
+        Code.Keyword keyword ->
+          Report.Report "RESERVED WORD" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I just started parsing a record type, but I got stuck on this field name:"
+              ,
+                D.reflow $
+                  "It looks like you are trying to use `" ++ keyword ++ "` as a field name, but \
+                  \ that is a reserved word. Try using a different name!"
+              )
+
+        _ ->
+          Report.Report "UNFINISHED RECORD TYPE" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I just started parsing a record type, but I got stuck here:"
+              ,
+                D.fillSep
+                  ["Record","types","look","like",D.dullyellow "{ name : String, age : Int },"
+                  ,"so","I","was","expecting","to","see","a","field","name","next."
+                  ]
+              )
 
     TRecordEnd row col ->
-      error "TODO TRecordEnd" row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED RECORD TYPE" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I am partway through parsing a record type, but I got stuck here:"
+          ,
+            D.stack
+              [ D.fillSep
+                  ["I","was","expecting","to","see","a","closing","curly","brace","before","this,"
+                  ,"so","try","adding","a",D.dullyellow "}","and","see","if","that","helps?"
+                  ]
+              , D.toSimpleNote $
+                  "When I get stuck like this, it usually means that there is a missing parenthesis\
+                  \ or bracket somewhere earlier. It could also be a stray keyword or operator."
+              ]
+          )
 
     TRecordField row col ->
-      error "TODO TRecordField" row col
+      case Code.whatIsNext source row col of
+        Code.Keyword keyword ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toWiderRegion row col (fromIntegral (length keyword))
+          in
+          Report.Report "RESERVED WORD" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I am partway through parsing a record type, but I got stuck on this field name:"
+              ,
+                D.reflow $
+                  "It looks like you are trying to use `" ++ keyword ++ "` as a field name, but \
+                  \ that is a reserved word. Try using a different name!"
+              )
+
+        _ ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
+          Report.Report "UNFINISHED RECORD TYPE" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I am partway through parsing a record type, but I got stuck after that last comma:"
+              ,
+                addNoteForRecordTypeError $
+                  D.reflow $
+                    "Trailing commas are not allowed in records, so I was expecting to see another\
+                    \ record field defined next. If you are done defining the record, the fix may\
+                    \ be to delete that last comma?"
+              )
 
     TRecordColon row col ->
-      error "TODO TRecordColon" row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED RECORD TYPE" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I am partway through parsing a record type, but I got stuck here:"
+          ,
+            addNoteForRecordTypeError $
+              D.fillSep $
+                ["I","just","saw","a","field","name,","so","I","was","expecting","to","see"
+                ,"a","colon","next.","So","try","putting","an",D.green ":","sign","here?"
+                ]
+          )
 
     TRecordType tipe row col ->
-      error "TODO TRecordType" tipe row col
+      toTypeReport source tipe row col
 
     TRecordSpace space row col ->
       toSpaceReport source space row col
 
     TRecordIndentOpen row col ->
-      error "TODO TRecordIndentOpen" row col
-
-    TRecordIndentField row col ->
-      error "TODO TRecordIndentField" row col
-
-    TRecordIndentColon row col ->
-      error "TODO TRecordIndentColon" row col
-
-    TRecordIndentType row col ->
-      error "TODO TRecordIndentType" row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED RECORD TYPE" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I just saw the opening curly brace of a record type, but then I got stuck here:"
+          ,
+            addNoteForRecordTypeIndentError $
+              D.fillSep $
+                ["I","am","expecting","a","record","like",D.dullyellow "{ name : String, age : Int }","here."
+                ,"Try","defining","some","fields","of","your","own?"
+                ]
+          )
 
     TRecordIndentEnd row col ->
-      error "TODO TRecordIndentEnd" row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED RECORD TYPE" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was expecting to see a closing curly brace next:"
+          ,
+            addNoteForRecordTypeIndentError $
+              D.fillSep $
+                ["Try","putting","an",D.green "}","and","see","if","that","helps?"
+                ]
+          )
 
+    TRecordIndentField row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED RECORD TYPE" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I am partway through parsing a record type, but I got stuck after that last comma:"
+          ,
+            addNoteForRecordTypeIndentError $
+              D.reflow $
+                "Trailing commas are not allowed in record types, so the fix may be to\
+                \ delete that last comma? Or maybe you were in the middle of defining\
+                \ an additional field?"
+          )
+
+    TRecordIndentColon row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED RECORD TYPE" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I am partway through parsing a record type. I just saw a record\
+              \ field, so I was expecting to see a colon next:"
+          ,
+            addNoteForRecordTypeIndentError $
+              D.fillSep $
+                ["Try","putting","an",D.green ":","followed","by","a","type?"
+                ]
+          )
+
+    TRecordIndentType row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED RECORD TYPE" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I am partway through parsing a record type, and I was expecting to run into a type next:"
+          ,
+            addNoteForRecordTypeIndentError $
+              D.fillSep $
+                ["Try","putting","something,","like"
+                ,D.dullyellow "Int","or",D.dullyellow "String","for","now?"
+                ]
+          )
+
+
+addNoteForRecordTypeError :: D.Doc -> D.Doc
+addNoteForRecordTypeError normalRecommendation =
+  D.stack $
+    normalRecommendation
+    :
+    [ D.toSimpleNote
+        "If you are trying to define a record type across multiple lines, I recommend using this format:"
+    , D.indent 4 $ D.vcat $
+        [ "{ name : String"
+        , ", age : Int"
+        , ", height : Float"
+        , "}"
+        ]
+    , D.reflow $
+        "Notice that each line starts with some indentation. Usually two or four spaces. I\
+        \ know this style can be jarring for people coming from C-like syntax, but folks generally\
+        \ report that they are used to it (and often prefer it!) after a week or two of using Elm."
+    ]
+
+
+addNoteForRecordTypeIndentError :: D.Doc -> D.Doc
+addNoteForRecordTypeIndentError normalRecommendation =
+  D.stack $
+    normalRecommendation
+    :
+    [ D.toSimpleNote
+        "I may be confused by indentation. For example, if you are trying to define\
+        \ a record type across multiple lines, I recommend using this format:"
+    , D.indent 4 $ D.vcat $
+        [ "{ name : String"
+        , ", age : Int"
+        , ", height : Float"
+        , "}"
+        ]
+    , D.reflow $
+        "Notice that each line starts with some indentation. Usually two or four spaces. I\
+        \ know this style can be jarring for people coming from C-like syntax, but folks generally\
+        \ report that they are used to it (and often prefer it!) after a week or two of using Elm."
+    ]
 
 
 toTTupleReport :: Code.Source -> TTuple -> Row -> Col -> Report.Report
