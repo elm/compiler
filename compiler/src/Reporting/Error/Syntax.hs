@@ -3233,7 +3233,7 @@ toPTupleReport source context tuple startRow startCol =
         surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
         region = toRegion row col
       in
-      Report.Report "UNFINISHED TUPLE" region [] $
+      Report.Report "UNFINISHED TUPLE PATTERN" region [] $
         Code.toSnippet source surroundings (Just region) $
           (
             D.reflow $
@@ -3256,10 +3256,49 @@ toPListReport :: Code.Source -> PContext -> PList -> Row -> Col -> Report.Report
 toPListReport source context list startRow startCol =
   case list of
     PListOpen row col ->
-      error "TODO PListOpen" row col startRow startCol
+      case Code.whatIsNext source row col of
+        Code.Keyword keyword ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toWiderRegion row col (fromIntegral (length keyword))
+          in
+          Report.Report "RESERVED WORD" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "It looks like you are trying to use `" ++ keyword ++ "` to name an element of a list:"
+              ,
+                D.reflow $
+                  "This is a reserved word though! Try using some other name?"
+              )
+
+        _ ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
+          Report.Report "UNFINISHED LIST PATTERN" region [] $
+            Code.toSnippet source surroundings (Just region) $
+              (
+                D.reflow $
+                  "I just saw an open square bracket, but then I got stuck here:"
+              ,
+                D.fillSep ["Try","adding","a",D.dullyellow "]","to","see","if","that","helps?"]
+              )
 
     PListEnd row col ->
-      error "TODO PListEnd" row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED LIST PATTERN" region [] $
+        Code.toSnippet source surroundings (Just region) $
+          (
+            D.reflow $
+              "I was expecting a closing square bracket to end this list pattern:"
+          ,
+            D.fillSep ["Try","adding","a",D.dullyellow "]","to","see","if","that","helps?"]
+          )
 
     PListExpr pattern row col ->
       toPatternReport source context pattern row col
@@ -3268,13 +3307,62 @@ toPListReport source context list startRow startCol =
       toSpaceReport source space row col
 
     PListIndentOpen row col ->
-      error "TODO PListIndentOpen" row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED LIST PATTERN" region [] $
+        Code.toSnippet source surroundings (Just region) $
+          (
+            D.reflow $
+              "I just saw an open square bracket, but then I got stuck here:"
+          ,
+            D.stack
+              [ D.fillSep ["Try","adding","a",D.dullyellow "]","to","see","if","that","helps?"]
+              , D.toSimpleNote $
+                  "I can get confused by indentation in cases like this, so\
+                  \ maybe there is something next, but it is not indented enough?"
+              ]
+          )
 
     PListIndentEnd row col ->
-      error "TODO PListIndentEnd" row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED LIST PATTERN" region [] $
+        Code.toSnippet source surroundings (Just region) $
+          (
+            D.reflow $
+              "I was expecting a closing square bracket to end this list pattern:"
+          ,
+            D.stack
+              [ D.fillSep ["Try","adding","a",D.dullyellow "]","to","see","if","that","helps?"]
+              , D.toSimpleNote $
+                  "I can get confused by indentation in cases like this, so\
+                  \ maybe you have a closing square bracket but it is not indented enough?"
+              ]
+          )
 
     PListIndentExpr row col ->
-      error "TODO PListIndentExpr" row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED LIST PATTERN" region [] $
+        Code.toSnippet source surroundings (Just region) $
+          (
+            D.reflow $
+              "I am partway through parsing a list pattern, but I got stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I was expecting to see another pattern next. Maybe a variable name."
+              , D.toSimpleNote $
+                  "I can get confused by indentation in cases like this, so\
+                  \ maybe there is more to this pattern but it is not indented enough?"
+              ]
+          )
 
 
 
