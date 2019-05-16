@@ -47,7 +47,7 @@ term =
             oneOf E.TTupleOpen
               [ do  word1 0x29 {-)-} E.TTupleOpen
                     addEnd start Src.TUnit
-              , do  Space.chompAndCheckIndent E.TTupleSpace E.TTupleIndentType
+              , do  Space.chompAndCheckIndent E.TTupleSpace E.TTupleIndentType1
                     (tipe, end) <- specialize E.TTupleType expression
                     Space.checkIndent end E.TTupleIndentEnd
                     chompTupleEnd start tipe []
@@ -147,7 +147,7 @@ chompTupleEnd :: A.Position -> Src.Type -> [Src.Type] -> Parser E.TTuple Src.Typ
 chompTupleEnd start firstType revTypes =
   oneOf E.TTupleEnd
     [ do  word1 0x2C {-,-} E.TTupleEnd
-          Space.chompAndCheckIndent E.TTupleSpace E.TTupleIndentType
+          Space.chompAndCheckIndent E.TTupleSpace E.TTupleIndentTypeN
           (tipe, end) <- specialize E.TTupleType expression
           Space.checkIndent end E.TTupleIndentEnd
           chompTupleEnd start firstType (tipe : revTypes)

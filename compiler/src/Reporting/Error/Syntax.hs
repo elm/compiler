@@ -449,8 +449,8 @@ data TTuple
   | TTupleType Type Row Col
   | TTupleSpace Space Row Col
   --
-  | TTupleIndentOpen Row Col
-  | TTupleIndentType Row Col
+  | TTupleIndentType1 Row Col
+  | TTupleIndentTypeN Row Col
   | TTupleIndentEnd Row Col
 
 
@@ -957,6 +957,13 @@ toWiderRegion row col extra =
     (A.Position row (col + extra))
 
 
+toKeywordRegion :: Row -> Col -> [Char.Char] -> A.Region
+toKeywordRegion row col keyword =
+  A.Region
+    (A.Position row col)
+    (A.Position row (col + fromIntegral (length keyword)))
+
+
 toDeclarationsReport :: Code.Source -> Decl -> Report.Report
 toDeclarationsReport source decl =
   case decl of
@@ -993,7 +1000,7 @@ toDeclDefReport source name declDef startRow startCol =
         Code.Keyword keyword ->
           let
             surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toWiderRegion row col (fromIntegral (length keyword))
+            region = toKeywordRegion row col keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -1008,7 +1015,7 @@ toDeclDefReport source name declDef startRow startCol =
         Code.Operator op ->
           let
             surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toWiderRegion row col (fromIntegral (length op))
+            region = toKeywordRegion row col op
           in
           Report.Report "UNEXPECTED SYMBOL" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -1816,7 +1823,7 @@ toLetReport source context let_ startRow startCol =
         Code.Keyword keyword ->
           let
             surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toWiderRegion row col (fromIntegral (length keyword))
+            region = toKeywordRegion row col keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -1912,12 +1919,12 @@ toCaseReport source context case_ startRow startCol =
       toPatternReport source PCase pattern row col
 
     CaseArrow row col ->
-      let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
-      in
       case Code.whatIsNext source row col of
         Code.Keyword keyword ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toKeywordRegion row col keyword
+          in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
               (
@@ -1930,6 +1937,10 @@ toCaseReport source context case_ startRow startCol =
               )
 
         Code.Operator ":" ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
           Report.Report "UNEXPECTED OPERATOR" region [] $
             Code.toSnippet source surroundings (Just region)
               (
@@ -1943,6 +1954,10 @@ toCaseReport source context case_ startRow startCol =
               )
 
         Code.Operator "=" ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
           Report.Report "UNEXPECTED OPERATOR" region [] $
             Code.toSnippet source surroundings (Just region)
               (
@@ -1955,6 +1970,10 @@ toCaseReport source context case_ startRow startCol =
               )
 
         _ ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
           Report.Report "MISSING ARROW" region [] $
             Code.toSnippet source surroundings (Just region)
               (
@@ -2231,12 +2250,12 @@ toRecordReport :: Code.Source -> Context -> Record -> Row -> Col -> Report.Repor
 toRecordReport source context record startRow startCol =
   case record of
     RecordOpen row col ->
-      let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
-      in
       case Code.whatIsNext source row col of
         Code.Keyword keyword ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toKeywordRegion row col keyword
+          in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
               (
@@ -2249,6 +2268,10 @@ toRecordReport source context record startRow startCol =
               )
 
         _ ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
           Report.Report "UNFINISHED RECORD" region [] $
             Code.toSnippet source surroundings (Just region)
               (
@@ -2288,7 +2311,7 @@ toRecordReport source context record startRow startCol =
         Code.Keyword keyword ->
           let
             surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toWiderRegion row col (fromIntegral (length keyword))
+            region = toKeywordRegion row col keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -2578,7 +2601,7 @@ toTupleReport source context tuple startRow startCol =
         Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I think I am in the middle of parsing a tuple. I just saw a comma, so I was expecting to see expression next."
+              "I think I am in the middle of parsing a tuple. I just saw a comma, so I was expecting to see an expression next."
           ,
             D.stack
               [ D.fillSep $
@@ -2807,12 +2830,12 @@ toFuncReport source context func startRow startCol =
       toExprReport source (InNode NFunc startRow startCol context) expr row col
 
     FuncArrow row col ->
-      let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
-      in
       case Code.whatIsNext source row col of
         Code.Keyword keyword ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toKeywordRegion row col keyword
+          in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
               (
@@ -2825,6 +2848,10 @@ toFuncReport source context func startRow startCol =
               )
 
         _ ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
           Report.Report "UNFINISHED ANONYMOUS FUNCTION" region [] $
             Code.toSnippet source surroundings (Just region)
               (
@@ -2938,7 +2965,7 @@ toPatternReport source context pattern startRow startCol =
         Code.Keyword keyword ->
           let
             surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toWiderRegion row col (fromIntegral (length keyword))
+            region = toKeywordRegion row col keyword
             aThing =
               case context of
                 PArg -> "an argument"
@@ -3079,7 +3106,7 @@ toPRecordReport source record startRow startCol =
         Code.Keyword keyword ->
           let
             surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toWiderRegion row col (fromIntegral (length keyword))
+            region = toKeywordRegion row col keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -3145,7 +3172,7 @@ toPTupleReport source context tuple startRow startCol =
         Code.Keyword keyword ->
           let
             surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toWiderRegion row col (fromIntegral (length keyword))
+            region = toKeywordRegion row col keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -3264,7 +3291,7 @@ toPListReport source context list startRow startCol =
         Code.Keyword keyword ->
           let
             surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toWiderRegion row col (fromIntegral (length keyword))
+            region = toKeywordRegion row col keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -3403,12 +3430,12 @@ toTRecordReport :: Code.Source -> TRecord -> Row -> Col -> Report.Report
 toTRecordReport source record startRow startCol =
   case record of
     TRecordOpen row col ->
-      let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
-      in
       case Code.whatIsNext source row col of
         Code.Keyword keyword ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toKeywordRegion row col keyword
+          in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
               (
@@ -3421,6 +3448,10 @@ toTRecordReport source record startRow startCol =
               )
 
         _ ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
           Report.Report "UNFINISHED RECORD TYPE" region [] $
             Code.toSnippet source surroundings (Just region)
               (
@@ -3460,7 +3491,7 @@ toTRecordReport source record startRow startCol =
         Code.Keyword keyword ->
           let
             surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toWiderRegion row col (fromIntegral (length keyword))
+            region = toKeywordRegion row col keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -3650,22 +3681,128 @@ toTTupleReport :: Code.Source -> TTuple -> Row -> Col -> Report.Report
 toTTupleReport source tuple startRow startCol =
   case tuple of
     TTupleOpen row col ->
-      error "TODO TTupleOpen" row col startRow startCol
+      case Code.whatIsNext source row col of
+        Code.Keyword keyword ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toKeywordRegion row col keyword
+          in
+          Report.Report "RESERVED WORD" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I ran into a reserved word unexpectedly:"
+              ,
+                D.reflow $
+                  "It looks like you are trying to use `" ++ keyword ++ "` as a variable name, but \
+                  \ it is a reserved word. Try using a different name!"
+              )
+
+        _ ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
+          Report.Report "UNFINISHED PARENTHESES" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I just saw an open parenthesis, so I was expecting to see a type next."
+              ,
+                D.fillSep $
+                  ["Something","like",D.dullyellow "(Maybe Int)","or"
+                  ,D.dullyellow "(List Person)" <> "."
+                  ,"Anything","where","you","are","putting","parentheses","around","normal","types."
+                  ]
+              )
 
     TTupleEnd row col ->
-      error "TODO TTupleEnd" row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED PARENTHESES" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was expecting to see a closing parentheses next, but I got stuck here:"
+          ,
+            D.stack
+              [ D.fillSep ["Try","adding","a",D.dullyellow ")","to","see","if","that","helps?"]
+              , D.toSimpleNote $
+                  "I can get stuck when I run into keywords, operators, parentheses, or brackets\
+                  \ unexpectedly. So there may be some earlier syntax trouble (like extra parenthesis\
+                  \ or missing brackets) that is confusing me."
+              ]
+          )
 
     TTupleType tipe row col ->
-      error "TODO TTupleType" tipe row col
+      toTypeReport source tipe row col
 
     TTupleSpace space row col ->
       toSpaceReport source space row col
 
-    TTupleIndentOpen row col ->
-      error "TODO TTupleIndentOpen" row col
+    TTupleIndentType1 row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED PARENTHESES" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I just saw an open parenthesis, so I was expecting to see a type next."
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["Something","like",D.dullyellow "(Maybe Int)","or"
+                  ,D.dullyellow "(List Person)" <> "."
+                  ,"Anything","where","you","are","putting","parentheses","around","normal","types."
+                  ]
+              , D.toSimpleNote $
+                  "I can get confused by indentation in cases like this, so\
+                  \ maybe you have a type but it is not indented enough?"
+              ]
+          )
 
-    TTupleIndentType row col ->
-      error "TODO TTupleIndentType" row col
+    TTupleIndentTypeN row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED TUPLE TYPE" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I think I am in the middle of parsing a tuple type. I just saw a comma, so I was expecting to see a type next."
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["A","tuple","type","looks","like",D.dullyellow "(Float,Float)","or"
+                  ,D.dullyellow "(String,Int)" <> ","
+                  ,"so","I","think","there","is","a","type","missing","here?"
+                  ]
+              , D.toSimpleNote $
+                  "I can get confused by indentation in cases like this, so\
+                  \ maybe you have an expression but it is not indented enough?"
+              ]
+          )
 
     TTupleIndentEnd row col ->
-      error "TODO TTupleIndentEnd" row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED PARENTHESES" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was expecting to see a closing parenthesis next:"
+          ,
+            D.stack
+              [ D.fillSep ["Try","adding","a",D.dullyellow ")","to","see","if","that","helps!"]
+              , D.toSimpleNote $
+                  "I can get confused by indentation in cases like this, so\
+                  \ maybe you have a closing parenthesis but it is not indented enough?"
+              ]
+          )
