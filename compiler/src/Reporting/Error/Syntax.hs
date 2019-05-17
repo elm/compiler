@@ -417,7 +417,6 @@ data PList
 data Type
   = TRecord TRecord Row Col
   | TTuple TTuple Row Col
-  | TVariant Row Col
   | TArrow Row Col
   --
   | TStart Row Col
@@ -973,11 +972,11 @@ toDeclarationsReport source decl =
     DeclSpace space row col ->
       toSpaceReport source space row col
 
-    Port port row col ->
-      error "TODO Port" port row col
+    Port port_ row col ->
+      error "TODO Port" port_ row col
 
     DeclType declType row col ->
-      error "TODO DeclType" declType row col
+      toDeclTypeReport source declType row col
 
     DeclDef name declDef row col ->
       toDeclDefReport source name declDef row col
@@ -987,6 +986,215 @@ toDeclarationsReport source decl =
 
     DeclFreshLineAfterDocComment row col ->
       error "TODO DeclFreshLineAfterDocComment" row col
+
+
+
+-- DECL TYPE
+
+
+toDeclTypeReport :: Code.Source -> DeclType -> Row -> Col -> Report.Report
+toDeclTypeReport source declType startRow startCol =
+  case declType of
+    DT_Space space row col ->
+      toSpaceReport source space row col
+
+    DT_Name row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "EXPECTING TYPE NAME" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I think I am parsing a type declaration, but I got stuck here:"
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["I","was","expecting","a","name","like",D.dullyellow "Status","or",D.dullyellow "Style"
+                  ,"next.","Just","make","sure","it","is","a","name","that","starts","with","a","capital","letter!"
+                  ]
+              , customTypeNote
+              ]
+          )
+
+    DT_Alias typeAlias row col ->
+      toTypeAliasReport source typeAlias row col
+
+    DT_Union customType row col ->
+      toCustomTypeReport source customType row col
+
+    DT_IndentName row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "EXPECTING TYPE NAME" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I think I am parsing a type declaration, but I got stuck here:"
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["I","was","expecting","a","name","like",D.dullyellow "Status","or",D.dullyellow "Style"
+                  ,"next.","Just","make","sure","it","is","a","name","that","starts","with","a","capital","letter!"
+                  ]
+              , customTypeNote
+              ]
+          )
+
+
+toTypeAliasReport :: Code.Source -> TypeAlias -> Row -> Col -> Report.Report
+toTypeAliasReport source typeAlias startRow startCol =
+  case typeAlias of
+    AliasSpace space row col ->
+      toSpaceReport source space row col
+
+    AliasName row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "EXPECTING TYPE ALIAS NAME" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I think I am parsing a type alias, but I got stuck here:"
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["I","was","expecting","a","name","like",D.dullyellow "Person","or",D.dullyellow "Point"
+                  ,"next.","Just","make","sure","it","is","a","name","that","starts","with","a","capital","letter!"
+                  ]
+              , typeAliasNote
+              ]
+          )
+
+    AliasEquals row col ->
+      error "TODO AliasEquals" row col
+
+    AliasBody tipe row col ->
+      toTypeReport source tipe row col
+
+    AliasIndentEquals row col ->
+      error "TODO AliasIndentEquals" row col
+
+    AliasIndentBody row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED TYPE ALIAS" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I am partway through parsing a type alias, but I got stuck here:"
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["I","was","expecting","to","see","a","type","next.","Something","as","simple"
+                  ,"as",D.dullyellow "Int","or",D.dullyellow "Float","would","work!"
+                  ]
+              , typeAliasNote
+              ]
+          )
+
+
+typeAliasNote :: D.Doc
+typeAliasNote =
+  D.stack
+    [ D.toSimpleNote $
+        "Here is an example of a valid `type alias` for reference:"
+    , D.vcat $
+        [ D.indent 0 $ D.fillSep [D.cyan "type",D.cyan "alias",D.green "Person","="]
+        , D.indent 2 $ D.vcat $
+             ["{ name : String"
+             ,", age : Int"
+             ,", height : Float"
+             ,"}"
+             ]
+        ]
+    , D.reflow $
+        "This would let us use `Person` as a shorthand for that record type. Using this\
+        \ shorthand makes type annotations much easier to read, and makes changing code\
+        \ easier if you decide later that there is more to a person than age and height!"
+    ]
+
+
+toCustomTypeReport :: Code.Source -> CustomType -> Row -> Col -> Report.Report
+toCustomTypeReport source customType startRow startCol =
+  case customType of
+    CT_Space space row col ->
+      toSpaceReport source space row col
+
+    CT_Name row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "EXPECTING TYPE NAME" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I think I am parsing a type declaration, but I got stuck here:"
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["I","was","expecting","a","name","like",D.dullyellow "Status","or",D.dullyellow "Style"
+                  ,"next.","Just","make","sure","it","is","a","name","that","starts","with","a","capital","letter!"
+                  ]
+              , customTypeNote
+              ]
+          )
+
+    CT_Equals row col ->
+      error "TODO CT_Equals" row col
+
+    CT_Bar row col ->
+      error "TODO CT_Bar" row col
+
+    CT_Variant row col ->
+      error "TODO CT_Variant" row col
+
+    CT_VariantArg tipe row col ->
+      toTypeReport source tipe row col
+
+    CT_IndentEquals row col ->
+      error "TODO CT_IndentEquals" row col
+
+    CT_IndentBar row col ->
+      error "TODO CT_IndentBar" row col
+
+    CT_IndentAfterBar row col ->
+      error "TODO CT_IndentAfterBar" row col
+
+    CT_IndentAfterEquals row col ->
+      error "TODO CT_IndentAfterEquals" row col
+
+
+customTypeNote :: D.Doc
+customTypeNote =
+  D.stack
+    [ D.toSimpleNote $
+        "Here is an example of a valid `type` declaration for reference:"
+    , D.vcat $
+        [ D.indent 0 $ D.fillSep [D.cyan "type",D.green "Status"]
+        , D.indent 2 $ D.fillSep ["=","Failure"]
+        , D.indent 2 $ D.fillSep ["|","Waiting"]
+        , D.indent 2 $ D.fillSep ["|","Success","String"]
+        ]
+    , D.reflow $
+        "This defines a new `Status` type with three variants. This could be useful if\
+        \ we are waiting for an HTTP request. Maybe we start with `Waiting` and then\
+        \ switch to `Failure` or `Success \"message from server\"` depending on how\
+        \ things go. Notice that the Success variant has some associated data, allowing\
+        \ us to store a String if the request goes well!"
+    ]
+
+
+
+-- DECL DEF
 
 
 toDeclDefReport :: Code.Source -> Name.Name -> DeclDef -> Row -> Col -> Report.Report
@@ -1063,7 +1271,7 @@ toDeclDefReport source name declDef startRow startCol =
               )
 
     DeclDefType tipe row col ->
-      error "TODO DeclDefType" toTypeReport tipe row col
+      toTypeReport source tipe row col
 
     DeclDefArg pattern row col ->
       toPatternReport source PArg pattern row col
@@ -3400,6 +3608,8 @@ toPListReport source context list startRow startCol =
 -- TYPES
 
 
+-- TODO add context? say something special if you are in type annotation vs custom type vs type alias?
+--
 toTypeReport :: Code.Source -> Type -> Row -> Col -> Report.Report
 toTypeReport source tipe startRow startCol =
   case tipe of
@@ -3409,14 +3619,11 @@ toTypeReport source tipe startRow startCol =
     TTuple tuple row col ->
       toTTupleReport source tuple row col
 
-    TVariant row col ->
-      error "TODO TVariant" row col startRow startCol
-
     TArrow row col ->
       error "TODO TArrow" row col
 
     TStart row col ->
-      error "TODO TStart" row col
+      error "TODO TStart" row col startRow startCol
 
     TSpace space row col ->
       toSpaceReport source space row col
