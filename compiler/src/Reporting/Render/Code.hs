@@ -196,12 +196,9 @@ renderPair source@(Source sourceLines) region1 region2 =
 
 
 data Next
-  = Spaces
-  | Keyword [Char]
+  = Keyword [Char]
   | Operator [Char]
-  | CloseParen
-  | CloseSquare
-  | CloseCurly
+  | Close [Char] Char
   | Other
 
 
@@ -226,11 +223,9 @@ whatIsNext (Source sourceLines) row col =
               Operator op
 
             []
-              | null chars       -> Spaces
-              | isNext ' ' chars -> Spaces
-              | isNext ')' chars -> CloseParen
-              | isNext ']' chars -> CloseSquare
-              | isNext '}' chars -> CloseCurly
+              | isNext ')' chars -> Close "parenthesis" ')'
+              | isNext ']' chars -> Close "square bracket" ']'
+              | isNext '}' chars -> Close "curly brace" '}'
               | otherwise        -> Other
 
 
