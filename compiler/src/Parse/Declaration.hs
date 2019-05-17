@@ -80,7 +80,7 @@ valueDecl maybeDocs start =
                 do  word1 0x3A {-:-} E.DeclDefEquals
                     Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentType
                     (tipe, _) <- specialize E.DeclDefType Type.expression
-                    Space.checkFreshLine E.DeclDefFreshLineAfterType
+                    Space.checkFreshLine E.DeclDefNameRepeat
                     defName <- chompMatchingName name
                     Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
                     chompDefArgsAndBody maybeDocs start defName (Just tipe) []

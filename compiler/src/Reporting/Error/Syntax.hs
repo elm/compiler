@@ -157,8 +157,6 @@ data DeclDef
   | DeclDefIndentType Row Col
   | DeclDefIndentEquals Row Col
   | DeclDefIndentBody Row Col
-  --
-  | DeclDefFreshLineAfterType Row Col
 
 
 data Port
@@ -1516,9 +1514,12 @@ toDeclDefReport source name declDef startRow startCol =
               "I just saw the type annotation for `" ++ Name.toChars name
               ++ "` so I was expecting to see its definition here:"
           ,
-            D.reflow $
-              "Type annotations always appear directly above the relevant\
-              \ definition, without anything else (even doc comments) in between."
+            D.stack
+              [ D.reflow $
+                  "Type annotations always appear directly above the relevant\
+                  \ definition, without anything else (even doc comments) in between."
+              , declDefNote
+              ]
           )
 
     DeclDefNameMatch defName row col ->
@@ -1541,16 +1542,76 @@ toDeclDefReport source name declDef startRow startCol =
           )
 
     DeclDefIndentType row col ->
-      error "TODO DeclDefIndentType" row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED DEFINITION" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I got stuck while parsing the `" ++ Name.toChars name ++ "` type annotation:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I just saw a colon, so I am expecting to see a type next."
+              , declDefNote
+              ]
+          )
 
     DeclDefIndentEquals row col ->
-      error "TODO DeclDefIndentEquals" row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED DEFINITION" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I got stuck while parsing the `" ++ Name.toChars name ++ "` definition:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I was expecting to see an argument or an equals sign next."
+              , declDefNote
+              ]
+          )
 
     DeclDefIndentBody row col ->
-      error "TODO DeclDefIndentBody" row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED DEFINITION" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I got stuck while parsing the `" ++ Name.toChars name ++ "` definition:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I was expecting to see an expression next. What is it equal to?"
+              , declDefNote
+              ]
+          )
 
-    DeclDefFreshLineAfterType row col ->
-      error "TODO DeclDefFreshLineAfterType" row col
+
+declDefNote :: D.Doc
+declDefNote =
+  D.stack
+    [ D.reflow $
+        "Here is a valid definition (with a type annotation) for reference:"
+    , D.vcat
+        [ D.fillSep [D.green "add",":","Int","->","Int","->","Int"]
+        , D.fillSep [D.green "add","x","y","="]
+        , D.fillSep [" ","x","+","y"]
+        ]
+    , D.reflow $
+        "The top line (called a \"type annotation\") is optional. You can leave it off\
+        \ if you want. As you get more comfortable with Elm and as your project grows,\
+        \ it becomes more and more valuable to add them though! They work great as\
+        \ compiler-verified documentation, and they often improve error messages!"
+    ]
 
 
 
