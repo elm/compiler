@@ -1240,7 +1240,7 @@ toDeclarationsReport source decl =
       toSpaceReport source space row col
 
     Port port_ row col ->
-      error "TODO Port" port_ row col
+      toPortReport source port_ row col
 
     DeclType declType row col ->
       toDeclTypeReport source declType row col
@@ -1253,6 +1253,164 @@ toDeclarationsReport source decl =
 
     DeclFreshLineAfterDocComment row col ->
       error "TODO DeclFreshLineAfterDocComment" row col
+
+
+
+-- PORT
+
+
+toPortReport :: Code.Source -> Port -> Row -> Col -> Report.Report
+toPortReport source port_ startRow startCol =
+  case port_ of
+    PortSpace space row col ->
+      toSpaceReport source space row col
+
+    PortName row col ->
+      case Code.whatIsNext source row col of
+        Code.Keyword keyword ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toKeywordRegion row col keyword
+          in
+          Report.Report "RESERVED WORD" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I cannot handle ports with names like this:"
+              ,
+                D.reflow $
+                  "You are trying to make a port named `" ++ keyword
+                  ++ "` but that is a reserved word. Try using some other name?"
+              )
+
+        _ ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
+          Report.Report "PORT PROBLEM" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I just saw the start of a `port` declaration, but then I got stuck here:"
+              ,
+                D.stack
+                  [ D.fillSep
+                      ["I","was","expecting","to","see","a","name","like"
+                      ,D.dullyellow "send","or",D.dullyellow "receive","next."
+                      ,"Something","that","starts","with","a","lower-case","letter."
+                      ]
+                  , portNote
+                  ]
+              )
+
+    PortColon row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "PORT PROBLEM" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I just saw the start of a `port` declaration, but then I got stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I was expecting to see a colon next. And then a type that tells me\
+                  \ what type of values are going to flow through."
+              , portNote
+              ]
+          )
+
+    PortType tipe row col ->
+      toTypeReport source tipe row col
+
+    PortIndentName row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED PORT" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I just saw the start of a `port` declaration, but then I got stuck here:"
+          ,
+            D.stack
+              [ D.fillSep
+                  ["I","was","expecting","to","see","a","name","like"
+                  ,D.dullyellow "send","or",D.dullyellow "receive","next."
+                  ,"Something","that","starts","with","a","lower-case","letter."
+                  ]
+              , portNote
+              ]
+          )
+
+    PortIndentColon row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED PORT" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I just saw the start of a `port` declaration, but then I got stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I was expecting to see a colon next. And then a type that tells me\
+                  \ what type of values are going to flow through."
+              , portNote
+              ]
+          )
+
+    PortIndentType row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED PORT" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I just saw the start of a `port` declaration, but then I got stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I was expecting to see a type next. Here are examples of outgoing and\
+                  \ incoming ports for reference:"
+              , D.vcat
+                  [ D.fillSep [D.cyan "port","send",":","String -> Cmd msg"]
+                  , D.fillSep [D.cyan "port","receive",":","(String -> msg) -> Sub msg"]
+                  ]
+              , D.reflow $
+                  "The first line defines a `send` port so you can send strings out to JavaScript.\
+                  \ Maybe you send them on a WebSocket or put them into IndexedDB. The second line\
+                  \ defines a `receive` port so you can receive strings from JavaScript. Maybe you\
+                  \ get receive messages when new WebSocket messages come in or when an entry in\
+                  \ IndexedDB changes for some external reason."
+              ]
+          )
+
+
+portNote :: D.Doc
+portNote =
+  D.stack
+    [ D.toSimpleNote $
+        "Here are some example `port` declarations for reference:"
+    , D.vcat
+        [ D.fillSep [D.cyan "port","send",":","String -> Cmd msg"]
+        , D.fillSep [D.cyan "port","receive",":","(String -> msg) -> Sub msg"]
+        ]
+    , D.reflow $
+        "The first line defines a `send` port so you can send strings out to JavaScript.\
+        \ Maybe you send them on a WebSocket or put them into IndexedDB. The second line\
+        \ defines a `receive` port so you can receive strings from JavaScript. Maybe you\
+        \ get receive messages when new WebSocket messages come in or when the IndexedDB\
+        \ is changed for some external reason."
+    ]
 
 
 
