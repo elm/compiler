@@ -115,18 +115,11 @@ data Exposing
   | ExposingOperator Row Col
   | ExposingOperatorReserved BadOperator Row Col
   | ExposingOperatorRightParen Row Col
-  | ExposingEnd Row Col
-  --
   | ExposingTypePrivacy Row Col
-  | ExposingTypePrivacyDots Row Col
-  | ExposingTypePrivacyEnd Row Col
+  | ExposingEnd Row Col
   --
   | ExposingIndentEnd Row Col
   | ExposingIndentValue Row Col
-  | ExposingIndentValueEnd Row Col
-  | ExposingIndentTypePrivacy Row Col
-  | ExposingIndentTypePrivacyDots Row Col
-  | ExposingIndentTypePrivacyEnd Row Col
 
 
 
@@ -689,7 +682,7 @@ toParseErrorReport source modul =
           )
 
     ModuleExposing exposing row col ->
-      error "TODO ModuleExposing" exposing row col
+      toExposingReport source exposing row col
 
     PortModuleProblem row col ->
       let
@@ -735,7 +728,7 @@ toParseErrorReport source modul =
           )
 
     PortModuleExposing exposing row col ->
-      error "TODO PortModuleExposing" exposing row col
+      toExposingReport source exposing row col
 
     Effect row col ->
       let
@@ -855,7 +848,7 @@ toParseErrorReport source modul =
       toImportReport source row col
 
     ImportExposingList exposing row col ->
-      error "TODO ImportExposingList" exposing row col
+      toExposingReport source exposing row col
 
     ImportEnd row col ->
       toImportReport source row col
@@ -937,6 +930,237 @@ toImportReport source row col =
               "You are probably trying to import a different module, but try to make it look like one of these examples!"
           ]
       )
+
+
+
+-- EXPOSING
+
+
+toExposingReport :: Code.Source -> Exposing -> Row -> Col -> Report.Report
+toExposingReport source exposing startRow startCol =
+  case exposing of
+    ExposingSpace space row col ->
+      toSpaceReport source space row col
+
+    ExposingStart row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "PROBLEM IN EXPOSING" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I want to parse exposed values, but I am getting stuck here:"
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["Exposed","values","are","always","surrounded","by","parentheses."
+                  ,"So","try","adding","a",D.green "(","here?"
+                  ]
+              , D.toSimpleNote "Here are some valid examples of `exposing` for reference:"
+              , D.indent 4 $ D.vcat $
+                  [ D.fillSep [D.cyan "import","Html",D.cyan "exposing","(..)"]
+                  , D.fillSep [D.cyan "import","Html",D.cyan "exposing","(Html, div, text)"]
+                  ]
+              , D.reflow $
+                  "If you are getting tripped up, you can just expose everything for now. It should\
+                  \ get easier to make an explicit exposing list as you see more examples in the wild."
+              ]
+          )
+
+    ExposingValue row col ->
+      case Code.whatIsNext source row col of
+        Code.Keyword keyword ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toKeywordRegion row col keyword
+          in
+          Report.Report "RESERVED WORD" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I got stuck on this reserved word:"
+              ,
+                D.reflow $
+                  "It looks like you are trying to expose `" ++ keyword ++ "` but that is a reserved word. Is there a typo?"
+              )
+
+        Code.Operator op ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toKeywordRegion row col op
+          in
+          Report.Report "UNEXPECTED SYMBOL" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I got stuck on this symbol:"
+              ,
+                D.stack
+                  [ D.reflow $
+                      "If you are trying to expose an operator, add parentheses around it like this:"
+                  , D.indent 4 $ D.dullyellow (D.fromChars op) <> " -> " <> D.green ("(" <> D.fromChars op <> ")")
+                  ]
+              )
+
+        _ ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
+          Report.Report "PROBLEM IN EXPOSING" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I got stuck while parsing these exposed values:"
+              ,
+                D.stack
+                  [ D.reflow $
+                      "I do not have an exact recommendation, so here are some valid examples\
+                      \ of `exposing` for reference:"
+                  , D.indent 4 $ D.vcat $
+                      [ D.fillSep [D.cyan "import","Html",D.cyan "exposing","(..)"]
+                      , D.fillSep [D.cyan "import","Basics",D.cyan "exposing","(Int, Float, Bool(..), (+), not, sqrt)"]
+                      ]
+                  , D.reflow $
+                      "These examples show how to expose types, variants, operators, and functions. Everything\
+                      \ should be some permutation of these examples, just with different names."
+                  ]
+              )
+
+    ExposingOperator row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "PROBLEM IN EXPOSING" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I just saw an open parenthesis, so I was expecting an operator next:"
+          ,
+            D.fillSep $
+              ["It","is","possible","to","expose","operators,","so","I","was","expecting"
+              ,"to","see","something","like",D.dullyellow "(+)","or",D.dullyellow "(|=)"
+              ,"or",D.dullyellow "(||)","after","I","saw","that","open","parenthesis."
+              ]
+          )
+
+    ExposingOperatorReserved op row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "RESERVED SYMBOL" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I cannot expose this as an operator:"
+          ,
+            case op of
+              BadDot -> D.reflow "Try getting rid of this entry? Maybe I can give you a better hint after that?"
+              BadPipe -> D.fillSep ["Maybe","you","want",D.dullyellow "(||)","instead?"]
+              BadArrow -> D.reflow "Try getting rid of this entry? Maybe I can give you a better hint after that?"
+              BadEquals -> D.fillSep ["Maybe","you","want",D.dullyellow "(==)","instead?"]
+              BadHasType -> D.fillSep ["Maybe","you","want",D.dullyellow "(::)","instead?"]
+          )
+
+    ExposingOperatorRightParen row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "PROBLEM IN EXPOSING" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "It looks like you are exposing an operator, but I got stuck here:"
+          ,
+            D.fillSep $
+              ["I","was","expecting","to","see","the","closing","parenthesis","immediately"
+              ,"after","the","operator.","Try","adding","a",D.green ")","right","here?"
+              ]
+          )
+
+    ExposingEnd row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED EXPOSING" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was partway through parsing exposed values, but I got stuck here:"
+          ,
+            D.reflow $
+              "Maybe there is a comma missing before this?"
+          )
+
+    ExposingTypePrivacy row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "PROBLEM EXPOSING CUSTOM TYPE VARIANTS" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "It looks like you are trying to expose the variants of a custom type:"
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["You","need","to","write","something","like"
+                  ,D.dullyellow "Status(..)","or",D.dullyellow "Entity(..)"
+                  ,"though.","It","is","all","or","nothing,","otherwise","`case`"
+                  ,"expressions","could","miss","a","variant","and","crash!"
+                  ]
+              , D.toSimpleNote $
+                  "It is often best to keep the variants hidden! If someone pattern matches on\
+                  \ the variants, it is a MAJOR change if any new variants are added. Suddenly\
+                  \ their `case` expressions do not cover all variants! So if you do not need\
+                  \ people to pattern match, keep the variants hidden and expose functions to\
+                  \ construct values of this type. This way you can add new variants as a MINOR change!"
+              ]
+          )
+
+    ExposingIndentEnd row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED EXPOSING" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was partway through parsing exposed values, but I got stuck here:"
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["I","was","expecting","a","closing","parenthesis."
+                  ,"Try","adding","a",D.green ")","right","here?"
+                  ]
+              , D.toSimpleNote $
+                  "I can get confused when there is not enough indentation, so if you already\
+                  \ have a closing parenthesis, it probably just needs some spaces in front of it."
+              ]
+          )
+
+    ExposingIndentValue row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED EXPOSING" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was partway through parsing exposed values, but I got stuck here:"
+          ,
+            D.reflow $
+              "I was expecting another value to expose."
+          )
 
 
 

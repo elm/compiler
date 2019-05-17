@@ -387,8 +387,8 @@ exposing :: Parser E.Exposing Src.Exposing
 exposing =
   do  word1 0x28 {-(-} E.ExposingStart
       Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentValue
-      oneOf E.ExposingIndentValue
-        [ do  word2 0x2E 0x2E {-..-} E.ExposingIndentValue
+      oneOf E.ExposingValue
+        [ do  word2 0x2E 0x2E {-..-} E.ExposingValue
               Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
               word1 0x29 {-)-} E.ExposingEnd
               return Src.Open
@@ -404,7 +404,7 @@ exposingHelp revExposed =
     [ do  word1 0x2C {-,-} E.ExposingEnd
           Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentValue
           exposed <- addLocation chompExposed
-          Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentValueEnd
+          Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
           exposingHelp (exposed:revExposed)
     , do  word1 0x29 {-)-} E.ExposingEnd
           return (Src.Explicit (reverse revExposed))
@@ -420,7 +420,7 @@ chompExposed =
           word1 0x29 {-)-} E.ExposingOperatorRightParen
           return (Src.Operator op)
     , do  name <- Var.upper E.ExposingValue
-          Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentTypePrivacy
+          Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
           Src.Upper name <$> privacy
     ]
 
@@ -429,10 +429,10 @@ privacy :: Parser E.Exposing Src.Privacy
 privacy =
   oneOfWithFallback
     [ do  word1 0x28 {-(-} E.ExposingTypePrivacy
-          Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentTypePrivacyDots
-          word2 0x2E 0x2E {-..-} E.ExposingTypePrivacyDots
-          Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentTypePrivacyEnd
-          word1 0x29 {-)-} E.ExposingTypePrivacyEnd
+          Space.chompAndCheckIndent E.ExposingSpace E.ExposingTypePrivacy
+          word2 0x2E 0x2E {-..-} E.ExposingTypePrivacy
+          Space.chompAndCheckIndent E.ExposingSpace E.ExposingTypePrivacy
+          word1 0x29 {-)-} E.ExposingTypePrivacy
           return Src.Public
     ]
     Src.Private
