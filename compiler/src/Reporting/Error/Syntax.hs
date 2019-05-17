@@ -583,19 +583,64 @@ toParseErrorReport source modul =
       toSpaceReport source space row col
 
     ModuleEndOfFile row col ->
-      let
-        region = toRegion row col
-      in
-      Report.Report "EXPECTING END OF FILE" region [] $
-        Code.toSnippet source region Nothing
-          (
-            D.reflow $
-              "I was not expecting to see anything more here:"
-          ,
-            D.reflow $
-              "I think I have read all the declarations in the file and that there is nothing\
-              \ left to see, so whatever I am running into is confusing me a lot!"
-          )
+      case Code.whatIsNext source row col of
+        Code.Keyword keyword ->
+          let
+            region = toKeywordRegion row col keyword
+          in
+          Report.Report "RESERVED WORD" region [] $
+            Code.toSnippet source region Nothing
+              (
+                D.reflow $
+                  "I got stuck on this reserved word:"
+              ,
+                D.reflow $
+                  "The name `" ++ keyword ++ "` is reserved, so try using a different name?"
+              )
+
+        Code.Operator op ->
+          let
+            region = toKeywordRegion row col op
+          in
+          Report.Report "UNEXPECTED SYMBOL" region [] $
+            Code.toSnippet source region Nothing
+              (
+                D.reflow $
+                  "I ran into an unexpected symbol:"
+              ,
+                D.reflow $
+                  "I was not expecting to see a " ++ op ++ " here. Try deleting it? Maybe\
+                  \ I can give a better hint from there?"
+              )
+
+        Code.Close term bracket ->
+          let
+            region = toRegion row col
+          in
+          Report.Report ("UNEXPECTED " ++ map Char.toUpper term) region [] $
+            Code.toSnippet source region Nothing
+              (
+                D.reflow $
+                  "I ran into an unexpected " ++ term ++ ":"
+              ,
+                D.reflow $
+                  "This " ++ bracket : " does not match up with an earlier open " ++ term ++ ". Try deleting it?"
+              )
+
+        Code.Other ->
+          let
+            region = toRegion row col
+          in
+          Report.Report "SYNTAX PROBLEM" region [] $
+            Code.toSnippet source region Nothing
+              (
+                D.reflow $
+                  "I got stuck here:"
+              ,
+                D.reflow $
+                  "Whatever I am running into is confusing me a lot! Normally I can give fairly\
+                  \ specific hints, but something is really tripping me up this time."
+              )
 
     ModuleProblem row col ->
       let
@@ -1060,7 +1105,7 @@ toTypeAliasReport source typeAlias startRow startCol =
         Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I think I am parsing a type alias, but I got stuck here:"
+              "I am partway through parsing a type alias, but I got stuck here:"
           ,
             D.stack
               [ D.fillSep $
@@ -1072,13 +1117,64 @@ toTypeAliasReport source typeAlias startRow startCol =
           )
 
     AliasEquals row col ->
-      error "TODO AliasEquals" row col
+      case Code.whatIsNext source row col of
+        Code.Keyword keyword ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toKeywordRegion row col keyword
+          in
+          Report.Report "RESERVED WORD" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I ran into a reserved word unexpectedly while parsing this type alias:"
+              ,
+                D.stack
+                  [ D.reflow $
+                      "It looks like you are trying use `" ++ keyword
+                      ++ "` as a type variable, but it is a reserved word. Try using a different name?"
+                  , typeAliasNote
+                  ]
+              )
+
+        _ ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
+          Report.Report "PROBLEM IN TYPE ALIAS" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I am partway through parsing a type alias, but I got stuck here:"
+              ,
+                D.stack
+                  [ D.reflow $
+                      "I was expecting to see a type variable or an an equals sign next."
+                  , typeAliasNote
+                  ]
+              )
 
     AliasBody tipe row col ->
       toTypeReport source tipe row col
 
     AliasIndentEquals row col ->
-      error "TODO AliasIndentEquals" row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED TYPE ALIAS" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I am partway through parsing a type alias, but I got stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I was expecting to see a type variable or an an equals sign next."
+              , typeAliasNote
+              ]
+          )
 
     AliasIndentBody row col ->
       let
@@ -1149,28 +1245,157 @@ toCustomTypeReport source customType startRow startCol =
           )
 
     CT_Equals row col ->
-      error "TODO CT_Equals" row col
+      case Code.whatIsNext source row col of
+        Code.Keyword keyword ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toKeywordRegion row col keyword
+          in
+          Report.Report "RESERVED WORD" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I ran into a reserved word unexpectedly while parsing this custom type:"
+              ,
+                D.stack
+                  [ D.reflow $
+                      "It looks like you are trying use `" ++ keyword
+                      ++ "` as a type variable, but it is a reserved word. Try using a different name?"
+                  , customTypeNote
+                  ]
+              )
+
+        _ ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
+          Report.Report "PROBLEM IN CUSTOM TYPE" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I am partway through parsing a custom type, but I got stuck here:"
+              ,
+                D.stack
+                  [ D.reflow $
+                      "I was expecting to see a type variable or an an equals sign next."
+                  , customTypeNote
+                  ]
+              )
 
     CT_Bar row col ->
-      error "TODO CT_Bar" row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "PROBLEM IN CUSTOM TYPE" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I am partway through parsing a custom type, but I got stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I was expecting to see a vertical bar like | next."
+              , customTypeNote
+              ]
+          )
 
     CT_Variant row col ->
-      error "TODO CT_Variant" row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "PROBLEM IN CUSTOM TYPE" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I am partway through parsing a custom type, but I got stuck here:"
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["I","was","expecting","to","see","a","variant","name","next."
+                  ,"Something","like",D.dullyellow "Success","or",D.dullyellow "Sandwich" <> "."
+                  ,"Any","name","that","starts","with","a","capital","letter","really!"
+                  ]
+              , customTypeNote
+              ]
+          )
 
     CT_VariantArg tipe row col ->
       toTypeReport source tipe row col
 
     CT_IndentEquals row col ->
-      error "TODO CT_IndentEquals" row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED CUSTOM TYPE" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I am partway through parsing a custom type, but I got stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I was expecting to see a type variable or an an equals sign next."
+              , customTypeNote
+              ]
+          )
 
     CT_IndentBar row col ->
-      error "TODO CT_IndentBar" row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED CUSTOM TYPE" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I am partway through parsing a custom type, but I got stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I was expecting to see a vertical bar like | next."
+              , customTypeNote
+              ]
+          )
 
     CT_IndentAfterBar row col ->
-      error "TODO CT_IndentAfterBar" row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED CUSTOM TYPE" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I am partway through parsing a custom type, but I got stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I just saw a vertical bar, so I was expecting to see another variant defined next."
+              , customTypeNote
+              ]
+          )
 
     CT_IndentAfterEquals row col ->
-      error "TODO CT_IndentAfterEquals" row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED CUSTOM TYPE" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I am partway through parsing a custom type, but I got stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I just saw an equals sign, so I was expecting to see the first variant defined next."
+              , customTypeNote
+              ]
+          )
 
 
 customTypeNote :: D.Doc
