@@ -218,30 +218,21 @@ whatIsNext (Source sourceLines) row col =
           Keyword keyword
 
         Nothing ->
-          case takeWhile isSymbol chars of
-            op@(_:_) ->
-              Operator op
+          case chars of
+            [] ->
+              Other
 
-            []
-              | isNext ')' chars -> Close "parenthesis" ')'
-              | isNext ']' chars -> Close "square bracket" ']'
-              | isNext '}' chars -> Close "curly brace" '}'
-              | otherwise        -> Other
+            c:cs
+              | isSymbol c -> Operator (c : takeWhile isSymbol cs)
+              | c == ')'   -> Close "parenthesis" ')'
+              | c == ']'   -> Close "square bracket" ']'
+              | c == '}'   -> Close "curly brace" '}'
+              | otherwise  -> Other
 
 
 isSymbol :: Char -> Bool
 isSymbol char =
   IntSet.member (Char.ord char) binopCharSet
-
-
-isNext :: Char -> [Char] -> Bool
-isNext expected chars =
-  case chars of
-    [] ->
-      False
-
-    actual:_ ->
-      actual == expected
 
 
 startsWithKeyword :: [Char] -> [Char] -> Bool
