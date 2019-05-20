@@ -134,7 +134,6 @@ data Decl
   | DeclType DeclType Row Col
   | DeclDef Name.Name DeclDef Row Col
   --
-  | DeclFreshLineStart Row Col
   | DeclFreshLineAfterDocComment Row Col
 
 
@@ -408,7 +407,6 @@ data PList
 data Type
   = TRecord TRecord Row Col
   | TTuple TTuple Row Col
-  | TArrow Row Col
   --
   | TStart Row Col
   | TSpace Space Row Col
@@ -1234,7 +1232,106 @@ toDeclarationsReport :: Code.Source -> Decl -> Report.Report
 toDeclarationsReport source decl =
   case decl of
     DeclStart row col ->
-      error "TODO DeclStart" row col
+      case Code.whatIsNext source row col of
+        Code.Close term _ ->
+          let
+            region = toRegion row col
+          in
+          Report.Report ("STRAY " ++ map Char.toUpper term) region [] $
+            Code.toSnippet source region Nothing
+              (
+                D.reflow $
+                  "I was not expecting to see a " ++ term ++ " here:"
+              , D.reflow $
+                  "It does not match up with anything. Maybe try deleting it?"
+              )
+
+        Code.Keyword keyword ->
+          let
+            region = toKeywordRegion row col keyword
+          in
+          Report.Report "RESERVED WORD" region [] $
+            Code.toSnippet source region Nothing
+              (
+                D.reflow $
+                  "I was not expecting to run into the `" ++ keyword ++ "` keyword here:"
+              ,
+                case keyword of
+                  "import" ->
+                    D.reflow $
+                      "It is reserved for declaring imports at the top of your module. If you want\
+                      \ another import, try moving it up top with the other imports. If you want to\
+                      \ define a value or function, try changing the name to something else!"
+
+                  "case" ->
+                    D.stack
+                      [ D.reflow $
+                          "It is reserved for writing `case` expressions. Try using a different name?"
+                      , D.toSimpleNote $
+                          "If you are trying to write a `case` expression, it needs to be part of a\
+                          \ definition. So you could write something like this instead:"
+                      , D.vcat $
+                          [ D.indent 0 $ D.fillSep [D.green "getWidth","maybeWidth","="]
+                          , D.indent 2 $ D.fillSep [D.cyan "case","maybeWidth",D.cyan "of"]
+                          , D.indent 4 $ D.fillSep [D.blue "Just","width","->"]
+                          , D.indent 6 $ D.fillSep ["width","+",D.dullyellow "200"]
+                          , ""
+                          , D.indent 4 $ D.fillSep [D.blue "Nothing","->"]
+                          , D.indent 6 $ D.fillSep [D.dullyellow "400"]
+                          ]
+                      , D.reflow $
+                          "This defines a `getWidth` function that we can use elsewhere in our program."
+                      ]
+
+                  "if" ->
+                    D.stack
+                      [ D.reflow $
+                          "It is reserved for writing `if` expressions. Try using a different name?"
+                      , D.toSimpleNote $
+                          "If you are trying to write an `if` expression, it needs to be part of a\
+                          \ definition. So you could write something like this instead:"
+                      , D.vcat $
+                          [ D.indent 0 $ D.fillSep [D.green "reviewPowerLevel","powerLevel","="]
+                          , D.indent 2 $ D.fillSep $
+                              [D.cyan "if","powerLevel",">",D.dullyellow "9000"
+                              ,D.cyan "then",D.dullyellow "\"OVER 9000!!!\""
+                              ,D.cyan "else",D.dullyellow "\"not bad\""
+                              ]
+                          ]
+                      , D.reflow $
+                          "This defines a `reviewPowerLevel` function that we can use elsewhere in our program."
+                      ]
+
+                  _ ->
+                    D.reflow $
+                      "It is a reserved word. Try changing the name to something else?"
+              )
+
+        _ ->
+          let
+            region = toRegion row col
+          in
+          Report.Report "SYNTAX PROBLEM" region [] $
+            Code.toSnippet source region Nothing
+              (
+                D.reflow $
+                  "I was expecting to see a new declaration here:"
+              ,
+                D.stack
+                  [ D.reflow $
+                      "I am not sure what is going wrong exactly, but here are a couple valid\
+                      \ declarations for reference:"
+                  , D.vcat
+                      [ D.fillSep [D.green "add",":","Int","->","Int","->","Int"]
+                      , D.fillSep [D.green "add","x","y","="]
+                      , D.fillSep [" ","x","+","y"]
+                      ]
+                  , D.fillSep [D.cyan "type",D.green "User","=","Anonymous","|","LoggedIn String"]
+                  , D.reflow $
+                      "Note that all declarations start with lower-case letters in Elm. Capitalization\
+                      \ makes a difference, so be consious of that if you are working from examples!"
+                  ]
+              )
 
     DeclSpace space row col ->
       toSpaceReport source space row col
@@ -1248,11 +1345,20 @@ toDeclarationsReport source decl =
     DeclDef name declDef row col ->
       toDeclDefReport source name declDef row col
 
-    DeclFreshLineStart row col ->
-      error "TODO DeclFreshLineStart" row col
-
     DeclFreshLineAfterDocComment row col ->
-      error "TODO DeclFreshLineAfterDocComment" row col
+      let
+        region = toRegion row col
+      in
+      Report.Report "EXPECTING DECLARATION" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "I just saw a doc comment, but then I got stuck here:"
+          ,
+            D.reflow $
+              "I was expecting to see the corresponding declaration next, starting on a fresh\
+              \ line with no indentation."
+          )
 
 
 
@@ -1324,7 +1430,7 @@ toPortReport source port_ startRow startCol =
           )
 
     PortType tipe row col ->
-      toTypeReport source tipe row col
+      toTypeReport source TC_Port tipe row col
 
     PortIndentName row col ->
       let
@@ -1536,7 +1642,7 @@ toTypeAliasReport source typeAlias startRow startCol =
               )
 
     AliasBody tipe row col ->
-      toTypeReport source tipe row col
+      toTypeReport source TC_TypeAlias tipe row col
 
     AliasIndentEquals row col ->
       let
@@ -1703,7 +1809,7 @@ toCustomTypeReport source customType startRow startCol =
           )
 
     CT_VariantArg tipe row col ->
-      toTypeReport source tipe row col
+      toTypeReport source TC_CustomType tipe row col
 
     CT_IndentEquals row col ->
       let
@@ -1876,7 +1982,7 @@ toDeclDefReport source name declDef startRow startCol =
               )
 
     DeclDefType tipe row col ->
-      toTypeReport source tipe row col
+      toTypeReport source (TC_Annotation name) tipe row col
 
     DeclDefArg pattern row col ->
       toPatternReport source PArg pattern row col
@@ -2916,10 +3022,10 @@ toUnfinishCaseReport source row col startRow startCol message =
               "Here is an example of a valid `case` expression for reference."
           , D.vcat $
               [ D.indent 4 $ D.fillSep [D.cyan "case","maybeWidth",D.cyan "of"]
-              , D.indent 6 $ D.fillSep [D.green "Just","width","->"]
+              , D.indent 6 $ D.fillSep [D.blue "Just","width","->"]
               , D.indent 8 $ D.fillSep ["width","+",D.dullyellow "200"]
               , ""
-              , D.indent 6 $ D.fillSep [D.green "Nothing","->"]
+              , D.indent 6 $ D.fillSep [D.blue "Nothing","->"]
               , D.indent 8 $ D.fillSep [D.dullyellow "400"]
               ]
           , D.reflow $
@@ -2939,10 +3045,10 @@ addNoteForCaseIndentError message =
         \ something like this:"
     , D.vcat $
         [ D.indent 4 $ D.fillSep [D.cyan "case","maybeWidth",D.cyan "of"]
-        , D.indent 6 $ D.fillSep [D.green "Just","width","->"]
+        , D.indent 6 $ D.fillSep [D.blue "Just","width","->"]
         , D.indent 8 $ D.fillSep ["width","+",D.dullyellow "200"]
         , ""
-        , D.indent 6 $ D.fillSep [D.green "Nothing","->"]
+        , D.indent 6 $ D.fillSep [D.blue "Nothing","->"]
         , D.indent 8 $ D.fillSep [D.dullyellow "400"]
         ]
     , D.reflow $
@@ -3326,7 +3432,7 @@ toRecordReport source context record startRow startCol =
           ,
             addNoteForRecordIndentError $
               D.fillSep $
-                ["Try","putting","something,","like"
+                ["Try","putting","something","like"
                 ,D.dullyellow "42","or",D.dullyellow"\"hello\"","for","now?"
                 ]
           )
@@ -4276,33 +4382,106 @@ toPListReport source context list startRow startCol =
 -- TYPES
 
 
--- TODO add context? say something special if you are in type annotation vs custom type vs type alias?
---
-toTypeReport :: Code.Source -> Type -> Row -> Col -> Report.Report
-toTypeReport source tipe startRow startCol =
+data TContext
+  = TC_Annotation Name.Name
+  | TC_CustomType
+  | TC_TypeAlias
+  | TC_Port
+
+
+toTypeReport :: Code.Source -> TContext -> Type -> Row -> Col -> Report.Report
+toTypeReport source context tipe startRow startCol =
   case tipe of
     TRecord record row col ->
-      toTRecordReport source record row col
+      toTRecordReport source context record row col
 
     TTuple tuple row col ->
-      toTTupleReport source tuple row col
-
-    TArrow row col ->
-      error "TODO TArrow" row col
+      toTTupleReport source context tuple row col
 
     TStart row col ->
-      error "TODO TStart" row col startRow startCol
+      case Code.whatIsNext source row col of
+        Code.Keyword keyword ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toKeywordRegion row col keyword
+          in
+          Report.Report "RESERVED WORD" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I was expecting to see a type next, but I got stuck on this reserved word:"
+              ,
+                D.reflow $
+                  "It looks like you are trying to use `" ++ keyword ++ "` as a type variable, but \
+                  \ it is a reserved word. Try using a different name!"
+              )
+
+        _ ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+
+            thing =
+              case context of
+                TC_Annotation _ -> "type annotation"
+                TC_CustomType -> "custom type"
+                TC_TypeAlias -> "type alias"
+                TC_Port -> "port"
+
+            something =
+              case context of
+                TC_Annotation name -> "the `" ++ Name.toChars name ++ "` type annotation"
+                TC_CustomType -> "a custom type"
+                TC_TypeAlias -> "a type alias"
+                TC_Port -> "a port"
+          in
+          Report.Report ("PROBLEM IN " ++ map Char.toUpper thing) region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I was partway through parsing " ++ something ++ ", but I got stuck here:"
+              ,
+                D.fillSep $
+                  ["I","was","expecting","to","see","a","type","next."
+                  ,"Try","putting",D.dullyellow "Int","or",D.dullyellow "String","for","now?"
+                  ]
+              )
 
     TSpace space row col ->
       toSpaceReport source space row col
 
     TIndentStart row col ->
-      error "TODO TIndentStart" row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+
+        thing =
+          case context of
+            TC_Annotation _ -> "type annotation"
+            TC_CustomType -> "custom type"
+            TC_TypeAlias -> "type alias"
+            TC_Port -> "port"
+      in
+      Report.Report ("UNFINISHED " ++ map Char.toUpper thing) region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I was partway through parsing a " ++ thing ++ ", but I got stuck here:"
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["I","was","expecting","to","see","a","type","next."
+                  ,"Try","putting",D.dullyellow "Int","or",D.dullyellow "String","for","now?"
+                  ]
+              , D.toSimpleNote $
+                  "I can get confused by indentation. If you think there is already a type\
+                  \ next, maybe it is not indented enough?"
+              ]
+          )
 
 
-
-toTRecordReport :: Code.Source -> TRecord -> Row -> Col -> Report.Report
-toTRecordReport source record startRow startCol =
+toTRecordReport :: Code.Source -> TContext -> TRecord -> Row -> Col -> Report.Report
+toTRecordReport source context record startRow startCol =
   case record of
     TRecordOpen row col ->
       case Code.whatIsNext source row col of
@@ -4416,7 +4595,7 @@ toTRecordReport source record startRow startCol =
           )
 
     TRecordType tipe row col ->
-      toTypeReport source tipe row col
+      toTypeReport source context tipe row col
 
     TRecordSpace space row col ->
       toSpaceReport source space row col
@@ -4505,7 +4684,7 @@ toTRecordReport source record startRow startCol =
           ,
             addNoteForRecordTypeIndentError $
               D.fillSep $
-                ["Try","putting","something,","like"
+                ["Try","putting","something","like"
                 ,D.dullyellow "Int","or",D.dullyellow "String","for","now?"
                 ]
           )
@@ -4552,8 +4731,8 @@ addNoteForRecordTypeIndentError normalRecommendation =
     ]
 
 
-toTTupleReport :: Code.Source -> TTuple -> Row -> Col -> Report.Report
-toTTupleReport source tuple startRow startCol =
+toTTupleReport :: Code.Source -> TContext -> TTuple -> Row -> Col -> Report.Report
+toTTupleReport source context tuple startRow startCol =
   case tuple of
     TTupleOpen row col ->
       case Code.whatIsNext source row col of
@@ -4612,7 +4791,7 @@ toTTupleReport source tuple startRow startCol =
           )
 
     TTupleType tipe row col ->
-      toTypeReport source tipe row col
+      toTypeReport source context tipe row col
 
     TTupleSpace space row col ->
       toSpaceReport source space row col

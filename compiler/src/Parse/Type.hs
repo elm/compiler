@@ -95,7 +95,7 @@ expression =
           ]
       oneOfWithFallback
         [ do  Space.checkIndent end1 E.TIndentStart -- should never trigger
-              word2 0x2D 0x3E {-->-} E.TArrow
+              word2 0x2D 0x3E {-->-} E.TStart -- could just be another type instead
               Space.chompAndCheckIndent E.TSpace E.TIndentStart
               (tipe2, end2) <- expression
               let tipe = A.at start end2 (Src.TLambda tipe1 tipe2)

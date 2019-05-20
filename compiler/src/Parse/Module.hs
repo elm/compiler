@@ -171,7 +171,7 @@ chompDecls :: [Decl.Decl] -> Parser E.Decl [Decl.Decl]
 chompDecls decls =
   do  (decl, _) <- Decl.declaration
       oneOfWithFallback
-        [ do  Space.checkFreshLine E.DeclFreshLineStart
+        [ do  Space.checkFreshLine E.DeclStart
               chompDecls (decl:decls)
         ]
         (reverse (decl:decls))
