@@ -267,14 +267,14 @@ chompExprEnd :: A.Position -> State -> Space.Parser E.Expr Src.Expr
 chompExprEnd start (State ops expr args end) =
   oneOfWithFallback
     [ -- argument
-      do  Space.checkIndent end E.IndentMoreExpr
+      do  Space.checkIndent end E.Start
           arg <- term
           newEnd <- getPosition
           Space.chomp E.Space
           chompExprEnd start (State ops expr (arg:args) newEnd)
 
     , -- operator
-      do  Space.checkIndent end E.IndentMoreExpr
+      do  Space.checkIndent end E.Start
           op@(A.At (A.Region opStart opEnd) opName) <- addLocation (Symbol.operator E.Start E.OperatorReserved)
           Space.chompAndCheckIndent E.Space (E.IndentOperatorRight opName)
           newStart <- getPosition

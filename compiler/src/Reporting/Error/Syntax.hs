@@ -224,7 +224,6 @@ data Expr
   | EndlessShader Row Col
   | ShaderProblem [Char.Char] Row Col
   | IndentOperatorRight Name.Name Row Col
-  | IndentMoreExpr Row Col
 
 
 data Record
@@ -2337,9 +2336,6 @@ toExprReport source context expr startRow startCol =
               ]
           )
 
-    IndentMoreExpr _ _ ->
-      error "TODO IndentMoreExpr"
-
 
 
 -- CHAR
@@ -4270,8 +4266,41 @@ toPatternReport source context pattern startRow startCol =
                   "This is a reserved word! Try using some other name?"
               )
 
+        Code.Operator "-" ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
+          Report.Report "UNEXPECTED SYMBOL" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I ran into a minus sign unexpectedly in this pattern:"
+              ,
+                D.reflow $
+                  "It is not possible to pattern match on negative numbers at this\
+                  \ time. Try using an `if` expression for that sort of thing for now."
+              )
+
         _ ->
-          error "TODO PStart"
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
+          Report.Report "PROBLEM IN PATTERN" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I wanted to parse a pattern next, but I got stuck here:"
+              ,
+                D.fillSep $
+                  ["I","am","not","sure","why","I","am","getting","stuck","exactly."
+                  ,"I","just","know","that","I","want","a","pattern","next."
+                  ,"Something","as","simple","as"
+                  ,D.dullyellow "maybeHeight","or",D.dullyellow "result"
+                  ,"would","work!"
+                  ]
+              )
 
     PChar char row col ->
       toCharReport source char row col
@@ -4348,7 +4377,29 @@ toPatternReport source context pattern startRow startCol =
       toSpaceReport source space row col
 
     PIndentStart row col ->
-      error "TODO PIndentStart" row col
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED PATTERN" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I wanted to parse a pattern next, but I got stuck here:"
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["I","am","not","sure","why","I","am","getting","stuck","exactly."
+                  ,"I","just","know","that","I","want","a","pattern","next."
+                  ,"Something","as","simple","as"
+                  ,D.dullyellow "maybeHeight","or",D.dullyellow "result"
+                  ,"would","work!"
+                  ]
+              , D.toSimpleNote $
+                  "I can get confused by indentation. If you think there is a pattern next, maybe\
+                  \ it needs to be indented a bit more?"
+              ]
+          )
 
     PIndentAlias row col ->
       let
