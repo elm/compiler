@@ -1233,7 +1233,7 @@ toDeclarationsReport source decl =
   case decl of
     DeclStart row col ->
       case Code.whatIsNext source row col of
-        Code.Close term _ ->
+        Code.Close term bracket ->
           let
             region = toRegion row col
           in
@@ -1243,7 +1243,7 @@ toDeclarationsReport source decl =
                 D.reflow $
                   "I was not expecting to see a " ++ term ++ " here:"
               , D.reflow $
-                  "It does not match up with anything. Maybe try deleting it?"
+                  "This " ++ bracket : " does not match up with an earlier open " ++ term ++ ". Try deleting it?"
               )
 
         Code.Keyword keyword ->
@@ -4492,18 +4492,70 @@ toPTupleReport source context tuple startRow startCol =
               )
 
     PTupleEnd row col ->
-      let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
-      in
-      Report.Report "UNFINISHED PARENTHESES" region [] $
-        Code.toSnippet source surroundings (Just region) $
-          (
-            D.reflow $
-              "I was expecting a closing parenthesis next:"
-          ,
-            D.fillSep ["Try","adding","a",D.dullyellow ")","to","see","if","that","helps?"]
-          )
+      case Code.whatIsNext source row col of
+        Code.Keyword keyword ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toKeywordRegion row col keyword
+          in
+          Report.Report "RESERVED WORD" region [] $
+            Code.toSnippet source surroundings (Just region) $
+              (
+                D.reflow $
+                  "I ran into a reserved word in this pattern:"
+              ,
+                D.reflow $
+                  "The `" ++ keyword ++ "` keyword is reserved. Try using a different name instead!"
+              )
+
+        Code.Operator op ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toKeywordRegion row col op
+          in
+          Report.Report "UNEXPECTED SYMBOL" region [] $
+            Code.toSnippet source surroundings (Just region) $
+              (
+                D.reflow $
+                  "I ran into the " ++ op ++ " symbol unexpectedly in this pattern:"
+              ,
+                D.reflow $
+                  "Only the :: symbol that works in patterns. It is useful if you\
+                  \ are pattern matching on lists, trying to get the first element\
+                  \ off the front. Did you want that instead?"
+              )
+
+        Code.Close term bracket ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
+          Report.Report ("STRAY " ++ map Char.toUpper term) region [] $
+            Code.toSnippet source surroundings (Just region) $
+              (
+                D.reflow $
+                  "I ran into a an unexpected " ++ term ++ " in this pattern:"
+              ,
+                D.reflow $
+                  "This " ++ bracket : " does not match up with an earlier open " ++ term ++ ". Try deleting it?"
+              )
+
+        _ ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
+          Report.Report "UNFINISHED PARENTHESES" region [] $
+            Code.toSnippet source surroundings (Just region) $
+              (
+                D.reflow $
+                  "I was partway through parsing a pattern, but I got stuck here:"
+              ,
+                D.fillSep
+                  ["I","was","expecting","a","closing","parenthesis","next,","so"
+                  ,"try","adding","a",D.dullyellow ")","to","see","if","that","helps?"
+                  ]
+              )
 
     PTupleExpr pattern row col ->
       toPatternReport source context pattern row col
