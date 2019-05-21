@@ -325,8 +325,8 @@ data Let
 data Def
   = DefSpace Space Row Col
   | DefType Type Row Col
-  | DefNameRepeat Name.Name Row Col
-  | DefNameMatch Name.Name Name.Name Row Col
+  | DefNameRepeat Row Col
+  | DefNameMatch Name.Name Row Col
   | DefArg Pattern Row Col
   | DefEquals Row Col
   | DefBody Expr Row Col
@@ -2005,7 +2005,7 @@ toDeclDefReport source name declDef startRow startCol =
             D.stack
               [ D.reflow $
                   "Type annotations always appear directly above the relevant\
-                  \ definition, without anything else (even doc comments) in between."
+                  \ definition, without anything else in between. (Not even doc comments!)"
               , declDefNote
               ]
           )
@@ -2109,6 +2109,7 @@ declDefNote =
 data Context
   = InNode Node Row Col Context
   | InDef Name.Name Row Col
+  | InDestruct Row Col
 
 
 data Node
@@ -2124,16 +2125,18 @@ data Node
   deriving (Eq)
 
 
-getDefName :: Context -> Name.Name
+getDefName :: Context -> Maybe Name.Name
 getDefName context =
   case context of
-    InDef name _ _ -> name
+    InDestruct _ _ -> Nothing
+    InDef name _ _ -> Just name
     InNode _ _ _ c -> getDefName c
 
 
 isWithin :: Node -> Context -> Bool
 isWithin desiredNode context =
   case context of
+    InDestruct _ _          -> False
     InDef _ _ _             -> False
     InNode actualNode _ _ _ -> desiredNode == actualNode
 
@@ -2229,6 +2232,7 @@ toExprReport source context expr startRow startCol =
       let
         (contextRow, contextCol, aThing) =
           case context of
+            InDestruct r c       -> (r, c, "a definition")
             InDef name r c       -> (r, c, "the `" ++ Name.toChars name ++ "` definition")
             InNode NRecord r c _ -> (r, c, "a record")
             InNode NParens r c _ -> (r, c, "some parentheses")
@@ -2688,7 +2692,6 @@ toOperatorReport source context operator row col =
     BadEquals ->
       let
         region = toRegion row col
-        name = getDefName context
       in
       Report.Report "UNEXPECTED EQUALS" region [] $
         Code.toSnippet source region Nothing
@@ -2705,18 +2708,24 @@ toOperatorReport source context operator row col =
                     "Records look like { x = 3, y = 4 } with the equals sign right\
                     \ after the field name. So maybe you forgot a comma?"
                   else
-                    "I may be getting confused by your indentation. Is this supposed to be part of\
-                    \ a definition AFTER the `" ++ Name.toChars name ++ "` definition? If so,\
-                    \ the problem may be a bit before the equals sign. I need all definitions to\
-                    \ be exactly aligned (with exactly the same indentation) so the problem may be that\
-                    \ this new definition is indented a bit too much."
+                    case getDefName context of
+                      Nothing ->
+                        "I may be getting confused by your indentation. I need all definitions to be indented\
+                        \ exactly the same amount, so if this is meant to be a new definition, it may have too\
+                        \ many spaces in front of it."
+
+                      Just name ->
+                        "I may be getting confused by your indentation. I think I am still parsing the `"
+                        ++ Name.toChars name ++ "` definition. Is this supposed to be part of a definition\
+                        \ after that? If so, the problem may be a bit before the equals sign. I need all\
+                        \ definitions to be indented exactly the same amount, so the problem may be that\
+                        \ this new definition has too many spaces in front of it."
               ]
           )
 
     BadHasType ->
       let
         region = toRegion row col
-        name = getDefName context
       in
       Report.Report "UNEXPECTED SYMBOL" region [] $
         Code.toSnippet source region Nothing $
@@ -2724,23 +2733,31 @@ toOperatorReport source context operator row col =
             D.reflow $
               "I was not expecting to run into the \"has type\" symbol here:"
           ,
-            D.stack
-              [
+            case getDefName context of
+              Nothing ->
                 D.fillSep
                   ["Maybe","you","want",D.green "::","instead?"
                   ,"To","put","something","on","the","front","of","a","list?"
                   ]
-              , D.toSimpleNote $
-                  "The single colon is reserved for type annotations and record types, but I think\
-                  \ I am parsing the definition of `" ++ Name.toChars name ++ "` right now."
-              ,
-                D.toSimpleNote $
-                  "I may be getting confused by your indentation. Is this supposed to be part of\
-                  \ a type annotation AFTER the `" ++ Name.toChars name ++ "` definition? If so,\
-                  \ the problem may be a bit before the \"has type\" symbol. I need all definitions to\
-                  \ be exactly aligned (with exactly the same indentation) so the problem may be that\
-                  \ this new definition is indented a bit too much."
-              ]
+
+              Just name ->
+                D.stack
+                  [
+                    D.fillSep
+                      ["Maybe","you","want",D.green "::","instead?"
+                      ,"To","put","something","on","the","front","of","a","list?"
+                      ]
+                  , D.toSimpleNote $
+                      "The single colon is reserved for type annotations and record types, but I think\
+                      \ I am parsing the definition of `" ++ Name.toChars name ++ "` right now."
+                  ,
+                    D.toSimpleNote $
+                      "I may be getting confused by your indentation. Is this supposed to be part of\
+                      \ a type annotation AFTER the `" ++ Name.toChars name ++ "` definition? If so,\
+                      \ the problem may be a bit before the \"has type\" symbol. I need all definitions to\
+                      \ be exactly aligned (with exactly the same indentation) so the problem may be that\
+                      \ this new definition is indented a bit too much."
+                  ]
           )
 
 
@@ -2824,10 +2841,10 @@ toLetReport source context let_ startRow startCol =
               "I was expecting the name of a definition next."
 
     LetDef name def row col ->
-      error "TODO LetDef" name def row col
+      toLetDefReport source name def row col
 
     LetDestruct destruct row col ->
-      error "TODO LetDestruct" destruct row col
+      toLetDestructReport source destruct row col
 
     LetBody expr row col ->
       toExprReport source context expr row col
@@ -2881,6 +2898,294 @@ toUnfinishLetReport source row col startRow startCol message =
               \ indented a bit more than that. That is important!"
           ]
       )
+
+
+toLetDefReport :: Code.Source -> Name.Name -> Def -> Row -> Col -> Report.Report
+toLetDefReport source name def startRow startCol =
+  case def of
+    DefSpace space row col ->
+      toSpaceReport source space row col
+
+    DefType tipe row col ->
+      toTypeReport source (TC_Annotation name) tipe row col
+
+    DefNameRepeat row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "EXPECTING DEFINITION" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I just saw the type annotation for `" ++ Name.toChars name
+              ++ "` so I was expecting to see its definition here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "Type annotations always appear directly above the relevant\
+                  \ definition, without anything else in between."
+              , defNote
+              ]
+          )
+
+    DefNameMatch defName row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "NAME MISMATCH" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I just saw a type annotation for `" ++ Name.toChars name ++ "`, but it is followed by a definition for `" ++ Name.toChars defName ++ "`:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "These names do not match! Is there a typo?"
+              , D.indent 4 $ D.fillSep $
+                  [D.dullyellow (D.fromName defName),"->",D.green (D.fromName name)]
+              ]
+          )
+
+    DefArg pattern row col ->
+      toPatternReport source PArg pattern row col
+
+    DefEquals row col ->
+      case Code.whatIsNext source row col of
+        Code.Keyword keyword ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toKeywordRegion row col keyword
+          in
+          Report.Report "RESERVED WORD" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "It looks like you are trying to use `" ++ keyword ++ "` as an argument:"
+              ,
+                D.reflow $
+                  "This is a reserved word! Try using some other name?"
+              )
+
+        Code.Operator op ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toKeywordRegion row col op
+          in
+          Report.Report "UNEXPECTED SYMBOL" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I was not expecting to see this symbol here:"
+              ,
+                D.stack
+                  [ D.reflow $
+                      "I am not sure what is going wrong exactly, so here is a valid\
+                      \ definition (with an optional type annotation) for reference:"
+                  , D.vcat
+                      [ D.indent 4 $ D.fillSep [D.green "add",":","Int","->","Int","->","Int"]
+                      , D.indent 4 $ D.fillSep [D.green "add","x","y","="]
+                      , D.indent 6 $ D.fillSep ["x","+","y"]
+                      ]
+                  , D.reflow $
+                      "Try to use that format with your `" ++ Name.toChars name ++ "` definition!"
+                  ]
+              )
+
+        _ ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
+          Report.Report "PROBLEM IN DEFINITION" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I got stuck while parsing the `" ++ Name.toChars name ++ "` definition:"
+              ,
+                D.stack
+                  [ D.reflow $
+                      "I am not sure what is going wrong exactly, so here is a valid\
+                      \ definition (with an optional type annotation) for reference:"
+                  , D.vcat
+                      [ D.indent 4 $ D.fillSep [D.green "add",":","Int","->","Int","->","Int"]
+                      , D.indent 4 $ D.fillSep [D.green "add","x","y","="]
+                      , D.indent 4 $ D.fillSep ["x","+","y"]
+                      ]
+                  , D.reflow $
+                      "Try to use that format!"
+                  ]
+              )
+
+    DefBody expr row col ->
+      toExprReport source (InDef name startRow startCol) expr row col
+
+    DefIndentEquals row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED DEFINITION" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I got stuck while parsing the `" ++ Name.toChars name ++ "` definition:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I was expecting to see an argument or an equals sign next."
+              , defNote
+              ]
+          )
+
+    DefIndentType row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED DEFINITION" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I got stuck while parsing the `" ++ Name.toChars name ++ "` type annotation:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I just saw a colon, so I am expecting to see a type next."
+              , defNote
+              ]
+          )
+
+    DefIndentBody row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED DEFINITION" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I got stuck while parsing the `" ++ Name.toChars name ++ "` definition:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I was expecting to see an expression next. What is it equal to?"
+              , declDefNote
+              ]
+          )
+
+    DefAlignment indent row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+        offset = indent - col
+      in
+      Report.Report "PROBLEM IN DEFINITION" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I got stuck while parsing the `" ++ Name.toChars name ++ "` definition:"
+          ,
+            D.reflow $
+              "I just saw a type annotation indented " ++ show indent ++ " spaces, so I was\
+              \ expecting to see the corresponding definition next with the exact same amount\
+              \ of indentation. It looks like this line needs "
+              ++ show offset ++ " more " ++ (if offset == 1 then "space" else "spaces") ++ "?"
+          )
+
+
+
+defNote :: D.Doc
+defNote =
+  D.stack
+    [ D.reflow $
+        "Here is a valid definition (with a type annotation) for reference:"
+    , D.vcat
+        [ D.indent 4 $ D.fillSep [D.green "add",":","Int","->","Int","->","Int"]
+        , D.indent 4 $ D.fillSep [D.green "add","x","y","="]
+        , D.indent 6 $ D.fillSep ["x","+","y"]
+        ]
+    , D.reflow $
+        "The top line (called a \"type annotation\") is optional. You can leave it off\
+        \ if you want. As you get more comfortable with Elm and as your project grows,\
+        \ it becomes more and more valuable to add them though! They work great as\
+        \ compiler-verified documentation, and they often improve error messages!"
+    ]
+
+
+toLetDestructReport :: Code.Source -> Destruct -> Row -> Col -> Report.Report
+toLetDestructReport source destruct startRow startCol =
+  case destruct of
+    DestructSpace space row col ->
+      toSpaceReport source space row col
+
+    DestructPattern pattern row col ->
+      toPatternReport source PLet pattern row col
+
+    DestructEquals row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "PROBLEM IN DEFINITION" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I got stuck trying to parse this definition:"
+          ,
+            case Code.whatIsNext source row col of
+              Code.Operator ":" ->
+                D.stack
+                  [ D.reflow $
+                      "I was expecting to see an equals sign next, followed by an expression\
+                      \ telling me what to compute."
+                  , D.toSimpleNote $
+                      "It looks like you may be trying to write a type annotation? It is not\
+                      \ possible to add type annotations on destructuring definitions like this.\
+                      \ You can assign a name to the overall structure, put a type annotation on\
+                      \ that, and then destructure separately though."
+                  ]
+
+              _ ->
+                D.reflow $
+                  "I was expecting to see an equals sign next, followed by an expression\
+                  \ telling me what to compute."
+          )
+
+    DestructBody expr row col ->
+      toExprReport source (InDestruct startRow startCol) expr row col
+
+    DestructIndentEquals row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED DEFINITION" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I got stuck trying to parse this definition:"
+          ,
+            D.reflow $
+              "I was expecting to see an equals sign next, followed by an expression\
+              \ telling me what to compute."
+          )
+
+    DestructIndentBody row col ->
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+      in
+      Report.Report "UNFINISHED DEFINITION" region [] $
+        Code.toSnippet source surroundings (Just region)
+          (
+            D.reflow $
+              "I got stuck while parsing this definition:"
+          ,
+            D.reflow $
+              "I was expecting to see an expression next. What is it equal to?"
+          )
 
 
 
@@ -3928,6 +4233,7 @@ toFuncReport source context func startRow startCol =
 data PContext
   = PCase
   | PArg
+  | PLet
 
 
 toPatternReport :: Code.Source -> PContext -> Pattern -> Row -> Col -> Report.Report
@@ -3948,16 +4254,17 @@ toPatternReport source context pattern startRow startCol =
           let
             surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
             region = toKeywordRegion row col keyword
-            aThing =
+            inThisThing =
               case context of
-                PArg -> "an argument"
-                PCase -> "a pattern"
+                PArg  -> "as an argument"
+                PCase -> "in this pattern"
+                PLet  -> "in this pattern"
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
               (
                 D.reflow $
-                  "It looks like you are trying to use `" ++ keyword ++ "` as " ++ aThing ++ ":"
+                  "It looks like you are trying to use `" ++ keyword ++ "` " ++ inThisThing ++ ":"
               ,
                 D.reflow $
                   "This is a reserved word! Try using some other name?"
