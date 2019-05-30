@@ -217,7 +217,7 @@ fromStmt indent statement =
         ]
 
     Throw expr ->
-      "throw " <> snd (fromExpr indent Whatever expr) <> ";"
+      indent <> "throw " <> snd (fromExpr indent Whatever expr) <> ";"
 
     Return Nothing ->
       indent <> "return;\n"
