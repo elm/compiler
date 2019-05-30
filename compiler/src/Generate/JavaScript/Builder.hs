@@ -37,13 +37,13 @@ data Expr
   | Array [Expr]
   | Object [(Name, Expr)]
   | Ref Name
-  | Access Expr Name -- ^ @foo.bar@, spec 11.2.1
-  | Index Expr Expr -- ^ @foo[bar]@, spec 11.2.1
+  | Access Expr Name -- foo.bar
+  | Index  Expr Expr -- foo[bar]
   | Prefix PrefixOp Expr
   | Infix InfixOp Expr Expr
   | If Expr Expr Expr
   | Assign LValue Expr
-  | Call Expr [Expr] -- ^ @f(x,y,z)@, spec 11.2.3
+  | Call Expr [Expr]
   | Function (Maybe Name) [Name] [Stmt]
 
 
@@ -58,20 +58,21 @@ data LValue
 
 
 data Stmt
-  = Block [Stmt] -- {stmts}
-  | EmptyStmt -- ;
-  | ExprStmt Expr -- expr;
-  | IfStmt Expr Stmt Stmt -- if (e) stmt1 else stmt2
-  | Switch Expr [Case] -- switch (e) clauses
-  | While Expr Stmt -- while (e) do stmt
-  | Break (Maybe Name) -- break lab;
-  | Continue (Maybe Name) -- continue lab;
-  | Labelled Name Stmt -- lab: stmt
-  | Try Stmt Name Stmt -- try stmt catch (x) stmt
-  | Throw Expr -- throw expr;
-  | Return (Maybe Expr) -- return expr;
-  | Var [(Name, Maybe Expr)] -- var x, y=42;
-  | FunctionStmt Name [Name] [Stmt] -- function f(x, y, z) {...}
+  = Block [Stmt]
+  | EmptyStmt
+  | ExprStmt Expr
+  | IfStmt Expr Stmt Stmt
+  | Switch Expr [Case]
+  | While Expr Stmt
+  | Break (Maybe Name)
+  | Continue (Maybe Name)
+  | Labelled Name Stmt
+  | Try Stmt Name Stmt
+  | Throw Expr
+  | Return (Maybe Expr)
+  | Var Name Expr
+  | Vars [(Name, Expr)]
+  | FunctionStmt Name [Name] [Stmt]
 
 
 data Case
@@ -84,37 +85,31 @@ data Case
 
 
 data InfixOp
-  = OpLT -- <
-  | OpLEq -- <=
-  | OpGT -- >
-  | OpGEq -- >=
-  | OpIn -- in
-  | OpInstanceof -- instanceof
-  | OpEq -- ==
-  | OpNEq -- !=
-  | OpStrictEq -- ===
-  | OpStrictNEq -- !==
-  | OpLAnd -- &&
-  | OpLOr -- ||
+  = OpAdd -- +
+  | OpSub -- -
   | OpMul -- *
   | OpDiv -- /
   | OpMod -- %
-  | OpSub -- -
-  | OpLShift -- <<
-  | OpSpRShift -- >>
-  | OpZfRShift -- >>>
-  | OpBAnd -- &
-  | OpBXor -- ^
-  | OpBOr -- |
-  | OpAdd -- +
+  | OpEq -- ===
+  | OpNe -- !==
+  | OpLt -- <
+  | OpLe -- <=
+  | OpGt -- >
+  | OpGe -- >=
+  | OpAnd -- &&
+  | OpOr  -- ||
+  | OpBitwiseAnd -- &
+  | OpBitwiseXor -- ^
+  | OpBitwiseOr  -- |
+  | OpLShift     -- <<
+  | OpSpRShift   -- >>
+  | OpZfRShift   -- >>>
 
 
 data PrefixOp
-  = PrefixLNot -- !
-  | PrefixBNot -- ~
-  | PrefixPlus -- +
-  | PrefixMinus -- -
-  | PrefixTypeof -- typeof
+  = PrefixNot        -- !
+  | PrefixNegate     -- -
+  | PrefixComplement -- ~
 
 
 
@@ -230,10 +225,13 @@ fromStmt indent statement =
     Return (Just expr) ->
       indent <> "return " <> snd (fromExpr indent Whatever expr) <> ";\n"
 
-    Var [] ->
+    Var name expr ->
+      indent <> "var " <> Name.toBuilder name <> " = " <> snd (fromExpr indent Whatever expr) <> ";\n"
+
+    Vars [] ->
       mempty
 
-    Var vars ->
+    Vars vars ->
       indent <> "var " <> commaNewlineSep indent (map (varToBuilder indent) vars) <> ";\n"
 
     FunctionStmt name args stmts ->
@@ -264,14 +262,9 @@ fromClause indent clause =
 -- VAR DECLS
 
 
-varToBuilder :: Builder -> (Name, Maybe Expr) -> Builder
-varToBuilder indent (name, maybeExpr) =
-  case maybeExpr of
-    Nothing ->
-      Name.toBuilder name
-
-    Just expr ->
-      Name.toBuilder name <> " = " <> snd (fromExpr indent Whatever expr)
+varToBuilder :: Builder -> (Name, Expr) -> Builder
+varToBuilder indent (name, expr) =
+  Name.toBuilder name <> " = " <> snd (fromExpr indent Whatever expr)
 
 
 
@@ -505,36 +498,30 @@ makeBracketed indent expr bracketedExpr =
 fromPrefix :: PrefixOp -> Builder
 fromPrefix op =
   case op of
-    PrefixLNot   -> "!"
-    PrefixBNot   -> "~"
-    PrefixPlus   -> "+"
-    PrefixMinus  -> "-"
-    PrefixTypeof -> "typeof "
+    PrefixNot        -> "!"
+    PrefixNegate     -> "-"
+    PrefixComplement -> "~"
 
 
 fromInfix :: InfixOp -> Builder
 fromInfix op =
   case op of
-    OpLT         -> " < "
-    OpLEq        -> " <= "
-    OpGT         -> " > "
-    OpGEq        -> " >= "
-    OpIn         -> " in "
-    OpInstanceof -> " instanceof "
-    OpEq         -> " == "
-    OpNEq        -> " != "
-    OpStrictEq   -> " === "
-    OpStrictNEq  -> " !== "
-    OpLAnd       -> " && "
-    OpLOr        -> " || "
+    OpAdd        -> " + "
+    OpSub        -> " - "
     OpMul        -> " * "
     OpDiv        -> " / "
     OpMod        -> " % "
-    OpSub        -> " - "
+    OpEq         -> " === "
+    OpNe         -> " !== "
+    OpLt         -> " < "
+    OpLe         -> " <= "
+    OpGt         -> " > "
+    OpGe         -> " >= "
+    OpAnd        -> " && "
+    OpOr         -> " || "
+    OpBitwiseAnd -> " & "
+    OpBitwiseXor -> " ^ "
+    OpBitwiseOr  -> " | "
     OpLShift     -> " << "
     OpSpRShift   -> " >> "
     OpZfRShift   -> " >>> "
-    OpBAnd       -> " & "
-    OpBXor       -> " ^ "
-    OpBOr        -> " | "
-    OpAdd        -> " + "

@@ -225,7 +225,7 @@ addKernel (State revKernels revBuilders seen) kernel =
 
 var :: Opt.Global -> Expr.Code -> JS.Stmt
 var (Opt.Global home name) code =
-  JS.Var [ (JsName.fromGlobal home name, Just (Expr.codeToExpr code)) ]
+  JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr code)
 
 
 isDebugger :: Opt.Global -> Bool
@@ -265,10 +265,10 @@ generateCycleFunc :: Mode.Mode -> ModuleName.Canonical -> Opt.Def -> JS.Stmt
 generateCycleFunc mode home def =
   case def of
     Opt.Def name expr ->
-      JS.Var [ (JsName.fromGlobal home name, Just (Expr.codeToExpr (Expr.generate mode expr))) ]
+      JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generate mode expr))
 
     Opt.TailDef name args expr ->
-      JS.Var [ (JsName.fromGlobal home name, Just (Expr.codeToExpr (Expr.generateTailDef mode name args expr))) ]
+      JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generateTailDef mode name args expr))
 
 
 generateSafeCycle :: Mode.Mode -> ModuleName.Canonical -> (Name.Name, Opt.Expr) -> JS.Stmt
@@ -284,7 +284,7 @@ generateRealCycle home (name, _) =
     realName = JsName.fromGlobal home name
   in
   JS.Block
-    [ JS.Var [ ( realName, Just (JS.Call (JS.Ref safeName) []) ) ]
+    [ JS.Var realName (JS.Call (JS.Ref safeName) [])
     , JS.ExprStmt $ JS.Assign (JS.LRef safeName) $
         JS.Function Nothing [] [ JS.Return (Just (JS.Ref realName)) ]
     ]
@@ -354,16 +354,13 @@ addChunk mode chunk builder =
 
 generateEnum :: Mode.Mode -> Opt.Global -> Index.ZeroBased -> JS.Stmt
 generateEnum mode global@(Opt.Global home name) index =
-  let
-    definition =
-      case mode of
-        Mode.Dev _ ->
-          Expr.codeToExpr (Expr.generateCtor mode global index 0)
+  JS.Var (JsName.fromGlobal home name) $
+    case mode of
+      Mode.Dev _ ->
+        Expr.codeToExpr (Expr.generateCtor mode global index 0)
 
-        Mode.Prod _ ->
-          JS.Int (Index.toMachine index)
-  in
-  JS.Var [ (JsName.fromGlobal home name, Just definition) ]
+      Mode.Prod _ ->
+        JS.Int (Index.toMachine index)
 
 
 
@@ -372,16 +369,13 @@ generateEnum mode global@(Opt.Global home name) index =
 
 generateBox :: Mode.Mode -> Opt.Global -> JS.Stmt
 generateBox mode global@(Opt.Global home name) =
-  let
-    definition =
-      case mode of
-        Mode.Dev _ ->
-          Expr.codeToExpr (Expr.generateCtor mode global Index.first 1)
+  JS.Var (JsName.fromGlobal home name) $
+    case mode of
+      Mode.Dev _ ->
+        Expr.codeToExpr (Expr.generateCtor mode global Index.first 1)
 
-        Mode.Prod _ ->
-          JS.Ref (JsName.fromGlobal ModuleName.basics Name.identity)
-  in
-  JS.Var [ (JsName.fromGlobal home name, Just definition) ]
+      Mode.Prod _ ->
+        JS.Ref (JsName.fromGlobal ModuleName.basics Name.identity)
 
 
 {-# NOINLINE identity #-}
@@ -396,14 +390,11 @@ identity =
 
 generatePort :: Mode.Mode -> Opt.Global -> Name.Name -> Opt.Expr -> JS.Stmt
 generatePort mode (Opt.Global home name) makePort converter =
-  let
-    definition =
-      JS.Call (JS.Ref (JsName.fromKernel Name.platform makePort))
-        [ JS.String (Name.toBuilder name)
-        , Expr.codeToExpr (Expr.generate mode converter)
-        ]
-  in
-  JS.Var [ (JsName.fromGlobal home name, Just definition) ]
+  JS.Var (JsName.fromGlobal home name) $
+    JS.Call (JS.Ref (JsName.fromKernel Name.platform makePort))
+      [ JS.String (Name.toBuilder name)
+      , Expr.codeToExpr (Expr.generate mode converter)
+      ]
 
 
 
@@ -431,11 +422,9 @@ generateManager mode graph (Opt.Global home@(ModuleName.Canonical _ moduleName) 
 
 generateLeaf :: ModuleName.Canonical -> Name.Name -> JS.Stmt
 generateLeaf home@(ModuleName.Canonical _ moduleName) name =
-  let
-    definition =
-      JS.Call leaf [ JS.String (Name.toBuilder moduleName) ]
-  in
-  JS.Var [ (JsName.fromGlobal home name, Just definition) ]
+  JS.Var (JsName.fromGlobal home name) $
+    JS.Call leaf [ JS.String (Name.toBuilder moduleName) ]
+
 
 
 {-# NOINLINE leaf #-}

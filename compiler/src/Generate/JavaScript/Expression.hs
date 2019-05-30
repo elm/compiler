@@ -128,8 +128,7 @@ generate mode expression =
 
     Opt.Destruct (Opt.Destructor name path) body ->
       let
-        pathExpr = generatePath mode path
-        pathDef = JS.Var [ (JsName.fromLocal name, Just pathExpr) ]
+        pathDef = JS.Var (JsName.fromLocal name) (generatePath mode path)
       in
       JsBlock $ pathDef : codeToStmtList (generate mode body)
 
@@ -482,17 +481,17 @@ generateBitwiseCall home name args =
   case args of
     [arg] ->
       case name of
-        "complement" -> JS.Prefix JS.PrefixBNot arg
+        "complement" -> JS.Prefix JS.PrefixComplement arg
         _            -> generateGlobalCall home name args
 
     [left,right] ->
       case name of
-        "and"            -> JS.Infix JS.OpBAnd     left right
-        "or"             -> JS.Infix JS.OpBOr      left right
-        "xor"            -> JS.Infix JS.OpBXor     left right
-        "shiftLeftBy"    -> JS.Infix JS.OpLShift   right left
-        "shiftRightBy"   -> JS.Infix JS.OpSpRShift right left
-        "shiftRightZfBy" -> JS.Infix JS.OpZfRShift right left
+        "and"            -> JS.Infix JS.OpBitwiseAnd left right
+        "or"             -> JS.Infix JS.OpBitwiseOr  left right
+        "xor"            -> JS.Infix JS.OpBitwiseXor left right
+        "shiftLeftBy"    -> JS.Infix JS.OpLShift     right left
+        "shiftRightBy"   -> JS.Infix JS.OpSpRShift   right left
+        "shiftRightZfBy" -> JS.Infix JS.OpZfRShift   right left
         _                -> generateGlobalCall home name args
 
     _ ->
@@ -505,10 +504,10 @@ generateBasicsCall mode home name args =
     [elmArg] ->
       let arg = generateJsExpr mode elmArg in
       case name of
-        "not"      -> JS.Prefix JS.PrefixLNot arg
-        "negate"   -> JS.Prefix JS.PrefixMinus arg
+        "not"      -> JS.Prefix JS.PrefixNot arg
+        "negate"   -> JS.Prefix JS.PrefixNegate arg
         "toFloat"  -> arg
-        "truncate" -> JS.Infix JS.OpBOr arg (JS.Int 0)
+        "truncate" -> JS.Infix JS.OpBitwiseOr arg (JS.Int 0)
         _          -> generateGlobalCall home name [arg]
 
     [elmLeft, elmRight] ->
@@ -528,16 +527,16 @@ generateBasicsCall mode home name args =
             "sub"  -> JS.Infix JS.OpSub left right
             "mul"  -> JS.Infix JS.OpMul left right
             "fdiv" -> JS.Infix JS.OpDiv left right
-            "idiv" -> JS.Infix JS.OpBOr (JS.Infix JS.OpDiv left right) (JS.Int 0)
+            "idiv" -> JS.Infix JS.OpBitwiseOr (JS.Infix JS.OpDiv left right) (JS.Int 0)
             "eq"   -> equal left right
             "neq"  -> notEqual left right
-            "lt"   -> cmp JS.OpLT  JS.OpLT   0  left right
-            "gt"   -> cmp JS.OpGT  JS.OpGT   0  left right
-            "le"   -> cmp JS.OpLEq JS.OpLT   1  left right
-            "ge"   -> cmp JS.OpGEq JS.OpGT (-1) left right
-            "or"   -> JS.Infix JS.OpLOr         left right
-            "and"  -> JS.Infix JS.OpLAnd        left right
-            "xor"  -> JS.Infix JS.OpStrictNEq   left right
+            "lt"   -> cmp JS.OpLt JS.OpLt   0  left right
+            "gt"   -> cmp JS.OpGt JS.OpGt   0  left right
+            "le"   -> cmp JS.OpLe JS.OpLt   1  left right
+            "ge"   -> cmp JS.OpGe JS.OpGt (-1) left right
+            "or"   -> JS.Infix JS.OpOr  left right
+            "and"  -> JS.Infix JS.OpAnd left right
+            "xor"  -> JS.Infix JS.OpNe  left right
             "remainderBy" -> JS.Infix JS.OpMod right left
             _      -> generateGlobalCall home name [left, right]
 
@@ -558,7 +557,7 @@ notEqual left right =
   if isLiteral left || isLiteral right then
     strictNEq left right
   else
-    JS.Prefix JS.PrefixLNot $
+    JS.Prefix JS.PrefixNot $
       JS.Call (JS.Ref (JsName.fromKernel Name.utils "eq")) [left, right]
 
 
@@ -647,42 +646,42 @@ strictEq :: JS.Expr -> JS.Expr -> JS.Expr
 strictEq left right =
   case left of
     JS.Int 0 ->
-      JS.Prefix JS.PrefixLNot right
+      JS.Prefix JS.PrefixNot right
 
     JS.Bool bool ->
-      if bool then right else JS.Prefix JS.PrefixLNot right
+      if bool then right else JS.Prefix JS.PrefixNot right
 
     _ ->
       case right of
         JS.Int 0 ->
-          JS.Prefix JS.PrefixLNot left
+          JS.Prefix JS.PrefixNot left
 
         JS.Bool bool ->
-          if bool then left else JS.Prefix JS.PrefixLNot left
+          if bool then left else JS.Prefix JS.PrefixNot left
 
         _ ->
-          JS.Infix JS.OpStrictEq left right
+          JS.Infix JS.OpEq left right
 
 
 strictNEq :: JS.Expr -> JS.Expr -> JS.Expr
 strictNEq left right =
   case left of
     JS.Int 0 ->
-      JS.Prefix JS.PrefixLNot (JS.Prefix JS.PrefixLNot right)
+      JS.Prefix JS.PrefixNot (JS.Prefix JS.PrefixNot right)
 
     JS.Bool bool ->
-      if bool then JS.Prefix JS.PrefixLNot right else right
+      if bool then JS.Prefix JS.PrefixNot right else right
 
     _ ->
       case right of
         JS.Int 0 ->
-          JS.Prefix JS.PrefixLNot (JS.Prefix JS.PrefixLNot left)
+          JS.Prefix JS.PrefixNot (JS.Prefix JS.PrefixNot left)
 
         JS.Bool bool ->
-          if bool then JS.Prefix JS.PrefixLNot left else left
+          if bool then JS.Prefix JS.PrefixNot left else left
 
         _ ->
-          JS.Infix JS.OpStrictNEq left right
+          JS.Infix JS.OpNe left right
 
 
 
@@ -695,13 +694,13 @@ generateTailCall :: Mode.Mode -> Name.Name -> [(Name.Name, Opt.Expr)] -> [JS.Stm
 generateTailCall mode name args =
   let
     toTempVars (argName, arg) =
-      ( JsName.makeTemp argName, Just (generateJsExpr mode arg) )
+      ( JsName.makeTemp argName, generateJsExpr mode arg )
 
     toRealVars (argName, _) =
       JS.ExprStmt $
         JS.Assign (JS.LRef (JsName.fromLocal argName)) (JS.Ref (JsName.makeTemp argName))
   in
-  JS.Var (map toTempVars args)
+  JS.Vars (map toTempVars args)
   : map toRealVars args
   ++ [ JS.Continue (Just (JsName.fromLocal name)) ]
 
@@ -714,10 +713,10 @@ generateDef :: Mode.Mode -> Opt.Def -> JS.Stmt
 generateDef mode def =
   case def of
     Opt.Def name body ->
-      JS.Var [ (JsName.fromLocal name, Just (generateJsExpr mode body)) ]
+      JS.Var (JsName.fromLocal name) (generateJsExpr mode body)
 
     Opt.TailDef name argNames body ->
-      JS.Var [ (JsName.fromLocal name, Just (codeToExpr (generateTailDef mode name argNames body))) ]
+      JS.Var (JsName.fromLocal name) (codeToExpr (generateTailDef mode name argNames body))
 
 
 generateTailDef :: Mode.Mode -> Name.Name -> [Name.Name] -> Opt.Expr -> Code
@@ -850,7 +849,7 @@ generateDecider mode label root decisionTree =
 
     Opt.Chain testChain success failure ->
       [ JS.IfStmt
-          (List.foldl1' (JS.Infix JS.OpLAnd) (map (generateIfTest mode root) testChain))
+          (List.foldl1' (JS.Infix JS.OpAnd) (map (generateIfTest mode root) testChain))
           (JS.Block $ generateDecider mode label root success)
           (JS.Block $ generateDecider mode label root failure)
       ]
@@ -892,7 +891,7 @@ generateIfTest mode root (path, test) =
       value
 
     DT.IsBool False ->
-      JS.Prefix JS.PrefixLNot value
+      JS.Prefix JS.PrefixNot value
 
     DT.IsInt int ->
       strictEq value (JS.Int int)
@@ -910,7 +909,7 @@ generateIfTest mode root (path, test) =
       JS.Access value (JsName.fromLocal "b")
 
     DT.IsNil ->
-      JS.Prefix JS.PrefixLNot $
+      JS.Prefix JS.PrefixNot $
         JS.Access value (JsName.fromLocal "b")
 
     DT.IsTuple ->
