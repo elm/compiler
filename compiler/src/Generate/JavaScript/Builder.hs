@@ -69,7 +69,7 @@ data Stmt
   | Labelled Name Stmt
   | Try Stmt Name Stmt
   | Throw Expr
-  | Return (Maybe Expr)
+  | Return Expr
   | Var Name Expr
   | Vars [(Name, Expr)]
   | FunctionStmt Name [Name] [Stmt]
@@ -219,10 +219,7 @@ fromStmt indent statement =
     Throw expr ->
       indent <> "throw " <> snd (fromExpr indent Whatever expr) <> ";"
 
-    Return Nothing ->
-      indent <> "return;\n"
-
-    Return (Just expr) ->
+    Return expr ->
       indent <> "return " <> snd (fromExpr indent Whatever expr) <> ";\n"
 
     Var name expr ->

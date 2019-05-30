@@ -137,7 +137,7 @@ generate mode expression =
 
     Opt.Accessor field ->
       JsExpr $ JS.Function Nothing [JsName.dollar]
-        [ JS.Return $ Just $
+        [ JS.Return $
             JS.Access (JS.Ref JsName.dollar) (generateField mode field)
         ]
 
@@ -210,7 +210,7 @@ codeToExpr code =
     JsExpr expr ->
       expr
 
-    JsBlock [ JS.Return (Just expr) ] ->
+    JsBlock [ JS.Return expr ] ->
       expr
 
     JsBlock stmts ->
@@ -224,7 +224,7 @@ codeToStmtList code =
         stmts
 
     JsExpr expr ->
-        [ JS.Return (Just expr) ]
+        [ JS.Return expr ]
 
     JsBlock stmts ->
         stmts
@@ -237,7 +237,7 @@ codeToStmt code =
         JS.Block stmts
 
     JsExpr expr ->
-        JS.Return (Just expr)
+        JS.Return expr
 
     JsBlock [stmt] ->
         stmt

@@ -286,7 +286,7 @@ generateRealCycle home (name, _) =
   JS.Block
     [ JS.Var realName (JS.Call (JS.Ref safeName) [])
     , JS.ExprStmt $ JS.Assign (JS.LRef safeName) $
-        JS.Function Nothing [] [ JS.Return (Just (JS.Ref realName)) ]
+        JS.Function Nothing [] [ JS.Return (JS.Ref realName) ]
     ]
 
 
