@@ -282,12 +282,11 @@ merge a b =
 linesMap :: (a -> (Lines, b)) -> [a] -> (Bool, [b])
 linesMap func xs =
   let
-    pairs =
-      map func xs
+    pairs = map func xs
   in
-    ( any ((==) Many . fst) pairs
-    , map snd pairs
-    )
+  ( any ((==) Many . fst) pairs
+  , map snd pairs
+  )
 
 
 data Grouping = Atomic | Whatever
@@ -327,35 +326,29 @@ fromExpr indent grouping expression =
     Array exprs ->
       (,) Many $
         let
-          (anyMany, builders) =
-            linesMap (fromExpr indent Whatever) exprs
+          (anyMany, builders) = linesMap (fromExpr indent Whatever) exprs
         in
-          if anyMany then
-            "[\n"
-            <> deeper indent
-            <> commaNewlineSep indent builders
-            <> "\n" <> indent <> "]"
-
-          else
-            "[" <> commaSep builders <> "]"
+        if anyMany then
+          "[\n"
+          <> deeper indent
+          <> commaNewlineSep indent builders
+          <> "\n" <> indent <> "]"
+        else
+          "[" <> commaSep builders <> "]"
 
     Object fields ->
       (,) Many $
         let
-          deeperIndent =
-            deeper indent
-
-          (anyMany, builders) =
-            linesMap (fromField deeperIndent) fields
+          deeperIndent = deeper indent
+          (anyMany, builders) = linesMap (fromField deeperIndent) fields
         in
-          if anyMany then
-            "{\n"
-            <> deeperIndent
-            <> commaNewlineSep indent builders
-            <> "\n" <> indent <> "}"
-
-          else
-            "{" <> commaSep builders <> "}"
+        if anyMany then
+          "{\n"
+          <> deeperIndent
+          <> commaNewlineSep indent builders
+          <> "\n" <> indent <> "}"
+        else
+          "{" <> commaSep builders <> "}"
 
     Ref name ->
       (One, Name.toBuilder name)
@@ -368,24 +361,20 @@ fromExpr indent grouping expression =
 
     Prefix op expr ->
       let
-        (lines, builder) =
-          fromExpr indent Atomic expr
+        (lines, builder) = fromExpr indent Atomic expr
       in
-        ( lines
-        , parensFor grouping (fromPrefix op <> builder)
-        )
+      ( lines
+      , parensFor grouping (fromPrefix op <> builder)
+      )
 
     Infix op leftExpr rightExpr ->
       let
-        (leftLines, left) =
-          fromExpr indent Atomic leftExpr
-
-        (rightLines, right) =
-          fromExpr indent Atomic rightExpr
+        (leftLines , left ) = fromExpr indent Atomic leftExpr
+        (rightLines, right) = fromExpr indent Atomic rightExpr
       in
-        ( merge leftLines rightLines
-        , parensFor grouping (left <> fromInfix op <> right)
-        )
+      ( merge leftLines rightLines
+      , parensFor grouping (left <> fromInfix op <> right)
+      )
 
     If condExpr thenExpr elseExpr ->
       let
@@ -393,39 +382,30 @@ fromExpr indent grouping expression =
         thenB = snd (fromExpr indent Atomic thenExpr)
         elseB = snd (fromExpr indent Atomic elseExpr)
       in
-        ( Many
-        , parensFor grouping (condB <> " ? " <> thenB <> " : " <> elseB)
-        )
+      ( Many
+      , parensFor grouping (condB <> " ? " <> thenB <> " : " <> elseB)
+      )
 
     Assign lValue expr ->
       let
-        (leftLines, left) =
-          fromLValue indent lValue
-
-        (rightLines, right) =
-          fromExpr indent Whatever expr
+        (leftLines , left ) = fromLValue indent lValue
+        (rightLines, right) = fromExpr indent Whatever expr
       in
-        ( merge leftLines rightLines
-        , parensFor grouping (left <> " = " <> right)
-        )
+      ( merge leftLines rightLines
+      , parensFor grouping (left <> " = " <> right)
+      )
 
     Call function args ->
       (,) Many $
         let
-          deeperIndent =
-            deeper indent
-
-          funcB =
-            snd (fromExpr indent Atomic function)
-
-          (anyMany, argsB) =
-            linesMap (fromExpr deeperIndent Whatever) args
+          deeperIndent = deeper indent
+          funcB = snd (fromExpr indent Atomic function)
+          (anyMany, argsB) = linesMap (fromExpr deeperIndent Whatever) args
         in
-          if anyMany then
-            funcB <> "(\n" <> deeperIndent <> commaNewlineSep indent argsB <> ")"
-
-          else
-            funcB <> "(" <> commaSep argsB <> ")"
+        if anyMany then
+          funcB <> "(\n" <> deeperIndent <> commaNewlineSep indent argsB <> ")"
+        else
+          funcB <> "(" <> commaSep argsB <> ")"
 
     Function maybeName args stmts ->
       (,) Many $
@@ -443,12 +423,11 @@ fromExpr indent grouping expression =
 fromField :: Builder -> (Name, Expr) -> (Lines, Builder)
 fromField indent (field, expr) =
   let
-    (lines, builder) =
-      fromExpr indent Whatever expr
+    (lines, builder) = fromExpr indent Whatever expr
   in
-    ( lines
-    , Name.toBuilder field <> ": " <> builder
-    )
+  ( lines
+  , Name.toBuilder field <> ": " <> builder
+  )
 
 
 
@@ -471,24 +450,20 @@ fromLValue indent lValue =
 makeDot :: Builder -> Expr -> Name -> (Lines, Builder)
 makeDot indent expr field =
   let
-    (lines, builder) =
-      fromExpr indent Atomic expr
+    (lines, builder) = fromExpr indent Atomic expr
   in
-    (lines, builder <> "." <> Name.toBuilder field)
+  (lines, builder <> "." <> Name.toBuilder field)
 
 
 makeBracketed :: Builder -> Expr -> Expr -> (Lines, Builder)
 makeBracketed indent expr bracketedExpr =
   let
-    (lines, builder) =
-      fromExpr indent Atomic expr
-
-    (bracketedLines, bracketedBuilder) =
-      fromExpr indent Whatever bracketedExpr
+    (lines         , builder         ) = fromExpr indent Atomic expr
+    (bracketedLines, bracketedBuilder) = fromExpr indent Whatever bracketedExpr
   in
-    ( merge lines bracketedLines
-    , builder <> "[" <> bracketedBuilder <> "]"
-    )
+  ( merge lines bracketedLines
+  , builder <> "[" <> bracketedBuilder <> "]"
+  )
 
 
 
