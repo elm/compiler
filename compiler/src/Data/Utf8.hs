@@ -748,9 +748,9 @@ copyFromPtr (Ptr src#) (MBA# mba#) (I# offset#) (I# len#) =
 
 copyToPtr :: Utf8 l t -> Int -> Ptr a -> Int -> IO ()
 copyToPtr (Utf8 ba#) (I# offset#) (Ptr mba#) (I# len#) =
-    IO $ \s ->
-      case copyByteArrayToAddr# ba# offset# mba# len# s of
-        s -> (# s, () #)
+  IO $ \s ->
+    case copyByteArrayToAddr# ba# offset# mba# len# s of
+      s -> (# s, () #)
 
 
 {-# INLINE writeWord8 #-}
