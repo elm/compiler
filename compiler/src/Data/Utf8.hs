@@ -636,7 +636,7 @@ writeChunks mba offset chunks =
 writeCode :: MBA RealWorld -> Int -> Int -> ST RealWorld ()
 writeCode mba offset code =
   do  writeWord8 mba offset 0x5C {- \ -}
-      writeWord8 mba offset 0x75 {- u -}
+      writeWord8 mba (offset + 1) 0x75 {- u -}
       writeHex mba (offset + 2) (shiftR code 12)
       writeHex mba (offset + 3) (shiftR code 8)
       writeHex mba (offset + 4) (shiftR code 4)
