@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE BangPatterns, UnboxedTuples #-}
 module Elm.Version
   ( Version(..)
   , one
@@ -7,10 +9,11 @@ module Elm.Version
   , bumpMinor
   , bumpMajor
   , toChars
-  , toString
-  , fromString
+  --
   , decoder
   , encode
+  --
+  , parser
   )
   where
 
@@ -18,13 +21,15 @@ module Elm.Version
 import Prelude hiding (max)
 import Control.Monad (liftM3)
 import Data.Binary (Binary, get, put, getWord8, putWord8)
-import qualified Data.Utf8 as Utf8
 import qualified Data.Version as Version
-import Data.Word (Word16)
+import Data.Word (Word8, Word16)
+import Foreign.Ptr (Ptr, plusPtr, minusPtr)
 import qualified Paths_elm
 
 import qualified Json.Decode as D
 import qualified Json.Encode as E
+import qualified Parse.Primitives as P
+import Parse.Primitives (Row, Col)
 
 
 
@@ -86,58 +91,26 @@ bumpMajor (Version major _minor _patch) =
 
 
 
--- TO STRING
+-- TO CHARS
 
 
-toChars :: Version -> String
-toChars vsn =
-  Utf8.toChars (toString vsn)
-
-
-toString :: Version -> Utf8.String
-toString (Version major minor patch) =
-  Utf8.join 0x2E {- . -}
-    [ Utf8.fromWord16 major
-    , Utf8.fromWord16 minor
-    , Utf8.fromWord16 patch
-    ]
-
-
-
--- FROM STRING
-
-
-fromString :: Utf8.String -> Maybe Version
-fromString str =
-  case Utf8.split 0x2E {- . -} str of
-    [major, minor, patch] ->
-      Version
-        <$> Utf8.toWord16 major
-        <*> Utf8.toWord16 minor
-        <*> Utf8.toWord16 patch
-
-    _ ->
-      Nothing
+toChars :: Version -> [Char]
+toChars (Version major minor patch) =
+  show major ++ '.' : show minor ++ '.' : show patch
 
 
 
 -- JSON
 
 
-decoder :: D.Decoder Utf8.String Version
+decoder :: D.Decoder (Row, Col) Version
 decoder =
-  do  str <- D.string
-      case fromString str of
-        Just version ->
-          return version
-
-        Nothing ->
-          D.failure str
+  D.customString parser (,)
 
 
 encode :: Version -> E.Value
 encode version =
-  E.string (toString version)
+  E.chars (toChars version)
 
 
 
@@ -164,3 +137,60 @@ instance Binary Version where
           put major
           put minor
           put patch
+
+
+
+-- PARSER
+
+
+parser :: P.Parser (Row, Col) Version
+parser =
+  do  major <- numberParser
+      P.word1 0x2E {-.-} (,)
+      minor <- numberParser
+      P.word1 0x2E {-.-} (,)
+      patch <- numberParser
+      return (Version major minor patch)
+
+
+numberParser :: P.Parser (Row, Col) Word16
+numberParser =
+  P.Parser $ \(P.State src pos end indent row col) cok _ _ eerr ->
+    if pos >= end then
+      eerr row col (,)
+    else
+      let !word = P.unsafeIndex pos in
+      if word == 0x30 {-0-} then
+
+        let
+          !newState = P.State src (plusPtr pos 1) end indent row (col + 1)
+        in
+        cok 0 newState
+
+      else if isDigit word then
+
+        let
+          (# total, newPos #) = chompWord16 (plusPtr pos 1) end (fromIntegral (word - 0x30))
+          !newState = P.State src newPos end indent row (col + fromIntegral (minusPtr newPos pos))
+        in
+        cok total newState
+
+      else
+        eerr row col (,)
+
+
+chompWord16 :: Ptr Word8 -> Ptr Word8 -> Word16 -> (# Word16, Ptr Word8 #)
+chompWord16 pos end total =
+  if pos >= end then
+    (# total, pos #)
+  else
+    let !word = P.unsafeIndex pos in
+    if isDigit word then
+      chompWord16 (plusPtr pos 1) end (10 * total + fromIntegral (word - 0x30))
+    else
+      (# total, pos #)
+
+
+isDigit :: Word8 -> Bool
+isDigit word =
+  0x30 {-0-} <= word && word <= 0x39 {-9-}
