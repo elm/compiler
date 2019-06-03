@@ -7,13 +7,19 @@ module Terminal.Args.Helpers
   where
 
 
+import qualified Data.ByteString.UTF8 as BS_UTF8
 import qualified Data.Char as Char
+import qualified Data.List as List
+import qualified Data.Map as Map
 import qualified Data.Utf8 as Utf8
 import qualified System.FilePath as FP
 
 import Terminal.Args (Parser(..))
+import qualified Deps.Registry as Registry
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
+import qualified Parse.Primitives as P
+import qualified Stuff
 
 
 
@@ -33,7 +39,9 @@ version =
 
 parseVersion :: String -> Maybe V.Version
 parseVersion chars =
-  V.fromString (Utf8.fromChars chars)
+  case P.fromByteString V.parser (,) (BS_UTF8.fromString chars) of
+    Right vsn -> Just vsn
+    Left _    -> Nothing
 
 
 suggestVersion :: String -> IO [String]
@@ -102,9 +110,10 @@ package =
 
 
 parsePackage :: String -> Maybe Pkg.Name
-parsePackage string =
-  either (const Nothing) Just $
-    Pkg.fromString (Utf8.fromChars string)
+parsePackage chars =
+  case P.fromByteString Pkg.parser (,) (BS_UTF8.fromString chars) of
+    Right pkg -> Just pkg
+    Left _    -> Nothing
 
 
 suggestPackages :: String -> IO [String]
@@ -113,14 +122,14 @@ suggestPackages _ =
 
 
 examplePackages :: String -> IO [String]
-examplePackages string =
-  case Pkg.fromString (Utf8.fromChars string) of
-    Left _ ->
-      return (error "TODO need to make suggestions")
+examplePackages given =
+  do  cache <- Stuff.getPackageCache
+      maybeRegistry <- Registry.read cache
+      return $
+        case maybeRegistry of
+          Nothing ->
+            []
 
-    _ ->
-      return
-        [ "elm/http"
-        , "elm/json"
-        , "elm-community/random-extra"
-        ]
+          Just (Registry.Registry _ versions) ->
+            filter (List.isPrefixOf given) $
+              map Pkg.toChars (Map.keys versions)
