@@ -4,22 +4,27 @@ module AST.Utils.Shader
   ( Source
   , Types(..)
   , Type(..)
+  , fromChars
+  , toJsStringBuilder
   )
   where
 
 
+import Control.Monad (liftM)
+import Data.Binary (Binary, get, put)
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Builder as B
+import qualified Data.ByteString.UTF8 as BS_UTF8
 import qualified Data.Map as Map
 import qualified Data.Name as Name
-import qualified Data.Utf8 as Utf8
 
 
 
 -- SOURCE
 
 
-type Source = Utf8.VeryLong SOURCE
-
-data SOURCE
+newtype Source =
+  Source BS.ByteString
 
 
 
@@ -42,3 +47,43 @@ data Type
   | V4
   | M4
   | Texture
+
+
+
+-- TO BUILDER
+
+
+toJsStringBuilder :: Source -> B.Builder
+toJsStringBuilder (Source src) =
+  B.byteString src
+
+
+
+-- FROM CHARS
+
+
+fromChars :: [Char] -> Source
+fromChars chars =
+  Source (BS_UTF8.fromString (escape chars))
+
+
+escape :: [Char] -> [Char]
+escape chars =
+  case chars of
+    [] ->
+      []
+
+    c:cs
+      | c == '\n' -> '\\' : 'n'  : escape cs
+      | c == '\"' -> '\\' : '"'  : escape cs
+      | c == '\'' -> '\\' : '\'' : escape cs
+      | otherwise -> c : escape cs
+
+
+
+-- BINARY
+
+
+instance Binary Source where
+  get = liftM Source get
+  put (Source a) = put a

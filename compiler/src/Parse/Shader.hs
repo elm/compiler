@@ -6,12 +6,13 @@ module Parse.Shader
   where
 
 
-import qualified Data.List as List
+import qualified Data.ByteString.Internal as B
+import qualified Data.ByteString.UTF8 as BS_UTF8
 import qualified Data.Map as Map
 import qualified Data.Name as Name
-import qualified Data.Utf8 as Utf8
 import Data.Word (Word8)
-import Foreign.Ptr (Ptr, plusPtr)
+import Foreign.Ptr (Ptr, plusPtr, minusPtr)
+import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import qualified Language.GLSL.Parser as GLP
 import qualified Language.GLSL.Syntax as GLS
 import qualified Text.Parsec as Parsec
@@ -32,16 +33,16 @@ import qualified Reporting.Error.Syntax as E
 shader :: A.Position -> Parser E.Expr Src.Expr
 shader start@(A.Position row col) =
   do  block <- parseBlock
-      shdr <- parseGlsl row col src
+      shdr <- parseGlsl row col block
       end <- P.getPosition
-      return (A.at start end (Src.Shader (Shader.fromChars src) shdr))
+      return (A.at start end (Src.Shader (Shader.fromChars block) shdr))
 
 
 
 -- BLOCK
 
 
-parseBlock :: Parser E.Expr P.Snippet
+parseBlock :: Parser E.Expr [Char]
 parseBlock =
   P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
     let
@@ -62,11 +63,12 @@ parseBlock =
       case status of
         Good ->
           let
-            !block = Utf8.fromPtr pos6 newPos
-            !source = Utf8.toChars block
+            !off = minusPtr pos6 (unsafeForeignPtrToPtr src)
+            !len = minusPtr newPos pos6
+            !block = BS_UTF8.toString (B.PS src off len)
             !newState = P.State src (plusPtr newPos 2) end indent newRow (newCol + 2)
           in
-          cok source newState
+          cok block newState
 
         Unending ->
           cerr row col E.EndlessShader
@@ -102,7 +104,7 @@ eatShader pos end row col =
 -- GLSL
 
 
-parseGlsl :: Row -> Col -> String -> Parser E.Expr Shader.Types
+parseGlsl :: Row -> Col -> [Char] -> Parser E.Expr Shader.Types
 parseGlsl startRow startCol src =
   case GLP.parse src of
     Right (GLS.TranslationUnit decls) ->
@@ -127,7 +129,7 @@ parseGlsl startRow startCol src =
         else failure (startRow + row - 1) col msg
 
 
-failure :: Row -> Col -> String -> Parser E.Expr a
+failure :: Row -> Col -> [Char] -> Parser E.Expr a
 failure row col msg =
   P.Parser $ \(P.State _ _ _ _ _ _) _ _ cerr _ ->
     cerr row col (E.ShaderProblem msg)
@@ -142,7 +144,7 @@ emptyTypes =
   Shader.Types Map.empty Map.empty Map.empty
 
 
-addInput :: (GLS.StorageQualifier, Shader.Type, String) -> Shader.Types -> Shader.Types
+addInput :: (GLS.StorageQualifier, Shader.Type, [Char]) -> Shader.Types -> Shader.Types
 addInput (qual, tipe, name) glDecls =
   case qual of
     GLS.Attribute -> glDecls { Shader._attribute = Map.insert (Name.fromChars name) tipe (Shader._attribute glDecls) }
@@ -151,7 +153,7 @@ addInput (qual, tipe, name) glDecls =
     _             -> error "Should never happen due to `extractInputs` function"
 
 
-extractInputs :: GLS.ExternalDeclaration -> [(GLS.StorageQualifier, Shader.Type, String)]
+extractInputs :: GLS.ExternalDeclaration -> [(GLS.StorageQualifier, Shader.Type, [Char])]
 extractInputs decl =
   case decl of
     GLS.Declaration
