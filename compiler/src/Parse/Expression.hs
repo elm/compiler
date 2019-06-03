@@ -16,7 +16,7 @@ import qualified Parse.Shader as Shader
 import qualified Parse.Space as Space
 import qualified Parse.Symbol as Symbol
 import qualified Parse.Type as Type
-import qualified Parse.Utf8 as Utf8
+import qualified Parse.String as String
 import qualified Parse.Variable as Var
 import Parse.Primitives hiding (State)
 import qualified Parse.Primitives as P
@@ -46,13 +46,13 @@ term =
 
 string :: A.Position -> Parser E.Expr Src.Expr
 string start =
-  do  str <- Utf8.string E.Start E.String
+  do  str <- String.string E.Start E.String
       addEnd start (Src.Str str)
 
 
 character :: A.Position -> Parser E.Expr Src.Expr
 character start =
-  do  chr <- Utf8.character E.Start E.Char
+  do  chr <- String.character E.Start E.Char
       addEnd start (Src.Chr chr)
 
 
@@ -537,14 +537,14 @@ chompMatchingName expectedName =
   let
     (P.Parser parserL) = Var.lower E.DefNameRepeat
   in
-  P.Parser $ \state@(P.State _ _ _ sr sc) cok eok cerr eerr ->
+  P.Parser $ \state@(P.State _ _ _ _ sr sc) cok eok cerr eerr ->
     let
-      cokL name newState@(P.State _ _ _ er ec) =
+      cokL name newState@(P.State _ _ _ _ er ec) =
         if expectedName == name
         then cok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
         else cerr sr sc (E.DefNameMatch name)
 
-      eokL name newState@(P.State _ _ _ er ec) =
+      eokL name newState@(P.State _ _ _ _ er ec) =
         if expectedName == name
         then eok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
         else eerr sr sc (E.DefNameMatch name)
