@@ -22,6 +22,7 @@ import qualified Data.Utf8 as Utf8
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
+import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Compiler.Type.Extract as Extract
@@ -32,6 +33,7 @@ import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Name as JsName
 import qualified Generate.Mode as Mode
 import qualified Json.Encode as Encode
+import Json.Encode ((==>))
 import qualified Optimize.DecisionTree as DT
 import qualified Reporting.Annotation as A
 
@@ -189,7 +191,7 @@ generate mode expression =
           JS.Object (map toTranlation (Set.toList fields))
       in
       JsExpr $ JS.Object $
-        [ ( JsName.fromLocal "src", JS.String (Utf8.toBuilder src) )
+        [ ( JsName.fromLocal "src", JS.String (Shader.toJsStringBuilder src) )
         , ( JsName.fromLocal "attributes", toTranslationObject attributes )
         , ( JsName.fromLocal "uniforms", toTranslationObject uniforms )
         ]
@@ -1063,6 +1065,6 @@ toDebugMetadata mode msgType =
 
     Mode.Dev (Just interfaces) ->
       JS.Json $ Encode.object $
-        [ ("versions", Encode.object [ ("elm", V.encode V.compiler) ])
-        , ("types", Type.encodeMetadata (Extract.fromMsg interfaces msgType))
+        [ "versions" ==> Encode.object [ "elm" ==> V.encode V.compiler ]
+        , "types"    ==> Type.encodeMetadata (Extract.fromMsg interfaces msgType)
         ]

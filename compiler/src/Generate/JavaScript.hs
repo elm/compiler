@@ -314,7 +314,7 @@ addChunk :: Mode.Mode -> K.Chunk -> B.Builder -> B.Builder
 addChunk mode chunk builder =
   case chunk of
     K.JS javascript ->
-      Utf8.toBuilder javascript <> builder
+      B.byteString javascript <> builder
 
     K.ElmVar home name ->
       JsName.toBuilder (JsName.fromGlobal home name) <> builder
@@ -498,7 +498,7 @@ generateExports mode (Trie maybeMain subs) =
         <> List.foldl' (addSubTrie mode) "}" otherSubTries
 
 
-addSubTrie :: Mode.Mode -> B.Builder -> (Utf8.String, Trie) -> B.Builder
+addSubTrie :: Mode.Mode -> B.Builder -> (Name.Name, Trie) -> B.Builder
 addSubTrie mode end (name, trie) =
   ",'" <> Utf8.toBuilder name <> "':" <> generateExports mode trie <> end
 
@@ -510,7 +510,7 @@ addSubTrie mode end (name, trie) =
 data Trie =
   Trie
     { _main :: Maybe (ModuleName.Canonical, Opt.Main)
-    , _subs :: Map.Map Utf8.String Trie
+    , _subs :: Map.Map Name.Name Trie
     }
 
 
@@ -521,14 +521,10 @@ emptyTrie =
 
 addToTrie :: ModuleName.Canonical -> Opt.Main -> Trie -> Trie
 addToTrie home@(ModuleName.Canonical _ moduleName) main trie =
-  let
-    segments =
-      Utf8.split 0x2E {-.-} (Name.toUtf8 moduleName)
-  in
-  merge trie $ segmentsToTrie home segments main
+  merge trie $ segmentsToTrie home (Name.splitDots moduleName) main
 
 
-segmentsToTrie :: ModuleName.Canonical -> [Utf8.String] -> Opt.Main -> Trie
+segmentsToTrie :: ModuleName.Canonical -> [Name.Name] -> Opt.Main -> Trie
 segmentsToTrie home segments main =
   case segments of
     [] ->

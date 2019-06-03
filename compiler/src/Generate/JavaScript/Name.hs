@@ -62,24 +62,29 @@ fromLocal name =
 
 
 fromGlobal :: ModuleName.Canonical -> Name.Name -> Name
-fromGlobal (ModuleName.Canonical (Pkg.Name author project) home) name =
-  Name $      Name.toEscapedBuilder 0x2D {- - -} 0x5F {- _ -} author
-    <> "$" <> Name.toEscapedBuilder 0x2D {- - -} 0x5F {- _ -} project
-    <> "$" <> Name.toEscapedBuilder 0x2E {- . -} 0x24 {- $ -} home
-    <> "$" <> Name.toBuilder name
+fromGlobal home name =
+  Name $ homeToBuilder home <> usd <> Name.toBuilder name
 
 
 fromCycle :: ModuleName.Canonical -> Name.Name -> Name
-fromCycle (ModuleName.Canonical (Pkg.Name author project) home) name =
-  Name $      Name.toEscapedBuilder 0x2D {- - -} 0x5F {- _ -} author
-    <> "$" <> Name.toEscapedBuilder 0x2D {- - -} 0x5F {- _ -} project
-    <> "$" <> Name.toEscapedBuilder 0x2E {- . -} 0x24 {- $ -} home
-    <> "$cyclic$" <> Name.toBuilder name
+fromCycle home name =
+  Name $ homeToBuilder home <> "$cyclic$" <> Name.toBuilder name
 
 
 fromKernel :: Name.Name -> Name.Name -> Name
 fromKernel home name =
   Name ("_" <> Name.toBuilder home <> "_" <> Name.toBuilder name)
+
+
+{-# INLINE homeToBuilder #-}
+homeToBuilder :: ModuleName.Canonical -> B.Builder
+homeToBuilder (ModuleName.Canonical (Pkg.Name author project) home) =
+  usd <>
+  Utf8.toEscapedBuilder 0x2D {- - -} 0x5F {- _ -} author
+  <> usd <>
+  Utf8.toEscapedBuilder 0x2D {- - -} 0x5F {- _ -} project
+  <> usd <>
+  Utf8.toEscapedBuilder 0x2E {- . -} 0x24 {- $ -} home
 
 
 
@@ -98,7 +103,7 @@ makeA n =
 
 makeLabel :: Name.Name -> Int -> Name
 makeLabel name index =
-  Name (Name.toBuilder name <> "$" <> B.intDec index)
+  Name (Name.toBuilder name <> usd <> B.intDec index)
 
 
 makeTemp :: Name.Name -> Name
@@ -108,7 +113,12 @@ makeTemp name =
 
 dollar :: Name
 dollar =
-  Name (Name.toBuilder Name.dollar)
+  Name usd
+
+
+usd :: B.Builder
+usd =
+  Name.toBuilder Name.dollar
 
 
 
