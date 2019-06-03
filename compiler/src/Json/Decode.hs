@@ -4,68 +4,108 @@ module Json.Decode
   ( fromByteString
   , Decoder
   , string
+  , customString
   , bool
   , int
-  , list, pair
-  , dict, pairs, field
+  , list
+  , nonEmptyList
+  , pair
+  --
+  , KeyDecoder(..)
+  , dict
+  , pairs
+  , field
+  --
   , oneOf
   , failure
   , mapError
+  --
+  , Error(..)
+  , Problem(..)
+  , DecodeExpectation(..)
+  , ParseError(..)
   )
   where
 
 
-import qualified Data.ByteString as B
-import qualified Data.List as List
+import qualified Data.ByteString.Internal as B
 import qualified Data.Map as Map
-import qualified Data.Utf8 as Utf8
+import qualified Data.NonEmptyList as NE
 import Data.Word (Word8, Word16)
 import Foreign.Ptr (Ptr, plusPtr, minusPtr)
+import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 
+import qualified Json.String as Json
 import qualified Parse.Keyword as K
 import qualified Parse.Primitives as P
-import qualified Reporting.Error.Json as E
+import Parse.Primitives (Row, Col)
 
 
 
 -- RUNNERS
 
 
-fromByteString :: Decoder e a -> B.ByteString -> Either (E.Error e) a
-fromByteString decoder src =
-  fromAST decoder (P.fromByteString pFile src)
+fromByteString :: Decoder x a -> B.ByteString -> Either (Error x) a
+fromByteString (Decoder decode) src =
+  case P.fromByteString pFile BadEnd src of
+    Right ast ->
+      decode ast Right (Left . DecodeProblem)
 
-
-fromAST :: Decoder e a -> P.Result E.ParseError AST -> Either (E.Error e) a
-fromAST (Decoder decode) parserResult =
-  case parserResult of
-    P.Ok ast _ ->
-      decode ast Right (Left . E.DecodeProblem)
-
-    P.Err err ->
-      Left (E.ParseProblem err)
+    Left problem ->
+      Left (ParseProblem problem)
 
 
 
 -- DECODERS
 
 
-newtype Decoder e a =
+newtype Decoder x a =
   Decoder
   (
     forall b.
       AST
       -> (a -> b)
-      -> (E.Problem e -> b)
+      -> (Problem x -> b)
       -> b
   )
+
+
+
+-- ERRORS
+
+
+data Error x
+  = DecodeProblem (Problem x)
+  | ParseProblem ParseError
+
+
+
+-- DECODE PROBLEMS
+
+
+data Problem x
+  = Field B.ByteString (Problem x)
+  | Index Int (Problem x)
+  | OneOf (Problem x) [Problem x]
+  | Failure x
+  | Expecting DecodeExpectation
+
+
+data DecodeExpectation
+  = TObject
+  | TArray
+  | TString
+  | TBool
+  | TInt
+  | TObjectWith B.ByteString
+  | TArrayPair Int
 
 
 
 -- INSTANCES
 
 
-instance Functor (Decoder e) where
+instance Functor (Decoder x) where
   {-# INLINE fmap #-}
   fmap func (Decoder decodeA) =
     Decoder $ \ast ok err ->
@@ -75,7 +115,7 @@ instance Functor (Decoder e) where
       decodeA ast ok' err
 
 
-instance Applicative (Decoder e) where
+instance Applicative (Decoder x) where
   {-# INLINE pure #-}
   pure = return
 
@@ -92,7 +132,7 @@ instance Applicative (Decoder e) where
       decodeFunc ast okF err
 
 
-instance Monad (Decoder e) where
+instance Monad (Decoder x) where
   {-# INLINE return #-}
   return a =
     Decoder $ \_ ok _ ->
@@ -113,22 +153,35 @@ instance Monad (Decoder e) where
 -- STRINGS
 
 
-string :: Decoder e Utf8.String
+string :: Decoder x Json.String
 string =
   Decoder $ \ast ok err ->
     case ast of
-      String bits ->
-        ok bits
+      String snippet ->
+        ok (Json.fromSnippet snippet)
 
       _ ->
-        err (E.Expecting E.TString)
+        err (Expecting TString)
+
+
+customString :: P.Parser x a -> (Row -> Col -> x) -> Decoder x a
+customString parser toBadEnd =
+  Decoder $ \ast ok err ->
+    case ast of
+      String snippet ->
+        case P.fromSnippet parser toBadEnd snippet of
+          Right a -> ok a
+          Left  x -> err (Failure x)
+
+      _ ->
+        err (Expecting TString)
 
 
 
 -- BOOL
 
 
-bool :: Decoder e Bool
+bool :: Decoder x Bool
 bool =
   Decoder $ \ast ok err ->
     case ast of
@@ -139,14 +192,14 @@ bool =
         ok False
 
       _ ->
-        err (E.Expecting E.TBool)
+        err (Expecting TBool)
 
 
 
 -- INT
 
 
-int :: Decoder e Int
+int :: Decoder x Int
 int =
   Decoder $ \ast ok err ->
     case ast of
@@ -154,14 +207,14 @@ int =
         ok n
 
       _ ->
-        err (E.Expecting E.TInt)
+        err (Expecting TInt)
 
 
 
--- ARRAYS
+-- LISTS
 
 
-list :: Decoder e a -> Decoder e [a]
+list :: Decoder x a -> Decoder x [a]
 list decoder =
   Decoder $ \ast ok err ->
     case ast of
@@ -169,10 +222,10 @@ list decoder =
         listHelp decoder ok err 0 asts []
 
       _ ->
-        err (E.Expecting E.TArray)
+        err (Expecting TArray)
 
 
-listHelp :: Decoder e a -> ([a] -> b) -> (E.Problem e -> b) -> Int -> [AST] -> [a] -> b
+listHelp :: Decoder x a -> ([a] -> b) -> (Problem x -> b) -> Int -> [AST] -> [a] -> b
 listHelp decoder@(Decoder decodeA) ok err !i asts revs =
   case asts of
     [] ->
@@ -180,13 +233,29 @@ listHelp decoder@(Decoder decodeA) ok err !i asts revs =
 
     ast:asts ->
       let
-        ok' a = listHelp decoder ok err (i+1) asts (a:revs)
-        err' e = err (E.Index i e)
+        ok' value = listHelp decoder ok err (i+1) asts (value:revs)
+        err' prob = err (Index i prob)
       in
       decodeA ast ok' err'
 
 
-pair :: Decoder e a -> Decoder e b -> Decoder e (a,b)
+
+-- NON-EMPTY LISTS
+
+
+nonEmptyList :: Decoder x a -> x -> Decoder x (NE.List a)
+nonEmptyList decoder x =
+  do  values <- list decoder
+      case values of
+        v:vs -> return (NE.List v vs)
+        []   -> failure x
+
+
+
+-- PAIR
+
+
+pair :: Decoder x a -> Decoder x b -> Decoder x (a,b)
 pair (Decoder decodeA) (Decoder decodeB) =
   Decoder $ \ast ok err ->
     case ast of
@@ -194,10 +263,10 @@ pair (Decoder decodeA) (Decoder decodeB) =
         case vs of
           [astA,astB] ->
             let
-              err0 e = err (E.Index 0 e)
+              err0 e = err (Index 0 e)
               ok0 a =
                 let
-                  err1 e = err (E.Index 1 e)
+                  err1 e = err (Index 1 e)
                   ok1 b = ok (a,b)
                 in
                 decodeB astB ok1 err1
@@ -205,70 +274,98 @@ pair (Decoder decodeA) (Decoder decodeB) =
             decodeA astA ok0 err0
 
           _ ->
-            err (E.Expecting (E.TArrayPair (length vs)))
+            err (Expecting (TArrayPair (length vs)))
 
       _ ->
-        err (E.Expecting E.TArray)
+        err (Expecting TArray)
 
 
 
--- OBJECT
+-- OBJECTS
 
 
-dict :: Decoder e a -> Decoder e (Map.Map Utf8.String a)
-dict decoder =
-  Map.fromList <$> pairs decoder
+data KeyDecoder x a =
+  KeyDecoder (P.Parser x a) (Row -> Col -> x)
 
 
-pairs :: Decoder e a -> Decoder e [(Utf8.String, a)]
-pairs decoder =
+dict :: (Ord k) => KeyDecoder x k -> Decoder x a -> Decoder x (Map.Map k a)
+dict keyDecoder valueDecoder =
+  Map.fromList <$> pairs keyDecoder valueDecoder
+
+
+pairs :: KeyDecoder x k -> Decoder x a -> Decoder x [(k, a)]
+pairs keyDecoder valueDecoder =
   Decoder $ \ast ok err ->
     case ast of
       Object kvs ->
-        pairsHelp decoder ok err kvs []
+        pairsHelp keyDecoder valueDecoder ok err kvs []
 
       _ ->
-        err (E.Expecting E.TObject)
+        err (Expecting TObject)
 
 
-pairsHelp :: Decoder e a -> ([(Utf8.String, a)] -> b) -> (E.Problem e -> b) -> [(Utf8.String, AST)] -> [(Utf8.String, a)] -> b
-pairsHelp decoder@(Decoder decodeA) ok err kvs revs =
+pairsHelp :: KeyDecoder x k -> Decoder x a -> ([(k, a)] -> b) -> (Problem x -> b) -> [(P.Snippet, AST)] -> [(k, a)] -> b
+pairsHelp keyDecoder@(KeyDecoder keyParser toBadEnd) valueDecoder@(Decoder decodeA) ok err kvs revs =
   case kvs of
     [] ->
       ok (reverse revs)
 
-    (key, ast) : kvs ->
-      let
-        ok' a = pairsHelp decoder ok err kvs ((key,a):revs)
-        err' e = err (E.Field key e)
-      in
-      decodeA ast ok' err'
+    (snippet, ast) : kvs ->
+      case P.fromSnippet keyParser toBadEnd snippet of
+        Left x ->
+          err (Failure x)
+
+        Right key ->
+          let
+            ok' value = pairsHelp keyDecoder valueDecoder ok err kvs ((key,value):revs)
+            err' prob =
+              let (P.Snippet fptr off len _ _) = snippet in
+              err (Field (B.PS fptr off len) prob)
+          in
+          decodeA ast ok' err'
 
 
-field :: Utf8.String -> Decoder e a -> Decoder e a
+
+-- FIELDS
+
+
+field :: B.ByteString -> Decoder x a -> Decoder x a
 field key (Decoder decodeA) =
   Decoder $ \ast ok err ->
     case ast of
       Object kvs ->
-        case List.lookup key kvs of
-          Just v ->
+        case findField key kvs of
+          Just value ->
             let
-              err' e = err (E.Field key e)
+              err' prob =
+                err (Field key prob)
             in
-            decodeA v ok err'
+            decodeA value ok err'
 
           Nothing ->
-            err (E.Expecting (E.TObjectWith key))
+            err (Expecting (TObjectWith key))
 
       _ ->
-        err (E.Expecting E.TObject)
+        err (Expecting TObject)
+
+
+findField :: B.ByteString -> [(P.Snippet, AST)] -> Maybe AST
+findField key pairs =
+  case pairs of
+    [] ->
+      Nothing
+
+    (P.Snippet fptr off len _ _, value) : remainingPairs ->
+      if key == B.PS fptr off len
+      then Just value
+      else findField key remainingPairs
 
 
 
 -- ONE OF
 
 
-oneOf :: [Decoder e a] -> Decoder e a
+oneOf :: [Decoder x a] -> Decoder x a
 oneOf decoders =
   Decoder $ \ast ok err ->
     case decoders of
@@ -283,61 +380,61 @@ oneOf decoders =
         error "Ran into (Json.Decode.oneOf [])"
 
 
-oneOfHelp :: AST -> (a -> b) -> (E.Problem e -> b) -> [Decoder e a] -> E.Problem e -> [E.Problem e] -> b
-oneOfHelp ast ok err decoders e es =
+oneOfHelp :: AST -> (a -> b) -> (Problem x -> b) -> [Decoder x a] -> Problem x -> [Problem x] -> b
+oneOfHelp ast ok err decoders p ps =
   case decoders of
     Decoder decodeA : decoders ->
       let
-        err' e' =
-          oneOfHelp ast ok err decoders e' (e:es)
+        err' p' =
+          oneOfHelp ast ok err decoders p' (p:ps)
       in
       decodeA ast ok err'
 
     [] ->
-      err (oneOfError [] e es)
+      err (oneOfError [] p ps)
 
 
-oneOfError :: [E.Problem e] -> E.Problem e -> [E.Problem e] -> E.Problem e
-oneOfError errors err es =
-  case es of
+oneOfError :: [Problem x] -> Problem x -> [Problem x] -> Problem x
+oneOfError problems prob ps =
+  case ps of
     [] ->
-      E.OneOf err errors
+      OneOf prob problems
 
-    e:es ->
-      oneOfError (err:errors) e es
+    p:ps ->
+      oneOfError (prob:problems) p ps
 
 
 
 -- FAILURE
 
 
-failure :: e -> Decoder e a
-failure e =
+failure :: x -> Decoder x a
+failure x =
   Decoder $ \_ _ err ->
-    err (E.Failure e)
+    err (Failure x)
 
 
 
 -- ERRORS
 
 
-mapError :: (e -> e') -> Decoder e a -> Decoder e' a
+mapError :: (x -> y) -> Decoder x a -> Decoder y a
 mapError func (Decoder decodeA) =
   Decoder $ \ast ok err ->
     let
-      err' e = err (mapErrorHelp func e)
+      err' prob = err (mapErrorHelp func prob)
     in
     decodeA ast ok err'
 
 
-mapErrorHelp :: (e -> e') -> E.Problem e -> E.Problem e'
-mapErrorHelp func err =
-  case err of
-    E.Field k e   -> E.Field k (mapErrorHelp func e)
-    E.Index i e   -> E.Index i (mapErrorHelp func e)
-    E.OneOf e es  -> E.OneOf (mapErrorHelp func e) (map (mapErrorHelp func) es)
-    E.Failure e   -> E.Failure (func e)
-    E.Expecting e -> E.Expecting e
+mapErrorHelp :: (x -> y) -> Problem x -> Problem y
+mapErrorHelp func problem =
+  case problem of
+    Field k p   -> Field k (mapErrorHelp func p)
+    Index i p   -> Index i (mapErrorHelp func p)
+    OneOf p ps  -> OneOf (mapErrorHelp func p) (map (mapErrorHelp func) ps)
+    Failure x   -> Failure (func x)
+    Expecting e -> Expecting e
 
 
 
@@ -346,8 +443,8 @@ mapErrorHelp func err =
 
 data AST
   = Array [AST]
-  | Object [(Utf8.String, AST)]
-  | String Utf8.String
+  | Object [(P.Snippet, AST)]
+  | String P.Snippet
   | Int Int
   | TRUE
   | FALSE
@@ -359,7 +456,40 @@ data AST
 
 
 type Parser a =
-  P.Parser E.ParseError a
+  P.Parser ParseError a
+
+
+data ParseError
+  = ObjectStart Row Col
+  | ObjectMore Row Col
+  | ObjectEnd Row Col
+  | ArrayStart Row Col
+  | ArrayMore Row Col
+  | ArrayEnd Row Col
+  | StringStart Row Col
+  | StringProblem StringProblem Row Col
+  | IntStart Row Col
+  | NoLeadingZeros Row Col
+  | NoFloats Row Col
+  | Bool Row Col
+  | Null Row Col
+  | Value Row Col
+  | Colon Row Col
+  | BadEnd Row Col
+
+--  PIndex Int ParseError Row Col
+--  PField Json.String ParseError Row Col
+
+
+data StringProblem
+  = BadStringEnd
+  | BadStringControlChar
+  | BadStringEscapeChar
+  | BadStringEscapeHex
+
+
+
+-- PARSE AST
 
 
 pFile :: Parser AST
@@ -367,30 +497,20 @@ pFile =
   do  spaces
       value <- pValue
       spaces
-      endOfFile
       return value
 
 
 pValue :: Parser AST
 pValue =
-  P.oneOf E.Value
-    [ fmap String pString
+  P.oneOf Value
+    [ String <$> pString
     , pObject
     , pArray
     , pInt
-    , K.k4 0x74 0x72 0x75 0x65      E.Bool >> return TRUE
-    , K.k5 0x66 0x61 0x6C 0x73 0x65 E.Bool >> return FALSE
-    , K.k4 0x6E 0x75 0x6C 0x6C      E.Null >> return NULL
+    , K.k4 0x74 0x72 0x75 0x65      Bool >> return TRUE
+    , K.k5 0x66 0x61 0x6C 0x73 0x65 Bool >> return FALSE
+    , K.k4 0x6E 0x75 0x6C 0x6C      Null >> return NULL
     ]
-
-
-endOfFile :: Parser ()
-endOfFile =
-  P.Parser $ \state@(P.State pos end _ row col) _ eok _ eerr ->
-    if pos < end then
-      eerr row col E.EndOfFile
-    else
-      eok () state
 
 
 
@@ -399,37 +519,37 @@ endOfFile =
 
 pObject :: Parser AST
 pObject =
-  do  P.word1 0x7B {- { -} E.ObjectStart
+  do  P.word1 0x7B {- { -} ObjectStart
       spaces
-      P.oneOf E.ObjectMore
+      P.oneOf ObjectMore
         [ do  entry <- pField
               spaces
               pObjectHelp [entry]
-        , do  P.word1 0x7D {-}-} E.ObjectEnd
+        , do  P.word1 0x7D {-}-} ObjectEnd
               return (Object [])
         ]
 
 
-pObjectHelp :: [(Utf8.String, AST)] -> Parser AST
+pObjectHelp :: [(P.Snippet, AST)] -> Parser AST
 pObjectHelp revEntries =
-  P.oneOf E.ObjectMore
+  P.oneOf ObjectMore
     [
-      do  P.word1 0x2C {-,-} E.ObjectMore
+      do  P.word1 0x2C {-,-} ObjectMore
           spaces
           entry <- pField
           spaces
           pObjectHelp (entry:revEntries)
     ,
-      do  P.word1 0x7D {-}-} E.ObjectEnd
+      do  P.word1 0x7D {-}-} ObjectEnd
           return (Object (reverse revEntries))
     ]
 
 
-pField :: Parser (Utf8.String, AST)
+pField :: Parser (P.Snippet, AST)
 pField =
   do  key <- pString
       spaces
-      P.word1 0x3A {-:-} E.Colon
+      P.word1 0x3A {-:-} Colon
       spaces
       value <- pValue
       return (key, value)
@@ -441,28 +561,28 @@ pField =
 
 pArray :: Parser AST
 pArray =
-  do  P.word1 0x5B {-[-} E.ArrayStart
+  do  P.word1 0x5B {-[-} ArrayStart
       spaces
-      P.oneOf E.ArrayMore
+      P.oneOf ArrayMore
         [ do  entry <- pValue
               spaces
               pArrayHelp 1 [entry]
-        , do  P.word1 0x5D {-]-} E.ArrayEnd
+        , do  P.word1 0x5D {-]-} ArrayEnd
               return (Array [])
         ]
 
 
 pArrayHelp :: Int -> [AST] -> Parser AST
 pArrayHelp !len revEntries =
-  P.oneOf E.ArrayMore
+  P.oneOf ArrayMore
     [
-      do  P.word1 0x2C {-,-} E.ArrayMore
+      do  P.word1 0x2C {-,-} ArrayMore
           spaces
           entry <- pValue
           spaces
           pArrayHelp (len + 1) (entry:revEntries)
     ,
-      do  P.word1 0x5D {-]-} E.ArrayEnd
+      do  P.word1 0x5D {-]-} ArrayEnd
           return (Array (reverse revEntries))
     ]
 
@@ -471,41 +591,44 @@ pArrayHelp !len revEntries =
 -- STRING
 
 
-pString :: Parser Utf8.String
+pString :: Parser P.Snippet
 pString =
-  P.Parser $ \(P.State pos end indent row col) cok _ cerr eerr ->
+  P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
     if pos < end && P.unsafeIndex pos == 0x22 {-"-} then
 
       let
         !pos1 = plusPtr pos 1
+        !col1 = col + 1
 
         (# status, newPos, newRow, newCol #) =
-          pStringHelp pos1 end row (col + 1)
+          pStringHelp pos1 end row col1
       in
       case status of
         GoodString ->
           let
-            !newState = P.State newPos end indent newRow newCol
-            !content = Utf8.fromPtr pos1 (plusPtr newPos (-1))
+            !off = minusPtr pos1 (unsafeForeignPtrToPtr src)
+            !len = minusPtr newPos pos1 - 1
+            !snp = P.Snippet src off len row col1
+            !newState = P.State src newPos end indent newRow newCol
           in
-          cok content newState
+          cok snp newState
 
-        BadStringEnd ->
-          cerr newRow newCol E.StringEnd
+        BadString problem ->
+          cerr newRow newCol (StringProblem problem)
 
     else
-      eerr row col E.StringStart
+      eerr row col StringStart
 
 
 data StringStatus
   = GoodString
-  | BadStringEnd
+  | BadString StringProblem
 
 
 pStringHelp :: Ptr Word8 -> Ptr Word8 -> Word16 -> Word16 -> (# StringStatus, Ptr Word8, Word16, Word16 #)
 pStringHelp pos end row col =
   if pos >= end then
-    (# BadStringEnd, pos, row, col #)
+    (# BadString BadStringEnd, pos, row, col #)
 
   else
     case P.unsafeIndex pos of
@@ -513,26 +636,50 @@ pStringHelp pos end row col =
         (# GoodString, plusPtr pos 1, row, col + 1 #)
 
       0x0A {-\n-} ->
-        (# BadStringEnd, pos, row, col #)
+        (# BadString BadStringEnd, pos, row, col #)
 
       0x5C {-\-} ->
-        let
-          !pos1 = plusPtr pos 1
-        in
-        if pos1 < end then
-
-          let
-            !word = P.unsafeIndex pos1
-            !newPos = plusPtr pos1 (P.getCharWidth pos1 end word)
-          in
-          pStringHelp newPos end row (col + 2)
-
+        let !pos1 = plusPtr pos 1 in
+        if pos1 >= end then
+          (# BadString BadStringEnd, pos1, row + 1, col #)
         else
-          (# BadStringEnd, pos1, row + 1, col #)
+          case P.unsafeIndex pos1 of
+            0x22 {-"-} -> pStringHelp (plusPtr pos 2) end row (col + 2)
+            0x5C {-\-} -> pStringHelp (plusPtr pos 2) end row (col + 2)
+            0x2F {-/-} -> pStringHelp (plusPtr pos 2) end row (col + 2)
+            0x62 {-b-} -> pStringHelp (plusPtr pos 2) end row (col + 2)
+            0x66 {-f-} -> pStringHelp (plusPtr pos 2) end row (col + 2)
+            0x6E {-n-} -> pStringHelp (plusPtr pos 2) end row (col + 2)
+            0x72 {-r-} -> pStringHelp (plusPtr pos 2) end row (col + 2)
+            0x74 {-t-} -> pStringHelp (plusPtr pos 2) end row (col + 2)
+            0x75 {-u-} ->
+              let !pos6 = plusPtr pos 6 in
+              if pos6 <= end
+                && isHex (P.unsafeIndex (plusPtr pos 2))
+                && isHex (P.unsafeIndex (plusPtr pos 3))
+                && isHex (P.unsafeIndex (plusPtr pos 4))
+                && isHex (P.unsafeIndex (plusPtr pos 5))
+              then
+                pStringHelp pos6 end row (col + 6)
+              else
+                (# BadString BadStringEscapeHex, pos, row, col #)
+
+            _ ->
+              (# BadString BadStringEscapeChar, pos, row, col #)
 
       word ->
-        let !newPos = plusPtr pos (P.getCharWidth pos end word) in
-        pStringHelp newPos end row (col + 1)
+        if word < 0x20 then
+          (# BadString BadStringControlChar, pos, row, col #)
+        else
+          let !newPos = plusPtr pos (P.getCharWidth pos end word) in
+          pStringHelp newPos end row (col + 1)
+
+
+isHex :: Word8 -> Bool
+isHex word =
+     0x30 {-0-} <= word && word <= 0x39 {-9-}
+  || 0x61 {-a-} <= word && word <= 0x66 {-f-}
+  || 0x41 {-A-} <= word && word <= 0x46 {-F-}
 
 
 
@@ -541,7 +688,7 @@ pStringHelp pos end row col =
 
 spaces :: Parser ()
 spaces =
-  P.Parser $ \state@(P.State pos end indent row col) cok eok _ _ ->
+  P.Parser $ \state@(P.State src pos end indent row col) cok eok _ _ ->
     let
       (# newPos, newRow, newCol #) =
         eatSpaces pos end row col
@@ -551,7 +698,7 @@ spaces =
     else
       let
         !newState =
-          P.State newPos end indent newRow newCol
+          P.State src newPos end indent newRow newCol
       in
       cok () newState
 
@@ -577,27 +724,27 @@ eatSpaces pos end row col =
 
 pInt :: Parser AST
 pInt =
-  P.Parser $ \(P.State pos end indent row col) cok _ cerr eerr ->
+  P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
     if pos >= end then
-      eerr row col E.IntStart
+      eerr row col IntStart
 
     else
       let !word = P.unsafeIndex pos in
       if not (isDecimalDigit word) then
-        eerr row col E.IntStart
+        eerr row col IntStart
 
       else if word == 0x30 {-0-} then
 
         let
           !pos1 = plusPtr pos 1
-          !newState = P.State pos1 end indent row (col + 1)
+          !newState = P.State src pos1 end indent row (col + 1)
         in
         if pos1 < end then
           let !word1 = P.unsafeIndex pos1 in
           if isDecimalDigit word1 then
-            cerr row (col + 1) E.NoLeadingZeros
+            cerr row (col + 1) NoLeadingZeros
           else if word1 == 0x2E {-.-} then
-            cerr row (col + 1) E.NoFloats
+            cerr row (col + 1) NoFloats
           else
             cok (Int 0) newState
         else
@@ -614,12 +761,12 @@ pInt =
           GoodInt ->
             let
               !newState =
-                P.State newPos end indent row (col + len)
+                P.State src newPos end indent row (col + len)
             in
             cok (Int n) newState
 
           BadIntEnd ->
-            cerr row (col + len) E.NoFloats
+            cerr row (col + len) NoFloats
 
 
 data IntStatus = GoodInt | BadIntEnd
