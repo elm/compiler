@@ -28,6 +28,19 @@ import qualified Json.Encode as Json
 -- EXPRESSIONS
 
 
+-- NOTE: I tried making this create a B.Builder directly.
+--
+-- The hope was that it'd allocate less and speed things up, but it seemed
+-- to be neutral for perf.
+--
+-- The downside is that Generate.JavaScript.Expression inspects the
+-- structure of Expr and Stmt on some occassions to try to strip out
+-- unnecessary closures. I think these closures are already avoided
+-- by other logic in code gen these days, but I am not 100% certain.
+--
+-- For this to be worth it, I think it would be necessary to avoid
+-- returning tuples when generating expressions.
+--
 data Expr
   = String Builder
   | Float Builder
