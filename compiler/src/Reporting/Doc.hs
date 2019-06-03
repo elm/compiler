@@ -7,16 +7,38 @@ module Reporting.Doc
   , P.hcat, P.hsep, P.indent, P.sep, P.vcat
   , P.red, P.cyan, P.magenta, P.green, P.blue, P.black, P.yellow
   , P.dullred, P.dullcyan, P.dullyellow
-
-  , fromChars, fromName, fromInt, fromUtf8
-  , toAnsi, toString, toLine
+  --
+  , fromChars
+  , fromName
+  , fromVersion
+  , fromPackage
+  , fromInt
+  --
+  , toAnsi
+  , toString
+  , toLine
+  --
   , encode
-
-  , stack, reflow, commaSep
-  , toSimpleNote, toSimpleHint, toFancyHint
-  , link, fancyLink, reflowLink, makeLink, makeNakedLink
-  , args, moreArgs
-  , ordinal, intToOrdinal
+  --
+  , stack
+  , reflow
+  , commaSep
+  --
+  , toSimpleNote
+  , toFancyNote
+  , toSimpleHint
+  , toFancyHint
+  --
+  , link
+  , fancyLink
+  , reflowLink
+  , makeLink
+  , makeNakedLink
+  --
+  , args
+  , moreArgs
+  , ordinal
+  , intToOrdinal
   , cycle
   )
   where
@@ -26,14 +48,16 @@ import Prelude hiding (cycle)
 import qualified Data.List as List
 import Data.Monoid ((<>))
 import qualified Data.Name as Name
-import qualified Data.Utf8 as Utf8
 import qualified System.Console.ANSI.Types as Ansi
 import qualified System.Info as Info
 import System.IO (Handle)
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import qualified Data.Index as Index
+import qualified Elm.Package as Pkg
+import qualified Elm.Version as V
 import qualified Json.Encode as E
+import qualified Json.String as Json
 
 
 
@@ -50,14 +74,19 @@ fromName name =
   P.text (Name.toChars name)
 
 
+fromVersion :: V.Version -> P.Doc
+fromVersion vsn =
+  P.text (V.toChars vsn)
+
+
+fromPackage :: Pkg.Name -> P.Doc
+fromPackage pkg =
+  P.text (Pkg.toChars pkg)
+
+
 fromInt :: Int -> P.Doc
 fromInt n =
   P.text (show n)
-
-
-fromUtf8 :: Utf8.String -> P.Doc
-fromUtf8 utf8 =
-  P.text (Utf8.toChars utf8)
 
 
 
@@ -111,12 +140,21 @@ commaSep conjunction addStyle names =
 
 
 
--- HINTS
+-- NOTES
 
 
 toSimpleNote :: String -> P.Doc
 toSimpleNote message =
-  P.fillSep ((P.underline "Note" <> ":") : map P.text (words message))
+  toFancyNote (map P.text (words message))
+
+
+toFancyNote :: [P.Doc] -> P.Doc
+toFancyNote chunks =
+  P.fillSep (P.underline "Note" <> ":" : chunks)
+
+
+
+-- HINTS
 
 
 toSimpleHint :: String -> P.Doc
@@ -148,17 +186,17 @@ fancyLink word before fileName after =
     (P.underline word <> ":") : before ++ P.text (makeLink fileName) : after
 
 
-makeLink :: String -> String
+makeLink :: [Char] -> [Char]
 makeLink fileName =
-  "<https://elm-lang.org/" <> error "TODO V.toString V.compiler" <> "/" <> fileName <> ">"
+  "<https://elm-lang.org/" <> V.toChars V.compiler <> "/" <> fileName <> ">"
 
 
-makeNakedLink :: String -> String
+makeNakedLink :: [Char] -> [Char]
 makeNakedLink fileName =
-  "https://elm-lang.org/" <> error "TODO V.toString V.compiler" <> "/" <> fileName
+  "https://elm-lang.org/" <> V.toChars V.compiler <> "/" <> fileName
 
 
-reflowLink :: String -> String -> String -> P.Doc
+reflowLink :: [Char] -> [Char] -> [Char] -> P.Doc
 reflowLink before fileName after =
   P.fillSep $
     map P.text (words before)
@@ -379,7 +417,7 @@ encodeChunks (Style bold underline color) revChunks =
 
 encodeColor :: Color -> E.Value
 encodeColor color =
-  E.string $
+  E.string $ Json.fromChars $
     case color of
       Red -> "red"
       RED -> "RED"
