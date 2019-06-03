@@ -43,7 +43,10 @@ import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
 import qualified Http
+import qualified Json.Decode as Decode
 import qualified Json.Encode as Encode
+import qualified Json.String as Json
+import Parse.Primitives (Row, Col)
 import Reporting.Doc ((<>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Error.Import as Import
@@ -171,16 +174,16 @@ diffToReport diff =
       Help.report "UNKNOWN PACKAGE" Nothing
         ( "I cannot find a package called:"
         )
-        [ D.indent 4 $ D.red $ D.fromUtf8 $ Pkg.toString pkg
+        [ D.indent 4 $ D.red $ D.fromChars $ Pkg.toChars pkg
         , "Maybe you want one of these instead?"
-        , D.indent 4 $ D.dullyellow $ D.vcat $ map (D.fromUtf8 . Pkg.toString) suggestions
+        , D.indent 4 $ D.dullyellow $ D.vcat $ map (D.fromChars . Pkg.toChars) suggestions
         , "But check <https://package.elm-lang.org> to see all possibilities!"
         ]
 
     DiffUnknownVersion _pkg vsn realVersions ->
       Help.docReport "UNKNOWN VERSION" Nothing
         ( D.fillSep $
-            [ "Version", D.red (D.fromUtf8 (V.toString vsn))
+            [ "Version", D.red (D.fromVersion vsn)
             , "has", "never", "been", "published,", "so", "I"
             , "cannot", "diff", "against", "it."
             ]
@@ -189,7 +192,7 @@ diffToReport diff =
         , D.indent 4 $ D.dullyellow $ D.vcat $
             let
               sameMajor v1 v2 = V._major v1 == V._major v2
-              mkRow vsns = D.hsep $ map (D.fromUtf8 . V.toString) vsns
+              mkRow vsns = D.hsep $ map D.fromVersion vsns
             in
               map mkRow $ List.groupBy sameMajor (List.sort realVersions)
         , "Want one of those instead?"
@@ -311,19 +314,19 @@ data Solver
 
 
 data Outline
-  = OutlineHasBadStructure (Json.Error OutlineProblem)
+  = OutlineHasBadStructure (Decode.Error OutlineProblem)
   | OutlineHasBadSrcDirs FilePath [FilePath]
 
 
 data OutlineProblem
-  = OP_BadType Utf8.String
-  | OP_BadPkgName Pkg.BadName
-  | OP_BadVersion Utf8.String
+  = OP_BadType
+  | OP_BadPkgName Row Col
+  | OP_BadVersion Row Col
   | OP_BadConstraint C.Error
-  | OP_BadModuleName Utf8.String
-  | OP_BadModuleHeaderTooLong Utf8.String
-  | OP_BadDependencyName Utf8.String
-  | OP_BadLicense Utf8.String [Utf8.String]
+  | OP_BadModuleName Row Col
+  | OP_BadModuleHeaderTooLong
+  | OP_BadDependencyName Row Col
+  | OP_BadLicense Json.String [Json.String]
   | OP_BadSummaryTooLong
   | OP_NoSrcDirs
 
@@ -426,7 +429,7 @@ _toReport exit =
       Help.docReport "CANNOT BUMP" (Just "elm.json")
         ( D.fillSep
             ["Your","elm.json","says","I","should","bump","relative","to","version"
-            ,D.red (D.fromUtf8 (V.toString vsn)) <> ","
+            ,D.red (D.fromVersion vsn) <> ","
             ,"but","I","cannot","find","that","version","on","<https://package.elm-lang.org>."
             ,"That","means","there","is","no","API","for","me","to","diff","against","and"
             ,"figure","out","if","these","are","MAJOR,","MINOR,","or","PATCH","changes."
@@ -435,7 +438,7 @@ _toReport exit =
         [ D.fillSep $
             ["Try","bumping","again","after","changing","the",D.dullyellow "\"version\"","in","elm.json"]
             ++ if length versions == 1 then ["to:"] else ["to","one","of","these:"]
-        , D.vcat $ map (D.green . D.fromUtf8 . V.toString) versions
+        , D.vcat $ map (D.green . D.fromVersion) versions
         ]
 
     BumpMustHaveLatestRegistry problem ->
@@ -456,7 +459,7 @@ _toReport exit =
       Help.docReport "INVALID VERSION" Nothing
         ( D.fillSep
             ["I","cannot","publish"
-            ,D.red (D.fromUtf8 (V.toString vsn))
+            ,D.red (D.fromVersion vsn)
             ,"as","the","initial","version."
             ]
         )
@@ -470,7 +473,7 @@ _toReport exit =
       Help.docReport "ALREADY PUBLISHED" Nothing
         ( D.vcat
             [ D.fillSep
-                [ "Version", D.green (D.fromUtf8 (V.toString vsn))
+                [ "Version", D.green (D.fromVersion vsn)
                 , "has", "already", "been", "published.", "You", "cannot"
                 , "publish", "it", "again!"
                 ]
@@ -487,14 +490,14 @@ _toReport exit =
       Help.docReport "INVALID VERSION" (Just "elm.json")
         ( D.fillSep $
             ["Your","elm.json","says","the","next","version","should","be"
-            ,D.red (D.fromUtf8 (V.toString statedVersion)) <> ","
+            ,D.red (D.fromVersion statedVersion) <> ","
             ,"but","that","is","not","valid","based","on","the","previously"
             ,"published","versions."
             ]
         )
         [ D.fillSep $
             ["Change","the","version","back","to"
-            ,D.green (D.fromUtf8 (V.toString latestVersion))
+            ,D.green (D.fromVersion latestVersion)
             ,"which","is","the","most","recently","published","version."
             ,"From","there,","have","Elm","bump","the","version","by","running:"
             ]
@@ -509,7 +512,7 @@ _toReport exit =
         (
           D.fillSep $
             ["Your","elm.json","says","the","next","version","should","be"
-            ,D.red (D.fromUtf8 (V.toString new)) <> ","
+            ,D.red (D.fromVersion new) <> ","
             ,"indicating","a",D.fromChars (M.toChars magnitude)
             ,"change","to","the","public","API."
             ,"This","does","not","match","the","API","diff","given","by:"
@@ -522,7 +525,7 @@ _toReport exit =
             ["This","command","says","this","is","a"
             ,D.fromChars (M.toChars realMagnitude)
             ,"change,","so","the","next","version","should","be"
-            ,D.green (D.fromUtf8 (V.toString realNew)) <> "."
+            ,D.green (D.fromVersion realNew) <> "."
             ,"Double","check","everything","to","make","sure","you"
             ,"are","publishing","what","you","want!"
             ]
@@ -678,10 +681,10 @@ detailsToReport details =
     DetailsBadElmInPkg constraint ->
       Help.report "ELM VERSION MISMATCH" (Just "elm.json")
         "Your elm.json says this package needs a version of Elm in this range:"
-        [ D.indent 4 $ D.dullyellow $ D.fromUtf8 $ C.toString constraint
+        [ D.indent 4 $ D.dullyellow $ D.fromChars $ C.toChars constraint
         , D.fillSep
             [ "But", "you", "are", "using", "Elm"
-            , D.red (D.fromUtf8 (V.toString V.compiler))
+            , D.red (D.fromVersion V.compiler)
             , "right", "now."
             ]
         ]
@@ -691,9 +694,9 @@ detailsToReport details =
         "Your elm.json says this application needs a different version of Elm."
         [ D.fillSep
             [ "It", "requires"
-            , D.green (D.fromUtf8 (V.toString version)) <> ","
+            , D.green (D.fromVersion version) <> ","
             , "but", "you", "are", "using"
-            , D.red (D.fromUtf8 (V.toString V.compiler))
+            , D.red (D.fromVersion V.compiler)
             , "right", "now."
             ]
         ]
@@ -701,8 +704,8 @@ detailsToReport details =
     DetailsHandEditedDependencies ->
       error "TODO DetailsHandEditedDependencies"
 
-    DetailsBadOutline problem ->
-      error "TODO DetailsBadOutline" problem
+    DetailsBadOutline outlineProblem ->
+      toOutlineReport outlineProblem
 
     DetailsCannotGetRegistry problem ->
       error "TODO DetailsCannotGetRegistry" problem
@@ -826,3 +829,52 @@ makeToReport make =
 
     MakeCannotLoadArtifacts ->
       error "TODO MakeCannotLoadArtifacts"
+
+
+
+-- OUTLINE
+
+
+toOutlineReport :: Outline -> Help.Report
+toOutlineReport problem =
+  case problem of
+    OutlineHasBadSrcDirs dir dirs ->
+      error "TODO OutlineHasBadSrcDirs" dir dirs
+
+    OutlineHasBadStructure decodeError ->
+      error "TODO OutlineHasBadStructure" decodeError toOutlineProblemReport
+
+
+toOutlineProblemReport :: OutlineProblem -> Help.Report
+toOutlineProblemReport problem =
+  case problem of
+    OP_BadType ->
+      error "TODO OP_BadType"
+
+    OP_BadPkgName row col ->
+      error "TODO OP_BadPkgName" row col
+
+    OP_BadVersion row col ->
+      error "TODO OP_BadVersion" row col
+
+    OP_BadConstraint constraintError ->
+      error "TODO OP_BadConstraint" constraintError
+
+    OP_BadModuleName row col ->
+      error "TODO OP_BadModuleName" row col
+
+    OP_BadModuleHeaderTooLong ->
+      error "TODO OP_BadModuleHeaderTooLong"
+
+    OP_BadDependencyName row col ->
+      error "TODO OP_BadDependencyName"
+
+    OP_BadLicense badLicense suggestions ->
+      error "TODO OP_BadLicense" badLicense suggestions
+
+    OP_BadSummaryTooLong ->
+      error "TODO OP_BadSummaryTooLong"
+
+    OP_NoSrcDirs ->
+      error "TODO OP_NoSrcDirs"
+
