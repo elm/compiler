@@ -11,11 +11,11 @@ module Parse.Number
   where
 
 
-import qualified Data.Utf8 as Utf8
 import Data.Word (Word8)
 import Foreign.Ptr (Ptr, plusPtr, minusPtr)
 
 import qualified AST.Utils.Binop as Binop
+import qualified Elm.Float as EF
 import Parse.Primitives (Parser, Row, Col)
 import qualified Parse.Variable as Var
 import qualified Parse.Primitives as P
@@ -43,12 +43,12 @@ isDecimalDigit word =
 
 data Number
   = Int Int
-  | Float (Utf8.Under256 Float)
+  | Float EF.Float
 
 
 number :: (Row -> Col -> x) -> (E.Number -> Row -> Col -> x) -> Parser x Number
 number toExpectation toError =
-  P.Parser $ \(P.State pos end indent row col) cok _ cerr eerr ->
+  P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
     if pos >= end then
       eerr row col toExpectation
 
@@ -76,16 +76,16 @@ number toExpectation toError =
               let
                 !newCol = col + fromIntegral (minusPtr newPos pos)
                 !integer = Int n
-                !newState = P.State newPos end indent row newCol
+                !newState = P.State src newPos end indent row newCol
               in
               cok integer newState
 
             OkFloat newPos ->
               let
                 !newCol = col + fromIntegral (minusPtr newPos pos)
-                !copy = Utf8.fromPtr pos newPos
+                !copy = EF.fromPtr pos newPos
                 !float = Float copy
-                !newState = P.State newPos end indent row newCol
+                !newState = P.State src newPos end indent row newCol
               in
               cok float newState
 
@@ -290,7 +290,7 @@ stepHex pos end word acc
 
 precedence :: (Row -> Col -> x) -> Parser x Binop.Precedence
 precedence toExpectation =
-  P.Parser $ \(P.State pos end indent row col) cok _ _ eerr ->
+  P.Parser $ \(P.State src pos end indent row col) cok _ _ eerr ->
     if pos >= end then
       eerr row col toExpectation
 
@@ -299,7 +299,7 @@ precedence toExpectation =
       if isDecimalDigit word then
         cok
           (Binop.Precedence (fromIntegral (word - 0x30 {-0-})))
-          (P.State (plusPtr pos 1) end indent row (col + 1))
+          (P.State src (plusPtr pos 1) end indent row (col + 1))
 
       else
         eerr row col toExpectation
