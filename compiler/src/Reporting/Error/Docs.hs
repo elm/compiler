@@ -2,17 +2,24 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Reporting.Error.Docs
   ( Error(..)
-  , toReport
+  , SyntaxProblem(..)
+  , NameProblem(..)
+  , DefProblem(..)
+  , toReports
   )
   where
 
 
 import qualified Data.Name as Name
+import qualified Data.NonEmptyList as NE
 
+import Parse.Primitives (Row, Col)
+import Parse.Symbol (BadOperator(..))
 import qualified Reporting.Annotation as A
 import Reporting.Doc ((<>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Render.Code as Code
+import qualified Reporting.Error.Syntax as E
 import qualified Reporting.Report as Report
 
 
@@ -20,36 +27,56 @@ import qualified Reporting.Report as Report
 data Error
   = NoDocs A.Region
   | ImplicitExposing A.Region
-  | Duplicate Name.Name A.Region A.Region
-  | OnlyInDocs Name.Name A.Region
-  | OnlyInExports Name.Name A.Region
-  | NoComment Name.Name A.Region
+  | SyntaxProblem SyntaxProblem
+  | NameProblems (NE.List NameProblem)
+  | DefProblems (NE.List DefProblem)
+
+
+data SyntaxProblem
+  = Op Row Col
+  | OpBad BadOperator Row Col
+  | Export Row Col
+  | Space E.Space Row Col
+  | Comma Row Col
+  | BadEnd Row Col
+
+
+data NameProblem
+  = NameDuplicate Name.Name A.Region A.Region
+  | NameOnlyInDocs Name.Name A.Region
+  | NameOnlyInExports Name.Name A.Region
+
+
+data DefProblem
+  = NoComment Name.Name A.Region
   | NoAnnotation Name.Name A.Region
 
 
 
--- TO REPORT
+-- TO REPORTS
 
 
-toReport :: Code.Source -> Error -> Report.Report
-toReport source err =
+toReports :: Code.Source -> Error -> NE.List Report.Report
+toReports source err =
   case err of
     NoDocs region ->
+      NE.singleton $
       Report.Report "NO DOCS" region [] $
-        D.stack
-          [
+        Code.toSnippet source region Nothing
+          (
             D.reflow $
               "You must have a documentation comment between the module\
               \ declaration and the imports."
           ,
             D.reflow
               "Learn more at <http://package.elm-lang.org/help/documentation-format>"
-          ]
+          )
 
     ImplicitExposing region ->
+      NE.singleton $
       Report.Report "IMPLICIT EXPOSING" region [] $
-        D.stack
-          [
+        Code.toSnippet source region Nothing
+          (
             D.reflow $
               "I need you to be explicit about what this module exposes:"
           ,
@@ -59,9 +86,22 @@ toReport source err =
               \ to be explicit about this is a way of adding another quality check before\
               \ code gets published. So as you write out the public API, ask yourself if\
               \ it will be easy to understand as people read the documentation!"
-          ]
+          )
 
-    Duplicate name r1 r2 ->
+    SyntaxProblem _ ->
+      error "TODO SyntaxProblem in docs"
+
+    NameProblems problems ->
+      fmap (toNameProblemReport source) problems
+
+    DefProblems problems ->
+      fmap (toDefProblemReport source) problems
+
+
+toNameProblemReport :: Code.Source -> NameProblem -> Report.Report
+toNameProblemReport source problem =
+  case problem of
+    NameDuplicate name r1 r2 ->
       Report.Report "DUPLICATE DOCS" r2 [] $
         Code.toPair source r1 r2
           (
@@ -81,7 +121,7 @@ toReport source err =
             "Remove one of them!"
           )
 
-    OnlyInDocs name region ->
+    NameOnlyInDocs name region ->
       Report.Report "DOCS MISTAKE" region [] $
         Code.toSnippet source region Nothing
           (
@@ -94,7 +134,7 @@ toReport source err =
               <> Name.toChars name <> "` and forgot to delete it here?"
           )
 
-    OnlyInExports name region ->
+    NameOnlyInExports name region ->
       Report.Report "DOCS MISTAKE" region [] $
         Code.toSnippet source region Nothing
           (
@@ -110,6 +150,10 @@ toReport source err =
               ]
           )
 
+
+toDefProblemReport :: Code.Source -> DefProblem -> Report.Report
+toDefProblemReport source problem =
+  case problem of
     NoComment name region ->
       Report.Report "NO DOCS" region [] $
         Code.toSnippet source region Nothing
