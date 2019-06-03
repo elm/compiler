@@ -68,10 +68,10 @@ data Env =
 makeEnv :: Reporting.BKey -> FilePath -> Details.Details -> Env
 makeEnv key root (Details.Details _ validOutline locals foreigns _) =
   case validOutline of
-    Details.ValidApp (Outline.AppOutline _ srcDirs _ _ _ _) ->
+    Details.ValidApp srcDirs ->
       Env key root Pkg.dummyName (NE.toList srcDirs) locals foreigns
 
-    Details.ValidPkg (Outline.PkgOutline pkg _ _ _ _ _ _ _) _ ->
+    Details.ValidPkg pkg _ ->
       Env key root pkg ["src"] locals foreigns
 
 
@@ -285,7 +285,7 @@ crawlFile env@(Env _ root pkg _ _ _) mvar expectedName path =
 
 isMain :: A.Located Src.Value -> Bool
 isMain (A.At _ (Src.Value (A.At _ name) _ _ _)) =
-  name == Name.main
+  name == Name._main
 
 
 
