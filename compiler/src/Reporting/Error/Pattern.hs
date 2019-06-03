@@ -8,6 +8,7 @@ module Reporting.Error.Pattern
 
 import qualified Data.List as List
 
+import qualified Elm.String as ES
 import qualified Nitpick.PatternMatches as P
 import Reporting.Doc ((<>))
 import qualified Reporting.Doc as D
@@ -117,10 +118,10 @@ patternToDoc context pattern =
     NonList (P.Literal literal) ->
       case literal of
         P.Chr chr ->
-          "'" <> D.fromUtf8 chr <> "'"
+          "'" <> D.fromChars (ES.toChars chr) <> "'"
 
         P.Str str ->
-          "\"" <> D.fromUtf8 str <> "\""
+          "\"" <> D.fromChars (ES.toChars str) <> "\""
 
         P.Int int ->
           D.fromInt int
