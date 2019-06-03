@@ -21,12 +21,14 @@ import qualified Data.Map as Map
 import qualified Data.Map.Utils as Map
 import qualified Data.Map.Merge.Strict as Map
 import qualified Data.Name as Name
+import qualified Data.NonEmptyList as NE
 import qualified Data.OneOrMore as OneOrMore
 import qualified Data.Set as Set
 import qualified Data.Utf8 as Utf8
 import qualified System.Directory as Dir
 import System.FilePath ((</>), (<.>))
 
+import qualified AST.Canonical as Can
 import qualified AST.Source as Src
 import qualified AST.Optimized as Opt
 import qualified Compile
@@ -34,6 +36,7 @@ import qualified Deps.Registry as Registry
 import qualified Deps.Solver as Solver
 import qualified Deps.Website as Website
 import qualified Elm.Constraint as Con
+import qualified Elm.Docs as Docs
 import qualified Elm.Interface as I
 import qualified Elm.Kernel as Kernel
 import qualified Elm.ModuleName as ModuleName
@@ -43,6 +46,7 @@ import qualified Elm.Version as V
 import qualified File
 import qualified Http
 import qualified Json.Decode as D
+import qualified Json.Encode as E
 import qualified Parse.Module as Parse
 import qualified Reporting
 import qualified Reporting.Annotation as A
@@ -66,8 +70,8 @@ data Details =
 
 
 data ValidOutline
-  = ValidApp Outline.AppOutline
-  | ValidPkg Outline.PkgOutline (Map.Map Pkg.Name V.Version)
+  = ValidApp (NE.List FilePath)
+  | ValidPkg Pkg.Name [ModuleName.Raw]
 
 
 data Local =
@@ -201,24 +205,24 @@ type Task a = Task.Task Exit.Details a
 
 
 verifyPkg :: Env -> File.Time -> Outline.PkgOutline -> Task Details
-verifyPkg env time outline@(Outline.PkgOutline _ _ _ _ _ direct testDirect elm) =
+verifyPkg env time (Outline.PkgOutline pkg _ _ _ exposed direct testDirect elm) =
   if Con.goodElm elm
   then
     do  solution <- verifyConstraints env =<< union noDups direct testDirect
-        let vsns = Map.map (\(Solver.Details v _) -> v) solution
-        verifyDependencies env time (ValidPkg outline vsns) solution direct
+        let exposedList = Outline.flattenExposed exposed
+        verifyDependencies env time (ValidPkg pkg exposedList) solution direct
   else
     Task.throw $ Exit.DetailsBadElmInPkg elm
 
 
 verifyApp :: Env -> File.Time -> Outline.AppOutline -> Task Details
-verifyApp env time outline@(Outline.AppOutline elmVersion _ direct _ _ _) =
+verifyApp env time outline@(Outline.AppOutline elmVersion srcDirs direct _ _ _) =
   if elmVersion == V.compiler
   then
     do  stated <- checkAppDeps outline
         actual <- verifyConstraints env (Map.map Con.exactly stated)
         if Map.size stated == Map.size actual
-          then verifyDependencies env time (ValidApp outline) actual direct
+          then verifyDependencies env time (ValidApp srcDirs) actual direct
           else Task.throw $ Exit.DetailsHandEditedDependencies
   else
     Task.throw $ Exit.DetailsBadElmInAppOutline elmVersion
@@ -425,8 +429,9 @@ build key cache depsMVar pkg (Solver.Details vsn _) fingerprints =
                   do  let src = Stuff.package cache pkg vsn </> "src"
                       let foreignDeps = gatherForeignInterfaces directArtifacts
                       let exposedDict = Map.fromKeys (\_ -> ()) (Outline.flattenExposed exposed)
+                      docsStatus <- getDocsStatus cache pkg vsn
                       mvar <- newEmptyMVar
-                      mvars <- Map.traverseWithKey (const . fork . crawlModule foreignDeps mvar pkg src) exposedDict
+                      mvars <- Map.traverseWithKey (const . fork . crawlModule foreignDeps mvar pkg src docsStatus) exposedDict
                       putMVar mvar mvars
                       mapM_ readMVar mvars
                       maybeStatuses <- traverse readMVar =<< readMVar mvar
@@ -452,7 +457,8 @@ build key cache depsMVar pkg (Solver.Details vsn _) fingerprints =
                                     objects = gatherObjects results
                                     artifacts = Artifacts ifaces objects
                                   in
-                                  do  File.writeBinary path (ArtifactCache fingerprints artifacts)
+                                  do  writeDocs cache pkg vsn docsStatus results
+                                      File.writeBinary path (ArtifactCache fingerprints artifacts)
                                       Reporting.report key Reporting.DBuilt
                                       return (Right artifacts)
 
@@ -469,7 +475,7 @@ gatherObjects results =
 addLocalGraph :: ModuleName.Raw -> Result -> Opt.GlobalGraph -> Opt.GlobalGraph
 addLocalGraph name status graph =
   case status of
-    RLocal _ objs   -> Opt.addLocalGraph objs graph
+    RLocal _ objs _ -> Opt.addLocalGraph objs graph
     RForeign _      -> graph
     RKernelLocal cs -> Opt.addKernel (Name.getKernel name) cs graph
     RKernelForeign  -> graph
@@ -488,10 +494,10 @@ gatherInterfaces exposed artifacts =
 toLocalInterface :: (I.Interface -> a) -> Result -> Maybe a
 toLocalInterface func result =
   case result of
-    RLocal iface _ -> Just (func iface)
-    RForeign _     -> Nothing
-    RKernelLocal _ -> Nothing
-    RKernelForeign -> Nothing
+    RLocal iface _ _ -> Just (func iface)
+    RForeign _       -> Nothing
+    RKernelLocal _   -> Nothing
+    RKernelForeign   -> Nothing
 
 
 
@@ -534,14 +540,14 @@ type StatusDict =
 
 
 data Status
-  = SLocal (Map.Map ModuleName.Raw ()) Src.Module
+  = SLocal DocsStatus (Map.Map ModuleName.Raw ()) Src.Module
   | SForeign I.Interface
   | SKernelLocal [Kernel.Chunk]
   | SKernelForeign
 
 
-crawlModule :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> ModuleName.Raw -> IO (Maybe Status)
-crawlModule foreignDeps mvar pkg src name =
+crawlModule :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> ModuleName.Raw -> IO (Maybe Status)
+crawlModule foreignDeps mvar pkg src docsStatus name =
   do  let path = src </> ModuleName.toFilePath name <.> "elm"
       exists <- File.exists path
       case Map.lookup name foreignDeps of
@@ -555,7 +561,7 @@ crawlModule foreignDeps mvar pkg src name =
 
         Nothing ->
           if exists then
-            crawlFile foreignDeps mvar pkg src name path
+            crawlFile foreignDeps mvar pkg src docsStatus name path
 
           else if Pkg.isKernel pkg && Name.isKernel name then
             crawlKernel foreignDeps mvar pkg src name
@@ -564,13 +570,13 @@ crawlModule foreignDeps mvar pkg src name =
             return Nothing
 
 
-crawlFile :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> ModuleName.Raw -> FilePath -> IO (Maybe Status)
-crawlFile foreignDeps mvar pkg src expectedName path =
+crawlFile :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> ModuleName.Raw -> FilePath -> IO (Maybe Status)
+crawlFile foreignDeps mvar pkg src docsStatus expectedName path =
   do  bytes <- File.readUtf8 path
       case Parse.fromByteString pkg bytes of
         Right modul@(Src.Module (Just (A.At _ actualName)) _ _ imports _ _ _ _ _) | expectedName == actualName ->
           do  deps <- crawlImports foreignDeps mvar pkg src imports
-              return (Just (SLocal deps modul))
+              return (Just (SLocal docsStatus deps modul))
 
         _ ->
           return Nothing
@@ -581,7 +587,7 @@ crawlImports foreignDeps mvar pkg src imports =
   do  statusDict <- takeMVar mvar
       let deps = Map.fromList (map (\i -> (Src.getImportName i, ())) imports)
       let news = Map.difference deps statusDict
-      mvars <- Map.traverseWithKey (const . fork . crawlModule foreignDeps mvar pkg src) news
+      mvars <- Map.traverseWithKey (const . fork . crawlModule foreignDeps mvar pkg src DocsNotNeeded) news
       putMVar mvar (Map.union mvars statusDict)
       mapM_ readMVar mvars
       return deps
@@ -617,7 +623,7 @@ getDepHome fi =
 
 
 data Result
-  = RLocal !I.Interface !Opt.LocalGraph
+  = RLocal !I.Interface !Opt.LocalGraph (Maybe Docs.Module)
   | RForeign I.Interface
   | RKernelLocal [Kernel.Chunk]
   | RKernelForeign
@@ -626,7 +632,7 @@ data Result
 compile :: Pkg.Name -> MVar (Map.Map ModuleName.Raw (MVar (Maybe Result))) -> Status -> IO (Maybe Result)
 compile pkg mvar status =
   case status of
-    SLocal deps modul ->
+    SLocal docsStatus deps modul ->
       do  resultsDict <- readMVar mvar
           maybeResults <- traverse readMVar (Map.intersection resultsDict deps)
           case sequence maybeResults of
@@ -639,7 +645,11 @@ compile pkg mvar status =
                   return Nothing
 
                 Right (Compile.Artifacts canonical annotations objects) ->
-                  return (Just (RLocal (I.fromModule pkg canonical annotations) objects))
+                  let
+                    ifaces = I.fromModule pkg canonical annotations
+                    docs = makeDocs docsStatus canonical
+                  in
+                  return (Just (RLocal ifaces objects docs))
 
     SForeign iface ->
       return (Just (RForeign iface))
@@ -654,10 +664,59 @@ compile pkg mvar status =
 getInterface :: Result -> Maybe I.Interface
 getInterface result =
   case result of
-    RLocal iface _ -> Just iface
-    RForeign iface -> Just iface
-    RKernelLocal _ -> Nothing
-    RKernelForeign -> Nothing
+    RLocal iface _ _ -> Just iface
+    RForeign iface   -> Just iface
+    RKernelLocal _   -> Nothing
+    RKernelForeign   -> Nothing
+
+
+
+-- MAKE DOCS
+
+
+data DocsStatus
+  = DocsNeeded
+  | DocsNotNeeded
+
+
+getDocsStatus :: Stuff.PackageCache -> Pkg.Name -> V.Version -> IO DocsStatus
+getDocsStatus cache pkg vsn =
+  do  exists <- File.exists (Stuff.package cache pkg vsn </> "docs.json")
+      if exists
+        then return DocsNotNeeded
+        else return DocsNeeded
+
+
+makeDocs :: DocsStatus -> Can.Module -> Maybe Docs.Module
+makeDocs status modul =
+  case status of
+    DocsNeeded ->
+      case Docs.fromModule modul of
+        Right docs -> Just docs
+        Left _     -> Nothing
+
+    DocsNotNeeded ->
+      Nothing
+
+
+writeDocs :: Stuff.PackageCache -> Pkg.Name -> V.Version -> DocsStatus -> Map.Map ModuleName.Raw Result -> IO ()
+writeDocs cache pkg vsn status results =
+  case status of
+    DocsNeeded ->
+      E.writeUgly (Stuff.package cache pkg vsn </> "docs.json") $
+        Docs.encode $ Map.mapMaybe toDocs results
+
+    DocsNotNeeded ->
+      return ()
+
+
+toDocs :: Result -> Maybe Docs.Module
+toDocs result =
+  case result of
+    RLocal _ _ docs -> docs
+    RForeign _      -> Nothing
+    RKernelLocal _  -> Nothing
+    RKernelForeign  -> Nothing
 
 
 

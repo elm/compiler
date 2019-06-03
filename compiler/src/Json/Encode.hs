@@ -70,11 +70,6 @@ name nm =
   String (B.char7 '"' <> Name.toBuilder nm <> B.char7 '"')
 
 
-chars :: [Char] -> Value
-chars chrs =
-  String (B.char7 '"' <> error "TODO escape this properly. Who is using this?" chrs <> B.char7 '"')
-
-
 bool :: Bool -> Value
 bool =
   Boolean
@@ -103,6 +98,28 @@ dict encodeKey encodeValue pairs =
 list :: (a -> Value) -> [a] -> Value
 list encodeEntry entries =
   Array $ map encodeEntry entries
+
+
+
+-- CHARS
+
+
+chars :: [Char] -> Value -- TODO can this be done better? Look for examples.
+chars chrs =
+  String (B.char7 '"' <> B.stringUtf8 (escape chrs) <> B.char7 '"')
+
+
+escape :: [Char] -> [Char] -- TODO is this correct?
+escape chrs =
+  case chrs of
+    [] ->
+      []
+
+    c:cs
+      | c == '\n' -> '\\' : 'n'  : escape cs
+      | c == '\"' -> '\\' : '"'  : escape cs
+      | c == '\'' -> '\\' : '\'' : escape cs
+      | otherwise -> c : escape cs
 
 
 
