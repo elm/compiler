@@ -33,7 +33,7 @@ data BadOperator
 
 operator :: (Row -> Col -> x) -> (BadOperator -> Row -> Col -> x) -> Parser x Name.Name
 operator toExpectation toError =
-  P.Parser $ \(P.State pos end indent row col) cok _ cerr eerr ->
+  P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
     let !newPos = chompOps pos end in
     if pos == newPos then
       eerr row col toExpectation
@@ -48,7 +48,7 @@ operator toExpectation toError =
         op   ->
           let
             !newCol = col + fromIntegral (minusPtr newPos pos)
-            !newState = P.State newPos end indent row newCol
+            !newState = P.State src newPos end indent row newCol
           in
           cok op newState
 

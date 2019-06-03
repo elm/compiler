@@ -109,14 +109,14 @@ chompMatchingName expectedName =
   let
     (P.Parser parserL) = Var.lower E.DeclDefNameRepeat
   in
-  P.Parser $ \state@(P.State _ _ _ sr sc) cok eok cerr eerr ->
+  P.Parser $ \state@(P.State _ _ _ _ sr sc) cok eok cerr eerr ->
     let
-      cokL name newState@(P.State _ _ _ er ec) =
+      cokL name newState@(P.State _ _ _ _ er ec) =
         if expectedName == name
         then cok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
         else cerr sr sc (E.DeclDefNameMatch name)
 
-      eokL name newState@(P.State _ _ _ er ec) =
+      eokL name newState@(P.State _ _ _ _ er ec) =
         if expectedName == name
         then eok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
         else eerr sr sc (E.DeclDefNameMatch name)
