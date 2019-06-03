@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 {-# LANGUAGE BangPatterns, MagicHash, OverloadedStrings, UnboxedTuples #-}
-module Parse.Utf8
+module Parse.String
   ( string
   , character
   )
@@ -11,6 +11,7 @@ import qualified Data.Utf8 as Utf8
 import Data.Word (Word8, Word16)
 import Foreign.Ptr (Ptr, plusPtr, minusPtr)
 
+import qualified Elm.String as ES
 import Parse.Primitives (Parser, Row, Col)
 import qualified Parse.Number as Number
 import qualified Parse.Primitives as P
@@ -21,9 +22,9 @@ import qualified Reporting.Error.Syntax as E
 -- CHARACTER
 
 
-character :: (Row -> Col -> x) -> (E.Char -> Row -> Col -> x) -> Parser x Utf8.String
+character :: (Row -> Col -> x) -> (E.Char -> Row -> Col -> x) -> Parser x ES.String
 character toExpectation toError =
-  P.Parser $ \(P.State pos end indent row col) cok _ cerr eerr ->
+  P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
     if pos >= end || P.unsafeIndex pos /= 0x27 {- ' -} then
       eerr row col toExpectation
 
@@ -34,8 +35,8 @@ character toExpectation toError =
             cerr row col (toError (E.CharNotString (fromIntegral (newCol - col))))
           else
             let
-              !newState = P.State newPos end indent row newCol
-              !char = Utf8.fromChunks [mostRecent]
+              !newState = P.State src newPos end indent row newCol
+              !char = ES.fromChunks [mostRecent]
             in
             cok char newState
 
@@ -47,12 +48,12 @@ character toExpectation toError =
 
 
 data CharResult
-  = Good (Ptr Word8) Col Word16 Utf8.Chunk
+  = Good (Ptr Word8) Col Word16 ES.Chunk
   | CharEndless Col
   | CharEscape Row Col E.Escape
 
 
-chompChar :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> Word16 -> Utf8.Chunk -> CharResult
+chompChar :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> Word16 -> ES.Chunk -> CharResult
 chompChar pos end row col numChars mostRecent =
   if pos >= end then
     CharEndless col
@@ -73,10 +74,10 @@ chompChar pos end row col numChars mostRecent =
       else if word == 0x5C {- \ -} then
         case eatEscape (plusPtr pos 1) end row col of
           EscapeNormal ->
-            chompChar (plusPtr pos 2) end row (col + 2) (numChars + 1) (Utf8.Slice pos 2)
+            chompChar (plusPtr pos 2) end row (col + 2) (numChars + 1) (ES.Slice pos 2)
 
           EscapeUnicode delta code ->
-            chompChar (plusPtr pos delta) end row (col + fromIntegral delta) (numChars + 1) (Utf8.CodePoint code)
+            chompChar (plusPtr pos delta) end row (col + fromIntegral delta) (numChars + 1) (ES.CodePoint code)
 
           EscapeProblem r c badEscape ->
             CharEscape r c badEscape
@@ -89,16 +90,16 @@ chompChar pos end row col numChars mostRecent =
           !width = P.getCharWidth pos end word
           !newPos = plusPtr pos width
         in
-        chompChar newPos end row (col + 1) (numChars + 1) (Utf8.Slice pos width)
+        chompChar newPos end row (col + 1) (numChars + 1) (ES.Slice pos width)
 
 
 
 -- STRINGS
 
 
-string :: (Row -> Col -> x) -> (E.String -> Row -> Col -> x) -> Parser x Utf8.String
+string :: (Row -> Col -> x) -> (E.String -> Row -> Col -> x) -> Parser x ES.String
 string toExpectation toError =
-  P.Parser $ \(P.State pos end indent row col) cok _ cerr eerr ->
+  P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
     if isDoubleQuote pos end then
 
       let
@@ -121,7 +122,7 @@ string toExpectation toError =
         Ok newPos newRow newCol utf8 ->
           let
             !newState =
-              P.State newPos end indent newRow newCol
+              P.State src newPos end indent newRow newCol
           in
           cok utf8 newState
 
@@ -139,32 +140,32 @@ isDoubleQuote pos end =
 
 
 data StringResult
-  = Ok (Ptr Word8) Row Col !Utf8.String
+  = Ok (Ptr Word8) Row Col !ES.String
   | Err Row Col E.String
 
 
-finalize :: Ptr Word8 -> Ptr Word8 -> [Utf8.Chunk] -> Utf8.String
+finalize :: Ptr Word8 -> Ptr Word8 -> [ES.Chunk] -> ES.String
 finalize start end revChunks =
-  Utf8.fromChunks $ reverse $
+  ES.fromChunks $ reverse $
     if start == end then
       revChunks
     else
-      Utf8.Slice start (minusPtr end start) : revChunks
+      ES.Slice start (minusPtr end start) : revChunks
 
 
-addEscape :: Utf8.Chunk -> Ptr Word8 -> Ptr Word8 -> [Utf8.Chunk] -> [Utf8.Chunk]
+addEscape :: ES.Chunk -> Ptr Word8 -> Ptr Word8 -> [ES.Chunk] -> [ES.Chunk]
 addEscape chunk start end revChunks =
   if start == end then
     chunk : revChunks
   else
-    chunk : Utf8.Slice start (minusPtr end start) : revChunks
+    chunk : ES.Slice start (minusPtr end start) : revChunks
 
 
 
 -- SINGLE STRINGS
 
 
-singleString :: Ptr Word8 -> Ptr Word8 -> Word16 -> Word16 -> Ptr Word8 -> [Utf8.Chunk] -> StringResult
+singleString :: Ptr Word8 -> Ptr Word8 -> Word16 -> Word16 -> Ptr Word8 -> [ES.Chunk] -> StringResult
 singleString pos end row col initialPos revChunks =
   if pos >= end then
     Err row col E.StringEndless_Single
@@ -193,7 +194,7 @@ singleString pos end row col initialPos revChunks =
           EscapeUnicode delta code ->
             let !newPos = plusPtr pos delta in
             singleString newPos end row (col + fromIntegral delta) newPos $
-              addEscape (Utf8.CodePoint code) initialPos pos revChunks
+              addEscape (ES.CodePoint code) initialPos pos revChunks
 
           EscapeProblem r c x ->
             Err r c (E.StringEscape x)
@@ -210,7 +211,7 @@ singleString pos end row col initialPos revChunks =
 -- MULTI STRINGS
 
 
-multiString :: Ptr Word8 -> Ptr Word8 -> Word16 -> Word16 -> Ptr Word8 -> Word16 -> Word16 -> [Utf8.Chunk] -> StringResult
+multiString :: Ptr Word8 -> Ptr Word8 -> Word16 -> Word16 -> Ptr Word8 -> Word16 -> Word16 -> [ES.Chunk] -> StringResult
 multiString pos end row col initialPos sr sc revChunks =
   if pos >= end then
     Err sr sc E.StringEndless_Multi
@@ -244,7 +245,7 @@ multiString pos end row col initialPos sr sc revChunks =
         EscapeUnicode delta code ->
           let !newPos = plusPtr pos delta in
           multiString newPos end row (col + fromIntegral delta) newPos sr sc $
-            addEscape (Utf8.CodePoint code) initialPos pos revChunks
+            addEscape (ES.CodePoint code) initialPos pos revChunks
 
         EscapeProblem r c x ->
           Err r c (E.StringEscape x)
@@ -313,30 +314,30 @@ eatUnicode pos end row col =
 
 
 {-# NOINLINE singleQuote #-}
-singleQuote :: Utf8.Chunk
+singleQuote :: ES.Chunk
 singleQuote =
-  Utf8.Escape 0x27 {- ' -}
+  ES.Escape 0x27 {-'-}
 
 
 {-# NOINLINE doubleQuote #-}
-doubleQuote :: Utf8.Chunk
+doubleQuote :: ES.Chunk
 doubleQuote =
-  Utf8.Escape 0x22 {- " -}
+  ES.Escape 0x22 {-"-}
 
 
 {-# NOINLINE newline #-}
-newline :: Utf8.Chunk
+newline :: ES.Chunk
 newline =
-  Utf8.Escape 0x6E {- n -}
+  ES.Escape 0x6E {-n-}
 
 
 {-# NOINLINE carriageReturn #-}
-carriageReturn :: Utf8.Chunk
+carriageReturn :: ES.Chunk
 carriageReturn =
-  Utf8.Escape 0x72 {- \r -}
+  ES.Escape 0x72 {-r-}
 
 
 {-# NOINLINE placeholder #-}
-placeholder :: Utf8.Chunk
+placeholder :: ES.Chunk
 placeholder =
-  Utf8.CodePoint 0xFFFD {- replacement character -}
+  ES.CodePoint 0xFFFD {-replacement character-}
