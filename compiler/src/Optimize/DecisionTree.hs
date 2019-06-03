@@ -27,11 +27,11 @@ import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
 import qualified Data.Set as Set
-import qualified Data.Utf8 as Utf8
 
 import qualified AST.Canonical as Can
 import qualified Data.Index as Index
 import qualified Elm.ModuleName as ModuleName
+import qualified Elm.String as ES
 import qualified Reporting.Annotation as A
 
 
@@ -77,8 +77,8 @@ data Test
   | IsNil
   | IsTuple
   | IsInt Int
-  | IsChr Utf8.String
-  | IsStr Utf8.String
+  | IsChr ES.String
+  | IsStr ES.String
   | IsBool Bool
   deriving (Eq, Ord)
 

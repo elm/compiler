@@ -213,10 +213,10 @@ findMain defs =
     def:rest ->
       case def of
         Can.Def (A.At region name) _ _ ->
-          if name == Name.main then Just region else findMain rest
+          if name == Name._main then Just region else findMain rest
 
         Can.TypedDef (A.At region name) _ _ _ _ ->
-          if name == Name.main then Just region else findMain rest
+          if name == Name._main then Just region else findMain rest
 
 
 defToName :: Can.Def -> Name.Name
@@ -244,7 +244,7 @@ addDef home annotations def graph =
 
 addDefHelp :: A.Region -> Annotations -> ModuleName.Canonical -> Name.Name -> [Can.Pattern] -> Can.Expr -> Opt.LocalGraph -> Result i w Opt.LocalGraph
 addDefHelp region annotations home name args body graph@(Opt.LocalGraph _ nodes fieldCounts) =
-  if name /= Name.main then
+  if name /= Name._main then
     Result.ok (addDefNode home name args body Set.empty graph)
   else
     let
