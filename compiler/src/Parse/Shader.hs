@@ -32,17 +32,16 @@ import qualified Reporting.Error.Syntax as E
 shader :: A.Position -> Parser E.Expr Src.Expr
 shader start@(A.Position row col) =
   do  block <- parseBlock
-      shdr <- parseGlsl row col block
+      shdr <- parseGlsl row col src
       end <- P.getPosition
-      let src = List.intercalate "\\n" (lines block)
-      return (A.at start end (Src.Shader (Utf8.fromChars src) shdr))
+      return (A.at start end (Src.Shader (Shader.fromChars src) shdr))
 
 
 
 -- BLOCK
 
 
-parseBlock :: Parser E.Expr String
+parseBlock :: Parser E.Expr P.Snippet
 parseBlock =
   P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
     let

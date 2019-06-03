@@ -1,5 +1,6 @@
 module Data.NonEmptyList
   ( List(..)
+  , singleton
   , toList
   , sortBy
   )
@@ -17,6 +18,11 @@ import qualified Data.List as List
 
 data List a =
   List a [a]
+
+
+singleton :: a -> List a
+singleton a =
+  List a []
 
 
 toList :: List a -> [a]
