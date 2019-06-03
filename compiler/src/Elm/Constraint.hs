@@ -5,9 +5,6 @@ module Elm.Constraint
   , exactly
   , anything
   , toChars
-  , toString
-  , Error(..)
-  , fromString
   , satisfies
   , check
   , intersect
@@ -16,6 +13,8 @@ module Elm.Constraint
   , untilNextMajor
   , untilNextMinor
   , expand
+  --
+  , Error(..)
   , decoder
   , encode
   )
@@ -24,11 +23,12 @@ module Elm.Constraint
 
 import Control.Monad (liftM4)
 import Data.Binary (Binary, get, put, getWord8, putWord8)
-import qualified Data.Utf8 as Utf8
 
 import qualified Elm.Version as V
 import qualified Json.Decode as D
 import qualified Json.Encode as E
+import qualified Parse.Primitives as P
+import Parse.Primitives (Row, Col)
 
 
 
@@ -61,78 +61,21 @@ anything =
 
 
 
--- TO STRING
+-- TO CHARS
 
 
-toChars :: Constraint -> String
+toChars :: Constraint -> [Char]
 toChars constraint =
-  Utf8.toChars (toString constraint)
-
-
-toString :: Constraint -> Utf8.String
-toString constraint =
   case constraint of
     Range lower lowerOp upperOp upper ->
-      Utf8.join 0x20 {- -}
-        [ V.toString lower
-        , toStringHelp lowerOp
-        , "v"
-        , toStringHelp upperOp
-        , V.toString upper
-        ]
+      V.toChars lower ++ opToChars lowerOp ++ "v" ++ opToChars upperOp ++ V.toChars upper
 
 
-toStringHelp :: Op -> Utf8.String
-toStringHelp op =
+opToChars :: Op -> [Char]
+opToChars op =
   case op of
-    Less        -> "<"
-    LessOrEqual -> "<="
-
-
-
--- FROM STRING
-
-
-data Error
-  = BadLower Utf8.String
-  | BadUpper Utf8.String
-  | BadFormat
-  | InvalidOp
-  | InvalidRange V.Version V.Version
-
-
-fromString :: Utf8.String -> Either Error Constraint
-fromString string =
-  case Utf8.split 0x20 {- -} string of
-    [lower, lowerOp, "v", upperOp, upper] ->
-      do  lo <- versionFromString lower BadLower
-          lop <- opFromString lowerOp
-          hop <- opFromString upperOp
-          hi <- versionFromString upper BadUpper
-          if lo < hi
-            then Right (Range lo lop hop hi)
-            else Left (InvalidRange lo hi)
-
-    _ ->
-      Left BadFormat
-
-
-versionFromString :: Utf8.String -> (Utf8.String -> Error) -> Either Error V.Version
-versionFromString string toError =
-  case V.fromString string of
-    Just vsn ->
-      Right vsn
-
-    Nothing ->
-      Left (toError string)
-
-
-opFromString :: Utf8.String -> Either Error Op
-opFromString text =
-  case text of
-    "<=" -> Right LessOrEqual
-    "<"  -> Right Less
-    _    -> Left InvalidOp
+    Less        -> " < "
+    LessOrEqual -> " <= "
 
 
 
@@ -245,18 +188,12 @@ expand constraint@(Range lower lowerOp upperOp upper) version
 
 encode :: Constraint -> E.Value
 encode constraint =
-  E.string (toString constraint)
+  E.chars (toChars constraint)
 
 
 decoder :: D.Decoder Error Constraint
 decoder =
-  do  str <- D.string
-      case fromString str of
-        Right constraint ->
-          return constraint
-
-        Left err ->
-          D.failure err
+  D.customString parser BadFormat
 
 
 
@@ -280,3 +217,44 @@ instance Binary Op where
           0 -> return Less
           1 -> return LessOrEqual
           _ -> error "binary encoding of Op was corrupted"
+
+
+
+-- PARSER
+
+
+data Error
+  = BadFormat Row Col
+  | InvalidRange V.Version V.Version
+
+
+parser :: P.Parser Error Constraint
+parser =
+  do  lower <- parseVersion
+      P.word1 0x20 {- -} BadFormat
+      loOp <- parseOp
+      P.word1 0x20 {- -} BadFormat
+      P.word1 0x76 {-v-} BadFormat
+      P.word1 0x20 {- -} BadFormat
+      hiOp <- parseOp
+      P.word1 0x20 {- -} BadFormat
+      higher <- parseVersion
+      P.Parser $ \state@(P.State _ _ _ _ row col) _ eok _ eerr ->
+        if lower < higher
+        then eok (Range lower loOp hiOp higher) state
+        else eerr row col (\_ _ -> InvalidRange lower higher)
+
+
+parseVersion :: P.Parser Error V.Version
+parseVersion =
+  P.specialize (\(r,c) _ _ -> BadFormat r c) V.parser
+
+
+parseOp :: P.Parser Error Op
+parseOp =
+  do  P.word1 0x3C {-<-} BadFormat
+      P.oneOfWithFallback
+        [ do  P.word1 0x3D {-=-} BadFormat
+              return LessOrEqual
+        ]
+        Less
