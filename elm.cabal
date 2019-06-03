@@ -38,7 +38,7 @@ Executable elm
     if flag(dev)
         ghc-options: -O0 -Wall -Werror
     else
-        ghc-options: -O2 -rtsopts
+        ghc-options: -O2 -rtsopts -threaded "-with-rtsopts=-N -qg"
 
     Hs-Source-Dirs:
         compiler/src
@@ -54,6 +54,8 @@ Executable elm
     other-modules:
         Develop.StaticFiles
         Develop.StaticFiles.Build
+        Init
+        Install
         Make
 
         -- terminal args
@@ -86,12 +88,14 @@ Executable elm
         Elm.Compiler.Type.Extract
         Elm.Constraint
         Elm.Docs
+        Elm.Float
         Elm.Interface
         Elm.Kernel
         Elm.Licenses
         Elm.Magnitude
         Elm.ModuleName
         Elm.Package
+        Elm.String
         Elm.Version
 
         -- data structures
@@ -106,6 +110,7 @@ Executable elm
         -- json
         Json.Decode
         Json.Encode
+        Json.String
 
         -- from compiler/
         AST.Canonical
@@ -148,9 +153,9 @@ Executable elm
         Parse.Repl
         Parse.Shader
         Parse.Space
+        Parse.String
         Parse.Symbol
         Parse.Type
-        Parse.Utf8
         Parse.Variable
         Parse.Primitives
         Reporting.Annotation
