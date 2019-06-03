@@ -252,8 +252,8 @@ putDownload :: D.Doc -> Pkg.Name -> V.Version -> IO ()
 putDownload mark pkg vsn =
   Help.toStdout $ D.indent 2 $
     mark
-    <+> D.fromUtf8 (Pkg.toString pkg)
-    <+> D.fromUtf8 (V.toString vsn)
+    <+> D.fromPackage pkg
+    <+> D.fromVersion vsn
     <> "\n"
 
 

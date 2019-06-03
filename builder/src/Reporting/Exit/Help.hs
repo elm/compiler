@@ -14,7 +14,6 @@ module Reporting.Exit.Help
   where
 
 
-import qualified Data.Utf8 as Utf8
 import GHC.IO.Handle (hIsTerminalDevice)
 import System.IO (Handle, hPutStr, stderr, stdout)
 
@@ -97,15 +96,15 @@ reportToJson report_ =
   case report_ of
     CompilerReport e es ->
       E.object
-        [ "type" ==> E.string "compile-errors"
+        [ "type" ==> E.chars "compile-errors"
         , "errors" ==> E.list Error.toJson (e:es)
         ]
 
     Report title maybePath message ->
       E.object
-        [ "type" ==> E.string "error"
-        , "path" ==> maybe E.null (E.string . Utf8.fromChars) maybePath
-        , "title" ==> E.string (Utf8.fromChars title)
+        [ "type" ==> E.chars "error"
+        , "path" ==> maybe E.null E.chars maybePath
+        , "title" ==> E.chars title
         , "message" ==> D.encode message
         ]
 
