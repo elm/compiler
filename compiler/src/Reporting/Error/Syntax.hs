@@ -77,7 +77,7 @@ data Error
 
 data Module
   = ModuleSpace Space Row Col
-  | ModuleEndOfFile Row Col
+  | ModuleBadEnd Row Col
   --
   | ModuleProblem Row Col
   | ModuleName Row Col
@@ -570,7 +570,7 @@ toParseErrorReport source modul =
     ModuleSpace space row col ->
       toSpaceReport source space row col
 
-    ModuleEndOfFile row col ->
+    ModuleBadEnd row col ->
       case Code.whatIsNext source row col of
         Code.Keyword keyword ->
           let
