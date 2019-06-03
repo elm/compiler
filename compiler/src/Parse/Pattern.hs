@@ -16,7 +16,7 @@ import qualified AST.Source as Src
 import qualified Parse.Keyword as Keyword
 import qualified Parse.Number as Number
 import qualified Parse.Space as Space
-import qualified Parse.Utf8 as Utf8
+import qualified Parse.String as String
 import qualified Parse.Variable as Var
 import qualified Parse.Primitives as P
 import Parse.Primitives (Parser, addLocation, addEnd, getPosition, inContext, oneOf, oneOfWithFallback, word1, word2)
@@ -67,16 +67,16 @@ termHelp start =
               return (A.at start end (Src.PInt int))
 
             Number.Float float ->
-              P.Parser $ \(P.State _ _ _ row col) _ _ cerr _ ->
+              P.Parser $ \(P.State _ _ _ _ row col) _ _ cerr _ ->
                 let
                   width = fromIntegral (Utf8.size float)
                 in
                 cerr row (col - width) (E.PFloat width)
     ,
-      do  str <- Utf8.string E.PStart E.PString
+      do  str <- String.string E.PStart E.PString
           addEnd start (Src.PStr str)
     ,
-      do  chr <- Utf8.character E.PStart E.PChar
+      do  chr <- String.character E.PStart E.PChar
           addEnd start (Src.PChr chr)
     ]
 
@@ -87,7 +87,7 @@ termHelp start =
 
 wildcard :: Parser E.Pattern ()
 wildcard =
-  P.Parser $ \(P.State pos end indent row col) cok _ cerr eerr ->
+  P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
     if pos == end || P.unsafeIndex pos /= 0x5F {- _ -} then
       eerr row col E.PStart
     else
@@ -99,7 +99,7 @@ wildcard =
         let (# badPos, badCol #) = Var.chompInnerChars newPos end newCol in
         cerr row col (E.PWildcardNotVar (Name.fromPtr pos badPos) (fromIntegral (badCol - col)))
       else
-        let !newState = P.State newPos end indent row newCol in
+        let !newState = P.State src newPos end indent row newCol in
         cok () newState
 
 
