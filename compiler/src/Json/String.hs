@@ -35,8 +35,11 @@ import qualified Parse.Primitives as P
 -- JSON STRINGS
 
 
+-- INVARIANT: any Json.String is appropriately escaped already
+-- TODO: is this the right representation for Json.String? Maybe ByteString instead?
+--
 type String =
-  Utf8.Utf8 JSON_STRING -- TODO is this the right representation? Maybe ByteString instead?
+  Utf8.Utf8 JSON_STRING
 
 
 data JSON_STRING
