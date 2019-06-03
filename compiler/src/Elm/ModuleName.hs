@@ -1,13 +1,13 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, OverloadedStrings, UnboxedTuples #-}
 module Elm.ModuleName
   ( Raw
   , toChars
-  , toString
   , toFilePath
   , toHyphenPath
-  , fromHyphenPath
+  --
   , encode
   , decoder
+  --
   , Canonical(..)
   , basics, char, string
   , maybe, result, list, array, dict, tuple
@@ -25,12 +25,17 @@ import Data.Binary (Binary(..))
 import qualified Data.Char as Char
 import qualified Data.Name as Name
 import qualified Data.Utf8 as Utf8
+import Data.Word (Word8)
+import Foreign.Ptr (Ptr, plusPtr, minusPtr)
 import Prelude hiding (maybe)
 import qualified System.FilePath as FP
 
 import qualified Elm.Package as Pkg
-import qualified Json.Decode as Decode
-import qualified Json.Encode as Encode
+import qualified Json.Decode as D
+import qualified Json.Encode as E
+import qualified Parse.Variable as Var
+import qualified Parse.Primitives as P
+import Parse.Primitives (Row, Col)
 
 
 
@@ -45,11 +50,6 @@ toChars =
   Name.toChars
 
 
-toString :: Raw -> Utf8.String
-toString =
-  Name.toUtf8
-
-
 toFilePath :: Raw -> FilePath
 toFilePath name =
   map (\c -> if c == '.' then FP.pathSeparator else c) (Name.toChars name)
@@ -60,38 +60,68 @@ toHyphenPath name =
   map (\c -> if c == '.' then '-' else c) (Name.toChars name)
 
 
-fromHyphenPath :: Utf8.String -> Maybe Raw
-fromHyphenPath str =
-  let
-    chunks =
-      Utf8.split 0x2D {- - -} str
-  in
-  if all isGoodChunk chunks
-    then Just (Name.fromUtf8 (Utf8.join 0x2E {- . -} chunks))
-    else Nothing
-
-
 
 -- JSON
 
 
-encode :: Raw -> Encode.Value
+encode :: Raw -> E.Value
 encode =
-  Encode.name
+  E.name
 
 
-decoder :: Decode.Decoder Utf8.String Raw
+decoder :: D.Decoder (Row, Col) Raw
 decoder =
-  do  str <- Decode.string
-      if all isGoodChunk (Utf8.split 0x2E {- . -} str)
-        then return (Name.fromUtf8 str)
-        else Decode.failure str
+  D.customString parser (,)
 
 
-isGoodChunk :: Utf8.String -> Bool
-isGoodChunk chunk =
-  Utf8.startsWithChar Char.isUpper chunk
-  && Utf8.all (\c -> Char.isAlphaNum c || c == '_') chunk
+
+-- PARSER
+
+
+parser :: P.Parser (Row, Col) Raw
+parser =
+  P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
+    let
+      (# isGood, newPos, newCol #) = chompStart pos end col
+    in
+    if isGood && minusPtr newPos pos < 256 then
+      let !newState = P.State src newPos end indent row newCol in
+      cok (Utf8.fromPtr pos newPos) newState
+
+    else if col == newCol then
+      eerr row newCol (,)
+
+    else
+      cerr row newCol (,)
+
+
+chompStart :: Ptr Word8 -> Ptr Word8 -> Col -> (# Bool, Ptr Word8, Col #)
+chompStart pos end col =
+  let
+    !width = Var.getUpperWidth pos end
+  in
+  if width == 0 then
+    (# False, pos, col #)
+  else
+    chompInner (plusPtr pos width) end (col + 1)
+
+
+chompInner :: Ptr Word8 -> Ptr Word8 -> Col -> (# Bool, Ptr Word8, Col #)
+chompInner pos end col =
+  if pos >= end then
+    (# True, pos, col #)
+  else
+    let
+      !word = P.unsafeIndex pos
+      !width = Var.getInnerWidthHelp pos end word
+    in
+    if width == 0 then
+      if word == 0x2E {-.-} then
+        chompStart (plusPtr pos 1) end (col + 1)
+      else
+        (# True, pos, col #)
+    else
+      chompInner (plusPtr pos width) end (col + 1)
 
 
 
@@ -103,6 +133,7 @@ data Canonical =
     { _package :: !Pkg.Name
     , _module :: !Name.Name
     }
+
 
 
 -- INSTANCES
