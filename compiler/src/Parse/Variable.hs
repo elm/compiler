@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE BangPatterns, MagicHash, UnboxedTuples, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, MagicHash, OverloadedStrings, UnboxedTuples #-}
 module Parse.Variable
   ( lower
   , upper
@@ -8,6 +8,7 @@ module Parse.Variable
   , foreignUpper
   , foreignAlpha
   , chompInnerChars
+  , getUpperWidth
   , getInnerWidth
   , getInnerWidthHelp
   , reservedWords
@@ -34,13 +35,13 @@ import qualified Parse.Primitives as P
 
 upper :: (Row -> Col -> x) -> Parser x Name.Name
 upper toError =
-  P.Parser $ \(P.State pos end indent row col) cok _ _ eerr ->
+  P.Parser $ \(P.State src pos end indent row col) cok _ _ eerr ->
     let (# newPos, newCol #) = chompUpper pos end col in
     if pos == newPos then
       eerr row col toError
     else
       let !name = Name.fromPtr pos newPos in
-      cok name (P.State newPos end indent row newCol)
+      cok name (P.State src newPos end indent row newCol)
 
 
 
@@ -49,7 +50,7 @@ upper toError =
 
 lower :: (Row -> Col -> x) -> Parser x Name.Name
 lower toError =
-  P.Parser $ \(P.State pos end indent row col) cok _ _ eerr ->
+  P.Parser $ \(P.State src pos end indent row col) cok _ _ eerr ->
     let (# newPos, newCol #) = chompLower pos end col in
     if pos == newPos then
       eerr row col toError
@@ -60,7 +61,7 @@ lower toError =
       else
         let
           !newState =
-            P.State newPos end indent row newCol
+            P.State src newPos end indent row newCol
         in
         cok name newState
 
@@ -86,7 +87,7 @@ reservedWords =
 
 moduleName :: (Row -> Col -> x) -> Parser x Name.Name
 moduleName toError =
-  P.Parser $ \(P.State pos end indent row col) cok _ cerr eerr ->
+  P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
     let
       (# pos1, col1 #) = chompUpper pos end col
     in
@@ -100,7 +101,7 @@ moduleName toError =
         Good ->
           let
             !name = Name.fromPtr pos newPos
-            !newState = P.State newPos end indent row newCol
+            !newState = P.State src newPos end indent row newCol
           in
           cok name newState
 
@@ -140,13 +141,13 @@ data Upper
 
 foreignUpper :: (Row -> Col -> x) -> Parser x Upper
 foreignUpper toError =
-  P.Parser $ \(P.State pos end indent row col) cok _ _ eerr ->
+  P.Parser $ \(P.State src pos end indent row col) cok _ _ eerr ->
     let (# upperStart, upperEnd, newCol #) = foreignUpperHelp pos end col in
     if upperStart == upperEnd then
       eerr row newCol toError
     else
       let
-        !newState = P.State upperEnd end indent row newCol
+        !newState = P.State src upperEnd end indent row newCol
         !name = Name.fromPtr upperStart upperEnd
         !foreign =
           if upperStart == pos then
@@ -179,13 +180,13 @@ foreignUpperHelp pos end col =
 
 foreignAlpha :: (Row -> Col -> x) -> Parser x Src.Expr_
 foreignAlpha toError =
-  P.Parser $ \(P.State pos end indent row col) cok _ _ eerr ->
+  P.Parser $ \(P.State src pos end indent row col) cok _ _ eerr ->
     let (# alphaStart, alphaEnd, newCol, varType #) = foreignAlphaHelp pos end col in
     if alphaStart == alphaEnd then
       eerr row newCol toError
     else
       let
-        !newState = P.State alphaEnd end indent row newCol
+        !newState = P.State src alphaEnd end indent row newCol
         !name = Name.fromPtr alphaStart alphaEnd
       in
       if alphaStart == pos then
