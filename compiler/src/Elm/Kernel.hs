@@ -11,14 +11,14 @@ module Elm.Kernel
 
 import Control.Monad (liftM, liftM2)
 import Data.Binary (Binary, get, put, getWord8, putWord8)
-import qualified Data.ByteString as BS
-import Data.Coerce (coerce)
+import qualified Data.ByteString.Internal as B
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Name as Name
-import qualified Data.Utf8 as Utf8
 import Data.Word (Word8, Word16)
-import Foreign.Ptr (Ptr, plusPtr)
+import Foreign.Ptr (Ptr, plusPtr, minusPtr)
+import Foreign.ForeignPtr (ForeignPtr)
+import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 
 import qualified AST.Source as Src
 import qualified Elm.ModuleName as ModuleName
@@ -36,7 +36,7 @@ import qualified Reporting.Annotation as A
 
 
 data Chunk
-  = JS (Utf8.VeryLong UNCHECKED)
+  = JS B.ByteString
   | ElmVar ModuleName.Canonical Name.Name
   | JsVar Name.Name Name.Name
   | ElmField Name.Name
@@ -44,9 +44,6 @@ data Chunk
   | JsEnum Int
   | Debug
   | Prod
-
-
-data UNCHECKED
 
 
 
@@ -83,13 +80,13 @@ type Foreigns =
   Map.Map ModuleName.Raw Pkg.Name
 
 
-fromByteString :: Pkg.Name -> Foreigns -> BS.ByteString -> Maybe Content
+fromByteString :: Pkg.Name -> Foreigns -> B.ByteString -> Maybe Content
 fromByteString pkg foreigns bytes =
-  case P.fromByteString (parser pkg foreigns) bytes of
-    P.Ok content _ ->
+  case P.fromByteString (parser pkg foreigns) toError bytes of
+    Right content ->
       Just content
 
-    P.Err () ->
+    Left () ->
       Nothing
 
 
@@ -120,21 +117,21 @@ ignoreError _ _ _ =
 
 parseChunks :: VarTable -> Enums -> Fields -> Parser () [Chunk]
 parseChunks vtable enums fields =
-  P.Parser $ \(P.State pos end indent row col) cok _ cerr _ ->
+  P.Parser $ \(P.State src pos end indent row col) cok _ cerr _ ->
     let
       (# chunks, newPos, newRow, newCol #) =
-        chompChunks vtable enums fields pos end row col pos []
+        chompChunks vtable enums fields src pos end row col pos []
     in
     if newPos == end then
-      cok chunks (P.State newPos end indent newRow newCol)
+      cok chunks (P.State src newPos end indent newRow newCol)
     else
       cerr row col toError
 
 
-chompChunks :: VarTable -> Enums -> Fields -> Ptr Word8 -> Ptr Word8 -> Word16 -> Word16 -> Ptr Word8 -> [Chunk] -> (# [Chunk], Ptr Word8, Word16, Word16 #)
-chompChunks vs es fs pos end row col lastPos revChunks =
+chompChunks :: VarTable -> Enums -> Fields -> ForeignPtr Word8 -> Ptr Word8 -> Ptr Word8 -> Word16 -> Word16 -> Ptr Word8 -> [Chunk] -> (# [Chunk], Ptr Word8, Word16, Word16 #)
+chompChunks vs es fs src pos end row col lastPos revChunks =
   if pos >= end then
-    let !js = Utf8.fromPtr lastPos end in
+    let !js = toByteString src lastPos end in
     (# reverse (JS js : revChunks), pos, row, col #)
 
   else
@@ -145,24 +142,34 @@ chompChunks vs es fs pos end row col lastPos revChunks =
         !pos3 = plusPtr pos 3
       in
       if pos3 <= end && unsafeIndex pos1 == 0x5F {-_-} then
-        let !js = Utf8.fromPtr lastPos pos in
-        chompTag vs es fs pos3 end row (col + 3) (JS js : revChunks)
+        let !js = toByteString src lastPos pos in
+        chompTag vs es fs src pos3 end row (col + 3) (JS js : revChunks)
       else
-        chompChunks vs es fs pos1 end row (col + 1) lastPos revChunks
+        chompChunks vs es fs src pos1 end row (col + 1) lastPos revChunks
 
     else if word == 0x0A {-\n-} then
-      chompChunks vs es fs (plusPtr pos 1) end (row + 1) 1 lastPos revChunks
+      chompChunks vs es fs src (plusPtr pos 1) end (row + 1) 1 lastPos revChunks
 
     else
       let
         !newPos = plusPtr pos (getCharWidth pos end word)
       in
-      chompChunks vs es fs newPos end row (col + 1) lastPos revChunks
+      chompChunks vs es fs src newPos end row (col + 1) lastPos revChunks
+
+
+toByteString :: ForeignPtr Word8 -> Ptr Word8 -> Ptr Word8 -> B.ByteString
+toByteString src pos end =
+  let
+    !off = minusPtr pos (unsafeForeignPtrToPtr src)
+    !len = minusPtr end pos
+  in
+  B.PS src off len
+
 
 
 -- relies on external checks in chompChunks
-chompTag :: VarTable -> Enums -> Fields -> Ptr Word8 -> Ptr Word8 -> Word16 -> Word16 -> [Chunk] -> (# [Chunk], Ptr Word8, Word16, Word16 #)
-chompTag vs es fs pos end row col revChunks =
+chompTag :: VarTable -> Enums -> Fields -> ForeignPtr Word8 -> Ptr Word8 -> Ptr Word8 -> Word16 -> Word16 -> [Chunk] -> (# [Chunk], Ptr Word8, Word16, Word16 #)
+chompTag vs es fs src pos end row col revChunks =
   let
     (# newPos, newCol #) = Var.chompInnerChars pos end col
     !tagPos = plusPtr pos (-1)
@@ -172,7 +179,7 @@ chompTag vs es fs pos end row col revChunks =
     let
       !name = Name.fromPtr pos newPos
     in
-    chompChunks vs es fs newPos end row newCol newPos $
+    chompChunks vs es fs src newPos end row newCol newPos $
       ElmField name : revChunks
   else
     let
@@ -183,7 +190,7 @@ chompTag vs es fs pos end row col revChunks =
         (enum, newEnums) =
           lookupEnum (word - 0x30) name es
       in
-      chompChunks vs newEnums fs newPos end row newCol newPos $
+      chompChunks vs newEnums fs src newPos end row newCol newPos $
         JsEnum enum : revChunks
 
     else if 0x61 {-a-} <= word && word <= 0x7A {-z-} then
@@ -191,19 +198,19 @@ chompTag vs es fs pos end row col revChunks =
         (field, newFields) =
           lookupField name fs
       in
-      chompChunks vs es newFields newPos end row newCol newPos $
+      chompChunks vs es newFields src newPos end row newCol newPos $
         JsField field : revChunks
 
     else if name == "DEBUG" then
-      chompChunks vs es fs newPos end row newCol newPos (Debug : revChunks)
+      chompChunks vs es fs src newPos end row newCol newPos (Debug : revChunks)
 
     else if name == "PROD" then
-      chompChunks vs es fs newPos end row newCol newPos (Prod : revChunks)
+      chompChunks vs es fs src newPos end row newCol newPos (Prod : revChunks)
 
     else
       case Map.lookup name vs of
         Just chunk ->
-          chompChunks vs es fs newPos end row newCol newPos (chunk : revChunks)
+          chompChunks vs es fs src newPos end row newCol newPos (chunk : revChunks)
 
         Nothing ->
           (# revChunks, pos, row, col #)
@@ -335,7 +342,7 @@ toName (A.At _ exposed) =
 instance Binary Chunk where
   put chunk =
     case chunk of
-      JS a       -> putWord8 0 >> put (coerce a :: Utf8.String)
+      JS a       -> putWord8 0 >> put a
       ElmVar a b -> putWord8 1 >> put a >> put b
       JsVar a b  -> putWord8 2 >> put a >> put b
       ElmField a -> putWord8 3 >> put a
@@ -347,7 +354,7 @@ instance Binary Chunk where
   get =
     do  word <- getWord8
         case word of
-          0 -> liftM  toJS get
+          0 -> liftM  JS get
           1 -> liftM2 ElmVar get get
           2 -> liftM2 JsVar get get
           3 -> liftM  ElmField get
@@ -356,8 +363,3 @@ instance Binary Chunk where
           6 -> return Debug
           7 -> return Prod
           _ -> error "problem deserializing Elm.Kernel.Chunk"
-
-
-toJS :: Utf8.String -> Chunk
-toJS str =
-  JS (coerce str)
