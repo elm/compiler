@@ -1,8 +1,7 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind -fno-warn-name-shadowing #-}
-{-# LANGUAGE BangPatterns, Rank2Types, UnboxedTuples, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, Rank2Types, UnboxedTuples #-}
 module Parse.Primitives
-  ( Result(..)
-  , fromByteString
+  ( fromByteString
   , Parser(..)
   , State(..)
   , Row
@@ -13,18 +12,20 @@ module Parse.Primitives
   , getIndent, setIndent, withIndent, withBacksetIndent
   , word1, word2
   , unsafeIndex, isWord, getCharWidth
+  , Snippet(..)
+  , fromSnippet
   )
   where
 
 
 import Prelude hiding (length)
 import qualified Control.Applicative as Applicative (Applicative(..))
-import Control.Monad
 import qualified Data.ByteString.Internal as B
 import Data.Word (Word8, Word16)
 import Foreign.Ptr (Ptr, plusPtr)
 import Foreign.Storable (peek)
-import GHC.ForeignPtr (touchForeignPtr, unsafeForeignPtrToPtr)
+import Foreign.ForeignPtr (ForeignPtr, touchForeignPtr)
+import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 
 import qualified Reporting.Annotation as A
 
@@ -45,9 +46,10 @@ newtype Parser x a =
   )
 
 
-data State = -- TODO try adding UNPACK to everything
+data State = -- TODO try taking some out to avoid allocation?
   State
-    { _pos :: !(Ptr Word8)
+    { _src :: ForeignPtr Word8
+    , _pos :: !(Ptr Word8)
     , _end :: !(Ptr Word8)
     , _indent :: !Word16
     , _row :: !Row
@@ -83,7 +85,23 @@ instance Applicative.Applicative (Parser x) where
   pure = return
 
   {-# INLINE (<*>) #-}
-  (<*>) = ap
+  (<*>) (Parser parserFunc) (Parser parserArg) =
+    Parser $ \state cok eok cerr eerr ->
+      let
+        cokF func s1 =
+          let
+            cokA arg s2 = cok (func arg) s2
+          in
+          parserArg s1 cokA cokA cerr cerr
+
+        eokF func s1 =
+          let
+            cokA arg s2 = cok (func arg) s2
+            eokA arg s2 = eok (func arg) s2
+          in
+          parserArg s1 cokA eokA cerr eerr
+      in
+      parserFunc state cokF eokF cerr eerr
 
 
 
@@ -117,7 +135,7 @@ oneOfHelp state cok eok cerr eerr toError parsers =
 
     [] ->
       let
-        (State _ _ _ row col) = state
+        (State _ _ _ _ row col) = state
       in
       eerr row col toError
 
@@ -183,26 +201,56 @@ instance Monad (Parser x) where
 -- FROM BYTESTRING
 
 
-data Result x a
-  = Ok !a State
-  | Err x
-
-
-fromByteString :: Parser x a -> B.ByteString -> Result x a
-fromByteString (Parser parser) (B.PS fp offset length) =
+fromByteString :: Parser x a -> (Row -> Col -> x) -> B.ByteString -> Either x a
+fromByteString (Parser parser) toBadEnd (B.PS fptr offset length) =
   B.accursedUnutterablePerformIO $
     let
-      !pos = plusPtr (unsafeForeignPtrToPtr fp) offset
+      toOk' = toOk toBadEnd
+      !pos = plusPtr (unsafeForeignPtrToPtr fptr) offset
       !end = plusPtr pos length
-      !result = parser (State pos end 0 1 1) Ok Ok toErr toErr
+      !result = parser (State fptr pos end 0 1 1) toOk' toOk' toErr toErr
     in
-    do  touchForeignPtr fp
+    do  touchForeignPtr fptr
         return result
 
 
-toErr :: Row -> Col -> (Row -> Col -> x) -> Result x a
+toOk :: (Row -> Col -> x) -> a -> State -> Either x a
+toOk toBadEnd !a (State _ pos end _ row col) =
+  if pos == end
+  then Right a
+  else Left (toBadEnd row col)
+
+
+toErr :: Row -> Col -> (Row -> Col -> x) -> Either x a
 toErr row col toError =
-  Err (toError row col)
+  Left (toError row col)
+
+
+
+-- FROM SNIPPET
+
+
+data Snippet =
+  Snippet
+    { _fptr   :: ForeignPtr Word8
+    , _offset :: Int
+    , _length :: Int
+    , _offRow :: Row
+    , _offCol :: Col
+    }
+
+
+fromSnippet :: Parser x a -> (Row -> Col -> x) -> Snippet -> Either x a
+fromSnippet (Parser parser) toBadEnd (Snippet fptr offset length row col) =
+  B.accursedUnutterablePerformIO $
+    let
+      toOk' = toOk toBadEnd
+      !pos = plusPtr (unsafeForeignPtrToPtr fptr) offset
+      !end = plusPtr pos length
+      !result = parser (State fptr pos end 0 row col) toOk' toOk' toErr toErr
+    in
+    do  touchForeignPtr fptr
+        return result
 
 
 
@@ -211,30 +259,30 @@ toErr row col toError =
 
 getCol :: Parser x Word16
 getCol =
-  Parser $ \state@(State _ _ _ _ col) _ eok _ _ ->
+  Parser $ \state@(State _ _ _ _ _ col) _ eok _ _ ->
     eok col state
 
 
 {-# INLINE getPosition #-}
 getPosition :: Parser x A.Position
 getPosition =
-  Parser $ \state@(State _ _ _ row col) _ eok _ _ ->
+  Parser $ \state@(State _ _ _ _ row col) _ eok _ _ ->
     eok (A.Position row col) state
 
 
 addLocation :: Parser x a -> Parser x (A.Located a)
 addLocation (Parser parser) =
-  Parser $ \state@(State _ _ _ sr sc) cok eok cerr eerr ->
+  Parser $ \state@(State _ _ _ _ sr sc) cok eok cerr eerr ->
     let
-      cok' a s@(State _ _ _ er ec) = cok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) a) s
-      eok' a s@(State _ _ _ er ec) = eok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) a) s
+      cok' a s@(State _ _ _ _ er ec) = cok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) a) s
+      eok' a s@(State _ _ _ _ er ec) = eok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) a) s
     in
     parser state cok' eok' cerr eerr
 
 
 addEnd :: A.Position -> a -> Parser x (A.Located a)
 addEnd start value =
-  Parser $ \state@(State _ _ _ row col) _ eok _ _ ->
+  Parser $ \state@(State _ _ _ _ row col) _ eok _ _ ->
     eok (A.at start (A.Position row col) value) state
 
 
@@ -244,37 +292,37 @@ addEnd start value =
 
 getIndent :: Parser x Word16
 getIndent =
-  Parser $ \state@(State _ _ indent _ _) _ eok _ _ ->
+  Parser $ \state@(State _ _ _ indent _ _) _ eok _ _ ->
     eok indent state
 
 
 setIndent :: Word16 -> Parser x ()
 setIndent indent =
-  Parser $ \(State pos end _ row col) _ eok _ _ ->
+  Parser $ \(State src pos end _ row col) _ eok _ _ ->
     let
-      !newState = State pos end indent row col
+      !newState = State src pos end indent row col
     in
     eok () newState
 
 
 withIndent :: Parser x a -> Parser x a
 withIndent (Parser parser) =
-  Parser $ \(State pos end oldIndent row col) cok eok cerr eerr ->
+  Parser $ \(State src pos end oldIndent row col) cok eok cerr eerr ->
     let
-      cok' a (State p e _ r c) = cok a (State p e oldIndent r c)
-      eok' a (State p e _ r c) = eok a (State p e oldIndent r c)
+      cok' a (State s p e _ r c) = cok a (State s p e oldIndent r c)
+      eok' a (State s p e _ r c) = eok a (State s p e oldIndent r c)
     in
-    parser (State pos end col row col) cok' eok' cerr eerr
+    parser (State src pos end col row col) cok' eok' cerr eerr
 
 
 withBacksetIndent :: Word16 -> Parser x a -> Parser x a
 withBacksetIndent backset (Parser parser) =
-  Parser $ \(State pos end oldIndent row col) cok eok cerr eerr ->
+  Parser $ \(State src pos end oldIndent row col) cok eok cerr eerr ->
     let
-      cok' a (State p e _ r c) = cok a (State p e oldIndent r c)
-      eok' a (State p e _ r c) = eok a (State p e oldIndent r c)
+      cok' a (State s p e _ r c) = cok a (State s p e oldIndent r c)
+      eok' a (State s p e _ r c) = eok a (State s p e oldIndent r c)
     in
-    parser (State pos end (col - backset) row col) cok' eok' cerr eerr
+    parser (State src pos end (col - backset) row col) cok' eok' cerr eerr
 
 
 
@@ -283,7 +331,7 @@ withBacksetIndent backset (Parser parser) =
 
 inContext :: (x -> Row -> Col -> y) -> Parser y start -> Parser x a -> Parser y a
 inContext addContext (Parser parserStart) (Parser parserA) =
-  Parser $ \state@(State _ _ _ row col) cok eok cerr eerr ->
+  Parser $ \state@(State _ _ _ _ row col) cok eok cerr eerr ->
     let
       cerrA r c tx = cerr row col (addContext (tx r c))
       eerrA r c tx = eerr row col (addContext (tx r c))
@@ -296,7 +344,7 @@ inContext addContext (Parser parserStart) (Parser parserA) =
 
 specialize :: (x -> Row -> Col -> y) -> Parser x a -> Parser y a
 specialize addContext (Parser parser) =
-  Parser $ \state@(State _ _ _ row col) cok eok cerr eerr ->
+  Parser $ \state@(State _ _ _ _ row col) cok eok cerr eerr ->
     let
       cerr' r c tx = cerr row col (addContext (tx r c))
       eerr' r c tx = eerr row col (addContext (tx r c))
@@ -310,9 +358,9 @@ specialize addContext (Parser parser) =
 
 word1 :: Word8 -> (Row -> Col -> x) -> Parser x ()
 word1 word toError =
-  Parser $ \(State pos end indent row col) cok _ _ eerr ->
+  Parser $ \(State src pos end indent row col) cok _ _ eerr ->
     if pos < end && unsafeIndex pos == word then
-      let !newState = State (plusPtr pos 1) end indent row (col + 1) in
+      let !newState = State src (plusPtr pos 1) end indent row (col + 1) in
       cok () newState
     else
       eerr row col toError
@@ -320,12 +368,12 @@ word1 word toError =
 
 word2 :: Word8 -> Word8 -> (Row -> Col -> x) -> Parser x ()
 word2 w1 w2 toError =
-  Parser $ \(State pos end indent row col) cok _ _ eerr ->
+  Parser $ \(State src pos end indent row col) cok _ _ eerr ->
     let
       !pos1 = plusPtr pos 1
     in
     if pos1 < end && unsafeIndex pos == w1 && unsafeIndex pos1 == w2 then
-      let !newState = State (plusPtr pos 2) end indent row (col + 2) in
+      let !newState = State src (plusPtr pos 2) end indent row (col + 2) in
       cok () newState
     else
       eerr row col toError
@@ -347,7 +395,7 @@ isWord pos end word =
 
 
 getCharWidth :: Ptr Word8 -> Ptr Word8 -> Word8 -> Int
-getCharWidth _pos _end word
+getCharWidth _pos _end word -- TODO remove unused variables. Shorter stack?
   | word < 0x80 = 1
   | word < 0xc0 = error "Need UTF-8 encoded input. Ran into unrecognized bits."
   | word < 0xe0 = 2
