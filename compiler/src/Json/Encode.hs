@@ -10,6 +10,7 @@ module Json.Encode
   , object
   , string
   , name
+  , chars
   , bool
   , int
   , number
@@ -32,6 +33,7 @@ import qualified Data.Name as Name
 import qualified Data.Utf8 as Utf8
 
 import qualified File
+import qualified Json.String as Json
 
 
 
@@ -40,7 +42,7 @@ import qualified File
 
 data Value
   = Array [Value]
-  | Object [(Utf8.String, Value)]
+  | Object [(Json.String, Value)]
   | String B.Builder
   | Boolean Bool
   | Integer Int
@@ -53,19 +55,24 @@ array =
   Array
 
 
-object :: [(Utf8.String,Value)] -> Value
+object :: [(Json.String, Value)] -> Value
 object =
   Object
 
 
-string :: Utf8.String -> Value
+string :: Json.String -> Value
 string str =
-  String (encodeUtf8 str)
+  String (B.char7 '"' <> Json.toBuilder str <> B.char7 '"')
 
 
 name :: Name.Name -> Value
 name nm =
   String (B.char7 '"' <> Name.toBuilder nm <> B.char7 '"')
+
+
+chars :: [Char] -> Value
+chars chrs =
+  String (B.char7 '"' <> error "TODO escape this properly. Who is using this?" chrs <> B.char7 '"')
 
 
 bool :: Bool -> Value
@@ -88,7 +95,7 @@ null =
   Null
 
 
-dict :: (k -> Utf8.String) -> (v -> Value) -> Map.Map k v -> Value
+dict :: (k -> Json.String) -> (v -> Value) -> Map.Map k v -> Value
 dict encodeKey encodeValue pairs =
   Object $ map (encodeKey *** encodeValue) (Map.toList pairs)
 
@@ -102,9 +109,9 @@ list encodeEntry entries =
 -- HELPERS
 
 
-(==>) :: a -> b -> (a, b)
-(==>) a b =
-  (a, b)
+(==>) :: [Char] -> value -> (Json.String, value)
+(==>) key value =
+  (Json.fromChars key, value)
 
 
 
@@ -144,7 +151,7 @@ encodeUgly value =
     Object (first : rest) ->
       let
         encodeEntry char (key, entry) =
-          B.char7 char <> encodeUtf8 key <> B.char7 ':' <> encodeUgly entry
+          B.char7 char <> B.char7 '"' <> Utf8.toBuilder key <> B.string7 "\":" <> encodeUgly entry
       in
         encodeEntry '{' first <> mconcat (map (encodeEntry ',') rest) <> B.char7 '}'
 
@@ -205,15 +212,6 @@ encodeHelp indent value =
 
 
 
--- ENCODE UTF-8
-
-
-encodeUtf8 :: Utf8.String -> B.Builder
-encodeUtf8 str =
-  B.char7 '"' <> Utf8.toBuilder str <> B.char7 '"'
-
-
-
 -- ENCODE ARRAY
 
 
@@ -236,7 +234,7 @@ arrayClose =
 -- ENCODE OBJECT
 
 
-encodeObject :: BSC.ByteString -> (Utf8.String, Value) -> [(Utf8.String, Value)] -> B.Builder
+encodeObject :: BSC.ByteString -> (Json.String, Value) -> [(Json.String, Value)] -> B.Builder
 encodeObject =
   encodeSequence objectOpen objectClose encodeField
 
@@ -251,9 +249,9 @@ objectClose =
   B.char7 '}'
 
 
-encodeField :: BSC.ByteString -> (Utf8.String, Value) -> B.Builder
+encodeField :: BSC.ByteString -> (Json.String, Value) -> B.Builder
 encodeField indent (key, value) =
-  encodeUtf8 key <> B.string7 ": " <> encodeHelp indent value
+  B.char7 '"' <> Utf8.toBuilder key <> B.string7 "\": " <> encodeHelp indent value
 
 
 
