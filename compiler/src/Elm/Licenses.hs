@@ -9,14 +9,12 @@ module Elm.Licenses
   where
 
 
-import Control.Monad (liftM2)
-import Data.Binary (Binary, get, put)
-import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Utf8 as Utf8
 
 import qualified Json.Decode as D
 import qualified Json.Encode as E
+import qualified Json.String as Json
 import qualified Reporting.Suggest as Suggest
 
 
@@ -24,25 +22,21 @@ import qualified Reporting.Suggest as Suggest
 -- LICENCES
 
 
-data License =
-  License
-    { _name :: Utf8.String
-    , _code :: Utf8.String
-    }
-  deriving (Eq, Ord)
+newtype License =
+  License Json.String
 
 
 bsd3 :: License
 bsd3 =
-  osiApprovedSpdxLicenses ! "BSD-3-Clause"
+  License (Json.fromChars "BSD-3-Clause")
 
 
 encode :: License -> E.Value
-encode (License _ code) =
+encode (License code) =
   E.string code
 
 
-decoder :: (Utf8.String -> [Utf8.String] -> e) -> D.Decoder e License
+decoder :: (Json.String -> [Json.String] -> e) -> D.Decoder e License
 decoder toError =
   do  str <- D.string
       case check str of
@@ -57,38 +51,36 @@ decoder toError =
 -- CHECK
 
 
-check :: Utf8.String -> Either [Utf8.String] License
-check rawName =
-  case Map.lookup rawName osiApprovedSpdxLicenses of
-    Just license ->
-      Right license
+check :: Json.String -> Either [Json.String] License
+check givenCode =
+  if Map.member givenCode osiApprovedSpdxLicenses then
+    Right (License givenCode)
 
-    Nothing ->
-      let
-        toPairs (License name code) =
-          [ (Utf8.toChars code, code), (Utf8.toChars name, code) ]
-
-        pairs =
-          concatMap toPairs (Map.elems osiApprovedSpdxLicenses)
-      in
-      Left $ map snd $
-        Suggest.sort (Utf8.toChars rawName) fst pairs
+  else
+    let
+      pairs =
+        map (\code -> (code, Json.toChars code)) (Map.keys osiApprovedSpdxLicenses)
+        ++
+        Map.toList osiApprovedSpdxLicenses
+    in
+    Left $ map fst $ take 4 $
+      Suggest.sort (Utf8.toChars givenCode) snd pairs
 
 
 
 -- LIST OF LICENCES
 
 
-(==>) :: Utf8.String -> Utf8.String -> (Utf8.String, License)
-(==>) code name =
-  ( code, License name code )
+(==>) :: [Char] -> [Char] -> (Json.String, [Char])
+(==>) code fullName =
+  ( Json.fromChars code, fullName )
 
 
 --
 -- OSI approved licenses in SPDX format.
 -- <https://spdx.org/licenses/>
 --
-osiApprovedSpdxLicenses :: Map.Map Utf8.String License
+osiApprovedSpdxLicenses :: Map.Map Json.String [Char]
 osiApprovedSpdxLicenses =
   Map.fromList
     [ "AFL-1.1" ==> "Academic Free License v1.1"
@@ -191,12 +183,3 @@ osiApprovedSpdxLicenses =
     , "Zlib" ==> "zlib License"
     , "ZPL-2.0" ==> "Zope Public License 2.0"
     ]
-
-
-
--- BINARY
-
-
-instance Binary License where
-  get = liftM2 License get get
-  put (License a b) = put a >> put b
