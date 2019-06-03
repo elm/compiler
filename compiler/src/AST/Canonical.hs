@@ -56,13 +56,14 @@ import Data.Binary
 import qualified Data.List as List
 import qualified Data.Map as Map
 import Data.Name (Name)
-import qualified Data.Utf8 as Utf8
 
 import qualified AST.Source as Src
 import qualified AST.Utils.Binop as Binop
 import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
+import qualified Elm.Float as EF
 import qualified Elm.ModuleName as ModuleName
+import qualified Elm.String as ES
 import qualified Reporting.Annotation as A
 
 
@@ -83,10 +84,10 @@ data Expr_
   | VarCtor CtorOpts ModuleName.Canonical Name Index.ZeroBased Annotation
   | VarDebug ModuleName.Canonical Name Annotation
   | VarOperator Name ModuleName.Canonical Name Annotation -- CACHE real name for optimization
-  | Chr Utf8.String
-  | Str Utf8.String
+  | Chr ES.String
+  | Str ES.String
   | Int Int
-  | Float (Utf8.Under256 Float)
+  | Float EF.Float
   | List [Expr]
   | Negate Expr
   | Binop Name ModuleName.Canonical Name Annotation Expr Expr -- CACHE real name for optimization
@@ -151,8 +152,8 @@ data Pattern_
   | PList [Pattern]
   | PCons Pattern Pattern
   | PBool Union Bool
-  | PChr Utf8.String
-  | PStr Utf8.String
+  | PChr ES.String
+  | PStr ES.String
   | PInt Int
   | PCtor
       { _p_home :: ModuleName.Canonical
@@ -232,7 +233,7 @@ data Module =
   Module
     { _name    :: ModuleName.Canonical
     , _exports :: Exports
-    , _docs    :: Maybe Src.Docs
+    , _docs    :: Src.Docs
     , _decls   :: Decls
     , _unions  :: Map.Map Name Union
     , _aliases :: Map.Map Name Alias

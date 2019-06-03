@@ -27,14 +27,15 @@ import qualified Data.Map as Map
 import qualified Data.Name as Name
 import Data.Name (Name)
 import qualified Data.Set as Set
-import qualified Data.Utf8 as Utf8
 
 import qualified AST.Canonical as Can
 import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
+import qualified Elm.Float as EF
 import qualified Elm.Kernel as K
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
+import qualified Elm.String as ES
 import qualified Optimize.DecisionTree as DT
 import qualified Reporting.Annotation as A
 
@@ -45,10 +46,10 @@ import qualified Reporting.Annotation as A
 
 data Expr
   = Bool Bool
-  | Chr Utf8.String
-  | Str Utf8.String
+  | Chr ES.String
+  | Str ES.String
   | Int Int
-  | Float (Utf8.Under256 Float)
+  | Float EF.Float
   | VarLocal Name
   | VarGlobal Global
   | VarEnum Global Index.ZeroBased

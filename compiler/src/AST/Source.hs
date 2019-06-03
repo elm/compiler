@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE OverloadedStrings #-}
 module AST.Source
   ( Expr, Expr_(..), VarType(..)
   , Def(..)
@@ -26,12 +25,13 @@ module AST.Source
 
 
 import Data.Name (Name)
-import qualified Data.Utf8 as Utf8
-import Data.Word (Word8)
-import Foreign.Ptr (Ptr)
+import qualified Data.Name as Name
 
 import qualified AST.Utils.Binop as Binop
 import qualified AST.Utils.Shader as Shader
+import qualified Elm.Float as EF
+import qualified Elm.String as ES
+import qualified Parse.Primitives as P
 import qualified Reporting.Annotation as A
 
 
@@ -43,10 +43,10 @@ type Expr = A.Located Expr_
 
 
 data Expr_
-  = Chr Utf8.String
-  | Str Utf8.String
+  = Chr ES.String
+  | Str ES.String
   | Int Int
-  | Float (Utf8.Under256 Float)
+  | Float EF.Float
   | Var VarType Name
   | VarQual VarType Name Name
   | List [Expr]
@@ -97,8 +97,8 @@ data Pattern_
   | PCtorQual A.Region Name Name [Pattern]
   | PList [Pattern]
   | PCons Pattern Pattern
-  | PChr Utf8.String
-  | PStr Utf8.String
+  | PChr ES.String
+  | PStr ES.String
   | PInt Int
 
 
@@ -128,7 +128,7 @@ data Module =
   Module
     { _name    :: Maybe (A.Located Name)
     , _exports :: A.Located Exposing
-    , _docs    :: Maybe Docs
+    , _docs    :: Docs
     , _imports :: [Import]
     , _values  :: [A.Located Value]
     , _unions  :: [A.Located Union]
@@ -145,13 +145,7 @@ getName (Module maybeName _ _ _ _ _ _ _ _) =
       name
 
     Nothing ->
-      defaultModuleName
-
-
-{-# NOINLINE defaultModuleName #-}
-defaultModuleName :: Name
-defaultModuleName =
-  "Main"
+      Name._Main
 
 
 getImportName :: Import -> Name
@@ -186,18 +180,13 @@ data Manager
   | Fx (A.Located Name) (A.Located Name)
 
 
-data Docs =
-  Docs
-    { _overview :: Comment
-    , _comments :: [(Name, Comment)]
-    }
+data Docs
+  = NoDocs A.Region
+  | YesDocs Comment [(Name, Comment)]
 
 
-data Comment =
-  Comment
-    { _start :: Ptr Word8
-    , _end :: Ptr Word8
-    }
+newtype Comment =
+  Comment P.Snippet
 
 
 
