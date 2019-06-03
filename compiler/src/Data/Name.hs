@@ -1,17 +1,18 @@
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
-{-# LANGUAGE BangPatterns, EmptyDataDecls, MagicHash, OverloadedStrings, UnboxedTuples #-}
+{-# LANGUAGE BangPatterns, EmptyDataDecls, FlexibleInstances, MagicHash, UnboxedTuples #-}
 module Data.Name
   ( Name
-  , toUtf8
-  , fromUtf8
-  , toEscapedBuilder
-  , Utf8.toBuilder
-  , Utf8.fromPtr
-  , Utf8.fromChars
-  , Utf8.toChars
-  -- misc
+  --
+  , toChars
+  , toElmString
+  , toBuilder
+  --
+  , fromPtr
+  , fromChars
+  --
   , getKernel
   , hasDot
+  , splitDots
   , isKernel
   , isNumberType
   , isComparableType
@@ -24,13 +25,13 @@ module Data.Name
   , fromTypeVariable
   , fromTypeVariableScheme
   , sepBy
-  -- interned
+  --
   , int, float, bool, char, string
   , maybe, result, list, array, dict, tuple, jsArray
   , task, router, cmd, sub, platform, virtualDom
   , shader, debug, debugger, bitwise, basics
   , utils, negate, true, false, value
-  , node, program, main, dollar, identity
+  , node, program, _main, _Main, dollar, identity
   , replModule
   )
   where
@@ -38,9 +39,11 @@ module Data.Name
 
 import Prelude hiding (length, maybe, negate)
 import Control.Exception (assert)
+import qualified Data.Binary as Binary
 import qualified Data.ByteString.Builder.Internal as B
-import Data.Coerce (coerce)
+import qualified Data.Coerce as Coerce
 import qualified Data.List as List
+import qualified Data.String as Chars
 import qualified Data.Utf8 as Utf8
 import Foreign.Ptr (plusPtr, minusPtr)
 import GHC.Exts
@@ -59,72 +62,64 @@ import GHC.ST (ST(ST), runST)
 import GHC.Prim
 import GHC.Word (Word8(W8#))
 
+import qualified Elm.String as ES
+
 
 
 -- NAME
 
 
-type Name = Utf8.Under256 NAME
+type Name =
+  Utf8.Utf8 ELM_NAME
 
 
-data NAME
-
-
-toUtf8 :: Name -> Utf8.String
-toUtf8 =
-  coerce
-
-
-fromUtf8 :: Utf8.String -> Name
-fromUtf8 =
-  coerce
+data ELM_NAME
 
 
 
--- TO ESCAPED BUILDER
+-- INSTANCES
 
 
-{-# INLINE toEscapedBuilder #-}
-toEscapedBuilder :: Word8 -> Word8 -> Name -> B.Builder
-toEscapedBuilder before after =
-  \name -> B.builder (toEscapedBuilderHelp before after name)
+instance Chars.IsString (Utf8.Utf8 ELM_NAME) where
+  fromString = Utf8.fromChars
+
+instance Binary.Binary (Utf8.Utf8 ELM_NAME) where
+  get = Utf8.getUnder256
+  put = Utf8.putUnder256
 
 
-{-# INLINE toEscapedBuilderHelp #-}
-toEscapedBuilderHelp :: Word8 -> Word8 -> Name -> B.BuildStep a -> B.BuildStep a
-toEscapedBuilderHelp before after !name@(Utf8.Utf8 ba#) k =
-    go 0 (I# (sizeofByteArray# ba#))
-  where
-    go !offset !len !(B.BufferRange bOffset bEnd) =
-      let
-        !bLen = minusPtr bEnd bOffset
-      in
-      if len <= bLen then
-        do  -- TODO test if writing word-by-word is faster
-            stToIO (copyToPtr name offset bOffset len)
-            stToIO (escape before after bOffset name offset len 0)
-            let !newBufferRange = B.BufferRange (plusPtr bOffset len) bEnd
-            k newBufferRange
-      else
-        do  stToIO (copyToPtr name offset bOffset bLen)
-            stToIO (escape before after bOffset name offset bLen 0)
-            let !newOffset = offset + bLen
-            let !newLength = len - bLen
-            return $ B.bufferFull 1 bEnd (go newOffset newLength)
+
+-- TO
 
 
-escape :: Word8 -> Word8 -> Ptr a -> Name -> Int -> Int -> Int -> ST RealWorld ()
-escape before@(W8# before#) after ptr name@(Utf8.Utf8 ba#) offset@(I# offset#) len@(I# len#) i@(I# i#) =
-  if isTrue# (i# <# len#) then
-    if isTrue# (eqWord# before# (indexWord8Array# ba# (offset# +# i#)))
-    then
-      do  writeWordToPtr ptr i after
-          escape before after ptr name offset len (i + 1)
-    else
-      do  escape before after ptr name offset len (i + 1)
+toChars :: Name -> [Char]
+toChars =
+  Utf8.toChars
 
-  else
-    return ()
+
+toElmString :: Name -> ES.String
+toElmString =
+  Coerce.coerce
+
+
+{-# INLINE toBuilder #-}
+toBuilder :: Name -> B.Builder
+toBuilder =
+  Utf8.toBuilder
+
+
+
+-- FROM
+
+
+fromPtr :: Ptr Word8 -> Ptr Word8 -> Name
+fromPtr =
+  Utf8.fromPtr
+
+
+fromChars :: [Char] -> Name
+fromChars =
+  Utf8.fromChars
 
 
 
@@ -133,7 +128,12 @@ escape before@(W8# before#) after ptr name@(Utf8.Utf8 ba#) offset@(I# offset#) l
 
 hasDot :: Name -> Bool
 hasDot name =
-  Utf8.contains 0x2E {- . -} (coerce name)
+  Utf8.contains 0x2E {- . -} name
+
+
+splitDots :: Name -> [Name]
+splitDots name =
+  Utf8.split 0x2E {- . -} name
 
 
 
@@ -181,23 +181,23 @@ isCompappendType = Utf8.startsWith prefix_compappend
 
 {-# NOINLINE prefix_kernel #-}
 prefix_kernel :: Name
-prefix_kernel = "Elm.Kernel."
+prefix_kernel = fromChars "Elm.Kernel."
 
 {-# NOINLINE prefix_number #-}
 prefix_number :: Name
-prefix_number = "number"
+prefix_number = fromChars "number"
 
 {-# NOINLINE prefix_comparable #-}
 prefix_comparable :: Name
-prefix_comparable = "comparable"
+prefix_comparable = fromChars "comparable"
 
 {-# NOINLINE prefix_appendable #-}
 prefix_appendable :: Name
-prefix_appendable = "appendable"
+prefix_appendable = fromChars "appendable"
 
 {-# NOINLINE prefix_compappend #-}
 prefix_compappend :: Name
-prefix_compappend = "compappend"
+prefix_compappend = fromChars "compappend"
 
 
 
@@ -423,22 +423,6 @@ writeWord8 (MBA# mba#) (I# offset#) (W8# w#) =
       s -> (# s, () #)
 
 
-{-# INLINE writeWordToPtr #-}
-writeWordToPtr :: Ptr a -> Int -> Word8 -> ST s ()
-writeWordToPtr (Ptr addr#) (I# offset#) (W8# word#) =
-  ST $ \s ->
-    case writeWord8OffAddr# addr# offset# word# s of
-      s -> (# s, () #)
-
-
-{-# INLINE copyToPtr #-}
-copyToPtr :: Name -> Int -> Ptr a -> Int -> ST RealWorld ()
-copyToPtr (Utf8.Utf8 ba#) (I# offset#) (Ptr addr#) (I# len#) =
-    ST $ \s ->
-      case copyByteArrayToAddr# ba# offset# addr# len# s of
-        s -> (# s, () #)
-
-
 {-# INLINE copyToMBA #-}
 copyToMBA :: Name -> MBA s -> ST s ()
 copyToMBA (Utf8.Utf8 ba#) (MBA# mba#) =
@@ -453,169 +437,174 @@ copyToMBA (Utf8.Utf8 ba#) (MBA# mba#) =
 
 {-# NOINLINE int #-}
 int :: Name
-int = "Int"
+int = fromChars "Int"
 
 
 {-# NOINLINE float #-}
 float :: Name
-float = "Float"
+float = fromChars "Float"
 
 
 {-# NOINLINE bool #-}
 bool :: Name
-bool = "Bool"
+bool = fromChars "Bool"
 
 
 {-# NOINLINE char #-}
 char :: Name
-char = "Char"
+char = fromChars "Char"
 
 
 {-# NOINLINE string #-}
 string :: Name
-string = "String"
+string = fromChars "String"
 
 
 {-# NOINLINE maybe #-}
 maybe :: Name
-maybe = "Maybe"
+maybe = fromChars "Maybe"
 
 
 {-# NOINLINE result #-}
 result :: Name
-result = "Result"
+result = fromChars "Result"
 
 
 {-# NOINLINE list #-}
 list :: Name
-list = "List"
+list = fromChars "List"
 
 
 {-# NOINLINE array #-}
 array :: Name
-array = "Array"
+array = fromChars "Array"
 
 
 {-# NOINLINE dict #-}
 dict :: Name
-dict = "Dict"
+dict = fromChars "Dict"
 
 
 {-# NOINLINE tuple #-}
 tuple :: Name
-tuple = "Tuple"
+tuple = fromChars "Tuple"
 
 
 {-# NOINLINE jsArray #-}
 jsArray :: Name
-jsArray = "JsArray"
+jsArray = fromChars "JsArray"
 
 
 {-# NOINLINE task #-}
 task :: Name
-task = "Task"
+task = fromChars "Task"
 
 
 {-# NOINLINE router #-}
 router :: Name
-router = "Router"
+router = fromChars "Router"
 
 
 {-# NOINLINE cmd #-}
 cmd :: Name
-cmd = "Cmd"
+cmd = fromChars "Cmd"
 
 
 {-# NOINLINE sub #-}
 sub :: Name
-sub = "Sub"
+sub = fromChars "Sub"
 
 
 {-# NOINLINE platform #-}
 platform :: Name
-platform = "Platform"
+platform = fromChars "Platform"
 
 
 {-# NOINLINE virtualDom #-}
 virtualDom :: Name
-virtualDom = "VirtualDom"
+virtualDom = fromChars "VirtualDom"
 
 
 {-# NOINLINE shader #-}
 shader :: Name
-shader = "Shader"
+shader = fromChars "Shader"
 
 
 {-# NOINLINE debug #-}
 debug :: Name
-debug = "Debug"
+debug = fromChars "Debug"
 
 
 {-# NOINLINE debugger #-}
 debugger :: Name
-debugger = "Debugger"
+debugger = fromChars "Debugger"
 
 
 {-# NOINLINE bitwise #-}
 bitwise :: Name
-bitwise = "Bitwise"
+bitwise = fromChars "Bitwise"
 
 
 {-# NOINLINE basics #-}
 basics :: Name
-basics = "Basics"
+basics = fromChars "Basics"
 
 
 {-# NOINLINE utils #-}
 utils :: Name
-utils = "Utils"
+utils = fromChars "Utils"
 
 
 {-# NOINLINE negate #-}
 negate :: Name
-negate = "negate"
+negate = fromChars "negate"
 
 
 {-# NOINLINE true #-}
 true :: Name
-true = "True"
+true = fromChars "True"
 
 
 {-# NOINLINE false #-}
 false :: Name
-false = "False"
+false = fromChars "False"
 
 
 {-# NOINLINE value #-}
 value :: Name
-value = "Value"
+value = fromChars "Value"
 
 
 {-# NOINLINE node #-}
 node :: Name
-node = "Node"
+node = fromChars "Node"
 
 
 {-# NOINLINE program #-}
 program :: Name
-program = "Program"
+program = fromChars "Program"
 
 
-{-# NOINLINE main #-}
-main :: Name
-main = "main"
+{-# NOINLINE _main #-}
+_main :: Name
+_main = fromChars "main"
+
+
+{-# NOINLINE _Main #-}
+_Main :: Name
+_Main = fromChars "Main"
 
 
 {-# NOINLINE dollar #-}
 dollar :: Name
-dollar = "$"
+dollar = fromChars "$"
 
 
 {-# NOINLINE identity #-}
 identity :: Name
-identity = "identity"
+identity = fromChars "identity"
 
 
 {-# NOINLINE replModule #-}
 replModule :: Name
-replModule = "Elm_Repl"
+replModule = fromChars "Elm_Repl"

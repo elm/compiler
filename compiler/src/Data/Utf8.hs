@@ -1,37 +1,42 @@
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
-{-# LANGUAGE BangPatterns, EmptyDataDecls, FlexibleInstances, MagicHash, UnboxedTuples #-}
+{-# LANGUAGE BangPatterns, FlexibleInstances, MagicHash, UnboxedTuples #-}
 module Data.Utf8
-  ( String
-  , Utf8(..)
-  , VeryLong
-  , Under256
+  ( Utf8(..)
   , isEmpty
   , empty
   , size
   , contains
-  , containsDouble
   , startsWith
   , startsWithChar
-  , endsWithWord
+  , endsWithWord8
   , split
   , join
-  , all
-  , any
-  , toWord16
-  , fromWord16
-  -- conversions
-  , fromChars
+  --
+  , getUnder256
+  , putUnder256
+  --
+  , getVeryLong
+  , putVeryLong
+  --
   , toChars
   , toBuilder
+  , toEscapedBuilder
+  --
   , fromPtr
-  , fromChunks
-  , Chunk(..)
+  , fromSnippet
+  , fromChars
+  --
+  , MBA
+  , newByteArray
+  , copyFromPtr
+  , writeWord8
+  , freeze
   )
   where
 
 
 import Prelude hiding (String, all, any, concat)
-import Data.Binary (Binary(..), Get, getWord8, putWord8)
+import Data.Binary (Get, get, getWord8, Put, put, putWord8)
 import Data.Binary.Put (putBuilder)
 import Data.Binary.Get.Internal (readN)
 import Data.Bits ((.&.), shiftR)
@@ -39,7 +44,6 @@ import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.Builder.Internal as B
 import qualified Data.Char as Char
 import qualified Data.List as List
-import Data.String (IsString(..))
 import Foreign.ForeignPtr (touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr)
@@ -54,36 +58,35 @@ import GHC.Exts
   , copyByteArray#
   , copyAddrToByteArray#
   , copyByteArrayToAddr#
-  , writeWord8Array#,
+  , writeWord8Array#
   )
 import GHC.IO
 import GHC.ST (ST(ST), runST)
 import GHC.Prim
 import GHC.Word (Word8(W8#), Word16(W16#))
 
+import qualified Parse.Primitives as P
+
 
 
 -- UTF-8
 
 
-data Utf8 size tipe =
+data Utf8 tipe =
   Utf8 ByteArray#
 
 
-type String = Utf8 VERY_LONG STRING
-type VeryLong t = Utf8 VERY_LONG t
-type Under256 t = Utf8 UNDER_256 t
 
-data STRING
-data VERY_LONG
-data UNDER_256
+-- EMPTY
 
 
+{-# NOINLINE empty #-}
+empty :: Utf8 t
+empty =
+  runST (freeze =<< newByteArray 0)
 
--- IS EMPTY
 
-
-isEmpty :: Utf8 l t -> Bool
+isEmpty :: Utf8 t -> Bool
 isEmpty (Utf8 ba#) =
   isTrue# (sizeofByteArray# ba# ==# 0#)
 
@@ -92,7 +95,7 @@ isEmpty (Utf8 ba#) =
 -- SIZE
 
 
-size :: Utf8 l t -> Int
+size :: Utf8 t -> Int
 size (Utf8 ba#) =
   I# (sizeofByteArray# ba#)
 
@@ -101,7 +104,7 @@ size (Utf8 ba#) =
 -- CONTAINS
 
 
-contains :: Word8 -> Utf8 l t -> Bool
+contains :: Word8 -> Utf8 t -> Bool
 contains (W8# word#) (Utf8 ba#) =
   containsHelp word# ba# 0# (sizeofByteArray# ba#)
 
@@ -117,32 +120,11 @@ containsHelp word# ba# !offset# len# =
 
 
 
--- CONTAINS DOUBLE
-
-
-containsDouble :: Word8 -> Utf8 l t -> Bool
-containsDouble (W8# word#) (Utf8 ba#) =
-  containsDoubleHelp word# ba# 0# (sizeofByteArray# ba#)
-
-
-containsDoubleHelp :: Word# -> ByteArray# -> Int# -> Int# -> Bool
-containsDoubleHelp word# ba# !offset# len# =
-  let !offset1# = offset# +# 1# in
-  if isTrue# (offset1# <# len#) then
-    if   isTrue# (eqWord# word# (indexWord8Array# ba# offset# ))
-      && isTrue# (eqWord# word# (indexWord8Array# ba# offset1#))
-    then True
-    else containsDoubleHelp word# ba# (offset# +# 1#) len#
-  else
-    False
-
-
-
 -- STARTS WITH
 
 
 {-# INLINE startsWith #-}
-startsWith :: Utf8 l t -> Utf8 l t -> Bool
+startsWith :: Utf8 t -> Utf8 t -> Bool
 startsWith (Utf8 ba1#) (Utf8 ba2#) =
   let
     !len1# = sizeofByteArray# ba1#
@@ -157,9 +139,9 @@ startsWith (Utf8 ba1#) (Utf8 ba2#) =
 -- STARTS WITH CHAR
 
 
-startsWithChar :: (Char -> Bool) -> Utf8 l t -> Bool
-startsWithChar isGood str@(Utf8 ba#) =
-  if isEmpty str then
+startsWithChar :: (Char -> Bool) -> Utf8 t -> Bool
+startsWithChar isGood bytes@(Utf8 ba#) =
+  if isEmpty bytes then
     False
   else
     let
@@ -177,8 +159,8 @@ startsWithChar isGood str@(Utf8 ba#) =
 -- ENDS WITH WORD
 
 
-endsWithWord :: Word8 -> Utf8 l t -> Bool
-endsWithWord (W8# w#) (Utf8 ba#) =
+endsWithWord8 :: Word8 -> Utf8 t -> Bool
+endsWithWord8 (W8# w#) (Utf8 ba#) =
   let len# = sizeofByteArray# ba# in
   isTrue# (len# ># 0#)
   &&
@@ -189,12 +171,12 @@ endsWithWord (W8# w#) (Utf8 ba#) =
 -- SPLIT
 
 
-split :: Word8 -> String -> [String]
+split :: Word8 -> Utf8 t -> [Utf8 t]
 split (W8# divider#) str@(Utf8 ba#) =
   splitHelp str 0 (findDividers divider# ba# 0# (sizeofByteArray# ba#) [])
 
 
-splitHelp :: String -> Int -> [Int] -> [String]
+splitHelp :: Utf8 t -> Int -> [Int] -> [Utf8 t]
 splitHelp str start offsets =
   case offsets of
     [] ->
@@ -215,7 +197,7 @@ findDividers divider# ba# !offset# len# revOffsets =
     reverse revOffsets
 
 
-unsafeSlice :: String -> Int -> Int -> String
+unsafeSlice :: Utf8 t -> Int -> Int -> Utf8 t
 unsafeSlice str start end =
   let !len = end - start in
   if len == 0 then
@@ -231,7 +213,7 @@ unsafeSlice str start end =
 -- JOIN
 
 
-join :: Word8 -> [String] -> String
+join :: Word8 -> [Utf8 t] -> Utf8 t
 join sep strings =
   case strings of
     [] ->
@@ -245,7 +227,7 @@ join sep strings =
           freeze mba
 
 
-joinHelp :: Word8 -> MBA s -> Int -> String -> [String] -> ST s ()
+joinHelp :: Word8 -> MBA s -> Int -> Utf8 t -> [Utf8 t] -> ST s ()
 joinHelp sep mba offset str strings =
   let
     !len = size str
@@ -263,46 +245,10 @@ joinHelp sep mba offset str strings =
 
 
 
--- ALL
-
-
-all :: (Char -> Bool) -> Utf8 l t -> Bool
-all isGood utf8 =
-  not (any (not . isGood) utf8)
-
-
-
--- ANY
-
-
-any :: (Char -> Bool) -> Utf8 l t -> Bool
-any isGood (Utf8 ba#) =
-  anyHelp isGood ba# 0# (sizeofByteArray# ba#)
-
-
-anyHelp :: (Char -> Bool) -> ByteArray# -> Int# -> Int# -> Bool
-anyHelp isGood ba# offset# len# =
-  if isTrue# (offset# >=# len#) then
-    False
-  else
-    let
-      !w# = indexWord8Array# ba# offset#
-      !(# char, width# #)
-        | isTrue# (ltWord# w# 0xC0##) = (# C# (chr# (word2Int# w#)), 1# #)
-        | isTrue# (ltWord# w# 0xE0##) = (# chr2 ba# offset# w#, 2# #)
-        | isTrue# (ltWord# w# 0xF0##) = (# chr3 ba# offset# w#, 3# #)
-        | True                        = (# chr4 ba# offset# w#, 4# #)
-    in
-    if isGood char
-      then True
-      else anyHelp isGood ba# (offset# +# width#) len#
-
-
-
 -- EQUAL
 
 
-instance Eq (Utf8 l t) where
+instance Eq (Utf8 t) where
   (==) (Utf8 ba1#) (Utf8 ba2#) =
     let
       !len1# = sizeofByteArray# ba1#
@@ -317,7 +263,7 @@ instance Eq (Utf8 l t) where
 -- COMPARE
 
 
-instance Ord (Utf8 l t) where
+instance Ord (Utf8 t) where
   compare (Utf8 ba1#) (Utf8 ba2#) =
     let
       !len1# = sizeofByteArray# ba1#
@@ -334,84 +280,20 @@ instance Ord (Utf8 l t) where
 
 
 
--- TO WORD16
-
-
-toWord16 :: String -> Maybe Word16
-toWord16 (Utf8 ba#) =
-  let !len# = sizeofByteArray# ba# in
-  if isTrue# (len# ==# 0#) then
-    Nothing
-  else
-    let !w# = indexWord8Array# ba# 0# in
-    if isTrue# (eqWord# w# 0x30##) then
-      if isTrue# (len# ==# 1#) then Just 0 else Nothing
-    else
-      toWordHelp ba# 0# len# 0##
-
-
-toWordHelp :: ByteArray# -> Int# -> Int# -> Word# -> Maybe Word16
-toWordHelp ba# offset# len# number# =
-  if isTrue# (offset# <# len#) then
-    let !w# = indexWord8Array# ba# offset# in
-    if isTrue# (leWord# w# 0x39##) && isTrue# (geWord# w# 0x30##) then
-      let !newNumber# = plusWord# (timesWord# 10## number#) (minusWord# w# 0x30##) in
-      toWordHelp ba# (offset# +# 1#) len# newNumber#
-    else
-      Nothing
-  else
-    Just (W16# number#)
-
-
-
--- FROM WORD16
-
-
-fromWord16 :: Word16 -> String
-fromWord16 n =
-  runST $
-    do  let !size = getWordSize n
-        mba <- newByteArray size
-        writeDigits mba (size - 1) n
-        freeze mba
-
-
-getWordSize :: Word16 -> Int
-getWordSize n
-  | n < 10  = 1
-  | n < 100 = 2
-  | True    = ceiling (logBase 10 (fromIntegral n + 1) :: Float)
-
-
-writeDigits :: MBA s -> Int -> Word16 -> ST s ()
-writeDigits !mba !offset !n =
-  do  let (q,r) = quotRem n 10
-      writeWord8 mba offset (0x30 + fromIntegral r)
-      if q <= 0
-        then return ()
-        else writeDigits mba (offset-1) q
-
-
-
 -- FROM STRING
 
 
-fromChars :: [Char] -> Utf8 l t
-fromChars =
-  fromString
+fromChars :: [Char] -> Utf8 t
+fromChars chars =
+  runST
+  (
+    do  mba <- newByteArray (sum (map getWidth chars))
+        writeChars mba 0 chars
+  )
 
 
-instance IsString (Utf8 l t) where
-  fromString str =
-    runST
-    (
-      do  mba <- newByteArray (sum (map getWidth str))
-          writeString mba 0 str
-    )
-
-
-writeString :: MBA s -> Int -> [Char] -> ST s (Utf8 l t)
-writeString !mba !offset chars =
+writeChars :: MBA s -> Int -> [Char] -> ST s (Utf8 t)
+writeChars !mba !offset chars =
   case chars of
     [] ->
       freeze mba
@@ -419,25 +301,25 @@ writeString !mba !offset chars =
     char : chars
       | n < 0x80 ->
           do  writeWord8 mba (offset    ) (fromIntegral n)
-              writeString mba (offset + 1) chars
+              writeChars mba (offset + 1) chars
 
       | n < 0x800 ->
           do  writeWord8 mba (offset    ) (fromIntegral ((shiftR n 6         ) + 0xC0))
               writeWord8 mba (offset + 1) (fromIntegral ((       n   .&. 0x3F) + 0x80))
-              writeString mba (offset + 2) chars
+              writeChars mba (offset + 2) chars
 
       | n < 0x10000 ->
           do  writeWord8 mba (offset    ) (fromIntegral ((shiftR n 12         ) + 0xE0))
               writeWord8 mba (offset + 1) (fromIntegral ((shiftR n  6 .&. 0x3F) + 0x80))
               writeWord8 mba (offset + 2) (fromIntegral ((       n    .&. 0x3F) + 0x80))
-              writeString mba (offset + 3) chars
+              writeChars mba (offset + 3) chars
 
       | otherwise ->
           do  writeWord8 mba (offset    ) (fromIntegral ((shiftR n 18         ) + 0xF0))
               writeWord8 mba (offset + 1) (fromIntegral ((shiftR n 12 .&. 0x3F) + 0x80))
               writeWord8 mba (offset + 2) (fromIntegral ((shiftR n  6 .&. 0x3F) + 0x80))
               writeWord8 mba (offset + 3) (fromIntegral ((       n    .&. 0x3F) + 0x80))
-              writeString mba (offset + 4) chars
+              writeChars mba (offset + 4) chars
 
       where
         n = Char.ord char
@@ -455,10 +337,10 @@ getWidth char
 
 
 
--- TO STRING
+-- TO CHARS
 
 
-toChars :: Utf8 l t -> [Char]
+toChars :: Utf8 t -> [Char]
 toChars (Utf8 ba#) =
   toCharsHelp ba# 0# (sizeofByteArray# ba#)
 
@@ -528,13 +410,13 @@ chr4 ba# offset# firstWord# =
 
 
 {-# INLINE toBuilder #-}
-toBuilder :: Utf8 l t -> B.Builder
+toBuilder :: Utf8 t -> B.Builder
 toBuilder =
   \bytes -> B.builder (toBuilderHelp bytes)
 
 
 {-# INLINE toBuilderHelp #-}
-toBuilderHelp :: Utf8 l t -> B.BuildStep a -> B.BuildStep a
+toBuilderHelp :: Utf8 t -> B.BuildStep a -> B.BuildStep a
 toBuilderHelp !bytes@(Utf8 ba#) k =
     go 0 (I# (sizeofByteArray# ba#))
   where
@@ -554,10 +436,57 @@ toBuilderHelp !bytes@(Utf8 ba#) k =
 
 
 
+-- TO ESCAPED BUILDER
+
+
+{-# INLINE toEscapedBuilder #-}
+toEscapedBuilder :: Word8 -> Word8 -> Utf8 t -> B.Builder
+toEscapedBuilder before after =
+  \name -> B.builder (toEscapedBuilderHelp before after name)
+
+
+{-# INLINE toEscapedBuilderHelp #-}
+toEscapedBuilderHelp :: Word8 -> Word8 -> Utf8 t -> B.BuildStep a -> B.BuildStep a
+toEscapedBuilderHelp before after !name@(Utf8 ba#) k =
+    go 0 (I# (sizeofByteArray# ba#))
+  where
+    go !offset !len !(B.BufferRange bOffset bEnd) =
+      let
+        !bLen = minusPtr bEnd bOffset
+      in
+      if len <= bLen then
+        do  -- TODO test if writing word-by-word is faster
+            copyToPtr name offset bOffset len
+            escape before after bOffset name offset len 0
+            let !newBufferRange = B.BufferRange (plusPtr bOffset len) bEnd
+            k newBufferRange
+      else
+        do  copyToPtr name offset bOffset bLen
+            escape before after bOffset name offset bLen 0
+            let !newOffset = offset + bLen
+            let !newLength = len - bLen
+            return $ B.bufferFull 1 bEnd (go newOffset newLength)
+
+
+escape :: Word8 -> Word8 -> Ptr a -> Utf8 t -> Int -> Int -> Int -> IO ()
+escape before@(W8# before#) after ptr name@(Utf8 ba#) offset@(I# offset#) len@(I# len#) i@(I# i#) =
+  if isTrue# (i# <# len#) then
+    if isTrue# (eqWord# before# (indexWord8Array# ba# (offset# +# i#)))
+    then
+      do  writeWordToPtr ptr i after
+          escape before after ptr name offset len (i + 1)
+    else
+      do  escape before after ptr name offset len (i + 1)
+
+  else
+    return ()
+
+
+
 -- FROM PTR
 
 
-fromPtr :: Ptr Word8 -> Ptr Word8 -> Utf8 l t
+fromPtr :: Ptr Word8 -> Ptr Word8 -> Utf8 t
 fromPtr pos end =
   unsafeDupablePerformIO (stToIO (
     do  let !len = minusPtr end pos
@@ -568,130 +497,48 @@ fromPtr pos end =
 
 
 
--- FROM CHUNKS
+-- FROM SNIPPET
 
 
-data Chunk
-  = Slice (Ptr Word8) Int
-  | Escape Word8
-  | CodePoint Int
-
-
-fromChunks :: [Chunk] -> Utf8 l t
-fromChunks chunks =
+fromSnippet :: P.Snippet -> Utf8 t
+fromSnippet (P.Snippet fptr off len _ _) =
   unsafeDupablePerformIO (stToIO (
-    do  let !len = sum (map chunkToWidth chunks)
-        mba <- newByteArray len
-        writeChunks mba 0 chunks
+    do  mba <- newByteArray len
+        let !pos = plusPtr (unsafeForeignPtrToPtr fptr) off
+        copyFromPtr pos mba 0 len
         freeze mba
   ))
 
 
-chunkToWidth :: Chunk -> Int
-chunkToWidth chunk =
-  case chunk of
-    Slice _ len ->
-      len
 
-    Escape _ ->
-      2
-
-    CodePoint code ->
-      if code < 0xFFFF then 6 else 12
+-- BINARY
 
 
-writeChunks :: MBA RealWorld -> Int -> [Chunk] -> ST RealWorld ()
-writeChunks mba offset chunks =
-  case chunks of
-    [] ->
-      return ()
-
-    chunk : chunks ->
-      case chunk of
-        Slice ptr len ->
-          do  copyFromPtr ptr mba offset len
-              let !newOffset = offset + len
-              writeChunks mba newOffset chunks
-
-        Escape word ->
-          do  writeWord8 mba offset 0x5C {- \ -}
-              writeWord8 mba (offset + 1) word
-              let !newOffset = offset + 2
-              writeChunks mba newOffset chunks
-
-        CodePoint code ->
-          if code < 0xFFFF then
-            do  writeCode mba offset code
-                let !newOffset = offset + 6
-                writeChunks mba newOffset chunks
-          else
-            do  let (hi,lo) = divMod (code - 0x10000) 0x400
-                writeCode mba (offset    ) (hi + 0xD800)
-                writeCode mba (offset + 6) (lo + 0xDC00)
-                let !newOffset = offset + 12
-                writeChunks mba newOffset chunks
+putUnder256 :: Utf8 t -> Put
+putUnder256 bytes =
+  do  putWord8 (fromIntegral (size bytes))
+      putBuilder (toBuilder bytes)
 
 
--- TODO see if it is faster to writeWord32 a block of hex-as-ascii
-writeCode :: MBA RealWorld -> Int -> Int -> ST RealWorld ()
-writeCode mba offset code =
-  do  writeWord8 mba offset 0x5C {- \ -}
-      writeWord8 mba (offset + 1) 0x75 {- u -}
-      writeHex mba (offset + 2) (shiftR code 12)
-      writeHex mba (offset + 3) (shiftR code 8)
-      writeHex mba (offset + 4) (shiftR code 4)
-      writeHex mba (offset + 5) code
+getUnder256 :: Get (Utf8 t)
+getUnder256 =
+  do  word <- getWord8
+      let !n = fromIntegral word
+      readN n (copyFromByteString n)
 
 
-writeHex :: MBA RealWorld -> Int -> Int -> ST RealWorld ()
-writeHex mba !offset !bits =
-  do  let !n = fromIntegral bits .&. 0x0F
-      writeWord8 mba offset (if n < 10 then 0x30 + n else 0x37 + n)
+putVeryLong :: Utf8 t -> Put
+putVeryLong bytes =
+  do  put (size bytes)
+      putBuilder (toBuilder bytes)
 
 
-
--- UNDER 256 BINARY
-
-
-instance Binary (Utf8 UNDER_256 t) where
-  put bytes@(Utf8 ba#) =
-    do  putWord8 (W8# (int2Word# (sizeofByteArray# ba#)))
-        putBuilder (toBuilder bytes)
-  get =
-    getUnder256 =<< getWord8
-
-
-{-# INLINE getUnder256 #-}
-getUnder256 :: Word8 -> Get (Utf8 UNDER_256 t)
-getUnder256 w =
-  let !n = fromIntegral w in
-  readN n (copyFromByteString n)
-
-
-
--- VERY LONG BINARY
-
-
-instance Binary (Utf8 VERY_LONG t) where
-  put str =
-    do  put (size str)
-        putBuilder (toBuilder str)
-  get =
-    getVeryLong =<< get
-
-
-{-# INLINE getVeryLong #-}
-getVeryLong :: Int -> Get (Utf8 VERY_LONG t)
-getVeryLong n =
-  if n > 0
-  then readN n (copyFromByteString n)
-  else return empty
-
-
-{-# NOINLINE empty #-}
-empty :: Utf8 l t
-empty =
-  runST (freeze =<< newByteArray 0)
+getVeryLong :: Get (Utf8 t)
+getVeryLong =
+  do  n <- get
+      if n > 0
+        then readN n (copyFromByteString n)
+        else return empty
 
 
 
@@ -699,7 +546,7 @@ empty =
 
 
 {-# INLINE copyFromByteString #-}
-copyFromByteString :: Int -> B.ByteString -> Utf8 l t
+copyFromByteString :: Int -> B.ByteString -> Utf8 t
 copyFromByteString len (B.PS fptr offset _) =
   unsafeDupablePerformIO
   (
@@ -725,14 +572,14 @@ newByteArray (I# len#) =
       (# s, mba# #) -> (# s, MBA# mba# #)
 
 
-freeze :: MBA s -> ST s (Utf8 l t)
+freeze :: MBA s -> ST s (Utf8 t)
 freeze (MBA# mba#) =
   ST $ \s ->
     case unsafeFreezeByteArray# mba# s of
       (# s, ba# #) -> (# s, Utf8 ba# #)
 
 
-copy :: Utf8 l t -> Int -> MBA s -> Int -> Int -> ST s ()
+copy :: Utf8 t -> Int -> MBA s -> Int -> Int -> ST s ()
 copy (Utf8 ba#) (I# offset#) (MBA# mba#) (I# i#) (I# len#) =
   ST $ \s ->
     case copyByteArray# ba# offset# mba# i# len# s of
@@ -746,7 +593,7 @@ copyFromPtr (Ptr src#) (MBA# mba#) (I# offset#) (I# len#) =
       s -> (# s, () #)
 
 
-copyToPtr :: Utf8 l t -> Int -> Ptr a -> Int -> IO ()
+copyToPtr :: Utf8 t -> Int -> Ptr a -> Int -> IO ()
 copyToPtr (Utf8 ba#) (I# offset#) (Ptr mba#) (I# len#) =
   IO $ \s ->
     case copyByteArrayToAddr# ba# offset# mba# len# s of
@@ -758,4 +605,12 @@ writeWord8 :: MBA s -> Int -> Word8 -> ST s ()
 writeWord8 (MBA# mba#) (I# offset#) (W8# w#) =
   ST $ \s ->
     case writeWord8Array# mba# offset# w# s of
+      s -> (# s, () #)
+
+
+{-# INLINE writeWordToPtr #-}
+writeWordToPtr :: Ptr a -> Int -> Word8 -> IO ()
+writeWordToPtr (Ptr addr#) (I# offset#) (W8# word#) =
+  IO $ \s ->
+    case writeWord8OffAddr# addr# offset# word# s of
       s -> (# s, () #)
