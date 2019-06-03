@@ -22,11 +22,11 @@ import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
 import qualified Data.NonEmptyList as NE
-import qualified Data.Utf8 as Utf8
 
 import qualified AST.Canonical as Can
 import qualified Data.Index as Index
 import qualified Elm.ModuleName as ModuleName
+import qualified Elm.String as ES
 import qualified Reporting.Annotation as A
 
 
@@ -41,8 +41,8 @@ data Pattern
 
 
 data Literal
-  = Chr Utf8.String
-  | Str Utf8.String
+  = Chr ES.String
+  | Str ES.String
   | Int Int
   deriving (Eq)
 
