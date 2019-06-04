@@ -8,6 +8,10 @@ module Reporting.Exit
   , Diff(..)
   , diffToReport
   --
+  , Bump(..)
+  , bumpToReport
+  , newPackageOverview
+  --
   , Install(..)
   , installToReport
   --
@@ -60,13 +64,8 @@ import qualified Reporting.Error as Error
 
 
 data Exit
-  -- bump
-  = BumpApplication
-  | BumpUnexpectedVersion V.Version [V.Version]
-  | BumpMustHaveLatestRegistry RegistryProblem
-  | BumpCannotFindDocs Pkg.Name V.Version DocsProblem
   -- publish
-  | PublishMustHaveLatestRegistry RegistryProblem
+  = PublishMustHaveLatestRegistry RegistryProblem
   | PublishApplication
   | PublishNotInitialVersion V.Version
   | PublishAlreadyPublished V.Version
@@ -215,6 +214,75 @@ diffToReport diff =
 
     DiffBadRegistry problem ->
       error "TODO DiffBadRegistry" problem
+
+
+
+-- BUMP
+
+
+data Bump
+  = BumpNoOutline
+  | BumpBadOutline Outline
+  | BumpApplication
+  | BumpUnexpectedVersion V.Version [V.Version]
+  | BumpMustHaveLatestRegistry RegistryProblem
+  | BumpCannotFindDocs Pkg.Name V.Version DocsProblem
+
+
+bumpToReport :: Bump -> Help.Report
+bumpToReport bump =
+  case bump of
+    BumpApplication ->
+      Help.report "CANNOT BUMP APPLICATIONS" (Just "elm.json")
+        "Your elm.json says this is an application. That means it cannot be published\
+        \ on <https://package.elm-lang.org> and therefore has no version to bump!"
+        []
+
+    BumpUnexpectedVersion vsn versions ->
+      Help.docReport "CANNOT BUMP" (Just "elm.json")
+        ( D.fillSep
+            ["Your","elm.json","says","I","should","bump","relative","to","version"
+            ,D.red (D.fromVersion vsn) <> ","
+            ,"but","I","cannot","find","that","version","on","<https://package.elm-lang.org>."
+            ,"That","means","there","is","no","API","for","me","to","diff","against","and"
+            ,"figure","out","if","these","are","MAJOR,","MINOR,","or","PATCH","changes."
+            ]
+        )
+        [ D.fillSep $
+            ["Try","bumping","again","after","changing","the",D.dullyellow "\"version\"","in","elm.json"]
+            ++ if length versions == 1 then ["to:"] else ["to","one","of","these:"]
+        , D.vcat $ map (D.green . D.fromVersion) versions
+        ]
+
+    BumpMustHaveLatestRegistry problem ->
+      error "TODO BumpMustHaveLatestRegistry" problem
+
+    BumpCannotFindDocs name version problem ->
+      error "TODO BumpCannotFindDocs" name version problem
+
+
+
+-- OVERVIEW OF VERSIONING
+
+
+newPackageOverview :: String
+newPackageOverview =
+  unlines
+    [ "This package has never been published before. Here's how things work:"
+    , ""
+    , "  - Versions all have exactly three parts: MAJOR.MINOR.PATCH"
+    , ""
+    , "  - All packages start with initial version " ++ V.toChars V.one
+    , ""
+    , "  - Versions are incremented based on how the API changes:"
+    , ""
+    , "        PATCH = the API is the same, no risk of breaking code"
+    , "        MINOR = values have been added, existing values are unchanged"
+    , "        MAJOR = existing values have been changed or removed"
+    , ""
+    , "  - I will bump versions for you, automatically enforcing these rules"
+    , ""
+    ]
 
 
 
@@ -428,36 +496,6 @@ toJson report =
 _toReport :: Exit -> Help.Report
 _toReport exit =
   case exit of
-
-    -- bump
-
-    BumpApplication ->
-      Help.report "CANNOT BUMP APPLICATIONS" (Just "elm.json")
-        "Your elm.json says this is an application. That means it cannot be published\
-        \ on <https://package.elm-lang.org> and therefore has no version to bump!"
-        []
-
-    BumpUnexpectedVersion vsn versions ->
-      Help.docReport "CANNOT BUMP" (Just "elm.json")
-        ( D.fillSep
-            ["Your","elm.json","says","I","should","bump","relative","to","version"
-            ,D.red (D.fromVersion vsn) <> ","
-            ,"but","I","cannot","find","that","version","on","<https://package.elm-lang.org>."
-            ,"That","means","there","is","no","API","for","me","to","diff","against","and"
-            ,"figure","out","if","these","are","MAJOR,","MINOR,","or","PATCH","changes."
-            ]
-        )
-        [ D.fillSep $
-            ["Try","bumping","again","after","changing","the",D.dullyellow "\"version\"","in","elm.json"]
-            ++ if length versions == 1 then ["to:"] else ["to","one","of","these:"]
-        , D.vcat $ map (D.green . D.fromVersion) versions
-        ]
-
-    BumpMustHaveLatestRegistry problem ->
-      error "TODO BumpMustHaveLatestRegistry" problem
-
-    BumpCannotFindDocs name version problem ->
-      error "TODO BumpCannotFindDocs" name version problem
 
     -- publish
 
