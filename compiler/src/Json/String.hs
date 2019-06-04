@@ -2,6 +2,7 @@
 {-# LANGUAGE BangPatterns, EmptyDataDecls #-}
 module Json.String
   ( String
+  , isEmpty
   --
   , fromPtr
   , fromName
@@ -43,6 +44,11 @@ type String =
 
 
 data JSON_STRING
+
+
+isEmpty :: String -> Bool
+isEmpty =
+  Utf8.isEmpty
 
 
 
