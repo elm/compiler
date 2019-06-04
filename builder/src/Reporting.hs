@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns, OverloadedStrings #-}
 module Reporting
   ( Style
+  , silent
   , json
   , terminal
   --
@@ -49,8 +50,14 @@ import qualified Reporting.Exit.Help as Help
 
 
 data Style
-  = Json
+  = Silent
+  | Json
   | Terminal (MVar ())
+
+
+silent :: Style
+silent =
+  Silent
 
 
 json :: Style
@@ -84,6 +91,9 @@ attemptWithStyle style toReport work =
         Right a -> return a
         Left x ->
           case style of
+            Silent ->
+              do  Exit.exitFailure
+
             Json ->
               do  B.hPutBuilder stderr (Encode.encodeUgly (Exit.toJson (toReport x)))
                   Exit.exitFailure
@@ -168,6 +178,9 @@ type DKey = Key DMsg
 trackDetails :: Style -> (DKey -> IO a) -> IO a
 trackDetails style callback =
   case style of
+    Silent ->
+      callback (Key (\_ -> return ()))
+
     Json ->
       callback (Key (\_ -> return ()))
 
@@ -297,6 +310,9 @@ type BResult a = Either Exit.BuildProblem a
 trackBuild :: Style -> (BKey -> IO (BResult a)) -> IO (BResult a)
 trackBuild style callback =
   case style of
+    Silent ->
+      callback (Key (\_ -> return ()))
+
     Json ->
       callback (Key (\_ -> return ()))
 
@@ -366,6 +382,9 @@ toFinalMessage done result =
 reportGenerate :: Style -> NE.List ModuleName.Raw -> FilePath -> IO ()
 reportGenerate style names output =
   case style of
+    Silent ->
+      return ()
+
     Json ->
       return ()
 
