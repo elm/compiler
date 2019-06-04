@@ -204,7 +204,7 @@ isSameName :: Name.Name -> Name.Name -> Bool
 isSameName oldFullName newFullName =
   let
     dedot name =
-      reverse (Utf8.split 0x2E {-.-} (Name.toUtf8 name))
+      reverse (Name.splitDots name)
   in
     case ( dedot oldFullName, dedot newFullName ) of
       (oldName:[], newName:_) ->
