@@ -122,11 +122,6 @@ badMark =
   D.red $ if isWindows then "X" else "✗"
 
 
-_waitingMark :: D.Doc
-_waitingMark =
-  D.dullyellow $ if isWindows then "-" else "→"
-
-
 isWindows :: Bool
 isWindows =
   Info.os == "mingw32"
