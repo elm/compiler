@@ -147,22 +147,34 @@ initToReport exit =
 
 
 data Diff
-  = DiffApplication
+  = DiffNoOutline
+  | DiffApplication
   | DiffUnpublished
   | DiffUnknownPackage Pkg.Name [Pkg.Name]
   | DiffUnknownVersion Pkg.Name V.Version [V.Version]
-  | DiffCannotFindDocs DocsProblem
-  | DiffMustHaveLatestRegistry RegistryProblem
+  | DiffDocsProblem DocsProblem
+  | DiffBadRegistry RegistryProblem
+  | DiffBadDetails Details
 
 
 diffToReport :: Diff -> Help.Report
 diffToReport diff =
   case diff of
+    DiffNoOutline ->
+      Help.report "DIFF WHAT?" Nothing
+        "I cannot find an elm.json so I am not sure what you want me to diff.\
+        \ Normally you run `elm diff` from within a project!"
+        [ D.reflow $ "If you are just curious to see a diff, try running this command:"
+        , D.indent 4 $ D.green $ "elm diff elm/html 5.1.1 6.0.0"
+        ]
+
     DiffApplication ->
       Help.report "CANNOT DIFF APPLICATIONS" Nothing
-        "I cannot perform diffs on applications, only packages! If you are\
-        \ just curious to see a diff, try running this command:"
-        [ D.indent 4 $ D.green $ "elm diff elm/html 5.1.1 6.0.0"
+        "It looks like you are running `elm diff` on an application, but it\
+        \ only makes sense for packages that have been published. That way\
+        \ there is a fixed API to diff against."
+        [ D.reflow $ "If you are just curious to see a diff, try running this command:"
+        , D.indent 4 $ D.green $ "elm diff elm/html 5.1.1 6.0.0"
         ]
 
     DiffUnpublished ->
@@ -198,11 +210,11 @@ diffToReport diff =
         , "Want one of those instead?"
         ]
 
-    DiffCannotFindDocs problem ->
-      error "TODO DiffCannotFindDocs" problem
+    DiffDocsProblem problem ->
+      error "TODO DiffDocsProblem" problem
 
-    DiffMustHaveLatestRegistry problem ->
-      error "TODO DiffMustHaveLatestRegistry" problem
+    DiffBadRegistry problem ->
+      error "TODO DiffBadRegistry" problem
 
 
 
