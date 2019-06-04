@@ -78,7 +78,9 @@ attempt :: (x -> Help.Report) -> IO (Either x a) -> IO a
 attempt toReport work =
   do  result <- work `catch` reportExceptionsNicely
       case result of
-        Right a -> return a
+        Right a ->
+          return a
+
         Left x ->
           do  Exit.toStderr (toReport x)
               Exit.exitFailure
@@ -88,7 +90,9 @@ attemptWithStyle :: Style -> (x -> Help.Report) -> IO (Either x a) -> IO a
 attemptWithStyle style toReport work =
   do  result <- work `catch` reportExceptionsNicely
       case result of
-        Right a -> return a
+        Right a ->
+          return a
+
         Left x ->
           case style of
             Silent ->
