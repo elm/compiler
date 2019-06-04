@@ -400,7 +400,7 @@ viewRemove toChars (Widths nameWidth leftWidth _) name old =
 
 viewName :: Int -> Pkg.Name -> D.Doc
 viewName width name =
-  D.fill (width + 3) (D.fromUtf8 (Pkg.toString name))
+  D.fill (width + 3) (D.fromPackage name)
 
 
 pad :: Int -> String -> D.Doc
