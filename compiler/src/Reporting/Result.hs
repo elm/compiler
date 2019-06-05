@@ -117,3 +117,5 @@ instance Monad (Result i w e) where
             Result kb -> kb i1 w1 bad good
       in
       ka i w bad good1
+
+  -- TODO PERF add more specialized definitions?
