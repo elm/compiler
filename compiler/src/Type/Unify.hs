@@ -90,6 +90,7 @@ instance Applicative Unify where
 
 
 instance Monad Unify where
+  -- TODO PERF add INLINE here?
   return a =
     Unify $ \vars ok _ ->
       ok vars a
@@ -100,6 +101,13 @@ instance Monad Unify where
         ok1 vars1 a =
           case callback a of
             Unify kb -> kb vars1 ok err
+      in
+      ka vars ok1 err
+
+  (>>) (Unify ka) (Unify kb) =
+    Unify $ \vars ok err ->
+      let
+        ok1 vars1 _ = kb vars1 ok err
       in
       ka vars ok1 err
 
