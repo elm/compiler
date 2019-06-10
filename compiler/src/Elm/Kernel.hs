@@ -152,7 +152,7 @@ chompChunks vs es fs src pos end row col lastPos revChunks =
 
     else
       let
-        !newPos = plusPtr pos (getCharWidth pos end word)
+        !newPos = plusPtr pos (getCharWidth word)
       in
       chompChunks vs es fs src newPos end row (col + 1) lastPos revChunks
 

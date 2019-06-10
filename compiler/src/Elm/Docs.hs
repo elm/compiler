@@ -404,7 +404,7 @@ untilDocs pos end row col =
       then
         (# True, pos5, row, col + 5 #)
       else
-        let !newPos = plusPtr pos (P.getCharWidth pos end word) in
+        let !newPos = plusPtr pos (P.getCharWidth word) in
         untilDocs newPos end row (col + 1)
 
 

@@ -96,7 +96,7 @@ eatShader pos end row col =
       eatShader (plusPtr pos 1) end (row + 1) 1
 
     else
-      let !newPos = plusPtr pos (P.getCharWidth pos end word) in
+      let !newPos = plusPtr pos (P.getCharWidth word) in
       eatShader newPos end row (col + 1)
 
 

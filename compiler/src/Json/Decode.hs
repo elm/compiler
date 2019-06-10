@@ -671,7 +671,7 @@ pStringHelp pos end row col =
         if word < 0x20 then
           (# BadString BadStringControlChar, pos, row, col #)
         else
-          let !newPos = plusPtr pos (P.getCharWidth pos end word) in
+          let !newPos = plusPtr pos (P.getCharWidth word) in
           pStringHelp newPos end row (col + 1)
 
 

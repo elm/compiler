@@ -394,8 +394,8 @@ isWord pos end word =
   pos < end && unsafeIndex pos == word
 
 
-getCharWidth :: Ptr Word8 -> Ptr Word8 -> Word8 -> Int
-getCharWidth _pos _end word -- TODO remove unused variables. Shorter stack?
+getCharWidth :: Word8 -> Int
+getCharWidth word
   | word < 0x80 = 1
   | word < 0xc0 = error "Need UTF-8 encoded input. Ran into unrecognized bits."
   | word < 0xe0 = 2

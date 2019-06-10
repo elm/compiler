@@ -126,7 +126,7 @@ chompChunks pos end start revChunks =
 
       _ ->
         let
-          !width = P.getCharWidth pos end word
+          !width = P.getCharWidth word
           !newPos = plusPtr pos width
         in
         chompChunks newPos end start revChunks

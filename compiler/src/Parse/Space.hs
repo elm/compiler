@@ -167,7 +167,7 @@ eatLineComment pos end row col =
     if word == 0x0A {- \n -} then
       eatSpaces (plusPtr pos 1) end (row + 1) 1
     else
-      let !newPos = plusPtr pos (P.getCharWidth pos end word) in
+      let !newPos = plusPtr pos (P.getCharWidth word) in
       eatLineComment newPos end row (col + 1)
 
 
@@ -231,7 +231,7 @@ eatMultiCommentHelp pos end row col openComments =
       eatMultiCommentHelp (plusPtr pos 2) end row (col + 2) (openComments + 1)
 
     else
-      let !newPos = plusPtr pos (P.getCharWidth pos end word) in
+      let !newPos = plusPtr pos (P.getCharWidth word) in
       eatMultiCommentHelp newPos end row (col + 1) openComments
 
 

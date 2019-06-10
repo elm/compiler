@@ -87,7 +87,7 @@ chompChar pos end row col numChars mostRecent =
 
       else
         let
-          !width = P.getCharWidth pos end word
+          !width = P.getCharWidth word
           !newPos = plusPtr pos width
         in
         chompChar newPos end row (col + 1) (numChars + 1) (ES.Slice pos width)
@@ -203,7 +203,7 @@ singleString pos end row col initialPos revChunks =
             Err row (col + 1) E.StringEndless_Single
 
       else
-        let !newPos = plusPtr pos (P.getCharWidth pos end word) in
+        let !newPos = plusPtr pos (P.getCharWidth word) in
         singleString newPos end row (col + 1) initialPos revChunks
 
 
@@ -254,7 +254,7 @@ multiString pos end row col initialPos sr sc revChunks =
           Err sr sc E.StringEndless_Multi
 
     else
-      let !newPos = plusPtr pos (P.getCharWidth pos end word) in
+      let !newPos = plusPtr pos (P.getCharWidth word) in
       multiString newPos end row (col + 1) initialPos sr sc revChunks
 
 
