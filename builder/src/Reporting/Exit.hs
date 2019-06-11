@@ -285,6 +285,11 @@ data Publish
   | PublishMissingTag V.Version
   | PublishNoGit
   | PublishLocalChanges V.Version
+  --
+  | PublishZipBadDetails Details
+  | PublishZipApplication
+  | PublishZipNoExposed
+  | PublishZipBuildProblem BuildProblem
 
 
 publishToReport :: Publish -> Help.Report

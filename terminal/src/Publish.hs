@@ -260,9 +260,14 @@ verifyZip (Env root _ manager _ _) pkg vsn =
 
         reportZipBuildCheck $
           Dir.withCurrentDirectory prepublishDir $
-            error "TODO Build.generateDocs"
+            verifyZipBuild prepublishDir
 
         return sha
+
+
+toZipUrl :: Pkg.Name -> V.Version -> String
+toZipUrl pkg vsn =
+  "https://github.com/" ++ Pkg.toUrl pkg ++ "/zipball/" ++ V.toChars vsn ++ "/"
 
 
 withTempDir :: FilePath -> (FilePath -> Task.Task x a) -> Task.Task x a
@@ -277,9 +282,23 @@ withTempDir root callback =
       (Task.run (callback dir))
 
 
-toZipUrl :: Pkg.Name -> V.Version -> String
-toZipUrl pkg vsn =
-  "https://github.com/" ++ Pkg.toUrl pkg ++ "/zipball/" ++ V.toChars vsn ++ "/"
+verifyZipBuild :: FilePath -> IO (Either Exit.Publish ())
+verifyZipBuild root =
+  Task.run $
+  do  details@(Details.Details _ outline _ _ _) <-
+        Task.eio Exit.PublishZipBadDetails $
+          Details.load Reporting.silent root
+
+      exposed <-
+        case outline of
+          Details.ValidApp _        -> Task.throw Exit.PublishZipApplication
+          Details.ValidPkg _ []     -> Task.throw Exit.PublishZipNoExposed
+          Details.ValidPkg _ (e:es) -> return (NE.List e es)
+
+      _ <- Task.eio Exit.PublishZipBuildProblem $
+        Build.fromExposed Reporting.silent root details Build.KeepDocs exposed
+
+      return ()
 
 
 
