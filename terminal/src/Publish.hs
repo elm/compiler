@@ -111,11 +111,11 @@ publish env@(Env root cache manager registry outline) =
           verifyVersion env pkg vsn docs maybeKnownVersions
           commitHash <- verifyTag manager pkg vsn
           verifyNoChanges commitHash vsn
-          zipHash <- verifyZip manager pkg vsn
+          zipHash <- verifyZip env pkg vsn
 
-          register manager pkg vsn commitHash zipHash
-
-          putStrLn "Success!"
+          Task.io $ putStrLn ""
+          register manager pkg vsn docs commitHash zipHash
+          Task.io $ putStrLn "Success!"
 
 
 
@@ -143,7 +143,7 @@ noExposed exposed =
 
 verifyReadme :: FilePath -> Task.Task Exit.Publish ()
 verifyReadme root =
-  reportReadmePhase $
+  reportReadmeCheck $
   do  let readmePath = root </> "README.md"
       exists <- File.exists readmePath
       case exists of
@@ -163,7 +163,7 @@ verifyReadme root =
 
 verifyLicense :: FilePath -> Task.Task Exit.Publish ()
 verifyLicense root =
-  reportLicensePhase $
+  reportLicenseCheck $
   do  let licensePath = root </> "LICENSE"
       exists <- File.exists licensePath
       if exists
@@ -177,7 +177,7 @@ verifyLicense root =
 
 verifyTag :: Http.Manager -> Pkg.Name -> V.Version -> Task.Task Exit.Publish String
 verifyTag manager pkg vsn =
-  reportTagPhase vsn $
+  reportTagCheck vsn $
   Http.post manager (toTagUrl pkg vsn) [Http.accept "application/json"] Exit.PublishCannotGetTag $ \body ->
     case D.fromByteString commitHashDecoder body of
       Right hash ->
@@ -204,7 +204,7 @@ commitHashDecoder =
 
 verifyNoChanges :: String -> V.Version -> Task.Task Exit.Publish ()
 verifyNoChanges commitHash vsn =
-  reportChangesPhase $
+  reportLocalChangesCheck $
   do  maybeGit <- Dir.findExecutable "git"
       case maybeGit of
         Nothing ->
@@ -222,11 +222,11 @@ verifyNoChanges commitHash vsn =
 -- VERIFY THAT ZIP BUILDS / COMPUTE HASH
 
 
-verifyZip :: Http.Manager -> Pkg.Name -> V.Version -> Task.Task Exit.Publish Http.Sha
-verifyZip manager pkg vsn =
-  withTempDir $ \prepublishDir ->
+verifyZip :: Env -> Pkg.Name -> V.Version -> Task.Task Exit.Publish Http.Sha
+verifyZip (Env root _ manager _ _) pkg vsn =
+  withTempDir root $ \prepublishDir ->
     do  (sha, archive) <-
-          reportDownloadPhase $
+          reportDownloadCheck $
             Http.getArchive manager (toZipUrl pkg vsn)
               Exit.PublishCannotGetZip
               Exit.PublishCannotDecodeZip
@@ -234,23 +234,23 @@ verifyZip manager pkg vsn =
 
         Task.io $ File.writePackage prepublishDir archive
 
-        reportBuildPhase $
+        reportZipBuildCheck $
           Dir.withCurrentDirectory prepublishDir $
-            do  error "TODO Build.generateDocs"
-                return ()
+            error "TODO Build.generateDocs"
 
         return sha
 
 
-withTempDir :: FilePath -> (FilePath -> IO a) -> IO a
+withTempDir :: FilePath -> (FilePath -> Task.Task x a) -> Task.Task x a
 withTempDir root callback =
   let
     dir = Stuff.prepublishDir root
   in
-  bracket_
-    (Dir.createDirectoryIfMissing True dir)
-    (Dir.removeDirectoryRecursive dir)
-    (callback dir)
+  Task.eio id $
+    bracket_
+      (Dir.createDirectoryIfMissing True dir)
+      (Dir.removeDirectoryRecursive dir)
+      (Task.run (callback dir))
 
 
 toZipUrl :: Pkg.Name -> V.Version -> String
@@ -269,7 +269,7 @@ data GoodVersion
 
 verifyVersion :: Env -> Pkg.Name -> V.Version -> Docs.Documentation -> Maybe Registry.KnownVersions -> Task.Task Exit.Publish ()
 verifyVersion env pkg vsn newDocs publishedVersions =
-  reportVersionPhase vsn $
+  reportSemverCheck vsn $
     case publishedVersions of
       Nothing ->
         if vsn == V.one
@@ -311,8 +311,8 @@ verifyBump (Env _ cache manager _ _) pkg vsn newDocs knownVersions@(Registry.Kno
 -- REGISTER PACKAGES
 
 
-register :: Http.Manager -> Pkg.Name -> V.Version -> String -> Http.Sha -> Task.Task Exit.Publish ()
-register manager pkg vsn commitHash sha =
+register :: Http.Manager -> Pkg.Name -> V.Version -> Docs.Documentation -> String -> Http.Sha -> Task.Task Exit.Publish ()
+register manager pkg vsn docs commitHash sha =
   let
     url =
       Website.route "/register"
@@ -324,7 +324,7 @@ register manager pkg vsn commitHash sha =
   Task.eio Exit.PublishCannotRegister $
     Http.upload manager url
       [ Http.filePart "elm.json" "elm.json"
-      , Http.filePart "docs.json" (error "TODO generate docs, maybe in memory only?")
+      , Http.jsonPart "docs.json" "docs.json" (Docs.encode docs)
       , Http.filePart "README.md" "README.md"
       , Http.stringPart "github-hash" (Http.shaToChars sha)
       ]
@@ -334,8 +334,9 @@ register manager pkg vsn commitHash sha =
 -- REPORTING
 
 
-reportPublishStart :: Pkg.Name -> V.Version -> Maybe Registry.KnownVersions -> IO ()
+reportPublishStart :: Pkg.Name -> V.Version -> Maybe Registry.KnownVersions -> Task.Task x ()
 reportPublishStart pkg vsn maybeKnownVersions =
+  Task.io $
   case maybeKnownVersions of
     Nothing ->
       putStrLn $ Exit.newPackageOverview ++ "\nI will now verify that everything is in order...\n"
@@ -348,24 +349,32 @@ reportPublishStart pkg vsn maybeKnownVersions =
 -- REPORTING PHASES
 
 
-reportReadmePhase :: IO (Either x a) -> Task.Task x a
-reportReadmePhase =
-  reportPhase
+reportReadmeCheck :: IO (Either x a) -> Task.Task x a
+reportReadmeCheck =
+  reportCheck
     "Looking for README.md"
     "Found README.md"
     "Problem with your README.md"
 
 
-reportLicensePhase :: IO (Either x a) -> Task.Task x a
-reportLicensePhase =
-  reportPhase
+reportLicenseCheck :: IO (Either x a) -> Task.Task x a
+reportLicenseCheck =
+  reportCheck
     "Looking for LICENSE"
     "Found LICENSE"
     "Problem with your LICENSE"
 
 
-reportVersionPhase :: V.Version -> IO (Either x GoodVersion) -> Task.Task x ()
-reportVersionPhase version work =
+reportBuildCheck :: IO (Either x a) -> Task.Task x a
+reportBuildCheck =
+  reportCheck
+    "Verifying package documentation..."
+    "Verified package documentation"
+    "Problem with package documentation"
+
+
+reportSemverCheck :: V.Version -> IO (Either x GoodVersion) -> Task.Task x ()
+reportSemverCheck version work =
   let
     vsn = V.toChars version
 
@@ -381,48 +390,48 @@ reportVersionPhase version work =
           ++ M.toChars magnitude ++ " change, "
           ++ V.toChars oldVersion ++ " => " ++ vsn ++ ")"
   in
-  void $ reportCustomPhase waiting success failure work
+  void $ reportCustomCheck waiting success failure work
 
 
-reportTagPhase :: V.Version -> IO (Either x a) -> Task.Task x a
-reportTagPhase vsn =
-  reportPhase
+reportTagCheck :: V.Version -> IO (Either x a) -> Task.Task x a
+reportTagCheck vsn =
+  reportCheck
     ("Is version " ++ V.toChars vsn ++ " tagged on GitHub?")
     ("Version " ++ V.toChars vsn ++ " is tagged on GitHub")
     ("Version " ++ V.toChars vsn ++ " is not tagged on GitHub!")
 
 
-reportDownloadPhase :: IO (Either x a) -> Task.Task x a
-reportDownloadPhase =
-  reportPhase
+reportDownloadCheck :: IO (Either x a) -> Task.Task x a
+reportDownloadCheck =
+  reportCheck
     "Downloading code from GitHub..."
     "Code downloaded successfully from GitHub"
     "Could not download code from GitHub!"
 
 
-reportBuildPhase :: IO (Either x a) -> Task.Task x a
-reportBuildPhase =
-  reportPhase
-    "Building downloaded code and generated docs..."
-    "Downloaded code compiles successfully / docs generated\n"
-    "Cannot compile downloaded code!"
-
-
-reportChangesPhase :: IO (Either x a) -> Task.Task x a
-reportChangesPhase =
-  reportPhase
+reportLocalChangesCheck :: IO (Either x a) -> Task.Task x a
+reportLocalChangesCheck =
+  reportCheck
     "Checking for uncommitted changes..."
     "No uncommitted changes in local code"
     "Your local code is different than the code tagged on GitHub"
 
 
-reportPhase :: String -> String -> String -> IO (Either x a) -> Task.Task x a
-reportPhase waiting success failure work =
-  reportCustomPhase waiting (\_ -> success) failure work
+reportZipBuildCheck :: IO (Either x a) -> Task.Task x a
+reportZipBuildCheck =
+  reportCheck
+    "Verifying downloaded code..."
+    "Downloaded code compiles successfully"
+    "Cannot compile downloaded code!"
 
 
-reportCustomPhase :: String -> (a -> String) -> String -> IO (Either x a) -> Task.Task x a
-reportCustomPhase waiting success failure work =
+reportCheck :: String -> String -> String -> IO (Either x a) -> Task.Task x a
+reportCheck waiting success failure work =
+  reportCustomCheck waiting (\_ -> success) failure work
+
+
+reportCustomCheck :: String -> (a -> String) -> String -> IO (Either x a) -> Task.Task x a
+reportCustomCheck waiting success failure work =
   let
     putFlush doc =
       Help.toStdout doc >> IO.hFlush IO.stdout
