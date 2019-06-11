@@ -8,6 +8,7 @@ module Publish
 import Control.Exception (bracket_)
 import Control.Monad (void)
 import qualified Data.List as List
+import qualified Data.NonEmptyList as NE
 import qualified Data.Utf8 as Utf8
 import qualified System.Directory as Dir
 import qualified System.Exit as Exit
@@ -17,10 +18,12 @@ import qualified System.Info as Info
 import qualified System.IO as IO
 import qualified System.Process as Process
 
+import qualified Build
 import qualified Deps.Bump as Bump
 import qualified Deps.Diff as Diff
 import qualified Deps.Registry as Registry
 import qualified Deps.Website as Website
+import qualified Elm.Details as Details
 import qualified Elm.Docs as Docs
 import qualified Elm.Magnitude as M
 import qualified Elm.Outline as Outline
@@ -107,7 +110,7 @@ publish env@(Env root cache manager registry outline) =
 
           verifyReadme root
           verifyLicense root
-          docs <- error "TODO Project.generateDocs details" details
+          docs <- verifyBuild root
           verifyVersion env pkg vsn docs maybeKnownVersions
           commitHash <- verifyTag manager pkg vsn
           verifyNoChanges commitHash vsn
@@ -169,6 +172,27 @@ verifyLicense root =
       if exists
         then return (Right ())
         else return (Left Exit.PublishNoLicense)
+
+
+
+-- VERIFY BUILD
+
+
+verifyBuild :: FilePath -> Task.Task Exit.Publish Docs.Documentation
+verifyBuild root =
+  reportBuildCheck $ Task.run $
+    do  details@(Details.Details _ outline _ _ _) <-
+          Task.eio Exit.PublishBadDetails $
+            Details.load Reporting.silent root
+
+        exposed <-
+          case outline of
+            Details.ValidApp _        -> Task.throw Exit.PublishApplication
+            Details.ValidPkg _ []     -> Task.throw Exit.PublishNoExposed
+            Details.ValidPkg _ (e:es) -> return (NE.List e es)
+
+        Task.eio Exit.PublishBuildProblem $
+          Build.fromExposed Reporting.silent root details Build.KeepDocs exposed
 
 
 

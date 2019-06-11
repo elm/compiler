@@ -264,6 +264,7 @@ newPackageOverview =
 data Publish
   = PublishNoOutline
   | PublishBadOutline Outline
+  | PublishBadDetails Details
   | PublishMustHaveLatestRegistry RegistryProblem
   | PublishApplication
   | PublishNotInitialVersion V.Version
@@ -275,6 +276,7 @@ data Publish
   | PublishNoReadme
   | PublishShortReadme
   | PublishNoLicense
+  | PublishBuildProblem BuildProblem
   | PublishCannotGetTag Http.Error
   | PublishCannotGetZip Http.Error
   | PublishCannotDecodeZip
