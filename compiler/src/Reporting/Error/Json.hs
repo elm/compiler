@@ -1,112 +1,225 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Reporting.Error.Json
-  ( Error(..)
-  , Problem(..)
-  , DecodeExpectation(..)
-  , ParseError(..)
-  , toReport
+  ( toReport
   )
   where
 
 
-import qualified Data.Utf8 as Utf8
-import Data.Word (Word16)
+import qualified Data.Char as Char
+import qualified Data.Map as Map
 
-import qualified Reporting.Report as Report
-
-
-
--- ERROR
-
-
-data Error e
-  = DecodeProblem (Problem e)
-  | ParseProblem ParseError
-
-
-
--- DECODE PROBLEMS
-
-
-data Problem e
-  = Field Utf8.String (Problem e)
-  | Index Int (Problem e)
-  | OneOf (Problem e) [Problem e]
-  | Failure e
-  | Expecting DecodeExpectation
-
-
-data DecodeExpectation
-  = TObject
-  | TArray
-  | TString
-  | TBool
-  | TInt
-  | TObjectWith Utf8.String
-  | TArrayPair Int
-
-
-
--- PARSE ERROR
-
-
-data ParseError
-  = PIndex Int ParseError Row Col
-  | PField Utf8.String ParseError Row Col
-  | ObjectStart Row Col
-  | ObjectMore Row Col
-  | ObjectEnd Row Col
-  | ArrayStart Row Col
-  | ArrayMore Row Col
-  | ArrayEnd Row Col
-  | StringStart Row Col
-  | StringEnd Row Col
-  | IntStart Row Col
-  | NoLeadingZeros Row Col
-  | NoFloats Row Col
-  | Bool Row Col
-  | Null Row Col
-  | Value Row Col
-  | Colon Row Col
-  | EndOfFile Row Col
-
-
-type Row = Word16
-type Col = Word16
+import Json.Decode (Error(..), Problem(..), DecodeExpectation(..), ParseError(..), StringProblem(..))
+import qualified Reporting.Annotation as A
+import qualified Reporting.Doc as D
+import qualified Reporting.Exit.Help as Help
+import qualified Reporting.Render.Code as Code
 
 
 
 -- TO REPORT
 
 
-toReport :: Error e -> Report.Report
-toReport err =
-  error "TODO Reporting.Error.Json.toReport" err
+toReport :: FilePath -> Error x -> Help.Report
+toReport path err =
+  case err of
+    DecodeProblem bytes problem ->
+      problemToReport (Code.toSource bytes) problem
 
+    ParseProblem bytes parseError ->
+      parseErrorToReport path (Code.toSource bytes) parseError
+
+
+
+-- PARSE ERROR TO REPORT
+
+
+parseErrorToReport :: FilePath -> Code.Source -> ParseError -> Help.Report
+parseErrorToReport path source parseError =
+  let
+    toSnippet title row col pair =
+      let pos = A.Position row col in
+      Help.jsonReport title (Just path) $
+        Code.toSnippet source (A.Region pos pos) Nothing pair
+  in
+  case parseError of
+    Start row col ->
+      toSnippet "EXPECTING A VALUE" row col
+        (
+          D.reflow $ "I was expecting to see a JSON value next:"
+        ,
+          D.stack
+            [ D.fillSep
+                ["Try","something","like",D.dullyellow "\"this\"","or"
+                ,D.dullyellow "42","to","move","on","to","better","hints!"
+                ]
+            , D.toSimpleNote $
+                "The JSON specification does not allow trailing commas, so you can sometimes\
+                \ get this error in arrays that have an extra comma at the end. In that case,\
+                \ remove that last comma or add another array entry after it!"
+            ]
+        )
+
+    ObjectField row col ->
+      toSnippet "UNFINISHED OBJECT" row col
+        (
+          D.reflow $ "I was partway through parsing a JSON object when I got stuck here:"
+        ,
+          D.stack
+            [ D.reflow $ "I was expecting to see a field name next."
+            , objectNote
+            ]
+        )
+
+    ObjectColon row col ->
+      toSnippet "EXPECTING COLON" row col
+        (
+          D.reflow $ "I was partway through parsing a JSON object when I got stuck here:"
+        ,
+          D.stack
+            [ D.reflow $ "I was expecting to see a colon next."
+            , objectNote
+            ]
+        )
+
+    ObjectEnd row col ->
+      toSnippet "UNFINISHED OBJECT" row col
+        (
+          D.reflow $ "I was partway through parsing a JSON object when I got stuck here:"
+        ,
+          D.stack
+            [ D.reflow $
+                "I was expecting to see a comma or a closing curly brace next."
+            , D.reflow $
+                "Is a comma missing on the previous line? Is an array missing a closing square\
+                \ bracket? It is often something tricky like that!"
+            , objectNote
+            ]
+        )
+
+    ArrayEnd row col ->
+      toSnippet "UNFINISHED ARRAY" row col
+        (
+          D.reflow $ "I was partway through parsing a JSON array when I got stuck here:"
+        ,
+          D.stack
+            [ D.reflow $ "I was expecting to see a comma or a closing square bracket next."
+            , D.reflow $
+                "Is a comma missing on the previous line? It is often something like that!"
+            ]
+        )
+
+    StringProblem stringProblem row col ->
+      case stringProblem of
+        BadStringEnd ->
+          toSnippet "ENDLESS STRING" row col
+            (
+              D.reflow $
+                "I got to the end of the line without seeing the closing double quote:"
+            ,
+              D.fillSep $
+                ["Strings","look","like",D.green "\"this\"","with","double"
+                ,"quotes","on","each","end.","Is","the","closing","double"
+                ,"quote","missing","in","your","code?"
+                ]
+            )
+
+        BadStringControlChar ->
+          toSnippet "UNEXPECTED CONTROL CHARACTER" row col
+            (
+              D.reflow $
+                "I ran into a control character unexpectedly:"
+            ,
+              D.reflow $
+                "These are characters that represent tabs, backspaces, newlines, and\
+                \ a bunch of other invisible characters. They all come before 20 in the\
+                \ ASCII range, and they are disallowed by the JSON specificaiton. Maybe\
+                \ a copy/paste added one of these invisible characters to your JSON?"
+            )
+
+        BadStringEscapeChar ->
+          toSnippet "UNKNOWN ESCAPE" row col
+            (
+              D.reflow $
+                "Backslashes always start escaped characters, but I do not recognize this one:"
+            ,
+              D.stack
+                [ D.reflow $
+                    "Valid escape characters include:"
+                , D.dullyellow $ D.indent 4 $ D.vcat $
+                    ["\\\"","\\\\","\\/","\\b","\\f","\\n","\\r","\\t","\\u003D"]
+                , D.reflow $
+                    "Do you want one of those instead? Maybe you need \\\\ to escape a backslash?"
+                ]
+            )
+
+        BadStringEscapeHex ->
+          toSnippet "BAD HEX ESCAPE" row col
+            (
+              D.reflow $
+                "This is not a valid hex escape:"
+            ,
+              D.fillSep $
+                ["Valid","hex","escapes","in","JSON","are","between"
+                ,D.green "\\u0000","and",D.green "\\uFFFF"
+                ,"and","always","have","exactly","four","digits."
+                ]
+            )
+
+    NoLeadingZeros row col ->
+      toSnippet "BAD NUMBER" row col
+        (
+          D.reflow $ "Numbers cannot start with zeros like this:"
+        ,
+          D.reflow $ "Try deleting the leading zeros?"
+        )
+
+    NoFloats row col ->
+      toSnippet "UNEXPECTED NUMBER" row col
+        (
+          D.reflow $ "I got stuck while trying to parse this number:"
+        ,
+          D.reflow $
+            "I do not accept floating point numbers like 3.1415 right now. That kind\
+            \ of JSON value is not needed for any of the uses that Elm has for now."
+        )
+
+    BadEnd row col ->
+      toSnippet "JSON PROBLEM" row col
+        (
+          D.reflow $ "I was partway through parsing some JSON when I got stuck here:"
+        ,
+          D.reflow $
+            "I am not really sure what is wrong. This sometimes means there is extra\
+            \ stuff after a valid JSON value?"
+        )
+
+
+objectNote :: D.Doc
+objectNote =
+  D.stack
+    [ D.toSimpleNote $ "Here is an example of a valid JSON object for reference:"
+    , D.vcat
+        [ D.indent 4 $ "{"
+        , D.indent 6 $ D.dullyellow "\"name\"" <> ": " <> D.dullyellow "\"Tom\"" <> ","
+        , D.indent 6 $ D.dullyellow "\"age\"" <> ": " <> D.dullyellow "42"
+        , D.indent 4 $ "}"
+        ]
+    , D.reflow $
+        "Notice that (1) the field names are in double quotes and (2) there is no\
+        \ trailing comma after the last entry. Both are strict requirements in JSON!"
+    ]
+
+
+
+-- PROBLEM TO REPORT
+
+
+problemToReport :: Code.Source -> Problem x -> Help.Report
+problemToReport source problem =
+  error "TODO problemToReport" source problem
 
 {-
-
--- ERROR
-
-
-data Error e
-  = BadJson Syntax.Error
-  | BadContent (Json.Error e)
-
-
-
--- TO DOC
-
-
-toDoc :: String -> Code.Source -> (e -> [D.Doc]) -> Error e -> D.Doc
-toDoc rootName source userErrorToDocs err =
-  case err of
-    BadJson syntaxError ->
-      case Syntax.toReport source syntaxError of
-        Report.Report _ _ _ doc ->
-          doc
-
     BadContent jsonError ->
       case flatten jsonError of
         [] ->
@@ -312,9 +425,9 @@ addName name err subErrors =
     Map.alter subAdd name subErrors
 
 
-fieldToName :: Text.Text -> String
+fieldToName :: [Char] -> String
 fieldToName field =
-  case Text.unpack field of
+  case field of
     [] ->
       "['']"
 
@@ -328,5 +441,4 @@ fieldToName field =
 indexToName :: Int -> String
 indexToName index =
   "[" ++ show index ++ "]"
-
 -}

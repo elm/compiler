@@ -24,6 +24,7 @@ module Json.Decode
   , Problem(..)
   , DecodeExpectation(..)
   , ParseError(..)
+  , StringProblem(..)
   )
   where
 
@@ -49,10 +50,10 @@ fromByteString :: Decoder x a -> B.ByteString -> Either (Error x) a
 fromByteString (Decoder decode) src =
   case P.fromByteString pFile BadEnd src of
     Right ast ->
-      decode ast Right (Left . DecodeProblem)
+      decode ast Right (Left . DecodeProblem src)
 
     Left problem ->
-      Left (ParseProblem problem)
+      Left (ParseProblem src problem)
 
 
 
@@ -75,8 +76,8 @@ newtype Decoder x a =
 
 
 data Error x
-  = DecodeProblem (Problem x)
-  | ParseProblem ParseError
+  = DecodeProblem B.ByteString (Problem x)
+  | ParseProblem B.ByteString ParseError
 
 
 
@@ -460,21 +461,14 @@ type Parser a =
 
 
 data ParseError
-  = ObjectStart Row Col
-  | ObjectMore Row Col
+  = Start Row Col
+  | ObjectField Row Col
+  | ObjectColon Row Col
   | ObjectEnd Row Col
-  | ArrayStart Row Col
-  | ArrayMore Row Col
   | ArrayEnd Row Col
-  | StringStart Row Col
   | StringProblem StringProblem Row Col
-  | IntStart Row Col
   | NoLeadingZeros Row Col
   | NoFloats Row Col
-  | Bool Row Col
-  | Null Row Col
-  | Value Row Col
-  | Colon Row Col
   | BadEnd Row Col
 
 --  PIndex Int ParseError Row Col
@@ -502,14 +496,14 @@ pFile =
 
 pValue :: Parser AST
 pValue =
-  P.oneOf Value
-    [ String <$> pString
+  P.oneOf Start
+    [ String <$> pString Start
     , pObject
     , pArray
     , pInt
-    , K.k4 0x74 0x72 0x75 0x65      Bool >> return TRUE
-    , K.k5 0x66 0x61 0x6C 0x73 0x65 Bool >> return FALSE
-    , K.k4 0x6E 0x75 0x6C 0x6C      Null >> return NULL
+    , K.k4 0x74 0x72 0x75 0x65      Start >> return TRUE
+    , K.k5 0x66 0x61 0x6C 0x73 0x65 Start >> return FALSE
+    , K.k4 0x6E 0x75 0x6C 0x6C      Start >> return NULL
     ]
 
 
@@ -519,9 +513,9 @@ pValue =
 
 pObject :: Parser AST
 pObject =
-  do  P.word1 0x7B {- { -} ObjectStart
+  do  P.word1 0x7B {- { -} Start
       spaces
-      P.oneOf ObjectMore
+      P.oneOf ObjectField
         [ do  entry <- pField
               spaces
               pObjectHelp [entry]
@@ -532,9 +526,9 @@ pObject =
 
 pObjectHelp :: [(P.Snippet, AST)] -> Parser AST
 pObjectHelp revEntries =
-  P.oneOf ObjectMore
+  P.oneOf ObjectEnd
     [
-      do  P.word1 0x2C {-,-} ObjectMore
+      do  P.word1 0x2C {-,-} ObjectEnd
           spaces
           entry <- pField
           spaces
@@ -547,9 +541,9 @@ pObjectHelp revEntries =
 
 pField :: Parser (P.Snippet, AST)
 pField =
-  do  key <- pString
+  do  key <- pString ObjectField
       spaces
-      P.word1 0x3A {-:-} Colon
+      P.word1 0x3A {-:-} ObjectColon
       spaces
       value <- pValue
       return (key, value)
@@ -561,9 +555,9 @@ pField =
 
 pArray :: Parser AST
 pArray =
-  do  P.word1 0x5B {-[-} ArrayStart
+  do  P.word1 0x5B {-[-} Start
       spaces
-      P.oneOf ArrayMore
+      P.oneOf Start
         [ do  entry <- pValue
               spaces
               pArrayHelp 1 [entry]
@@ -574,9 +568,9 @@ pArray =
 
 pArrayHelp :: Int -> [AST] -> Parser AST
 pArrayHelp !len revEntries =
-  P.oneOf ArrayMore
+  P.oneOf ArrayEnd
     [
-      do  P.word1 0x2C {-,-} ArrayMore
+      do  P.word1 0x2C {-,-} ArrayEnd
           spaces
           entry <- pValue
           spaces
@@ -591,8 +585,8 @@ pArrayHelp !len revEntries =
 -- STRING
 
 
-pString :: Parser P.Snippet
-pString =
+pString :: (Row -> Col -> ParseError) -> Parser P.Snippet
+pString start =
   P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
     if pos < end && P.unsafeIndex pos == 0x22 {-"-} then
 
@@ -617,7 +611,7 @@ pString =
           cerr newRow newCol (StringProblem problem)
 
     else
-      eerr row col StringStart
+      eerr row col start
 
 
 data StringStatus
@@ -726,12 +720,12 @@ pInt :: Parser AST
 pInt =
   P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
     if pos >= end then
-      eerr row col IntStart
+      eerr row col Start
 
     else
       let !word = P.unsafeIndex pos in
       if not (isDecimalDigit word) then
-        eerr row col IntStart
+        eerr row col Start
 
       else if word == 0x30 {-0-} then
 
