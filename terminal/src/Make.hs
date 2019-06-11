@@ -171,7 +171,7 @@ getExposed (Details.Details _ validOutline _ _ _) =
 buildExposed :: Reporting.Style -> FilePath -> Details.Details -> NE.List ModuleName.Raw -> Task ()
 buildExposed style root details exposed =
   Task.eio Exit.MakeCannotBuild $
-    Build.fromExposed style root details exposed
+    Build.fromExposed style root details Build.IgnoreDocs exposed
 
 
 buildPaths :: Reporting.Style -> FilePath -> Details.Details -> NE.List FilePath -> Task Build.Artifacts
