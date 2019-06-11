@@ -20,6 +20,7 @@ import qualified System.Environment as Env
 import qualified System.Exit as Exit
 import qualified System.FilePath as FP
 import System.FilePath ((</>))
+import GHC.IO.Encoding (setLocaleEncoding, utf8)
 import System.IO (hPutStr, hPutStrLn, stdout)
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 import qualified Text.Read as Read
@@ -36,7 +37,8 @@ import qualified Terminal.Args.Error as Error
 
 simple :: String -> P.Doc -> Args args -> Flags flags -> (args -> flags -> IO ()) -> IO ()
 simple details example args_ flags_ callback =
-  do  argStrings <- Env.getArgs
+  do  setLocaleEncoding utf8
+      argStrings <- Env.getArgs
       case argStrings of
         ["--version"] ->
           do  hPutStrLn stdout (V.toChars V.compiler)
@@ -57,7 +59,8 @@ simple details example args_ flags_ callback =
 
 complex :: P.Doc -> P.Doc -> [Interface] -> IO ()
 complex intro outro interfaces =
-  do  argStrings <- Env.getArgs
+  do  setLocaleEncoding utf8
+      argStrings <- Env.getArgs
       case argStrings of
         [] ->
           Error.exitWithOverview intro outro interfaces
