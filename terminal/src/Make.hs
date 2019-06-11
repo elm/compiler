@@ -6,6 +6,7 @@ module Make
   , run
   , reportType
   , output
+  , docsFile
   )
   where
 
@@ -48,6 +49,7 @@ data Flags =
     , _optimize :: Bool
     , _output :: Maybe Output
     , _report :: Maybe ReportType
+    , _docs :: Maybe FilePath
     }
 
 
@@ -69,7 +71,7 @@ type Task a = Task.Task Exit.Make a
 
 
 run :: [FilePath] -> Flags -> IO ()
-run paths (Flags debug optimize maybeOutput report) =
+run paths (Flags debug optimize maybeOutput report _) =
   do  style <- getStyle report
       Reporting.attemptWithStyle style Exit.makeToReport $ Task.run $
         do  root <- getRoot
@@ -450,25 +452,34 @@ output =
     , _plural = "output files"
     , _parser = parseOutput
     , _suggest = \_ -> return []
-    , _examples = exampleOutput
+    , _examples = \_ -> return [ "elm.js", "index.html", "/dev/null" ]
     }
 
 
 parseOutput :: String -> Maybe Output
-parseOutput string =
-    if string == "/dev/null" || string == "NUL" || string == "$null" then
-      Just DevNull
-
-    else if FP.takeExtension string == ".html" && length string > 5 then
-      Just (Html string)
-
-    else if FP.takeExtension string == ".js" && length string > 3 then
-      Just (JS string)
-
-    else
-      Nothing
+parseOutput name
+  | isDevNull name      = Just DevNull
+  | hasExt ".html" name = Just (Html name)
+  | hasExt ".js"   name = Just (JS name)
+  | otherwise           = Nothing
 
 
-exampleOutput :: String -> IO [String]
-exampleOutput _ =
-  return [ "elm.js", "index.html", "/dev/null" ]
+docsFile :: Parser FilePath
+docsFile =
+  Parser
+    { _singular = "json file"
+    , _plural = "json files"
+    , _parser = \name -> if hasExt ".json" name then Just name else Nothing
+    , _suggest = \_ -> return []
+    , _examples = \_ -> return ["docs.json","documentation.json"]
+    }
+
+
+hasExt :: String -> String -> Bool
+hasExt ext path =
+  FP.takeExtension path == ext && length path > length ext
+
+
+isDevNull :: String -> Bool
+isDevNull name =
+  name == "/dev/null" || name == "NUL" || name == "$null"
