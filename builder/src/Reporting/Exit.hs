@@ -641,6 +641,9 @@ data Solver
 data Outline
   = OutlineHasBadStructure (Decode.Error OutlineProblem)
   | OutlineHasBadSrcDirs FilePath [FilePath]
+  | OutlineNoPkgCore
+  | OutlineNoAppCore
+  | OutlineNoAppJson
 
 
 data OutlineProblem
@@ -908,12 +911,47 @@ makeToReport make =
 toOutlineReport :: Outline -> Help.Report
 toOutlineReport problem =
   case problem of
-    OutlineHasBadSrcDirs dir dirs ->
-      error "TODO OutlineHasBadSrcDirs" dir dirs
-
     OutlineHasBadStructure decodeError ->
       error "TODO OutlineHasBadStructure" decodeError toOutlineProblemReport
 
+    OutlineHasBadSrcDirs dir dirs ->
+      case dirs of
+        [] ->
+          Help.report "MISSING SOURCE DIRECTORY" (Just "elm.json")
+            "The \"source-directories\" in your elm.json lists the following directory:"
+            [ D.indent 4 $ D.dullyellow $ D.fromChars dir
+            , D.reflow $
+                "I cannot find it though. Is it missing? Is there a typo?"
+            ]
+
+        _:_ ->
+          Help.report "MISSING SOURCE DIRECTORIES" (Just "elm.json")
+            "The \"source-directories\" in your elm.json lists the following directories:"
+            [ D.indent 4 $ D.dullyellow $ D.fromChars dir
+            , D.reflow $
+                "I cannot find them though. Are they missing? Are there typos?"
+            ]
+
+    OutlineNoPkgCore ->
+      Help.report "MISSING DEPENDENCY" (Just "elm.json")
+        "A package must have \"elm/core\" as a dependency. Try running:"
+        [ D.indent 4 $ D.green $ "elm install elm/core"
+        , D.reflow "I need it for the default imports that make `List` and `Maybe` available."
+        ]
+
+    OutlineNoAppCore ->
+      Help.report "MISSING DEPENDENCY" (Just "elm.json")
+        "An application must have \"elm/core\" as a dependency. Try running:"
+        [ D.indent 4 $ D.green $ "elm install elm/core"
+        , D.reflow "It has some supporting code that is needed by every Elm application!"
+        ]
+
+    OutlineNoAppJson ->
+      Help.report "MISSING DEPENDENCY" (Just "elm.json")
+        "An application must have \"elm/json\" as a dependency. Try running:"
+        [ D.indent 4 $ D.green $ "elm install elm/json"
+        , D.reflow "It helps me handle flags and ports."
+        ]
 
 toOutlineProblemReport :: OutlineProblem -> Help.Report
 toOutlineProblemReport problem =

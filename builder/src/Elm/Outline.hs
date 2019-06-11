@@ -178,14 +178,20 @@ read root =
 
         Right outline ->
           case outline of
-            Pkg _ ->
-              return $ Right outline
+            Pkg (PkgOutline _ _ _ _ _ deps _ _) ->
+              return $
+                if Map.notMember Pkg.core deps
+                then Left Exit.OutlineNoPkgCore
+                else Right outline
 
-            App (AppOutline _ srcDirs _ _ _ _) ->
-              do  badDirs <- filterM (isBadSrcDir root) (NE.toList srcDirs)
-                  case badDirs of
-                    []   -> return $ Right outline
-                    d:ds -> return $ Left (Exit.OutlineHasBadSrcDirs d ds)
+            App (AppOutline _ srcDirs deps _ _ _)
+              | Map.notMember Pkg.core deps -> return $ Left Exit.OutlineNoAppCore
+              | Map.notMember Pkg.json deps -> return $ Left Exit.OutlineNoAppJson
+              | otherwise ->
+                  do  badDirs <- filterM (isBadSrcDir root) (NE.toList srcDirs)
+                      case badDirs of
+                        []   -> return $ Right outline
+                        d:ds -> return $ Left (Exit.OutlineHasBadSrcDirs d ds)
 
 
 isBadSrcDir :: FilePath -> FilePath -> IO Bool
