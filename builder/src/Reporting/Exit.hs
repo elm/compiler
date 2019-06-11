@@ -116,13 +116,16 @@ initToReport exit =
 
 data Diff
   = DiffNoOutline
+  | DiffBadOutline Outline
   | DiffApplication
+  | DiffNoExposed
   | DiffUnpublished
   | DiffUnknownPackage Pkg.Name [Pkg.Name]
   | DiffUnknownVersion Pkg.Name V.Version [V.Version]
   | DiffDocsProblem DocsProblem
   | DiffBadRegistry RegistryProblem
   | DiffBadDetails Details
+  | DiffBadBuild BuildProblem
 
 
 diffToReport :: Diff -> Help.Report
