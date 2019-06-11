@@ -16,6 +16,7 @@ module Http
   -- upload
   , upload
   , filePart
+  , jsonPart
   , stringPart
   )
   where
@@ -26,6 +27,7 @@ import qualified Codec.Archive.Zip as Zip
 import Control.Exception (SomeException, handle)
 import qualified Data.Binary as Binary
 import qualified Data.Binary.Get as Binary
+import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Digest.Pure.SHA as SHA
 import qualified Data.String as String
@@ -34,8 +36,10 @@ import Network.HTTP.Client
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.HTTP.Types.Header (Header, hAccept, hAcceptEncoding, hUserAgent)
 import Network.HTTP.Types.Method (Method, methodGet, methodPost)
+import qualified Network.HTTP.Client as Multi (RequestBody(RequestBodyLBS))
 import qualified Network.HTTP.Client.MultipartFormData as Multi
 
+import qualified Json.Encode as Encode
 import qualified Elm.Version as V
 
 
@@ -224,6 +228,15 @@ upload manager url parts =
 filePart :: String -> FilePath -> Multi.Part
 filePart name filePath =
   Multi.partFileSource (String.fromString name) filePath
+
+
+jsonPart :: String -> FilePath -> Encode.Value -> Multi.Part
+jsonPart name filePath value =
+  let
+    body =
+      Multi.RequestBodyLBS $ B.toLazyByteString $ Encode.encodeUgly value
+  in
+  Multi.partFileRequestBody (String.fromString name) filePath body
 
 
 stringPart :: String -> String -> Multi.Part
