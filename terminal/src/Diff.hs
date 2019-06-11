@@ -11,6 +11,7 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
+import qualified Data.NonEmptyList as NE
 
 import qualified Build
 import Deps.Diff (PackageChanges(..), ModuleChanges(..), Changes(..))
@@ -20,6 +21,7 @@ import qualified Elm.Compiler.Type as Type
 import qualified Elm.Details as Details
 import qualified Elm.Docs as Docs
 import qualified Elm.Magnitude as M
+import qualified Elm.Outline as Outline
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
 import qualified Http
@@ -58,7 +60,7 @@ run args () =
 
 data Env =
   Env
-    { _root :: Maybe FilePath
+    { _maybeRoot :: Maybe FilePath
     , _cache :: Stuff.PackageCache
     , _manager :: Http.Manager
     , _registry :: Registry.Registry
@@ -67,11 +69,11 @@ data Env =
 
 getEnv :: Task Env
 getEnv =
-  do  root     <- Task.io $ Stuff.findRoot
-      cache    <- Task.io $ Stuff.getPackageCache
-      manager  <- Task.io $ Http.getManager
-      registry <- Task.eio Exit.DiffBadRegistry $ Registry.latest manager cache
-      return (Env root cache manager registry)
+  do  maybeRoot <- Task.io $ Stuff.findRoot
+      cache     <- Task.io $ Stuff.getPackageCache
+      manager   <- Task.io $ Http.getManager
+      registry  <- Task.eio Exit.DiffBadRegistry $ Registry.latest manager cache
+      return (Env maybeRoot cache manager registry)
 
 
 
@@ -96,21 +98,19 @@ diff env@(Env _ _ _ registry) args =
           Task.throw $ Exit.DiffUnknownPackage name suggestions
 
     LocalInquiry v1 v2 ->
-      do  (_, name, vsns) <- getDetails env
+      do  (name, vsns) <- readOutline env
           oldDocs <- getDocs env name vsns (min v1 v2)
           newDocs <- getDocs env name vsns (max v1 v2)
           writeDiff oldDocs newDocs
 
     CodeVsLatest ->
-      do  (details, name, vsns) <- getDetails env
+      do  (newDocs, name, vsns) <- generateDocs env
           oldDocs <- getLatestDocs env name vsns
-          newDocs <- Build.generateDocs details
           writeDiff oldDocs newDocs
 
     CodeVsExactly version ->
-      do  (details, name, vsns) <- getDetails env
+      do  (newDocs, name, vsns) <- generateDocs env
           oldDocs <- getDocs env name vsns version
-          newDocs <- Build.generateDocs details
           writeDiff oldDocs newDocs
 
 
@@ -131,32 +131,70 @@ getLatestDocs (Env _ cache manager _) name (Registry.KnownVersions latest _) =
 
 
 
--- GET DETAILS
+-- READ OUTLINE
 
 
-getDetails :: Env -> Task (Details.Details, Pkg.Name, Registry.KnownVersions)
-getDetails (Env maybeRoot _ _ registry) =
+readOutline :: Env -> Task (Pkg.Name, Registry.KnownVersions)
+readOutline (Env maybeRoot _ _ registry) =
   case maybeRoot of
     Nothing ->
       Task.throw $ Exit.DiffNoOutline
 
     Just root ->
-      do  details <- Task.eio Exit.DiffBadDetails $ Details.load Reporting.silent root
+      do  result <- Task.io $ Outline.read root
+          case result of
+            Left err ->
+              Task.throw $ Exit.DiffBadOutline err
+
+            Right outline ->
+              case outline of
+                Outline.App _ ->
+                  Task.throw $ Exit.DiffApplication
+
+                Outline.Pkg (Outline.PkgOutline pkg _ _ _ _ _ _ _) ->
+                  case Registry.getVersions pkg registry of
+                    Just vsns -> return (pkg, vsns)
+                    Nothing   -> Task.throw Exit.DiffUnpublished
+
+
+
+-- GENERATE DOCS
+
+
+generateDocs :: Env -> Task (Docs.Documentation, Pkg.Name, Registry.KnownVersions)
+generateDocs (Env maybeRoot _ _ registry) =
+  case maybeRoot of
+    Nothing ->
+      Task.throw $ Exit.DiffNoOutline
+
+    Just root ->
+      do  details <-
+            Task.eio Exit.DiffBadDetails $
+              Details.load Reporting.silent root
+
           case Details._outline details of
             Details.ValidApp _ ->
               Task.throw $ Exit.DiffApplication
 
-            Details.ValidPkg pkg _ ->
+            Details.ValidPkg pkg exposed ->
               case Registry.getVersions pkg registry of
                 Just vsns ->
-                  return (details, pkg, vsns)
+                  case exposed of
+                    [] ->
+                      Task.throw Exit.DiffNoExposed
+
+                    e:es ->
+                      do  docs <-
+                            Task.eio Exit.DiffBadBuild $
+                              Build.fromExposed Reporting.silent root details Build.KeepDocs (NE.List e es)
+                          return ( docs, pkg, vsns )
 
                 Nothing ->
                   Task.throw Exit.DiffUnpublished
 
 
 
--- WRITE DOC
+-- WRITE DIFF
 
 
 writeDiff :: Docs.Documentation -> Docs.Documentation -> Task ()
