@@ -71,7 +71,7 @@ type Task a = Task.Task Exit.Make a
 
 
 run :: [FilePath] -> Flags -> IO ()
-run paths (Flags debug optimize maybeOutput report _) =
+run paths (Flags debug optimize maybeOutput report maybeDocs) =
   do  style <- getStyle report
       Reporting.attemptWithStyle style Exit.makeToReport $ Task.run $
         do  root <- getRoot
@@ -80,7 +80,7 @@ run paths (Flags debug optimize maybeOutput report _) =
             case paths of
               [] ->
                 do  exposed <- getExposed details
-                    _ <- buildExposed style root details exposed
+                    buildExposed style root details maybeDocs exposed
                     return ()
 
               p:ps ->
@@ -170,10 +170,13 @@ getExposed (Details.Details _ validOutline _ _ _) =
 -- BUILD PROJECTS
 
 
-buildExposed :: Reporting.Style -> FilePath -> Details.Details -> NE.List ModuleName.Raw -> Task ()
-buildExposed style root details exposed =
+buildExposed :: Reporting.Style -> FilePath -> Details.Details -> Maybe FilePath -> NE.List ModuleName.Raw -> Task ()
+buildExposed style root details maybeDocs exposed =
+  let
+    docsGoal = maybe Build.IgnoreDocs Build.WriteDocs maybeDocs
+  in
   Task.eio Exit.MakeCannotBuild $
-    Build.fromExposed style root details Build.IgnoreDocs exposed
+    Build.fromExposed style root details docsGoal exposed
 
 
 buildPaths :: Reporting.Style -> FilePath -> Details.Details -> NE.List FilePath -> Task Build.Artifacts
