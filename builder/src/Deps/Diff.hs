@@ -18,7 +18,6 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Name as Name
 import qualified Data.Set as Set
-import qualified Data.Utf8 as Utf8
 import System.FilePath ((</>))
 
 import qualified Deps.Website as Website

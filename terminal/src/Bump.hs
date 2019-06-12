@@ -10,7 +10,6 @@ import qualified Data.List as List
 import qualified Deps.Bump as Bump
 import qualified Deps.Diff as Diff
 import qualified Deps.Registry as Registry
-import qualified Elm.Details as Details
 import qualified Elm.Magnitude as M
 import qualified Elm.Outline as Outline
 import qualified Elm.Version as V

@@ -12,7 +12,6 @@ import qualified Data.NonEmptyList as NE
 import qualified Data.Utf8 as Utf8
 import qualified System.Directory as Dir
 import qualified System.Exit as Exit
-import qualified System.FilePath as FP
 import System.FilePath ((</>))
 import qualified System.Info as Info
 import qualified System.IO as IO
@@ -95,7 +94,7 @@ getEnv =
 
 
 publish ::  Env -> Task.Task Exit.Publish ()
-publish env@(Env root cache manager registry outline) =
+publish env@(Env root _ manager registry outline) =
   case outline of
     Outline.App _ ->
       Task.throw Exit.PublishApplication
