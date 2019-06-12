@@ -3,12 +3,14 @@
 module Reporting.Error.Json
   ( toReport
   , FailureToReport(..)
+  , Context(..)
   )
   where
 
 
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.UTF8 as BS_UTF8
+import qualified Data.NonEmptyList as NE
 
 import Json.Decode (Error(..), Problem(..), DecodeExpectation(..), ParseError(..), StringProblem(..))
 import qualified Reporting.Annotation as A
