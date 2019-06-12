@@ -73,7 +73,7 @@ readBinary path =
           do  result <- Binary.decodeFileOrFail path
               case result of
                 Right a -> return (Just a)
-                Left  e -> return Nothing
+                Left _  -> return Nothing
         else
           return Nothing
 

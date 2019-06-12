@@ -22,7 +22,6 @@ module Elm.ModuleName
 
 import Control.Monad (liftM2)
 import Data.Binary (Binary(..))
-import qualified Data.Char as Char
 import qualified Data.Name as Name
 import qualified Data.Utf8 as Utf8
 import Data.Word (Word8)
