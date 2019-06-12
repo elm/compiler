@@ -45,19 +45,14 @@ import qualified Data.Coerce as Coerce
 import qualified Data.List as List
 import qualified Data.String as Chars
 import qualified Data.Utf8 as Utf8
-import Foreign.Ptr (plusPtr, minusPtr)
 import GHC.Exts
-  ( Int(I#), Ptr(Ptr)
-  , RealWorld
+  ( Int(I#), Ptr
   , MutableByteArray#
   , isTrue#
   , newByteArray#
   , sizeofByteArray#
-  , writeWord8OffAddr#
-  , copyByteArrayToAddr#
   , unsafeFreezeByteArray#
   )
-import GHC.IO
 import GHC.ST (ST(ST), runST)
 import GHC.Prim
 import GHC.Word (Word8(W8#))
