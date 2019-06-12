@@ -31,7 +31,6 @@ module Elm.Package
 import Control.Monad (liftM2)
 import Data.Binary (Binary, get, put)
 import qualified Data.Coerce as Coerce
-import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Name as Name
@@ -236,12 +235,10 @@ nearbyNames (Name author1 project1) possibleNames =
     authorDist = authorDistance (Utf8.toChars author1)
     projectDist = projectDistance (Utf8.toChars project1)
 
-    addDistance name@(Name author2 project2) =
-      ( authorDist author2 + projectDist project2, name )
+    nameDistance (Name author2 project2) =
+      authorDist author2 + projectDist project2
   in
-  map snd $ take 4 $
-    List.sortBy (compare `on` fst) $
-      map addDistance possibleNames
+  take 4 $ List.sortOn nameDistance possibleNames
 
 
 authorDistance :: [Char] -> Author -> Int
