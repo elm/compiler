@@ -140,6 +140,9 @@ diffToReport diff =
         , D.indent 4 $ D.green $ "elm diff elm/html 5.1.1 6.0.0"
         ]
 
+    DiffBadOutline outline ->
+      toOutlineReport outline
+
     DiffApplication ->
       Help.report "CANNOT DIFF APPLICATIONS" Nothing
         "It looks like you are running `elm diff` on an application, but it\
@@ -148,6 +151,9 @@ diffToReport diff =
         [ D.reflow $ "If you are just curious to see a diff, try running this command:"
         , D.indent 4 $ D.green $ "elm diff elm/html 5.1.1 6.0.0"
         ]
+
+    DiffNoExposed ->
+      error "TODO DiffNoExposed"
 
     DiffUnpublished ->
       Help.report "UNPUBLISHED" Nothing
@@ -188,6 +194,12 @@ diffToReport diff =
     DiffBadRegistry problem ->
       error "TODO DiffBadRegistry" problem
 
+    DiffBadDetails details ->
+      error "TODO DiffBadDetails" details
+
+    DiffBadBuild buildProblem ->
+      error "TODO DiffBadBuild" buildProblem
+
 
 
 -- BUMP
@@ -205,6 +217,12 @@ data Bump
 bumpToReport :: Bump -> Help.Report
 bumpToReport bump =
   case bump of
+    BumpNoOutline ->
+      error "TODO BumpNoOutline"
+
+    BumpBadOutline outline ->
+      toOutlineReport outline
+
     BumpApplication ->
       Help.report "CANNOT BUMP APPLICATIONS" (Just "elm.json")
         "Your elm.json says this is an application. That means it cannot be published\
@@ -299,8 +317,11 @@ publishToReport publish =
     PublishNoOutline ->
       error "TODO PublishNoOutline"
 
-    PublishBadOutline problem ->
-      error "TODO PublishBadOutline" problem
+    PublishBadOutline outline ->
+      toOutlineReport outline
+
+    PublishBadDetails problem ->
+      error "TODO PublishBadDetails" problem
 
     PublishMustHaveLatestRegistry problem ->
       error "TODO PublishMustHaveLatestRegistry" problem
@@ -434,6 +455,9 @@ publishToReport publish =
             \ named LICENSE. Add that file and you will be all set!"
         ]
 
+    PublishBuildProblem buildProblem ->
+      error "TODO PublishBuildProblem" buildProblem
+
     PublishCannotGetTag httpError ->
       error "TODO PublishCannotGetTag" httpError
 
@@ -496,6 +520,18 @@ publishToReport publish =
             "If you are sure everything is in order, you can run `git checkout "
             ++ vsn ++ "` and publish your code from there."
         ]
+
+    PublishZipBadDetails details ->
+      error "TODO PublishZipBadDetails" details
+
+    PublishZipApplication ->
+      error "TODO PublishZipApplication"
+
+    PublishZipNoExposed ->
+      error "TODO PublishZipNoExposed"
+
+    PublishZipBuildProblem buildProblem ->
+      error "TODO PublishZipBuildProblem" buildProblem
 
 
 toBadReadmeReport :: String -> String -> Help.Report
@@ -778,8 +814,8 @@ detailsToReport details =
     DetailsHandEditedDependencies ->
       error "TODO DetailsHandEditedDependencies"
 
-    DetailsBadOutline outlineProblem ->
-      toOutlineReport outlineProblem
+    DetailsBadOutline outline ->
+      toOutlineReport outline
 
     DetailsCannotGetRegistry problem ->
       error "TODO DetailsCannotGetRegistry" problem
