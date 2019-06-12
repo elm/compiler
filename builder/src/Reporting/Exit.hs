@@ -41,7 +41,6 @@ module Reporting.Exit
 
 import qualified Data.List as List
 import qualified Data.NonEmptyList as NE
-import qualified Data.Utf8 as Utf8
 
 import qualified Elm.Constraint as C
 import qualified Elm.Magnitude as M
@@ -53,12 +52,14 @@ import qualified Json.Decode as Decode
 import qualified Json.Encode as Encode
 import qualified Json.String as Json
 import Parse.Primitives (Row, Col)
+import qualified Reporting.Annotation as A
 import Reporting.Doc ((<>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Error.Import as Import
 import qualified Reporting.Error.Json as Json
 import qualified Reporting.Exit.Help as Help
 import qualified Reporting.Error as Error
+import qualified Reporting.Render.Code as Code
 
 
 
@@ -608,7 +609,7 @@ installToReport exit =
   Help.report "OLD DEPENDENCIES" (Just "elm.json")
     ( "The following packages do not work with Elm " ++ V.toChars V.compiler ++ " right now:"
     )
-    [ D.indent 4 $ D.vcat $ map (D.red . D.fromUtf8 . Pkg.toString) badPackages
+    [ D.indent 4 $ D.vcat $ map (D.red . D.fromPackage) badPackages
     , D.reflow $
         "This may be because it is not upgraded yet. It may be because a\
         \ better solution came along, so there was no need to upgrade it.\
@@ -912,7 +913,7 @@ toOutlineReport :: Outline -> Help.Report
 toOutlineReport problem =
   case problem of
     OutlineHasBadStructure decodeError ->
-      error "TODO OutlineHasBadStructure" decodeError toOutlineProblemReport
+      Json.toReport "elm.json" (Json.FailureToReport toOutlineProblemReport) decodeError
 
     OutlineHasBadSrcDirs dir dirs ->
       case dirs of
@@ -953,36 +954,198 @@ toOutlineReport problem =
         , D.reflow "It helps me handle flags and ports."
         ]
 
-toOutlineProblemReport :: OutlineProblem -> Help.Report
-toOutlineProblemReport problem =
+
+toOutlineProblemReport :: FilePath -> Code.Source -> Json.Context -> A.Region -> OutlineProblem -> Help.Report
+toOutlineProblemReport path source _ region problem =
+  let
+    toHighlight row col =
+      Just $ A.Region (A.Position row col) (A.Position row col)
+
+    toSnippet title highlight pair =
+      Help.jsonReport title (Just path) $
+        Code.toSnippet source region highlight pair
+  in
   case problem of
     OP_BadType ->
-      error "TODO OP_BadType"
+      toSnippet "UNEXPECTED TYPE" Nothing
+        ( D.reflow $
+            "I do not know how to process this type of elm.json file:"
+        , D.fillSep
+            ["Try","changing","the","type","to"
+            ,D.green "\"application\"","or",D.green "\"package\"","instead."
+            ]
+        )
 
     OP_BadPkgName row col ->
-      error "TODO OP_BadPkgName" row col
+      toSnippet "INVALID PACKAGE NAME" (toHighlight row col)
+        ( D.reflow $
+            "I ran into trouble with this package name:"
+        , D.stack
+            [ D.fillSep
+                ["Package","names","are","always","written","as"
+                ,D.green "\"author/project\""
+                ,"so","I","am","expecting","to","see","something","like:"
+                ]
+            , D.dullyellow $ D.indent 4 $ D.vcat $
+                [ "\"mdgriffith/elm-ui\""
+                , "\"w0rm/elm-physics\""
+                , "\"Microsoft/elm-json-tree-view\""
+                , "\"FordLabs/elm-star-rating\""
+                , "\"1602/json-schema\""
+                ]
+            , D.reflow
+                "The author name should match your GitHub name exactly, and the project name\
+                \ needs to follow these rules:"
+            , D.indent 4 $ D.vcat $
+                [ "+--------------------------------------+-----------+-----------+"
+                , "| RULE                                 | BAD       | GOOD      |"
+                , "+--------------------------------------+-----------+-----------+"
+                , "| only lower case, digits, and hyphens | elm-HTTP  | elm-http  |"
+                , "| no leading digits                    | 3D        | elm-3d    |"
+                , "| no non-ASCII characters              | elm-bjørn | elm-bear  |"
+                , "| no underscores                       | elm_ui    | elm-ui    |"
+                , "| no double hyphens                    | elm--hash | elm-hash  |"
+                , "| no starting or ending hyphen         | -elm-tar- | elm-tar   |"
+                , "+--------------------------------------+-----------+-----------+"
+                ]
+            , D.toSimpleNote $
+                "These rules only apply to the project name, so you should never need\
+                \ to change your GitHub name!"
+            ]
+        )
 
     OP_BadVersion row col ->
-      error "TODO OP_BadVersion" row col
+      toSnippet "PROBLEM WITH VERSION" (toHighlight row col)
+        ( D.reflow $
+            "I was expecting a version number here:"
+        , D.fillSep
+            ["I","need","something","like",D.green "\"1.0.0\"","or",D.green "\"2.0.4\""
+            ,"that","explicitly","states","all","three","numbers!"
+            ]
+        )
 
     OP_BadConstraint constraintError ->
-      error "TODO OP_BadConstraint" constraintError
+      case constraintError of
+        C.BadFormat row col ->
+          toSnippet "PROBLEM WITH CONSTRAINT" (toHighlight row col)
+            ( D.reflow $
+                "I was expecting a version constraint here:"
+            , D.stack
+                [ D.fillSep
+                    ["I","need","something","like",D.green "\"1.0.0 <= v < 2.0.0\""
+                    ,"that","explicitly","lists","the","lower","and","upper","bounds."
+                    ]
+                , D.toSimpleNote $
+                    "The spaces in there are required! Taking them out will confuse me. Adding\
+                    \ extra spaces confuses me too. I recommend starting with a valid example\
+                    \ and just changing the version numbers."
+                ]
+            )
+
+        C.InvalidRange before after ->
+          if before == after then
+            toSnippet "PROBLEM WITH CONSTRAINT" Nothing
+              ( D.reflow $
+                  "I ran into an invalid version constraint:"
+              , D.fillSep
+                  ["Elm","checks","that","all","package","APIs","follow","semantic","versioning,"
+                  ,"so","it","is","best","to","use","wide","constraints.","I","recommend"
+                  ,D.green $ "\"" <> D.fromVersion before <> " <= v < " <> D.fromVersion (V.bumpMajor after) <> "\""
+                  ,"since","it","is","guaranteed","that","breaking","API","changes","cannot"
+                  ,"happen","in","any","of","the","versions","in","that","range."
+                  ]
+              )
+
+          else
+            toSnippet "PROBLEM WITH CONSTRAINT" Nothing
+              ( D.reflow $
+                  "I ran into an invalid version constraint:"
+              , D.fillSep
+                  ["Maybe","you","want","something","like"
+                  ,D.green $ "\"" <> D.fromVersion before <> " <= v < " <> D.fromVersion (V.bumpMajor before) <> "\""
+                  ,"instead?","Elm","checks","that","all","package","APIs","follow","semantic"
+                  ,"versioning,","so","it","is","guaranteed","that","breaking","API","changes"
+                  ,"cannot","happen","in","any","of","the","versions","in","that","range."
+                  ]
+              )
 
     OP_BadModuleName row col ->
-      error "TODO OP_BadModuleName" row col
+      toSnippet "PROBLEM WITH MODULE NAME" (toHighlight row col)
+        ( D.reflow $
+            "I was expecting a module name here:"
+        , D.fillSep
+            ["I","need","something","like",D.green "\"Html.Events\""
+            ,"or",D.green "\"Browser.Navigation\""
+            ,"where","each","segment","starts","with","a","capital"
+            ,"letter","and","the","segments","are","separated","by","dots."
+            ]
+        )
 
     OP_BadModuleHeaderTooLong ->
-      error "TODO OP_BadModuleHeaderTooLong"
+      toSnippet "HEADER TOO LONG" Nothing
+        ( D.reflow $
+            "This section header is too long:"
+        , D.fillSep
+            ["I","need","it","to","be"
+            ,D.green "under",D.green "20",D.green "characters"
+            ,"so","it","renders","nicely","on","the","package","website!"
+            ]
+        )
 
     OP_BadDependencyName row col ->
-      error "TODO OP_BadDependencyName"
+      toSnippet "PROBLEM WITH DEPENDENCY NAME" (toHighlight row col)
+        ( D.reflow $
+            "There is something wrong with this dependency name:"
+        , D.stack
+            [ D.fillSep
+                ["Package","names","always","include","the","name","of","the","author,"
+                ,"so","I","am","expecting","to","see","dependencies","like"
+                ,D.dullyellow "\"mdgriffith/elm-ui\"","and"
+                ,D.dullyellow "\"Microsoft/elm-json-tree-view\"" <> "."
+                ]
+            , D.fillSep $
+                ["I","generally","recommend","finding","the","package","you","want","on"
+                ,"the","package","website,","and","installing","it","with","the"
+                ,D.green "elm install","command!"
+                ]
+            ]
+        )
 
-    OP_BadLicense badLicense suggestions ->
-      error "TODO OP_BadLicense" badLicense suggestions
+    OP_BadLicense _ suggestions ->
+      toSnippet "UNKNOWN LICENSE" Nothing
+        ( D.reflow $
+            "I do not know about this type of license:"
+        ,
+          D.stack
+            [ D.fillSep
+                ["Elm","packages","generally","use"
+                ,D.green "\"BSD-3-Clause\"","or",D.green "\"MIT\"" <> ","
+                ,"but","I","accept","any","OSI","approved","SPDX","license."
+                ,"Here","some","that","seem","close","to","what","you","wrote:"
+                ]
+            , D.indent 4 $ D.dullyellow $ D.vcat $ map (D.fromChars . Json.toChars) suggestions
+            , D.reflow $
+                "Check out https://spdx.org/licenses/ for the full list of options."
+            ]
+        )
 
     OP_BadSummaryTooLong ->
-      error "TODO OP_BadSummaryTooLong"
+      toSnippet "SUMMARY TOO LONG" Nothing
+        ( D.reflow $
+            "Your \"summary\" is too long:"
+        , D.fillSep
+            ["I","need","it","to","be"
+            ,D.green "under",D.green "80",D.green "characters"
+            ,"so","it","renders","nicely","on","the","package","website!"
+            ]
+        )
 
     OP_NoSrcDirs ->
-      error "TODO OP_NoSrcDirs"
-
+      toSnippet "NO SOURCE DIRECTORIES" Nothing
+        ( D.reflow $
+            "You do not have any \"source-directories\" listed here:"
+        , D.fillSep
+            ["I","need","something","like",D.green "[\"src\"]"
+            ,"so","I","know","where","to","look","for","your","modules!"
+            ]
+        )
