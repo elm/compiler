@@ -40,6 +40,7 @@ import qualified Json.String as Json
 import qualified Parse.Keyword as K
 import qualified Parse.Primitives as P
 import Parse.Primitives (Row, Col)
+import qualified Reporting.Annotation as A
 
 
 
@@ -88,8 +89,8 @@ data Problem x
   = Field B.ByteString (Problem x)
   | Index Int (Problem x)
   | OneOf (Problem x) [Problem x]
-  | Failure x
-  | Expecting DecodeExpectation
+  | Failure A.Region x
+  | Expecting A.Region DecodeExpectation
 
 
 data DecodeExpectation
@@ -156,26 +157,26 @@ instance Monad (Decoder x) where
 
 string :: Decoder x Json.String
 string =
-  Decoder $ \ast ok err ->
+  Decoder $ \(A.At region ast) ok err ->
     case ast of
       String snippet ->
         ok (Json.fromSnippet snippet)
 
       _ ->
-        err (Expecting TString)
+        err (Expecting region TString)
 
 
 customString :: P.Parser x a -> (Row -> Col -> x) -> Decoder x a
 customString parser toBadEnd =
-  Decoder $ \ast ok err ->
+  Decoder $ \(A.At region ast) ok err ->
     case ast of
       String snippet ->
         case P.fromSnippet parser toBadEnd snippet of
           Right a -> ok a
-          Left  x -> err (Failure x)
+          Left  x -> err (Failure region x)
 
       _ ->
-        err (Expecting TString)
+        err (Expecting region TString)
 
 
 
@@ -184,7 +185,7 @@ customString parser toBadEnd =
 
 bool :: Decoder x Bool
 bool =
-  Decoder $ \ast ok err ->
+  Decoder $ \(A.At region ast) ok err ->
     case ast of
       TRUE ->
         ok True
@@ -193,7 +194,7 @@ bool =
         ok False
 
       _ ->
-        err (Expecting TBool)
+        err (Expecting region TBool)
 
 
 
@@ -202,13 +203,13 @@ bool =
 
 int :: Decoder x Int
 int =
-  Decoder $ \ast ok err ->
+  Decoder $ \(A.At region ast) ok err ->
     case ast of
       Int n ->
         ok n
 
       _ ->
-        err (Expecting TInt)
+        err (Expecting region TInt)
 
 
 
@@ -217,13 +218,13 @@ int =
 
 list :: Decoder x a -> Decoder x [a]
 list decoder =
-  Decoder $ \ast ok err ->
+  Decoder $ \(A.At region ast) ok err ->
     case ast of
       Array asts ->
         listHelp decoder ok err 0 asts []
 
       _ ->
-        err (Expecting TArray)
+        err (Expecting region TArray)
 
 
 listHelp :: Decoder x a -> ([a] -> b) -> (Problem x -> b) -> Int -> [AST] -> [a] -> b
@@ -258,7 +259,7 @@ nonEmptyList decoder x =
 
 pair :: Decoder x a -> Decoder x b -> Decoder x (a,b)
 pair (Decoder decodeA) (Decoder decodeB) =
-  Decoder $ \ast ok err ->
+  Decoder $ \(A.At region ast) ok err ->
     case ast of
       Array vs ->
         case vs of
@@ -275,10 +276,10 @@ pair (Decoder decodeA) (Decoder decodeB) =
             decodeA astA ok0 err0
 
           _ ->
-            err (Expecting (TArrayPair (length vs)))
+            err (Expecting region (TArrayPair (length vs)))
 
       _ ->
-        err (Expecting TArray)
+        err (Expecting region TArray)
 
 
 
@@ -296,13 +297,13 @@ dict keyDecoder valueDecoder =
 
 pairs :: KeyDecoder x k -> Decoder x a -> Decoder x [(k, a)]
 pairs keyDecoder valueDecoder =
-  Decoder $ \ast ok err ->
+  Decoder $ \(A.At region ast) ok err ->
     case ast of
       Object kvs ->
         pairsHelp keyDecoder valueDecoder ok err kvs []
 
       _ ->
-        err (Expecting TObject)
+        err (Expecting region TObject)
 
 
 pairsHelp :: KeyDecoder x k -> Decoder x a -> ([(k, a)] -> b) -> (Problem x -> b) -> [(P.Snippet, AST)] -> [(k, a)] -> b
@@ -314,7 +315,7 @@ pairsHelp keyDecoder@(KeyDecoder keyParser toBadEnd) valueDecoder@(Decoder decod
     (snippet, ast) : kvs ->
       case P.fromSnippet keyParser toBadEnd snippet of
         Left x ->
-          err (Failure x)
+          err (Failure (snippetToRegion snippet) x)
 
         Right key ->
           let
@@ -326,13 +327,18 @@ pairsHelp keyDecoder@(KeyDecoder keyParser toBadEnd) valueDecoder@(Decoder decod
           decodeA ast ok' err'
 
 
+snippetToRegion :: P.Snippet -> A.Region
+snippetToRegion (P.Snippet _ _ len row col) =
+  A.Region (A.Position row col) (A.Position row (col + fromIntegral len))
+
+
 
 -- FIELDS
 
 
 field :: B.ByteString -> Decoder x a -> Decoder x a
 field key (Decoder decodeA) =
-  Decoder $ \ast ok err ->
+  Decoder $ \(A.At region ast) ok err ->
     case ast of
       Object kvs ->
         case findField key kvs of
@@ -344,10 +350,10 @@ field key (Decoder decodeA) =
             decodeA value ok err'
 
           Nothing ->
-            err (Expecting (TObjectWith key))
+            err (Expecting region (TObjectWith key))
 
       _ ->
-        err (Expecting TObject)
+        err (Expecting region TObject)
 
 
 findField :: B.ByteString -> [(P.Snippet, AST)] -> Maybe AST
@@ -411,8 +417,8 @@ oneOfError problems prob ps =
 
 failure :: x -> Decoder x a
 failure x =
-  Decoder $ \_ _ err ->
-    err (Failure x)
+  Decoder $ \(A.At region _) _ err ->
+    err (Failure region x)
 
 
 
@@ -431,18 +437,22 @@ mapError func (Decoder decodeA) =
 mapErrorHelp :: (x -> y) -> Problem x -> Problem y
 mapErrorHelp func problem =
   case problem of
-    Field k p   -> Field k (mapErrorHelp func p)
-    Index i p   -> Index i (mapErrorHelp func p)
-    OneOf p ps  -> OneOf (mapErrorHelp func p) (map (mapErrorHelp func) ps)
-    Failure x   -> Failure (func x)
-    Expecting e -> Expecting e
+    Field k p     -> Field k (mapErrorHelp func p)
+    Index i p     -> Index i (mapErrorHelp func p)
+    OneOf p ps    -> OneOf (mapErrorHelp func p) (map (mapErrorHelp func) ps)
+    Failure r x   -> Failure r (func x)
+    Expecting r e -> Expecting r e
 
 
 
 -- AST
 
 
-data AST
+type AST =
+  A.Located AST_
+
+
+data AST_
   = Array [AST]
   | Object [(P.Snippet, AST)]
   | String P.Snippet
@@ -496,6 +506,7 @@ pFile =
 
 pValue :: Parser AST
 pValue =
+  P.addLocation $
   P.oneOf Start
     [ String <$> pString Start
     , pObject
@@ -511,7 +522,7 @@ pValue =
 -- OBJECT
 
 
-pObject :: Parser AST
+pObject :: Parser AST_
 pObject =
   do  P.word1 0x7B {- { -} Start
       spaces
@@ -524,7 +535,7 @@ pObject =
         ]
 
 
-pObjectHelp :: [(P.Snippet, AST)] -> Parser AST
+pObjectHelp :: [(P.Snippet, AST)] -> Parser AST_
 pObjectHelp revEntries =
   P.oneOf ObjectEnd
     [
@@ -553,7 +564,7 @@ pField =
 -- ARRAY
 
 
-pArray :: Parser AST
+pArray :: Parser AST_
 pArray =
   do  P.word1 0x5B {-[-} Start
       spaces
@@ -566,7 +577,7 @@ pArray =
         ]
 
 
-pArrayHelp :: Int -> [AST] -> Parser AST
+pArrayHelp :: Int -> [AST] -> Parser AST_
 pArrayHelp !len revEntries =
   P.oneOf ArrayEnd
     [
@@ -716,7 +727,7 @@ eatSpaces pos end row col =
 -- INTS
 
 
-pInt :: Parser AST
+pInt :: Parser AST_
 pInt =
   P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
     if pos >= end then
