@@ -171,19 +171,19 @@ toFancyHint chunks =
 -- LINKS
 
 
-link :: P.Doc -> String -> String -> String -> P.Doc
+link :: String -> String -> String -> String -> P.Doc
 link word before fileName after =
   P.fillSep $
-    (P.underline word <> ":")
+    (P.underline (P.text word) <> ":")
     : map P.text (words before)
     ++ P.text (makeLink fileName)
     : map P.text (words after)
 
 
-fancyLink :: P.Doc -> [P.Doc] -> String -> [P.Doc] -> P.Doc
+fancyLink :: String -> [P.Doc] -> String -> [P.Doc] -> P.Doc
 fancyLink word before fileName after =
   P.fillSep $
-    (P.underline word <> ":") : before ++ P.text (makeLink fileName) : after
+    (P.underline (P.text word) <> ":") : before ++ P.text (makeLink fileName) : after
 
 
 makeLink :: [Char] -> [Char]
