@@ -52,8 +52,12 @@ instance Foldable List where
 -- SORT BY
 
 
-sortBy :: (a -> a -> Ordering) -> List a -> List a
-sortBy comparison (List x xs) =
+sortBy :: (Ord b) => (a -> b) -> List a -> List a
+sortBy toRank (List x xs) =
+  let
+    comparison a b =
+      compare (toRank a) (toRank b)
+  in
   case List.sortBy comparison xs of
     [] ->
       List x []
