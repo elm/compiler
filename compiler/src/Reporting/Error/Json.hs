@@ -2,12 +2,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Reporting.Error.Json
   ( toReport
+  , FailureToReport(..)
   )
   where
 
 
-import qualified Data.Char as Char
-import qualified Data.Map as Map
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.UTF8 as BS_UTF8
 
 import Json.Decode (Error(..), Problem(..), DecodeExpectation(..), ParseError(..), StringProblem(..))
 import qualified Reporting.Annotation as A
@@ -20,11 +21,11 @@ import qualified Reporting.Render.Code as Code
 -- TO REPORT
 
 
-toReport :: FilePath -> Error x -> Help.Report
-toReport path err =
+toReport :: FilePath -> FailureToReport x -> Error x -> Help.Report
+toReport path ftr err =
   case err of
     DecodeProblem bytes problem ->
-      problemToReport (Code.toSource bytes) problem
+      problemToReport path ftr (Code.toSource bytes) CRoot problem
 
     ParseProblem bytes parseError ->
       parseErrorToReport path (Code.toSource bytes) parseError
@@ -215,230 +216,106 @@ objectNote =
 -- PROBLEM TO REPORT
 
 
-problemToReport :: Code.Source -> Problem x -> Help.Report
-problemToReport source problem =
-  error "TODO problemToReport" source problem
-
-{-
-    BadContent jsonError ->
-      case flatten jsonError of
-        [] ->
-          D.reflow
-            "I am not sure what is wrong with this JSON. Please create an <http://sscce.org>\
-            \ and share it at <https://github.com/elm/compiler/issues> so I can\
-            \ provide a helpful hint here!"
-
-        [flatError] ->
-          flatErrorToDoc rootName [] userErrorToDocs flatError
-
-        flatErrors ->
-          let
-            toNumberedDoc index flatErr =
-              D.dullcyan ("(" <> D.fromInt index <> ")") <+> flatErrorToDoc rootName [] userErrorToDocs flatErr
-          in
-          D.stack $
-            [ D.reflow $
-                "I have " ++ show (length flatErrors) ++ " theories on what is going wrong:"
-            ]
-            ++ zipWith toNumberedDoc [1..] flatErrors
+data Context
+  = CRoot
+  | CField BS.ByteString Context
+  | CIndex Int Context
 
 
+problemToReport :: FilePath -> FailureToReport x -> Code.Source -> Context -> Problem x -> Help.Report
+problemToReport path ftr source context problem =
+  case problem of
+    Field field prob ->
+      problemToReport path ftr source (CField field context) prob
 
--- FLAT ERROR TO DOC
+    Index index prob ->
+      problemToReport path ftr source (CIndex index context) prob
 
-
-flatErrorToDoc :: String -> [D.Doc] -> (e -> [D.Doc]) -> FlatError e -> D.Doc
-flatErrorToDoc rootName starter userErrorToDocs (FlatError accesses json theory theories) =
-  case theories of
-    [] ->
+    OneOf p ps ->
+      -- NOTE: only displays the deepest problem. This works well for the kind
+      -- of JSON used by Elm, but probably would not work well in general.
       let
-        explanation =
-          case theory of
-            Failure userError ->
-              userErrorToDocs userError
-
-            Expecting tipe ->
-              ["I","was","expecting"] ++ anExpectedThing tipe
+        (NE.List prob _) = NE.sortBy (negate . getMaxDepth) (NE.List p ps)
       in
-      case accesses of
-        [] ->
-          D.fillSep (starter ++ explanation)
+      problemToReport path ftr source context prob
 
-        _ ->
-          D.stack
-            [ D.fillSep $ starter ++ ["The"] ++ actualThing json ++ ["at",accessToDoc rootName accesses,"is","causing","issues."]
-            , D.fillSep explanation
-            ]
+    Failure region x ->
+      _failureToReport ftr path source context region x
 
-    _:_ ->
-      let
-        introduction =
-          case accesses of
-            [] ->
-              ["I","am","having","trouble","with","the"]
-              ++ actualThing json
-              ++ ["here","because:"]
+    Expecting region expectation ->
+      expectationToReport path source context region expectation
 
-            _ ->
-              ["I","am","having","trouble","with","the"]
-              ++ actualThing json
-              ++ ["at",accessToDoc rootName accesses,"because:"]
-      in
-      D.stack
-        [ D.fillSep (starter ++ introduction)
-        , D.stack (toBullet [] userErrorToDocs theory : map (toBullet ["OR"] userErrorToDocs) theories)
-        , D.reflow "I accept any of these things."
+
+getMaxDepth :: Problem x -> Int
+getMaxDepth problem =
+  case problem of
+    Field _ prob  -> 1 + getMaxDepth prob
+    Index _ prob  -> 1 + getMaxDepth prob
+    OneOf p ps    -> maximum (getMaxDepth p : map getMaxDepth ps)
+    Failure _ _   -> 0
+    Expecting _ _ -> 0
+
+
+newtype FailureToReport x =
+  FailureToReport { _failureToReport :: FilePath -> Code.Source -> Context -> A.Region -> x -> Help.Report }
+
+
+expectationToReport :: FilePath -> Code.Source -> Context -> A.Region -> DecodeExpectation -> Help.Report
+expectationToReport path source context (A.Region start end) expectation =
+  let
+    (A.Position sr _) = start
+    (A.Position er _) = end
+
+    region =
+      if sr == er then region else A.Region start start
+
+    introduction =
+      case context of
+        CRoot ->
+          "I ran into some trouble here:"
+
+        CField field _ ->
+          "I ran into trouble with the value of the \"" ++ BS_UTF8.toString field ++ "\" field:"
+
+        CIndex index (CField field _) ->
+          "When looking at the \"" ++ BS_UTF8.toString field ++ "\" field, I ran into trouble with the "
+          ++ D.intToOrdinal index ++ " entry:"
+
+        CIndex index _ ->
+          "I ran into trouble with the " ++ D.intToOrdinal index ++ " index of this array:"
+
+    toSnippet title aThing =
+      Help.jsonReport title (Just path) $
+        Code.toSnippet source region Nothing
+          ( D.reflow introduction
+          , D.fillSep $ ["I","was","expecting","to","run","into"] ++ aThing
+          )
+  in
+  case expectation of
+    TObject ->
+      toSnippet "EXPECTING OBJECT" ["an", D.green "OBJECT" <> "."]
+
+    TArray ->
+      toSnippet "EXPECTING ARRAY" ["an", D.green "ARRAY" <> "."]
+
+    TString ->
+      toSnippet "EXPECTING STRING" ["a", D.green "STRING" <> "."]
+
+    TBool ->
+      toSnippet "EXPECTING BOOL" ["a", D.green "BOOLEAN" <> "."]
+
+    TInt ->
+      toSnippet "EXPECTING INT" ["an", D.green "INT" <> "."]
+
+    TObjectWith field ->
+      toSnippet "MISSING FIELD"
+        ["an",D.green "OBJECT","with","a"
+        ,D.green ("\"" <> D.fromChars (BS_UTF8.toString field) <> "\"")
+        ,"field."
         ]
 
-
-accessToDoc :: String -> [String] -> D.Doc
-accessToDoc rootName accesses =
-  D.dullyellow (D.fromString (rootName ++ concat accesses))
-
-
-actualThing :: E.Value -> [D.Doc]
-actualThing json =
-  case json of
-    E.Array   _ -> [D.red "array"]
-    E.Object  _ -> [D.red "object"]
-    E.String  _ -> [D.red "string"]
-    E.Boolean b -> [D.red (if b then "true" else "false"),"value"]
-    E.Integer n -> ["number",D.red (D.fromInt n)]
-    E.Number  _ -> [D.red "number"]
-    E.Null      -> [D.red "null","value"]
-
-
-anExpectedThing :: Json.Type -> [D.Doc]
-anExpectedThing tipe =
-  case tipe of
-    Json.TObject -> ["an", D.green "OBJECT" <> "."]
-    Json.TArray -> ["an", D.green "ARRAY" <> "."]
-    Json.TString -> ["a", D.green "STRING" <> "."]
-    Json.TBool -> ["a", D.green "BOOLEAN" <> "."]
-    Json.TInt -> ["an", D.green "INT" <> "."]
-    Json.TObjectWith field -> ["an",D.green "OBJECT","with","a",D.green ("\"" <> D.fromString (Text.unpack field) <> "\""),"field."]
-    Json.TArrayPair len ->
-      ["an",D.green "ARRAY","with",D.green "TWO","entries."
-      ,"This","array","has",D.fromInt len, if len == 1 then "element." else "elements."
-      ]
-
-
-toBullet :: [D.Doc] -> (e -> [D.Doc]) -> Theory e -> D.Doc
-toBullet intro userErrorToDocs theory =
-  D.indent 4 $ D.fillSep $ (++) intro $
-    case theory of
-      Failure userError ->
-        userErrorToDocs userError
-
-      Expecting tipe ->
-        ["I","was","expecting"] ++ anExpectedThing tipe
-
-
-
--- TO FLAT ERRORS
-
-
-data FlatError e =
-  FlatError [String] E.Value (Theory e) [Theory e]
-
-
-data Theory e
-  = Failure e
-  | Expecting Json.Type
-
-
-flatten :: Json.Error e -> [FlatError e]
-flatten jsonError =
-  let
-    depth (FlatError accesses _ _ _) =
-      length accesses
-  in
-  List.sortOn depth $ flattenTree (toErrorTree jsonError)
-
-
-flattenTree :: ErrorTree e -> [FlatError e]
-flattenTree (ErrorTree theories subTrees) =
-  let
-    addAccess access (FlatError accesses json t ts) =
-      FlatError (access:accesses) json t ts
-
-    toFlats (name, tree) =
-      map (addAccess name) (flattenTree tree)
-
-    subErrors =
-      concatMap toFlats (Map.toList subTrees)
-  in
-  case theories of
-    [] ->
-      subErrors
-
-    (json, theory) : rest ->
-      FlatError [] json theory (map snd rest) : subErrors
-
-
-
--- TO ERROR TREE
-
-
-data ErrorTree e =
-  ErrorTree
-    { _theories :: [(E.Value, Theory e)]
-    , _subErrors :: Map.Map String (ErrorTree e)
-    }
-
-
-toErrorTree :: Json.Error e -> ErrorTree e
-toErrorTree jsonError =
-  add jsonError empty
-
-
-empty :: ErrorTree e
-empty =
-  ErrorTree [] Map.empty
-
-
-add :: Json.Error e -> ErrorTree e -> ErrorTree e
-add jsonError tree@(ErrorTree theories subErrors) =
-  case jsonError of
-    Json.Field field subErr ->
-      ErrorTree theories (addName (fieldToName field) subErr subErrors)
-
-    Json.Index index subErr ->
-      ErrorTree theories (addName (indexToName index) subErr subErrors)
-
-    Json.OneOf errors ->
-      foldr add tree errors
-
-    Json.Expecting json tipe ->
-      ErrorTree ((json, Expecting tipe) : theories) subErrors
-
-    Json.Failure json err ->
-      ErrorTree ((json, Failure err) : theories) subErrors
-
-
-addName :: String -> Json.Error e -> Map.Map String (ErrorTree e) -> Map.Map String (ErrorTree e)
-addName name err subErrors =
-  let
-    subAdd maybeCrush =
-      Just (add err (maybe empty id maybeCrush))
-  in
-    Map.alter subAdd name subErrors
-
-
-fieldToName :: [Char] -> String
-fieldToName field =
-  case field of
-    [] ->
-      "['']"
-
-    string@(char : rest) ->
-      if Char.isAlpha char && all Char.isAlphaNum rest then
-        '.' : string
-      else
-        "['" ++ string ++ "']"
-
-
-indexToName :: Int -> String
-indexToName index =
-  "[" ++ show index ++ "]"
--}
+    TArrayPair len ->
+      toSnippet "EXPECTING PAIR"
+        ["an",D.green "ARRAY","with",D.green "TWO","entries."
+        ,"This","array","has",D.fromInt len, if len == 1 then "element." else "elements."
+        ]
