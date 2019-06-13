@@ -410,9 +410,9 @@ reportLicenseCheck =
 reportBuildCheck :: IO (Either x a) -> Task.Task x a
 reportBuildCheck =
   reportCheck
-    "Verifying package documentation..."
-    "Verified package documentation"
-    "Problem with package documentation"
+    "Verifying documentation..."
+    "Verified documentation"
+    "Problem with documentation"
 
 
 reportSemverCheck :: V.Version -> IO (Either x GoodVersion) -> Task.Task x ()
