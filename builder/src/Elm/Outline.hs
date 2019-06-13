@@ -178,9 +178,9 @@ read root =
 
         Right outline ->
           case outline of
-            Pkg (PkgOutline _ _ _ _ _ deps _ _) ->
+            Pkg (PkgOutline pkg _ _ _ _ deps _ _) ->
               return $
-                if Map.notMember Pkg.core deps
+                if Map.notMember Pkg.core deps && pkg /= Pkg.core
                 then Left Exit.OutlineNoPkgCore
                 else Right outline
 
