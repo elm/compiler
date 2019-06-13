@@ -72,7 +72,7 @@ getEnv =
   do  maybeRoot <- Task.io $ Stuff.findRoot
       cache     <- Task.io $ Stuff.getPackageCache
       manager   <- Task.io $ Http.getManager
-      registry  <- Task.eio Exit.DiffBadRegistry $ Registry.latest manager cache
+      registry  <- Task.eio Exit.DiffMustHaveLatestRegistry $ Registry.latest manager cache
       return (Env maybeRoot cache manager registry)
 
 
@@ -104,13 +104,15 @@ diff env@(Env _ _ _ registry) args =
           writeDiff oldDocs newDocs
 
     CodeVsLatest ->
-      do  (newDocs, name, vsns) <- generateDocs env
+      do  (name, vsns) <- readOutline env
           oldDocs <- getLatestDocs env name vsns
+          newDocs <- generateDocs env
           writeDiff oldDocs newDocs
 
     CodeVsExactly version ->
-      do  (newDocs, name, vsns) <- generateDocs env
+      do  (name, vsns) <- readOutline env
           oldDocs <- getDocs env name vsns version
+          newDocs <- generateDocs env
           writeDiff oldDocs newDocs
 
 
@@ -161,8 +163,8 @@ readOutline (Env maybeRoot _ _ registry) =
 -- GENERATE DOCS
 
 
-generateDocs :: Env -> Task (Docs.Documentation, Pkg.Name, Registry.KnownVersions)
-generateDocs (Env maybeRoot _ _ registry) =
+generateDocs :: Env -> Task Docs.Documentation
+generateDocs (Env maybeRoot _ _ _) =
   case maybeRoot of
     Nothing ->
       Task.throw $ Exit.DiffNoOutline
@@ -177,20 +179,13 @@ generateDocs (Env maybeRoot _ _ registry) =
               Task.throw $ Exit.DiffApplication
 
             Details.ValidPkg pkg exposed ->
-              case Registry.getVersions pkg registry of
-                Just vsns ->
-                  case exposed of
-                    [] ->
-                      Task.throw Exit.DiffNoExposed
+              case exposed of
+                [] ->
+                  Task.throw $ Exit.DiffNoExposed pkg
 
-                    e:es ->
-                      do  docs <-
-                            Task.eio Exit.DiffBadBuild $
-                              Build.fromExposed Reporting.silent root details Build.KeepDocs (NE.List e es)
-                          return ( docs, pkg, vsns )
-
-                Nothing ->
-                  Task.throw Exit.DiffUnpublished
+                e:es ->
+                  Task.eio Exit.DiffBadBuild $
+                    Build.fromExposed Reporting.silent root details Build.KeepDocs (NE.List e es)
 
 
 
