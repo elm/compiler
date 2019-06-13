@@ -193,11 +193,14 @@ getVersions' name (Registry _ versions) =
 
 post :: Http.Manager -> String -> D.Decoder x a -> (a -> IO b) -> IO (Either Exit.RegistryProblem b)
 post manager path decoder callback =
-  Http.post manager (Website.route path []) [] Exit.RP_Http $
+  let
+    url = Website.route path []
+  in
+  Http.post manager url [] Exit.RP_Http $
     \body ->
       case D.fromByteString decoder body of
         Right a -> Right <$> callback a
-        Left _ -> return $ Left Exit.RP_Data
+        Left _ -> return $ Left $ Exit.RP_Data url body
 
 
 
