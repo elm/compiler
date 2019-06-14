@@ -316,12 +316,13 @@ data Publish
   | PublishShortReadme
   | PublishNoLicense
   | PublishBuildProblem BuildProblem
-  | PublishCannotGetTag Http.Error
+  | PublishMissingTag V.Version
+  | PublishCannotGetTag V.Version Http.Error
+  | PublishCannotGetTagData V.Version String BS.ByteString
   | PublishCannotGetZip Http.Error
   | PublishCannotDecodeZip
   | PublishCannotGetDocs V.Version V.Version DocsProblem
   | PublishCannotRegister Http.Error
-  | PublishMissingTag V.Version
   | PublishNoGit
   | PublishLocalChanges V.Version
   --
@@ -484,23 +485,6 @@ publishToReport publish =
     PublishBuildProblem buildProblem ->
       error "TODO PublishBuildProblem" buildProblem
 
-    PublishCannotGetTag httpError ->
-      error "TODO PublishCannotGetTag" httpError
-
-    PublishCannotGetZip httpError ->
-      error "TODO PublishCannotGetZip" httpError
-
-    PublishCannotDecodeZip ->
-      error "TODO PublishCannotDecodeZip"
-
-    PublishCannotGetDocs old new docsProblem ->
-      toDocsProblemReport docsProblem $
-        "I need the docs for " ++ V.toChars old ++ " to verify that "
-        ++ V.toChars new ++ " really does come next"
-
-    PublishCannotRegister httpError ->
-      error "TODO PublishCannotRegister" httpError
-
     PublishMissingTag version ->
       let vsn = V.toChars version in
       Help.docReport "NO TAG" Nothing
@@ -519,6 +503,59 @@ publishToReport publish =
             ]
         , "The -m flag is for a helpful message. Try to make it more informative!"
         ]
+
+    PublishCannotGetTag version httpError ->
+      case httpError of
+        Http.BadHttp _ (HTTP.StatusCodeException response _)
+          | HTTP.statusCode (HTTP.responseStatus response) == 404 ->
+              let vsn = V.toChars version in
+              Help.report "NO TAG ON GITHUB" Nothing
+                ("You have version " ++ vsn ++ " tagged locally, but not on GitHub.")
+                [ D.reflow
+                    "Run the following command to make this tag available on GitHub:"
+                , D.indent 4 $ D.dullyellow $ D.fromChars $
+                    "git push origin " ++ vsn
+                , D.reflow
+                    "This will make it possible to find your code online based on the version number."
+                ]
+
+        _ ->
+          toHttpErrorReport "PROBLEM VERIFYING TAG" httpError
+            "I need to check that the version tag is registered on GitHub"
+
+    PublishCannotGetTagData version url body ->
+      Help.report "PROBLEM VERIFYING TAG" Nothing
+        ("I need to check that version " ++ V.toChars version ++ " is tagged on GitHub, so I fetched:")
+        [ D.indent 4 $ D.dullyellow $ D.fromChars url
+        , D.reflow $
+            "I got the data back, but it was not what I was expecting. The response\
+            \ body contains " ++ show (BS.length body) ++ " bytes. Here is the "
+            ++ if BS.length body <= 76 then "whole thing:" else "beginning:"
+        , D.indent 4 $ D.dullyellow $ D.fromChars $
+            if BS.length body <= 76
+            then BS_UTF8.toString body
+            else take 73 (BS_UTF8.toString body) ++ "..."
+        , D.reflow $
+            "Does this error keep showing up? Maybe there is something weird with your\
+            \ internet connection. We have gotten reports that schools, businesses,\
+            \ airports, etc. sometimes intercept requests and add things to the body\
+            \ or change its contents entirely. Could that be the problem?"
+        ]
+
+    PublishCannotGetZip httpError ->
+      toHttpErrorReport "PROBLEM DOWNLOADING CODE" httpError $
+        "I need to check that folks can download and build the source code when they install this package"
+
+    PublishCannotDecodeZip ->
+      error "TODO PublishCannotDecodeZip"
+
+    PublishCannotGetDocs old new docsProblem ->
+      toDocsProblemReport docsProblem $
+        "I need the docs for " ++ V.toChars old ++ " to verify that "
+        ++ V.toChars new ++ " really does come next"
+
+    PublishCannotRegister httpError ->
+      error "TODO PublishCannotRegister" httpError
 
     PublishNoGit ->
       Help.report "NO GIT" Nothing
@@ -599,10 +636,10 @@ toDocsProblemReport :: DocsProblem -> String -> Help.Report
 toDocsProblemReport problem context =
   case problem of
     DP_Http httpError ->
-      toHttpErrorReport "PROBLEM FETCHING DOCS" httpError context
+      toHttpErrorReport "PROBLEM LOADING DOCS" httpError context
 
     DP_Data url body ->
-      Help.report "PROBLEM FETCHING DOCS" Nothing (context ++ ", so I fetched:")
+      Help.report "PROBLEM LOADING DOCS" Nothing (context ++ ", so I fetched:")
         [ D.indent 4 $ D.dullyellow $ D.fromChars url
         , D.reflow $
             "I got the data back, but it was not what I was expecting. The response\

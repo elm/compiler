@@ -111,8 +111,9 @@ publish env@(Env root _ manager registry outline) =
           verifyLicense root
           docs <- verifyBuild root
           verifyVersion env pkg vsn docs maybeKnownVersions
-          commitHash <- verifyTag manager pkg vsn
-          verifyNoChanges commitHash vsn
+          git <- getGit
+          commitHash <- verifyTag git manager pkg vsn
+          verifyNoChanges git commitHash vsn
           zipHash <- verifyZip env pkg vsn
 
           Task.io $ putStrLn ""
@@ -194,20 +195,43 @@ verifyBuild root =
           Build.fromExposed Reporting.silent root details Build.KeepDocs exposed
 
 
+-- GET GIT
+
+
+newtype Git =
+  Git { _run :: [String] -> IO Exit.ExitCode }
+
+
+getGit :: Task.Task Exit.Publish Git
+getGit =
+  do  maybeGit <- Task.io $ Dir.findExecutable "git"
+      case maybeGit of
+        Just git -> return (Git (Process.rawSystem git))
+        Nothing  -> Task.throw Exit.PublishNoGit
+
+
 
 -- VERIFY GITHUB TAG
 
 
-verifyTag :: Http.Manager -> Pkg.Name -> V.Version -> Task.Task Exit.Publish String
-verifyTag manager pkg vsn =
+verifyTag :: Git -> Http.Manager -> Pkg.Name -> V.Version -> Task.Task Exit.Publish String
+verifyTag git manager pkg vsn =
   reportTagCheck vsn $
-  Http.post manager (toTagUrl pkg vsn) [Http.accept "application/json"] Exit.PublishCannotGetTag $ \body ->
-    case D.fromByteString commitHashDecoder body of
-      Right hash ->
-        return $ Right hash
+  do  -- https://stackoverflow.com/questions/1064499/how-to-list-all-git-tags
+      exitCode <- _run git [ "show", "--name-only", V.toChars vsn, "--" ]
+      case exitCode of
+        Exit.ExitFailure _ ->
+          return $ Left (Exit.PublishMissingTag vsn)
 
-      Left _ ->
-        return $ Left (Exit.PublishMissingTag vsn)
+        Exit.ExitSuccess ->
+          let url = toTagUrl pkg vsn in
+          Http.post manager url [Http.accept "application/json"] (Exit.PublishCannotGetTag vsn) $ \body ->
+            case D.fromByteString commitHashDecoder body of
+              Right hash ->
+                return $ Right hash
+
+              Left _ ->
+                return $ Left (Exit.PublishCannotGetTagData vsn url body)
 
 
 toTagUrl :: Pkg.Name -> V.Version -> String
@@ -225,20 +249,14 @@ commitHashDecoder =
 -- VERIFY NO LOCAL CHANGES SINCE TAG
 
 
-verifyNoChanges :: String -> V.Version -> Task.Task Exit.Publish ()
-verifyNoChanges commitHash vsn =
+verifyNoChanges :: Git -> String -> V.Version -> Task.Task Exit.Publish ()
+verifyNoChanges git commitHash vsn =
   reportLocalChangesCheck $
-  do  maybeGit <- Dir.findExecutable "git"
-      case maybeGit of
-        Nothing ->
-          return $ Left Exit.PublishNoGit
-
-        Just git ->
-          do  -- https://stackoverflow.com/questions/3878624/how-do-i-programmatically-determine-if-there-are-uncommited-changes
-              exitCode <- Process.rawSystem git [ "diff-index", "--quiet", commitHash, "--" ]
-              case exitCode of
-                Exit.ExitSuccess   -> return $ Right ()
-                Exit.ExitFailure _ -> return $ Left (Exit.PublishLocalChanges vsn)
+  do  -- https://stackoverflow.com/questions/3878624/how-do-i-programmatically-determine-if-there-are-uncommited-changes
+      exitCode <- _run git [ "diff-index", "--quiet", commitHash, "--" ]
+      case exitCode of
+        Exit.ExitSuccess   -> return $ Right ()
+        Exit.ExitFailure _ -> return $ Left (Exit.PublishLocalChanges vsn)
 
 
 
