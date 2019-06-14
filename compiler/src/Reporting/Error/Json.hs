@@ -4,6 +4,7 @@ module Reporting.Error.Json
   ( toReport
   , FailureToReport(..)
   , Context(..)
+  , Reason(..)
   )
   where
 
@@ -23,33 +24,45 @@ import qualified Reporting.Render.Code as Code
 -- TO REPORT
 
 
-toReport :: FilePath -> FailureToReport x -> Error x -> Help.Report
-toReport path ftr err =
+toReport :: FilePath -> FailureToReport x -> Error x -> Reason -> Help.Report
+toReport path ftr err reason =
   case err of
     DecodeProblem bytes problem ->
-      problemToReport path ftr (Code.toSource bytes) CRoot problem
+      problemToReport path ftr (Code.toSource bytes) CRoot problem reason
 
     ParseProblem bytes parseError ->
-      parseErrorToReport path (Code.toSource bytes) parseError
+      parseErrorToReport path (Code.toSource bytes) parseError reason
+
+
+newtype Reason =
+  ExplicitReason String
+
+
+because :: Reason -> String -> String
+because (ExplicitReason iNeedThings) problem =
+  iNeedThings ++ " " ++ problem
 
 
 
 -- PARSE ERROR TO REPORT
 
 
-parseErrorToReport :: FilePath -> Code.Source -> ParseError -> Help.Report
-parseErrorToReport path source parseError =
+parseErrorToReport :: FilePath -> Code.Source -> ParseError -> Reason -> Help.Report
+parseErrorToReport path source parseError reason =
   let
-    toSnippet title row col pair =
+    toSnippet title row col (problem, details) =
       let pos = A.Position row col in
       Help.jsonReport title (Just path) $
-        Code.toSnippet source (A.Region pos pos) Nothing pair
+        Code.toSnippet source (A.Region pos pos) Nothing
+          ( D.reflow (because reason problem)
+          , details
+          )
   in
   case parseError of
     Start row col ->
       toSnippet "EXPECTING A VALUE" row col
         (
-          D.reflow $ "I was expecting to see a JSON value next:"
+          "I was expecting to see a JSON value next:"
         ,
           D.stack
             [ D.fillSep
@@ -66,7 +79,7 @@ parseErrorToReport path source parseError =
     ObjectField row col ->
       toSnippet "UNFINISHED OBJECT" row col
         (
-          D.reflow $ "I was partway through parsing a JSON object when I got stuck here:"
+          "I was partway through parsing a JSON object when I got stuck here:"
         ,
           D.stack
             [ D.reflow $ "I was expecting to see a field name next."
@@ -77,7 +90,7 @@ parseErrorToReport path source parseError =
     ObjectColon row col ->
       toSnippet "EXPECTING COLON" row col
         (
-          D.reflow $ "I was partway through parsing a JSON object when I got stuck here:"
+          "I was partway through parsing a JSON object when I got stuck here:"
         ,
           D.stack
             [ D.reflow $ "I was expecting to see a colon next."
@@ -88,7 +101,7 @@ parseErrorToReport path source parseError =
     ObjectEnd row col ->
       toSnippet "UNFINISHED OBJECT" row col
         (
-          D.reflow $ "I was partway through parsing a JSON object when I got stuck here:"
+          "I was partway through parsing a JSON object when I got stuck here:"
         ,
           D.stack
             [ D.reflow $
@@ -103,7 +116,7 @@ parseErrorToReport path source parseError =
     ArrayEnd row col ->
       toSnippet "UNFINISHED ARRAY" row col
         (
-          D.reflow $ "I was partway through parsing a JSON array when I got stuck here:"
+          "I was partway through parsing a JSON array when I got stuck here:"
         ,
           D.stack
             [ D.reflow $ "I was expecting to see a comma or a closing square bracket next."
@@ -117,8 +130,7 @@ parseErrorToReport path source parseError =
         BadStringEnd ->
           toSnippet "ENDLESS STRING" row col
             (
-              D.reflow $
-                "I got to the end of the line without seeing the closing double quote:"
+              "I got to the end of the line without seeing the closing double quote:"
             ,
               D.fillSep $
                 ["Strings","look","like",D.green "\"this\"","with","double"
@@ -130,8 +142,7 @@ parseErrorToReport path source parseError =
         BadStringControlChar ->
           toSnippet "UNEXPECTED CONTROL CHARACTER" row col
             (
-              D.reflow $
-                "I ran into a control character unexpectedly:"
+              "I ran into a control character unexpectedly:"
             ,
               D.reflow $
                 "These are characters that represent tabs, backspaces, newlines, and\
@@ -143,8 +154,7 @@ parseErrorToReport path source parseError =
         BadStringEscapeChar ->
           toSnippet "UNKNOWN ESCAPE" row col
             (
-              D.reflow $
-                "Backslashes always start escaped characters, but I do not recognize this one:"
+              "Backslashes always start escaped characters, but I do not recognize this one:"
             ,
               D.stack
                 [ D.reflow $
@@ -159,8 +169,7 @@ parseErrorToReport path source parseError =
         BadStringEscapeHex ->
           toSnippet "BAD HEX ESCAPE" row col
             (
-              D.reflow $
-                "This is not a valid hex escape:"
+              "This is not a valid hex escape:"
             ,
               D.fillSep $
                 ["Valid","hex","escapes","in","JSON","are","between"
@@ -172,7 +181,7 @@ parseErrorToReport path source parseError =
     NoLeadingZeros row col ->
       toSnippet "BAD NUMBER" row col
         (
-          D.reflow $ "Numbers cannot start with zeros like this:"
+          "Numbers cannot start with zeros like this:"
         ,
           D.reflow $ "Try deleting the leading zeros?"
         )
@@ -180,7 +189,7 @@ parseErrorToReport path source parseError =
     NoFloats row col ->
       toSnippet "UNEXPECTED NUMBER" row col
         (
-          D.reflow $ "I got stuck while trying to parse this number:"
+          "I got stuck while trying to parse this number:"
         ,
           D.reflow $
             "I do not accept floating point numbers like 3.1415 right now. That kind\
@@ -190,7 +199,7 @@ parseErrorToReport path source parseError =
     BadEnd row col ->
       toSnippet "JSON PROBLEM" row col
         (
-          D.reflow $ "I was partway through parsing some JSON when I got stuck here:"
+          "I was partway through parsing some JSON when I got stuck here:"
         ,
           D.reflow $
             "I am not really sure what is wrong. This sometimes means there is extra\
@@ -224,14 +233,14 @@ data Context
   | CIndex Int Context
 
 
-problemToReport :: FilePath -> FailureToReport x -> Code.Source -> Context -> Problem x -> Help.Report
-problemToReport path ftr source context problem =
+problemToReport :: FilePath -> FailureToReport x -> Code.Source -> Context -> Problem x -> Reason -> Help.Report
+problemToReport path ftr source context problem reason =
   case problem of
     Field field prob ->
-      problemToReport path ftr source (CField field context) prob
+      problemToReport path ftr source (CField field context) prob reason
 
     Index index prob ->
-      problemToReport path ftr source (CIndex index context) prob
+      problemToReport path ftr source (CIndex index context) prob reason
 
     OneOf p ps ->
       -- NOTE: only displays the deepest problem. This works well for the kind
@@ -239,13 +248,13 @@ problemToReport path ftr source context problem =
       let
         (NE.List prob _) = NE.sortBy (negate . getMaxDepth) (NE.List p ps)
       in
-      problemToReport path ftr source context prob
+      problemToReport path ftr source context prob reason
 
     Failure region x ->
       _failureToReport ftr path source context region x
 
     Expecting region expectation ->
-      expectationToReport path source context region expectation
+      expectationToReport path source context region expectation reason
 
 
 getMaxDepth :: Problem x -> Int
@@ -262,8 +271,8 @@ newtype FailureToReport x =
   FailureToReport { _failureToReport :: FilePath -> Code.Source -> Context -> A.Region -> x -> Help.Report }
 
 
-expectationToReport :: FilePath -> Code.Source -> Context -> A.Region -> DecodeExpectation -> Help.Report
-expectationToReport path source context (A.Region start end) expectation =
+expectationToReport :: FilePath -> Code.Source -> Context -> A.Region -> DecodeExpectation -> Reason -> Help.Report
+expectationToReport path source context (A.Region start end) expectation reason =
   let
     (A.Position sr _) = start
     (A.Position er _) = end
@@ -289,7 +298,7 @@ expectationToReport path source context (A.Region start end) expectation =
     toSnippet title aThing =
       Help.jsonReport title (Just path) $
         Code.toSnippet source region Nothing
-          ( D.reflow introduction
+          ( D.reflow (because reason introduction)
           , D.fillSep $ ["I","was","expecting","to","run","into"] ++ aThing
           )
   in
