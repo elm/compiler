@@ -22,8 +22,9 @@ module Reporting.Exit
   , OutlineProblem(..)
   --
   , Details(..)
-  , RegistryProblem(..)
   , PackageProblem(..)
+  --
+  , RegistryProblem(..)
   --
   , Make(..)
   , BuildProblem(..)
@@ -39,8 +40,13 @@ module Reporting.Exit
   where
 
 
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.UTF8 as BS_UTF8
 import qualified Data.List as List
 import qualified Data.NonEmptyList as NE
+import qualified Network.HTTP.Client as HTTP
+import qualified Network.HTTP.Types.Header as HTTP
+import qualified Network.HTTP.Types.Status as HTTP
 
 import qualified Elm.Constraint as C
 import qualified Elm.Magnitude as M
@@ -107,8 +113,9 @@ initToReport exit =
             ]
         ]
 
-    InitRegistryProblem _ ->
-      error "TODO InitRegistryProblem"
+    InitRegistryProblem problem ->
+      toRegistryProblemReport "PROBLEM LOADING PACKAGE LIST" problem $
+        "I need the list of published packages before I can start initializing projects"
 
 
 
@@ -119,12 +126,12 @@ data Diff
   = DiffNoOutline
   | DiffBadOutline Outline
   | DiffApplication
-  | DiffNoExposed
+  | DiffNoExposed Pkg.Name
   | DiffUnpublished
   | DiffUnknownPackage Pkg.Name [Pkg.Name]
   | DiffUnknownVersion Pkg.Name V.Version [V.Version]
   | DiffDocsProblem DocsProblem
-  | DiffBadRegistry RegistryProblem
+  | DiffMustHaveLatestRegistry RegistryProblem
   | DiffBadDetails Details
   | DiffBadBuild BuildProblem
 
@@ -137,23 +144,26 @@ diffToReport diff =
         "I cannot find an elm.json so I am not sure what you want me to diff.\
         \ Normally you run `elm diff` from within a project!"
         [ D.reflow $ "If you are just curious to see a diff, try running this command:"
-        , D.indent 4 $ D.green $ "elm diff elm/html 5.1.1 6.0.0"
+        , D.indent 4 $ D.green $ "elm diff elm/http 1.0.0 2.0.0"
         ]
 
     DiffBadOutline outline ->
       toOutlineReport outline
 
     DiffApplication ->
-      Help.report "CANNOT DIFF APPLICATIONS" Nothing
-        "It looks like you are running `elm diff` on an application, but it\
-        \ only makes sense for packages that have been published. That way\
-        \ there is a fixed API to diff against."
+      Help.report "CANNOT DIFF APPLICATIONS" (Just "elm.json")
+        "Your elm.json says this project is an application, but `elm diff` only works\
+        \ with packages. That way there are previously published versions of the API to\
+        \ diff against!"
         [ D.reflow $ "If you are just curious to see a diff, try running this command:"
-        , D.indent 4 $ D.green $ "elm diff elm/html 5.1.1 6.0.0"
+        , D.indent 4 $ D.dullyellow $ "elm diff elm/http 1.0.0 2.0.0"
         ]
 
-    DiffNoExposed ->
-      error "TODO DiffNoExposed"
+    DiffNoExposed pkg ->
+      Help.report "NO EXPOSED MODULES" (Just "elm.json")
+        "Your elm.json has no \"exposed-modules\" which means there is no public API at\
+        \ all right now! Try adding some modules back to this field."
+        []
 
     DiffUnpublished ->
       Help.report "UNPUBLISHED" Nothing
@@ -191,8 +201,9 @@ diffToReport diff =
     DiffDocsProblem problem ->
       error "TODO DiffDocsProblem" problem
 
-    DiffBadRegistry problem ->
-      error "TODO DiffBadRegistry" problem
+    DiffMustHaveLatestRegistry problem ->
+      toRegistryProblemReport "PROBLEM UPDATING PACKAGE LIST" problem $
+        "I need the latest list of published packages before I do this diff"
 
     DiffBadDetails details ->
       error "TODO DiffBadDetails" details
@@ -218,7 +229,13 @@ bumpToReport :: Bump -> Help.Report
 bumpToReport bump =
   case bump of
     BumpNoOutline ->
-      error "TODO BumpNoOutline"
+      Help.report "BUMP WHAT?" Nothing
+        "I cannot find an elm.json so I am not sure what you want me to bump."
+        [ D.reflow $
+            "Elm packages always have an elm.json that says current the version number. If\
+            \ you run this command from a directory with an elm.json file, I will try to bump\
+            \ the version in there based on the API changes."
+        ]
 
     BumpBadOutline outline ->
       toOutlineReport outline
@@ -246,7 +263,8 @@ bumpToReport bump =
         ]
 
     BumpMustHaveLatestRegistry problem ->
-      error "TODO BumpMustHaveLatestRegistry" problem
+      toRegistryProblemReport "PROBLEM UPDATING PACKAGE LIST" problem $
+        "I need the latest list of published packages before I can bump any versions"
 
     BumpCannotFindDocs name version problem ->
       error "TODO BumpCannotFindDocs" name version problem
@@ -315,7 +333,12 @@ publishToReport :: Publish -> Help.Report
 publishToReport publish =
   case publish of
     PublishNoOutline ->
-      error "TODO PublishNoOutline"
+      Help.report "PUBLISH WHAT?" Nothing
+        "I cannot find an elm.json so I am not sure what you want me to publish."
+        [ D.reflow $
+            "Elm packages always have an elm.json that states the version number,\
+            \ dependencies, exposed modules, etc."
+        ]
 
     PublishBadOutline outline ->
       toOutlineReport outline
@@ -324,7 +347,8 @@ publishToReport publish =
       error "TODO PublishBadDetails" problem
 
     PublishMustHaveLatestRegistry problem ->
-      error "TODO PublishMustHaveLatestRegistry" problem
+      toRegistryProblemReport "PROBLEM UPDATING PACKAGE LIST" problem $
+        "I need the latest list of published packages to make sure this is safe to publish"
 
     PublishApplication ->
       Help.report "UNPUBLISHABLE" Nothing "I cannot publish applications, only packages!" []
@@ -713,17 +737,125 @@ data Details
   | DetailsCannotBuildPackage Pkg.Name V.Version PackageProblem
 
 
-data RegistryProblem
-  = RP_Http Http.Error
-  | RP_Data
-
-
 data PackageProblem
   = PP_BadEndpointRequest Http.Error
   | PP_BadEndpointContent
   | PP_BadArchiveRequest Http.Error
   | PP_BadArchiveContent
   | PP_BadArchiveHash String String
+
+
+
+-- REGISTRY PROBLEM
+
+
+data RegistryProblem
+  = RP_Http Http.Error
+  | RP_Data String BS.ByteString
+
+
+toRegistryProblemReport :: String -> RegistryProblem -> String -> Help.Report
+toRegistryProblemReport title problem context =
+  case problem of
+    RP_Http err ->
+      toHttpErrorReport title err context
+
+    RP_Data url body ->
+      Help.report title Nothing (context ++ ", so I fetched:")
+        [ D.indent 4 $ D.dullyellow $ D.fromChars url
+        , D.reflow $
+            "I got the data back, but it was not what I was expecting. The response\
+            \ body contains " ++ show (BS.length body) ++ " bytes. Here is the "
+            ++ if BS.length body <= 76 then "whole thing:" else "beginning:"
+        , D.indent 4 $ D.dullyellow $ D.fromChars $
+            if BS.length body <= 76
+            then BS_UTF8.toString body
+            else take 73 (BS_UTF8.toString body) ++ "..."
+        , D.reflow $
+            "Does this error keep showing up? Maybe there is something weird with your\
+            \ internet connection. We have gotten reports that schools, businesses,\
+            \ airports, etc. sometimes intercept requests and add things to the body\
+            \ or change its contents entirely. Could that be the problem?"
+        ]
+
+
+toHttpErrorReport :: String -> Http.Error -> String -> Help.Report
+toHttpErrorReport title err context =
+  let
+    toHttpReport intro url details =
+      Help.report title Nothing intro $
+        D.indent 4 (D.dullyellow (D.fromChars url)) : details
+  in
+  case err of
+    Http.BadUrl url reason ->
+      toHttpReport (context ++ ", so I wanted to fetch:") url
+        [ D.reflow $ "But my HTTP library is saying this is not a valid URL. It is saying:"
+        , D.indent 4 $ D.fromChars reason
+        , D.reflow $
+            "This may indicate that there is some problem in the compiler, so please open an\
+            \ issue at https://github.com/elm/compiler/issues listing your operating system\
+            \ version, the command you ran, the terminal output, and any additional information\
+            \ that might help others reproduce the error."
+        ]
+
+    Http.BadHttp url httpExceptionContent ->
+      case httpExceptionContent of
+        HTTP.StatusCodeException response _ ->
+          let
+            (HTTP.Status code message) = HTTP.responseStatus response
+          in
+          toHttpReport (context ++ ", so I tried to fetch:") url
+            [ D.fillSep $
+                ["But","it","came","back","as",D.red (D.fromInt code)]
+                ++ map D.fromChars (words (BS_UTF8.toString message))
+            , D.reflow $
+                "This may mean some online endpoint changed in an unexpected way, so if does not\
+                \ seem like something on your side is causing this (e.g. firewall) please report\
+                \ this to https://github.com/elm/compiler/issues with your operating system, Elm\
+                \ version, the command you ran, the terminal output, and any additional information\
+                \ that can help others reproduce the error!"
+            ]
+
+        HTTP.TooManyRedirects responses ->
+          toHttpReport (context ++ ", so I tried to fetch:") url
+            [ D.reflow $ "But I gave up after following these " ++ show (length responses) ++ " redirects:"
+            , D.indent 4 $ D.vcat $ map toRedirectDoc responses
+            , D.reflow $
+                "Is it possible that your internet connection intercepts certain requests? That\
+                \ sometimes causes problems for folks in schools, businesses, airports, hotels,\
+                \ and certain countries. Try asking for help locally or in a community forum!"
+            ]
+
+        otherException ->
+          toHttpReport (context ++ ", so I tried to fetch:") url
+            [ D.reflow $ "But my HTTP library is giving me the following error message:"
+            , D.indent 4 $ D.fromChars (show otherException)
+            , D.reflow $
+                "Are you somewhere with a slow internet connection? Or no internet?\
+                \ Does the link I am trying to fetch work in your browser? Maybe the\
+                \ site is down? Does your internet connection have a firewall that\
+                \ blocks certain domains? It is usually something like that!"
+            ]
+
+    Http.BadMystery url someException ->
+      toHttpReport (context ++ ", so I tried to fetch:") url
+        [ D.reflow $ "But I ran into something weird! I was able to extract this error message:"
+        , D.indent 4 $ D.fromChars (show someException)
+        , D.reflow $
+            "Is it possible that your internet connection intercepts certain requests? That\
+            \ sometimes causes problems for folks in schools, businesses, airports, hotels,\
+            \ and certain countries. Try asking for help locally or in a community forum!"
+        ]
+
+
+toRedirectDoc :: HTTP.Response body -> D.Doc
+toRedirectDoc response =
+  let
+    (HTTP.Status code message) = HTTP.responseStatus response
+  in
+  case List.lookup HTTP.hLocation (HTTP.responseHeaders response) of
+    Just loc -> D.red (D.fromInt code) <> " - " <> D.fromChars (BS_UTF8.toString loc)
+    Nothing  -> D.red (D.fromInt code) <> " - " <> D.fromChars (BS_UTF8.toString message)
 
 
 
@@ -818,7 +950,8 @@ detailsToReport details =
       toOutlineReport outline
 
     DetailsCannotGetRegistry problem ->
-      error "TODO DetailsCannotGetRegistry" problem
+      toRegistryProblemReport "PROBLEM LOADING PACKAGE LIST" problem $
+        "I need the list of published packages to figure out if your project has compatible dependencies"
 
     DetailsCannotBuildPackage name version problem ->
       error "TODO DetailsCannotBuildPackage" name version problem
@@ -949,13 +1082,14 @@ toOutlineReport :: Outline -> Help.Report
 toOutlineReport problem =
   case problem of
     OutlineHasBadStructure decodeError ->
-      Json.toReport "elm.json" (Json.FailureToReport toOutlineProblemReport) decodeError
+      Json.toReport "elm.json" (Json.FailureToReport toOutlineProblemReport) decodeError $
+        Json.ExplicitReason "I ran into a problem with your elm.json file."
 
     OutlineHasBadSrcDirs dir dirs ->
       case dirs of
         [] ->
           Help.report "MISSING SOURCE DIRECTORY" (Just "elm.json")
-            "The \"source-directories\" in your elm.json lists the following directory:"
+            "I need a valid elm.json file, but the \"source-directories\" field lists the following directory:"
             [ D.indent 4 $ D.dullyellow $ D.fromChars dir
             , D.reflow $
                 "I cannot find it though. Is it missing? Is there a typo?"
@@ -963,7 +1097,7 @@ toOutlineReport problem =
 
         _:_ ->
           Help.report "MISSING SOURCE DIRECTORIES" (Just "elm.json")
-            "The \"source-directories\" in your elm.json lists the following directories:"
+            "I need a valid elm.json file, but the \"source-directories\" field lists the following directories:"
             [ D.indent 4 $ D.dullyellow $ D.fromChars dir
             , D.reflow $
                 "I cannot find them though. Are they missing? Are there typos?"
@@ -971,21 +1105,21 @@ toOutlineReport problem =
 
     OutlineNoPkgCore ->
       Help.report "MISSING DEPENDENCY" (Just "elm.json")
-        "A package must have \"elm/core\" as a dependency. Try running:"
+        "I need a valid elm.json file, so I need to see an \"elm/core\" dependency in there. Try running:"
         [ D.indent 4 $ D.green $ "elm install elm/core"
         , D.reflow "I need it for the default imports that make `List` and `Maybe` available."
         ]
 
     OutlineNoAppCore ->
       Help.report "MISSING DEPENDENCY" (Just "elm.json")
-        "An application must have \"elm/core\" as a dependency. Try running:"
+        "I need a valid elm.json file, so I need to see an \"elm/core\" dependency in there. Try running:"
         [ D.indent 4 $ D.green $ "elm install elm/core"
         , D.reflow "It has some supporting code that is needed by every Elm application!"
         ]
 
     OutlineNoAppJson ->
       Help.report "MISSING DEPENDENCY" (Just "elm.json")
-        "An application must have \"elm/json\" as a dependency. Try running:"
+        "I need a valid elm.json file, so I need to see an \"elm/json\" dependency in there. Try running:"
         [ D.indent 4 $ D.green $ "elm install elm/json"
         , D.reflow "It helps me handle flags and ports."
         ]
@@ -1005,9 +1139,9 @@ toOutlineProblemReport path source _ region problem =
     OP_BadType ->
       toSnippet "UNEXPECTED TYPE" Nothing
         ( D.reflow $
-            "I do not know how to process this type of elm.json file:"
+            "I got stuck while reading your elm.json file. I cannot handle a \"type\" like this:"
         , D.fillSep
-            ["Try","changing","the","type","to"
+            ["Try","changing","the","\"type\"","to"
             ,D.green "\"application\"","or",D.green "\"package\"","instead."
             ]
         )
@@ -1015,7 +1149,7 @@ toOutlineProblemReport path source _ region problem =
     OP_BadPkgName row col ->
       toSnippet "INVALID PACKAGE NAME" (toHighlight row col)
         ( D.reflow $
-            "I ran into trouble with this package name:"
+            "I got stuck while reading your elm.json file. I ran into trouble with the package name:"
         , D.stack
             [ D.fillSep
                 ["Package","names","are","always","written","as"
@@ -1053,7 +1187,7 @@ toOutlineProblemReport path source _ region problem =
     OP_BadVersion row col ->
       toSnippet "PROBLEM WITH VERSION" (toHighlight row col)
         ( D.reflow $
-            "I was expecting a version number here:"
+            "I got stuck while reading your elm.json file. I was expecting a version number here:"
         , D.fillSep
             ["I","need","something","like",D.green "\"1.0.0\"","or",D.green "\"2.0.4\""
             ,"that","explicitly","states","all","three","numbers!"
@@ -1065,7 +1199,7 @@ toOutlineProblemReport path source _ region problem =
         C.BadFormat row col ->
           toSnippet "PROBLEM WITH CONSTRAINT" (toHighlight row col)
             ( D.reflow $
-                "I was expecting a version constraint here:"
+                "I got stuck while reading your elm.json file. I do not understand this version constraint:"
             , D.stack
                 [ D.fillSep
                     ["I","need","something","like",D.green "\"1.0.0 <= v < 2.0.0\""
@@ -1082,7 +1216,7 @@ toOutlineProblemReport path source _ region problem =
           if before == after then
             toSnippet "PROBLEM WITH CONSTRAINT" Nothing
               ( D.reflow $
-                  "I ran into an invalid version constraint:"
+                  "I got stuck while reading your elm.json file. I ran into an invalid version constraint:"
               , D.fillSep
                   ["Elm","checks","that","all","package","APIs","follow","semantic","versioning,"
                   ,"so","it","is","best","to","use","wide","constraints.","I","recommend"
@@ -1095,7 +1229,7 @@ toOutlineProblemReport path source _ region problem =
           else
             toSnippet "PROBLEM WITH CONSTRAINT" Nothing
               ( D.reflow $
-                  "I ran into an invalid version constraint:"
+                  "I got stuck while reading your elm.json file. I ran into an invalid version constraint:"
               , D.fillSep
                   ["Maybe","you","want","something","like"
                   ,D.green $ "\"" <> D.fromVersion before <> " <= v < " <> D.fromVersion (V.bumpMajor before) <> "\""
@@ -1108,7 +1242,7 @@ toOutlineProblemReport path source _ region problem =
     OP_BadModuleName row col ->
       toSnippet "PROBLEM WITH MODULE NAME" (toHighlight row col)
         ( D.reflow $
-            "I was expecting a module name here:"
+            "I got stuck while reading your elm.json file. I was expecting a module name here:"
         , D.fillSep
             ["I","need","something","like",D.green "\"Html.Events\""
             ,"or",D.green "\"Browser.Navigation\""
@@ -1120,7 +1254,7 @@ toOutlineProblemReport path source _ region problem =
     OP_BadModuleHeaderTooLong ->
       toSnippet "HEADER TOO LONG" Nothing
         ( D.reflow $
-            "This section header is too long:"
+            "I got stuck while reading your elm.json file. This section header is too long:"
         , D.fillSep
             ["I","need","it","to","be"
             ,D.green "under",D.green "20",D.green "characters"
@@ -1131,7 +1265,7 @@ toOutlineProblemReport path source _ region problem =
     OP_BadDependencyName row col ->
       toSnippet "PROBLEM WITH DEPENDENCY NAME" (toHighlight row col)
         ( D.reflow $
-            "There is something wrong with this dependency name:"
+            "I got stuck while reading your elm.json file. There is something wrong with this dependency name:"
         , D.stack
             [ D.fillSep
                 ["Package","names","always","include","the","name","of","the","author,"
@@ -1150,7 +1284,7 @@ toOutlineProblemReport path source _ region problem =
     OP_BadLicense _ suggestions ->
       toSnippet "UNKNOWN LICENSE" Nothing
         ( D.reflow $
-            "I do not know about this type of license:"
+            "I got stuck while reading your elm.json file. I do not know about this type of license:"
         ,
           D.stack
             [ D.fillSep
@@ -1168,7 +1302,7 @@ toOutlineProblemReport path source _ region problem =
     OP_BadSummaryTooLong ->
       toSnippet "SUMMARY TOO LONG" Nothing
         ( D.reflow $
-            "Your \"summary\" is too long:"
+            "I got stuck while reading your elm.json file. Your \"summary\" is too long:"
         , D.fillSep
             ["I","need","it","to","be"
             ,D.green "under",D.green "80",D.green "characters"
@@ -1179,7 +1313,7 @@ toOutlineProblemReport path source _ region problem =
     OP_NoSrcDirs ->
       toSnippet "NO SOURCE DIRECTORIES" Nothing
         ( D.reflow $
-            "You do not have any \"source-directories\" listed here:"
+            "I got stuck while reading your elm.json file. You do not have any \"source-directories\" listed here:"
         , D.fillSep
             ["I","need","something","like",D.green "[\"src\"]"
             ,"so","I","know","where","to","look","for","your","modules!"
