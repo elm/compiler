@@ -123,13 +123,13 @@ diff env@(Env _ _ _ registry) args =
 getDocs :: Env -> Pkg.Name -> Registry.KnownVersions -> V.Version -> Task Docs.Documentation
 getDocs (Env _ cache manager _) name (Registry.KnownVersions latest previous) version =
   if latest == version || elem version previous
-  then Task.eio Exit.DiffDocsProblem $ DD.getDocs cache manager name version
+  then Task.eio (Exit.DiffDocsProblem version) $ DD.getDocs cache manager name version
   else Task.throw $ Exit.DiffUnknownVersion name version (latest:previous)
 
 
 getLatestDocs :: Env -> Pkg.Name -> Registry.KnownVersions -> Task Docs.Documentation
 getLatestDocs (Env _ cache manager _) name (Registry.KnownVersions latest _) =
-  Task.eio Exit.DiffDocsProblem $ DD.getDocs cache manager name latest
+  Task.eio (Exit.DiffDocsProblem latest) $ DD.getDocs cache manager name latest
 
 
 

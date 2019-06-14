@@ -335,7 +335,7 @@ verifyBump (Env _ cache manager _ _) pkg vsn newDocs knownVersions@(Registry.Kno
       do  result <- Diff.getDocs cache manager pkg old
           case result of
             Left dp ->
-              return $ Left $ Exit.PublishCannotGetDocs dp
+              return $ Left $ Exit.PublishCannotGetDocs old new dp
 
             Right oldDocs ->
               let
@@ -384,7 +384,7 @@ reportPublishStart pkg vsn maybeKnownVersions =
       putStrLn $ Exit.newPackageOverview ++ "\nI will now verify that everything is in order...\n"
 
     Just _ ->
-      putStrLn $ "Verifying" ++ Pkg.toChars pkg ++ V.toChars vsn ++ "...\n"
+      putStrLn $ "Verifying " ++ Pkg.toChars pkg ++ " " ++ V.toChars vsn ++ " ...\n"
 
 
 
