@@ -380,4 +380,4 @@ getDocs cache manager name version =
                         return $ Right docs
 
                   Left _ ->
-                    return $ Left Exit.DP_Data
+                    return $ Left $ Exit.DP_Data url body

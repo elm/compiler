@@ -130,7 +130,7 @@ data Diff
   | DiffUnpublished
   | DiffUnknownPackage Pkg.Name [Pkg.Name]
   | DiffUnknownVersion Pkg.Name V.Version [V.Version]
-  | DiffDocsProblem DocsProblem
+  | DiffDocsProblem V.Version DocsProblem
   | DiffMustHaveLatestRegistry RegistryProblem
   | DiffBadDetails Details
   | DiffBadBuild BuildProblem
@@ -198,8 +198,9 @@ diffToReport diff =
         , "Want one of those instead?"
         ]
 
-    DiffDocsProblem problem ->
-      error "TODO DiffDocsProblem" problem
+    DiffDocsProblem version problem ->
+      toDocsProblemReport problem $
+        "I need the docs for " ++ V.toChars version ++ " to compute this diff"
 
     DiffMustHaveLatestRegistry problem ->
       toRegistryProblemReport "PROBLEM UPDATING PACKAGE LIST" problem $
@@ -266,8 +267,9 @@ bumpToReport bump =
       toRegistryProblemReport "PROBLEM UPDATING PACKAGE LIST" problem $
         "I need the latest list of published packages before I can bump any versions"
 
-    BumpCannotFindDocs name version problem ->
-      error "TODO BumpCannotFindDocs" name version problem
+    BumpCannotFindDocs _ version problem ->
+      toDocsProblemReport problem $
+        "I need the docs for " ++ V.toChars version ++ " to compute the next version number"
 
 
 
@@ -317,7 +319,7 @@ data Publish
   | PublishCannotGetTag Http.Error
   | PublishCannotGetZip Http.Error
   | PublishCannotDecodeZip
-  | PublishCannotGetDocs DocsProblem
+  | PublishCannotGetDocs V.Version V.Version DocsProblem
   | PublishCannotRegister Http.Error
   | PublishMissingTag V.Version
   | PublishNoGit
@@ -491,8 +493,10 @@ publishToReport publish =
     PublishCannotDecodeZip ->
       error "TODO PublishCannotDecodeZip"
 
-    PublishCannotGetDocs docsProblem ->
-      error "TODO PublishCannotGetDocs" docsProblem
+    PublishCannotGetDocs old new docsProblem ->
+      toDocsProblemReport docsProblem $
+        "I need the docs for " ++ V.toChars old ++ " to verify that "
+        ++ V.toChars new ++ " really does come next"
 
     PublishCannotRegister httpError ->
       error "TODO PublishCannotRegister" httpError
@@ -587,8 +591,42 @@ toBadReadmeReport title summary =
 
 data DocsProblem
   = DP_Http Http.Error
-  | DP_Data
+  | DP_Data String BS.ByteString
   | DP_Cache
+
+
+toDocsProblemReport :: DocsProblem -> String -> Help.Report
+toDocsProblemReport problem context =
+  case problem of
+    DP_Http httpError ->
+      toHttpErrorReport "PROBLEM FETCHING DOCS" httpError context
+
+    DP_Data url body ->
+      Help.report "PROBLEM FETCHING DOCS" Nothing (context ++ ", so I fetched:")
+        [ D.indent 4 $ D.dullyellow $ D.fromChars url
+        , D.reflow $
+            "I got the data back, but it was not what I was expecting. The response\
+            \ body contains " ++ show (BS.length body) ++ " bytes. Here is the "
+            ++ if BS.length body <= 76 then "whole thing:" else "beginning:"
+        , D.indent 4 $ D.dullyellow $ D.fromChars $
+            if BS.length body <= 76
+            then BS_UTF8.toString body
+            else take 73 (BS_UTF8.toString body) ++ "..."
+        , D.reflow $
+            "Does this error keep showing up? Maybe there is something weird with your\
+            \ internet connection. We have gotten reports that schools, businesses,\
+            \ airports, etc. sometimes intercept requests and add things to the body\
+            \ or change its contents entirely. Could that be the problem?"
+        ]
+
+    DP_Cache ->
+      Help.report "PROBLEM LOADING DOCS" Nothing (context ++ ", but the local copy seems to be corrupted.")
+        [ D.reflow $
+            "I deleted the cached version, so the next run should download a fresh copy of\
+            \ the docs. Hopefully that will get you unstuck, but it will not resolve the root\
+            \ problem if, for example, a 3rd party editor plugin is modifing cached files\
+            \ for some reason."
+        ]
 
 
 
@@ -793,7 +831,7 @@ toHttpErrorReport title err context =
         , D.indent 4 $ D.fromChars reason
         , D.reflow $
             "This may indicate that there is some problem in the compiler, so please open an\
-            \ issue at https://github.com/elm/compiler/issues listing your operating system\
+            \ issue at https://github.com/elm/compiler/issues listing your operating system, Elm\
             \ version, the command you ran, the terminal output, and any additional information\
             \ that might help others reproduce the error."
         ]
