@@ -555,7 +555,8 @@ publishToReport publish =
         ++ V.toChars new ++ " really does come next"
 
     PublishCannotRegister httpError ->
-      error "TODO PublishCannotRegister" httpError
+      toHttpErrorReport "PROBLEM PUBLISHING PACKAGE" httpError $
+        "I need to send information about your package to the package website"
 
     PublishNoGit ->
       Help.report "NO GIT" Nothing
@@ -676,8 +677,8 @@ data Install
   | InstallNoOnlineSolution
   | InstallNoOfflineSolution
   | InstallHadSolverTrouble Solver
-  | InstallUnknownPackageOnline [Pkg.Name]
-  | InstallUnknownPackageOffline [Pkg.Name]
+  | InstallUnknownPackageOnline Pkg.Name [Pkg.Name]
+  | InstallUnknownPackageOffline Pkg.Name [Pkg.Name]
   | InstallHasBadDetails Details
 
 
@@ -730,11 +731,33 @@ installToReport exit =
     InstallHadSolverTrouble solver ->
       error "TODO InstallHadSolverTrouble" solver
 
-    InstallUnknownPackageOnline suggestions ->
-      error "TODO InstallUnknownPackageOnline" suggestions
+    InstallUnknownPackageOnline pkg suggestions ->
+      Help.docReport "UNKNOWN PACKAGE" Nothing
+        (
+          D.fillSep
+            ["I","cannot","find","a","package","named",D.red (D.fromPackage pkg) <> "."]
+        )
+        [ D.reflow $
+            "I looked through https://package.elm-lang.org for packages with similar names\
+            \ and found these:"
+        , D.indent 4 $ D.dullyellow $ D.vcat $ map D.fromPackage suggestions
+        , D.reflow $ "Maybe you want one of these instead?"
+        ]
 
-    InstallUnknownPackageOffline suggestions ->
-      error "TODO InstallUnknownPackageOffline" suggestions
+    InstallUnknownPackageOffline pkg suggestions ->
+      Help.docReport "UNKNOWN PACKAGE" Nothing
+        (
+          D.fillSep
+            ["I","cannot","find","a","package","named",D.red (D.fromPackage pkg) <> "."]
+        )
+        [ D.reflow $
+            "I could not connect to https://package.elm-lang.org though, so new packages may\
+            \ have been published since I last updated my local cache of package names."
+        , D.reflow $
+            "Looking through the locally cached names, the closest ones are:"
+        , D.indent 4 $ D.dullyellow $ D.vcat $ map D.fromPackage suggestions
+        , D.reflow $ "Maybe you want one of these instead?"
+        ]
 
     InstallHasBadDetails _ ->
       error "TODO InstallHasBadDetails"

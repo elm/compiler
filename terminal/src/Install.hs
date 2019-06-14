@@ -203,8 +203,8 @@ makeAppPlan (Solver.Env cache _ connection registry) pkg outline@(Outline.AppOut
                 case Registry.getVersions' pkg registry of
                   Left suggestions ->
                     case connection of
-                      Solver.Online _ -> Task.throw (Exit.InstallUnknownPackageOnline suggestions)
-                      Solver.Offline  -> Task.throw (Exit.InstallUnknownPackageOffline suggestions)
+                      Solver.Online _ -> Task.throw (Exit.InstallUnknownPackageOnline pkg suggestions)
+                      Solver.Offline  -> Task.throw (Exit.InstallUnknownPackageOffline pkg suggestions)
 
                   Right _ ->
                     do  result <- Task.io $ Solver.addToApp cache connection registry pkg outline
@@ -245,8 +245,8 @@ makePkgPlan (Solver.Env cache _ connection registry) pkg outline@(Outline.PkgOut
         case Registry.getVersions' pkg registry of
           Left suggestions ->
             case connection of
-              Solver.Online _ -> Task.throw (Exit.InstallUnknownPackageOnline suggestions)
-              Solver.Offline  -> Task.throw (Exit.InstallUnknownPackageOffline suggestions)
+              Solver.Online _ -> Task.throw (Exit.InstallUnknownPackageOnline pkg suggestions)
+              Solver.Offline  -> Task.throw (Exit.InstallUnknownPackageOffline pkg suggestions)
 
           Right (Registry.KnownVersions _ _) ->
             do  let old = Map.union deps test
