@@ -18,6 +18,7 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Name as Name
 import qualified Data.Set as Set
+import qualified System.Directory as Dir
 import System.FilePath ((</>))
 
 import qualified Deps.Website as Website
@@ -356,7 +357,8 @@ changeMagnitude (Changes added changed removed) =
 
 getDocs :: Stuff.PackageCache -> Http.Manager -> Pkg.Name -> V.Version -> IO (Either Exit.DocsProblem Docs.Documentation)
 getDocs cache manager name version =
-  do  let path = Stuff.package cache name version </> "docs.json"
+  do  let home = Stuff.package cache name version
+      let path = home </> "docs.json"
       exists <- File.exists path
       if exists
         then
@@ -373,7 +375,8 @@ getDocs cache manager name version =
               Http.get manager url [] Exit.DP_Http $ \body ->
                 case D.fromByteString Docs.decoder body of
                   Right docs ->
-                    do  File.writeUtf8 path body
+                    do  Dir.createDirectoryIfMissing True home
+                        File.writeUtf8 path body
                         return $ Right docs
 
                   Left _ ->
