@@ -65,14 +65,13 @@ run :: [FilePath] -> Flags -> IO ()
 run paths (Flags debug optimize maybeOutput report maybeDocs) =
   do  style <- getStyle report
       Reporting.attemptWithStyle style Exit.makeToReport $ Task.run $
-        do  root <- getRoot
+        do  root <- Task.mio Exit.MakeNoOutline Stuff.findRoot
             desiredMode <- getMode debug optimize
-            details <- getDetails style root
+            details <- Task.eio Exit.MakeBadDetails (Details.load style root)
             case paths of
               [] ->
                 do  exposed <- getExposed details
                     buildExposed style root details maybeDocs exposed
-                    return ()
 
               p:ps ->
                 do  artifacts <- buildPaths style root details (NE.List p ps)
@@ -123,11 +122,6 @@ getStyle report =
     Just Json -> return Reporting.json
 
 
-getRoot :: Task FilePath
-getRoot =
-  Task.mio Exit.MakeNoOutline Stuff.findRoot
-
-
 getMode :: Bool -> Bool -> Task DesiredMode
 getMode debug optimize =
   case (debug, optimize) of
@@ -135,11 +129,6 @@ getMode debug optimize =
     (True , False) -> return Debug
     (False, False) -> return Dev
     (False, True ) -> return Prod
-
-
-getDetails :: Reporting.Style -> FilePath -> Task Details.Details
-getDetails style root =
-  Task.eio Exit.MakeBlockedByDetailsProblem (Details.load style root)
 
 
 getExposed :: Details.Details -> Task (NE.List ModuleName.Raw)
