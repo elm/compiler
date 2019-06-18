@@ -36,7 +36,6 @@ dict :: HM.HashMap FilePath (BS.ByteString, MimeType)
 dict =
   HM.fromList
     [ faviconPath  ==> (favicon , "image/x-icon")
-    , waitingPath  ==> (waiting , "image/gif")
     , elmPath      ==> (elm     , "application/javascript")
     , cssPath      ==> (css     , "text/css")
     , codeFontPath ==> (codeFont, "font/ttf")
@@ -122,8 +121,3 @@ sansFont =
 favicon :: BS.ByteString
 favicon =
   $(bsToExp =<< runIO (Build.readAsset "favicon.ico"))
-
-
-waiting :: BS.ByteString
-waiting =
-  $(bsToExp =<< runIO (Build.readAsset "waiting.gif"))
