@@ -1,37 +1,24 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Reporting.Exit
-  ( Init(..)
-  , initToReport
-  --
-  , Diff(..)
-  , diffToReport
-  --
-  , Bump(..)
-  , bumpToReport
+  ( Init(..), initToReport
+  , Diff(..), diffToReport
+  , Make(..), makeToReport
+  , Bump(..), bumpToReport
+  , Publish(..), publishToReport
+  , Install(..), installToReport
+  , Reactor(..), reactorToReport
   , newPackageOverview
   --
-  , Publish(..)
-  , publishToReport
-  --
-  , Install(..)
-  , installToReport
-  --
   , Solver(..)
-  --
   , Outline(..)
   , OutlineProblem(..)
-  --
   , Details(..)
   , PackageProblem(..)
-  --
   , RegistryProblem(..)
-  --
-  , Make(..)
   , BuildProblem(..)
   , BuildProjectProblem(..)
-  , makeToReport
-  --
   , DocsProblem(..)
+  , Generate(..)
   --
   , toString
   , toStderr
@@ -69,6 +56,25 @@ import qualified Reporting.Render.Code as Code
 
 
 
+-- RENDERERS
+
+
+toString :: Help.Report -> String
+toString report =
+  Help.toString (Help.reportToDoc report)
+
+
+toStderr :: Help.Report -> IO ()
+toStderr report =
+  Help.toStderr (Help.reportToDoc report)
+
+
+toJson :: Help.Report -> Encode.Value
+toJson report =
+  Help.reportToJson report
+
+
+
 -- INIT
 
 
@@ -96,10 +102,15 @@ initToReport exit =
 
     InitNoOfflineSolution pkgs ->
       Help.report "NO OFFLINE SOLUTION" Nothing
-        (error "TODO InitNoOfflineSolution" pkgs)
-        (error "TODO InitNoOfflineSolution" pkgs)
-        -- note about Russia IP addresses?
-        -- ask if they are on a plane or train
+        "I tried to create an elm.json with the following direct dependencies:"
+        [ D.indent 4 $ D.vcat $
+            map (D.dullyellow . D.fromChars . Pkg.toChars) pkgs
+        , D.reflow $
+            "I could not find compatible versions though, but that may be because I could not\
+            \ connect to https://package.elm-lang.org to get the latest list of packages. Are\
+            \ you able to connect to the internet? Please ask around one of the community\
+            \ forums at https://elm-lang.org/community for help!"
+        ]
 
     InitSolverProblem solver ->
       error "TODO InitSolverProblem" solver
@@ -159,11 +170,13 @@ diffToReport diff =
         , D.indent 4 $ D.dullyellow $ "elm diff elm/http 1.0.0 2.0.0"
         ]
 
-    DiffNoExposed pkg ->
+    DiffNoExposed _ ->
       Help.report "NO EXPOSED MODULES" (Just "elm.json")
         "Your elm.json has no \"exposed-modules\" which means there is no public API at\
-        \ all right now! Try adding some modules back to this field."
-        []
+        \ all right now! What am I supposed to diff?"
+        [ D.reflow $
+            "Try adding some modules back to the \"exposed-modules\" field."
+        ]
 
     DiffUnpublished ->
       Help.report "UNPUBLISHED" Nothing
@@ -320,7 +333,7 @@ data Publish
   | PublishCannotGetTag V.Version Http.Error
   | PublishCannotGetTagData V.Version String BS.ByteString
   | PublishCannotGetZip Http.Error
-  | PublishCannotDecodeZip
+  | PublishCannotDecodeZip String
   | PublishCannotGetDocs V.Version V.Version DocsProblem
   | PublishCannotRegister Http.Error
   | PublishNoGit
@@ -544,10 +557,20 @@ publishToReport publish =
 
     PublishCannotGetZip httpError ->
       toHttpErrorReport "PROBLEM DOWNLOADING CODE" httpError $
-        "I need to check that folks can download and build the source code when they install this package"
+        "I need to check that folks can download and build the source code when they\
+        \ install this package"
 
-    PublishCannotDecodeZip ->
-      error "TODO PublishCannotDecodeZip"
+    PublishCannotDecodeZip url ->
+      Help.report "PROBLEM DOWNLOADING CODE" Nothing
+        "I need to check that folks can download and build the source code when they\
+        \ install this package, so I downloaded the code from:"
+        [ D.indent 4 $ D.dullyellow $ D.fromChars url
+        , D.reflow $
+            "I was unable to unzip the archive though. Maybe there is something weird with\
+            \ your internet connection. We have gotten reports that schools, businesses,\
+            \ airports, etc. sometimes intercept requests and add things to the body or\
+            \ change its contents entirely. Could that be the problem?"
+        ]
 
     PublishCannotGetDocs old new docsProblem ->
       toDocsProblemReport docsProblem $
@@ -818,364 +841,6 @@ data OutlineProblem
   | OP_NoSrcDirs
 
 
-
--- DETAILS
-
-
-data Details
-  = DetailsCorrupt
-  | DetailsNoSolution
-  | DetailsNoOfflineSolution
-  | DetailsSolverProblem Solver
-  | DetailsBadElmInPkg C.Constraint
-  | DetailsBadElmInAppOutline V.Version
-  | DetailsHandEditedDependencies
-  | DetailsBadOutline Outline
-  | DetailsCannotGetRegistry RegistryProblem
-  | DetailsCannotBuildPackage Pkg.Name V.Version PackageProblem
-
-
-data PackageProblem
-  = PP_BadEndpointRequest Http.Error
-  | PP_BadEndpointContent
-  | PP_BadArchiveRequest Http.Error
-  | PP_BadArchiveContent
-  | PP_BadArchiveHash String String
-
-
-
--- REGISTRY PROBLEM
-
-
-data RegistryProblem
-  = RP_Http Http.Error
-  | RP_Data String BS.ByteString
-
-
-toRegistryProblemReport :: String -> RegistryProblem -> String -> Help.Report
-toRegistryProblemReport title problem context =
-  case problem of
-    RP_Http err ->
-      toHttpErrorReport title err context
-
-    RP_Data url body ->
-      Help.report title Nothing (context ++ ", so I fetched:")
-        [ D.indent 4 $ D.dullyellow $ D.fromChars url
-        , D.reflow $
-            "I got the data back, but it was not what I was expecting. The response\
-            \ body contains " ++ show (BS.length body) ++ " bytes. Here is the "
-            ++ if BS.length body <= 76 then "whole thing:" else "beginning:"
-        , D.indent 4 $ D.dullyellow $ D.fromChars $
-            if BS.length body <= 76
-            then BS_UTF8.toString body
-            else take 73 (BS_UTF8.toString body) ++ "..."
-        , D.reflow $
-            "Does this error keep showing up? Maybe there is something weird with your\
-            \ internet connection. We have gotten reports that schools, businesses,\
-            \ airports, etc. sometimes intercept requests and add things to the body\
-            \ or change its contents entirely. Could that be the problem?"
-        ]
-
-
-toHttpErrorReport :: String -> Http.Error -> String -> Help.Report
-toHttpErrorReport title err context =
-  let
-    toHttpReport intro url details =
-      Help.report title Nothing intro $
-        D.indent 4 (D.dullyellow (D.fromChars url)) : details
-  in
-  case err of
-    Http.BadUrl url reason ->
-      toHttpReport (context ++ ", so I wanted to fetch:") url
-        [ D.reflow $ "But my HTTP library is saying this is not a valid URL. It is saying:"
-        , D.indent 4 $ D.fromChars reason
-        , D.reflow $
-            "This may indicate that there is some problem in the compiler, so please open an\
-            \ issue at https://github.com/elm/compiler/issues listing your operating system, Elm\
-            \ version, the command you ran, the terminal output, and any additional information\
-            \ that might help others reproduce the error."
-        ]
-
-    Http.BadHttp url httpExceptionContent ->
-      case httpExceptionContent of
-        HTTP.StatusCodeException response _ ->
-          let
-            (HTTP.Status code message) = HTTP.responseStatus response
-          in
-          toHttpReport (context ++ ", so I tried to fetch:") url
-            [ D.fillSep $
-                ["But","it","came","back","as",D.red (D.fromInt code)]
-                ++ map D.fromChars (words (BS_UTF8.toString message))
-            , D.reflow $
-                "This may mean some online endpoint changed in an unexpected way, so if does not\
-                \ seem like something on your side is causing this (e.g. firewall) please report\
-                \ this to https://github.com/elm/compiler/issues with your operating system, Elm\
-                \ version, the command you ran, the terminal output, and any additional information\
-                \ that can help others reproduce the error!"
-            ]
-
-        HTTP.TooManyRedirects responses ->
-          toHttpReport (context ++ ", so I tried to fetch:") url
-            [ D.reflow $ "But I gave up after following these " ++ show (length responses) ++ " redirects:"
-            , D.indent 4 $ D.vcat $ map toRedirectDoc responses
-            , D.reflow $
-                "Is it possible that your internet connection intercepts certain requests? That\
-                \ sometimes causes problems for folks in schools, businesses, airports, hotels,\
-                \ and certain countries. Try asking for help locally or in a community forum!"
-            ]
-
-        otherException ->
-          toHttpReport (context ++ ", so I tried to fetch:") url
-            [ D.reflow $ "But my HTTP library is giving me the following error message:"
-            , D.indent 4 $ D.fromChars (show otherException)
-            , D.reflow $
-                "Are you somewhere with a slow internet connection? Or no internet?\
-                \ Does the link I am trying to fetch work in your browser? Maybe the\
-                \ site is down? Does your internet connection have a firewall that\
-                \ blocks certain domains? It is usually something like that!"
-            ]
-
-    Http.BadMystery url someException ->
-      toHttpReport (context ++ ", so I tried to fetch:") url
-        [ D.reflow $ "But I ran into something weird! I was able to extract this error message:"
-        , D.indent 4 $ D.fromChars (show someException)
-        , D.reflow $
-            "Is it possible that your internet connection intercepts certain requests? That\
-            \ sometimes causes problems for folks in schools, businesses, airports, hotels,\
-            \ and certain countries. Try asking for help locally or in a community forum!"
-        ]
-
-
-toRedirectDoc :: HTTP.Response body -> D.Doc
-toRedirectDoc response =
-  let
-    (HTTP.Status code message) = HTTP.responseStatus response
-  in
-  case List.lookup HTTP.hLocation (HTTP.responseHeaders response) of
-    Just loc -> D.red (D.fromInt code) <> " - " <> D.fromChars (BS_UTF8.toString loc)
-    Nothing  -> D.red (D.fromInt code) <> " - " <> D.fromChars (BS_UTF8.toString message)
-
-
-
--- MAKE
-
-
-data Make
-  = MakeNeedsOutline
-  | MakeCannotOptimizeAndDebug
-  | MakeBlockedByDetailsProblem Details
-  | MakeAppNeedsFileNames
-  | MakePkgNeedsExposing
-  | MakeMultipleFilesIntoHtml
-  | MakeNonMainFilesIntoJavaScript ModuleName.Raw [ModuleName.Raw]
-  | MakeCannotOptimizeDebugValues ModuleName.Raw [ModuleName.Raw]
-  | MakeCannotBuild BuildProblem
-  | MakeCannotLoadArtifacts
-
-
-data BuildProblem
-  = BuildModuleProblems Error.Module [Error.Module]
-  | BuildProjectProblem BuildProjectProblem
-
-
-data BuildProjectProblem
-  = BP_PathUnknown FilePath
-  | BP_WithBadExtension FilePath
-  | BP_WithAmbiguousSrcDir FilePath FilePath
-  | BP_MainPathDuplicate FilePath FilePath
-  | BP_MainNameDuplicate ModuleName.Raw FilePath FilePath
-  | BP_CannotLoadDependencies
-  | BP_Cycle ModuleName.Raw [ModuleName.Raw]
-  | BP_MissingExposed (NE.List (ModuleName.Raw, Import.Problem))
-
-
-
--- RENDERERS
-
-
-toString :: Help.Report -> String
-toString report =
-  Help.toString (Help.reportToDoc report)
-
-
-toStderr :: Help.Report -> IO ()
-toStderr report =
-  Help.toStderr (Help.reportToDoc report)
-
-
-toJson :: Help.Report -> Encode.Value
-toJson report =
-  Help.reportToJson report
-
-
-
--- DETAILS TO REPORT
-
-
-detailsToReport :: Details -> Help.Report
-detailsToReport details =
-  case details of
-    DetailsCorrupt ->
-      error "TODO DetailsCorrupt"
-
-    DetailsBadElmInPkg constraint ->
-      Help.report "ELM VERSION MISMATCH" (Just "elm.json")
-        "Your elm.json says this package needs a version of Elm in this range:"
-        [ D.indent 4 $ D.dullyellow $ D.fromChars $ C.toChars constraint
-        , D.fillSep
-            [ "But", "you", "are", "using", "Elm"
-            , D.red (D.fromVersion V.compiler)
-            , "right", "now."
-            ]
-        ]
-
-    DetailsBadElmInAppOutline version ->
-      Help.report "ELM VERSION MISMATCH" (Just "elm.json")
-        "Your elm.json says this application needs a different version of Elm."
-        [ D.fillSep
-            [ "It", "requires"
-            , D.green (D.fromVersion version) <> ","
-            , "but", "you", "are", "using"
-            , D.red (D.fromVersion V.compiler)
-            , "right", "now."
-            ]
-        ]
-
-    DetailsHandEditedDependencies ->
-      error "TODO DetailsHandEditedDependencies"
-
-    DetailsBadOutline outline ->
-      toOutlineReport outline
-
-    DetailsCannotGetRegistry problem ->
-      toRegistryProblemReport "PROBLEM LOADING PACKAGE LIST" problem $
-        "I need the list of published packages to figure out if your project has compatible dependencies"
-
-    DetailsCannotBuildPackage name version problem ->
-      error "TODO DetailsCannotBuildPackage" name version problem
-
-    DetailsNoSolution ->
-      error "TODO DetailsNoSolution"
-
-    DetailsNoOfflineSolution ->
-      error "TODO DetailsNoOfflineSolution"
-
-    DetailsSolverProblem _ ->
-      error "TODO DetailsSolverProblem"
-
-
-
-makeToReport :: Make -> Help.Report
-makeToReport make =
-  case make of
-    MakeNeedsOutline ->
-      Help.report "NO elm.json FILE" Nothing
-        "It looks like you are starting a new Elm project. Very exciting! Try running:"
-        [ D.indent 4 $ D.green $ "elm init"
-        , D.reflow $
-            "It will help you get set up. It is really simple!"
-        ]
-
-    MakeCannotOptimizeAndDebug ->
-      Help.docReport "CLASHING FLAGS" Nothing
-        ( D.fillSep
-            ["I","cannot","compile","with",D.red "--optimize","and"
-            ,D.red "--debug","at","the","same","time."
-            ]
-        )
-        [ D.reflow
-            "I need to take away information to optimize things, and I need to\
-            \ add information to add the debugger. It is impossible to do both\
-            \ at once though! Pick just one of those flags and it should work!"
-        ]
-
-    MakeBlockedByDetailsProblem detailsProblem ->
-      detailsToReport detailsProblem
-
-    MakeAppNeedsFileNames ->
-      Help.report "NO INPUT" Nothing
-        "What should I make though? I need a specific file like this:"
-        [ D.indent 4 $ D.green "elm make src/Main.elm"
-        , D.reflow
-            "However many files you give, I will create one JS file out of them."
-        ]
-
-    MakePkgNeedsExposing ->
-      error "TODO MakePkgNeedsExposing"
-
-    MakeMultipleFilesIntoHtml ->
-      error "TODO MakeMultipleFilesIntoHtml"
-
-    MakeNonMainFilesIntoJavaScript _ _ ->
-      error "TODO MakeNonMainFilesIntoJavaScript"
-
-    MakeCannotOptimizeDebugValues m ms ->
-      Help.report "DEBUG REMNANTS" Nothing
-        "There are uses of the `Debug` module in the following modules:"
-        [ D.indent 4 $ D.red $ D.vcat $ map (D.fromChars . ModuleName.toChars) (m:ms)
-        , D.reflow "But the --optimize flag only works if all `Debug` functions are removed!"
-        , D.toSimpleNote $
-            "The issue is that --optimize strips out info needed by `Debug` functions.\
-            \ Here are two examples:"
-        , D.indent 4 $ D.reflow $
-            "(1) It shortens record field names. This makes the generated JavaScript is\
-            \ smaller, but `Debug.toString` cannot know the real field names anymore."
-        , D.indent 4 $ D.reflow $
-            "(2) Values like `type Height = Height Float` are unboxed. This reduces\
-            \ allocation, but it also means that `Debug.toString` cannot tell if it is\
-            \ looking at a `Height` or `Float` value."
-        , D.reflow $
-            "There are a few other cases like that, and it will be much worse once we start\
-            \ inlining code. That optimization could move `Debug.log` and `Debug.todo` calls,\
-            \ resulting in unpredictable behavior. I hope that clarifies why this restriction\
-            \ exists!"
-        ]
-
-    MakeCannotBuild buildProblem ->
-      case buildProblem of
-        BuildProjectProblem bp ->
-          case bp of
-            BP_PathUnknown _ ->
-              error "TODO BP_PathUnknown"
-
-            BP_WithBadExtension _ ->
-              error "TODO BP_WithBadExtension"
-
-            BP_WithAmbiguousSrcDir _ _ ->
-              error "TODO BP_WithAmbiguousSrcDir"
-
-            BP_MainPathDuplicate _ _ ->
-              error "TODO BP_MainPathDuplicate"
-
-            BP_MainNameDuplicate _ _ _ ->
-              error "TODO BP_MainNameDuplicate"
-
-            BP_CannotLoadDependencies ->
-              error "TODO BP_CannotLoadDependencies"
-
-            BP_Cycle name names ->
-              Help.report "IMPORT CYCLE" Nothing
-                "Your module imports form a cycle:"
-                [ D.cycle 4 name names
-                , D.reflow $
-                    "Learn more about why this is disallowed and how to break cycles here:"
-                    ++ D.makeLink "import-cycles"
-                ]
-
-            BP_MissingExposed _ ->
-              error "TODO BP_MissingExposed"
-
-        BuildModuleProblems p ps ->
-          Help.compilerReport p ps
-
-    MakeCannotLoadArtifacts ->
-      error "TODO MakeCannotLoadArtifacts"
-
-
-
--- OUTLINE
-
-
 toOutlineReport :: Outline -> Help.Report
 toOutlineReport problem =
   case problem of
@@ -1417,3 +1082,445 @@ toOutlineProblemReport path source _ region problem =
             ,"so","I","know","where","to","look","for","your","modules!"
             ]
         )
+
+
+
+-- DETAILS
+
+
+data Details
+  = DetailsNoSolution
+  | DetailsNoOfflineSolution
+  | DetailsSolverProblem Solver
+  | DetailsBadElmInPkg C.Constraint
+  | DetailsBadElmInAppOutline V.Version
+  | DetailsHandEditedDependencies
+  | DetailsBadOutline Outline
+  | DetailsCannotGetRegistry RegistryProblem
+  | DetailsCannotBuildPackage Pkg.Name V.Version PackageProblem
+
+
+toDetailsReport :: Details -> Help.Report
+toDetailsReport details =
+  case details of
+    DetailsNoSolution ->
+      error "TODO DetailsNoSolution"
+
+    DetailsNoOfflineSolution ->
+      error "TODO DetailsNoOfflineSolution"
+
+    DetailsSolverProblem _ ->
+      error "TODO DetailsSolverProblem"
+
+    DetailsBadElmInPkg constraint ->
+      Help.report "ELM VERSION MISMATCH" (Just "elm.json")
+        "Your elm.json says this package needs a version of Elm in this range:"
+        [ D.indent 4 $ D.dullyellow $ D.fromChars $ C.toChars constraint
+        , D.fillSep
+            [ "But", "you", "are", "using", "Elm"
+            , D.red (D.fromVersion V.compiler)
+            , "right", "now."
+            ]
+        ]
+
+    DetailsBadElmInAppOutline version ->
+      Help.report "ELM VERSION MISMATCH" (Just "elm.json")
+        "Your elm.json says this application needs a different version of Elm."
+        [ D.fillSep
+            [ "It", "requires"
+            , D.green (D.fromVersion version) <> ","
+            , "but", "you", "are", "using"
+            , D.red (D.fromVersion V.compiler)
+            , "right", "now."
+            ]
+        ]
+
+    DetailsHandEditedDependencies ->
+      error "TODO DetailsHandEditedDependencies"
+
+    DetailsBadOutline outline ->
+      toOutlineReport outline
+
+    DetailsCannotGetRegistry problem ->
+      toRegistryProblemReport "PROBLEM LOADING PACKAGE LIST" problem $
+        "I need the list of published packages to figure out if your project has compatible dependencies"
+
+    DetailsCannotBuildPackage name version problem ->
+      error "TODO DetailsCannotBuildPackage" name version problem
+
+
+
+-- PACKAGE PROBLEM
+
+
+data PackageProblem
+  = PP_BadEndpointRequest Http.Error
+  | PP_BadEndpointContent
+  | PP_BadArchiveRequest Http.Error
+  | PP_BadArchiveContent
+  | PP_BadArchiveHash String String
+
+
+
+-- REGISTRY PROBLEM
+
+
+data RegistryProblem
+  = RP_Http Http.Error
+  | RP_Data String BS.ByteString
+
+
+toRegistryProblemReport :: String -> RegistryProblem -> String -> Help.Report
+toRegistryProblemReport title problem context =
+  case problem of
+    RP_Http err ->
+      toHttpErrorReport title err context
+
+    RP_Data url body ->
+      Help.report title Nothing (context ++ ", so I fetched:")
+        [ D.indent 4 $ D.dullyellow $ D.fromChars url
+        , D.reflow $
+            "I got the data back, but it was not what I was expecting. The response\
+            \ body contains " ++ show (BS.length body) ++ " bytes. Here is the "
+            ++ if BS.length body <= 76 then "whole thing:" else "beginning:"
+        , D.indent 4 $ D.dullyellow $ D.fromChars $
+            if BS.length body <= 76
+            then BS_UTF8.toString body
+            else take 73 (BS_UTF8.toString body) ++ "..."
+        , D.reflow $
+            "Does this error keep showing up? Maybe there is something weird with your\
+            \ internet connection. We have gotten reports that schools, businesses,\
+            \ airports, etc. sometimes intercept requests and add things to the body\
+            \ or change its contents entirely. Could that be the problem?"
+        ]
+
+
+toHttpErrorReport :: String -> Http.Error -> String -> Help.Report
+toHttpErrorReport title err context =
+  let
+    toHttpReport intro url details =
+      Help.report title Nothing intro $
+        D.indent 4 (D.dullyellow (D.fromChars url)) : details
+  in
+  case err of
+    Http.BadUrl url reason ->
+      toHttpReport (context ++ ", so I wanted to fetch:") url
+        [ D.reflow $ "But my HTTP library is saying this is not a valid URL. It is saying:"
+        , D.indent 4 $ D.fromChars reason
+        , D.reflow $
+            "This may indicate that there is some problem in the compiler, so please open an\
+            \ issue at https://github.com/elm/compiler/issues listing your operating system, Elm\
+            \ version, the command you ran, the terminal output, and any additional information\
+            \ that might help others reproduce the error."
+        ]
+
+    Http.BadHttp url httpExceptionContent ->
+      case httpExceptionContent of
+        HTTP.StatusCodeException response _ ->
+          let
+            (HTTP.Status code message) = HTTP.responseStatus response
+          in
+          toHttpReport (context ++ ", so I tried to fetch:") url
+            [ D.fillSep $
+                ["But","it","came","back","as",D.red (D.fromInt code)]
+                ++ map D.fromChars (words (BS_UTF8.toString message))
+            , D.reflow $
+                "This may mean some online endpoint changed in an unexpected way, so if does not\
+                \ seem like something on your side is causing this (e.g. firewall) please report\
+                \ this to https://github.com/elm/compiler/issues with your operating system, Elm\
+                \ version, the command you ran, the terminal output, and any additional information\
+                \ that can help others reproduce the error!"
+            ]
+
+        HTTP.TooManyRedirects responses ->
+          toHttpReport (context ++ ", so I tried to fetch:") url
+            [ D.reflow $ "But I gave up after following these " ++ show (length responses) ++ " redirects:"
+            , D.indent 4 $ D.vcat $ map toRedirectDoc responses
+            , D.reflow $
+                "Is it possible that your internet connection intercepts certain requests? That\
+                \ sometimes causes problems for folks in schools, businesses, airports, hotels,\
+                \ and certain countries. Try asking for help locally or in a community forum!"
+            ]
+
+        otherException ->
+          toHttpReport (context ++ ", so I tried to fetch:") url
+            [ D.reflow $ "But my HTTP library is giving me the following error message:"
+            , D.indent 4 $ D.fromChars (show otherException)
+            , D.reflow $
+                "Are you somewhere with a slow internet connection? Or no internet?\
+                \ Does the link I am trying to fetch work in your browser? Maybe the\
+                \ site is down? Does your internet connection have a firewall that\
+                \ blocks certain domains? It is usually something like that!"
+            ]
+
+    Http.BadMystery url someException ->
+      toHttpReport (context ++ ", so I tried to fetch:") url
+        [ D.reflow $ "But I ran into something weird! I was able to extract this error message:"
+        , D.indent 4 $ D.fromChars (show someException)
+        , D.reflow $
+            "Is it possible that your internet connection intercepts certain requests? That\
+            \ sometimes causes problems for folks in schools, businesses, airports, hotels,\
+            \ and certain countries. Try asking for help locally or in a community forum!"
+        ]
+
+
+toRedirectDoc :: HTTP.Response body -> D.Doc
+toRedirectDoc response =
+  let
+    (HTTP.Status code message) = HTTP.responseStatus response
+  in
+  case List.lookup HTTP.hLocation (HTTP.responseHeaders response) of
+    Just loc -> D.red (D.fromInt code) <> " - " <> D.fromChars (BS_UTF8.toString loc)
+    Nothing  -> D.red (D.fromInt code) <> " - " <> D.fromChars (BS_UTF8.toString message)
+
+
+
+-- MAKE
+
+
+data Make
+  = MakeNoOutline
+  | MakeCannotOptimizeAndDebug
+  | MakeBlockedByDetailsProblem Details
+  | MakeAppNeedsFileNames
+  | MakePkgNeedsExposing
+  | MakeMultipleFilesIntoHtml
+  | MakeNonMainFilesIntoJavaScript ModuleName.Raw [ModuleName.Raw]
+  | MakeCannotBuild BuildProblem
+  | MakeBadGenerate Generate
+
+
+makeToReport :: Make -> Help.Report
+makeToReport make =
+  case make of
+    MakeNoOutline ->
+      Help.report "NO elm.json FILE" Nothing
+        "It looks like you are starting a new Elm project. Very exciting! Try running:"
+        [ D.indent 4 $ D.green $ "elm init"
+        , D.reflow $
+            "It will help you get set up. It is really simple!"
+        ]
+
+    MakeCannotOptimizeAndDebug ->
+      Help.docReport "CLASHING FLAGS" Nothing
+        ( D.fillSep
+            ["I","cannot","compile","with",D.red "--optimize","and"
+            ,D.red "--debug","at","the","same","time."
+            ]
+        )
+        [ D.reflow
+            "I need to take away information to optimize things, and I need to\
+            \ add information to add the debugger. It is impossible to do both\
+            \ at once though! Pick just one of those flags and it should work!"
+        ]
+
+    MakeBlockedByDetailsProblem detailsProblem ->
+      toDetailsReport detailsProblem
+
+    MakeAppNeedsFileNames ->
+      Help.report "NO INPUT" Nothing
+        "What should I make though? I need a specific file like this:"
+        [ D.indent 4 $ D.green "elm make src/Main.elm"
+        , D.reflow
+            "However many files you give, I will create one JS file out of them."
+        ]
+
+    MakePkgNeedsExposing ->
+      error "TODO MakePkgNeedsExposing"
+
+    MakeMultipleFilesIntoHtml ->
+      error "TODO MakeMultipleFilesIntoHtml"
+
+    MakeNonMainFilesIntoJavaScript _ _ ->
+      error "TODO MakeNonMainFilesIntoJavaScript"
+
+    MakeCannotBuild buildProblem ->
+      toBuildProblemReport buildProblem
+
+    MakeBadGenerate generateProblem ->
+      toGenerateReport generateProblem
+
+
+
+-- BUILD PROBLEM
+
+
+data BuildProblem
+  = BuildModuleProblems Error.Module [Error.Module]
+  | BuildProjectProblem BuildProjectProblem
+
+
+data BuildProjectProblem
+  = BP_PathUnknown FilePath
+  | BP_WithBadExtension FilePath
+  | BP_WithAmbiguousSrcDir FilePath FilePath FilePath
+  | BP_MainPathDuplicate FilePath FilePath
+  | BP_MainNameDuplicate ModuleName.Raw FilePath FilePath
+  | BP_CannotLoadDependencies
+  | BP_Cycle ModuleName.Raw [ModuleName.Raw]
+  | BP_MissingExposed (NE.List (ModuleName.Raw, Import.Problem))
+
+
+toBuildProblemReport :: BuildProblem -> Help.Report
+toBuildProblemReport problem =
+  case problem of
+    BuildModuleProblems p ps ->
+      Help.compilerReport p ps
+
+    BuildProjectProblem projectProblem ->
+      case projectProblem of
+        BP_PathUnknown path ->
+          Help.report "FILE NOT FOUND" Nothing
+            "I cannot find this file:"
+            [ D.indent 4 $ D.red $ D.fromChars path
+            , D.reflow $ "Is there a typo?"
+            , D.toSimpleNote $
+                "If you are just getting started, try working through the examples in the\
+                \ official guide https://guide.elm-lang.org to get an idea of the kinds of things\
+                \ that typically go in a src/Main.elm file."
+            ]
+
+        BP_WithBadExtension path ->
+          Help.report "UNEXPECTED FILE EXTENSION" Nothing
+            "I can only compile Elm files (with a .elm extension) but you want me to compile:"
+            [ D.indent 4 $ D.red $ D.fromChars path
+            , D.reflow $ "Is there a typo? Can the file extension be changed?"
+            ]
+
+        BP_WithAmbiguousSrcDir path srcDir1 srcDir2 ->
+          Help.report "CONFUSING FILE" Nothing
+            "I am getting confused when I try to compile this file:"
+            [ D.indent 4 $ D.red $ D.fromChars path
+            , D.reflow $
+                "I always check if files appear in any of the \"source-directories\" listed in\
+                \ your elm.json to see if there might be some cached information about them. That\
+                \ can help me compile faster! But in this case, it looks like this file may be in\
+                \ either of these directories:"
+            , D.indent 4 $ D.red $ D.vcat $ map D.fromChars [srcDir1,srcDir2]
+            , D.reflow $
+                "Try to make it so no source directory contains another source directory!"
+            ]
+
+        BP_MainPathDuplicate path1 path2 ->
+          Help.report "CONFUSING FILES" Nothing
+            "You are telling me to compile these two files:"
+            [ D.indent 4 $ D.red $ D.vcat $ map D.fromChars [ path1, path2 ]
+            , D.reflow $
+                if path1 == path2 then
+                  "Why are you telling me twice? Is something weird going on with a script?\
+                  \ I figured I would let you know about it just in case something is wrong.\
+                  \ Only list it once and you should be all set!"
+                else
+                  "But seem to be the same file though... It makes me think something tricky is\
+                  \ going on with symlinks in your project, so I figured I would let you know\
+                  \ about it just in case. Remove one of these files from your command to get\
+                  \ unstuck!"
+            ]
+
+        BP_MainNameDuplicate name outsidePath otherPath ->
+          Help.report "MODULE NAME CLASH" Nothing
+            "These two files are causing a module name clash:"
+            [ D.indent 4 $ D.red $ D.vcat $ map D.fromChars [ outsidePath, otherPath ]
+            , D.reflow $
+                "They both say `module " ++ ModuleName.toChars name ++ " exposing (..)` up\
+                \ at the top, but they cannot have the same name!"
+            , D.reflow $
+                "Try changing to a different module name in one of them!"
+            ]
+
+        BP_CannotLoadDependencies ->
+          corruptCacheReport
+
+        BP_Cycle name names ->
+          Help.report "IMPORT CYCLE" Nothing
+            "Your module imports form a cycle:"
+            [ D.cycle 4 name names
+            , D.reflow $
+                "Learn more about why this is disallowed and how to break cycles here:"
+                ++ D.makeLink "import-cycles"
+            ]
+
+        BP_MissingExposed _ ->
+          error "TODO BP_MissingExposed"
+
+
+
+-- GENERATE
+
+
+data Generate
+  = GenerateCannotLoadArtifacts
+  | GenerateCannotOptimizeDebugValues ModuleName.Raw [ModuleName.Raw]
+
+
+toGenerateReport :: Generate -> Help.Report
+toGenerateReport problem =
+  case problem of
+    GenerateCannotLoadArtifacts ->
+      corruptCacheReport
+
+    GenerateCannotOptimizeDebugValues m ms ->
+      Help.report "DEBUG REMNANTS" Nothing
+        "There are uses of the `Debug` module in the following modules:"
+        [ D.indent 4 $ D.red $ D.vcat $ map (D.fromChars . ModuleName.toChars) (m:ms)
+        , D.reflow "But the --optimize flag only works if all `Debug` functions are removed!"
+        , D.toSimpleNote $
+            "The issue is that --optimize strips out info needed by `Debug` functions.\
+            \ Here are two examples:"
+        , D.indent 4 $ D.reflow $
+            "(1) It shortens record field names. This makes the generated JavaScript is\
+            \ smaller, but `Debug.toString` cannot know the real field names anymore."
+        , D.indent 4 $ D.reflow $
+            "(2) Values like `type Height = Height Float` are unboxed. This reduces\
+            \ allocation, but it also means that `Debug.toString` cannot tell if it is\
+            \ looking at a `Height` or `Float` value."
+        , D.reflow $
+            "There are a few other cases like that, and it will be much worse once we start\
+            \ inlining code. That optimization could move `Debug.log` and `Debug.todo` calls,\
+            \ resulting in unpredictable behavior. I hope that clarifies why this restriction\
+            \ exists!"
+        ]
+
+
+
+-- CORRUPT CACHE
+
+
+corruptCacheReport :: Help.Report
+corruptCacheReport =
+  Help.report "CORRUPT CACHE" Nothing
+    "It looks like some of the information cached in elm-stuff/ has been corrupted."
+    [ D.reflow $
+        "Try deleting your elm-stuff/ directory to get unstuck."
+    , D.toSimpleNote $
+        "This almost certainly means that a 3rd party tool (or editor plugin) is\
+        \ causing problems your the elm-stuff/ directory. Try disabling 3rd party tools\
+        \ one by one until you figure out which it is!"
+    ]
+
+
+
+-- REACTOR
+
+
+data Reactor
+  = ReactorNoOutline
+  | ReactorBadDetails Details
+  | ReactorBadBuild BuildProblem
+  | ReactorBadGenerate Generate
+
+
+reactorToReport :: Reactor -> Help.Report
+reactorToReport problem =
+  case problem of
+    ReactorNoOutline ->
+      error "TODO ReactorNoOutline"
+
+    ReactorBadDetails details ->
+      error "TODO ReactorBadDetails" details
+
+    ReactorBadBuild buildProblem ->
+      error "TODO ReactorBadBuild" buildProblem
+
+    ReactorBadGenerate generate ->
+      toGenerateReport generate
