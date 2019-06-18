@@ -52,11 +52,14 @@ Executable elm
         Main.hs
 
     other-modules:
-        Develop.StaticFiles
-        Develop.StaticFiles.Build
+        Bump
+        Develop
+        Diff
         Init
         Install
         Make
+        Publish
+        Repl
 
         -- terminal args
         Terminal.Args
@@ -65,13 +68,21 @@ Executable elm
         Terminal.Args.Helpers
         Terminal.Args.Internal
 
+        -- from terminal/
+        Develop.Generate.Help
+        Develop.Generate.Index
+        Develop.StaticFiles
+        Develop.StaticFiles.Build
+
         -- from builder/
         Build
-        Deps.Registry
+        Deps.Bump
         Deps.Diff
+        Deps.Registry
         Deps.Solver
         Deps.Website
         File
+        Generate
         Http
         Reporting
         Reporting.Exit
