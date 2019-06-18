@@ -3,8 +3,10 @@ module Reporting.Task
   ( Task
   , run
   , throw
+  , mapError
   --
   , io
+  , mio
   , eio
   )
   where
@@ -31,6 +33,12 @@ throw x =
   Task $ \_ err -> err x
 
 
+mapError :: (x -> y) -> Task x a -> Task y a
+mapError func (Task task) =
+  Task $ \ok err ->
+    task ok (err . func)
+
+
 
 -- IO
 
@@ -39,6 +47,15 @@ throw x =
 io :: IO a -> Task x a
 io work =
   Task $ \ok _ -> work >>= ok
+
+
+mio :: x -> IO (Maybe a) -> Task x a
+mio x work =
+  Task $ \ok err ->
+    do  result <- work
+        case result of
+          Just a -> ok a
+          Nothing -> err x
 
 
 eio :: (x -> y) -> IO (Either x a) -> Task y a
