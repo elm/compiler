@@ -695,7 +695,9 @@ toDocsProblemReport problem context =
 
 
 data Install
-  = InstallNoProject
+  = InstallNoOutline
+  | InstallBadOutline Outline
+  | InstallBadRegistry RegistryProblem
   | InstallNoArgs FilePath
   | InstallNoOnlineSolution
   | InstallNoOfflineSolution
@@ -708,12 +710,19 @@ data Install
 installToReport :: Install -> Help.Report
 installToReport exit =
   case exit of
-    InstallNoProject ->
+    InstallNoOutline ->
       Help.report "NEW PROJECT?" Nothing
         "Are you trying to start a new project? Try this command instead:"
         [ D.indent 4 $ D.green "elm init"
         , D.reflow "It will help you get started!"
         ]
+
+    InstallBadOutline outline ->
+      toOutlineReport outline
+
+    InstallBadRegistry problem ->
+      toRegistryProblemReport "PROBLEM LOADING PACKAGE LIST" problem $
+        "I need the list of published packages to figure out how to install things"
 
     InstallNoArgs elmHome ->
       Help.report "INSTALL WHAT?" Nothing

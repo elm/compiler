@@ -40,7 +40,7 @@ run args () =
     do  maybeRoot <- Stuff.findRoot
         case maybeRoot of
           Nothing ->
-            return (Left Exit.InstallNoProject)
+            return (Left Exit.InstallNoOutline)
 
           Just root ->
             case args of
@@ -50,8 +50,8 @@ run args () =
 
               Install pkg ->
                 Task.run $
-                  do  env <- getEnv
-                      oldOutline <- getOutline root
+                  do  env <- Task.eio Exit.InstallBadRegistry $ Solver.initEnv
+                      oldOutline <- Task.eio Exit.InstallBadOutline $ Outline.read root
                       case oldOutline of
                         Outline.App outline ->
                           do  changes <- makeAppPlan env pkg outline
@@ -60,23 +60,6 @@ run args () =
                         Outline.Pkg outline ->
                           do  changes <- makePkgPlan env pkg outline
                               attemptChanges root env oldOutline C.toChars changes
-
-
-
-getEnv :: Task Solver.Env
-getEnv =
-  do  eitherEnv <- Task.io Solver.initEnv
-      case eitherEnv of
-        Right env -> return env
-        Left problem -> Task.throw (error "TODO getEnv" problem)
-
-
-getOutline :: FilePath -> Task Outline.Outline
-getOutline root =
-  do  eitherOutline <- Task.io (Outline.read root)
-      case eitherOutline of
-        Right outline -> return outline
-        Left exit -> Task.throw (error "TODO getOutline" exit)
 
 
 
