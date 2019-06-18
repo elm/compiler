@@ -1145,8 +1145,8 @@ toDetailsReport details =
       toRegistryProblemReport "PROBLEM LOADING PACKAGE LIST" problem $
         "I need the list of published packages to figure out if your project has compatible dependencies"
 
-    DetailsCannotBuildPackage name version problem ->
-      error "TODO DetailsCannotBuildPackage" name version problem
+    DetailsCannotBuildPackage pkg vsn problem ->
+      toPackageProblemReport pkg vsn problem
 
 
 
@@ -1155,10 +1155,68 @@ toDetailsReport details =
 
 data PackageProblem
   = PP_BadEndpointRequest Http.Error
-  | PP_BadEndpointContent
+  | PP_BadEndpointContent String
   | PP_BadArchiveRequest Http.Error
-  | PP_BadArchiveContent
-  | PP_BadArchiveHash String String
+  | PP_BadArchiveContent String
+  | PP_BadArchiveHash String String String
+
+
+toPackageProblemReport :: Pkg.Name -> V.Version -> PackageProblem -> Help.Report
+toPackageProblemReport pkg vsn problem =
+  let
+    thePackage =
+      Pkg.toChars pkg ++ " " ++ V.toChars vsn
+  in
+  case problem of
+    PP_BadEndpointRequest httpError ->
+      toHttpErrorReport "PROBLEM DOWNLOADING PACKAGE" httpError $
+        "I need to find the latest download link for " ++ thePackage
+
+    PP_BadEndpointContent url ->
+      Help.report "PROBLEM DOWNLOADING PACKAGE" Nothing
+        (
+          "I need to find the latest download link for " ++ thePackage ++ ", but I ran into corrupted information from:"
+        )
+        [ D.indent 4 $ D.dullyellow $ D.fromChars url
+        , D.reflow $
+            "Is something weird with your internet connection. We have gotten reports that\
+            \ schools, businesses, airports, etc. sometimes intercept requests and add things\
+            \ to the body or change its contents entirely. Could that be the problem?"
+        ]
+
+    PP_BadArchiveRequest httpError ->
+      toHttpErrorReport "PROBLEM DOWNLOADING PACKAGE" httpError $
+        "I was trying to download the source code for " ++ thePackage
+
+    PP_BadArchiveContent url ->
+      Help.report "PROBLEM DOWNLOADING PACKAGE" Nothing
+        (
+          "I downloaded the source code for " ++ thePackage ++ " from:"
+        )
+        [ D.indent 4 $ D.dullyellow $ D.fromChars url
+        , D.reflow $
+           "But I was unable to unzip the data. Maybe there is something weird with\
+            \ your internet connection. We have gotten reports that schools, businesses,\
+            \ airports, etc. sometimes intercept requests and add things to the body or\
+            \ change its contents entirely. Could that be the problem?"
+        ]
+
+    PP_BadArchiveHash url expectedHash actualHash ->
+      Help.report "CORRUPT PACKAGE DATA" Nothing
+        (
+          "I downloaded the source code for " ++ thePackage ++ " from:"
+        )
+        [ D.indent 4 $ D.dullyellow $ D.fromChars url
+        , D.reflow "But it looks like the hash of the archive has changed since publication:"
+        , D.vcat $ map D.fromChars $
+            [ "  Expected: " ++ expectedHash
+            , "    Actual: " ++ actualHash
+            ]
+        , D.reflow $
+            "This usually means that the package author moved the version\
+            \ tag, so report it to them and see if that is the issue. Folks\
+            \ on Elm slack can probably help as well."
+        ]
 
 
 
