@@ -71,22 +71,12 @@ data Env =
 
 getEnv :: Task.Task Exit.Publish Env
 getEnv =
-  do  maybeRoot <- Task.io $ Stuff.findRoot
-      case maybeRoot of
-        Nothing ->
-          Task.throw Exit.PublishNoOutline
-
-        Just root ->
-          do  cache <- Task.io $ Stuff.getPackageCache
-              manager <- Task.io $ Http.getManager
-              registry <- Task.eio Exit.PublishMustHaveLatestRegistry $ Registry.latest manager cache
-              outlineResult <- Task.io $ Outline.read root
-              case outlineResult of
-                Right outline ->
-                  return $ Env root cache manager registry outline
-
-                Left problem ->
-                  Task.throw $ Exit.PublishBadOutline problem
+  do  root <- Task.mio Exit.PublishNoOutline $ Stuff.findRoot
+      cache <- Task.io $ Stuff.getPackageCache
+      manager <- Task.io $ Http.getManager
+      registry <- Task.eio Exit.PublishMustHaveLatestRegistry $ Registry.latest manager cache
+      outline <- Task.eio Exit.PublishBadOutline $ Outline.read root
+      return $ Env root cache manager registry outline
 
 
 
@@ -266,11 +256,13 @@ verifyNoChanges git commitHash vsn =
 verifyZip :: Env -> Pkg.Name -> V.Version -> Task.Task Exit.Publish Http.Sha
 verifyZip (Env root _ manager _ _) pkg vsn =
   withTempDir root $ \prepublishDir ->
-    do  (sha, archive) <-
+    do  let url = toZipUrl pkg vsn
+
+        (sha, archive) <-
           reportDownloadCheck $
-            Http.getArchive manager (toZipUrl pkg vsn)
+            Http.getArchive manager url
               Exit.PublishCannotGetZip
-              Exit.PublishCannotDecodeZip
+              (Exit.PublishCannotDecodeZip url)
               (return . Right)
 
         Task.io $ File.writePackage prepublishDir archive
