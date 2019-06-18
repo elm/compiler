@@ -8,6 +8,7 @@ module Build
   , Module(..)
   , CachedInterface(..)
   , DocsGoal(..)
+  , getMainNames
   )
   where
 
@@ -182,6 +183,22 @@ fromMains style root details paths =
                       results <- traverse readMVar resultsMVars
                       writeDetails root details results
                       toArtifacts env foreigns results <$> traverse readMVar rmainMVars
+
+
+
+-- GET MAIN NAMES
+
+
+getMainNames :: Artifacts -> NE.List ModuleName.Raw
+getMainNames (Artifacts _ _ mains _) =
+  fmap getMainName mains
+
+
+getMainName :: Main -> ModuleName.Raw
+getMainName main =
+  case main of
+    Inside  name     -> name
+    Outside name _ _ -> name
 
 
 
@@ -878,7 +895,7 @@ isInsideSrcDirs (Env _ root _ srcDirs _ _) path absolutePath =
         case (exits, Maybe.catMaybes maybes) of
           (_, [(_,name)])      -> Right (Location absolutePath path (LInside name))
           ([], [])             -> Right (Location absolutePath path (LOutside path))
-          (_, (s1,_):(s2,_):_) -> Left (Exit.BP_WithAmbiguousSrcDir s1 s2)
+          (_, (s1,_):(s2,_):_) -> Left (Exit.BP_WithAmbiguousSrcDir path s1 s2)
           (exit:_, _)          -> Left exit
 
 
