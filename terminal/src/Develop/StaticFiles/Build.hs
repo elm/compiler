@@ -1,19 +1,24 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Develop.StaticFiles.Build
   ( readAsset
-  , compile
+  , buildReactorFrontEnd
   )
   where
 
 
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Builder as B
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.NonEmptyList as NE
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
 
-import qualified Elm.Project as Project
-import qualified Generate.Output as Output
 import qualified Reporting.Task as Task
-import qualified Reporting.Progress.Terminal as Terminal
+import qualified Build
+import qualified Elm.Details as Details
+import qualified Generate
+import qualified Reporting
+import qualified Reporting.Exit as Exit
 
 
 
@@ -26,31 +31,41 @@ readAsset path =
 
 
 
--- COMPILE
+-- BUILD REACTOR ELM
 
 
-compile :: IO BS.ByteString
-compile =
+buildReactorFrontEnd :: IO BS.ByteString
+buildReactorFrontEnd =
   Dir.withCurrentDirectory "reactor" $
-    do  reporter <- Terminal.create
-        Task.run reporter $
-          do  summary <- Project.getRoot
-              let jsOutput = Just (Output.JavaScript Nothing tempFileName)
-              Project.compile Output.Prod Output.Client jsOutput summary rootPaths
-
-        result <- BS.readFile tempFileName
-        seq (BS.length result) (Dir.removeFile tempFileName)
-        return result
+  do  root <- Dir.getCurrentDirectory
+      runTaskUnsafe $
+        do  details    <- Task.eio Exit.ReactorBadDetails $ Details.load Reporting.silent root
+            artifacts  <- Task.eio Exit.ReactorBadBuild $ Build.fromMains Reporting.silent root details mains
+            javascript <- Task.mapError Exit.ReactorBadGenerate $ Generate.prod root details artifacts
+            return (LBS.toStrict (B.toLazyByteString javascript))
 
 
-tempFileName :: FilePath
-tempFileName =
-  "elm.js"
+mains :: NE.List FilePath
+mains =
+  NE.List
+    ("src" </> "NotFound.elm")
+    [ "src" </> "Errors.elm"
+    , "src" </> "Index.elm"
+    ]
 
 
-rootPaths :: [FilePath]
-rootPaths =
-  [ "src" </> "Errors.elm"
-  , "src" </> "Index.elm"
-  , "src" </> "NotFound.elm"
-  ]
+runTaskUnsafe :: Task.Task Exit.Reactor a -> IO a
+runTaskUnsafe task =
+  do  result <- Task.run task
+      case result of
+        Right a ->
+          return a
+
+        Left exit ->
+          do  Exit.toStderr (Exit.reactorToReport exit)
+              error
+                "\n--------------------------------------------------------\
+                \\nError in Develop.StaticFiles.Build.buildReactorFrontEnd\
+                \\nCompile with `elm make` directly to figure it out faster\
+                \\n--------------------------------------------------------\
+                \\n"
