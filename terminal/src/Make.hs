@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Make
   ( Flags(..)
   , Output(..)
@@ -11,26 +11,18 @@ module Make
   where
 
 
-import Control.Concurrent (MVar, forkIO, newEmptyMVar, newMVar, putMVar, readMVar)
-import Control.Monad (liftM2)
 import qualified Data.ByteString.Builder as B
-import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.NonEmptyList as NE
 import qualified System.FilePath as FP
 
 import qualified AST.Optimized as Opt
 import qualified Build
-import qualified Elm.Compiler.Type.Extract as Extract
 import qualified Elm.Details as Details
-import qualified Elm.Interface as I
 import qualified Elm.ModuleName as ModuleName
-import qualified Elm.Package as Pkg
 import qualified File
+import qualified Generate
 import qualified Generate.Html as Html
-import qualified Generate.JavaScript as Generate
-import qualified Generate.Mode as Mode
-import qualified Nitpick.Debug as Nitpick
 import qualified Reporting
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
@@ -105,7 +97,7 @@ run paths (Flags debug optimize maybeOutput report maybeDocs) =
                         case getNoMains artifacts of
                           [] ->
                             do  builder <- toBuilder root details desiredMode artifacts
-                                generate style target builder (getMainNames artifacts)
+                                generate style target builder (Build.getMainNames artifacts)
 
                           name:names ->
                             Task.throw (Exit.MakeNonMainFilesIntoJavaScript name names)
@@ -133,10 +125,7 @@ getStyle report =
 
 getRoot :: Task FilePath
 getRoot =
-  do  maybeRoot <- Task.io Stuff.findRoot
-      case maybeRoot of
-        Nothing -> Task.throw Exit.MakeNeedsOutline
-        Just root -> return root
+  Task.mio Exit.MakeNoOutline Stuff.findRoot
 
 
 getMode :: Bool -> Bool -> Task DesiredMode
@@ -252,22 +241,6 @@ getNoMain modules main =
 
 
 
--- GET MAIN NAMES
-
-
-getMainNames :: Build.Artifacts -> NE.List ModuleName.Raw
-getMainNames (Build.Artifacts _ _ mains _) =
-  fmap getMainName mains
-
-
-getMainName :: Build.Main -> ModuleName.Raw
-getMainName main =
-  case main of
-    Build.Inside  name     -> name
-    Build.Outside name _ _ -> name
-
-
-
 -- GENERATE
 
 
@@ -286,150 +259,12 @@ data DesiredMode = Debug | Dev | Prod
 
 
 toBuilder :: FilePath -> Details.Details -> DesiredMode -> Build.Artifacts -> Task B.Builder
-toBuilder root details desiredMode (Build.Artifacts pkg ifaces roots modules) =
-  case desiredMode of
-    Debug ->
-      do  loading <- loadObjects root details modules
-          types   <- loadTypes root ifaces modules
-          objects <- finalizeObjects loading
-          let mode = Mode.Dev (Just types)
-          let graph = toGlobalGraph objects
-          let mains = gatherMains pkg objects roots
-          return $ Generate.generate mode graph mains
-
-    Dev ->
-      do  objects <- finalizeObjects =<< loadObjects root details modules
-          let mode = Mode.Dev Nothing
-          let graph = toGlobalGraph objects
-          let mains = gatherMains pkg objects roots
-          return $ Generate.generate mode graph mains
-
-    Prod ->
-      do  objects <- finalizeObjects =<< loadObjects root details modules
-          checkForDebugUses objects
-          let graph = toGlobalGraph objects
-          let mode = Mode.Prod (Mode.shortenFieldNames graph)
-          let mains = gatherMains pkg objects roots
-          return $ Generate.generate mode graph mains
-
-
-checkForDebugUses :: LoadedObjects -> Task ()
-checkForDebugUses (LoadedObjects _ locals) =
-  case Map.keys (Map.filter Nitpick.hasDebugUses locals) of
-    []   -> return ()
-    m:ms -> Task.throw (Exit.MakeCannotOptimizeDebugValues m ms)
-
-
-toGlobalGraph :: LoadedObjects -> Opt.GlobalGraph
-toGlobalGraph (LoadedObjects globals locals) =
-  foldr Opt.addLocalGraph globals locals
-
-
-
--- LOAD OBJECTS
-
-
-data LoadingObjects =
-  LoadingObjects
-    { _foreign_mvar :: MVar (Maybe Opt.GlobalGraph)
-    , _local_mvars :: Map.Map ModuleName.Raw (MVar (Maybe Opt.LocalGraph))
-    }
-
-
-loadObjects :: FilePath -> Details.Details -> [Build.Module] -> Task LoadingObjects
-loadObjects root details modules =
-  Task.io $
-  do  mvar <- Details.loadObjects root details
-      mvars <- traverse (loadObject root) modules
-      return $ LoadingObjects mvar (Map.fromList mvars)
-
-
-loadObject :: FilePath -> Build.Module -> IO (ModuleName.Raw, MVar (Maybe Opt.LocalGraph))
-loadObject root modul =
-  case modul of
-    Build.Fresh name _ graph ->
-      do  mvar <- newMVar (Just graph)
-          return (name, mvar)
-
-    Build.Cached name _ _ ->
-      do  mvar <- newEmptyMVar
-          _ <- forkIO $ putMVar mvar =<< File.readBinary (Stuff.elmo root name)
-          return (name, mvar)
-
-
-data LoadedObjects =
-  LoadedObjects
-    { _foreign :: Opt.GlobalGraph
-    , _locals :: Map.Map ModuleName.Raw Opt.LocalGraph
-    }
-
-
-finalizeObjects :: LoadingObjects -> Task LoadedObjects
-finalizeObjects (LoadingObjects mvar mvars) =
-  Task.eio id $
-  do  result  <- readMVar mvar
-      results <- traverse readMVar mvars
-      case liftM2 LoadedObjects result (sequence results) of
-        Just loaded -> return (Right loaded)
-        Nothing     -> return (Left Exit.MakeCannotLoadArtifacts)
-
-
-
--- LOAD TYPES
-
-
-loadTypes :: FilePath -> Map.Map ModuleName.Canonical I.DependencyInterface -> [Build.Module] -> Task Extract.Types
-loadTypes root ifaces modules =
-  Task.eio id $
-  do  mvars <- traverse (loadTypesHelp root) modules
-      let !foreigns = Extract.mergeMany (Map.elems (Map.mapWithKey Extract.fromDependencyInterface ifaces))
-      results <- traverse readMVar mvars
-      case sequence results of
-        Just ts -> return (Right (Extract.merge foreigns (Extract.mergeMany ts)))
-        Nothing -> return (Left Exit.MakeCannotLoadArtifacts)
-
-
-loadTypesHelp :: FilePath -> Build.Module -> IO (MVar (Maybe Extract.Types))
-loadTypesHelp root modul =
-  case modul of
-    Build.Fresh name iface _ ->
-      newMVar (Just (Extract.fromInterface name iface))
-
-    Build.Cached name _ ciMVar ->
-      do  cachedInterface <- readMVar ciMVar
-          case cachedInterface of
-            Build.Unneeded ->
-              do  mvar <- newEmptyMVar
-                  _ <- forkIO $
-                    do  maybeIface <- File.readBinary (Stuff.elmo root name)
-                        putMVar mvar (Extract.fromInterface name <$> maybeIface)
-                  return mvar
-
-            Build.Loaded iface ->
-              newMVar (Just (Extract.fromInterface name iface))
-
-            Build.Corrupted ->
-              newMVar Nothing
-
-
-
--- GATHER MAINS
-
-
-gatherMains :: Pkg.Name -> LoadedObjects -> NE.List Build.Main -> Map.Map ModuleName.Canonical Opt.Main
-gatherMains pkg (LoadedObjects _ locals) buildMains =
-  Map.fromList $ Maybe.mapMaybe (lookupMain pkg locals) (NE.toList buildMains)
-
-
-lookupMain :: Pkg.Name -> Map.Map ModuleName.Raw Opt.LocalGraph -> Build.Main -> Maybe (ModuleName.Canonical, Opt.Main)
-lookupMain pkg locals buildMain =
-  let
-    toPair name (Opt.LocalGraph maybeMain _ _) =
-      (,) (ModuleName.Canonical pkg name) <$> maybeMain
-  in
-  case buildMain of
-    Build.Inside  name     -> toPair name =<< Map.lookup name locals
-    Build.Outside name _ g -> toPair name g
+toBuilder root details desiredMode artifacts =
+  Task.mapError Exit.MakeBadGenerate $
+    case desiredMode of
+      Debug -> Generate.debug root details artifacts
+      Dev   -> Generate.dev   root details artifacts
+      Prod  -> Generate.prod  root details artifacts
 
 
 
