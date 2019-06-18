@@ -1348,7 +1348,7 @@ toRedirectDoc response =
 data Make
   = MakeNoOutline
   | MakeCannotOptimizeAndDebug
-  | MakeBlockedByDetailsProblem Details
+  | MakeBadDetails Details
   | MakeAppNeedsFileNames
   | MakePkgNeedsExposing
   | MakeMultipleFilesIntoHtml
@@ -1381,7 +1381,7 @@ makeToReport make =
             \ at once though! Pick just one of those flags and it should work!"
         ]
 
-    MakeBlockedByDetailsProblem detailsProblem ->
+    MakeBadDetails detailsProblem ->
       toDetailsReport detailsProblem
 
     MakeAppNeedsFileNames ->
@@ -1581,13 +1581,17 @@ reactorToReport :: Reactor -> Help.Report
 reactorToReport problem =
   case problem of
     ReactorNoOutline ->
-      error "TODO ReactorNoOutline"
+      Help.report "NEW PROJECT?" Nothing
+        "Are you trying to start a new project? Try this command in the terminal:"
+        [ D.indent 4 $ D.green "elm init"
+        , D.reflow "It will help you get started!"
+        ]
 
     ReactorBadDetails details ->
-      error "TODO ReactorBadDetails" details
+      toDetailsReport details
 
     ReactorBadBuild buildProblem ->
-      error "TODO ReactorBadBuild" buildProblem
+      toBuildProblemReport buildProblem
 
     ReactorBadGenerate generate ->
       toGenerateReport generate
