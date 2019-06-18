@@ -220,7 +220,7 @@ diffToReport diff =
         "I need the latest list of published packages before I do this diff"
 
     DiffBadDetails details ->
-      error "TODO DiffBadDetails" details
+      toDetailsReport details
 
     DiffBadBuild buildProblem ->
       error "TODO DiffBadBuild" buildProblem
@@ -360,7 +360,7 @@ publishToReport publish =
       toOutlineReport outline
 
     PublishBadDetails problem ->
-      error "TODO PublishBadDetails" problem
+      toDetailsReport problem
 
     PublishMustHaveLatestRegistry problem ->
       toRegistryProblemReport "PROBLEM UPDATING PACKAGE LIST" problem $
@@ -496,7 +496,7 @@ publishToReport publish =
         ]
 
     PublishBuildProblem buildProblem ->
-      error "TODO PublishBuildProblem" buildProblem
+      toBuildProblemReport buildProblem
 
     PublishMissingTag version ->
       let vsn = V.toChars version in
@@ -1113,10 +1113,32 @@ toDetailsReport :: Details -> Help.Report
 toDetailsReport details =
   case details of
     DetailsNoSolution ->
-      error "TODO DetailsNoSolution"
+      Help.report "INCOMPATIBLE DEPENDENCIES" (Just "elm.json")
+        "The dependencies in your elm.json are not compatible."
+        [ D.fillSep
+            ["Did","you","change","them","by","hand?","Try","to","change","it","back!"
+            ,"It","is","much","more","reliable","to","add","dependencies","with",D.green "elm install"
+            ,"or","the","dependency","management","tool","in",D.green "elm reactor" <> "."
+            ]
+        , D.reflow $
+            "Please ask for help on the community forums if you try those paths and are still\
+            \ having problems!"
+        ]
 
     DetailsNoOfflineSolution ->
-      error "TODO DetailsNoOfflineSolution"
+      Help.report "TROUBLE VERIFYING DEPENDENCIES" (Just "elm.json")
+        "I could not connect to https://package.elm-lang.org to get the latest list of\
+        \ packages, and I was unable to verify your dependencies with the information I\
+        \ have cached locally."
+        [ D.reflow $
+            "Are you able to connect to the internet? These dependencies may work once you\
+            \ get access to the registry!"
+        , D.toFancyNote
+            ["If","you","changed","your","dependencies","by","hand,","try","to","change","them","back!"
+            ,"It","is","much","more","reliable","to","add","dependencies","with",D.green "elm install"
+            ,"or","the","dependency","management","tool","in",D.green "elm reactor" <> "."
+            ]
+        ]
 
     DetailsSolverProblem _ ->
       error "TODO DetailsSolverProblem"
@@ -1145,14 +1167,25 @@ toDetailsReport details =
         ]
 
     DetailsHandEditedDependencies ->
-      error "TODO DetailsHandEditedDependencies"
+      Help.report "ERROR IN DEPENDENCIES" (Just "elm.json")
+        "It looks like the dependencies elm.json in were edited by hand (or by a 3rd\
+        \ party tool) leaving them in an invalid state."
+        [ D.fillSep
+            ["Try","to","change","them","back","to","what","they","were","before!"
+            ,"It","is","much","more","reliable","to","add","dependencies","with",D.green "elm install"
+            ,"or","the","dependency","management","tool","in",D.green "elm reactor" <> "."
+            ]
+        , D.reflow $
+            "Please ask for help on the community forums if you try those paths and are still\
+            \ having problems!"
+        ]
 
     DetailsBadOutline outline ->
       toOutlineReport outline
 
     DetailsCannotGetRegistry problem ->
       toRegistryProblemReport "PROBLEM LOADING PACKAGE LIST" problem $
-        "I need the list of published packages to figure out if your project has compatible dependencies"
+        "I need the list of published packages to verify your dependencies"
 
     DetailsCannotBuildPackage pkg vsn problem ->
       toPackageProblemReport pkg vsn problem
