@@ -7,27 +7,30 @@ module Develop
 
 
 import Control.Applicative ((<|>))
-import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
-import Control.Monad (guard, void)
+import Control.Monad (guard)
 import Control.Monad.Trans (MonadIO(liftIO))
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString as BS
 import qualified Data.HashMap.Strict as HashMap
 import Data.Monoid ((<>))
+import qualified Data.NonEmptyList as NE
 import qualified System.Directory as Dir
 import System.FilePath as FP
-import Snap.Core
+import Snap.Core hiding (path)
 import Snap.Http.Server
 import Snap.Util.FileServe
 
-import qualified Elm.Project as Project
-import qualified Develop.Generate.Help as Generate
+import qualified Build
+import qualified Elm.Details as Details
+import qualified Develop.Generate.Help as Help
 import qualified Develop.Generate.Index as Index
 import qualified Develop.StaticFiles as StaticFiles
-import qualified Generate.Output as Output
+import qualified Generate.Html as Html
+import qualified Generate
+import qualified Reporting
 import qualified Reporting.Exit as Exit
-import qualified Reporting.Progress as Progress
 import qualified Reporting.Task as Task
+import qualified Stuff
 
 
 
@@ -42,31 +45,19 @@ data Flags =
 
 run :: () -> Flags -> IO ()
 run () (Flags maybePort) =
-  let
-    port =
-      maybe 8000 id maybePort
-  in
-    do  putStrLn $ "Go to <http://localhost:" ++ show port ++ "> to see your project dashboard."
-
-        httpServe (config port) $
-          serveFiles
-          <|> serveDirectoryWith directoryConfig "."
-          <|> serveAssets
-          <|> error404
+  do  let port = maybe 8000 id maybePort
+      putStrLn $ "Go to http://localhost:" ++ show port ++ " to see your project dashboard."
+      httpServe (config port) $
+        serveFiles
+        <|> serveDirectoryWith directoryConfig "."
+        <|> serveAssets
+        <|> error404
 
 
 config :: Int -> Config Snap a
 config port =
-  defaultConfig
-    # setVerbose False
-    # setPort port
-    # setAccessLog ConfigNoLog
-    # setErrorLog ConfigNoLog
-
-
-(#) :: a -> (a -> b) -> b
-(#) value func =
-  func value
+  setVerbose False $ setPort port $
+    setAccessLog ConfigNoLog $ setErrorLog ConfigNoLog $ defaultConfig
 
 
 
@@ -75,18 +66,12 @@ config port =
 
 directoryConfig :: MonadSnap m => DirectoryConfig m
 directoryConfig =
-  let
-    customGenerator pwd =
-      do  modifyResponse $ setContentType "text/html; charset=utf-8"
-          html <- liftIO $
-            do  root <- Dir.getCurrentDirectory
-                Index.get root pwd
-          writeBuilder html
-  in
-    fancyDirectoryConfig
-      { indexFiles = []
-      , indexGenerator = customGenerator
-      }
+  fancyDirectoryConfig
+    { indexFiles = []
+    , indexGenerator = \pwd ->
+        do  modifyResponse $ setContentType "text/html;charset=utf-8"
+            writeBuilder =<< liftIO (Index.generate pwd)
+    }
 
 
 
@@ -96,8 +81,8 @@ directoryConfig =
 error404 :: Snap ()
 error404 =
   do  modifyResponse $ setResponseStatus 404 "Not Found"
-      modifyResponse $ setContentType "text/html; charset=utf-8"
-      writeBuilder $ Generate.makePageHtml "NotFound" Nothing
+      modifyResponse $ setContentType "text/html;charset=utf-8"
+      writeBuilder $ Help.makePageHtml "NotFound" Nothing
 
 
 
@@ -106,9 +91,9 @@ error404 =
 
 serveFiles :: Snap ()
 serveFiles =
-  do  file <- getSafePath
-      guard =<< liftIO (Dir.doesFileExist file)
-      serveElm file <|> serveFilePretty file
+  do  path <- getSafePath
+      guard =<< liftIO (Dir.doesFileExist path)
+      serveElm path <|> serveFilePretty path
 
 
 
@@ -116,34 +101,33 @@ serveFiles =
 
 
 serveFilePretty :: FilePath -> Snap ()
-serveFilePretty file =
+serveFilePretty path =
   let
     possibleExtensions =
-      getSubExts (takeExtensions file)
+      getSubExts (takeExtensions path)
   in
     case mconcat (map lookupMimeType possibleExtensions) of
       Nothing ->
-        serveCode file
+        serveCode path
 
       Just mimeType ->
-        serveFileAs mimeType file
+        serveFileAs mimeType path
 
 
 getSubExts :: String -> [String]
 getSubExts fullExtension =
   if null fullExtension then
     []
-
   else
     fullExtension : getSubExts (takeExtensions (drop 1 fullExtension))
 
 
 serveCode :: String -> Snap ()
-serveCode file =
-  do  code <- liftIO (BS.readFile file)
+serveCode path =
+  do  code <- liftIO (BS.readFile path)
       modifyResponse (setContentType "text/html")
       writeBuilder $
-        Generate.makeCodeHtml ('~' : '/' : file) (B.byteString code)
+        Help.makeCodeHtml ('~' : '/' : path) (B.byteString code)
 
 
 
@@ -151,31 +135,27 @@ serveCode file =
 
 
 serveElm :: FilePath -> Snap ()
-serveElm file =
-  do  guard (takeExtension file == ".elm")
+serveElm path =
+  do  guard (takeExtension path == ".elm")
       modifyResponse (setContentType "text/html")
-      writeBuilder =<< liftIO (compileToHtmlBuilder file)
-
-
-compileToHtmlBuilder :: FilePath -> IO B.Builder
-compileToHtmlBuilder file =
-  do  mvar1 <- newEmptyMVar
-      mvar2 <- newEmptyMVar
-
-      let reporter = Progress.Reporter (\_ -> return ()) (\_ -> return True) (putMVar mvar1)
-      let output = Just (Output.HtmlBuilder mvar2)
-
-      void $ Task.try reporter $
-        do  summary <- Project.getRoot
-            Project.compile Output.Dev Output.Client output summary [file]
-
-      result <- takeMVar mvar1
+      result <- liftIO $ Task.run $ compile path
       case result of
-        Just exit ->
-          return $ Generate.makePageHtml "Errors" (Just (Exit.toJson exit))
+        Right builder ->
+          writeBuilder builder
 
-        Nothing ->
-          takeMVar mvar2
+        Left exit ->
+          writeBuilder $ Help.makePageHtml "Errors" $ Just $
+            Exit.toJson $ Exit.reactorToReport exit
+
+
+compile :: FilePath -> Task.Task Exit.Reactor B.Builder
+compile path =
+  do  root <- Task.mio Exit.ReactorNoOutline Stuff.findRoot
+      details <- Task.eio Exit.ReactorBadDetails $ Details.load Reporting.silent root
+      artifacts <- Task.eio Exit.ReactorBadBuild $ Build.fromMains Reporting.silent root details (NE.List path [])
+      javascript <- Task.mapError Exit.ReactorBadGenerate $ Generate.dev root details artifacts
+      let (NE.List name _) = Build.getMainNames artifacts
+      return $ Html.sandwich name javascript
 
 
 
@@ -184,8 +164,8 @@ compileToHtmlBuilder file =
 
 serveAssets :: Snap ()
 serveAssets =
-  do  file <- getSafePath
-      case StaticFiles.lookup file of
+  do  path <- getSafePath
+      case StaticFiles.lookup path of
         Nothing ->
           pass
 
@@ -260,4 +240,3 @@ mimeTypeDict =
     , ".xwd"     ==> "image/x-xwindowdump"
     , ".zip"     ==> "application/zip"
     ]
-
