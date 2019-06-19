@@ -223,7 +223,7 @@ diffToReport diff =
       toDetailsReport details
 
     DiffBadBuild buildProblem ->
-      error "TODO DiffBadBuild" buildProblem
+      toBuildProblemReport buildProblem
 
 
 
@@ -610,17 +610,17 @@ publishToReport publish =
             ++ vsn ++ "` and publish your code from there."
         ]
 
-    PublishZipBadDetails details ->
-      error "TODO PublishZipBadDetails" details
+    PublishZipBadDetails _ ->
+      badZipReport
 
     PublishZipApplication ->
-      error "TODO PublishZipApplication"
+      badZipReport
 
     PublishZipNoExposed ->
-      error "TODO PublishZipNoExposed"
+      badZipReport
 
-    PublishZipBuildProblem buildProblem ->
-      error "TODO PublishZipBuildProblem" buildProblem
+    PublishZipBuildProblem _ ->
+      badZipReport
 
 
 toBadReadmeReport :: String -> String -> Help.Report
@@ -637,12 +637,24 @@ toBadReadmeReport title summary =
         \ most common usage scenario. Show people what they can expect if\
         \ they learn more!"
     , D.toSimpleNote $
-        "By publishing your package, you are inviting people to invest time\
-        \ in understanding your work. Spending an hour to communicate your\
-        \ knowledge more clearly can save the community days or weeks of time\
-        \ in aggregate, and saving time in aggregate is the whole point of\
-        \ publishing packages! People really appreciate it, and it makes the\
-        \ whole ecosystem feel nicer!"
+        "By publishing your package, you are inviting people to invest time in\
+        \ understanding your work. Spending an hour on your README to communicate your\
+        \ knowledge more clearly can save the community days or weeks of time in\
+        \ aggregate, and saving time in aggregate is the whole point of publishing\
+        \ packages! People really appreciate it, and it makes the whole ecosystem feel\
+        \ nicer!"
+    ]
+
+
+badZipReport :: Help.Report
+badZipReport =
+  Help.report "PROBLEM VERIFYING PACKAGE" Nothing
+    "Before publishing packages, I download the code from GitHub and try to build it\
+    \ from scratch. That way I can be more confident that it will work for other\
+    \ people too. But I am not able to build it!"
+    [ D.reflow $
+        "I was just able to build your local copy though. Is there some way the version\
+        \ on GitHub could be different?"
     ]
 
 
