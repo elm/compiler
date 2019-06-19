@@ -266,7 +266,7 @@ publish =
             \ it ends up as an experiment on GitHub only. Point is, try to be\
             \ respectful of the community and package ecosystem!"
         , reflow
-            "Check out <TODO> for guidance on how to create great packages!"
+            "Check out https://package.elm-lang.org/help/design-guidelines for guidance on how to create great packages!"
         ]
   in
   Interface "publish" Uncommon details example noArgs noFlags Publish.run
