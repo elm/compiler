@@ -178,10 +178,10 @@ generateDocs (Env maybeRoot _ _ _) =
             Details.ValidApp _ ->
               Task.throw $ Exit.DiffApplication
 
-            Details.ValidPkg pkg exposed ->
+            Details.ValidPkg _ exposed ->
               case exposed of
                 [] ->
-                  Task.throw $ Exit.DiffNoExposed pkg
+                  Task.throw $ Exit.DiffNoExposed
 
                 e:es ->
                   Task.eio Exit.DiffBadBuild $
