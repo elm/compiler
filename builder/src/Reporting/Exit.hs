@@ -137,7 +137,7 @@ data Diff
   = DiffNoOutline
   | DiffBadOutline Outline
   | DiffApplication
-  | DiffNoExposed Pkg.Name
+  | DiffNoExposed
   | DiffUnpublished
   | DiffUnknownPackage Pkg.Name [Pkg.Name]
   | DiffUnknownVersion Pkg.Name V.Version [V.Version]
@@ -170,7 +170,7 @@ diffToReport diff =
         , D.indent 4 $ D.dullyellow $ "elm diff elm/http 1.0.0 2.0.0"
         ]
 
-    DiffNoExposed _ ->
+    DiffNoExposed ->
       Help.report "NO EXPOSED MODULES" (Just "elm.json")
         "Your elm.json has no \"exposed-modules\" which means there is no public API at\
         \ all right now! What am I supposed to diff?"
@@ -237,6 +237,9 @@ data Bump
   | BumpUnexpectedVersion V.Version [V.Version]
   | BumpMustHaveLatestRegistry RegistryProblem
   | BumpCannotFindDocs Pkg.Name V.Version DocsProblem
+  | BumpBadDetails Details
+  | BumpNoExposed
+  | BumpBadBuild BuildProblem
 
 
 bumpToReport :: Bump -> Help.Report
@@ -283,6 +286,24 @@ bumpToReport bump =
     BumpCannotFindDocs _ version problem ->
       toDocsProblemReport problem $
         "I need the docs for " ++ V.toChars version ++ " to compute the next version number"
+
+    BumpBadDetails details ->
+      toDetailsReport details
+
+    BumpNoExposed ->
+      Help.docReport "NO EXPOSED MODULES" (Just "elm.json")
+        ( D.fillSep $
+            [ "To", "bump", "a", "package,", "the"
+            , D.dullyellow "\"exposed-modules\"", "field", "of", "your"
+            , "elm.json", "must", "list", "at", "least", "one", "module."
+            ]
+        )
+        [ D.reflow $
+            "Try adding some modules back to the \"exposed-modules\" field."
+        ]
+
+    BumpBadBuild problem ->
+      toBuildProblemReport problem
 
 
 
@@ -469,7 +490,8 @@ publishToReport publish =
             ]
         )
         [ D.reflow $
-            "What is the point of a package that has no modules?!"
+            "Which modules do you want users of the package to have access to? Add their\
+            \ names to the \"exposed-modules\" list."
         ]
 
     PublishNoReadme ->
