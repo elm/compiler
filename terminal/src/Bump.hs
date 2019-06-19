@@ -6,10 +6,14 @@ module Bump
 
 
 import qualified Data.List as List
+import qualified Data.NonEmptyList as NE
 
+import qualified Build
 import qualified Deps.Bump as Bump
 import qualified Deps.Diff as Diff
 import qualified Deps.Registry as Registry
+import qualified Elm.Details as Details
+import qualified Elm.Docs as Docs
 import qualified Elm.Magnitude as M
 import qualified Elm.Outline as Outline
 import qualified Elm.Version as V
@@ -43,7 +47,7 @@ data Env =
     , _cache :: Stuff.PackageCache
     , _manager :: Http.Manager
     , _registry :: Registry.Registry
-    , _outline :: Outline.Outline
+    , _outline :: Outline.PkgOutline
     }
 
 
@@ -58,13 +62,13 @@ getEnv =
           do  cache <- Task.io $ Stuff.getPackageCache
               manager <- Task.io $ Http.getManager
               registry <- Task.eio Exit.BumpMustHaveLatestRegistry $ Registry.latest manager cache
-              outlineResult <- Task.io $ Outline.read root
-              case outlineResult of
-                Right outline ->
-                  return $ Env root cache manager registry outline
+              outline <- Task.eio Exit.BumpBadOutline $ Outline.read root
+              case outline of
+                Outline.App _ ->
+                  Task.throw Exit.BumpApplication
 
-                Left problem ->
-                  Task.throw $ Exit.BumpBadOutline problem
+                Outline.Pkg pkgOutline ->
+                  return $ Env root cache manager registry pkgOutline
 
 
 
@@ -72,26 +76,21 @@ getEnv =
 
 
 bump :: Env -> Task.Task Exit.Bump ()
-bump env@(Env root _ _ registry outline) =
-  case outline of
-    Outline.App _ ->
-      Task.throw Exit.BumpApplication
+bump env@(Env root _ _ registry outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
+  case Registry.getVersions pkg registry of
+    Just knownVersions ->
+      let
+        bumpableVersions =
+          map (\(old, _, _) -> old) (Bump.getPossibilities knownVersions)
+      in
+      if elem vsn bumpableVersions
+      then suggestVersion env
+      else
+        Task.throw $ Exit.BumpUnexpectedVersion vsn $
+          map head (List.group (List.sort bumpableVersions))
 
-    Outline.Pkg pkgOutline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _) ->
-      case Registry.getVersions pkg registry of
-        Just knownVersions ->
-          let
-            bumpableVersions =
-              map (\(old, _, _) -> old) (Bump.getPossibilities knownVersions)
-          in
-          if elem vsn bumpableVersions
-          then suggestVersion env pkgOutline
-          else
-            Task.throw $ Exit.BumpUnexpectedVersion vsn $
-              map head (List.group (List.sort bumpableVersions))
-
-        Nothing ->
-          Task.io $ checkNewPackage root pkgOutline
+    Nothing ->
+      Task.io $ checkNewPackage root outline
 
 
 
@@ -115,10 +114,10 @@ checkNewPackage root outline@(Outline.PkgOutline _ _ _ version _ _ _ _) =
 -- SUGGEST VERSION
 
 
-suggestVersion :: Env -> Outline.PkgOutline -> Task.Task Exit.Bump ()
-suggestVersion (Env root cache manager _ _) outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _) =
+suggestVersion :: Env -> Task.Task Exit.Bump ()
+suggestVersion (Env root cache manager _ outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
   do  oldDocs <- Task.eio (Exit.BumpCannotFindDocs pkg vsn) (Diff.getDocs cache manager pkg vsn)
-      newDocs <- error "TODO Outline.generateDocs summary"
+      newDocs <- generateDocs root outline
       let changes = Diff.diff oldDocs newDocs
       let newVersion = Diff.bump changes vsn
       Task.io $ changeVersion root outline newVersion $
@@ -131,6 +130,20 @@ suggestVersion (Env root cache manager _ _) outline@(Outline.PkgOutline pkg _ _ 
         <> "Bail out of this command and run 'elm diff' for a full explanation.\n"
         <> "\n"
         <> "Should I perform the update (" <> old <> " => " <> new <> ") in elm.json? [Y/n] "
+
+
+generateDocs :: FilePath -> Outline.PkgOutline -> Task.Task Exit.Bump Docs.Documentation
+generateDocs root (Outline.PkgOutline _ _ _ _ exposed _ _ _) =
+  do  details <-
+        Task.eio Exit.BumpBadDetails $ Details.load Reporting.silent root
+
+      case Outline.flattenExposed exposed of
+        [] ->
+          Task.throw $ Exit.BumpNoExposed
+
+        e:es ->
+          Task.eio Exit.BumpBadBuild $
+            Build.fromExposed Reporting.silent root details Build.KeepDocs (NE.List e es)
 
 
 
