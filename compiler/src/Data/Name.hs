@@ -19,7 +19,6 @@ module Data.Name
   , isAppendableType
   , isCompappendType
   , fromVarIndex
-  , fromReplCount
   , fromWords
   , fromManyNames
   , fromTypeVariable
@@ -284,15 +283,6 @@ fromTypeVariableScheme scheme =
           writeDigits mba (size - 1) extra
           freeze mba
   )
-
-
-
--- FROM REPL COUNT
-
-
-fromReplCount :: Int -> Name
-fromReplCount n =
-  Utf8.fromChars ("repl_value_" ++ show n)
 
 
 
