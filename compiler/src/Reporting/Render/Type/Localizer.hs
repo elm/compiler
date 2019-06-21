@@ -7,8 +7,6 @@ module Reporting.Render.Type.Localizer
   , empty
   , fromNames
   , fromModule
-  , replEmpty
-  , replAdd
   )
   where
 
@@ -18,7 +16,6 @@ import qualified Data.Name as Name
 import qualified Data.Set as Set
 
 import qualified AST.Source as Src
-import qualified Elm.Compiler.Imports as Imports
 import qualified Elm.ModuleName as ModuleName
 import Reporting.Doc ((<>))
 import qualified Reporting.Doc as D
@@ -121,20 +118,3 @@ addType (A.At _ exposed) types =
     Src.Lower _      -> types
     Src.Upper name _ -> Set.insert name types
     Src.Operator _   -> types
-
-
-
--- REPL STUFF
-
-
-replEmpty :: Localizer
-replEmpty =
-  Localizer $
-    Map.insert Name.replModule (Import Nothing All) $
-      Map.fromList $ map toPair Imports.defaults
-
-
-replAdd :: Name.Name -> Maybe Name.Name -> Src.Exposing -> Localizer -> Localizer
-replAdd name alias exposing (Localizer localizer) =
-  Localizer $ Map.insert name (Import alias (toExposing exposing)) localizer
-
