@@ -346,9 +346,9 @@ chompDocs :: [A.Located Name.Name] -> Parser [A.Located Name.Name]
 chompDocs names =
   do  name <-
         P.addLocation $
-          P.oneOf E.Export
-            [ Var.lower E.Export
-            , Var.upper E.Export
+          P.oneOf E.Name
+            [ Var.lower E.Name
+            , Var.upper E.Name
             , chompOperator
             ]
 
