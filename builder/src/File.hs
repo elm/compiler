@@ -1,6 +1,7 @@
 module File
   ( Time
   , getTime
+  , zeroTime
   , writeBinary
   , readBinary
   , writeUtf8
@@ -47,6 +48,11 @@ getTime path =
     (Time . realToFrac . Time.utcTimeToPOSIXSeconds)
 -- TODO    (Time . Time.nominalDiffTimeToSeconds . Time.utcTimeToPOSIXSeconds)
     (Dir.getModificationTime path)
+
+
+zeroTime :: Time
+zeroTime =
+  Time 0
 
 
 instance Binary.Binary Time where
