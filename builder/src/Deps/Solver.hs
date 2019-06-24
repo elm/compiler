@@ -327,8 +327,6 @@ getConstraints pkg vsn =
                                     err (Exit.SolverBadHttpData pkg vsn)
 
 
--- TODO write constraintsDecoder to be a bit faster
---
 constraintsDecoder :: D.Decoder () Constraints
 constraintsDecoder =
   do  outline <- D.mapError (const ()) Outline.decoder
