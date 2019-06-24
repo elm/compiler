@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Reporting.Error.Syntax
   ( Error(..)
+  , toReport
   --
   , Module(..)
   , Exposing(..)
@@ -39,7 +40,7 @@ module Reporting.Error.Syntax
   , Number(..)
   --
   , Space(..)
-  , toReport
+  , toSpaceReport
   )
   where
 
