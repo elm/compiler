@@ -55,11 +55,11 @@ run args () =
                       case oldOutline of
                         Outline.App outline ->
                           do  changes <- makeAppPlan env pkg outline
-                              attemptChanges root env oldOutline V.toChars changes
+                              attemptChanges root env pkg oldOutline V.toChars changes
 
                         Outline.Pkg outline ->
                           do  changes <- makePkgPlan env pkg outline
-                              attemptChanges root env oldOutline C.toChars changes
+                              attemptChanges root env pkg oldOutline C.toChars changes
 
 
 
@@ -76,14 +76,14 @@ data Changes vsn
 type Task = Task.Task Exit.Install
 
 
-attemptChanges :: FilePath -> Solver.Env -> Outline.Outline -> (a -> String) -> Changes a -> Task ()
-attemptChanges root env oldOutline toChars changes =
+attemptChanges :: FilePath -> Solver.Env -> Pkg.Name -> Outline.Outline -> (a -> String) -> Changes a -> Task ()
+attemptChanges root env pkg oldOutline toChars changes =
   case changes of
     AlreadyInstalled ->
       Task.io $ putStrLn "It is already installed!"
 
     PromoteIndirect newOutline ->
-      attemptChangesHelp root env oldOutline newOutline $
+      attemptChangesHelp root env pkg oldOutline newOutline $
         D.vcat
          [ D.fillSep
             ["I","found","it","in","your","elm.json","file,"
@@ -96,7 +96,7 @@ attemptChanges root env oldOutline toChars changes =
          ]
 
     PromoteTest newOutline ->
-      attemptChangesHelp root env oldOutline newOutline $
+      attemptChangesHelp root env pkg oldOutline newOutline $
         D.vcat
          [ D.fillSep
             ["I","found","it","in","your","elm.json","file,"
@@ -113,7 +113,7 @@ attemptChanges root env oldOutline toChars changes =
         widths = Map.foldrWithKey (widen toChars) (Widths 0 0 0) changeDict
         changeDocs = Map.foldrWithKey (addChange toChars widths) (Docs [] [] []) changeDict
       in
-      attemptChangesHelp root env oldOutline newOutline $ D.vcat $
+      attemptChangesHelp root env pkg oldOutline newOutline $ D.vcat $
         [ "Here is my plan:"
         , viewChangeDocs changeDocs
         , ""
@@ -121,9 +121,9 @@ attemptChanges root env oldOutline toChars changes =
         ]
 
 
-attemptChangesHelp :: FilePath -> Solver.Env -> Outline.Outline -> Outline.Outline -> D.Doc -> Task ()
-attemptChangesHelp root env oldOutline newOutline question =
-  Task.eio Exit.InstallHasBadDetails $
+attemptChangesHelp :: FilePath -> Solver.Env -> Pkg.Name -> Outline.Outline -> Outline.Outline -> D.Doc -> Task ()
+attemptChangesHelp root env pkg oldOutline newOutline question =
+  Task.eio (\_ -> Exit.InstallHasBadDetails pkg (Outline.encode newOutline)) $
   do  approved <- Reporting.ask question
       if approved
         then

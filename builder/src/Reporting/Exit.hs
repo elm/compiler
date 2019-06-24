@@ -29,6 +29,9 @@ module Reporting.Exit
 
 
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Builder as B
+import qualified Data.ByteString.Char8 as BSC
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.UTF8 as BS_UTF8
 import qualified Data.List as List
 import qualified Data.Name as N
@@ -741,7 +744,7 @@ data Install
   | InstallHadSolverTrouble Solver
   | InstallUnknownPackageOnline Pkg.Name [Pkg.Name]
   | InstallUnknownPackageOffline Pkg.Name [Pkg.Name]
-  | InstallHasBadDetails Details
+  | InstallHasBadDetails Pkg.Name Encode.Value
 
 
 installToReport :: Install -> Help.Report
@@ -828,8 +831,20 @@ installToReport exit =
         , D.reflow $ "Maybe you want one of these instead?"
         ]
 
-    InstallHasBadDetails _ ->
-      error "TODO InstallHasBadDetails"
+    InstallHasBadDetails pkg outline ->
+      Help.report "INSTALL PROBLEM" Nothing
+        (
+          "I found a version of " ++ Pkg.toChars pkg ++ " that claims to be compatible with\
+          \ your existing dependencies, but I ran into an error when I tried to build it locally."
+        )
+        [ D.reflow $
+            "Here is an elm.json that should reproduce the error with a bit more information:"
+        , D.indent 4 $ D.dullyellow $ D.vcat $ map D.fromChars $
+            map BS_UTF8.toString $ BSC.lines $ LBS.toStrict $ B.toLazyByteString $
+              Encode.encode outline
+        , D.reflow $
+            "Maybe that can help figure out what is going on here."
+        ]
 
 
 {- TODO detect if library has no 0.19.0 version. Maybe do this on website though?
@@ -1708,4 +1723,4 @@ replToReport problem =
       corruptCacheReport
 
     ReplBlocked ->
-      error "TODO ReplBlocked"
+      corruptCacheReport
