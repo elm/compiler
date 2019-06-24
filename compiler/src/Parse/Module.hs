@@ -3,6 +3,7 @@
 module Parse.Module
   ( fromByteString
   , chompImports
+  , chompImport
   )
   where
 
@@ -332,28 +333,33 @@ spaces_em =
 
 
 chompImports :: [Src.Import] -> Parser E.Module [Src.Import]
-chompImports imports =
+chompImports is =
   oneOfWithFallback
-    [ do  Keyword.import_ E.ImportStart
-          Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentName
-          name@(A.At (A.Region _ end) _) <- addLocation (Var.moduleName E.ImportName)
-          Space.chomp E.ModuleSpace
-          oneOf E.ImportEnd
-            [ do  Space.checkFreshLine E.ImportEnd
-                  chompImports $
-                    Src.Import name Nothing (Src.Explicit []) : imports
-            , do  Space.checkIndent end E.ImportEnd
-                  oneOf E.ImportAs
-                    [ chompAs name imports
-                    , chompExposing name Nothing imports
-                    ]
-            ]
+    [ do  i <- chompImport
+          chompImports (i:is)
     ]
-    (reverse imports)
+    (reverse is)
 
 
-chompAs :: A.Located Name.Name -> [Src.Import] -> Parser E.Module [Src.Import]
-chompAs name imports =
+chompImport :: Parser E.Module Src.Import
+chompImport =
+  do  Keyword.import_ E.ImportStart
+      Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentName
+      name@(A.At (A.Region _ end) _) <- addLocation (Var.moduleName E.ImportName)
+      Space.chomp E.ModuleSpace
+      oneOf E.ImportEnd
+        [ do  Space.checkFreshLine E.ImportEnd
+              return $ Src.Import name Nothing (Src.Explicit [])
+        , do  Space.checkIndent end E.ImportEnd
+              oneOf E.ImportAs
+                [ chompAs name
+                , chompExposing name Nothing
+                ]
+        ]
+
+
+chompAs :: A.Located Name.Name -> Parser E.Module Src.Import
+chompAs name =
   do  Keyword.as_ E.ImportAs
       Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentAlias
       alias <- Var.upper E.ImportAlias
@@ -361,21 +367,19 @@ chompAs name imports =
       Space.chomp E.ModuleSpace
       oneOf E.ImportEnd
         [ do  Space.checkFreshLine E.ImportEnd
-              chompImports $
-                Src.Import name (Just alias) (Src.Explicit []) : imports
+              return $ Src.Import name (Just alias) (Src.Explicit [])
         , do  Space.checkIndent end E.ImportEnd
-              chompExposing name (Just alias) imports
+              chompExposing name (Just alias)
         ]
 
 
-chompExposing :: A.Located Name.Name -> Maybe Name.Name -> [Src.Import] -> Parser E.Module [Src.Import]
-chompExposing name maybeAlias imports =
+chompExposing :: A.Located Name.Name -> Maybe Name.Name -> Parser E.Module Src.Import
+chompExposing name maybeAlias =
   do  Keyword.exposing_ E.ImportExposing
       Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentExposingList
       exposed <- specialize E.ImportExposingList exposing
       freshLine E.ImportEnd
-      chompImports $
-        Src.Import name maybeAlias exposed : imports
+      return $ Src.Import name maybeAlias exposed
 
 
 
