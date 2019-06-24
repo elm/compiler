@@ -3,10 +3,12 @@
 module Build
   ( fromExposed
   , fromMains
+  , fromRepl
   , Artifacts(..)
   , Main(..)
   , Module(..)
   , CachedInterface(..)
+  , ReplArtifacts(..)
   , DocsGoal(..)
   , getMainNames
   )
@@ -51,6 +53,7 @@ import qualified Reporting.Error as Error
 import qualified Reporting.Error.Syntax as Syntax
 import qualified Reporting.Error.Import as Import
 import qualified Reporting.Exit as Exit
+import qualified Reporting.Render.Type.Localizer as L
 import qualified Stuff
 
 
@@ -115,7 +118,7 @@ fromExposed style root details docsGoal exposed@(NE.List e es) =
       statuses <- traverse readMVar =<< readMVar mvar
 
       -- compile
-      midpoint <- checkExposedMidpoint dmvar statuses
+      midpoint <- checkMidpoint dmvar statuses
       case midpoint of
         Left problem ->
           return (Left (Exit.BuildProjectProblem problem))
@@ -374,14 +377,10 @@ checkModule env@(Env _ root pkg _ _ _) foreigns resultsMVar name status =
               compile env docsNeed local source ifaces modul
 
             DepsSame same cached ->
-              do  maybeLoaded <- checkCachedInterfaces root cached
+              do  maybeLoaded <- loadInterfaces root same cached
                   case maybeLoaded of
-                    Nothing ->
-                      return RBlocked
-
-                    Just loaded ->
-                      do  let ifaces = Map.union loaded (Map.fromList same)
-                          compile env docsNeed local source ifaces modul
+                    Nothing     -> return RBlocked
+                    Just ifaces -> compile env docsNeed local source ifaces modul
 
             DepsBlock ->
               return RBlocked
@@ -454,14 +453,10 @@ checkDepsHelp root results deps new same cached importProblems isBlocked =
             return $ DepsSame same cached
 
           else
-            do  maybeLoaded <- checkCachedInterfaces root cached
+            do  maybeLoaded <- loadInterfaces root same cached
                 case maybeLoaded of
-                  Nothing ->
-                    return DepsBlock
-
-                  Just loaded ->
-                    return $ DepsChange $
-                      Map.union loaded (Map.union (Map.fromList new) (Map.fromList same))
+                  Nothing     -> return DepsBlock
+                  Just ifaces -> return $ DepsChange $ Map.union (Map.fromList new) ifaces
 
 
 
@@ -491,18 +486,23 @@ toImportErrors (Env _ _ _ _ locals foreigns) results imports problems =
 
 
 
--- CACHED INTERFACE
+-- LOAD CACHED INTERFACES
 
 
-checkCachedInterfaces :: FilePath -> [(ModuleName.Raw, MVar CachedInterface)] -> IO (Maybe (Map.Map ModuleName.Raw I.Interface))
-checkCachedInterfaces root deps =
-  do  loading <- traverse (fork . checkCache root) deps
-      loaded <- traverse readMVar loading
-      return $ Map.fromList <$> sequence loaded
+loadInterfaces :: FilePath -> [Dep] -> [CDep] -> IO (Maybe (Map.Map ModuleName.Raw I.Interface))
+loadInterfaces root same cached =
+  do  loading <- traverse (fork . loadInterface root) cached
+      maybeLoaded <- traverse readMVar loading
+      case sequence maybeLoaded of
+        Nothing ->
+          return Nothing
+
+        Just loaded ->
+          return $ Just $ Map.union (Map.fromList loaded) (Map.fromList same)
 
 
-checkCache :: FilePath -> (ModuleName.Raw, MVar CachedInterface) -> IO (Maybe Dep)
-checkCache root (name, ciMvar) =
+loadInterface :: FilePath -> CDep -> IO (Maybe Dep)
+loadInterface root (name, ciMvar) =
   do  cachedInterface <- takeMVar ciMvar
       case cachedInterface of
         Corrupted ->
@@ -529,8 +529,8 @@ checkCache root (name, ciMvar) =
 -- CHECK PROJECT
 
 
-checkExposedMidpoint :: MVar (Maybe Dependencies) -> Map.Map ModuleName.Raw Status -> IO (Either Exit.BuildProjectProblem Dependencies)
-checkExposedMidpoint dmvar statuses =
+checkMidpoint :: MVar (Maybe Dependencies) -> Map.Map ModuleName.Raw Status -> IO (Either Exit.BuildProjectProblem Dependencies)
+checkMidpoint dmvar statuses =
   case checkForCycles statuses of
     Nothing ->
       do  maybeForeigns <- readMVar dmvar
@@ -722,7 +722,7 @@ finalizeExposed docsGoal exposed results =
     [] ->
       case Map.foldr addErrors [] results of
         []   -> Right <$> finalizeDocs docsGoal results
-        e:es -> return $ Left $ Exit.BuildModuleProblems e es
+        e:es -> return $ Left $ Exit.BuildBadModules e es
 
 
 addErrors :: Result -> [Error.Module] -> [Error.Module]
@@ -807,6 +807,93 @@ toDocs result =
     RBlocked      -> Nothing
     RForeign _    -> Nothing
     RKernel       -> Nothing
+
+
+
+--------------------------------------------------------------------------------
+------ NOW FOR SOME REPL STUFF -------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+-- FROM REPL
+
+
+data ReplArtifacts =
+  ReplArtifacts
+    { _repl_home :: ModuleName.Canonical
+    , _repl_modules :: [Module]
+    , _repl_localizer :: L.Localizer
+    , _repl_annotations :: Map.Map Name.Name Can.Annotation
+    }
+
+
+fromRepl :: FilePath -> Details.Details -> B.ByteString -> IO (Either Exit.Repl ReplArtifacts)
+fromRepl root details source =
+  let
+    env@(Env _ _ pkg _ _ _) = makeEnv Reporting.ignorer root details
+  in
+  case Parse.fromByteString pkg source of
+    Left syntaxError ->
+      return $ Left $ Exit.ReplBadInput source $ Error.BadSyntax syntaxError
+
+    Right modul@(Src.Module _ _ _ imports _ _ _ _ _) ->
+      do  dmvar <- Details.loadInterfaces root details
+
+          let deps = map Src.getImportName imports
+          mvar <- newMVar Map.empty
+          crawlDeps env mvar deps ()
+
+          statuses <- traverse readMVar =<< readMVar mvar
+          midpoint <- checkMidpoint dmvar statuses
+
+          case midpoint of
+            Left problem ->
+              return $ Left $ Exit.ReplProjectProblem problem
+
+            Right foreigns ->
+              do  rmvar <- newEmptyMVar
+                  resultMVars <- forkWithKey (checkModule env foreigns rmvar) statuses
+                  putMVar rmvar resultMVars
+                  results <- traverse readMVar resultMVars
+                  writeDetails root details results
+                  depsStatus <- checkDeps root resultMVars deps
+                  finalizeReplArtifacts env source modul depsStatus resultMVars results
+
+
+finalizeReplArtifacts :: Env -> B.ByteString -> Src.Module -> DepsStatus -> ResultDict -> Map.Map ModuleName.Raw Result -> IO (Either Exit.Repl ReplArtifacts)
+finalizeReplArtifacts env@(Env _ root pkg _ _ _) source modul@(Src.Module _ _ _ imports _ _ _ _ _) depsStatus resultMVars results =
+  let
+    compileInput ifaces =
+      case Compile.compile pkg ifaces modul of
+        Right (Compile.Artifacts canonical annotations objects) ->
+          let
+            h = Can._name canonical
+            m = Fresh (Src.getName modul) (I.fromModule pkg canonical annotations) objects
+            ms = Map.foldrWithKey addInside [] results
+          in
+          return $ Right $ ReplArtifacts h (m:ms) (L.fromModule modul) annotations
+
+        Left errors ->
+          return $ Left $ Exit.ReplBadInput source errors
+  in
+  case depsStatus of
+    DepsChange ifaces ->
+      compileInput ifaces
+
+    DepsSame same cached ->
+      do  maybeLoaded <- loadInterfaces root same cached
+          case maybeLoaded of
+            Just ifaces -> compileInput ifaces
+            Nothing     -> return $ Left $ Exit.ReplBadCache
+
+    DepsBlock ->
+      case Map.foldr addErrors [] results of
+        []   -> return $ Left $ Exit.ReplBlocked
+        e:es -> return $ Left $ Exit.ReplBadLocalDeps e es
+
+    DepsNotFound problems ->
+      return $ Left $ Exit.ReplBadInput source $ Error.BadImports $
+        toImportErrors env resultMVars imports problems
 
 
 
@@ -994,14 +1081,10 @@ checkMain env@(Env _ root _ _ _ _) results pendingMain =
               return $ compileOutside env local source ifaces modul
 
             DepsSame same cached ->
-              do  maybeLoaded <- checkCachedInterfaces root cached
+              do  maybeLoaded <- loadInterfaces root same cached
                   case maybeLoaded of
-                    Nothing ->
-                      return ROutsideBlocked
-
-                    Just loaded ->
-                      do  let ifaces = Map.union loaded (Map.fromList same)
-                          return $ compileOutside env local source ifaces modul
+                    Nothing     -> return ROutsideBlocked
+                    Just ifaces -> return $ compileOutside env local source ifaces modul
 
             DepsBlock ->
               return ROutsideBlocked
@@ -1038,7 +1121,7 @@ toArtifacts :: Env -> Dependencies -> Map.Map ModuleName.Raw Result -> NE.List M
 toArtifacts (Env _ _ pkg _ _ _) foreigns results mainResults =
   case gatherProblemsOrMains results mainResults of
     Left (NE.List e es) ->
-      Left (Exit.BuildModuleProblems e es)
+      Left (Exit.BuildBadModules e es)
 
     Right mains ->
       Right $ Artifacts pkg foreigns mains $
