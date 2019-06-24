@@ -10,10 +10,8 @@ module Reporting.Error
 
 
 import qualified Data.ByteString as B
-import qualified Data.Name as Name
 import qualified Data.NonEmptyList as NE
 import qualified Data.OneOrMore as OneOrMore
-import qualified Data.Utf8 as Utf8
 
 import qualified Elm.ModuleName as ModuleName
 import qualified File
@@ -22,6 +20,7 @@ import Json.Encode ((==>))
 import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
 import qualified Reporting.Error.Canonicalize as Canonicalize
+import qualified Reporting.Error.Docs as Docs
 import qualified Reporting.Error.Import as Import
 import qualified Reporting.Error.Main as Main
 import qualified Reporting.Error.Pattern as Pattern
@@ -57,6 +56,7 @@ data Error
   | BadTypes L.Localizer (NE.List Type.Error)
   | BadMains L.Localizer (OneOrMore.OneOrMore Main.Error)
   | BadPatterns (NE.List Pattern.Error)
+  | BadDocs Docs.Error
 
 
 
@@ -84,6 +84,9 @@ toReports source err =
     BadPatterns errs ->
       fmap (Pattern.toReport source) errs
 
+    BadDocs docsErr ->
+      Docs.toReports source docsErr
+
 
 
 -- TO DOC
@@ -92,8 +95,7 @@ toReports source err =
 toDoc :: Module -> [Module] -> D.Doc
 toDoc err errs =
   let
-    timeCompare m1 m2 = compare (_time m1) (_time m2)
-    (NE.List m ms)    = NE.sortBy timeCompare (NE.List err errs)
+    (NE.List m ms) = NE.sortBy _time (NE.List err errs)
   in
   D.vcat (toDocHelp m ms)
 
@@ -173,8 +175,8 @@ toJson (Module name path _ source err) =
       toReports (Code.toSource source) err
   in
   E.object
-    [ "path" ==> E.string (Utf8.fromChars path)
-    , "name" ==> E.string (Name.toUtf8 name)
+    [ "path" ==> E.chars path
+    , "name" ==> E.name name
     , "problems" ==> E.array (map reportToJson (NE.toList reports))
     ]
 
@@ -182,7 +184,7 @@ toJson (Module name path _ source err) =
 reportToJson :: Report.Report -> E.Value
 reportToJson (Report.Report title region _sgstns message) =
   E.object
-    [ "title" ==> E.string (Utf8.fromChars title)
+    [ "title" ==> E.chars title
     , "region" ==> encodeRegion region
     , "message" ==> D.encode message
     ]
@@ -193,12 +195,12 @@ encodeRegion (A.Region (A.Position sr sc) (A.Position er ec)) =
   E.object
     [ "start" ==>
           E.object
-            [ ("line", E.int (fromIntegral sr))
-            , ("column", E.int (fromIntegral sc))
+            [ "line" ==> E.int (fromIntegral sr)
+            , "column" ==> E.int (fromIntegral sc)
             ]
     , "end" ==>
           E.object
-            [ ("line", E.int (fromIntegral er))
-            , ("column", E.int (fromIntegral ec))
+            [ "line" ==> E.int (fromIntegral er)
+            , "column" ==> E.int (fromIntegral ec)
             ]
     ]
