@@ -3,6 +3,7 @@ module Generate
   ( debug
   , dev
   , prod
+  , repl
   )
   where
 
@@ -11,8 +12,10 @@ import Prelude hiding (cycle, print)
 import Control.Concurrent (MVar, forkIO, newEmptyMVar, newMVar, putMVar, readMVar)
 import Control.Monad (liftM2)
 import qualified Data.ByteString.Builder as B
+import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
+import qualified Data.Name as N
 import qualified Data.NonEmptyList as NE
 
 import qualified AST.Optimized as Opt
@@ -72,6 +75,13 @@ prod root details (Build.Artifacts pkg _ roots modules) =
       let mode = Mode.Prod (Mode.shortenFieldNames graph)
       let mains = gatherMains pkg objects roots
       return $ JS.generate mode graph mains
+
+
+repl :: FilePath -> Details.Details -> Bool -> Build.ReplArtifacts -> N.Name -> Task B.Builder
+repl root details ansi (Build.ReplArtifacts home modules localizer annotations) name =
+  do  objects <- finalizeObjects =<< loadObjects root details modules
+      let graph = objectsToGlobalGraph objects
+      return $ JS.generateForRepl ansi localizer graph home name (annotations ! name)
 
 
 
