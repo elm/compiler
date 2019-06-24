@@ -35,7 +35,7 @@ data Error
 data SyntaxProblem
   = Op Row Col
   | OpBad BadOperator Row Col
-  | Export Row Col
+  | Name Row Col
   | Space E.Space Row Col
   | Comma Row Col
   | BadEnd Row Col
@@ -88,14 +88,75 @@ toReports source err =
               \ it will be easy to understand as people read the documentation!"
           )
 
-    SyntaxProblem _ ->
-      error "TODO SyntaxProblem in docs"
+    SyntaxProblem problem ->
+      NE.singleton $
+        toSyntaxProblemReport source problem
 
     NameProblems problems ->
       fmap (toNameProblemReport source) problems
 
     DefProblems problems ->
       fmap (toDefProblemReport source) problems
+
+
+
+-- SYNTAX PROBLEM
+
+
+toSyntaxProblemReport :: Code.Source -> SyntaxProblem -> Report.Report
+toSyntaxProblemReport source problem =
+  let
+    toSyntaxReport row col details =
+      let
+        region = toRegion row col
+      in
+      Report.Report "PROBLEM IN DOCS" region [] $
+        Code.toSnippet source region Nothing
+          ( D.reflow "I was partway through parsing your module documentation, but I got stuck here:"
+          , D.stack $
+              [ D.reflow details
+              , D.toSimpleHint $
+                  "Read through https://package.elm-lang.org/help/documentation-format for\
+                  \ tips on how to write module documentation!"
+              ]
+          )
+  in
+  case problem of
+    Op row col ->
+      toSyntaxReport row col $
+        "I am trying to parse an operator like (+) or (*) but something is going wrong."
+
+    OpBad _ row col ->
+      toSyntaxReport row col $
+        "I am trying to parse an operator like (+) or (*) but it looks like you are using\
+        \ a reserved symbol in this case."
+
+    Name row col ->
+      toSyntaxReport row col $
+        "I was expecting to see the name of another exposed value from this module."
+
+    Space space row col ->
+      E.toSpaceReport source space row col
+
+    Comma row col ->
+      toSyntaxReport row col $
+        "I was expecting to see a comma next."
+
+    BadEnd row col ->
+      toSyntaxReport row col $
+        "I am not really sure what I am getting stuck on though."
+
+
+toRegion :: Row -> Col -> A.Region
+toRegion row col =
+  let
+    pos = A.Position row col
+  in
+  A.Region pos pos
+
+
+
+-- NAME PROBLEM
 
 
 toNameProblemReport :: Code.Source -> NameProblem -> Report.Report
@@ -149,6 +210,10 @@ toNameProblemReport source problem =
               , D.link "Note" "See" "docs" "for more guidance on writing high quality docs."
               ]
           )
+
+
+
+-- DEF PROBLEM
 
 
 toDefProblemReport :: Code.Source -> DefProblem -> Report.Report
