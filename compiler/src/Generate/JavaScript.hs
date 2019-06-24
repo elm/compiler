@@ -85,7 +85,8 @@ generateForRepl ansi localizer (Opt.GlobalGraph graph _) home name (Can.Forall _
     debugState = addGlobal mode graph emptyState (Opt.Global ModuleName.debug "toString")
     evalState = addGlobal mode graph debugState (Opt.Global home name)
   in
-  stateToBuilder evalState
+  Functions.functions
+  <> stateToBuilder evalState
   <> print ansi localizer home name tipe
 
 
