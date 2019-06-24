@@ -227,7 +227,7 @@ Executable elm
         snap-core,
         snap-server,
         template-haskell,
-        time,
+        time >= 1.9.1,
         unordered-containers,
         utf8-string,
         vector,

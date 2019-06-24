@@ -24,6 +24,7 @@ import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Fixed as Fixed
 import qualified Data.List as List
+import qualified Data.Time.Clock as Time
 import qualified Data.Time.Clock.POSIX as Time
 import qualified Foreign.ForeignPtr as FPtr
 import GHC.IO.Exception (IOException, IOErrorType(InvalidArgument))
@@ -45,8 +46,7 @@ newtype Time = Time Fixed.Pico
 getTime :: FilePath -> IO Time
 getTime path =
   fmap
-    (Time . realToFrac . Time.utcTimeToPOSIXSeconds)
--- TODO    (Time . Time.nominalDiffTimeToSeconds . Time.utcTimeToPOSIXSeconds)
+    (Time . Time.nominalDiffTimeToSeconds . Time.utcTimeToPOSIXSeconds)
     (Dir.getModificationTime path)
 
 
