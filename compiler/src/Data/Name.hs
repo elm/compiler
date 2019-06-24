@@ -31,7 +31,7 @@ module Data.Name
   , shader, debug, debugger, bitwise, basics
   , utils, negate, true, false, value
   , node, program, _main, _Main, dollar, identity
-  , replModule
+  , replModule, replValueToPrint
   )
   where
 
@@ -593,3 +593,8 @@ identity = fromChars "identity"
 {-# NOINLINE replModule #-}
 replModule :: Name
 replModule = fromChars "Elm_Repl"
+
+
+{-# NOINLINE replValueToPrint #-}
+replValueToPrint :: Name
+replValueToPrint = fromChars "repl_input_value_"
