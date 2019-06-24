@@ -161,7 +161,6 @@ Executable elm
         Parse.Module
         Parse.Number
         Parse.Pattern
-        Parse.Repl
         Parse.Shader
         Parse.Space
         Parse.String
