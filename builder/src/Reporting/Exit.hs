@@ -1597,8 +1597,47 @@ toProjectProblemReport projectProblem =
             ++ D.makeLink "import-cycles"
         ]
 
-    BP_MissingExposed _ ->
-      error "TODO BP_MissingExposed"
+    BP_MissingExposed (NE.List (name, problem) _) ->
+      case problem of
+        Import.NotFound ->
+          Help.report "MISSING MODULE" (Just "elm.json")
+            "The  \"exposed-modules\" of your elm.json lists the following module:"
+            [ D.indent 4 $ D.red $ D.fromName name
+            , D.reflow $
+                "But I cannot find it in your src/ directory. Is there a typo? Was it renamed?"
+            ]
+
+        Import.Ambiguous _ _ pkg _ ->
+          Help.report "AMBIGUOUS MODULE NAME" (Just "elm.json")
+            "The  \"exposed-modules\" of your elm.json lists the following module:"
+            [ D.indent 4 $ D.red $ D.fromName name
+            , D.reflow $
+                "But a module from " ++ Pkg.toChars pkg ++ " already uses that name. Try\
+                \ choosing a different name for your local file."
+            ]
+
+        Import.AmbiguousLocal path1 path2 paths ->
+          Help.report "AMBIGUOUS MODULE NAME" (Just "elm.json")
+            "The  \"exposed-modules\" of your elm.json lists the following module:"
+            [ D.indent 4 $ D.red $ D.fromName name
+            , D.reflow $
+                "But I found multiple files with that name:"
+            , D.dullyellow $ D.indent 4 $ D.vcat $
+                map D.fromChars (path1:path2:paths)
+            , D.reflow $
+                "Change the module names to be distinct!"
+            ]
+
+        Import.AmbiguousForeign _ _ _ ->
+          Help.report "MISSING MODULE" (Just "elm.json")
+            "The  \"exposed-modules\" of your elm.json lists the following module:"
+            [ D.indent 4 $ D.red $ D.fromName name
+            , D.reflow $
+                "But I cannot find it in your src/ directory. Is there a typo? Was it renamed?"
+            , D.toSimpleNote $
+                "It is not possible to \"re-export\" modules from other packages. You can only\
+                \ expose modules that you define in your own code."
+            ]
 
 
 
