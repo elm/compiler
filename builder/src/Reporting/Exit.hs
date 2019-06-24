@@ -4,6 +4,7 @@ module Reporting.Exit
   , Diff(..), diffToReport
   , Make(..), makeToReport
   , Bump(..), bumpToReport
+  , Repl(..), replToReport
   , Publish(..), publishToReport
   , Install(..), installToReport
   , Reactor(..), reactorToReport
@@ -30,6 +31,7 @@ module Reporting.Exit
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.UTF8 as BS_UTF8
 import qualified Data.List as List
+import qualified Data.Name as N
 import qualified Data.NonEmptyList as NE
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Types.Header as HTTP
@@ -40,6 +42,7 @@ import qualified Elm.Magnitude as M
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
+import qualified File
 import qualified Http
 import qualified Json.Decode as Decode
 import qualified Json.Encode as Encode
@@ -1480,7 +1483,7 @@ makeToReport make =
 
 
 data BuildProblem
-  = BuildModuleProblems Error.Module [Error.Module]
+  = BuildBadModules Error.Module [Error.Module]
   | BuildProjectProblem BuildProjectProblem
 
 
@@ -1498,84 +1501,89 @@ data BuildProjectProblem
 toBuildProblemReport :: BuildProblem -> Help.Report
 toBuildProblemReport problem =
   case problem of
-    BuildModuleProblems p ps ->
-      Help.compilerReport p ps
+    BuildBadModules e es ->
+      Help.compilerReport e es
 
     BuildProjectProblem projectProblem ->
-      case projectProblem of
-        BP_PathUnknown path ->
-          Help.report "FILE NOT FOUND" Nothing
-            "I cannot find this file:"
-            [ D.indent 4 $ D.red $ D.fromChars path
-            , D.reflow $ "Is there a typo?"
-            , D.toSimpleNote $
-                "If you are just getting started, try working through the examples in the\
-                \ official guide https://guide.elm-lang.org to get an idea of the kinds of things\
-                \ that typically go in a src/Main.elm file."
-            ]
+      toProjectProblemReport projectProblem
 
-        BP_WithBadExtension path ->
-          Help.report "UNEXPECTED FILE EXTENSION" Nothing
-            "I can only compile Elm files (with a .elm extension) but you want me to compile:"
-            [ D.indent 4 $ D.red $ D.fromChars path
-            , D.reflow $ "Is there a typo? Can the file extension be changed?"
-            ]
 
-        BP_WithAmbiguousSrcDir path srcDir1 srcDir2 ->
-          Help.report "CONFUSING FILE" Nothing
-            "I am getting confused when I try to compile this file:"
-            [ D.indent 4 $ D.red $ D.fromChars path
-            , D.reflow $
-                "I always check if files appear in any of the \"source-directories\" listed in\
-                \ your elm.json to see if there might be some cached information about them. That\
-                \ can help me compile faster! But in this case, it looks like this file may be in\
-                \ either of these directories:"
-            , D.indent 4 $ D.red $ D.vcat $ map D.fromChars [srcDir1,srcDir2]
-            , D.reflow $
-                "Try to make it so no source directory contains another source directory!"
-            ]
+toProjectProblemReport :: BuildProjectProblem -> Help.Report
+toProjectProblemReport projectProblem =
+  case projectProblem of
+    BP_PathUnknown path ->
+      Help.report "FILE NOT FOUND" Nothing
+        "I cannot find this file:"
+        [ D.indent 4 $ D.red $ D.fromChars path
+        , D.reflow $ "Is there a typo?"
+        , D.toSimpleNote $
+            "If you are just getting started, try working through the examples in the\
+            \ official guide https://guide.elm-lang.org to get an idea of the kinds of things\
+            \ that typically go in a src/Main.elm file."
+        ]
 
-        BP_MainPathDuplicate path1 path2 ->
-          Help.report "CONFUSING FILES" Nothing
-            "You are telling me to compile these two files:"
-            [ D.indent 4 $ D.red $ D.vcat $ map D.fromChars [ path1, path2 ]
-            , D.reflow $
-                if path1 == path2 then
-                  "Why are you telling me twice? Is something weird going on with a script?\
-                  \ I figured I would let you know about it just in case something is wrong.\
-                  \ Only list it once and you should be all set!"
-                else
-                  "But seem to be the same file though... It makes me think something tricky is\
-                  \ going on with symlinks in your project, so I figured I would let you know\
-                  \ about it just in case. Remove one of these files from your command to get\
-                  \ unstuck!"
-            ]
+    BP_WithBadExtension path ->
+      Help.report "UNEXPECTED FILE EXTENSION" Nothing
+        "I can only compile Elm files (with a .elm extension) but you want me to compile:"
+        [ D.indent 4 $ D.red $ D.fromChars path
+        , D.reflow $ "Is there a typo? Can the file extension be changed?"
+        ]
 
-        BP_MainNameDuplicate name outsidePath otherPath ->
-          Help.report "MODULE NAME CLASH" Nothing
-            "These two files are causing a module name clash:"
-            [ D.indent 4 $ D.red $ D.vcat $ map D.fromChars [ outsidePath, otherPath ]
-            , D.reflow $
-                "They both say `module " ++ ModuleName.toChars name ++ " exposing (..)` up\
-                \ at the top, but they cannot have the same name!"
-            , D.reflow $
-                "Try changing to a different module name in one of them!"
-            ]
+    BP_WithAmbiguousSrcDir path srcDir1 srcDir2 ->
+      Help.report "CONFUSING FILE" Nothing
+        "I am getting confused when I try to compile this file:"
+        [ D.indent 4 $ D.red $ D.fromChars path
+        , D.reflow $
+            "I always check if files appear in any of the \"source-directories\" listed in\
+            \ your elm.json to see if there might be some cached information about them. That\
+            \ can help me compile faster! But in this case, it looks like this file may be in\
+            \ either of these directories:"
+        , D.indent 4 $ D.red $ D.vcat $ map D.fromChars [srcDir1,srcDir2]
+        , D.reflow $
+            "Try to make it so no source directory contains another source directory!"
+        ]
 
-        BP_CannotLoadDependencies ->
-          corruptCacheReport
+    BP_MainPathDuplicate path1 path2 ->
+      Help.report "CONFUSING FILES" Nothing
+        "You are telling me to compile these two files:"
+        [ D.indent 4 $ D.red $ D.vcat $ map D.fromChars [ path1, path2 ]
+        , D.reflow $
+            if path1 == path2 then
+              "Why are you telling me twice? Is something weird going on with a script?\
+              \ I figured I would let you know about it just in case something is wrong.\
+              \ Only list it once and you should be all set!"
+            else
+              "But seem to be the same file though... It makes me think something tricky is\
+              \ going on with symlinks in your project, so I figured I would let you know\
+              \ about it just in case. Remove one of these files from your command to get\
+              \ unstuck!"
+        ]
 
-        BP_Cycle name names ->
-          Help.report "IMPORT CYCLE" Nothing
-            "Your module imports form a cycle:"
-            [ D.cycle 4 name names
-            , D.reflow $
-                "Learn more about why this is disallowed and how to break cycles here:"
-                ++ D.makeLink "import-cycles"
-            ]
+    BP_MainNameDuplicate name outsidePath otherPath ->
+      Help.report "MODULE NAME CLASH" Nothing
+        "These two files are causing a module name clash:"
+        [ D.indent 4 $ D.red $ D.vcat $ map D.fromChars [ outsidePath, otherPath ]
+        , D.reflow $
+            "They both say `module " ++ ModuleName.toChars name ++ " exposing (..)` up\
+            \ at the top, but they cannot have the same name!"
+        , D.reflow $
+            "Try changing to a different module name in one of them!"
+        ]
 
-        BP_MissingExposed _ ->
-          error "TODO BP_MissingExposed"
+    BP_CannotLoadDependencies ->
+      corruptCacheReport
+
+    BP_Cycle name names ->
+      Help.report "IMPORT CYCLE" Nothing
+        "Your module imports form a cycle:"
+        [ D.cycle 4 name names
+        , D.reflow $
+            "Learn more about why this is disallowed and how to break cycles here:"
+            ++ D.makeLink "import-cycles"
+        ]
+
+    BP_MissingExposed _ ->
+      error "TODO BP_MissingExposed"
 
 
 
@@ -1662,3 +1670,42 @@ reactorToReport problem =
 
     ReactorBadGenerate generate ->
       toGenerateReport generate
+
+
+
+-- REPL
+
+
+data Repl
+  = ReplBadDetails Details
+  | ReplBadInput BS.ByteString Error.Error
+  | ReplBadLocalDeps Error.Module [Error.Module]
+  | ReplProjectProblem BuildProjectProblem
+  | ReplBadGenerate Generate
+  | ReplBadCache
+  | ReplBlocked
+
+
+replToReport :: Repl -> Help.Report
+replToReport problem =
+  case problem of
+    ReplBadDetails details ->
+      toDetailsReport details
+
+    ReplBadInput source err ->
+      Help.compilerReport (Error.Module N.replModule "REPL" File.zeroTime source err) []
+
+    ReplBadLocalDeps e es ->
+      Help.compilerReport e es
+
+    ReplProjectProblem projectProblem ->
+      toProjectProblemReport projectProblem
+
+    ReplBadGenerate generate ->
+      toGenerateReport generate
+
+    ReplBadCache ->
+      corruptCacheReport
+
+    ReplBlocked ->
+      error "TODO ReplBlocked"
