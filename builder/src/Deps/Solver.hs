@@ -311,10 +311,11 @@ getConstraints pkg vsn =
                         back state
 
                       Online manager ->
-                        do  result <- Http.get manager (Website.metadata pkg vsn "elm.json") [] id (return . Right)
+                        do  let url = Website.metadata pkg vsn "elm.json"
+                            result <- Http.get manager url [] id (return . Right)
                             case result of
                               Left httpProblem ->
-                                err (Exit.SolverBadHttp httpProblem)
+                                err (Exit.SolverBadHttp pkg vsn httpProblem)
 
                               Right body ->
                                 case D.fromByteString constraintsDecoder body of
@@ -324,7 +325,7 @@ getConstraints pkg vsn =
                                         ok (toNewState cs) cs back
 
                                   Left _ ->
-                                    err (Exit.SolverBadHttpData pkg vsn)
+                                    err (Exit.SolverBadHttpData pkg vsn url)
 
 
 constraintsDecoder :: D.Decoder () Constraints

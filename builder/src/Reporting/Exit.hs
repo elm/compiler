@@ -119,7 +119,7 @@ initToReport exit =
         ]
 
     InitSolverProblem solver ->
-      error "TODO InitSolverProblem" solver
+      toSolverReport solver
 
     InitAlreadyExists ->
       Help.report "EXISTING PROJECT" Nothing
@@ -801,7 +801,7 @@ installToReport exit =
       error "TODO InstallNoOfflineSolution"
 
     InstallHadSolverTrouble solver ->
-      error "TODO InstallHadSolverTrouble" solver
+      toSolverReport solver
 
     InstallUnknownPackageOnline pkg suggestions ->
       Help.docReport "UNKNOWN PACKAGE" Nothing
@@ -873,8 +873,44 @@ installToReport exit =
 
 data Solver
   = SolverBadCacheData Pkg.Name V.Version
-  | SolverBadHttpData Pkg.Name V.Version
-  | SolverBadHttp Http.Error
+  | SolverBadHttpData Pkg.Name V.Version String
+  | SolverBadHttp Pkg.Name V.Version Http.Error
+
+
+toSolverReport :: Solver -> Help.Report
+toSolverReport problem =
+  case problem of
+    SolverBadCacheData pkg vsn ->
+      Help.report "PROBLEM SOLVING PACKAGE CONSTRAINTS" Nothing
+        (
+          "I need the elm.json of " ++ Pkg.toChars pkg ++ " " ++ V.toChars vsn ++ " to\
+          \ help me search for a set of compatible packages. I had it cached locally, but\
+          \ it looks like the file was corrupted!"
+        )
+        [ D.reflow $
+            "I deleted the cached version, so the next run should download a fresh copy.\
+            \ Hopefully that will get you unstuck, but it will not resolve the root\
+            \ problem if a 3rd party tool is modifing cached files for some reason."
+        ]
+
+    SolverBadHttpData pkg vsn url ->
+      Help.report "PROBLEM SOLVING PACKAGE CONSTRAINTS" Nothing
+        (
+          "I need the elm.json of " ++ Pkg.toChars pkg ++ " " ++ V.toChars vsn ++ " to\
+          \ help me search for a set of compatible packages, but I ran into corrupted\
+          \ information from:"
+        )
+        [ D.indent 4 $ D.dullyellow $ D.fromChars url
+        , D.reflow $
+            "Is something weird with your internet connection. We have gotten reports that\
+            \ schools, businesses, airports, etc. sometimes intercept requests and add things\
+            \ to the body or change its contents entirely. Could that be the problem?"
+        ]
+
+    SolverBadHttp pkg vsn httpError ->
+      toHttpErrorReport "PROBLEM SOLVING PACKAGE CONSTRAINTS" httpError $
+        "I need the elm.json of " ++ Pkg.toChars pkg ++ " " ++ V.toChars vsn
+        ++ " to help me search for a set of compatible packages"
 
 
 
@@ -1192,8 +1228,8 @@ toDetailsReport details =
             ]
         ]
 
-    DetailsSolverProblem _ ->
-      error "TODO DetailsSolverProblem"
+    DetailsSolverProblem solver ->
+      toSolverReport solver
 
     DetailsBadElmInPkg constraint ->
       Help.report "ELM VERSION MISMATCH" (Just "elm.json")
