@@ -665,8 +665,9 @@ compile (Env key root pkg _ _ _) docsNeed local@(Details.Local path time _ _) so
       do  let name = Src.getName modul
           let iface = I.fromModule pkg canonical annotations
           let docs = makeDocs docsNeed canonical
+          let path = Stuff.elmi root name
           File.writeBinary (Stuff.elmo root name) objects
-          maybeOldi <- File.readBinary (Stuff.elmi root name)
+          maybeOldi <- File.readBinary path
           case maybeOldi of
             Just oldi | oldi == iface ->
               do  -- iface should be fully forced by equality check
@@ -675,8 +676,7 @@ compile (Env key root pkg _ _ _) docsNeed local@(Details.Local path time _ _) so
 
             _ ->
               do  -- iface may be lazy still
-                  -- TODO try adding forkIO here
-                  File.writeBinary (Stuff.elmi root name) iface
+                  File.writeBinary path iface
                   Reporting.report key Reporting.BDone
                   return (RNew local iface objects docs)
 
