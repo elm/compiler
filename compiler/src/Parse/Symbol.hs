@@ -40,7 +40,7 @@ operator toExpectation toError =
 
     else
       case Name.fromPtr pos newPos of
-        "."  -> cerr row col (toError BadDot)
+        "."  -> eerr row col (toError BadDot)
         "|"  -> cerr row col (toError BadPipe)
         "->" -> cerr row col (toError BadArrow)
         "="  -> cerr row col (toError BadEquals)
