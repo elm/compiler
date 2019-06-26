@@ -102,13 +102,9 @@ run paths (Flags debug optimize maybeOutput report maybeDocs) =
                             Task.throw (Exit.MakeNonMainFilesIntoJavaScript name names)
 
                       Just (Html target) ->
-                        case hasOneMain artifacts of
-                          Just name ->
-                            do  builder <- toBuilder root details desiredMode artifacts
-                                generate style target (Html.sandwich name builder) (NE.List name [])
-
-                          Nothing ->
-                            Task.throw Exit.MakeMultipleFilesIntoHtml
+                        do  name <- hasOneMain artifacts
+                            builder <- toBuilder root details desiredMode artifacts
+                            generate style target (Html.sandwich name builder) (NE.List name [])
 
 
 
@@ -199,11 +195,11 @@ isMain targetName modul =
 -- HAS ONE MAIN
 
 
-hasOneMain :: Build.Artifacts -> Maybe ModuleName.Raw
+hasOneMain :: Build.Artifacts -> Task ModuleName.Raw
 hasOneMain (Build.Artifacts _ _ mains modules) =
   case mains of
-    NE.List main [] -> getMain modules main
-    NE.List _ (_:_) -> Nothing
+    NE.List main [] -> Task.mio Exit.MakeNoMain (return $ getMain modules main)
+    NE.List _ (_:_) -> Task.throw Exit.MakeMultipleFilesIntoHtml
 
 
 

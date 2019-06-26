@@ -1473,6 +1473,7 @@ data Make
   | MakeAppNeedsFileNames
   | MakePkgNeedsExposing
   | MakeMultipleFilesIntoHtml
+  | MakeNoMain
   | MakeNonMainFilesIntoJavaScript ModuleName.Raw [ModuleName.Raw]
   | MakeCannotBuild BuildProblem
   | MakeBadGenerate Generate
@@ -1507,20 +1508,105 @@ makeToReport make =
 
     MakeAppNeedsFileNames ->
       Help.report "NO INPUT" Nothing
-        "What should I make though? I need a specific file like this:"
-        [ D.indent 4 $ D.green "elm make src/Main.elm"
-        , D.reflow
-            "However many files you give, I will create one JS file out of them."
+        "What should I make though? I need specific files like:"
+        [ D.vcat
+            [ D.indent 4 $ D.green "elm make src/Main.elm"
+            , D.indent 4 $ D.green "elm make src/This.elm src/That.elm"
+            ]
+        , D.reflow $
+            "I recommend reading through https://guide.elm-lang.org for guidance on what to\
+            \ actually put in those files!"
         ]
 
     MakePkgNeedsExposing ->
-      error "TODO MakePkgNeedsExposing"
+      Help.report "NO INPUT" Nothing
+        "What should I make though? I need specific files like:"
+        [ D.vcat
+            [ D.indent 4 $ D.green "elm make src/Main.elm"
+            , D.indent 4 $ D.green "elm make src/This.elm src/That.elm"
+            ]
+        , D.reflow $
+            "You can also entries to the \"exposed-modules\" list in your elm.json file, and\
+            \ I will try to compile the relevant files."
+        ]
 
     MakeMultipleFilesIntoHtml ->
-      error "TODO MakeMultipleFilesIntoHtml"
+      error "MakeMultipleFilesIntoHtml"
 
-    MakeNonMainFilesIntoJavaScript _ _ ->
-      error "TODO MakeNonMainFilesIntoJavaScript"
+    MakeNoMain ->
+      Help.docReport "NO MAIN" Nothing
+        (
+          "When producing an HTML file, I require that the given file has a `main` value.\
+          \ That way I have something to show on screen!"
+        )
+        [ D.reflow $
+            "Try adding a `main` value to your file? Or if you just want to verify that this\
+            \ module compiles, switch to --output=/dev/null to skip the code gen phase\
+            \ altogether."
+        , D.toSimpleNote $
+            "Adding a `main` value can be as brief as adding something like this:"
+        , D.vcat
+            [ D.fillSep [D.cyan "import","Html"]
+            , ""
+            , D.fillSep [D.green "main","="]
+            , D.indent 2 $ D.fillSep [D.cyan "Html" <> ".text",D.dullyellow "\"Hello!\""]
+            ]
+        , D.reflow $
+            "From there I can create an HTML file that says \"Hello!\" on screen. I recommend\
+            \ looking through https://guide.elm-lang.org for more guidance on how to fill in\
+            \ the `main` value."
+        ]
+
+    MakeNonMainFilesIntoJavaScript m ms ->
+      case ms of
+        [] ->
+          Help.report "NO MAIN" Nothing
+            (
+              "When producing a JS file, I require that the given file has a `main` value. That\
+              \ way Elm." ++ ModuleName.toChars m ++ ".init() is definitely defined in the\
+              \ resulting file!"
+            )
+            [ D.reflow $
+                "Try adding a `main` value to your file? Or if you just want to verify that this\
+                \ module compiles, switch to --output=/dev/null to skip the code gen phase\
+                \ altogether."
+            , D.toSimpleNote $
+                "Adding a `main` value can be as brief as adding something like this:"
+            , D.vcat
+                [ D.fillSep [D.cyan "import","Html"]
+                , ""
+                , D.fillSep [D.green "main","="]
+                , D.indent 2 $ D.fillSep [D.cyan "Html" <> ".text",D.dullyellow "\"Hello!\""]
+                ]
+            , D.reflow $
+                "Or use https://package.elm-lang.org/packages/elm/core/latest/Platform#worker to\
+                \ make a `main` with no user interface."
+            ]
+
+        _:_ ->
+          Help.report "NO MAIN" Nothing
+            (
+              "When producing a JS file, I require that given files all have `main` values.\
+              \ That way functions like Elm." ++ ModuleName.toChars m ++ ".init() are\
+              \ definitely defined in the resulting file. I am missing `main` values in:"
+            )
+            [ D.indent 4 $ D.red $ D.vcat $ map D.fromName (m:ms)
+            , D.reflow $
+                "Try adding a `main` value to them? Or if you just want to verify that these\
+                \ modules compile, switch to --output=/dev/null to skip the code gen phase\
+                \ altogether."
+            , D.toSimpleNote $
+                "Adding a `main` value can be as brief as adding something like this:"
+            , D.vcat
+                [ D.fillSep [D.cyan "import","Html"]
+                , ""
+                , D.fillSep [D.green "main","="]
+                , D.indent 2 $ D.fillSep [D.cyan "Html" <> ".text",D.dullyellow "\"Hello!\""]
+                ]
+            , D.reflow $
+                "Or use https://package.elm-lang.org/packages/elm/core/latest/Platform#worker to\
+                \ make a `main` with no user interface."
+            ]
 
     MakeCannotBuild buildProblem ->
       toBuildProblemReport buildProblem
