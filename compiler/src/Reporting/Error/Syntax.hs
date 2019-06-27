@@ -2408,7 +2408,21 @@ toStringReport source string row col =
                   ,"quotes","on","each","end.","Is","the","closing","double"
                   ,"quote","missing","in","your","code?"
                   ]
-              , D.link "Note" "Read" "TODO" "if you want a string that spans multiple lines."
+              , D.toSimpleNote $
+                  "For a string that spans multiple lines, you can use the multi-line string\
+                  \ syntax like this:"
+              , D.vcat
+                  [ D.fillSep [D.green "markdown","=",D.dullyellow "\"\"\""]
+                  , mempty
+                  , D.dullyellow "# Multi-line Strings"
+                  , mempty
+                  , D.dullyellow "- start with triple double quotes"
+                  , D.dullyellow "- write whatever you want"
+                  , D.dullyellow "- no need to escape newlines or double quotes"
+                  , D.dullyellow "- end with triple double quotes"
+                  , mempty
+                  , D.dullyellow "\"\"\""
+                  ]
               ]
           )
 
@@ -2424,7 +2438,20 @@ toStringReport source string row col =
           ,
             D.stack
               [ D.reflow "Add a \"\"\" somewhere after this to end the string."
-              , D.link "Hint" "Read" "TODO" "for more information on strings and multi-line strings."
+              , D.toSimpleNote $
+                  "Here is a valid multi-line string for reference:"
+              , D.vcat
+                  [ D.fillSep [D.green "markdown","=",D.dullyellow "\"\"\""]
+                  , mempty
+                  , D.dullyellow "# Multi-line Strings"
+                  , mempty
+                  , D.dullyellow "- start with triple double quotes"
+                  , D.dullyellow "- write whatever you want"
+                  , D.dullyellow "- no need to escape newlines or double quotes"
+                  , D.dullyellow "- end with triple double quotes"
+                  , mempty
+                  , D.dullyellow "\"\"\""
+                  ]
               ]
           )
 
