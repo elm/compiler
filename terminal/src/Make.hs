@@ -62,49 +62,57 @@ type Task a = Task.Task Exit.Make a
 
 
 run :: [FilePath] -> Flags -> IO ()
-run paths (Flags debug optimize maybeOutput report maybeDocs) =
+run paths flags@(Flags _ _ _ report _) =
   do  style <- getStyle report
-      Reporting.attemptWithStyle style Exit.makeToReport $ Task.run $
-        do  root <- Task.mio Exit.MakeNoOutline Stuff.findRoot
-            desiredMode <- getMode debug optimize
-            details <- Task.eio Exit.MakeBadDetails (Details.load style root)
-            case paths of
-              [] ->
-                do  exposed <- getExposed details
-                    buildExposed style root details maybeDocs exposed
+      maybeRoot <- Stuff.findRoot
+      Reporting.attemptWithStyle style Exit.makeToReport $
+        case maybeRoot of
+          Just root -> runHelp root paths style flags
+          Nothing   -> return $ Left $ Exit.MakeNoOutline
 
-              p:ps ->
-                do  artifacts <- buildPaths style root details (NE.List p ps)
-                    case maybeOutput of
-                      Nothing ->
-                        case getMains artifacts of
-                          [] ->
-                            return ()
 
-                          [name] ->
-                            do  builder <- toBuilder root details desiredMode artifacts
-                                generate style "index.html" (Html.sandwich name builder) (NE.List name [])
+runHelp :: FilePath -> [FilePath] -> Reporting.Style -> Flags -> IO (Either Exit.Make ())
+runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
+  Stuff.withRootLock root $ Task.run $
+  do  desiredMode <- getMode debug optimize
+      details <- Task.eio Exit.MakeBadDetails (Details.load style root)
+      case paths of
+        [] ->
+          do  exposed <- getExposed details
+              buildExposed style root details maybeDocs exposed
 
-                          name:names ->
-                            do  builder <- toBuilder root details desiredMode artifacts
-                                generate style "elm.js" builder (NE.List name names)
+        p:ps ->
+          do  artifacts <- buildPaths style root details (NE.List p ps)
+              case maybeOutput of
+                Nothing ->
+                  case getMains artifacts of
+                    [] ->
+                      return ()
 
-                      Just DevNull ->
-                        return ()
+                    [name] ->
+                      do  builder <- toBuilder root details desiredMode artifacts
+                          generate style "index.html" (Html.sandwich name builder) (NE.List name [])
 
-                      Just (JS target) ->
-                        case getNoMains artifacts of
-                          [] ->
-                            do  builder <- toBuilder root details desiredMode artifacts
-                                generate style target builder (Build.getMainNames artifacts)
+                    name:names ->
+                      do  builder <- toBuilder root details desiredMode artifacts
+                          generate style "elm.js" builder (NE.List name names)
 
-                          name:names ->
-                            Task.throw (Exit.MakeNonMainFilesIntoJavaScript name names)
+                Just DevNull ->
+                  return ()
 
-                      Just (Html target) ->
-                        do  name <- hasOneMain artifacts
-                            builder <- toBuilder root details desiredMode artifacts
-                            generate style target (Html.sandwich name builder) (NE.List name [])
+                Just (JS target) ->
+                  case getNoMains artifacts of
+                    [] ->
+                      do  builder <- toBuilder root details desiredMode artifacts
+                          generate style target builder (Build.getMainNames artifacts)
+
+                    name:names ->
+                      Task.throw (Exit.MakeNonMainFilesIntoJavaScript name names)
+
+                Just (Html target) ->
+                  do  name <- hasOneMain artifacts
+                      builder <- toBuilder root details desiredMode artifacts
+                      generate style target (Html.sandwich name builder) (NE.List name [])
 
 
 

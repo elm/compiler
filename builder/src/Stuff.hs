@@ -8,8 +8,7 @@ module Stuff
   , elmo
   , temp
   , findRoot
-  , withProjectLock
-  , withCacheLock
+  , withRootLock
   , PackageCache
   , getPackageCache
   , registry
@@ -120,17 +119,11 @@ findRootHelp dirs =
 -- LOCKS
 
 
-withProjectLock :: FilePath -> IO a -> IO a
-withProjectLock root work =
+withRootLock :: FilePath -> IO a -> IO a
+withRootLock root work =
   do  let dir = stuff root
       Dir.createDirectoryIfMissing True dir
       Lock.withFileLock (dir </> "project.lock") Lock.Exclusive (\_ -> work)
-
-
-withCacheLock :: PackageCache -> IO a -> IO a
-withCacheLock (PackageCache dir) work =
-  Lock.withFileLock (dir </> "cache.lock") Lock.Exclusive (\_ -> work)
-
 
 
 

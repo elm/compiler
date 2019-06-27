@@ -138,7 +138,7 @@ serveElm :: FilePath -> Snap ()
 serveElm path =
   do  guard (takeExtension path == ".elm")
       modifyResponse (setContentType "text/html")
-      result <- liftIO $ Task.run $ compile path
+      result <- liftIO $ compile path
       case result of
         Right builder ->
           writeBuilder builder
@@ -148,14 +148,20 @@ serveElm path =
             Exit.toJson $ Exit.reactorToReport exit
 
 
-compile :: FilePath -> Task.Task Exit.Reactor B.Builder
+compile :: FilePath -> IO (Either Exit.Reactor B.Builder)
 compile path =
-  do  root <- Task.mio Exit.ReactorNoOutline Stuff.findRoot
-      details <- Task.eio Exit.ReactorBadDetails $ Details.load Reporting.silent root
-      artifacts <- Task.eio Exit.ReactorBadBuild $ Build.fromMains Reporting.silent root details (NE.List path [])
-      javascript <- Task.mapError Exit.ReactorBadGenerate $ Generate.dev root details artifacts
-      let (NE.List name _) = Build.getMainNames artifacts
-      return $ Html.sandwich name javascript
+  do  maybeRoot <- Stuff.findRoot
+      case maybeRoot of
+        Nothing ->
+          return $ Left $ Exit.ReactorNoOutline
+
+        Just root ->
+          Stuff.withRootLock root $ Task.run $
+            do  details <- Task.eio Exit.ReactorBadDetails $ Details.load Reporting.silent root
+                artifacts <- Task.eio Exit.ReactorBadBuild $ Build.fromMains Reporting.silent root details (NE.List path [])
+                javascript <- Task.mapError Exit.ReactorBadGenerate $ Generate.dev root details artifacts
+                let (NE.List name _) = Build.getMainNames artifacts
+                return $ Html.sandwich name javascript
 
 
 

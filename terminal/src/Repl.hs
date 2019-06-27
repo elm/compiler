@@ -377,7 +377,7 @@ data Output
 
 attemptEval :: Env -> State -> State -> Output -> IO State
 attemptEval (Env root interpreter ansi) oldState newState output =
-  do  result <- Task.run $
+  do  result <- Stuff.withRootLock root $ Task.run $
         do  details <-
               Task.eio Exit.ReplBadDetails $
                 Details.load Reporting.silent root
