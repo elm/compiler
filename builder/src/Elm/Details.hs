@@ -17,9 +17,11 @@ import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar, readMVar, takeMVar)
 import Control.Monad (liftM, liftM2, liftM4)
 import Data.Binary (Binary, get, put, getWord8, putWord8)
+import qualified Data.Either as Either
 import qualified Data.Map as Map
 import qualified Data.Map.Utils as Map
 import qualified Data.Map.Merge.Strict as Map
+import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
 import qualified Data.NonEmptyList as NE
 import qualified Data.OneOrMore as OneOrMore
@@ -294,8 +296,10 @@ verifyDependencies env@(Env key root _ _ _ _) time outline solution directDeps =
       putMVar mvar mvars
       deps <- traverse readMVar mvars
       case sequence deps of
-        Left problem ->
-          error "TODO verifyDependencies" problem
+        Left _ ->
+          do  home <- Stuff.getElmHome
+              return $ Left $ Exit.DetailsBadDeps home $
+                Maybe.catMaybes $ Either.lefts $ Map.elems deps
 
         Right artifacts ->
           let
@@ -346,13 +350,7 @@ data Artifacts =
 
 
 type Dep =
-  Either Problem Artifacts
-
-
-data Problem
-  = BadDownload Exit.PackageProblem
-  | BadBuild
-  | BadDependency
+  Either (Maybe Exit.DetailsBadDep) Artifacts
 
 
 verifyDep :: Env -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Map.Map Pkg.Name Solver.Details -> Pkg.Name -> Solver.Details -> IO Dep
@@ -367,23 +365,23 @@ verifyDep (Env key _ cache manager _ _) depsMVar solution pkg details@(Solver.De
               maybeCache <- File.readBinary (Stuff.package cache pkg vsn </> "artifacts.dat")
               case maybeCache of
                 Nothing ->
-                  build key cache depsMVar pkg details (Set.singleton fingerprint)
+                  build key cache depsMVar pkg details fingerprint Set.empty
 
                 Just (ArtifactCache fingerprints artifacts) ->
                   if Set.member fingerprint fingerprints
                     then Reporting.report key Reporting.DBuilt >> return (Right artifacts)
-                    else build key cache depsMVar pkg details (Set.insert fingerprint fingerprints)
+                    else build key cache depsMVar pkg details fingerprint fingerprints
         else
           do  Reporting.report key Reporting.DRequested
               result <- downloadPackage cache manager pkg vsn
               case result of
-                Left p ->
+                Left problem ->
                   do  Reporting.report key (Reporting.DFailed pkg vsn)
-                      return (Left (BadDownload p))
+                      return $ Left $ Just $ Exit.BD_BadDownload pkg vsn problem
 
                 Right () ->
                   do  Reporting.report key (Reporting.DReceived pkg vsn)
-                      build key cache depsMVar pkg details (Set.singleton fingerprint)
+                      build key cache depsMVar pkg details fingerprint Set.empty
 
 
 
@@ -405,17 +403,17 @@ type Fingerprint =
 -- BUILD
 
 
-build :: Reporting.DKey -> Stuff.PackageCache -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Pkg.Name -> Solver.Details -> Set.Set Fingerprint -> IO Dep
-build key cache depsMVar pkg (Solver.Details vsn _) fingerprints =
+build :: Reporting.DKey -> Stuff.PackageCache -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Pkg.Name -> Solver.Details -> Fingerprint -> Set.Set Fingerprint -> IO Dep
+build key cache depsMVar pkg (Solver.Details vsn _) f fs =
   do  eitherOutline <- Outline.read (Stuff.package cache pkg vsn)
       case eitherOutline of
         Left _ ->
           do  Reporting.report key Reporting.DBroken
-              return (Left BadBuild)
+              return $ Left $ Just $ Exit.BD_BadBuild pkg vsn f
 
         Right (Outline.App _) ->
           do  Reporting.report key Reporting.DBroken
-              return (Left BadBuild)
+              return $ Left $ Just $ Exit.BD_BadBuild pkg vsn f
 
         Right (Outline.Pkg (Outline.PkgOutline _ _ _ _ exposed deps _ _)) ->
           do  allDeps <- readMVar depsMVar
@@ -423,7 +421,7 @@ build key cache depsMVar pkg (Solver.Details vsn _) fingerprints =
               case sequence directDeps of
                 Left _ ->
                   do  Reporting.report key Reporting.DBroken
-                      return (Left BadDependency)
+                      return $ Left $ Nothing
 
                 Right directArtifacts ->
                   do  let src = Stuff.package cache pkg vsn </> "src"
@@ -438,7 +436,7 @@ build key cache depsMVar pkg (Solver.Details vsn _) fingerprints =
                       case sequence maybeStatuses of
                         Nothing ->
                           do  Reporting.report key Reporting.DBroken
-                              return (Left BadBuild)
+                              return $ Left $ Just $ Exit.BD_BadBuild pkg vsn f
 
                         Just statuses ->
                           do  rmvar <- newEmptyMVar
@@ -448,7 +446,7 @@ build key cache depsMVar pkg (Solver.Details vsn _) fingerprints =
                               case sequence maybeResults of
                                 Nothing ->
                                   do  Reporting.report key Reporting.DBroken
-                                      return (Left BadBuild)
+                                      return $ Left $ Just $ Exit.BD_BadBuild pkg vsn f
 
                                 Just results ->
                                   let
@@ -456,6 +454,7 @@ build key cache depsMVar pkg (Solver.Details vsn _) fingerprints =
                                     ifaces = gatherInterfaces exposedDict results
                                     objects = gatherObjects results
                                     artifacts = Artifacts ifaces objects
+                                    fingerprints = Set.insert f fs
                                   in
                                   do  writeDocs cache pkg vsn docsStatus results
                                       File.writeBinary path (ArtifactCache fingerprints artifacts)

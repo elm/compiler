@@ -14,6 +14,7 @@ module Reporting.Exit
   , Outline(..)
   , OutlineProblem(..)
   , Details(..)
+  , DetailsBadDep(..)
   , PackageProblem(..)
   , RegistryProblem(..)
   , BuildProblem(..)
@@ -34,6 +35,7 @@ import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.UTF8 as BS_UTF8
 import qualified Data.List as List
+import qualified Data.Map as Map
 import qualified Data.Name as N
 import qualified Data.NonEmptyList as NE
 import qualified Network.HTTP.Client as HTTP
@@ -1194,7 +1196,12 @@ data Details
   | DetailsHandEditedDependencies
   | DetailsBadOutline Outline
   | DetailsCannotGetRegistry RegistryProblem
-  | DetailsCannotBuildPackage Pkg.Name V.Version PackageProblem
+  | DetailsBadDeps FilePath [DetailsBadDep]
+
+
+data DetailsBadDep
+  = BD_BadDownload Pkg.Name V.Version PackageProblem
+  | BD_BadBuild Pkg.Name V.Version (Map.Map Pkg.Name V.Version)
 
 
 toDetailsReport :: Details -> Help.Report
@@ -1275,8 +1282,45 @@ toDetailsReport details =
       toRegistryProblemReport "PROBLEM LOADING PACKAGE LIST" problem $
         "I need the list of published packages to verify your dependencies"
 
-    DetailsCannotBuildPackage pkg vsn problem ->
-      toPackageProblemReport pkg vsn problem
+    DetailsBadDeps cacheDir deps ->
+      case deps of
+        [] ->
+          Help.report "PROBLEM BUILDING DEPENDENCIES" Nothing
+            "I am not sure what is going wrong though."
+            [ D.reflow $
+                "I would try deleting the " ++ cacheDir ++ " and elm-stuff/ directories, then\
+                \ trying to build again. That will work if some cached files got corrupted\
+                \ somehow."
+            , D.reflow $
+                "If that does not work, go to https://elm-lang.org/community and ask for\
+                \ help. This is a weird case!"
+            ]
+
+        d:_ ->
+          case d of
+            BD_BadDownload pkg vsn packageProblem ->
+              toPackageProblemReport pkg vsn packageProblem
+
+            BD_BadBuild pkg vsn fingerprint ->
+              Help.report "PROBLEM BUILDING DEPENDENCIES" Nothing
+                "I ran into a compilation error when trying to build the following package:"
+                [ D.indent 4 $ D.red $ D.fromChars $ Pkg.toChars pkg ++ " " ++ V.toChars vsn
+                , D.reflow $
+                    "This probably means it has package constraints that are too wide. It may be\
+                    \ possible to tweak your elm.json to avoid the root problem as a stopgap. Head\
+                    \ over to https://elm-lang.org/community to get help figuring out how to take\
+                    \ this path!"
+                , D.toSimpleNote $
+                    "To help with the root problem, please report this to the package author along\
+                    \ with the following information:"
+                , D.indent 4 $ D.vcat $
+                    map (\(p,v) -> D.fromChars $ Pkg.toChars p ++ " " ++ V.toChars v) $
+                      Map.toList fingerprint
+                , D.reflow $
+                    "If you want to help out even more, try building the package locally. That should\
+                    \ give you much more specific information about why this package is failing to\
+                    \ build, which will in turn make it easier for the package author to fix it!"
+                ]
 
 
 
