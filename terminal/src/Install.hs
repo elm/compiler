@@ -196,10 +196,10 @@ makeAppPlan (Solver.Env cache _ connection registry) pkg outline@(Outline.AppOut
                             return (Changes (detectChanges old new) (Outline.App app))
 
                           Solver.NoSolution ->
-                            Task.throw Exit.InstallNoOnlineSolution
+                            Task.throw (Exit.InstallNoOnlineAppSolution pkg)
 
                           Solver.NoOfflineSolution ->
-                            Task.throw Exit.InstallNoOfflineSolution
+                            Task.throw (Exit.InstallNoOfflineAppSolution pkg)
 
                           Solver.Err exit ->
                             Task.throw (Exit.InstallHadSolverTrouble exit)
@@ -252,10 +252,10 @@ makePkgPlan (Solver.Env cache _ connection registry) pkg outline@(Outline.PkgOut
                         }
 
                   Solver.NoSolution ->
-                    Task.throw Exit.InstallNoOnlineSolution
+                    Task.throw (Exit.InstallNoOnlinePkgSolution pkg)
 
                   Solver.NoOfflineSolution ->
-                    Task.throw Exit.InstallNoOfflineSolution
+                    Task.throw (Exit.InstallNoOfflinePkgSolution pkg)
 
                   Solver.Err exit ->
                     Task.throw (Exit.InstallHadSolverTrouble exit)

@@ -741,8 +741,10 @@ data Install
   | InstallBadOutline Outline
   | InstallBadRegistry RegistryProblem
   | InstallNoArgs FilePath
-  | InstallNoOnlineSolution
-  | InstallNoOfflineSolution
+  | InstallNoOnlineAppSolution Pkg.Name
+  | InstallNoOfflineAppSolution Pkg.Name
+  | InstallNoOnlinePkgSolution Pkg.Name
+  | InstallNoOfflinePkgSolution Pkg.Name
   | InstallHadSolverTrouble Solver
   | InstallUnknownPackageOnline Pkg.Name [Pkg.Name]
   | InstallUnknownPackageOffline Pkg.Name [Pkg.Name]
@@ -789,18 +791,75 @@ installToReport exit =
             ]
         ]
 
-    InstallNoOnlineSolution ->
-      Help.report "UNSOLVABLE DEPENDENCIES" (Just "elm.json") -- TODO recommend using solver in `elm reactor`
-        "This usually happens if you try to modify dependency constraints by\
-        \ hand. I recommend deleting any dependency you added recently (or all\
-        \ of them if things are bad) and then adding them again with:"
-        [ D.indent 4 $ D.green "elm install"
+    InstallNoOnlineAppSolution pkg ->
+      Help.report "CANNOT FIND COMPATIBLE VERSION" (Just "elm.json")
+        (
+          "I cannot find a version of " ++ Pkg.toChars pkg ++ " that is compatible\
+          \ with your existing dependencies."
+        )
+        [ D.reflow $
+            "I checked all the published versions. When that failed, I tried to find any\
+            \ compatible combination of these packages, even if it meant changing all your\
+            \ existing dependencies! That did not work either!"
         , D.reflow $
-            "And do not be afaid to ask for help on Slack if you get stuck!"
+            "This is most likely to happen when a package is not upgraded yet. Maybe a new\
+            \ version of Elm came out recently? Maybe a common package was changed recently?\
+            \ Maybe a better package came along, so there was no need to upgrade this one?\
+            \ Try asking around https://elm-lang.org/community to learn what might be going on\
+            \ with this package."
+        , D.toSimpleNote $
+            "Whatever the case, please be kind to the relevant package authors! Having\
+            \ friendly interactions with users is great motivation, and conversely, getting\
+            \ berated by strangers on the internet sucks your soul dry. Furthermore, package\
+            \ authors are humans with families, friends, jobs, vacations, responsibilities,\
+            \ goals, etc. They face obstacles outside of their technical work you will never\
+            \ know about, so please assume the best and try to be patient and supportive!"
         ]
 
-    InstallNoOfflineSolution ->
-      error "TODO InstallNoOfflineSolution"
+    InstallNoOfflineAppSolution pkg ->
+      Help.report "CANNOT FIND COMPATIBLE VERSION LOCALLY" (Just "elm.json")
+        (
+          "I cannot find a version of " ++ Pkg.toChars pkg ++ " that is compatible\
+          \ with your existing dependencies."
+        )
+        [ D.reflow $
+            "I was not able to connect to https://package.elm-lang.org/ though, so I was only\
+            \ able to look through packages that you have downloaded in the past."
+        , D.reflow $
+            "Try again later when you have internet!"
+        ]
+
+    InstallNoOnlinePkgSolution pkg ->
+      Help.report "CANNOT FIND COMPATIBLE VERSION" (Just "elm.json")
+        (
+          "I cannot find a version of " ++ Pkg.toChars pkg ++ " that is compatible\
+          \ with your existing constraints."
+        )
+        [ D.reflow $
+            "With applications, I try to broaden the constraints to see if anything works,\
+            \ but messing with package constraints is much more delicate business. E.g. making\
+            \ your constraints stricter may make it harder for applications to find compatible\
+            \ dependencies. So fixing something here may break it for a lot of other people!"
+        , D.reflow $
+            "So I recommend making an application with the same dependencies as your package.\
+            \ See if there is a solution at all. From there it may be easier to figure out\
+            \ how to proceed in a way that will disrupt your users as little as possible. And\
+            \ the solution may be to help other package authors to get their packages updated,\
+            \ or to drop a dependency entirely."
+        ]
+
+    InstallNoOfflinePkgSolution pkg ->
+      Help.report "CANNOT FIND COMPATIBLE VERSION LOCALLY" (Just "elm.json")
+        (
+          "I cannot find a version of " ++ Pkg.toChars pkg ++ " that is compatible\
+          \ with your existing constraints."
+        )
+        [ D.reflow $
+            "I was not able to connect to https://package.elm-lang.org/ though, so I was only\
+            \ able to look through packages that you have downloaded in the past."
+        , D.reflow $
+            "Try again later when you have internet!"
+        ]
 
     InstallHadSolverTrouble solver ->
       toSolverReport solver
@@ -847,26 +906,6 @@ installToReport exit =
         , D.reflow $
             "Maybe that can help figure out what is going on here."
         ]
-
-
-{- TODO detect if library has no 0.19.0 version. Maybe do this on website though?
-  Help.report "OLD DEPENDENCIES" (Just "elm.json")
-    ( "The following packages do not work with Elm " ++ V.toChars V.compiler ++ " right now:"
-    )
-    [ D.indent 4 $ D.vcat $ map (D.red . D.fromPackage) badPackages
-    , D.reflow $
-        "This may be because it is not upgraded yet. It may be because a\
-        \ better solution came along, so there was no need to upgrade it.\
-        \ Etc. Try asking around on Slack to learn more about the topic."
-    , D.toSimpleNote
-        "Whatever the case, please be kind to the relevant package authors! Having\
-        \ friendly interactions with users is great motivation, and conversely, getting\
-        \ berated by strangers on the internet sucks your soul dry. Furthermore, package\
-        \ authors are humans with families, friends, jobs, vacations, responsibilities,\
-        \ goals, etc. They face obstacles outside of their technical work you will never\
-        \ know about, so please assume the best and try to be patient and supportive!"
-    ]
--}
 
 
 
