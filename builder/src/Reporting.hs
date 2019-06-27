@@ -453,13 +453,14 @@ putException e =
         \ I extracted whatever information I could from the internal error:"
     , D.vcat $ map (\line -> D.red ">" <> "   " <> D.fromChars line) (lines (show e))
     , D.reflow $
-        "These errors are usually pretty confusing, so start by asking around on Slack\
-        \ or Discourse to see if anyone can get you unstuck quickly."
+        "These errors are usually pretty confusing, so start by asking around on one of\
+        \ forums listed at https://elm-lang.org/community to see if anyone can get you\
+        \ unstuck quickly."
     , "------------------------------------------------------------"
     , D.reflow $
-        "From there, if you are feeling up to it, please try to get your code down to the\
-        \ smallest version that still triggers this message. Ideally in a single Main.elm\
-        \ and elm.json file."
+        "If you are feeling up to it, please try to get your code down to the smallest\
+        \ version that still triggers this message. Ideally in a single Main.elm and\
+        \ elm.json file."
     , D.reflow $
         "From there open a NEW issue at https://github.com/elm/compiler/issues with\
         \ your reduced example pasted in directly. (Not a link to a repo or gist!) Do not\
