@@ -108,7 +108,6 @@ writeChunks mba offset chunks =
                 writeChunks mba newOffset chunks
 
 
--- TODO see if it is faster to writeWord32 a block of hex-as-ascii
 writeCode :: MBA RealWorld -> Int -> Int -> ST RealWorld ()
 writeCode mba offset code =
   do  writeWord8 mba offset 0x5C {- \ -}
