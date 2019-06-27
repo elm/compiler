@@ -56,6 +56,7 @@ import qualified Text.PrettyPrint.ANSI.Leijen as P
 import qualified Data.Index as Index
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
+import Json.Encode ((==>))
 import qualified Json.Encode as E
 import qualified Json.String as Json
 
@@ -305,10 +306,8 @@ data Color
   | WHITE
 
 
-toJsonHelp :: Style -> [a] -> P.SimpleDoc -> [E.Value]
+toJsonHelp :: Style -> [String] -> P.SimpleDoc -> [E.Value]
 toJsonHelp style revChunks simpleDoc =
-  error "TODO generate json on errors" style revChunks simpleDoc sgrToStyle encodeColor
-{-
   case simpleDoc of
     P.SFail ->
       error $
@@ -319,22 +318,17 @@ toJsonHelp style revChunks simpleDoc =
       [ encodeChunks style revChunks ]
 
     P.SChar char rest ->
-      toJsonHelp style (TB.singleton char : revChunks) rest
+      toJsonHelp style ([char] : revChunks) rest
 
     P.SText _ string rest ->
-      toJsonHelp style (TB.fromString string : revChunks) rest
+      toJsonHelp style (string : revChunks) rest
 
     P.SLine indent rest ->
-      toJsonHelp style (spaces indent : "\n" : revChunks) rest
+      toJsonHelp style (replicate indent ' ' : "\n" : revChunks) rest
 
     P.SSGR sgrs rest ->
       encodeChunks style revChunks : toJsonHelp (sgrToStyle sgrs style) [] rest
 
-
-spaces :: Int -> TB.Builder
-spaces n =
-  TB.fromText (Text.replicate n " ")
--}
 
 sgrToStyle :: [Ansi.SGR] -> Style -> Style
 sgrToStyle sgrs style@(Style bold underline color) =
@@ -396,11 +390,11 @@ toColor layer intensity color =
           Ansi.White   -> pick White   WHITE
           Ansi.Black   -> pick Black   BLACK
 
-{-
-encodeChunks :: Style -> [TB.Builder] -> E.Value
+
+encodeChunks :: Style -> [String] -> E.Value
 encodeChunks (Style bold underline color) revChunks =
   let
-    !str = Utf8.concat (reverse revChunks)
+    str = Json.fromChars (concat (reverse revChunks))
   in
   case color of
     Nothing | not bold && not underline ->
@@ -408,12 +402,12 @@ encodeChunks (Style bold underline color) revChunks =
 
     _ ->
       E.object
-        [ ("bold", E.bool bold)
-        , ("underline", E.bool underline)
-        , ("color", maybe E.null encodeColor color)
-        , ("string", E.string str)
+        [ "bold" ==> E.bool bold
+        , "underline" ==> E.bool underline
+        , "color" ==> maybe E.null encodeColor color
+        , "string" ==> E.string str
         ]
--}
+
 
 encodeColor :: Color -> E.Value
 encodeColor color =
