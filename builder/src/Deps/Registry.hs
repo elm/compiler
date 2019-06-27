@@ -54,11 +54,7 @@ data KnownVersions =
 
 read :: Stuff.PackageCache -> IO (Maybe Registry)
 read cache =
-  do  let path = Stuff.registry cache
-      exists <- File.exists path
-      if exists
-        then File.readBinary path
-        else return Nothing
+  File.readBinary (Stuff.registry cache)
 
 
 
