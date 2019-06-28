@@ -308,7 +308,9 @@ verifyDependencies env@(Env key root _ _ _ _) time outline solution directDeps =
             foreigns = Map.map (OneOrMore.destruct Foreign) $ Map.foldrWithKey gatherForeigns Map.empty artifacts
             details = Details time outline Map.empty foreigns (ArtifactsFresh ifaces objs)
           in
-          do  File.writeBinary (Stuff.objects    root) objs
+          do  -- PERF fork all three of these writes, but need to make sure
+              -- they complete before main thread with some MVar check at end
+              File.writeBinary (Stuff.objects    root) objs
               File.writeBinary (Stuff.interfaces root) ifaces
               File.writeBinary (Stuff.details    root) details
               return (Right details)
