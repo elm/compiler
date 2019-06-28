@@ -104,7 +104,7 @@ list encodeEntry entries =
 -- CHARS
 
 
-chars :: [Char] -> Value -- TODO can this be done better? Look for examples.
+chars :: [Char] -> Value -- PERF can this be done better? Look for examples.
 chars chrs =
   String (B.char7 '"' <> B.stringUtf8 (escape chrs) <> B.char7 '"')
 
