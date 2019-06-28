@@ -49,7 +49,6 @@ shortenFieldNames (Opt.GlobalGraph _ frequencies) =
 
 addToBuckets :: Name.Name -> Int -> Map.Map Int [Name.Name] -> Map.Map Int [Name.Name]
 addToBuckets field frequency buckets =
-  -- TODO try using an IntMap for buckets
   Map.insertWith (++) frequency [field] buckets
 
 
