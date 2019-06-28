@@ -2243,7 +2243,6 @@ toExprReport source context expr startRow startCol =
             InNode NElse   r c _ -> (r, c, "an `if` expression")
             InNode NCase   r c _ -> (r, c, "a `case` expression")
             InNode NBranch r c _ -> (r, c, "a `case` expression")
-            -- TODO check if this is actually the best way to get error messages here
 
         surroundings = A.Region (A.Position contextRow contextCol) (A.Position row col)
         region = toRegion row col
