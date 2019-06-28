@@ -86,6 +86,10 @@ makeEnv key root (Details.Details _ validOutline locals foreigns _) =
 -- FORK
 
 
+-- PERF try using IORef semephore on file crawl phase?
+-- described in Chapter 13 of Parallel and Concurrent Programming in Haskell by Simon Marlow
+-- https://www.oreilly.com/library/view/parallel-and-concurrent/9781449335939/ch13.html#sec_conc-par-overhead
+--
 fork :: IO a -> IO (MVar a)
 fork work =
   do  mvar <- newEmptyMVar
