@@ -90,7 +90,7 @@ instance Applicative Unify where
 
 
 instance Monad Unify where
-  -- TODO PERF add INLINE here?
+  -- PERF add INLINE here?
   return a =
     Unify $ \vars ok _ ->
       ok vars a
@@ -220,7 +220,7 @@ unifyFlex context content otherContent =
     Error ->
         merge context Error
 
-    -- TODO see if wildcarding makes a noticable perf difference
+    -- PERF see if wildcarding makes a noticable perf difference
 
     FlexVar maybeName ->
         merge context $

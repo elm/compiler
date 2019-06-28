@@ -67,7 +67,7 @@ lower toError =
 
 
 {-# NOINLINE reservedWords #-}
-reservedWords :: Set.Set Name.Name  -- TODO try using a trie instead
+reservedWords :: Set.Set Name.Name  -- PERF try using a trie instead
 reservedWords =
   Set.fromList
     [ "if", "then", "else"

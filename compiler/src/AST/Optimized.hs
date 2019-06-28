@@ -135,7 +135,7 @@ data GlobalGraph =
 data LocalGraph =
   LocalGraph
     { _l_main :: Maybe Main
-    , _l_nodes :: Map.Map Global Node  -- TODO profile switching Global to Name
+    , _l_nodes :: Map.Map Global Node  -- PERF profile switching Global to Name
     , _l_fields :: Map.Map Name Int
     }
 

@@ -46,7 +46,7 @@ newtype Parser x a =
   )
 
 
-data State = -- TODO try taking some out to avoid allocation?
+data State = -- PERF try taking some out to avoid allocation
   State
     { _src :: ForeignPtr Word8
     , _pos :: !(Ptr Word8)
@@ -145,7 +145,7 @@ oneOfHelp state cok eok cerr eerr toError parsers =
 
 
 {-# INLINE oneOfWithFallback #-}
-oneOfWithFallback :: [Parser x a] -> a -> Parser x a -- TODO is this function okay? Worried about allocation/laziness with fallback values.
+oneOfWithFallback :: [Parser x a] -> a -> Parser x a -- PERF is this function okay? Worried about allocation/laziness with fallback values.
 oneOfWithFallback parsers fallback =
   Parser $ \state cok eok cerr _ ->
     oowfHelp state cok eok cerr parsers fallback

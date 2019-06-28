@@ -279,7 +279,7 @@ instance Ord Name where
 -- BINARY
 
 
-instance Binary Name where -- TODO try storing as a Word16
+instance Binary Name where -- PERF try storing as a Word16
   get = liftM2 Name Utf8.getUnder256 Utf8.getUnder256
   put (Name a b) = Utf8.putUnder256 a >> Utf8.putUnder256 b
 

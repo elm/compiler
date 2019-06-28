@@ -87,7 +87,7 @@ toPublicName (ModuleName.Canonical _ home) name =
 
 newtype Types =
   Types (Map.Map ModuleName.Canonical Types_)
-  -- TODO profile Opt.Global representation
+  -- PERF profile Opt.Global representation
   -- current representation needs less allocation
   -- but maybe the lookup is much worse
 

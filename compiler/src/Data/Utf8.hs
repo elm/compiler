@@ -455,7 +455,7 @@ toEscapedBuilderHelp before after !name@(Utf8 ba#) k =
         !bLen = minusPtr bEnd bOffset
       in
       if len <= bLen then
-        do  -- TODO test if writing word-by-word is faster
+        do  -- PERF test if writing word-by-word is faster
             copyToPtr name offset bOffset len
             escape before after bOffset name offset len 0
             let !newBufferRange = B.BufferRange (plusPtr bOffset len) bEnd
@@ -565,7 +565,7 @@ data MBA s =
   MBA# (MutableByteArray# s)
 
 
-newByteArray :: Int -> ST s (MBA s) -- TODO see if newPinnedByteArray for len > 256 is positive
+newByteArray :: Int -> ST s (MBA s) -- PERF see if newPinnedByteArray for len > 256 is positive
 newByteArray (I# len#) =
   ST $ \s ->
     case newByteArray# len# s of

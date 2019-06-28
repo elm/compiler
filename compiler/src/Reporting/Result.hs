@@ -118,4 +118,12 @@ instance Monad (Result i w e) where
       in
       ka i w bad good1
 
-  -- TODO PERF add more specialized definitions?
+  (>>) (Result ka) (Result kb) =
+    Result $ \i w bad good ->
+      let
+        good1 i1 w1 _ =
+          kb i1 w1 bad good
+      in
+      ka i w bad good1
+
+  -- PERF add INLINE to these?

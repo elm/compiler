@@ -26,7 +26,7 @@ import Data.Word (Word16)
 
 
 data Located a =
-  At Region a  -- TODO see if unpacking region is helpful
+  At Region a  -- PERF see if unpacking region is helpful
 
 
 instance Functor Located where
