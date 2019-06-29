@@ -956,12 +956,12 @@ findLocation :: Env -> FilePath -> IO (Either Exit.BuildProjectProblem Location)
 findLocation env path =
   do  exists <- File.exists path
       if exists
-        then isInsideSrcDirs env path <$> Dir.canonicalizePath path
+        then findLoc env path <$> Dir.canonicalizePath path
         else return (Left (Exit.BP_PathUnknown path))
 
 
-isInsideSrcDirs :: Env -> FilePath -> FilePath -> Either Exit.BuildProjectProblem Location
-isInsideSrcDirs (Env _ root _ srcDirs _ _) path absolutePath =
+findLoc :: Env -> FilePath -> FilePath -> Either Exit.BuildProjectProblem Location
+findLoc (Env _ root _ srcDirs _ _) path absolutePath =
   let
     (dirs, file) = FP.splitFileName absolutePath
     (final, ext) = break (=='.') file
@@ -978,28 +978,23 @@ isInsideSrcDirs (Env _ root _ srcDirs _ _) path absolutePath =
         Right (Location absolutePath path (LOutside path))
 
       Just relativeSegments ->
-        let
-          (exits, maybes) =
-            Either.partitionEithers (map (isInsideSrcDirsHelp relativeSegments) srcDirs)
-        in
-        -- TODO make sure this is all correct
-        case (exits, Maybe.catMaybes maybes) of
-          (_, [(_,name)])      -> Right (Location absolutePath path (LInside name))
-          ([], [])             -> Right (Location absolutePath path (LOutside path))
-          (_, (s1,_):(s2,_):_) -> Left (Exit.BP_WithAmbiguousSrcDir path s1 s2)
-          (exit:_, _)          -> Left exit
+        case Maybe.mapMaybe (isInsideSrcDir relativeSegments) srcDirs of
+          []                -> Right $ Location absolutePath path (LOutside path)
+          [(_, Right name)] -> Right $ Location absolutePath path (LInside name)
+          [(s, Left names)] -> Left  $ Exit.BP_MainNameInvalid path s names
+          (s1,_):(s2,_):_   -> Left  $ Exit.BP_WithAmbiguousSrcDir path s1 s2
 
 
-isInsideSrcDirsHelp :: [String] -> FilePath -> Either Exit.BuildProjectProblem (Maybe (FilePath, ModuleName.Raw))
-isInsideSrcDirsHelp segments srcDir =
+isInsideSrcDir :: [String] -> FilePath -> Maybe (FilePath, Either [String] ModuleName.Raw)
+isInsideSrcDir segments srcDir =
   case dropPrefix (FP.splitDirectories srcDir) segments of
     Nothing ->
-      Right Nothing
+      Nothing
 
     Just names ->
       if all isGoodName names
-      then Right (Just (srcDir, Name.fromChars (List.intercalate "." names)))
-      else Left (error "Exit.MakeWithInvalidModuleName" srcDir segments)
+      then Just (srcDir, Right (Name.fromChars (List.intercalate "." names)))
+      else Just (srcDir, Left names)
 
 
 isGoodName :: [Char] -> Bool
