@@ -41,6 +41,8 @@ import qualified Data.NonEmptyList as NE
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Types.Header as HTTP
 import qualified Network.HTTP.Types.Status as HTTP
+import qualified System.FilePath as FP
+import System.FilePath ((</>), (<.>))
 
 import qualified Elm.Constraint as C
 import qualified Elm.Magnitude as M
@@ -1713,6 +1715,7 @@ data BuildProjectProblem
   | BP_WithAmbiguousSrcDir FilePath FilePath FilePath
   | BP_MainPathDuplicate FilePath FilePath
   | BP_MainNameDuplicate ModuleName.Raw FilePath FilePath
+  | BP_MainNameInvalid FilePath FilePath [String]
   | BP_CannotLoadDependencies
   | BP_Cycle ModuleName.Raw [ModuleName.Raw]
   | BP_MissingExposed (NE.List (ModuleName.Raw, Import.Problem))
@@ -1790,6 +1793,24 @@ toProjectProblemReport projectProblem =
             "Try changing to a different module name in one of them!"
         ]
 
+    BP_MainNameInvalid givenPath srcDir pathSegments ->
+      Help.report "UNEXPECTED FILE NAME" Nothing
+        "I am having trouble with this file name:"
+        [ D.indent 4 $ D.red $ D.fromChars givenPath
+        , D.reflow $
+            "I found it in your " ++ FP.addTrailingPathSeparator srcDir ++ " directory\
+            \ which is good, but I expect all of the files in there to use the following\
+            \ module naming convention:"
+        , toModuleNameConventionTable srcDir [ "Main", "HomePage", "Http.Helpers" ]
+        , D.reflow $
+            "Notice that the names always start with capital letters! Can you make your file\
+            \ use this naming convention?"
+        , D.toSimpleNote $
+            "Having a strict naming convention like this makes it a lot easier to find\
+            \ things in large projects. If you see a module imported, you know where to look\
+            \ for the corresponding file every time!"
+        ]
+
     BP_CannotLoadDependencies ->
       corruptCacheReport
 
@@ -1843,6 +1864,33 @@ toProjectProblemReport projectProblem =
                 "It is not possible to \"re-export\" modules from other packages. You can only\
                 \ expose modules that you define in your own code."
             ]
+
+
+toModuleNameConventionTable :: FilePath -> [String] -> D.Doc
+toModuleNameConventionTable srcDir names =
+  let
+    toPair name =
+      ( name
+      , srcDir </> map (\c -> if c == '.' then FP.pathSeparator else c) name <.> "elm"
+      )
+
+    namePairs = map toPair names
+    nameWidth = maximum (11 : map (length . fst) namePairs)
+    pathWidth = maximum ( 9 : map (length . snd) namePairs)
+
+    padded width str =
+      str ++ replicate (width - length str) ' '
+
+    toRow (name, path) =
+      D.fromChars $
+        "| " ++ padded nameWidth name ++ " | " ++ padded pathWidth path ++ " |"
+
+    bar =
+      D.fromChars $
+        "+-" ++ replicate nameWidth '-' ++ "-+-" ++ replicate pathWidth '-' ++ "-+"
+  in
+  D.indent 4 $ D.vcat $
+    [ bar, toRow ("Module Name", "File Path"), bar ] ++ map toRow namePairs ++ [ bar ]
 
 
 
