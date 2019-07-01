@@ -53,10 +53,10 @@ import qualified Reporting.Render.Code as Code
 main :: IO ()
 main =
   do  artifacts <- loadArtifacts
-      errorHtml <- compileErrorViewer artifacts
+      errorJS <- compileErrorViewer artifacts
       httpServe config $ msum $
         [ path "compile" $ compile artifacts
-        , path "compile/error.js" $ writeBS errorHtml
+        , path "compile/error.js" $ writeBS errorJS
         , notFound
         ]
 
@@ -87,7 +87,7 @@ notFound =
 
 
 
--- COMPILE
+-- COMPILE ENDPOINT
 
 
 compile :: Artifacts -> Snap ()
@@ -96,12 +96,7 @@ compile artifacts =
     do  parts <- handleMultipart defaultUploadPolicy handlePart
         case parts of
           [Just source] ->
-            case compileToBuilder artifacts source of
-              Left err ->
-                writeBuilder $ errorToHtmlBuilder source err
-
-              Right builder ->
-                writeBuilder builder
+            writeBuilder $ compileToBuilder artifacts source
 
           _ ->
             pass
@@ -114,46 +109,32 @@ handlePart info stream =
   else return Nothing
 
 
-errorToHtmlBuilder :: B.ByteString -> Error.Error -> B.Builder
-errorToHtmlBuilder source err =
-  let
-    json = Encode.encodeUgly (Error.errorToJson (Code.toSource source) err)
-  in
-  [r|<!DOCTYPE HTML>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <style>body { padding: 0; margin: 0; }</style>
-  <script src="https://worker.elm-lang.org/compile/error.js"></script>
-  <script>Elm.Error.init({flags:|] <> json <> [r|})</script>
-</head>
-<body></body>
-</html>|]
 
+-- COMPILE TO BUILDER
 
 
 compileToBuilder :: Artifacts -> B.ByteString -> Either Error.Error B.Builder
 compileToBuilder (Artifacts interfaces objects) source =
   case Parse.fromByteString Pkg.dummyName source of
     Left err ->
-      Left (Error.BadSyntax err)
+      toInputError N._Main source (Error.BadSyntax err)
 
     Right modul@(Src.Module _ _ _ imports _ _ _ _ _) ->
       case checkImports interfaces imports of
         Left err ->
-          Left err
+          toInputError (Src.getName modul) source (Error.BadImports err)
 
         Right ifaces ->
           case Compile.compile Pkg.dummyName ifaces modul of
             Left err ->
-              Left err
+              toInputError (Src.getName modul) source err
 
-            Right artifacts@(Compile.Artifacts modul _ locals@(Opt.LocalGraph maybeMain _ _)) ->
-              case maybeMain of
-                Nothing ->
-                  Left (error "TODO no main")
+            Right artifacts@(Compile.Artifacts modul _ locals) ->
+              case locals of
+                Opt.LocalGraph Nothing _ _ ->
+                  exitToHtmlBuilder Exit.WorkerNoMain
 
-                Just main ->
+                Opt.LocalGraph (Just main) _ _ ->
                   let
                     mode  = Mode.Dev Nothing
                     home  = Can._name modul
@@ -161,10 +142,10 @@ compileToBuilder (Artifacts interfaces objects) source =
                     mains = Map.singleton home main
                     graph = Opt.addLocalGraph locals objects
                   in
-                  Right $ Html.sandwich name $ Generate.generate mode graph mains
+                  Html.sandwich name $ Generate.generate mode graph mains
 
 
-checkImports :: Map.Map ModuleName.Raw I.Interface -> [Src.Import] -> Either Error.Error (Map.Map ModuleName.Raw I.Interface)
+checkImports :: Map.Map ModuleName.Raw I.Interface -> [Src.Import] -> Either (NE.List Import.Error) (Map.Map ModuleName.Raw I.Interface)
 checkImports interfaces imports =
   let
     importDict = Map.fromValues Src.getImportName imports
@@ -180,7 +161,35 @@ checkImports interfaces imports =
         toError (Src.Import (A.At region name) _ _) =
           Import.Error region name unimported Import.NotFound
       in
-      Left (Error.BadImports (fmap toError (NE.List i is)))
+      Left (fmap toError (NE.List i is))
+
+
+
+-- COMPILE ERRORS
+
+
+toInputError :: ModuleName.Raw -> B.ByteString -> Error.Error -> B.Builder
+toInputError name source err =
+  exitToHtmlBuilder $ Exit.WorkerInputError $
+    Error.Module name "/try" File.zeroTime source err
+
+
+exitToHtmlBuilder :: Exit.Worker -> B.Builder
+exitToHtmlBuilder exit =
+  let
+    json =
+      Encode.encodeUgly $ Exit.toJson $ Exit.workerToReport exit
+  in
+  [r|<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>body { padding: 0; margin: 0; }</style>
+  <script src="https://worker.elm-lang.org/compile/error.js"></script>
+  <script>Elm.Error.init({flags:|] <> json <> [r|})</script>
+</head>
+<body></body>
+</html>|]
 
 
 
