@@ -2683,22 +2683,26 @@ toOperatorReport source context operator row col =
       in
       Report.Report "UNEXPECTED ARROW" region [] $
         Code.toSnippet source region Nothing $
-          if isWithin NBranch context then
+          if isWithin NCase context then
             (
               D.reflow $
-                "I was not expecting to see an arrow here:"
+                "I am parsing a `case` expression right now, but this arrow is confusing me:"
             ,
               D.stack
-                [
-                  D.reflow $
-                    "I think I am parsing a `case` expression right now, so it makes sense to\
-                    \ see arrows around here. This one is confusing me though!"
-                ,
-                  D.toSimpleHint $
-                    "I may be getting confused by the indentation. Every pattern in a `case` must be\
-                    \ exactly aligned (with exactly the same amount of indentation) so maybe this arrow\
-                    \ appears after the next `case` pattern (correctly!) but the pattern itself is\
-                    \ indented too far?"
+                [ D.reflow "Maybe the `of` keyword is missing on a previous line?"
+                , noteForCaseError
+                ]
+            )
+
+          else if isWithin NBranch context then
+            (
+              D.reflow $
+                "I am parsing a `case` expression right now, but this arrow is confusing me:"
+            ,
+              D.stack
+                [ D.reflow $
+                    "It makes sense to see arrows around here, so I suspect it is something earlier."
+                , noteForCaseIndentError
                 ]
             )
 
@@ -3290,9 +3294,10 @@ toCaseReport source context case_ startRow startCol =
                 D.reflow $
                   "I am partway through parsing a `case` expression, but I got stuck here:"
               ,
-                addNoteForCaseIndentError $
-                  D.reflow $
-                    "I was expecting to see an arrow next."
+                D.stack
+                  [ D.reflow "I was expecting to see an arrow next."
+                  , noteForCaseIndentError
+                  ]
               )
 
     CaseExpr expr row col ->
@@ -3346,28 +3351,33 @@ toUnfinishCaseReport source row col startRow startCol message =
       ,
         D.stack
           [ message
-          , D.toSimpleNote $
-              "Here is an example of a valid `case` expression for reference."
-          , D.vcat $
-              [ D.indent 4 $ D.fillSep [D.cyan "case","maybeWidth",D.cyan "of"]
-              , D.indent 6 $ D.fillSep [D.blue "Just","width","->"]
-              , D.indent 8 $ D.fillSep ["width","+",D.dullyellow "200"]
-              , ""
-              , D.indent 6 $ D.fillSep [D.blue "Nothing","->"]
-              , D.indent 8 $ D.fillSep [D.dullyellow "400"]
-              ]
-          , D.reflow $
-              "Notice the indentation. Each pattern is aligned, and each branch is indented\
-              \ a bit more than the corresponding pattern. That is important!"
+          , noteForCaseError
           ]
       )
 
 
-addNoteForCaseIndentError :: D.Doc -> D.Doc
-addNoteForCaseIndentError message =
-  D.stack $
-    message
-    :
+noteForCaseError :: D.Doc
+noteForCaseError =
+  D.stack
+    [ D.toSimpleNote $
+        "Here is an example of a valid `case` expression for reference."
+    , D.vcat $
+        [ D.indent 4 $ D.fillSep [D.cyan "case","maybeWidth",D.cyan "of"]
+        , D.indent 6 $ D.fillSep [D.blue "Just","width","->"]
+        , D.indent 8 $ D.fillSep ["width","+",D.dullyellow "200"]
+        , ""
+        , D.indent 6 $ D.fillSep [D.blue "Nothing","->"]
+        , D.indent 8 $ D.fillSep [D.dullyellow "400"]
+        ]
+    , D.reflow $
+        "Notice the indentation. Each pattern is aligned, and each branch is indented\
+        \ a bit more than the corresponding pattern. That is important!"
+    ]
+
+
+noteForCaseIndentError :: D.Doc
+noteForCaseIndentError =
+  D.stack
     [ D.toSimpleNote $
         "Sometimes I get confused by indentation, so try to make your `case` look\
         \ something like this:"
