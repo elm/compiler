@@ -1616,10 +1616,27 @@ makeToReport make =
         ]
 
     MakeMultipleFilesIntoHtml ->
-      error "MakeMultipleFilesIntoHtml"
+      Help.report "TOO MANY FILES" Nothing
+        (
+          "When producing an HTML file, I can only handle one file."
+        )
+        [ D.fillSep
+            ["Switch","to",D.dullyellow "--output=/dev/null","if","you","just","want"
+            ,"to","get","compile","errors.","This","skips","the","code","gen","phase,"
+            ,"so","it","can","be","a","bit","faster","than","other","options","sometimes."
+            ]
+        , D.fillSep
+            ["Switch","to",D.dullyellow "--output=elm.js","if","you","want","multiple"
+            ,"`main`","values","available","in","a","single","JavaScript","file.","Then"
+            ,"you","can","make","your","own","customized","HTML","file","that","embeds"
+            ,"multiple","Elm","nodes.","The","generated","JavaScript","also","shares"
+            ,"dependencies","between","modules,","so","it","should","be","smaller","than"
+            ,"compiling","each","module","separately."
+            ]
+        ]
 
     MakeNoMain ->
-      Help.docReport "NO MAIN" Nothing
+      Help.report "NO MAIN" Nothing
         (
           "When producing an HTML file, I require that the given file has a `main` value.\
           \ That way I have something to show on screen!"
