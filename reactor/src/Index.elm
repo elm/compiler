@@ -64,7 +64,7 @@ decoder =
     (D.field "dirs" (D.list D.string))
     (D.field "files" (D.list fileDecoder))
     (D.field "readme" (D.nullable D.string))
-    (D.field "project" (D.nullable Project.decoder))
+    (D.field "outline" (D.nullable Project.decoder))
     (D.field "exactDeps" (D.dict Version.decoder))
 
 
@@ -219,10 +219,10 @@ viewDeps exactDeps project =
     dependencies =
       case project of
         Project.Application info ->
-          List.map (viewDependency exactDeps) info.depsDirect
+          List.map viewVersion info.depsDirect
 
         Project.Package info ->
-          List.map (viewDependency exactDeps) info.deps
+          List.map (viewConstraint exactDeps) info.deps
   in
   Skeleton.box
     { title = "Dependencies"
@@ -237,10 +237,10 @@ viewTestDeps exactDeps project =
     dependencies =
       case project of
         Project.Application info ->
-          List.map (viewDependency exactDeps) info.testDepsDirect
+          List.map viewVersion info.testDepsDirect
 
         Project.Package info ->
-          List.map (viewDependency exactDeps) info.testDeps
+          List.map (viewConstraint exactDeps) info.testDeps
   in
   Skeleton.box
     { title = "Test Dependencies"
@@ -249,24 +249,31 @@ viewTestDeps exactDeps project =
     }
 
 
-viewDependency : ExactDeps -> (Package.Name, vsn) -> List (Html msg)
-viewDependency exactDeps (pkg, _) =
-  case Dict.get (Package.toString pkg) exactDeps of
-    Nothing ->
-      [ div [ style "float" "left" ]
-          [ Icon.package
-          , text (Package.toString pkg)
-          ]
-      , div [ style "float" "right" ] [ text "???" ]
+viewVersion : (Package.Name, Version.Version) -> List (Html msg)
+viewVersion (pkg, version) =
+  [ div [ style "float" "left" ]
+      [ Icon.package
+      , a [ href (toPackageUrl pkg version) ] [ text (Package.toString pkg) ]
       ]
+  , div [ style "float" "right" ] [ text (Version.toString version) ]
+  ]
 
-    Just version ->
-      [ div [ style "float" "left" ]
-          [ Icon.package
-          , a [ href (toPackageUrl pkg version) ] [ text (Package.toString pkg) ]
-          ]
-      , div [ style "float" "right" ] [ text (Version.toString version) ]
+
+viewConstraint : ExactDeps -> (Package.Name, constraint) -> List (Html msg)
+viewConstraint exactDeps (packageName, _) =
+  let
+    pkg = Package.toString packageName
+    vsn =
+      case Dict.get pkg exactDeps of
+        Just v  -> Version.toString v
+        Nothing -> "???"
+  in
+  [ div [ style "float" "left" ]
+      [ Icon.package
+      , text pkg
       ]
+  , div [ style "float" "right" ] [ text vsn ]
+  ]
 
 
 toPackageUrl : Package.Name -> Version.Version -> String
