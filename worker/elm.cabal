@@ -79,6 +79,8 @@ Executable worker
         Elm.Compiler.Type.Extract
         Elm.Constraint
         Elm.Details
+        Elm.Docs
+        Elm.Float
         Elm.Interface
         Elm.Kernel
         Elm.Licenses
@@ -86,6 +88,7 @@ Executable worker
         Elm.ModuleName
         Elm.Outline
         Elm.Package
+        Elm.String
         Elm.Version
         File
         Generate.Html
@@ -98,6 +101,7 @@ Executable worker
         Http
         Json.Decode
         Json.Encode
+        Json.String
         Nitpick.PatternMatches
         Optimize.Case
         Optimize.DecisionTree
@@ -114,9 +118,9 @@ Executable worker
         Parse.Primitives
         Parse.Shader
         Parse.Space
+        Parse.String
         Parse.Symbol
         Parse.Type
-        Parse.Utf8
         Parse.Variable
         Paths_elm
         Reporting
@@ -124,6 +128,7 @@ Executable worker
         Reporting.Doc
         Reporting.Error
         Reporting.Error.Canonicalize
+        Reporting.Error.Docs
         Reporting.Error.Import
         Reporting.Error.Json
         Reporting.Error.Main
@@ -161,7 +166,6 @@ Executable worker
         containers >= 0.5.8.2 && < 0.6,
         directory >= 1.2.3.0 && < 2.0,
         edit-distance >= 0.2 && < 0.3,
-        file-embed,
         filelock,
         filepath >= 1 && < 2.0,
         ghc-prim >= 0.5.2,
