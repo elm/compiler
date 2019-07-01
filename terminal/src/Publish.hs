@@ -177,9 +177,9 @@ verifyBuild root =
 
         exposed <-
           case outline of
-            Details.ValidApp _        -> Task.throw Exit.PublishApplication
-            Details.ValidPkg _ []     -> Task.throw Exit.PublishNoExposed
-            Details.ValidPkg _ (e:es) -> return (NE.List e es)
+            Details.ValidApp _          -> Task.throw Exit.PublishApplication
+            Details.ValidPkg _ []     _ -> Task.throw Exit.PublishNoExposed
+            Details.ValidPkg _ (e:es) _ -> return (NE.List e es)
 
         Task.eio Exit.PublishBuildProblem $
           Build.fromExposed Reporting.silent root details Build.KeepDocs exposed
@@ -300,9 +300,9 @@ verifyZipBuild root =
 
       exposed <-
         case outline of
-          Details.ValidApp _        -> Task.throw Exit.PublishZipApplication
-          Details.ValidPkg _ []     -> Task.throw Exit.PublishZipNoExposed
-          Details.ValidPkg _ (e:es) -> return (NE.List e es)
+          Details.ValidApp _          -> Task.throw Exit.PublishZipApplication
+          Details.ValidPkg _ []     _ -> Task.throw Exit.PublishZipNoExposed
+          Details.ValidPkg _ (e:es) _ -> return (NE.List e es)
 
       _ <- Task.eio Exit.PublishZipBuildProblem $
         Build.fromExposed Reporting.silent root details Build.KeepDocs exposed

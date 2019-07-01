@@ -78,7 +78,7 @@ makeEnv key root (Details.Details _ validOutline locals foreigns _) =
     Details.ValidApp srcDirs ->
       Env key root Pkg.dummyName (NE.toList srcDirs) locals foreigns
 
-    Details.ValidPkg pkg _ ->
+    Details.ValidPkg pkg _ _ ->
       Env key root pkg ["src"] locals foreigns
 
 

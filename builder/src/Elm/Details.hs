@@ -15,7 +15,7 @@ module Elm.Details
 
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar, readMVar, takeMVar)
-import Control.Monad (liftM, liftM2, liftM4)
+import Control.Monad (liftM, liftM2, liftM3, liftM4)
 import Data.Binary (Binary, get, put, getWord8, putWord8)
 import qualified Data.Either as Either
 import qualified Data.Map as Map
@@ -73,7 +73,7 @@ data Details =
 
 data ValidOutline
   = ValidApp (NE.List FilePath)
-  | ValidPkg Pkg.Name [ModuleName.Raw]
+  | ValidPkg Pkg.Name [ModuleName.Raw] (Map.Map Pkg.Name V.Version {- for docs in reactor -})
 
 
 data Local =
@@ -212,7 +212,8 @@ verifyPkg env time (Outline.PkgOutline pkg _ _ _ exposed direct testDirect elm) 
   then
     do  solution <- verifyConstraints env =<< union noDups direct testDirect
         let exposedList = Outline.flattenExposed exposed
-        verifyDependencies env time (ValidPkg pkg exposedList) solution direct
+        let exactDeps = Map.map (\(Solver.Details v _) -> v) solution -- for pkg docs in reactor
+        verifyDependencies env time (ValidPkg pkg exposedList exactDeps) solution direct
   else
     Task.throw $ Exit.DetailsBadElmInPkg elm
 
@@ -768,14 +769,14 @@ instance Binary Details where
 instance Binary ValidOutline where
   put outline =
     case outline of
-      ValidApp a   -> putWord8 0 >> put a
-      ValidPkg a b -> putWord8 1 >> put a >> put b
+      ValidApp a     -> putWord8 0 >> put a
+      ValidPkg a b c -> putWord8 1 >> put a >> put b >> put c
 
   get =
     do  n <- getWord8
         case n of
           0 -> liftM  ValidApp get
-          1 -> liftM2 ValidPkg get get
+          1 -> liftM3 ValidPkg get get get
           _ -> error "binary encoding of ValidOutline was corrupted"
 
 
