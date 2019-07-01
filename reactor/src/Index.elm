@@ -260,20 +260,18 @@ viewVersion (pkg, version) =
 
 
 viewConstraint : ExactDeps -> (Package.Name, constraint) -> List (Html msg)
-viewConstraint exactDeps (packageName, _) =
-  let
-    pkg = Package.toString packageName
-    vsn =
-      case Dict.get pkg exactDeps of
-        Just v  -> Version.toString v
-        Nothing -> "???"
-  in
-  [ div [ style "float" "left" ]
-      [ Icon.package
-      , text pkg
+viewConstraint exactDeps (pkg, _) =
+  case Dict.get (Package.toString pkg) exactDeps of
+    Just vsn ->
+      viewVersion (pkg, vsn)
+
+    Nothing ->
+      [ div [ style "float" "left" ]
+          [ Icon.package
+          , text (Package.toString pkg)
+          ]
+      , div [ style "float" "right" ] [ text "???" ]
       ]
-  , div [ style "float" "right" ] [ text vsn ]
-  ]
 
 
 toPackageUrl : Package.Name -> Version.Version -> String
