@@ -14,6 +14,7 @@ import qualified Data.ByteString.Lazy as LBS
 import qualified Data.HashSet as HashSet
 import qualified Data.Map as Map
 import qualified Data.Map.Utils as Map
+import qualified Data.Name as N
 import qualified Data.NonEmptyList as NE
 import qualified Data.OneOrMore as OneOrMore
 import Network.URI (parseURI)
@@ -23,6 +24,7 @@ import Snap.Util.CORS
 import Snap.Util.FileServe (serveFile)
 import Snap.Util.FileUploads
 import qualified System.Directory as Dir
+import qualified System.Exit as Exit
 import qualified System.IO.Streams as Stream
 import Text.RawString.QQ (r)
 
@@ -34,6 +36,7 @@ import qualified Elm.Details as Details
 import qualified Elm.Interface as I
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
+import qualified File
 import qualified Generate.Html as Html
 import qualified Generate.JavaScript as Generate
 import qualified Generate.Mode as Mode
@@ -43,7 +46,7 @@ import qualified Reporting
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error as Error
 import qualified Reporting.Error.Import as Import
-import qualified Reporting.Render.Code as Code
+import qualified Reporting.Exit as Exit
 
 
 
@@ -96,7 +99,9 @@ compile artifacts =
     do  parts <- handleMultipart defaultUploadPolicy handlePart
         case parts of
           [Just source] ->
-            writeBuilder $ compileToBuilder artifacts source
+            case compileToBuilder artifacts source of
+              Right builder -> writeBuilder builder
+              Left exit     -> writeBuilder (exitToHtmlBuilder exit)
 
           _ ->
             pass
@@ -107,71 +112,6 @@ handlePart info stream =
   if partFieldName info == "code" && partDisposition info == DispositionFormData
   then Just . LBS.toStrict <$> storeAsLazyByteString stream
   else return Nothing
-
-
-
--- COMPILE TO BUILDER
-
-
-compileToBuilder :: Artifacts -> B.ByteString -> Either Error.Error B.Builder
-compileToBuilder (Artifacts interfaces objects) source =
-  case Parse.fromByteString Pkg.dummyName source of
-    Left err ->
-      toInputError N._Main source (Error.BadSyntax err)
-
-    Right modul@(Src.Module _ _ _ imports _ _ _ _ _) ->
-      case checkImports interfaces imports of
-        Left err ->
-          toInputError (Src.getName modul) source (Error.BadImports err)
-
-        Right ifaces ->
-          case Compile.compile Pkg.dummyName ifaces modul of
-            Left err ->
-              toInputError (Src.getName modul) source err
-
-            Right artifacts@(Compile.Artifacts modul _ locals) ->
-              case locals of
-                Opt.LocalGraph Nothing _ _ ->
-                  exitToHtmlBuilder Exit.WorkerNoMain
-
-                Opt.LocalGraph (Just main) _ _ ->
-                  let
-                    mode  = Mode.Dev Nothing
-                    home  = Can._name modul
-                    name  = ModuleName._module home
-                    mains = Map.singleton home main
-                    graph = Opt.addLocalGraph locals objects
-                  in
-                  Html.sandwich name $ Generate.generate mode graph mains
-
-
-checkImports :: Map.Map ModuleName.Raw I.Interface -> [Src.Import] -> Either (NE.List Import.Error) (Map.Map ModuleName.Raw I.Interface)
-checkImports interfaces imports =
-  let
-    importDict = Map.fromValues Src.getImportName imports
-    missing = Map.difference importDict interfaces
-  in
-  case Map.elems missing of
-    [] ->
-      Right (Map.intersection interfaces importDict)
-
-    i:is ->
-      let
-        unimported = Map.keysSet (Map.difference interfaces importDict)
-        toError (Src.Import (A.At region name) _ _) =
-          Import.Error region name unimported Import.NotFound
-      in
-      Left (fmap toError (NE.List i is))
-
-
-
--- COMPILE ERRORS
-
-
-toInputError :: ModuleName.Raw -> B.ByteString -> Error.Error -> B.Builder
-toInputError name source err =
-  exitToHtmlBuilder $ Exit.WorkerInputError $
-    Error.Module name "/try" File.zeroTime source err
 
 
 exitToHtmlBuilder :: Exit.Worker -> B.Builder
@@ -193,15 +133,78 @@ exitToHtmlBuilder exit =
 
 
 
+-- COMPILE TO BUILDER
+
+
+compileToBuilder :: Artifacts -> B.ByteString -> Either Exit.Worker B.Builder
+compileToBuilder (Artifacts interfaces objects) source =
+  case Parse.fromByteString Pkg.dummyName source of
+    Left err ->
+      Left $ toInputError N._Main source (Error.BadSyntax err)
+
+    Right modul@(Src.Module _ _ _ imports _ _ _ _ _) ->
+      case checkImports interfaces imports of
+        Left err ->
+          Left $ toInputError (Src.getName modul) source (Error.BadImports err)
+
+        Right ifaces ->
+          case Compile.compile Pkg.dummyName ifaces modul of
+            Left err ->
+              Left $ toInputError (Src.getName modul) source err
+
+            Right artifacts@(Compile.Artifacts modul _ locals) ->
+              case locals of
+                Opt.LocalGraph Nothing _ _ ->
+                  Left Exit.WorkerNoMain
+
+                Opt.LocalGraph (Just main) _ _ ->
+                  let
+                    mode  = Mode.Dev Nothing
+                    home  = Can._name modul
+                    name  = ModuleName._module home
+                    mains = Map.singleton home main
+                    graph = Opt.addLocalGraph locals objects
+                  in
+                  Right $ Html.sandwich name $ Generate.generate mode graph mains
+
+
+checkImports :: Map.Map ModuleName.Raw I.Interface -> [Src.Import] -> Either (NE.List Import.Error) (Map.Map ModuleName.Raw I.Interface)
+checkImports interfaces imports =
+  let
+    importDict = Map.fromValues Src.getImportName imports
+    missing = Map.difference importDict interfaces
+  in
+  case Map.elems missing of
+    [] ->
+      Right (Map.intersection interfaces importDict)
+
+    i:is ->
+      let
+        unimported = Map.keysSet (Map.difference interfaces importDict)
+        toError (Src.Import (A.At region name) _ _) =
+          Import.Error region name unimported Import.NotFound
+      in
+      Left (fmap toError (NE.List i is))
+
+
+toInputError :: ModuleName.Raw -> B.ByteString -> Error.Error -> Exit.Worker
+toInputError name source err =
+  Exit.WorkerInputError $
+    Error.Module name "/try" File.zeroTime source err
+
+
+
 -- COMPILE ERROR VIEWER
 
 
-compileErrorViewer :: Artifacts -> B.ByteString
+compileErrorViewer :: Artifacts -> IO B.ByteString
 compileErrorViewer artifacts =
   do  source <- File.readUtf8 "src/Error.elm"
       case compileToBuilder artifacts source of
-        Left err ->
-          error "problem compiling src/Error.elm"
+        Left exit ->
+          do  putStrLn "Problem in src/Error.elm"
+              Exit.toStderr (Exit.workerToReport exit)
+              Exit.exitFailure
 
         Right builder ->
           return (LBS.toStrict (B.toLazyByteString builder))
