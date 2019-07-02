@@ -11,7 +11,8 @@ var fs = require('fs');
 //
 // This file pretends to be the downloaded binary. It then downloads
 // the real binary over itself. So in that case, the first run would
-// also make an HTTPS request to fetch the real binary.
+// also make an HTTPS request to fetch the real binary. From there,
+// it calls the binary it downloaded on each run.
 
 
 
