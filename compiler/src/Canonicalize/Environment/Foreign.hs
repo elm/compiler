@@ -214,7 +214,7 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) (A.At reg
     Src.Lower name ->
       case Map.lookup name vars of
         Just info ->
-          Result.ok (State (Map.insert name info vs) ts cs bs qvs qts qcs)
+          Result.ok (State (Map.insertWith Map.union name info vs) ts cs bs qvs qts qcs)
 
         Nothing ->
           Result.throw (Error.ImportExposingNotFound region home name (Map.keys vars))
