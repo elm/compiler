@@ -987,20 +987,21 @@ ambiguousName source region maybePrefix name possibleHomes thing =
         Nothing ->
           let
             homeToYellowDoc (ModuleName.Canonical _ home) =
-              D.dullyellow (D.fromName home)
-
-            bothOrAll =
-              if length possibleHomes == 2 then "both" else "all"
+              D.dullyellow (D.fromName home <> "." <> D.fromName name)
           in
           (
-            D.reflow $ "This usage of `" ++ Name.toChars name ++ "` is ambiguous."
+            D.reflow $ "This usage of `" ++ Name.toChars name ++ "` is ambiguous:"
           ,
             D.stack
               [ D.reflow $
-                  "Check your imports. The following modules " ++ bothOrAll
-                  ++ " expose a `" ++ Name.toChars name ++ "` " ++ thing ++ ":"
+                  "This name is exposed by " ++ show (length possibleHomes) ++ " of your imports, so I am not\
+                  \ sure which one to use:"
               , D.indent 4 $ D.vcat $ map homeToYellowDoc possibleHomes
-              , D.reflowLink "Read" "imports" "to learn how to clarify which one you want."
+              , D.reflow $
+                  "I recommend using qualified names for imported values. I also recommend having\
+                  \ at most one `exposing (..)` per file to make name clashes like this less common\
+                  \ in the long run."
+              , D.link "Note" "Check out" "imports" "for more info on the import syntax."
               ]
           )
 
@@ -1008,9 +1009,9 @@ ambiguousName source region maybePrefix name possibleHomes thing =
           let
             homeToYellowDoc (ModuleName.Canonical _ home) =
               if prefix == home then
-                D.blue "import" <+> D.dullyellow (D.fromName home)
+                D.cyan "import" <+> D.fromName home
               else
-                D.blue "import" <+> D.dullyellow (D.fromName home) <+> D.blue "as" <+> D.dullyellow (D.fromName prefix)
+                D.cyan "import" <+> D.fromName home <+> D.cyan "as" <+> D.fromName prefix
 
             eitherOrAny =
               if length possibleHomes == 2 then "either" else "any"
