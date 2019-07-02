@@ -38,7 +38,7 @@ Executable elm
     if flag(dev)
         ghc-options: -O0 -Wall -Werror
     else
-        ghc-options: -O2 -rtsopts -threaded "-with-rtsopts=-N -qg"
+        ghc-options: -O2 -rtsopts -threaded "-with-rtsopts=-N -qg -A128m"
         -- add -eventlog for (elm make src/Main.elm +RTS -l; threadscope elm.eventlog)
         -- https://www.oreilly.com/library/view/parallel-and-concurrent/9781449335939/
 
