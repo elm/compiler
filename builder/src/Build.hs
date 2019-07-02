@@ -685,9 +685,8 @@ compile (Env key root pkg _ _ _) docsNeed local@(Details.Local path time _ _) so
                   return (RNew local iface objects docs)
 
     Left err ->
-      do  Reporting.report key Reporting.BDone
-          return $ RProblem $
-            Error.Module (Src.getName modul) path time source err
+      return $ RProblem $
+        Error.Module (Src.getName modul) path time source err
 
 
 
@@ -1077,13 +1076,13 @@ checkMain env@(Env _ root _ _ _ _) results pendingMain =
       do  depsStatus <- checkDeps root results deps
           case depsStatus of
             DepsChange ifaces ->
-              return $ compileOutside env local source ifaces modul
+              compileOutside env local source ifaces modul
 
             DepsSame same cached ->
               do  maybeLoaded <- loadInterfaces root same cached
                   case maybeLoaded of
                     Nothing     -> return ROutsideBlocked
-                    Just ifaces -> return $ compileOutside env local source ifaces modul
+                    Just ifaces -> compileOutside env local source ifaces modul
 
             DepsBlock ->
               return ROutsideBlocked
@@ -1093,18 +1092,18 @@ checkMain env@(Env _ root _ _ _ _) results pendingMain =
                   Error.BadImports (toImportErrors env results imports problems)
 
 
-compileOutside :: Env -> Details.Local -> B.ByteString -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> MainResult
-compileOutside (Env _ _ pkg _ _ _) (Details.Local path time _ _) source ifaces modul =
+compileOutside :: Env -> Details.Local -> B.ByteString -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> IO MainResult
+compileOutside (Env key _ pkg _ _ _) (Details.Local path time _ _) source ifaces modul =
   let
     name = Src.getName modul
   in
   case Compile.compile pkg ifaces modul of
     Right (Compile.Artifacts canonical annotations objects) ->
-      ROutsideOk name (I.fromModule pkg canonical annotations) objects
+      do  Reporting.report key Reporting.BDone
+          return $ ROutsideOk name (I.fromModule pkg canonical annotations) objects
 
     Left errors ->
-      ROutsideErr $
-        Error.Module name path time source errors
+      return $ ROutsideErr $ Error.Module name path time source errors
 
 
 
