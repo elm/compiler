@@ -184,8 +184,8 @@ make =
             "For example:"
         , P.indent 4 $ P.green "elm make src/Main.elm"
         , reflow
-            "This tries to compile an Elm file named src/Main.elm, putting the resulting\
-            \ JavaScript code in an elm.js file."
+            "This tries to compile an Elm file named src/Main.elm, generating an index.html\
+            \ file if possible."
         ]
 
     makeFlags =
