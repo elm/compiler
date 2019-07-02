@@ -90,7 +90,6 @@ instance Applicative Unify where
 
 
 instance Monad Unify where
-  -- PERF add INLINE here?
   return a =
     Unify $ \vars ok _ ->
       ok vars a
@@ -219,8 +218,6 @@ unifyFlex context content otherContent =
   case otherContent of
     Error ->
         merge context Error
-
-    -- PERF see if wildcarding makes a noticable perf difference
 
     FlexVar maybeName ->
         merge context $
