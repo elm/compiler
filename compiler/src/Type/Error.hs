@@ -176,8 +176,7 @@ data Problem
   | AnythingToBool
   | AnythingFromMaybe
   | AnythingToList
-  | MissingArgs Int
-  | ReturnMismatch
+  | ArityMismatch Int Int
   | BadFlexSuper Direction Super Name.Name Type
   | BadRigidVar Name.Name Type
   | BadRigidSuper Super Name.Name Type
@@ -255,7 +254,11 @@ toDiff localizer ctx tipe1 tipe2 =
           <*> toDiff localizer RT.Func b y
           <*> sequenceA (zipWith (toDiff localizer RT.Func) cs zs)
       else
-        diffLambda localizer ctx a b cs x y zs
+        let f = toDoc localizer RT.Func in
+        different
+          (D.dullyellow (RT.lambda ctx (f a) (f b) (map f cs)))
+          (D.dullyellow (RT.lambda ctx (f x) (f y) (map f zs)))
+          (Bag.one (ArityMismatch (2 + length cs) (2 + length zs)))
 
     (Tuple a b Nothing, Tuple x y Nothing) ->
       RT.tuple
@@ -473,124 +476,6 @@ diffAliasedRecord localizer t1 t2 =
       Just (diffRecord localizer fields1 ext1 fields2 ext2)
 
     _ ->
-      Nothing
-
-
-
--- DIFF LAMBDAS
-
-
---
--- INVARIANTS:
---   length cs1 /= length cs2
---
-diffLambda :: L.Localizer -> RT.Context -> Type -> Type -> [Type] -> Type -> Type -> [Type] -> Diff D.Doc
-diffLambda localizer ctx a1 b1 cs1 a2 b2 cs2 =
-  let
-    (result1:revArgs1) = reverse (a1:b1:cs1)
-    (result2:revArgs2) = reverse (a2:b2:cs2)
-
-    numArgs1 = length revArgs1
-    numArgs2 = length revArgs2
-  in
-  case toDiff localizer RT.Func result1 result2 of
-    Diff resultDoc1 resultDoc2 Similar ->
-      if numArgs1 < numArgs2 then
-        diffArgMismatch localizer ctx revArgs1 resultDoc1 revArgs2 resultDoc2
-
-      else
-        diffArgMismatch localizer ctx revArgs2 resultDoc2 revArgs1 resultDoc1
-
-    Diff resultDoc1 resultDoc2 (Different problems) ->
-      let
-        (a:b:cs) = reverse (resultDoc1 : map (toDoc localizer RT.Func) revArgs1)
-        (x:y:zs) = reverse (resultDoc2 : map (toDoc localizer RT.Func) revArgs2)
-      in
-      different
-        (D.dullyellow (RT.lambda ctx a b cs))
-        (D.dullyellow (RT.lambda ctx x y zs))
-        (Bag.append problems (Bag.one ReturnMismatch))
-
-
---
--- INVARIANTS:
---   length shortRevArgs >= 2
---   length longRevArgs >= 2
---   length shortRevArgs < length longRevArgs
---
-diffArgMismatch :: L.Localizer -> RT.Context -> [Type] -> D.Doc -> [Type] -> D.Doc -> Diff D.Doc
-diffArgMismatch localizer ctx shortRevArgs shortResult longRevArgs longResult =
-  let
-    (a:b:cs, x:y:zs) =
-      case toGreedyMatch localizer shortRevArgs longRevArgs of
-        Just (GreedyMatch shortRevArgDocs longRevArgDocs) ->
-          ( reverse (shortResult:shortRevArgDocs)
-          , reverse (longResult:longRevArgDocs)
-          )
-
-        Nothing ->
-          case toGreedyMatch localizer (reverse shortRevArgs) (reverse longRevArgs) of
-            Just (GreedyMatch shortArgDocs longArgDocs) ->
-              ( shortArgDocs ++ [shortResult]
-              , longArgDocs ++ [longResult]
-              )
-
-            Nothing ->
-              let
-                toYellowDoc tipe =
-                  D.dullyellow (toDoc localizer RT.Func tipe)
-              in
-              ( reverse (shortResult : map toYellowDoc shortRevArgs)
-              , reverse (longResult  : map toYellowDoc longRevArgs )
-              )
-  in
-  different
-    (RT.lambda ctx a b cs)
-    (RT.lambda ctx x y zs)
-    (Bag.one (MissingArgs (length longRevArgs - length shortRevArgs)))
-
-
-
--- GREEDY ARG MATCHER
-
-
-data GreedyMatch =
-  GreedyMatch [D.Doc] [D.Doc]
-
-
---
--- INVARIANTS:
---   length shorterArgs < length longerArgs
---
-toGreedyMatch :: L.Localizer -> [Type] -> [Type] -> Maybe GreedyMatch
-toGreedyMatch localizer shorterArgs longerArgs =
-  toGreedyMatchHelp localizer shorterArgs longerArgs (GreedyMatch [] [])
-
-
-toGreedyMatchHelp :: L.Localizer -> [Type] -> [Type] -> GreedyMatch -> Maybe GreedyMatch
-toGreedyMatchHelp localizer shorterArgs longerArgs match@(GreedyMatch shorterDocs longerDocs) =
-  let
-    toYellowDoc tipe =
-      D.dullyellow (toDoc localizer RT.Func tipe)
-  in
-  case (shorterArgs, longerArgs) of
-    (x:xs, y:ys) ->
-      case toDiff localizer RT.Func x y of
-        Diff a b Similar ->
-          toGreedyMatchHelp localizer xs ys $
-            GreedyMatch (a:shorterDocs) (b:longerDocs)
-
-        Diff _ _ (Different _) ->
-          toGreedyMatchHelp localizer shorterArgs ys $
-            GreedyMatch shorterDocs (toYellowDoc y : longerDocs)
-
-    ([], []) ->
-      Just match
-
-    ([], _:_) ->
-      Just (GreedyMatch shorterDocs (map toYellowDoc longerArgs))
-
-    (_:_, []) ->
       Nothing
 
 

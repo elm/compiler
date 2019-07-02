@@ -435,8 +435,13 @@ problemToHint problem =
       [ D.toSimpleHint "Did you forget to add [] around it?"
       ]
 
-    T.MissingArgs _ -> []
-    T.ReturnMismatch -> []
+    T.ArityMismatch x y ->
+      [ D.toSimpleHint $
+          if x < y then
+            "It looks like it takes too few arguments. I was expecting " ++ show (y - x) ++ " more."
+          else
+            "It looks like it takes too many arguments. I see " ++ show (x - y) ++ " extra."
+      ]
 
     T.BadFlexSuper direction super _ tipe ->
       case tipe of
