@@ -272,13 +272,24 @@ exitWithError err =
       BadArgs argErrors ->
         case argErrors of
           [] ->
-            error "TODO no possible args"
+            return
+              [ reflow $ "I was not expecting any arguments for this command."
+              , reflow $ "Try removing them?"
+              ]
 
           [(_args, argError)] ->
             argErrorToDocs argError
 
           _:_:_ ->
-            error "TODO show possible arg configurations"
+            argErrorToDocs $ head $ List.sortOn toArgErrorRank (map snd argErrors)
+
+
+toArgErrorRank :: ArgError -> Int -- lower is better
+toArgErrorRank err =
+  case err of
+    ArgBad _ _   -> 0
+    ArgMissing _ -> 1
+    ArgExtras _  -> 2
 
 
 toGreen :: String -> P.Doc
@@ -318,10 +329,10 @@ argErrorToDocs argError =
           return
             [ "I am having trouble with this argument:"
             , P.indent 4 $ toRed string
-            , P.fillSep
+            , P.fillSep $
                 ["It","is","supposed","to","be","a"
-                ,toYellow (toToken tipe),"value,","like","this:"
-                ]
+                ,toYellow (toToken tipe),"value,","like"
+                ] ++ if length examples == 1 then ["this:"] else ["one","of","these:"]
             , P.indent 4 $ P.green $ P.vcat $ map P.text examples
             ]
 
