@@ -33,6 +33,7 @@ import System.FilePath ((</>), (<.>))
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
 import qualified AST.Optimized as Opt
+import qualified BackgroundWriter as BW
 import qualified Compile
 import qualified Deps.Registry as Registry
 import qualified Deps.Solver as Solver
@@ -120,11 +121,11 @@ loadInterfaces root (Details _ _ _ _ extras) =
 -- VERIFY INSTALL -- used by Install
 
 
-verifyInstall :: FilePath -> Solver.Env -> Outline.Outline -> IO (Either Exit.Details ())
-verifyInstall root (Solver.Env cache manager connection registry) outline =
+verifyInstall :: BW.Scope -> FilePath -> Solver.Env -> Outline.Outline -> IO (Either Exit.Details ())
+verifyInstall scope root (Solver.Env cache manager connection registry) outline =
   do  time <- File.getTime (root </> "elm.json")
       let key = Reporting.ignorer
-      let env = Env key root cache manager connection registry
+      let env = Env key scope root cache manager connection registry
       case outline of
         Outline.Pkg pkg -> Task.run (verifyPkg env time pkg >> return ())
         Outline.App app -> Task.run (verifyApp env time app >> return ())
@@ -134,28 +135,28 @@ verifyInstall root (Solver.Env cache manager connection registry) outline =
 -- LOAD -- used by Make, Repl, Reactor
 
 
-load :: Reporting.Style -> FilePath -> IO (Either Exit.Details Details)
-load style root =
+load :: Reporting.Style -> BW.Scope -> FilePath -> IO (Either Exit.Details Details)
+load style scope root =
   do  newTime <- File.getTime (root </> "elm.json")
       maybeDetails <- File.readBinary (Stuff.details root)
       case maybeDetails of
         Nothing ->
-          generate style root newTime
+          generate style scope root newTime
 
         Just details@(Details oldTime _ _ _ _) ->
           if oldTime == newTime
           then return (Right details)
-          else generate style root newTime
+          else generate style scope root newTime
 
 
 
 -- GENERATE
 
 
-generate :: Reporting.Style -> FilePath -> File.Time -> IO (Either Exit.Details Details)
-generate style root time =
+generate :: Reporting.Style -> BW.Scope -> FilePath -> File.Time -> IO (Either Exit.Details Details)
+generate style scope root time =
   Reporting.trackDetails style $ \key ->
-    do  result <- initEnv key root
+    do  result <- initEnv key scope root
         case result of
           Left exit ->
             return (Left exit)
@@ -173,6 +174,7 @@ generate style root time =
 data Env =
   Env
     { _key :: Reporting.DKey
+    , _scope :: BW.Scope
     , _root :: FilePath
     , _cache :: Stuff.PackageCache
     , _manager :: Http.Manager
@@ -181,8 +183,8 @@ data Env =
     }
 
 
-initEnv :: Reporting.DKey -> FilePath -> IO (Either Exit.Details (Env, Outline.Outline))
-initEnv key root =
+initEnv :: Reporting.DKey -> BW.Scope -> FilePath -> IO (Either Exit.Details (Env, Outline.Outline))
+initEnv key scope root =
   do  mvar <- fork Solver.initEnv
       eitherOutline <- Outline.read root
       case eitherOutline of
@@ -196,7 +198,7 @@ initEnv key root =
                   return $ Left $ Exit.DetailsCannotGetRegistry problem
 
                 Right (Solver.Env cache manager connection registry) ->
-                  return $ Right (Env key root cache manager connection registry, outline)
+                  return $ Right (Env key scope root cache manager connection registry, outline)
 
 
 
@@ -243,7 +245,7 @@ checkAppDeps (Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
 
 
 verifyConstraints :: Env -> Map.Map Pkg.Name Con.Constraint -> Task (Map.Map Pkg.Name Solver.Details)
-verifyConstraints (Env _ _ cache _ connection registry) constraints =
+verifyConstraints (Env _ _ _ cache _ connection registry) constraints =
   do  result <- Task.io $ Solver.verify cache connection registry constraints
       case result of
         Solver.Ok details        -> return details
@@ -289,7 +291,7 @@ fork work =
 
 
 verifyDependencies :: Env -> File.Time -> ValidOutline -> Map.Map Pkg.Name Solver.Details -> Map.Map Pkg.Name a -> Task Details
-verifyDependencies env@(Env key root _ _ _ _) time outline solution directDeps =
+verifyDependencies env@(Env key scope root _ _ _ _) time outline solution directDeps =
   Task.eio id $
   do  Reporting.report key (Reporting.DStart (Map.size solution))
       mvar <- newEmptyMVar
@@ -309,11 +311,9 @@ verifyDependencies env@(Env key root _ _ _ _) time outline solution directDeps =
             foreigns = Map.map (OneOrMore.destruct Foreign) $ Map.foldrWithKey gatherForeigns Map.empty artifacts
             details = Details time outline Map.empty foreigns (ArtifactsFresh ifaces objs)
           in
-          do  -- PERF fork all three of these writes, but need to make sure
-              -- they complete before main thread with some MVar check at end
-              File.writeBinary (Stuff.objects    root) objs
-              File.writeBinary (Stuff.interfaces root) ifaces
-              File.writeBinary (Stuff.details    root) details
+          do  BW.writeBinary scope (Stuff.objects    root) objs
+              BW.writeBinary scope (Stuff.interfaces root) ifaces
+              BW.writeBinary scope (Stuff.details    root) details
               return (Right details)
 
 
@@ -357,7 +357,7 @@ type Dep =
 
 
 verifyDep :: Env -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Map.Map Pkg.Name Solver.Details -> Pkg.Name -> Solver.Details -> IO Dep
-verifyDep (Env key _ cache manager _ _) depsMVar solution pkg details@(Solver.Details vsn directDeps) =
+verifyDep (Env key _ _ cache manager _ _) depsMVar solution pkg details@(Solver.Details vsn directDeps) =
   let
     fingerprint = Map.intersectionWith (\(Solver.Details v _) _ -> v) solution directDeps
   in
