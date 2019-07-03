@@ -9,6 +9,8 @@ module Stuff
   , temp
   , findRoot
   , withRootLock
+  , withRegistryLock
+  , withPackageLock
   , PackageCache
   , getPackageCache
   , registry
@@ -123,7 +125,18 @@ withRootLock :: FilePath -> IO a -> IO a
 withRootLock root work =
   do  let dir = stuff root
       Dir.createDirectoryIfMissing True dir
-      Lock.withFileLock (dir </> "project.lock") Lock.Exclusive (\_ -> work)
+      Lock.withFileLock (dir </> "lock") Lock.Exclusive (\_ -> work)
+
+
+withRegistryLock :: (PackageCache -> IO a) -> IO a
+withRegistryLock callback =
+  do  cache@(PackageCache dir) <- getPackageCache
+      Lock.withFileLock (dir </> "lock") Lock.Exclusive (\_ -> callback cache)
+
+
+withPackageLock :: PackageCache -> Pkg.Name -> V.Version -> IO a -> IO a
+withPackageLock cache pkg vsn work =
+  Lock.withFileLock (package cache pkg vsn </> "lock") Lock.Exclusive (\_ -> work)
 
 
 

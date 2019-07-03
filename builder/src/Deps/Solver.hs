@@ -349,9 +349,9 @@ data Env =
 
 initEnv :: IO (Either Exit.RegistryProblem Env)
 initEnv =
+  Stuff.withRegistryLock $ \cache ->
   do  mvar          <- newEmptyMVar
       _             <- forkIO $ putMVar mvar =<< Http.getManager
-      cache         <- Stuff.getPackageCache
       maybeRegistry <- Registry.read cache
       manager       <- readMVar mvar
 

@@ -358,10 +358,9 @@ type Dep =
 
 verifyDep :: Env -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Map.Map Pkg.Name Solver.Details -> Pkg.Name -> Solver.Details -> IO Dep
 verifyDep (Env key _ _ cache manager _ _) depsMVar solution pkg details@(Solver.Details vsn directDeps) =
-  let
-    fingerprint = Map.intersectionWith (\(Solver.Details v _) _ -> v) solution directDeps
-  in
-  do  exists <- Dir.doesDirectoryExist (Stuff.package cache pkg vsn </> "src")
+  Stuff.withPackageLock cache pkg vsn $
+  do  let fingerprint = Map.intersectionWith (\(Solver.Details v _) _ -> v) solution directDeps
+      exists <- Dir.doesDirectoryExist (Stuff.package cache pkg vsn </> "src")
       if exists
         then
           do  Reporting.report key Reporting.DCached
