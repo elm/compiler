@@ -13,12 +13,13 @@ import qualified Data.NonEmptyList as NE
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
 
-import qualified Reporting.Task as Task
+import qualified BackgroundWriter as BW
 import qualified Build
 import qualified Elm.Details as Details
 import qualified Generate
 import qualified Reporting
 import qualified Reporting.Exit as Exit
+import qualified Reporting.Task as Task
 
 
 
@@ -36,10 +37,11 @@ readAsset path =
 
 buildReactorFrontEnd :: IO BS.ByteString
 buildReactorFrontEnd =
+  BW.withScope $ \scope ->
   Dir.withCurrentDirectory "reactor" $
   do  root <- Dir.getCurrentDirectory
       runTaskUnsafe $
-        do  details    <- Task.eio Exit.ReactorBadDetails $ Details.load Reporting.silent root
+        do  details    <- Task.eio Exit.ReactorBadDetails $ Details.load Reporting.silent scope root
             artifacts  <- Task.eio Exit.ReactorBadBuild $ Build.fromMains Reporting.silent root details mains
             javascript <- Task.mapError Exit.ReactorBadGenerate $ Generate.prod root details artifacts
             return (LBS.toStrict (B.toLazyByteString javascript))

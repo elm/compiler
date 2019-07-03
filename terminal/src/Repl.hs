@@ -29,6 +29,7 @@ import qualified System.IO as IO
 import qualified System.Process as Proc
 
 import qualified AST.Source as Src
+import qualified BackgroundWriter as BW
 import qualified Build
 import qualified Elm.Constraint as C
 import qualified Elm.Details as Details
@@ -377,10 +378,12 @@ data Output
 
 attemptEval :: Env -> State -> State -> Output -> IO State
 attemptEval (Env root interpreter ansi) oldState newState output =
-  do  result <- Stuff.withRootLock root $ Task.run $
+  do  result <-
+        BW.withScope $ \scope ->
+        Stuff.withRootLock root $ Task.run $
         do  details <-
               Task.eio Exit.ReplBadDetails $
-                Details.load Reporting.silent root
+                Details.load Reporting.silent scope root
 
             artifacts <-
               Task.eio id $

@@ -13,6 +13,7 @@ import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
 import qualified Data.NonEmptyList as NE
 
+import qualified BackgroundWriter as BW
 import qualified Build
 import Deps.Diff (PackageChanges(..), ModuleChanges(..), Changes(..))
 import qualified Deps.Diff as DD
@@ -171,8 +172,8 @@ generateDocs (Env maybeRoot _ _ _) =
 
     Just root ->
       do  details <-
-            Task.eio Exit.DiffBadDetails $
-              Details.load Reporting.silent root
+            Task.eio Exit.DiffBadDetails $ BW.withScope $ \scope ->
+              Details.load Reporting.silent scope root
 
           case Details._outline details of
             Details.ValidApp _ ->

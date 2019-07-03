@@ -8,6 +8,7 @@ module Bump
 import qualified Data.List as List
 import qualified Data.NonEmptyList as NE
 
+import qualified BackgroundWriter as BW
 import qualified Build
 import qualified Deps.Bump as Bump
 import qualified Deps.Diff as Diff
@@ -135,7 +136,8 @@ suggestVersion (Env root cache manager _ outline@(Outline.PkgOutline pkg _ _ vsn
 generateDocs :: FilePath -> Outline.PkgOutline -> Task.Task Exit.Bump Docs.Documentation
 generateDocs root (Outline.PkgOutline _ _ _ _ exposed _ _ _) =
   do  details <-
-        Task.eio Exit.BumpBadDetails $ Details.load Reporting.silent root
+        Task.eio Exit.BumpBadDetails $ BW.withScope $ \scope ->
+          Details.load Reporting.silent scope root
 
       case Outline.flattenExposed exposed of
         [] ->

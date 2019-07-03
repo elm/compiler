@@ -20,6 +20,7 @@ import Snap.Core hiding (path)
 import Snap.Http.Server
 import Snap.Util.FileServe
 
+import qualified BackgroundWriter as BW
 import qualified Build
 import qualified Elm.Details as Details
 import qualified Develop.Generate.Help as Help
@@ -156,8 +157,8 @@ compile path =
           return $ Left $ Exit.ReactorNoOutline
 
         Just root ->
-          Stuff.withRootLock root $ Task.run $
-            do  details <- Task.eio Exit.ReactorBadDetails $ Details.load Reporting.silent root
+          BW.withScope $ \scope -> Stuff.withRootLock root $ Task.run $
+            do  details <- Task.eio Exit.ReactorBadDetails $ Details.load Reporting.silent scope root
                 artifacts <- Task.eio Exit.ReactorBadBuild $ Build.fromMains Reporting.silent root details (NE.List path [])
                 javascript <- Task.mapError Exit.ReactorBadGenerate $ Generate.dev root details artifacts
                 let (NE.List name _) = Build.getMainNames artifacts

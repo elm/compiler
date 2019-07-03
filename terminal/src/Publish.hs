@@ -17,6 +17,7 @@ import qualified System.Info as Info
 import qualified System.IO as IO
 import qualified System.Process as Process
 
+import qualified BackgroundWriter as BW
 import qualified Build
 import qualified Deps.Bump as Bump
 import qualified Deps.Diff as Diff
@@ -170,10 +171,11 @@ verifyLicense root =
 
 verifyBuild :: FilePath -> Task.Task Exit.Publish Docs.Documentation
 verifyBuild root =
-  reportBuildCheck $ Task.run $
+  reportBuildCheck $ BW.withScope $ \scope ->
+    Task.run $
     do  details@(Details.Details _ outline _ _ _) <-
           Task.eio Exit.PublishBadDetails $
-            Details.load Reporting.silent root
+            Details.load Reporting.silent scope root
 
         exposed <-
           case outline of
@@ -293,10 +295,10 @@ withTempDir root callback =
 
 verifyZipBuild :: FilePath -> IO (Either Exit.Publish ())
 verifyZipBuild root =
-  Task.run $
+  BW.withScope $ \scope -> Task.run $
   do  details@(Details.Details _ outline _ _ _) <-
         Task.eio Exit.PublishZipBadDetails $
-          Details.load Reporting.silent root
+          Details.load Reporting.silent scope root
 
       exposed <-
         case outline of

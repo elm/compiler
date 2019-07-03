@@ -17,6 +17,7 @@ import qualified Data.NonEmptyList as NE
 import qualified System.FilePath as FP
 
 import qualified AST.Optimized as Opt
+import qualified BackgroundWriter as BW
 import qualified Build
 import qualified Elm.Details as Details
 import qualified Elm.ModuleName as ModuleName
@@ -73,9 +74,10 @@ run paths flags@(Flags _ _ _ report _) =
 
 runHelp :: FilePath -> [FilePath] -> Reporting.Style -> Flags -> IO (Either Exit.Make ())
 runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
+  BW.withScope $ \scope ->
   Stuff.withRootLock root $ Task.run $
   do  desiredMode <- getMode debug optimize
-      details <- Task.eio Exit.MakeBadDetails (Details.load style root)
+      details <- Task.eio Exit.MakeBadDetails (Details.load style scope root)
       case paths of
         [] ->
           do  exposed <- getExposed details
