@@ -78,6 +78,7 @@ Executable elm
 
         -- from builder/
         Build
+        BackgroundWriter
         Deps.Bump
         Deps.Diff
         Deps.Registry
