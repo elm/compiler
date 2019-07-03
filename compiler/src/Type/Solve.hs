@@ -427,6 +427,13 @@ typeToVariable rank pools tipe =
   typeToVar rank pools Map.empty tipe
 
 
+-- PERF working with @mgriffith we noticed that a 784 line entry in a `let` was
+-- causing a ~1.5 second slowdown. Moving it to the top-level to be a function
+-- saved all that time. The slowdown seems to manifest in `typeToVar` and in
+-- `register` in particular. Have not explored further yet. Top-level definitions
+-- are recommended in cases like this anyway, so there is at least a safety
+-- valve for now.
+--
 typeToVar :: Int -> Pools -> Map.Map Name.Name Variable -> Type -> IO Variable
 typeToVar rank pools aliasDict tipe =
   let go = typeToVar rank pools aliasDict in
