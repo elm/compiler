@@ -202,11 +202,11 @@ fromVarIndex :: Int -> Name
 fromVarIndex n =
   runST
   (
-    do  let !size = getIndexSize n
+    do  let !size = 2 + getIndexSize n
         mba <- newByteArray size
         writeWord8 mba 0 0x5F {- _ -}
         writeWord8 mba 1 0x76 {- v -}
-        writeDigits mba (size - 1) n
+        writeDigitsAtEnd mba size n
         freeze mba
   )
 
@@ -214,19 +214,20 @@ fromVarIndex n =
 {-# INLINE getIndexSize #-}
 getIndexSize :: Int -> Int
 getIndexSize n
-  | n < 10  = 3
-  | n < 100 = 4
-  | True    = 2 + ceiling (logBase 10 (fromIntegral n + 1) :: Float)
+  | n < 10  = 1
+  | n < 100 = 2
+  | True    = ceiling (logBase 10 (fromIntegral n + 1) :: Float)
 
 
 
-writeDigits :: MBA s -> Int -> Int -> ST s ()
-writeDigits !mba !offset !n =
+writeDigitsAtEnd :: MBA s -> Int -> Int -> ST s ()
+writeDigitsAtEnd !mba !oldOffset !n =
   do  let (q,r) = quotRem n 10
-      writeWord8 mba offset (0x30 + fromIntegral r)
+      let !newOffset = oldOffset - 1
+      writeWord8 mba newOffset (0x30 + fromIntegral r)
       if q <= 0
         then return ()
-        else writeDigits mba (offset-1) q
+        else writeDigitsAtEnd mba newOffset q
 
 
 
@@ -249,7 +250,7 @@ fromTypeVariable name@(Utf8.Utf8 ba#) index =
             mba <- newByteArray size
             copyToMBA name mba
             writeWord8 mba (I# len#) 0x5F {- _ -}
-            writeDigits mba (size - 1) index
+            writeDigitsAtEnd mba size index
             freeze mba
       )
     else
@@ -258,7 +259,7 @@ fromTypeVariable name@(Utf8.Utf8 ba#) index =
         do  let !size = I# len# + getIndexSize index
             mba <- newByteArray size
             copyToMBA name mba
-            writeDigits mba (size - 1) index
+            writeDigitsAtEnd mba size index
             freeze mba
       )
 
@@ -277,10 +278,10 @@ fromTypeVariableScheme scheme =
           freeze mba
     else
       do  let (extra, letter) = quotRem scheme 26
-          let !size = getIndexSize extra
+          let !size = 1 + getIndexSize extra
           mba <- newByteArray size
           writeWord8 mba 0 (0x61 + fromIntegral letter)
-          writeDigits mba (size - 1) extra
+          writeDigitsAtEnd mba size extra
           freeze mba
   )
 
