@@ -10,7 +10,6 @@ module Stuff
   , findRoot
   , withRootLock
   , withRegistryLock
-  , withPackageLock
   , PackageCache
   , getPackageCache
   , registry
@@ -128,15 +127,9 @@ withRootLock root work =
       Lock.withFileLock (dir </> "lock") Lock.Exclusive (\_ -> work)
 
 
-withRegistryLock :: (PackageCache -> IO a) -> IO a
-withRegistryLock callback =
-  do  cache@(PackageCache dir) <- getPackageCache
-      Lock.withFileLock (dir </> "lock") Lock.Exclusive (\_ -> callback cache)
-
-
-withPackageLock :: PackageCache -> Pkg.Name -> V.Version -> IO a -> IO a
-withPackageLock cache pkg vsn work =
-  Lock.withFileLock (package cache pkg vsn </> "lock") Lock.Exclusive (\_ -> work)
+withRegistryLock :: PackageCache -> IO a -> IO a
+withRegistryLock (PackageCache dir) work =
+  Lock.withFileLock (dir </> "lock") Lock.Exclusive (\_ -> work)
 
 
 

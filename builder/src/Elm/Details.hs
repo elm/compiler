@@ -291,11 +291,12 @@ fork work =
 
 
 verifyDependencies :: Env -> File.Time -> ValidOutline -> Map.Map Pkg.Name Solver.Details -> Map.Map Pkg.Name a -> Task Details
-verifyDependencies env@(Env key scope root _ _ _ _) time outline solution directDeps =
+verifyDependencies env@(Env key scope root cache _ _ _) time outline solution directDeps =
   Task.eio id $
   do  Reporting.report key (Reporting.DStart (Map.size solution))
       mvar <- newEmptyMVar
-      mvars <- Map.traverseWithKey (\k v -> fork (verifyDep env mvar solution k v)) solution
+      mvars <- Stuff.withRegistryLock cache $
+        Map.traverseWithKey (\k v -> fork (verifyDep env mvar solution k v)) solution
       putMVar mvar mvars
       deps <- traverse readMVar mvars
       case sequence deps of
@@ -358,7 +359,6 @@ type Dep =
 
 verifyDep :: Env -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Map.Map Pkg.Name Solver.Details -> Pkg.Name -> Solver.Details -> IO Dep
 verifyDep (Env key _ _ cache manager _ _) depsMVar solution pkg details@(Solver.Details vsn directDeps) =
-  Stuff.withPackageLock cache pkg vsn $
   do  let fingerprint = Map.intersectionWith (\(Solver.Details v _) _ -> v) solution directDeps
       exists <- Dir.doesDirectoryExist (Stuff.package cache pkg vsn </> "src")
       if exists

@@ -94,6 +94,7 @@ data Details =
 
 verify :: Stuff.PackageCache -> Connection -> Registry.Registry -> Map.Map Pkg.Name C.Constraint -> IO (Result (Map.Map Pkg.Name Details))
 verify cache connection registry constraints =
+  Stuff.withRegistryLock cache $
   case try constraints of
     Solver solver ->
       solver (State cache connection registry Map.empty)
@@ -130,6 +131,7 @@ data AppSolution =
 
 addToApp :: Stuff.PackageCache -> Connection -> Registry.Registry -> Pkg.Name -> Outline.AppOutline -> IO (Result AppSolution)
 addToApp cache connection registry pkg outline@(Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
+  Stuff.withRegistryLock cache $
   let
     allIndirects = Map.union indirect testIndirect
     allDirects = Map.union direct testDirect
@@ -349,30 +351,31 @@ data Env =
 
 initEnv :: IO (Either Exit.RegistryProblem Env)
 initEnv =
-  Stuff.withRegistryLock $ \cache ->
-  do  mvar          <- newEmptyMVar
-      _             <- forkIO $ putMVar mvar =<< Http.getManager
-      maybeRegistry <- Registry.read cache
-      manager       <- readMVar mvar
+  do  mvar  <- newEmptyMVar
+      _     <- forkIO $ putMVar mvar =<< Http.getManager
+      cache <- Stuff.getPackageCache
+      Stuff.withRegistryLock cache $
+        do  maybeRegistry <- Registry.read cache
+            manager       <- readMVar mvar
 
-      case maybeRegistry of
-        Nothing ->
-          do  eitherRegistry <- Registry.fetch manager cache
-              case eitherRegistry of
-                Right latestRegistry ->
-                  return $ Right $ Env cache manager (Online manager) latestRegistry
+            case maybeRegistry of
+              Nothing ->
+                do  eitherRegistry <- Registry.fetch manager cache
+                    case eitherRegistry of
+                      Right latestRegistry ->
+                        return $ Right $ Env cache manager (Online manager) latestRegistry
 
-                Left problem ->
-                  return $ Left $ problem
+                      Left problem ->
+                        return $ Left $ problem
 
-        Just cachedRegistry ->
-          do  eitherRegistry <- Registry.update manager cache cachedRegistry
-              case eitherRegistry of
-                Right latestRegistry ->
-                  return $ Right $ Env cache manager (Online manager) latestRegistry
+              Just cachedRegistry ->
+                do  eitherRegistry <- Registry.update manager cache cachedRegistry
+                    case eitherRegistry of
+                      Right latestRegistry ->
+                        return $ Right $ Env cache manager (Online manager) latestRegistry
 
-                Left _ ->
-                  return $ Right $ Env cache manager Offline cachedRegistry
+                      Left _ ->
+                        return $ Right $ Env cache manager Offline cachedRegistry
 
 
 
