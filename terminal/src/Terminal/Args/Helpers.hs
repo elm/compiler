@@ -20,6 +20,7 @@ import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
 import qualified Parse.Primitives as P
 import qualified Stuff
+import qualified Reporting.Suggest as Suggest
 
 
 
@@ -117,12 +118,7 @@ parsePackage chars =
 
 
 suggestPackages :: String -> IO [String]
-suggestPackages _ =
-  return []
-
-
-examplePackages :: String -> IO [String]
-examplePackages given =
+suggestPackages given =
   do  cache <- Stuff.getPackageCache
       maybeRegistry <- Registry.read cache
       return $
@@ -133,3 +129,20 @@ examplePackages given =
           Just (Registry.Registry _ versions) ->
             filter (List.isPrefixOf given) $
               map Pkg.toChars (Map.keys versions)
+
+
+examplePackages :: String -> IO [String]
+examplePackages given =
+  do  cache <- Stuff.getPackageCache
+      maybeRegistry <- Registry.read cache
+      return $
+        case maybeRegistry of
+          Nothing ->
+            [ "elm/json"
+            , "elm/http"
+            , "elm/random"
+            ]
+
+          Just (Registry.Registry _ versions) ->
+            map Pkg.toChars $ take 4 $
+              Suggest.sort given Pkg.toChars (Map.keys versions)
