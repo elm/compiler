@@ -1820,7 +1820,7 @@ toProjectProblemReport projectProblem =
             "Try changing to a different module name in one of them!"
         ]
 
-    BP_MainNameInvalid givenPath srcDir pathSegments ->
+    BP_MainNameInvalid givenPath srcDir _ ->
       Help.report "UNEXPECTED FILE NAME" Nothing
         "I am having trouble with this file name:"
         [ D.indent 4 $ D.red $ D.fromChars givenPath
