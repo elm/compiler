@@ -962,7 +962,7 @@ findLoc :: Env -> FilePath -> FilePath -> Either Exit.BuildProjectProblem Locati
 findLoc (Env _ root _ srcDirs _ _) path absolutePath =
   let
     (dirs, file) = FP.splitFileName absolutePath
-    (final, ext) = break (=='.') file
+    (final, ext) = FP.splitExtension file
   in
   if ext /= ".elm"
   then Left (Exit.BP_WithBadExtension path)
