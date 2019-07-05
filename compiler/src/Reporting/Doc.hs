@@ -394,18 +394,18 @@ toColor layer intensity color =
 encodeChunks :: Style -> [String] -> E.Value
 encodeChunks (Style bold underline color) revChunks =
   let
-    str = Json.fromChars (concat (reverse revChunks))
+    chars = concat (reverse revChunks)
   in
   case color of
     Nothing | not bold && not underline ->
-      E.string str
+      E.chars chars
 
     _ ->
       E.object
         [ "bold" ==> E.bool bold
         , "underline" ==> E.bool underline
         , "color" ==> maybe E.null encodeColor color
-        , "string" ==> E.string str
+        , "string" ==> E.chars chars
         ]
 
 
