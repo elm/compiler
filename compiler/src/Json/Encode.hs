@@ -109,13 +109,14 @@ chars chrs =
   String (B.char7 '"' <> B.stringUtf8 (escape chrs) <> B.char7 '"')
 
 
-escape :: [Char] -> [Char] -- TODO is this correct?
+escape :: [Char] -> [Char]
 escape chrs =
   case chrs of
     [] ->
       []
 
     c:cs
+      | c == '\r' -> '\\' : 'r'  : escape cs
       | c == '\n' -> '\\' : 'n'  : escape cs
       | c == '\"' -> '\\' : '"'  : escape cs
       | c == '\'' -> '\\' : '\'' : escape cs
