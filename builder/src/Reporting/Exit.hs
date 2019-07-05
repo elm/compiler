@@ -1009,23 +1009,32 @@ toOutlineReport problem =
 
     OutlineNoPkgCore ->
       Help.report "MISSING DEPENDENCY" (Just "elm.json")
-        "I need a valid elm.json file, so I need to see an \"elm/core\" dependency in there. Try running:"
-        [ D.indent 4 $ D.green $ "elm install elm/core"
-        , D.reflow "I need it for the default imports that make `List` and `Maybe` available."
+        "I need to see an \"elm/core\" dependency your elm.json file. The default imports\
+        \ of `List` and `Maybe` do not work without it."
+        [ D.reflow $
+            "If you modified your elm.json by hand, try to change it back! And if you are\
+            \ having trouble getting back to a working elm.json, it may be easier to find a\
+            \ working package and start fresh with their elm.json file."
         ]
 
     OutlineNoAppCore ->
       Help.report "MISSING DEPENDENCY" (Just "elm.json")
-        "I need a valid elm.json file, so I need to see an \"elm/core\" dependency in there. Try running:"
-        [ D.indent 4 $ D.green $ "elm install elm/core"
-        , D.reflow "It has some supporting code that is needed by every Elm application!"
+        "I need to see an \"elm/core\" dependency your elm.json file. The default imports\
+        \ of `List` and `Maybe` do not work without it."
+        [ D.reflow $
+            "If you modified your elm.json by hand, try to change it back! And if you are\
+            \ having trouble getting back to a working elm.json, it may be easier to delete it\
+            \ and use `elm init` to start fresh."
         ]
 
     OutlineNoAppJson ->
       Help.report "MISSING DEPENDENCY" (Just "elm.json")
-        "I need a valid elm.json file, so I need to see an \"elm/json\" dependency in there. Try running:"
-        [ D.indent 4 $ D.green $ "elm install elm/json"
-        , D.reflow "It helps me handle flags and ports."
+        "I need to see an \"elm/json\" dependency your elm.json file. It helps me handle\
+        \ flags and ports."
+        [ D.reflow $
+            "If you modified your elm.json by hand, try to change it back! And if you are\
+            \ having trouble getting back to a working elm.json, it may be easier to delete it\
+            \ and use `elm init` to start fresh."
         ]
 
 
