@@ -54,6 +54,8 @@ Executable worker
         AST.Utils.Binop
         AST.Utils.Shader
         AST.Utils.Type
+        BackgroundWriter
+        Build
         Canonicalize.Effects
         Canonicalize.Environment
         Canonicalize.Environment.Dups
@@ -91,6 +93,7 @@ Executable worker
         Elm.String
         Elm.Version
         File
+        Generate
         Generate.Html
         Generate.JavaScript
         Generate.JavaScript.Builder
@@ -102,6 +105,7 @@ Executable worker
         Json.Decode
         Json.Encode
         Json.String
+        Nitpick.Debug
         Nitpick.PatternMatches
         Optimize.Case
         Optimize.DecisionTree
@@ -185,6 +189,7 @@ Executable worker
         snap-core,
         snap-server,
         template-haskell,
+        text,
         time >= 1.9.1,
         unordered-containers,
         utf8-string,
