@@ -20,7 +20,6 @@ import Control.Concurrent.MVar
 import Control.Monad (filterM, mapM_, sequence_)
 import qualified Data.ByteString as B
 import qualified Data.Char as Char
-import qualified Data.Either as Either
 import qualified Data.Graph as Graph
 import qualified Data.List as List
 import qualified Data.Map.Utils as Map
@@ -669,9 +668,9 @@ compile (Env key root pkg _ _ _) docsNeed local@(Details.Local path time _ _) so
       do  let name = Src.getName modul
           let iface = I.fromModule pkg canonical annotations
           let docs = makeDocs docsNeed canonical
-          let path = Stuff.elmi root name
+          let elmi = Stuff.elmi root name
           File.writeBinary (Stuff.elmo root name) objects
-          maybeOldi <- File.readBinary path
+          maybeOldi <- File.readBinary elmi
           case maybeOldi of
             Just oldi | oldi == iface ->
               do  -- iface should be fully forced by equality check
@@ -680,7 +679,7 @@ compile (Env key root pkg _ _ _) docsNeed local@(Details.Local path time _ _) so
 
             _ ->
               do  -- iface may be lazy still
-                  File.writeBinary path iface
+                  File.writeBinary elmi iface
                   Reporting.report key Reporting.BDone
                   return (RNew local iface objects docs)
 
