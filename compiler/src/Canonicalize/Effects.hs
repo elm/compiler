@@ -8,17 +8,16 @@ module Canonicalize.Effects
 
 import qualified Data.Foldable as F
 import qualified Data.Map as Map
+import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
-import qualified AST.Valid as Valid
-import qualified AST.Module.Name as ModuleName
+import qualified AST.Source as Src
 import qualified AST.Utils.Type as Type
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Type as Type
-import qualified Elm.Name as N
+import qualified Elm.ModuleName as ModuleName
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
 
 
@@ -36,38 +35,38 @@ type Result i w a =
 
 canonicalize
   :: Env.Env
-  -> [A.Located Valid.Decl]
-  -> Map.Map N.Name union
-  -> Valid.Effects
+  -> [A.Located Src.Value]
+  -> Map.Map Name.Name union
+  -> Src.Effects
   -> Result i w Can.Effects
-canonicalize env decls unions effects =
+canonicalize env values unions effects =
   case effects of
-    Valid.NoEffects ->
+    Src.NoEffects ->
       Result.ok Can.NoEffects
 
-    Valid.Ports ports ->
+    Src.Ports ports ->
       do  pairs <- traverse (canonicalizePort env) ports
           return $ Can.Ports (Map.fromList pairs)
 
-    Valid.Manager region manager ->
-      let dict = Map.fromList (map toNameRegion decls) in
+    Src.Manager region manager ->
+      let dict = Map.fromList (map toNameRegion values) in
       Can.Manager
         <$> verifyManager region dict "init"
         <*> verifyManager region dict "onEffects"
         <*> verifyManager region dict "onSelfMsg"
         <*>
           case manager of
-            Valid.Cmd cmdType ->
+            Src.Cmd cmdType ->
               Can.Cmd
                 <$> verifyEffectType cmdType unions
                 <*  verifyManager region dict "cmdMap"
 
-            Valid.Sub subType ->
+            Src.Sub subType ->
               Can.Sub
                 <$> verifyEffectType subType unions
                 <*  verifyManager region dict "subMap"
 
-            Valid.Fx cmdType subType ->
+            Src.Fx cmdType subType ->
               Can.Fx
                 <$> verifyEffectType cmdType unions
                 <*> verifyEffectType subType unions
@@ -79,12 +78,12 @@ canonicalize env decls unions effects =
 -- CANONICALIZE PORT
 
 
-canonicalizePort :: Env.Env -> Valid.Port -> Result i w (N.Name, Can.Port)
-canonicalizePort env (Valid.Port (A.At region portName) tipe) =
+canonicalizePort :: Env.Env -> Src.Port -> Result i w (Name.Name, Can.Port)
+canonicalizePort env (Src.Port (A.At region portName) tipe) =
   do  (Can.Forall freeVars ctipe) <- Type.toAnnotation env tipe
       case reverse (Type.delambda (Type.deepDealias ctipe)) of
         Can.TType home name [msg] : revArgs
-           | home == ModuleName.cmd && name == N.cmd ->
+           | home == ModuleName.cmd && name == Name.cmd ->
                 case revArgs of
                   [] ->
                     Result.throw (Error.PortTypeInvalid region portName Error.CmdNoArg)
@@ -105,7 +104,7 @@ canonicalizePort env (Valid.Port (A.At region portName) tipe) =
                   _ ->
                     Result.throw (Error.PortTypeInvalid region portName (Error.CmdExtraArgs (length revArgs)))
 
-            | home == ModuleName.sub && name == N.sub ->
+            | home == ModuleName.sub && name == Name.sub ->
                 case revArgs of
                   [Can.TLambda incomingType (Can.TVar msg1)] ->
                     case msg of
@@ -131,7 +130,7 @@ canonicalizePort env (Valid.Port (A.At region portName) tipe) =
 -- VERIFY MANAGER
 
 
-verifyEffectType :: A.Located N.Name -> Map.Map N.Name a -> Result i w N.Name
+verifyEffectType :: A.Located Name.Name -> Map.Map Name.Name a -> Result i w Name.Name
 verifyEffectType (A.At region name) unions =
   if Map.member name unions then
     Result.ok name
@@ -139,14 +138,14 @@ verifyEffectType (A.At region name) unions =
     Result.throw (Error.EffectNotFound region name)
 
 
-toNameRegion :: A.Located Valid.Decl -> (N.Name, R.Region)
-toNameRegion (A.At _ (Valid.Decl (A.At region name) _ _ _)) =
+toNameRegion :: A.Located Src.Value -> (Name.Name, A.Region)
+toNameRegion (A.At _ (Src.Value (A.At region name) _ _ _)) =
   (name, region)
 
 
-verifyManager :: R.Region -> Map.Map N.Name R.Region -> N.Name -> Result i w R.Region
-verifyManager tagRegion decls name =
-  case Map.lookup name decls of
+verifyManager :: A.Region -> Map.Map Name.Name A.Region -> Name.Name -> Result i w A.Region
+verifyManager tagRegion values name =
+  case Map.lookup name values of
     Just region ->
       Result.ok region
 
@@ -210,43 +209,43 @@ checkFieldPayload (Can.FieldType _ tipe) =
   checkPayload tipe
 
 
-isIntFloatBool :: ModuleName.Canonical -> N.Name -> Bool
+isIntFloatBool :: ModuleName.Canonical -> Name.Name -> Bool
 isIntFloatBool home name =
   home == ModuleName.basics
   &&
-  (name == N.int || name == N.float || name == N.bool)
+  (name == Name.int || name == Name.float || name == Name.bool)
 
 
-isString :: ModuleName.Canonical -> N.Name -> Bool
+isString :: ModuleName.Canonical -> Name.Name -> Bool
 isString home name =
   home == ModuleName.string
   &&
-  name == N.string
+  name == Name.string
 
 
-isJson :: ModuleName.Canonical -> N.Name -> Bool
+isJson :: ModuleName.Canonical -> Name.Name -> Bool
 isJson home name =
   home == ModuleName.jsonEncode
   &&
-  name == N.value
+  name == Name.value
 
 
-isList :: ModuleName.Canonical -> N.Name -> Bool
+isList :: ModuleName.Canonical -> Name.Name -> Bool
 isList home name =
   home == ModuleName.list
   &&
-  name == N.list
+  name == Name.list
 
 
-isMaybe :: ModuleName.Canonical -> N.Name -> Bool
+isMaybe :: ModuleName.Canonical -> Name.Name -> Bool
 isMaybe home name =
   home == ModuleName.maybe
   &&
-  name == N.maybe
+  name == Name.maybe
 
 
-isArray :: ModuleName.Canonical -> N.Name -> Bool
+isArray :: ModuleName.Canonical -> Name.Name -> Bool
 isArray home name =
   home == ModuleName.array
   &&
-  name == N.array
+  name == Name.array

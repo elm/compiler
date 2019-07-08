@@ -8,6 +8,7 @@ module Reporting.Error.Pattern
 
 import qualified Data.List as List
 
+import qualified Elm.String as ES
 import qualified Nitpick.PatternMatches as P
 import Reporting.Doc ((<>))
 import qualified Reporting.Doc as D
@@ -24,7 +25,7 @@ toReport source err =
   case err of
     P.Redundant caseRegion patternRegion index ->
       Report.Report "REDUNDANT PATTERN" patternRegion [] $
-        Report.toCodeSnippet source caseRegion (Just patternRegion)
+        Code.toSnippet source caseRegion (Just patternRegion)
           (
             D.reflow $
               "The " <> D.intToOrdinal index <> " pattern is redundant:"
@@ -38,7 +39,7 @@ toReport source err =
       case context of
         P.BadArg ->
           Report.Report "UNSAFE PATTERN" region [] $
-            Report.toCodeSnippet source region Nothing
+            Code.toSnippet source region Nothing
               (
                 "This pattern does not cover all possiblities:"
               ,
@@ -54,7 +55,7 @@ toReport source err =
 
         P.BadDestruct ->
           Report.Report "UNSAFE PATTERN" region [] $
-            Report.toCodeSnippet source region Nothing
+            Code.toSnippet source region Nothing
               (
                 "This pattern does not cover all possible values:"
               ,
@@ -74,7 +75,7 @@ toReport source err =
 
         P.BadCase ->
           Report.Report "MISSING PATTERNS" region [] $
-            Report.toCodeSnippet source region Nothing
+            Code.toSnippet source region Nothing
               (
                 "This `case` does not have branches for all possibilities:"
               ,
@@ -117,10 +118,10 @@ patternToDoc context pattern =
     NonList (P.Literal literal) ->
       case literal of
         P.Chr chr ->
-          D.fromText ("'" <> chr <> "'")
+          "'" <> D.fromChars (ES.toChars chr) <> "'"
 
         P.Str str ->
-          D.fromText ("\"" <> str <> "\"")
+          "\"" <> D.fromChars (ES.toChars str) <> "\""
 
         P.Int int ->
           D.fromInt int

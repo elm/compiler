@@ -8,15 +8,17 @@ module Canonicalize.Environment.Foreign
 
 
 import Control.Monad (foldM)
+import qualified Data.List as List
 import qualified Data.Map.Strict as Map
+import Data.Map.Strict ((!))
+import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
-import qualified AST.Module.Name as ModuleName
 import qualified Canonicalize.Environment as Env
-import qualified Data.List as List
 import qualified Elm.Interface as I
-import qualified Elm.Name as N
+import qualified Elm.ModuleName as ModuleName
+import qualified Elm.Package as Pkg
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Result as Result
@@ -30,24 +32,10 @@ type Result i w a =
   Result.Result i w Error.Error a
 
 
-
--- CREATE ENVIRONMENT
-
-
-type ImportDict =
-  Map.Map N.Name ModuleName.Canonical
-
-
-createInitialEnv :: ModuleName.Canonical -> ImportDict -> I.Interfaces -> [Src.Import] -> Result i w Env.Env
-createInitialEnv home importDict interfaces sourceImports =
-  do  imports <- traverse (verifyImport importDict interfaces) (filter isNotKernel sourceImports)
-      (State vs ts cs bs qvs qts qcs) <- foldM addImport emptyState imports
+createInitialEnv :: ModuleName.Canonical -> Map.Map ModuleName.Raw I.Interface -> [Src.Import] -> Result i w Env.Env
+createInitialEnv home ifaces imports =
+  do  (State vs ts cs bs qvs qts qcs) <- foldM (addImport ifaces) emptyState (toSafeImports home imports)
       Result.ok (Env.Env home (Map.map Env.Foreign vs) ts cs bs qvs qts qcs)
-
-
-isNotKernel :: Src.Import -> Bool
-isNotKernel (Src.Import (A.At _ name) _ _) =
-  not (ModuleName.isKernel name)
 
 
 
@@ -77,12 +65,38 @@ emptyTypes =
 
 
 
+-- TO SAFE IMPORTS
+
+
+toSafeImports :: ModuleName.Canonical -> [Src.Import] -> [Src.Import]
+toSafeImports (ModuleName.Canonical pkg _) imports =
+  if Pkg.isKernel pkg
+  then filter isNormal imports
+  else imports
+
+
+isNormal :: Src.Import -> Bool
+isNormal (Src.Import (A.At _ name) maybeAlias _) =
+  if Name.isKernel name
+  then
+    case maybeAlias of
+      Nothing -> False
+      Just _ -> error "kernel imports cannot use `as`"
+  else
+    True
+
+
+
 -- ADD IMPORTS
 
 
-addImport :: State -> Import -> Result i w State
-addImport (State vs ts cs bs qvs qts qcs) (Import home (I.Interface defs unions aliases binops) prefix exposing) =
+addImport :: Map.Map ModuleName.Raw I.Interface -> State -> Src.Import -> Result i w State
+addImport ifaces (State vs ts cs bs qvs qts qcs) (Src.Import (A.At _ name) maybeAlias exposing) =
   let
+    (I.Interface pkg defs unions aliases binops) = ifaces ! name
+    !prefix = maybe name id maybeAlias
+    !home = ModuleName.Canonical pkg name
+
     !rawTypeInfo =
       Map.union
         (Map.mapMaybeWithKey (unionToType home) unions)
@@ -118,7 +132,7 @@ addExposed =
   Map.unionWith Map.union
 
 
-addQualified :: N.Name -> Env.Exposed a -> Env.Qualified a -> Env.Qualified a
+addQualified :: Name.Name -> Env.Exposed a -> Env.Qualified a -> Env.Qualified a
 addQualified prefix exposed qualified =
   Map.insertWith addExposed prefix exposed qualified
 
@@ -127,12 +141,12 @@ addQualified prefix exposed qualified =
 -- UNION
 
 
-unionToType :: ModuleName.Canonical -> N.Name -> I.Union -> Maybe (Env.Type, Env.Exposed Env.Ctor)
+unionToType :: ModuleName.Canonical -> Name.Name -> I.Union -> Maybe (Env.Type, Env.Exposed Env.Ctor)
 unionToType home name union =
   unionToTypeHelp home name <$> I.toPublicUnion union
 
 
-unionToTypeHelp :: ModuleName.Canonical -> N.Name -> Can.Union -> (Env.Type, Env.Exposed Env.Ctor)
+unionToTypeHelp :: ModuleName.Canonical -> Name.Name -> Can.Union -> (Env.Type, Env.Exposed Env.Ctor)
 unionToTypeHelp home name union@(Can.Union vars ctors _ _) =
   let
     addCtor dict (Can.Ctor ctor index _ args) =
@@ -147,12 +161,12 @@ unionToTypeHelp home name union@(Can.Union vars ctors _ _) =
 -- ALIAS
 
 
-aliasToType :: ModuleName.Canonical -> N.Name -> I.Alias -> Maybe (Env.Type, Env.Exposed Env.Ctor)
+aliasToType :: ModuleName.Canonical -> Name.Name -> I.Alias -> Maybe (Env.Type, Env.Exposed Env.Ctor)
 aliasToType home name alias =
   aliasToTypeHelp home name <$> I.toPublicAlias alias
 
 
-aliasToTypeHelp :: ModuleName.Canonical -> N.Name -> Can.Alias -> (Env.Type, Env.Exposed Env.Ctor)
+aliasToTypeHelp :: ModuleName.Canonical -> Name.Name -> Can.Alias -> (Env.Type, Env.Exposed Env.Ctor)
 aliasToTypeHelp home name (Can.Alias vars tipe) =
   (
     Env.Alias (length vars) home vars tipe
@@ -178,7 +192,7 @@ aliasToTypeHelp home name (Can.Alias vars tipe) =
 -- BINOP
 
 
-binopToBinop :: ModuleName.Canonical -> N.Name -> I.Binop -> Map.Map ModuleName.Canonical Env.Binop
+binopToBinop :: ModuleName.Canonical -> Name.Name -> I.Binop -> Map.Map ModuleName.Canonical Env.Binop
 binopToBinop home op (I.Binop name annotation associativity precedence) =
   Map.singleton home (Env.Binop op home name annotation associativity precedence)
 
@@ -190,8 +204,8 @@ binopToBinop home op (I.Binop name annotation associativity precedence) =
 addExposedValue
   :: ModuleName.Canonical
   -> Env.Exposed Can.Annotation
-  -> Map.Map N.Name (Env.Type, Env.Exposed Env.Ctor)
-  -> Map.Map N.Name I.Binop
+  -> Map.Map Name.Name (Env.Type, Env.Exposed Env.Ctor)
+  -> Map.Map Name.Name I.Binop
   -> State
   -> A.Located Src.Exposed
   -> Result i w State
@@ -200,7 +214,7 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) (A.At reg
     Src.Lower name ->
       case Map.lookup name vars of
         Just info ->
-          Result.ok (State (Map.insert name info vs) ts cs bs qvs qts qcs)
+          Result.ok (State (Map.insertWith Map.union name info vs) ts cs bs qvs qts qcs)
 
         Nothing ->
           Result.throw (Error.ImportExposingNotFound region home name (Map.keys vars))
@@ -262,7 +276,7 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) (A.At reg
 
 
 
-toCtors :: Map.Map N.Name (Env.Type, Env.Exposed Env.Ctor) -> Map.Map N.Name N.Name
+toCtors :: Map.Map Name.Name (Env.Type, Env.Exposed Env.Ctor) -> Map.Map Name.Name Name.Name
 toCtors types =
     Map.foldr addCtors Map.empty types
   where
@@ -276,31 +290,3 @@ toCtors types =
 
         _ ->
           dict
-
-
-
--- VERIFY IMPORT
-
-
-data Import =
-  Import
-    { _name :: ModuleName.Canonical
-    , _interface :: I.Interface
-    , _prefix :: N.Name
-    , _exposing :: Src.Exposing
-    }
-
-
-verifyImport :: ImportDict -> I.Interfaces -> Src.Import -> Result i w Import
-verifyImport importDict interfaces (Src.Import (A.At region name) alias exposing) =
-  case Map.lookup name importDict of
-    Just canonicalName ->
-      case Map.lookup canonicalName interfaces of
-        Just interface ->
-          Result.ok (Import canonicalName interface (maybe name id alias) exposing)
-
-        Nothing ->
-          Result.throw $ Error.ImportNotFound region name (Map.keys interfaces)
-
-    Nothing ->
-      Result.throw $ Error.ImportNotFound region name (Map.elems importDict)

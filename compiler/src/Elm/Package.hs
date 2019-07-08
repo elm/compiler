@@ -1,48 +1,52 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, EmptyDataDecls, FlexibleInstances, UnboxedTuples #-}
 module Elm.Package
   ( Name(..)
-  , Package(..)
+  , Author
+  , Project
+  , Canonical(..)
   , isKernel
-  , toString, toText, toUrl, toFilePath
-  , fromText
+  , toChars
+  , toUrl
+  , toFilePath
+  , toJsonString
+  --
   , dummyName, kernel, core
   , browser, virtualDom, html
   , json, http, url
   , webgl, linearAlgebra
+  --
   , suggestions
-  , Version(..)
-  , initialVersion, dummyVersion
-  , bumpPatch, bumpMinor, bumpMajor
-  , filterLatest, majorAndMinor
-  , versionToString, versionToText, versionFromText
+  , nearbyNames
+  --
   , decoder
   , encode
-  , versionDecoder
-  , encodeVersion
+  , keyDecoder
+  --
+  , parser
   )
   where
 
 
-import Control.Monad (liftM, liftM2, liftM3)
-import Data.Binary (Binary, get, getWord8, put, putWord8)
-import qualified Data.Char as Char
-import Data.Function (on)
+import Control.Monad (liftM2)
+import Data.Binary (Binary, get, put)
+import qualified Data.Coerce as Coerce
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Name as Name
 import Data.Monoid ((<>))
-import qualified Data.Text as Text
-import qualified Data.Text.Read as Text
-import qualified Data.Text.Lazy as B (toStrict)
-import qualified Data.Text.Lazy.Builder as B (singleton, toLazyText)
-import qualified Data.Text.Lazy.Builder.Int as B (decimal)
-import Data.Text (Text)
-import Data.Word (Word16)
+import qualified Data.Utf8 as Utf8
+import Data.Word (Word8)
+import Foreign.Ptr (Ptr, plusPtr, minusPtr)
 import System.FilePath ((</>))
 
-import qualified Elm.Name as N
-import qualified Json.Decode.Internals as Decode
-import qualified Json.Encode as Encode
+import qualified Elm.Version as V
+import qualified Json.Decode as D
+import qualified Json.Encode as E
+import qualified Json.String as Json
+import qualified Parse.Primitives as P
+import Parse.Primitives (Row, Col)
+import qualified Reporting.Suggest as Suggest
 
 
 
@@ -51,18 +55,25 @@ import qualified Json.Encode as Encode
 
 data Name =
   Name
-    { _author :: !Text
-    , _project :: !Text
+    { _author :: !Author
+    , _project :: !Project
     }
-    deriving (Eq, Ord)
+    deriving (Ord)
 
 
-data Package =
-  Package
+type Author = Utf8.Utf8 AUTHOR
+type Project = Utf8.Utf8 PROJECT
+
+data AUTHOR
+data PROJECT
+
+
+data Canonical =
+  Canonical
     { _name :: !Name
-    , _version :: !Version
+    , _version :: !V.Version
     }
-    deriving (Eq, Ord)
+    deriving (Ord)
 
 
 
@@ -71,358 +82,293 @@ data Package =
 
 isKernel :: Name -> Bool
 isKernel (Name author _) =
-  author == "elm" || author == "elm-explorations"
+  author == elm || author == elm_explorations
 
 
-toString :: Name -> String
-toString name =
-    Text.unpack (toText name)
-
-
-toText :: Name -> Text
-toText (Name author project) =
-    author <> "/" <> project
+toChars :: Name -> String
+toChars (Name author project) =
+  Utf8.toChars author <> "/" <> Utf8.toChars project
 
 
 toUrl :: Name -> String
 toUrl (Name author project) =
-    Text.unpack author ++ "/" ++ Text.unpack project
+  Utf8.toChars author ++ "/" ++ Utf8.toChars project
 
 
 toFilePath :: Name -> FilePath
 toFilePath (Name author project) =
-    Text.unpack author </> Text.unpack project
+  Utf8.toChars author </> Utf8.toChars project
 
 
-fromText :: Text -> Either (String, [String]) Name
-fromText text =
-  case Text.splitOn "/" text of
-    [ author, project ] | not (Text.null author || Text.null project) ->
-      Name author <$> validateProjectName project
-
-    _ ->
-      Left
-        ( "A valid package name looks like \"author/project\" requiring the author and project name together."
-        , []
-        )
-
-
-validateProjectName :: Text -> Either (String, [String]) Text
-validateProjectName text =
-  if Text.isInfixOf "--" text then
-    Left $ thisCannot "have two dashes in a row" text (Text.replace "--" "-" text)
-
-  else if Text.isInfixOf "_" text then
-    Left $ thisCannot "have underscores" text (Text.replace "_" "-" text)
-
-  else if Text.isInfixOf "." text then
-    Left $ thisCannot "have dots" text (Text.replace "." "-" text)
-
-  else if Text.any Char.isUpper text then
-    Left $ thisCannot "have upper case letters" text (decap text)
-
-  else if not (Char.isLetter (Text.head text)) then
-    Left
-      ( "The project name \"" ++ Text.unpack text ++ "\" must start with a letter. Is there another name that captures what your package is for?"
-      , []
-      )
-
-  else if Text.isSuffixOf "-" text then
-    Left $ thisCannot "end with a dash" text (Text.dropEnd 1 text)
-
-  else
-    Right text
-
-
-thisCannot :: String -> Text -> Text -> (String, [String])
-thisCannot beLikeThis problemName suggestedName =
-  let name = Text.unpack suggestedName in
-  (
-    "The project name \"" ++ Text.unpack problemName ++ "\" cannot "
-    ++ beLikeThis ++ ". Try something like \"" ++ name ++ "\" instead?"
-  ,
-    [name]
-  )
-
-
-decap :: Text -> Text
-decap text =
-  let
-    chunks =
-      uncurry (:) (Text.foldr gatherCaps ([],[]) text)
-  in
-  Text.pack $
-    if any (\c -> length c == 1) chunks then
-      concat chunks
-    else
-      List.intercalate "-" chunks
-
-
-gatherCaps :: Char -> (String, [String]) -> (String, [String])
-gatherCaps char (buffer, chunks) =
-  if Char.isUpper char then
-    ( [], (Char.toLower char : buffer) : chunks )
-  else
-    (char:buffer, chunks)
+toJsonString :: Name -> Json.String
+toJsonString (Name author project) =
+  Utf8.join 0x2F {-/-} [ Coerce.coerce author, Coerce.coerce project ]
 
 
 
 -- COMMON PACKAGE NAMES
 
 
+toName :: Author -> [Char] -> Name
+toName author project =
+  Name author (Utf8.fromChars project)
+
+
 {-# NOINLINE dummyName #-}
 dummyName :: Name
 dummyName =
-  Name "author" "project"
+  toName (Utf8.fromChars "author") "project"
 
 
 {-# NOINLINE kernel #-}
 kernel :: Name
 kernel =
-  Name "elm" "kernel"
+  toName elm "kernel"
 
 
 {-# NOINLINE core #-}
 core :: Name
 core =
-  Name "elm" "core"
+  toName elm "core"
 
 
 {-# NOINLINE browser #-}
 browser :: Name
 browser =
-  Name "elm" "browser"
+  toName elm "browser"
 
 
 {-# NOINLINE virtualDom #-}
 virtualDom :: Name
 virtualDom =
-  Name "elm" "virtual-dom"
+  toName elm "virtual-dom"
 
 
 {-# NOINLINE html #-}
 html :: Name
 html =
-  Name "elm" "html"
+  toName elm "html"
 
 
 {-# NOINLINE json #-}
 json :: Name
 json =
-  Name "elm" "json"
+  toName elm "json"
 
 
 {-# NOINLINE http #-}
 http :: Name
 http =
-  Name "elm" "http"
+  toName elm "http"
 
 
 {-# NOINLINE url #-}
 url :: Name
 url =
-  Name "elm" "url"
+  toName elm "url"
 
 
 {-# NOINLINE webgl #-}
 webgl :: Name
 webgl =
-  Name "elm-explorations" "webgl"
+  toName elm_explorations "webgl"
 
 
 {-# NOINLINE linearAlgebra #-}
 linearAlgebra :: Name
 linearAlgebra =
-  Name "elm-explorations" "linear-algebra"
+  toName elm_explorations "linear-algebra"
+
+
+{-# NOINLINE elm #-}
+elm :: Author
+elm =
+  Utf8.fromChars "elm"
+
+
+{-# NOINLINE elm_explorations #-}
+elm_explorations :: Author
+elm_explorations =
+  Utf8.fromChars "elm-explorations"
 
 
 
 -- PACKAGE SUGGESTIONS
 
 
-suggestions :: Map.Map N.Name Name
+suggestions :: Map.Map Name.Name Name
 suggestions =
+  let
+    random = toName elm "random"
+    time = toName elm "time"
+    file = toName elm "file"
+  in
   Map.fromList
-    [ ("Browser", browser)
-    , ("Html", html)
-    , ("Http", http)
-    , ("Json.Decode", json)
-    , ("Json.Encode", json)
-    , ("Url.Parser", url)
-    , ("Url", url)
+    [ "Browser" ==> browser
+    , "File" ==> file
+    , "File.Download" ==> file
+    , "File.Select" ==> file
+    , "Html" ==> html
+    , "Html.Attributes" ==> html
+    , "Html.Events" ==> html
+    , "Http" ==> http
+    , "Json.Decode" ==> json
+    , "Json.Encode" ==> json
+    , "Random" ==> random
+    , "Time" ==> time
+    , "Url.Parser" ==> url
+    , "Url" ==> url
     ]
 
 
-
--- PACKAGE VERSIONS
-
-
-data Version =
-  Version
-    { _major :: {-# UNPACK #-} !Word16
-    , _minor :: {-# UNPACK #-} !Word16
-    , _patch :: {-# UNPACK #-} !Word16
-    }
-    deriving (Eq, Ord)
-
-
-initialVersion :: Version
-initialVersion =
-    Version 1 0 0
-
-dummyVersion :: Version
-dummyVersion =
-    Version 0 0 0
-
-
-bumpPatch :: Version -> Version
-bumpPatch (Version major minor patch) =
-    Version major minor (patch + 1)
-
-
-bumpMinor :: Version -> Version
-bumpMinor (Version major minor _patch) =
-    Version major (minor + 1) 0
-
-
-bumpMajor :: Version -> Version
-bumpMajor (Version major _minor _patch) =
-    Version (major + 1) 0 0
+(==>) :: [Char] -> Name -> (Name.Name, Name)
+(==>) moduleName package =
+  ( Utf8.fromChars moduleName, package )
 
 
 
--- FILTERING
+-- NEARBY NAMES
 
 
-filterLatest :: (Ord a) => (Version -> a) -> [Version] -> [Version]
-filterLatest characteristic versions =
-    map last (List.groupBy ((==) `on` characteristic) (List.sort versions))
+nearbyNames :: Name -> [Name] -> [Name]
+nearbyNames (Name author1 project1) possibleNames =
+  let
+    authorDist = authorDistance (Utf8.toChars author1)
+    projectDist = projectDistance (Utf8.toChars project1)
+
+    nameDistance (Name author2 project2) =
+      authorDist author2 + projectDist project2
+  in
+  take 4 $ List.sortOn nameDistance possibleNames
 
 
-majorAndMinor :: Version -> ( Int, Int )
-majorAndMinor (Version major minor _patch) =
-    ( fromIntegral major, fromIntegral minor )
+authorDistance :: [Char] -> Author -> Int
+authorDistance given possibility =
+  if possibility == elm || possibility == elm_explorations
+  then 0
+  else abs (Suggest.distance given (Utf8.toChars possibility))
+
+
+projectDistance :: [Char] -> Project -> Int
+projectDistance given possibility =
+  abs (Suggest.distance given (Utf8.toChars possibility))
 
 
 
--- CONVERSIONS
+-- INSTANCES
 
 
-versionToString :: Version -> String
-versionToString version =
-  Text.unpack (versionToText version)
+instance Eq Name where
+  (==) (Name author1 project1) (Name author2 project2) =
+    project1 == project2 && author1 == author2
 
 
-versionToText :: Version -> Text
-versionToText (Version major minor patch) =
-  B.toStrict $ B.toLazyText $
-    B.decimal major
-    <> B.singleton '.'
-    <> B.decimal minor
-    <> B.singleton '.'
-    <> B.decimal patch
-
-
-versionFromText :: Text -> Maybe Version
-versionFromText text =
-  case Text.splitOn "." text of
-    [major, minor, patch] ->
-      Version
-        <$> toNumber major
-        <*> toNumber minor
-        <*> toNumber patch
-
-    _ ->
-      Nothing
-
-
-toNumber :: Text -> Maybe Word16
-toNumber txt =
-  case Text.decimal txt of
-    Right (n, "") ->
-      Just n
-
-    _ ->
-      Nothing
+instance Eq Canonical where
+  (==) (Canonical package1 version1) (Canonical package2 version2) =
+    version1 == version2 && package1 == package2
 
 
 
 -- BINARY
 
 
-instance Binary Name where
-  get =
-    liftM2 Name get get
-
-  put (Name author project) =
-    do  put author
-        put project
+instance Binary Name where -- PERF try storing as a Word16
+  get = liftM2 Name Utf8.getUnder256 Utf8.getUnder256
+  put (Name a b) = Utf8.putUnder256 a >> Utf8.putUnder256 b
 
 
-instance Binary Package where
-  get =
-    liftM2 Package get get
-
-  put (Package name version) =
-    do  put name
-        put version
-
-
-instance Binary Version where
-  get =
-    do  word <- getWord8
-        if word == 0
-          then liftM3 Version get get get
-          else
-            do  minor <- liftM fromIntegral getWord8
-                patch <- liftM fromIntegral getWord8
-                return (Version (fromIntegral word) minor patch)
-
-  put (Version major minor patch) =
-    if major < 256 && minor < 256 && patch < 256 then
-      do  putWord8 (fromIntegral major)
-          putWord8 (fromIntegral minor)
-          putWord8 (fromIntegral patch)
-    else
-      do  putWord8 0
-          put major
-          put minor
-          put patch
+instance Binary Canonical where
+  get = liftM2 Canonical get get
+  put (Canonical a b) = put a >> put b
 
 
 
 -- JSON
 
 
-decoder :: Decode.Decoder String Name
+decoder :: D.Decoder (Row, Col) Name
 decoder =
-  do  txt <- Decode.text
-      case fromText txt of
-        Right name ->
-          Decode.succeed name
-
-        Left (msg, _) ->
-          Decode.fail msg
+  D.customString parser (,)
 
 
-
-encode :: Name -> Encode.Value
+encode :: Name -> E.Value
 encode name =
-  Encode.text (toText name)
+  E.chars (toChars name)
+
+
+keyDecoder :: (Row -> Col -> x) -> D.KeyDecoder x Name
+keyDecoder toError =
+  let
+    keyParser =
+      P.specialize (\(r,c) _ _ -> toError r c) parser
+  in
+  D.KeyDecoder keyParser toError
 
 
 
-versionDecoder :: Decode.Decoder Text Version
-versionDecoder =
-  do  txt <- Decode.text
-      case versionFromText txt of
-        Just version ->
-          Decode.succeed version
-
-        Nothing ->
-          Decode.fail txt
+-- PARSER
 
 
-encodeVersion :: Version -> Encode.Value
-encodeVersion version =
-  Encode.text (versionToText version)
+parser :: P.Parser (Row, Col) Name
+parser =
+  do  author <- parseName isAlphaOrDigit isAlphaOrDigit
+      P.word1 0x2F {-/-} (,)
+      project <- parseName isLower isLowerOrDigit
+      return (Name author project)
+
+
+parseName :: (Word8 -> Bool) -> (Word8 -> Bool) -> P.Parser (Row, Col) (Utf8.Utf8 t)
+parseName isGoodStart isGoodInner =
+  P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
+    if pos >= end then
+      eerr row col (,)
+    else
+      let !word = P.unsafeIndex pos in
+      if not (isGoodStart word) then
+        eerr row col (,)
+      else
+        let
+          (# isGood, newPos #) = chompName isGoodInner (plusPtr pos 1) end False
+          !len = fromIntegral (minusPtr newPos pos)
+          !newCol = col + len
+        in
+        if isGood && len < 256 then
+          let !newState = P.State src newPos end indent row newCol in
+          cok (Utf8.fromPtr pos newPos) newState
+        else
+          cerr row newCol (,)
+
+
+isLower :: Word8 -> Bool
+isLower word =
+  0x61 {-a-} <= word && word <= 0x7A {-z-}
+
+
+isLowerOrDigit :: Word8 -> Bool
+isLowerOrDigit word =
+     0x61 {-a-} <= word && word <= 0x7A {-z-}
+  || 0x30 {-0-} <= word && word <= 0x39 {-9-}
+
+
+isAlphaOrDigit :: Word8 -> Bool
+isAlphaOrDigit word =
+     0x61 {-a-} <= word && word <= 0x7A {-z-}
+  || 0x41 {-A-} <= word && word <= 0x5A {-Z-}
+  || 0x30 {-0-} <= word && word <= 0x39 {-9-}
+
+
+chompName :: (Word8 -> Bool) -> Ptr Word8 -> Ptr Word8 -> Bool -> (# Bool, Ptr Word8 #)
+chompName isGoodChar pos end prevWasDash =
+  if pos >= end then
+    (# not prevWasDash, pos #)
+  else
+    let !word = P.unsafeIndex pos in
+    if isGoodChar word then
+      chompName isGoodChar (plusPtr pos 1) end False
+    else if word == 0x2D {---} then
+      if prevWasDash then
+        (# False, pos #)
+      else
+        chompName isGoodChar (plusPtr pos 1) end True
+    else
+      (# True, pos #)

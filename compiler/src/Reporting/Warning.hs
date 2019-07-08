@@ -9,12 +9,12 @@ module Reporting.Warning
 
 
 import Data.Monoid ((<>))
+import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
 import qualified AST.Utils.Type as Type
-import qualified Elm.Name as N
+import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
-import qualified Reporting.Region as R
 import qualified Reporting.Report as Report
 import qualified Reporting.Render.Code as Code
 import qualified Reporting.Render.Type as RT
@@ -26,9 +26,9 @@ import qualified Reporting.Render.Type.Localizer as L
 
 
 data Warning
-  = UnusedImport R.Region N.Name
-  | UnusedVariable R.Region Context N.Name
-  | MissingTypeAnnotation R.Region N.Name Can.Type
+  = UnusedImport A.Region Name.Name
+  | UnusedVariable A.Region Context Name.Name
+  | MissingTypeAnnotation A.Region Name.Name Can.Type
 
 
 data Context = Def | Pattern
@@ -43,10 +43,10 @@ toReport localizer source warning =
   case warning of
     UnusedImport region moduleName ->
       Report.Report "unused import" region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
-              "Nothing from the `" <> N.toString moduleName <> "` module is used in this file."
+              "Nothing from the `" <> Name.toChars moduleName <> "` module is used in this file."
           ,
             "I recommend removing unused imports."
           )
@@ -54,21 +54,21 @@ toReport localizer source warning =
     UnusedVariable region context name ->
       let title = defOrPat context "unused definition" "unused variable" in
       Report.Report title region [] $
-        Report.toCodeSnippet source region Nothing
+        Code.toSnippet source region Nothing
           (
             D.reflow $
-              "You are not using `" <> N.toString name <> "` anywhere."
+              "You are not using `" <> Name.toChars name <> "` anywhere."
           ,
             D.stack
               [ D.reflow $
-                  "Is there a typo? Maybe you intended to use `" <> N.toString name
+                  "Is there a typo? Maybe you intended to use `" <> Name.toChars name
                   <> "` somewhere but typed another name instead?"
               , D.reflow $
                   defOrPat context
                     ( "If you are sure there is no typo, remove the definition.\
                       \ This way future readers will not have to wonder why it is there!"
                     )
-                    ( "If you are sure there is no typo, replace `" <> N.toString name
+                    ( "If you are sure there is no typo, replace `" <> Name.toChars name
                       <> "` with _ so future readers will not have to wonder why it is there!"
                     )
               ]
@@ -76,15 +76,15 @@ toReport localizer source warning =
 
     MissingTypeAnnotation region name inferredType ->
         Report.Report "missing type annotation" region [] $
-          Report.toCodeSnippet source region Nothing
+          Code.toSnippet source region Nothing
             (
               D.reflow $
                 case Type.deepDealias inferredType of
                   Can.TLambda _ _ ->
-                    "The `" <> N.toString name <> "` function has no type annotation."
+                    "The `" <> Name.toChars name <> "` function has no type annotation."
 
                   _ ->
-                    "The `" <> N.toString name <> "` definition has no type annotation."
+                    "The `" <> Name.toChars name <> "` definition has no type annotation."
             ,
               D.stack
                 [ "I inferred the type annotation myself though! You can copy it into your code:"

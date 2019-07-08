@@ -14,14 +14,14 @@ module Reporting.Exit.Help
   where
 
 
-import qualified Data.Text as Text
 import GHC.IO.Handle (hIsTerminalDevice)
 import System.IO (Handle, hPutStr, stderr, stdout)
 
-import qualified Json.Encode as Encode
+import qualified Json.Encode as E
+import Json.Encode ((==>))
 import Reporting.Doc ((<+>))
 import qualified Reporting.Doc as D
-import qualified Reporting.Exit.Compile as Compile
+import qualified Reporting.Error as Error
 
 
 
@@ -29,7 +29,7 @@ import qualified Reporting.Exit.Compile as Compile
 
 
 data Report
-  = CompilerReport Compile.Exit [Compile.Exit]
+  = CompilerReport Error.Module [Error.Module]
   | Report
       { _title :: String
       , _path :: Maybe FilePath
@@ -52,7 +52,7 @@ jsonReport =
   Report
 
 
-compilerReport :: Compile.Exit -> [Compile.Exit] -> Report
+compilerReport :: Error.Module -> [Error.Module] -> Report
 compilerReport =
   CompilerReport
 
@@ -65,7 +65,7 @@ reportToDoc :: Report -> D.Doc
 reportToDoc report_ =
   case report_ of
     CompilerReport e es ->
-      Compile.toDoc e es
+      Error.toDoc e es
 
     Report title maybePath message ->
       let
@@ -82,7 +82,7 @@ reportToDoc report_ =
 
         errorBar =
           D.dullcyan $
-            "--" <+> D.fromString title <+> D.fromString errorBarEnd
+            "--" <+> D.fromChars title <+> D.fromChars errorBarEnd
       in
         D.stack [errorBar, message, ""]
 
@@ -91,21 +91,21 @@ reportToDoc report_ =
 -- TO JSON
 
 
-reportToJson :: Report -> Encode.Value
+reportToJson :: Report -> E.Value
 reportToJson report_ =
   case report_ of
     CompilerReport e es ->
-      Encode.object
-        [ ("type", Encode.text "compile-errors")
-        , ("errors", Encode.list Compile.toJson (e:es))
+      E.object
+        [ "type" ==> E.chars "compile-errors"
+        , "errors" ==> E.list Error.toJson (e:es)
         ]
 
     Report title maybePath message ->
-      Encode.object
-        [ ("type", Encode.text "error")
-        , ("path", maybe Encode.null (Encode.text . Text.pack) maybePath)
-        , ("title", Encode.text (Text.pack title))
-        , ("message", D.encode message)
+      E.object
+        [ "type" ==> E.chars "error"
+        , "path" ==> maybe E.null E.chars maybePath
+        , "title" ==> E.chars title
+        , "message" ==> D.encode message
         ]
 
 

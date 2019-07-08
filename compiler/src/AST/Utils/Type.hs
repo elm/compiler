@@ -10,9 +10,9 @@ module AST.Utils.Type
 
 
 import qualified Data.Map as Map
+import qualified Data.Name as Name
 
 import AST.Canonical (Type(..), AliasType(..), FieldType(..))
-import qualified Elm.Name as N
 
 
 
@@ -33,7 +33,7 @@ delambda tipe =
 -- DEALIAS
 
 
-dealias :: [(N.Name, Type)] -> AliasType -> Type
+dealias :: [(Name.Name, Type)] -> AliasType -> Type
 dealias args aliasType =
   case aliasType of
     Holey tipe ->
@@ -43,7 +43,7 @@ dealias args aliasType =
       tipe
 
 
-dealiasHelp :: Map.Map N.Name Type -> Type -> Type
+dealiasHelp :: Map.Map Name.Name Type -> Type -> Type
 dealiasHelp typeTable tipe =
   case tipe of
     TLambda a b ->
@@ -73,7 +73,7 @@ dealiasHelp typeTable tipe =
         (fmap (dealiasHelp typeTable) maybeC)
 
 
-dealiasField :: Map.Map N.Name Type -> FieldType -> FieldType
+dealiasField :: Map.Map Name.Name Type -> FieldType -> FieldType
 dealiasField typeTable (FieldType index tipe) =
   FieldType index (dealiasHelp typeTable tipe)
 

@@ -1,30 +1,26 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Compile
-  ( DocsFlag(..)
+  ( Artifacts(..)
   , compile
-  , Artifacts(..)
   )
   where
 
 
-import qualified Data.ByteString as BS
 import qualified Data.Map as Map
+import qualified Data.Name as Name
 
+import qualified AST.Source as Src
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
-import qualified AST.Module.Name as ModuleName
 import qualified Canonicalize.Module as Canonicalize
-import qualified Elm.Docs as Docs
 import qualified Elm.Interface as I
-import qualified Elm.Name as N
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Nitpick.PatternMatches as PatternMatches
 import qualified Optimize.Module as Optimize
-import qualified Parse.Parse as Parse
-import qualified Reporting.Error as Error
-import qualified Reporting.Render.Type.Localizer as L
-import qualified Reporting.Result as Result
-import qualified Reporting.Warning as Warning
+import qualified Reporting.Error as E
+import qualified Reporting.Result as R
+import qualified Reporting.Render.Type.Localizer as Localizer
 import qualified Type.Constrain.Module as Type
 import qualified Type.Solve as Type
 
@@ -35,93 +31,62 @@ import System.IO.Unsafe (unsafePerformIO)
 -- COMPILE
 
 
-type Result i a =
-  Result.Result i [Warning.Warning] Error.Error a
-
-
-type ImportDict =
-  Map.Map N.Name ModuleName.Canonical
-
-
 data Artifacts =
   Artifacts
-    { _elmi :: I.Interface
-    , _elmo :: Opt.Graph
-    , _docs :: Maybe Docs.Module
+    { _modul :: Can.Module
+    , _types :: Map.Map Name.Name Can.Annotation
+    , _graph :: Opt.LocalGraph
     }
 
 
-compile :: DocsFlag -> Pkg.Name -> ImportDict -> I.Interfaces -> BS.ByteString -> Result i Artifacts
-compile flag pkg importDict interfaces source =
-  do
-      valid <- Result.mapError Error.Syntax $
-        Parse.program pkg source
-
-      canonical <- Result.mapError Error.Canonicalize $
-        Canonicalize.canonicalize pkg importDict interfaces valid
-
-      let localizer = L.fromModule valid -- TODO should this be strict for GC?
-
-      annotations <-
-        runTypeInference localizer canonical
-
-      () <-
-        exhaustivenessCheck canonical
-
-      graph <- Result.mapError (Error.Main localizer) $
-        Optimize.optimize annotations canonical
-
-      documentation <-
-        genarateDocs flag canonical
-
-      Result.ok $
-        Artifacts
-          { _elmi = I.fromModule annotations canonical
-          , _elmo = graph
-          , _docs = documentation
-          }
+compile :: Pkg.Name -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> Either E.Error Artifacts
+compile pkg ifaces modul =
+  do  canonical   <- canonicalize pkg ifaces modul
+      annotations <- typeCheck modul canonical
+      ()          <- nitpick canonical
+      objects     <- optimize modul annotations canonical
+      return (Artifacts canonical annotations objects)
 
 
 
--- TYPE INFERENCE
+-- PHASES
 
 
-runTypeInference :: L.Localizer -> Can.Module -> Result i (Map.Map N.Name Can.Annotation)
-runTypeInference localizer canonical =
+canonicalize :: Pkg.Name -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> Either E.Error Can.Module
+canonicalize pkg ifaces modul =
+  case snd $ R.run $ Canonicalize.canonicalize pkg ifaces modul of
+    Right canonical ->
+      Right canonical
+
+    Left errors ->
+      Left $ E.BadNames errors
+
+
+typeCheck :: Src.Module -> Can.Module -> Either E.Error (Map.Map Name.Name Can.Annotation)
+typeCheck modul canonical =
   case unsafePerformIO (Type.run =<< Type.constrain canonical) of
     Right annotations ->
-      Result.ok annotations
+      Right annotations
 
     Left errors ->
-      Result.throw (Error.Type localizer errors)
+      Left (E.BadTypes (Localizer.fromModule modul) errors)
 
 
-
--- EXHAUSTIVENESS CHECK
-
-
-exhaustivenessCheck :: Can.Module -> Result i ()
-exhaustivenessCheck canonical =
+nitpick :: Can.Module -> Either E.Error ()
+nitpick canonical =
   case PatternMatches.check canonical of
-    Left errors ->
-      Result.throw (Error.Pattern errors)
-
     Right () ->
-      Result.ok ()
+      Right ()
+
+    Left errors ->
+      Left (E.BadPatterns errors)
 
 
+optimize :: Src.Module -> Map.Map Name.Name Can.Annotation -> Can.Module -> Either E.Error Opt.LocalGraph
+optimize modul annotations canonical =
+  case snd $ R.run $ Optimize.optimize annotations canonical of
+    Right localGraph ->
+      Right localGraph
 
--- DOCUMENTATION
-
-
-data DocsFlag = YesDocs | NoDocs
-
-
-genarateDocs :: DocsFlag -> Can.Module -> Result.Result i w Error.Error (Maybe Docs.Module)
-genarateDocs flag modul =
-  case flag of
-    NoDocs ->
-      Result.ok Nothing
-
-    YesDocs ->
-      Just <$> Docs.fromModule modul
+    Left errors ->
+      Left (E.BadMains (Localizer.fromModule modul) errors)

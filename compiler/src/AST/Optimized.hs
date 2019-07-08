@@ -3,35 +3,41 @@ module AST.Optimized
   ( Def(..)
   , Expr(..)
   , Global(..)
-  , kernel
   , Path(..)
   , Destructor(..)
   , Decider(..)
   , Choice(..)
-  , Graph(..)
+  , GlobalGraph(..)
+  , LocalGraph(..)
   , Main(..)
   , Node(..)
   , EffectsType(..)
-  , KContent(..)
-  , KChunk(..)
+  , empty
+  , addGlobalGraph
+  , addLocalGraph
+  , addKernel
+  , toKernelGlobal
   )
   where
 
 
 import Control.Monad (liftM, liftM2, liftM3, liftM4)
-import Data.Binary
-import qualified Data.ByteString as BS
+import Data.Binary (Binary, get, put, getWord8, putWord8)
 import qualified Data.Map as Map
+import qualified Data.Name as Name
+import Data.Name (Name)
 import qualified Data.Set as Set
-import Data.Text (Text)
 
 import qualified AST.Canonical as Can
-import qualified AST.Module.Name as ModuleName
+import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
-import qualified Elm.Name as N
+import qualified Elm.Float as EF
+import qualified Elm.Kernel as K
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
+import qualified Elm.String as ES
 import qualified Optimize.DecisionTree as DT
-import qualified Reporting.Region as R
+import qualified Reporting.Annotation as A
 
 
 
@@ -40,43 +46,35 @@ import qualified Reporting.Region as R
 
 data Expr
   = Bool Bool
-  | Chr Text
-  | Str Text
+  | Chr ES.String
+  | Str ES.String
   | Int Int
-  | Float Double
-  | VarLocal N.Name
+  | Float EF.Float
+  | VarLocal Name
   | VarGlobal Global
   | VarEnum Global Index.ZeroBased
   | VarBox Global
-  | VarCycle ModuleName.Canonical N.Name
-  | VarDebug N.Name ModuleName.Canonical R.Region (Maybe N.Name)
-  | VarKernel N.Name N.Name
+  | VarCycle ModuleName.Canonical Name
+  | VarDebug Name ModuleName.Canonical A.Region (Maybe Name)
+  | VarKernel Name Name
   | List [Expr]
-  | Function [N.Name] Expr
+  | Function [Name] Expr
   | Call Expr [Expr]
-  | TailCall N.Name [(N.Name, Expr)]
+  | TailCall Name [(Name, Expr)]
   | If [(Expr, Expr)] Expr
   | Let Def Expr
   | Destruct Destructor Expr
-  | Case N.Name N.Name (Decider Choice) [(Int, Expr)]
-  | Accessor N.Name
-  | Access Expr N.Name
-  | Update Expr (Map.Map N.Name Expr)
-  | Record (Map.Map N.Name Expr)
+  | Case Name Name (Decider Choice) [(Int, Expr)]
+  | Accessor Name
+  | Access Expr Name
+  | Update Expr (Map.Map Name Expr)
+  | Record (Map.Map Name Expr)
   | Unit
   | Tuple Expr Expr (Maybe Expr)
-  | Shader Text (Set.Set N.Name) (Set.Set N.Name)
+  | Shader Shader.Source (Set.Set Name) (Set.Set Name)
 
 
-data Global = Global ModuleName.Canonical N.Name
-  deriving (Eq, Ord)
-
-
--- Provide "List" not "Elm.Kernel.List"
---
-kernel :: N.Name -> Global
-kernel home =
-  Global (ModuleName.Canonical Pkg.kernel home) N.dollar
+data Global = Global ModuleName.Canonical Name
 
 
 
@@ -84,19 +82,19 @@ kernel home =
 
 
 data Def
-  = Def N.Name Expr
-  | TailDef N.Name [N.Name] Expr
+  = Def Name Expr
+  | TailDef Name [Name] Expr
 
 
 data Destructor =
-  Destructor N.Name Path
+  Destructor Name Path
 
 
 data Path
   = Index Index.ZeroBased Path
-  | Field N.Name Path
+  | Field Name Path
   | Unbox Path
-  | Root N.Name
+  | Root Name
 
 
 
@@ -127,11 +125,18 @@ data Choice
 -- OBJECT GRAPH
 
 
-data Graph =
-  Graph
-    { _mains :: Map.Map ModuleName.Canonical Main
-    , _nodes :: Map.Map Global Node
-    , _fields :: Map.Map N.Name Int
+data GlobalGraph =
+  GlobalGraph
+    { _g_nodes :: Map.Map Global Node
+    , _g_fields :: Map.Map Name Int
+    }
+
+
+data LocalGraph =
+  LocalGraph
+    { _l_main :: Maybe Main
+    , _l_nodes :: Map.Map Global Node  -- PERF profile switching Global to Name
+    , _l_fields :: Map.Map Name Int
     }
 
 
@@ -145,14 +150,14 @@ data Main
 
 data Node
   = Define Expr (Set.Set Global)
-  | DefineTailFunc [N.Name] Expr (Set.Set Global)
+  | DefineTailFunc [Name] Expr (Set.Set Global)
   | Ctor Index.ZeroBased Int
   | Enum Index.ZeroBased
   | Box
   | Link Global
-  | Cycle [N.Name] [(N.Name, Expr)] [Def] (Set.Set Global)
+  | Cycle [Name] [(Name, Expr)] [Def] (Set.Set Global)
   | Manager EffectsType
-  | Kernel KContent (Maybe KContent)
+  | Kernel [K.Chunk] (Set.Set Global)
   | PortIncoming Expr (Set.Set Global)
   | PortOutgoing Expr (Set.Set Global)
 
@@ -160,19 +165,77 @@ data Node
 data EffectsType = Cmd | Sub | Fx
 
 
-data KContent =
-  KContent [KChunk] (Set.Set Global)
+
+-- GRAPHS
 
 
-data KChunk
-  = JS BS.ByteString
-  | ElmVar ModuleName.Canonical N.Name
-  | JsVar N.Name N.Name
-  | ElmField N.Name
-  | JsField Int
-  | JsEnum Int
-  | Debug
-  | Prod
+{-# NOINLINE empty #-}
+empty :: GlobalGraph
+empty =
+  GlobalGraph Map.empty Map.empty
+
+
+addGlobalGraph :: GlobalGraph -> GlobalGraph -> GlobalGraph
+addGlobalGraph (GlobalGraph nodes1 fields1) (GlobalGraph nodes2 fields2) =
+  GlobalGraph
+    { _g_nodes = Map.union nodes1 nodes2
+    , _g_fields = Map.union fields1 fields2
+    }
+
+
+addLocalGraph :: LocalGraph -> GlobalGraph -> GlobalGraph
+addLocalGraph (LocalGraph _ nodes1 fields1) (GlobalGraph nodes2 fields2) =
+  GlobalGraph
+    { _g_nodes = Map.union nodes1 nodes2
+    , _g_fields = Map.union fields1 fields2
+    }
+
+
+addKernel :: Name.Name -> [K.Chunk] -> GlobalGraph -> GlobalGraph
+addKernel shortName chunks (GlobalGraph nodes fields) =
+  let
+    global = toKernelGlobal shortName
+    node = Kernel chunks (foldr addKernelDep Set.empty chunks)
+  in
+  GlobalGraph
+    { _g_nodes = Map.insert global node nodes
+    , _g_fields = Map.union (K.countFields chunks) fields
+    }
+
+
+addKernelDep :: K.Chunk -> Set.Set Global -> Set.Set Global
+addKernelDep chunk deps =
+  case chunk of
+    K.JS _              -> deps
+    K.ElmVar home name  -> Set.insert (Global home name) deps
+    K.JsVar shortName _ -> Set.insert (toKernelGlobal shortName) deps
+    K.ElmField _        -> deps
+    K.JsField _         -> deps
+    K.JsEnum _          -> deps
+    K.Debug             -> deps
+    K.Prod              -> deps
+
+
+toKernelGlobal :: Name.Name -> Global
+toKernelGlobal shortName =
+  Global (ModuleName.Canonical Pkg.kernel shortName) Name.dollar
+
+
+
+-- INSTANCES
+
+
+instance Eq Global where
+  (==) (Global home1 name1) (Global home2 name2) =
+    name1 == name2 && home1 == home2
+
+
+instance Ord Global where
+  compare (Global home1 name1) (Global home2 name2) =
+    case compare name1 name2 of
+      LT -> LT
+      EQ -> compare home1 home2
+      GT -> GT
 
 
 
@@ -316,9 +379,14 @@ instance Binary Choice where
 
 
 
-instance Binary Graph where
-  get = liftM3 Graph get get get
-  put (Graph a b c) = put a >> put b >> put c
+instance Binary GlobalGraph where
+  get = liftM2 GlobalGraph get get
+  put (GlobalGraph a b) = put a >> put b
+
+
+instance Binary LocalGraph where
+  get = liftM3 LocalGraph get get get
+  put (LocalGraph a b c) = put a >> put b >> put c
 
 
 instance Binary Main where
@@ -381,34 +449,3 @@ instance Binary EffectsType where
           1 -> return Sub
           2 -> return Fx
           _ -> error "problem getting Opt.EffectsType binary"
-
-
-instance Binary KContent where
-  get = liftM2 KContent get get
-  put (KContent a b) = put a >> put b
-
-
-instance Binary KChunk where
-  put chunk =
-    case chunk of
-      JS a       -> putWord8 0 >> put a
-      ElmVar a b -> putWord8 1 >> put a >> put b
-      JsVar a b  -> putWord8 2 >> put a >> put b
-      ElmField a -> putWord8 3 >> put a
-      JsField a  -> putWord8 4 >> put a
-      JsEnum a   -> putWord8 5 >> put a
-      Debug      -> putWord8 6
-      Prod       -> putWord8 7
-
-  get =
-    do  word <- getWord8
-        case word of
-          0 -> liftM  JS get
-          1 -> liftM2 ElmVar get get
-          2 -> liftM2 JsVar get get
-          3 -> liftM  ElmField get
-          4 -> liftM  JsField get
-          5 -> liftM  JsEnum get
-          6 -> return Debug
-          7 -> return Prod
-          _ -> error "problem deserializing AST.Optimized.KChunk"

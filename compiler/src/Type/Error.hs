@@ -21,10 +21,10 @@ module Type.Error
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import Data.Monoid ((<>))
+import qualified Data.Name as Name
 
-import qualified AST.Module.Name as ModuleName
 import qualified Data.Bag as Bag
-import qualified Elm.Name as N
+import qualified Elm.ModuleName as ModuleName
 import qualified Reporting.Doc as D
 import qualified Reporting.Render.Type as RT
 import qualified Reporting.Render.Type.Localizer as L
@@ -38,15 +38,15 @@ data Type
   = Lambda Type Type [Type]
   | Infinite
   | Error
-  | FlexVar N.Name
-  | FlexSuper Super N.Name
-  | RigidVar N.Name
-  | RigidSuper Super N.Name
-  | Type ModuleName.Canonical N.Name [Type]
-  | Record (Map.Map N.Name Type) Extension
+  | FlexVar Name.Name
+  | FlexSuper Super Name.Name
+  | RigidVar Name.Name
+  | RigidSuper Super Name.Name
+  | Type ModuleName.Canonical Name.Name [Type]
+  | Record (Map.Map Name.Name Type) Extension
   | Unit
   | Tuple Type Type (Maybe Type)
-  | Alias ModuleName.Canonical N.Name [(N.Name, Type)] Type
+  | Alias ModuleName.Canonical Name.Name [(Name.Name, Type)] Type
 
 
 data Super
@@ -59,8 +59,8 @@ data Super
 
 data Extension
   = Closed
-  | FlexOpen N.Name
-  | RigidOpen N.Name
+  | FlexOpen Name.Name
+  | RigidOpen Name.Name
 
 
 iteratedDealias :: Type -> Type
@@ -125,19 +125,19 @@ toDoc localizer ctx tipe =
       aliasToDoc localizer ctx home name args
 
 
-aliasToDoc :: L.Localizer -> RT.Context -> ModuleName.Canonical -> N.Name -> [(N.Name, Type)] -> D.Doc
+aliasToDoc :: L.Localizer -> RT.Context -> ModuleName.Canonical -> Name.Name -> [(Name.Name, Type)] -> D.Doc
 aliasToDoc localizer ctx home name args =
   RT.apply ctx
     (L.toDoc localizer home name)
     (map (toDoc localizer RT.App . snd) args)
 
 
-fieldsToDocs :: L.Localizer -> Map.Map N.Name Type -> [(D.Doc, D.Doc)]
+fieldsToDocs :: L.Localizer -> Map.Map Name.Name Type -> [(D.Doc, D.Doc)]
 fieldsToDocs localizer fields =
   Map.foldrWithKey (addField localizer) [] fields
 
 
-addField :: L.Localizer -> N.Name -> Type -> [(D.Doc, D.Doc)] -> [(D.Doc, D.Doc)]
+addField :: L.Localizer -> Name.Name -> Type -> [(D.Doc, D.Doc)] -> [(D.Doc, D.Doc)]
 addField localizer fieldName fieldType docs =
   let
     f = D.fromName fieldName
@@ -176,13 +176,12 @@ data Problem
   | AnythingToBool
   | AnythingFromMaybe
   | AnythingToList
-  | MissingArgs Int
-  | ReturnMismatch
-  | BadFlexSuper Direction Super N.Name Type
-  | BadRigidVar N.Name Type
-  | BadRigidSuper Super N.Name Type
-  | FieldTypo N.Name [N.Name]
-  | FieldsMissing [N.Name]
+  | ArityMismatch Int Int
+  | BadFlexSuper Direction Super Name.Name Type
+  | BadRigidVar Name.Name Type
+  | BadRigidSuper Super Name.Name Type
+  | FieldTypo Name.Name [Name.Name]
+  | FieldsMissing [Name.Name]
 
 
 data Direction = Have | Need
@@ -255,7 +254,11 @@ toDiff localizer ctx tipe1 tipe2 =
           <*> toDiff localizer RT.Func b y
           <*> sequenceA (zipWith (toDiff localizer RT.Func) cs zs)
       else
-        diffLambda localizer ctx a b cs x y zs
+        let f = toDoc localizer RT.Func in
+        different
+          (D.dullyellow (RT.lambda ctx (f a) (f b) (map f cs)))
+          (D.dullyellow (RT.lambda ctx (f x) (f y) (map f zs)))
+          (Bag.one (ArityMismatch (2 + length cs) (2 + length zs)))
 
     (Tuple a b Nothing, Tuple x y Nothing) ->
       RT.tuple
@@ -282,7 +285,7 @@ toDiff localizer ctx tipe1 tipe2 =
 
     -- start trying to find specific problems
 
-    (Type home1 name1 args1, Type home2 name2 args2) | L.toString localizer home1 name1 == L.toString localizer home2 name2 ->
+    (Type home1 name1 args1, Type home2 name2 args2) | L.toChars localizer home1 name1 == L.toChars localizer home2 name2 ->
       different
         (nameClashToDoc ctx localizer home1 name1 args1)
         (nameClashToDoc ctx localizer home2 name2 args2)
@@ -307,7 +310,7 @@ toDiff localizer ctx tipe1 tipe2 =
 
         Nothing ->
           case t2 of
-            Type home2 name2 args2 | L.toString localizer home1 name1 == L.toString localizer home2 name2 ->
+            Type home2 name2 args2 | L.toChars localizer home1 name1 == L.toChars localizer home2 name2 ->
               different
                 (nameClashToDoc ctx localizer home1 name1 (map snd args1))
                 (nameClashToDoc ctx localizer home2 name2 args2)
@@ -326,7 +329,7 @@ toDiff localizer ctx tipe1 tipe2 =
 
         Nothing ->
           case t1 of
-            Type home1 name1 args1 | L.toString localizer home1 name1 == L.toString localizer home2 name2 ->
+            Type home1 name1 args1 | L.toChars localizer home1 name1 == L.toChars localizer home2 name2 ->
               different
                 (nameClashToDoc ctx localizer home1 name1 args1)
                 (nameClashToDoc ctx localizer home2 name2 (map snd args2))
@@ -398,39 +401,39 @@ isSimilar (Diff _ _ status) =
 -- IS TYPE?
 
 
-isBool :: ModuleName.Canonical -> N.Name -> Bool
+isBool :: ModuleName.Canonical -> Name.Name -> Bool
 isBool home name =
-  home == ModuleName.basics && name == N.bool
+  home == ModuleName.basics && name == Name.bool
 
 
-isInt :: ModuleName.Canonical -> N.Name -> Bool
+isInt :: ModuleName.Canonical -> Name.Name -> Bool
 isInt home name =
-  home == ModuleName.basics && name == N.int
+  home == ModuleName.basics && name == Name.int
 
 
-isFloat :: ModuleName.Canonical -> N.Name -> Bool
+isFloat :: ModuleName.Canonical -> Name.Name -> Bool
 isFloat home name =
-  home == ModuleName.basics && name == N.float
+  home == ModuleName.basics && name == Name.float
 
 
-isString :: ModuleName.Canonical -> N.Name -> Bool
+isString :: ModuleName.Canonical -> Name.Name -> Bool
 isString home name =
-  home == ModuleName.string && name == N.string
+  home == ModuleName.string && name == Name.string
 
 
-isChar :: ModuleName.Canonical -> N.Name -> Bool
+isChar :: ModuleName.Canonical -> Name.Name -> Bool
 isChar home name =
-  home == ModuleName.char && name == N.char
+  home == ModuleName.char && name == Name.char
 
 
-isMaybe :: ModuleName.Canonical -> N.Name -> Bool
+isMaybe :: ModuleName.Canonical -> Name.Name -> Bool
 isMaybe home name =
-  home == ModuleName.maybe && name == N.maybe
+  home == ModuleName.maybe && name == Name.maybe
 
 
-isList :: ModuleName.Canonical -> N.Name -> Bool
+isList :: ModuleName.Canonical -> Name.Name -> Bool
 isList home name =
-  home == ModuleName.list && name == N.list
+  home == ModuleName.list && name == Name.list
 
 
 
@@ -455,7 +458,7 @@ isSuper super tipe =
 -- NAME CLASH
 
 
-nameClashToDoc :: RT.Context -> L.Localizer -> ModuleName.Canonical -> N.Name -> [Type] -> D.Doc
+nameClashToDoc :: RT.Context -> L.Localizer -> ModuleName.Canonical -> Name.Name -> [Type] -> D.Doc
 nameClashToDoc ctx localizer (ModuleName.Canonical _ home) name args =
   RT.apply ctx
     (D.yellow (D.fromName home) <> D.dullyellow ("." <> D.fromName name))
@@ -477,128 +480,10 @@ diffAliasedRecord localizer t1 t2 =
 
 
 
--- DIFF LAMBDAS
-
-
---
--- INVARIANTS:
---   length cs1 /= length cs2
---
-diffLambda :: L.Localizer -> RT.Context -> Type -> Type -> [Type] -> Type -> Type -> [Type] -> Diff D.Doc
-diffLambda localizer ctx a1 b1 cs1 a2 b2 cs2 =
-  let
-    (result1:revArgs1) = reverse (a1:b1:cs1)
-    (result2:revArgs2) = reverse (a2:b2:cs2)
-
-    numArgs1 = length revArgs1
-    numArgs2 = length revArgs2
-  in
-  case toDiff localizer RT.Func result1 result2 of
-    Diff resultDoc1 resultDoc2 Similar ->
-      if numArgs1 < numArgs2 then
-        diffArgMismatch localizer ctx revArgs1 resultDoc1 revArgs2 resultDoc2
-
-      else
-        diffArgMismatch localizer ctx revArgs2 resultDoc2 revArgs1 resultDoc1
-
-    Diff resultDoc1 resultDoc2 (Different problems) ->
-      let
-        (a:b:cs) = reverse (resultDoc1 : map (toDoc localizer RT.Func) revArgs1)
-        (x:y:zs) = reverse (resultDoc2 : map (toDoc localizer RT.Func) revArgs2)
-      in
-      different
-        (D.dullyellow (RT.lambda ctx a b cs))
-        (D.dullyellow (RT.lambda ctx x y zs))
-        (Bag.append problems (Bag.one ReturnMismatch))
-
-
---
--- INVARIANTS:
---   length shortRevArgs >= 2
---   length longRevArgs >= 2
---   length shortRevArgs < length longRevArgs
---
-diffArgMismatch :: L.Localizer -> RT.Context -> [Type] -> D.Doc -> [Type] -> D.Doc -> Diff D.Doc
-diffArgMismatch localizer ctx shortRevArgs shortResult longRevArgs longResult =
-  let
-    (a:b:cs, x:y:zs) =
-      case toGreedyMatch localizer shortRevArgs longRevArgs of
-        Just (GreedyMatch shortRevArgDocs longRevArgDocs) ->
-          ( reverse (shortResult:shortRevArgDocs)
-          , reverse (longResult:longRevArgDocs)
-          )
-
-        Nothing ->
-          case toGreedyMatch localizer (reverse shortRevArgs) (reverse longRevArgs) of
-            Just (GreedyMatch shortArgDocs longArgDocs) ->
-              ( shortArgDocs ++ [shortResult]
-              , longArgDocs ++ [longResult]
-              )
-
-            Nothing ->
-              let
-                toYellowDoc tipe =
-                  D.dullyellow (toDoc localizer RT.Func tipe)
-              in
-              ( reverse (shortResult : map toYellowDoc shortRevArgs)
-              , reverse (longResult  : map toYellowDoc longRevArgs )
-              )
-  in
-  different
-    (RT.lambda ctx a b cs)
-    (RT.lambda ctx x y zs)
-    (Bag.one (MissingArgs (length longRevArgs - length shortRevArgs)))
-
-
-
--- GREEDY ARG MATCHER
-
-
-data GreedyMatch =
-  GreedyMatch [D.Doc] [D.Doc]
-
-
---
--- INVARIANTS:
---   length shorterArgs < length longerArgs
---
-toGreedyMatch :: L.Localizer -> [Type] -> [Type] -> Maybe GreedyMatch
-toGreedyMatch localizer shorterArgs longerArgs =
-  toGreedyMatchHelp localizer shorterArgs longerArgs (GreedyMatch [] [])
-
-
-toGreedyMatchHelp :: L.Localizer -> [Type] -> [Type] -> GreedyMatch -> Maybe GreedyMatch
-toGreedyMatchHelp localizer shorterArgs longerArgs match@(GreedyMatch shorterDocs longerDocs) =
-  let
-    toYellowDoc tipe =
-      D.dullyellow (toDoc localizer RT.Func tipe)
-  in
-  case (shorterArgs, longerArgs) of
-    (x:xs, y:ys) ->
-      case toDiff localizer RT.Func x y of
-        Diff a b Similar ->
-          toGreedyMatchHelp localizer xs ys $
-            GreedyMatch (a:shorterDocs) (b:longerDocs)
-
-        Diff _ _ (Different _) ->
-          toGreedyMatchHelp localizer shorterArgs ys $
-            GreedyMatch shorterDocs (toYellowDoc y : longerDocs)
-
-    ([], []) ->
-      Just match
-
-    ([], _:_) ->
-      Just (GreedyMatch shorterDocs (map toYellowDoc longerArgs))
-
-    (_:_, []) ->
-      Nothing
-
-
-
 -- RECORD DIFFS
 
 
-diffRecord :: L.Localizer -> Map.Map N.Name Type -> Extension -> Map.Map N.Name Type -> Extension -> Diff D.Doc
+diffRecord :: L.Localizer -> Map.Map Name.Name Type -> Extension -> Map.Map Name.Name Type -> Extension -> Diff D.Doc
 diffRecord localizer fields1 ext1 fields2 ext2 =
   let
     toUnknownDocs field tipe =

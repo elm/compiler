@@ -4,11 +4,10 @@ module Deps.Diff
   , PackageChanges(..)
   , ModuleChanges(..)
   , Changes(..)
-  , Magnitude(..)
   , moduleChangeMagnitude
-  , magnitudeToString
   , toMagnitude
   , bump
+  , getDocs
   )
   where
 
@@ -17,14 +16,23 @@ import Control.Monad (zipWithM)
 import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Name as Name
 import qualified Data.Set as Set
-import qualified Data.Text as Text
+import qualified System.Directory as Dir
+import System.FilePath ((</>))
 
-import qualified Elm.Compiler.Module as Module
+import qualified Deps.Website as Website
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Docs as Docs
-import qualified Elm.Name as N
+import qualified Elm.Magnitude as M
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
+import qualified Elm.Version as V
+import qualified File
+import qualified Http
+import qualified Json.Decode as D
+import qualified Reporting.Exit as Exit
+import qualified Stuff
 
 
 
@@ -33,18 +41,18 @@ import qualified Elm.Package as Pkg
 
 data PackageChanges =
   PackageChanges
-    { _modules_added :: [Module.Raw]
-    , _modules_changed :: Map.Map Module.Raw ModuleChanges
-    , _modules_removed :: [Module.Raw]
+    { _modules_added :: [ModuleName.Raw]
+    , _modules_changed :: Map.Map ModuleName.Raw ModuleChanges
+    , _modules_removed :: [ModuleName.Raw]
     }
 
 
 data ModuleChanges =
   ModuleChanges
-    { _unions :: Changes N.Name Docs.Union
-    , _aliases :: Changes N.Name Docs.Alias
-    , _values :: Changes N.Name Docs.Value
-    , _binops :: Changes N.Name Docs.Binop
+    { _unions :: Changes Name.Name Docs.Union
+    , _aliases :: Changes Name.Name Docs.Alias
+    , _values :: Changes Name.Name Docs.Value
+    , _binops :: Changes Name.Name Docs.Binop
     }
 
 
@@ -73,7 +81,7 @@ diff :: Docs.Documentation -> Docs.Documentation -> PackageChanges
 diff oldDocs newDocs =
   let
     filterOutPatches chngs =
-      Map.filter (\chng -> moduleChangeMagnitude chng /= PATCH) chngs
+      Map.filter (\chng -> moduleChangeMagnitude chng /= M.PATCH) chngs
 
     (Changes added changed removed) =
       getChanges (\_ _ -> False) oldDocs newDocs
@@ -144,7 +152,7 @@ isEquivalentBinop (Docs.Binop c1 t1 a1 p1) (Docs.Binop c2 t2 a2 p2) =
 -- DIFF TYPES
 
 
-diffType :: Type.Type -> Type.Type -> Maybe [(N.Name,N.Name)]
+diffType :: Type.Type -> Type.Type -> Maybe [(Name.Name,Name.Name)]
 diffType oldType newType =
   case (oldType, newType) of
     (Type.Var oldName, Type.Var newName) ->
@@ -192,11 +200,11 @@ diffType oldType newType =
 
 
 -- handle very old docs that do not use qualified names
-isSameName :: N.Name -> N.Name -> Bool
+isSameName :: Name.Name -> Name.Name -> Bool
 isSameName oldFullName newFullName =
   let
     dedot name =
-      reverse (Text.splitOn "." (N.toText name))
+      reverse (Name.splitDots name)
   in
     case ( dedot oldFullName, dedot newFullName ) of
       (oldName:[], newName:_) ->
@@ -209,7 +217,7 @@ isSameName oldFullName newFullName =
         oldFullName == newFullName
 
 
-diffFields :: [(N.Name, Type.Type)] -> [(N.Name, Type.Type)] -> Maybe [(N.Name,N.Name)]
+diffFields :: [(Name.Name, Type.Type)] -> [(Name.Name, Type.Type)] -> Maybe [(Name.Name,Name.Name)]
 diffFields oldRawFields newRawFields =
   let
     sort = List.sortBy (compare `on` fst)
@@ -230,7 +238,7 @@ diffFields oldRawFields newRawFields =
 -- TYPE VARIABLES
 
 
-isEquivalentRenaming :: [(N.Name,N.Name)] -> Bool
+isEquivalentRenaming :: [(Name.Name,Name.Name)] -> Bool
 isEquivalentRenaming varPairs =
   let
     renamings =
@@ -263,7 +271,7 @@ isEquivalentRenaming varPairs =
         allUnique (map snd verifiedRenamings)
 
 
-compatibleVars :: (N.Name, N.Name) -> Bool
+compatibleVars :: (Name.Name, Name.Name) -> Bool
 compatibleVars (old, new) =
   case (categorizeVar old, categorizeVar new) of
     (CompAppend, CompAppend) -> True
@@ -285,63 +293,43 @@ data TypeVarCategory
   | Var
 
 
-categorizeVar :: N.Name -> TypeVarCategory
+categorizeVar :: Name.Name -> TypeVarCategory
 categorizeVar name
-  | N.startsWith "compappend" name = CompAppend
-  | N.startsWith "comparable" name = Comparable
-  | N.startsWith "appendable" name = Appendable
-  | N.startsWith "number"     name = Number
-  | otherwise                      = Var
+  | Name.isCompappendType name = CompAppend
+  | Name.isComparableType name = Comparable
+  | Name.isAppendableType name = Appendable
+  | Name.isNumberType     name = Number
+  | otherwise                  = Var
 
 
 
 -- MAGNITUDE
 
 
-data Magnitude
-  = PATCH
-  | MINOR
-  | MAJOR
-  deriving (Eq, Ord)
-
-
-magnitudeToString :: Magnitude -> String
-magnitudeToString magnitude =
-  case magnitude of
-    PATCH ->
-      "PATCH"
-
-    MINOR ->
-      "MINOR"
-
-    MAJOR ->
-      "MAJOR"
-
-
-bump :: PackageChanges -> Pkg.Version -> Pkg.Version
+bump :: PackageChanges -> V.Version -> V.Version
 bump changes version =
   case toMagnitude changes of
-    PATCH ->
-      Pkg.bumpPatch version
+    M.PATCH ->
+      V.bumpPatch version
 
-    MINOR ->
-      Pkg.bumpMinor version
+    M.MINOR ->
+      V.bumpMinor version
 
-    MAJOR ->
-      Pkg.bumpMajor version
+    M.MAJOR ->
+      V.bumpMajor version
 
 
-toMagnitude :: PackageChanges -> Magnitude
+toMagnitude :: PackageChanges -> M.Magnitude
 toMagnitude (PackageChanges added changed removed) =
   let
-    addMag = if null added then PATCH else MINOR
-    removeMag = if null removed then PATCH else MAJOR
+    addMag = if null added then M.PATCH else M.MINOR
+    removeMag = if null removed then M.PATCH else M.MAJOR
     changeMags = map moduleChangeMagnitude (Map.elems changed)
   in
     maximum (addMag : removeMag : changeMags)
 
 
-moduleChangeMagnitude :: ModuleChanges -> Magnitude
+moduleChangeMagnitude :: ModuleChanges -> M.Magnitude
 moduleChangeMagnitude (ModuleChanges unions aliases values binops) =
   maximum
     [ changeMagnitude unions
@@ -351,13 +339,45 @@ moduleChangeMagnitude (ModuleChanges unions aliases values binops) =
     ]
 
 
-changeMagnitude :: Changes k v -> Magnitude
+changeMagnitude :: Changes k v -> M.Magnitude
 changeMagnitude (Changes added changed removed) =
   if Map.size removed > 0 || Map.size changed > 0 then
-    MAJOR
+    M.MAJOR
 
   else if Map.size added > 0 then
-    MINOR
+    M.MINOR
 
   else
-    PATCH
+    M.PATCH
+
+
+
+-- GET DOCS
+
+
+getDocs :: Stuff.PackageCache -> Http.Manager -> Pkg.Name -> V.Version -> IO (Either Exit.DocsProblem Docs.Documentation)
+getDocs cache manager name version =
+  do  let home = Stuff.package cache name version
+      let path = home </> "docs.json"
+      exists <- File.exists path
+      if exists
+        then
+          do  bytes <- File.readUtf8 path
+              case D.fromByteString Docs.decoder bytes of
+                Right docs ->
+                  return $ Right docs
+
+                Left _ ->
+                  do  File.remove path
+                      return $ Left Exit.DP_Cache
+        else
+          do  let url = Website.metadata name version "docs.json"
+              Http.get manager url [] Exit.DP_Http $ \body ->
+                case D.fromByteString Docs.decoder body of
+                  Right docs ->
+                    do  Dir.createDirectoryIfMissing True home
+                        File.writeUtf8 path body
+                        return $ Right docs
+
+                  Left _ ->
+                    return $ Left $ Exit.DP_Data url body

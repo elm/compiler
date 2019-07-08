@@ -19,17 +19,15 @@ module Generate.JavaScript.Name
 
 
 import qualified Data.ByteString.Builder as B
-import qualified Data.ByteString.Short as S
 import Data.Monoid ((<>))
 import qualified Data.Map as Map
+import qualified Data.Name as Name
 import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import qualified Data.Utf8 as Utf8
 import Data.Word (Word8)
 
-import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
-import qualified Elm.Name as N
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 
 
@@ -52,38 +50,41 @@ fromIndex index =
 
 fromInt :: Int -> Name
 fromInt n =
-  Name (B.shortByteString (intToAscii n))
+  Name (Name.toBuilder (intToAscii n))
 
 
-fromLocal :: N.Name -> Name
+fromLocal :: Name.Name -> Name
 fromLocal name =
   if Set.member name reservedNames then
-    Name ("_" <> N.toBuilder name)
+    Name ("_" <> Name.toBuilder name)
   else
-    Name (N.toBuilder name)
+    Name (Name.toBuilder name)
 
 
-fromGlobal :: ModuleName.Canonical -> N.Name -> Name
-fromGlobal (ModuleName.Canonical (Pkg.Name user project) home) name =
-  Name $
-    Text.encodeUtf8Builder (Text.replace "-" "_" user)
-    <> "$" <> Text.encodeUtf8Builder (Text.replace "-" "_" project) -- TODO store this in a better way
-    <> "$" <> N.toDotlessBuilder home
-    <> "$" <> N.toBuilder name
+fromGlobal :: ModuleName.Canonical -> Name.Name -> Name
+fromGlobal home name =
+  Name $ homeToBuilder home <> usd <> Name.toBuilder name
 
 
-fromCycle :: ModuleName.Canonical -> N.Name -> Name
-fromCycle (ModuleName.Canonical (Pkg.Name user project) home) name =
-  Name $
-    Text.encodeUtf8Builder (Text.replace "-" "_" user)
-    <> "$" <> Text.encodeUtf8Builder (Text.replace "-" "_" project) -- TODO store this in a better way
-    <> "$" <> N.toDotlessBuilder home
-    <> "$cyclic$" <> N.toBuilder name
+fromCycle :: ModuleName.Canonical -> Name.Name -> Name
+fromCycle home name =
+  Name $ homeToBuilder home <> "$cyclic$" <> Name.toBuilder name
 
 
-fromKernel :: N.Name -> N.Name -> Name
+fromKernel :: Name.Name -> Name.Name -> Name
 fromKernel home name =
-  Name ("_" <> N.toBuilder home <> "_" <> N.toBuilder name)
+  Name ("_" <> Name.toBuilder home <> "_" <> Name.toBuilder name)
+
+
+{-# INLINE homeToBuilder #-}
+homeToBuilder :: ModuleName.Canonical -> B.Builder
+homeToBuilder (ModuleName.Canonical (Pkg.Name author project) home) =
+  usd <>
+  Utf8.toEscapedBuilder 0x2D {- - -} 0x5F {- _ -} author
+  <> usd <>
+  Utf8.toEscapedBuilder 0x2D {- - -} 0x5F {- _ -} project
+  <> usd <>
+  Utf8.toEscapedBuilder 0x2E {- . -} 0x24 {- $ -} home
 
 
 
@@ -100,19 +101,24 @@ makeA n =
   Name ("A" <> B.intDec n)
 
 
-makeLabel :: N.Name -> Int -> Name
+makeLabel :: Name.Name -> Int -> Name
 makeLabel name index =
-  Name (N.toBuilder name <> "$" <> B.intDec index)
+  Name (Name.toBuilder name <> usd <> B.intDec index)
 
 
-makeTemp :: N.Name -> Name
+makeTemp :: Name.Name -> Name
 makeTemp name =
-  Name ("$temp$" <> N.toBuilder name)
+  Name ("$temp$" <> Name.toBuilder name)
 
 
 dollar :: Name
 dollar =
-  Name (N.toBuilder N.dollar)
+  Name usd
+
+
+usd :: B.Builder
+usd =
+  Name.toBuilder Name.dollar
 
 
 
@@ -120,12 +126,12 @@ dollar =
 
 
 {-# NOINLINE reservedNames #-}
-reservedNames :: Set.Set N.Name
+reservedNames :: Set.Set Name.Name
 reservedNames =
   Set.union jsReservedWords elmReservedWords
 
 
-jsReservedWords :: Set.Set N.Name
+jsReservedWords :: Set.Set Name.Name
 jsReservedWords =
   Set.fromList
     [ "do", "if", "in"
@@ -141,7 +147,7 @@ jsReservedWords =
     ]
 
 
-elmReservedWords :: Set.Set N.Name
+elmReservedWords :: Set.Set Name.Name
 elmReservedWords =
   Set.fromList
     [ "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9"
@@ -153,16 +159,16 @@ elmReservedWords =
 -- INT TO ASCII
 
 
-intToAscii :: Int -> S.ShortByteString
+intToAscii :: Int -> Name.Name
 intToAscii n =
   if n < 53 then -- skip $ as a standalone name
-    S.pack [toByte n]
+    Name.fromWords [toByte n]
 
   else
     intToAsciiHelp 2 (numStartBytes * numInnerBytes) allBadFields (n - 53)
 
 
-intToAsciiHelp :: Int -> Int -> [BadFields] -> Int -> S.ShortByteString
+intToAsciiHelp :: Int -> Int -> [BadFields] -> Int -> Name.Name
 intToAsciiHelp width blockSize badFields n =
   case badFields of
     [] ->
@@ -184,10 +190,10 @@ intToAsciiHelp width blockSize badFields n =
 -- UNSAFE INT TO ASCII
 
 
-unsafeIntToAscii :: Int -> [Word8] -> Int -> S.ShortByteString
+unsafeIntToAscii :: Int -> [Word8] -> Int -> Name.Name
 unsafeIntToAscii width bytes n =
   if width <= 1 then
-    S.pack (toByte n : bytes)
+    Name.fromWords (toByte n : bytes)
   else
     let
       (quotient, remainder) =
@@ -229,27 +235,27 @@ newtype BadFields =
 
 
 type Renamings =
-  Map.Map S.ShortByteString S.ShortByteString
+  Map.Map Name.Name Name.Name
 
 
 allBadFields :: [BadFields]
 allBadFields =
   let
     add keyword dict =
-      Map.alter (Just . addRenaming keyword) (N.length keyword) dict
+      Map.alter (Just . addRenaming keyword) (Utf8.size keyword) dict
   in
     Map.elems $ Set.foldr add Map.empty jsReservedWords
 
 
-addRenaming :: N.Name -> Maybe BadFields -> BadFields
+addRenaming :: Name.Name -> Maybe BadFields -> BadFields
 addRenaming keyword maybeBadFields =
   let
-    width = N.length keyword
+    width = Utf8.size keyword
     maxName = numStartBytes * numInnerBytes ^ (width - 1) - 1
   in
   case maybeBadFields of
     Nothing ->
-      BadFields $ Map.singleton (N.toShort keyword) (unsafeIntToAscii width [] maxName)
+      BadFields $ Map.singleton keyword (unsafeIntToAscii width [] maxName)
 
     Just (BadFields renamings) ->
-      BadFields $ Map.insert (N.toShort keyword) (unsafeIntToAscii width [] (maxName - Map.size renamings)) renamings
+      BadFields $ Map.insert keyword (unsafeIntToAscii width [] (maxName - Map.size renamings)) renamings

@@ -1,14 +1,27 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Reporting.Error
-  ( Error(..)
-  , toReports
+  ( Module(..)
+  , Error(..)
+  , toDoc
+  , toJson
   )
   where
 
 
+import qualified Data.ByteString as B
+import qualified Data.NonEmptyList as NE
+import qualified Data.OneOrMore as OneOrMore
+
+import qualified Elm.ModuleName as ModuleName
+import qualified File
+import qualified Json.Encode as E
+import Json.Encode ((==>))
+import qualified Reporting.Annotation as A
+import qualified Reporting.Doc as D
 import qualified Reporting.Error.Canonicalize as Canonicalize
 import qualified Reporting.Error.Docs as Docs
+import qualified Reporting.Error.Import as Import
 import qualified Reporting.Error.Main as Main
 import qualified Reporting.Error.Pattern as Pattern
 import qualified Reporting.Error.Syntax as Syntax
@@ -19,39 +32,175 @@ import qualified Reporting.Report as Report
 
 
 
--- ALL POSSIBLE ERRORS
+-- MODULE
+
+
+data Module =
+  Module
+    { _name :: ModuleName.Raw
+    , _path :: FilePath
+    , _time :: File.Time
+    , _source :: B.ByteString
+    , _error :: Error
+    }
+
+
+
+-- ERRORS
 
 
 data Error
-  = Syntax Syntax.Error
-  | Canonicalize Canonicalize.Error
-  | Type L.Localizer [Type.Error]
-  | Main L.Localizer Main.Error
-  | Pattern [Pattern.Error]
-  | Docs Docs.Error
+  = BadSyntax Syntax.Error
+  | BadImports (NE.List Import.Error)
+  | BadNames (OneOrMore.OneOrMore Canonicalize.Error)
+  | BadTypes L.Localizer (NE.List Type.Error)
+  | BadMains L.Localizer (OneOrMore.OneOrMore Main.Error)
+  | BadPatterns (NE.List Pattern.Error)
+  | BadDocs Docs.Error
 
 
 
 -- TO REPORT
 
 
-toReports :: Code.Source -> Error -> [Report.Report]
+toReports :: Code.Source -> Error -> NE.List Report.Report
 toReports source err =
   case err of
-    Syntax syntaxError ->
-        [Syntax.toReport source syntaxError]
+    BadSyntax syntaxError ->
+      NE.List (Syntax.toReport source syntaxError) []
 
-    Canonicalize canonicalizeError ->
-        [Canonicalize.toReport source canonicalizeError]
+    BadImports errs ->
+      fmap (Import.toReport source) errs
 
-    Type localizer typeErrors ->
-        map (Type.toReport source localizer) typeErrors
+    BadNames errs ->
+      fmap (Canonicalize.toReport source) (OneOrMore.destruct NE.List errs)
 
-    Main localizer mainError ->
-        [Main.toReport localizer source mainError]
+    BadTypes localizer errs ->
+      fmap (Type.toReport source localizer) errs
 
-    Pattern patternErrors ->
-        map (Pattern.toReport source) patternErrors
+    BadMains localizer errs ->
+      fmap (Main.toReport localizer source) (OneOrMore.destruct NE.List errs)
 
-    Docs docsError ->
-        [Docs.toReport source docsError]
+    BadPatterns errs ->
+      fmap (Pattern.toReport source) errs
+
+    BadDocs docsErr ->
+      Docs.toReports source docsErr
+
+
+
+-- TO DOC
+
+
+toDoc :: Module -> [Module] -> D.Doc
+toDoc err errs =
+  let
+    (NE.List m ms) = NE.sortBy _time (NE.List err errs)
+  in
+  D.vcat (toDocHelp m ms)
+
+
+toDocHelp :: Module -> [Module] -> [D.Doc]
+toDocHelp module1 modules =
+  case modules of
+    [] ->
+      [moduleToDoc module1
+      ,""
+      ]
+
+    module2 : otherModules ->
+      moduleToDoc module1
+      : toSeparator module1 module2
+      : toDocHelp module2 otherModules
+
+
+toSeparator :: Module -> Module -> D.Doc
+toSeparator beforeModule afterModule =
+  let
+    before = ModuleName.toChars (_name beforeModule) ++ "  ↑    "
+    after  = "    ↓  " ++  ModuleName.toChars (_name afterModule)
+  in
+    D.dullred $ D.vcat $
+      [ D.indent (80 - length before) (D.fromChars before)
+      , "====o======================================================================o===="
+      , D.fromChars after
+      , ""
+      , ""
+      ]
+
+
+
+-- MODULE TO DOC
+
+
+moduleToDoc :: Module -> D.Doc
+moduleToDoc (Module _ path _ source err) =
+  let
+    reports =
+      toReports (Code.toSource source) err
+  in
+  D.vcat $ map (reportToDoc path) (NE.toList reports)
+
+
+reportToDoc :: FilePath -> Report.Report -> D.Doc
+reportToDoc path (Report.Report title _ _ message) =
+  D.vcat
+    [ toMessageBar title path
+    , ""
+    , message
+    , ""
+    ]
+
+
+toMessageBar :: String -> FilePath -> D.Doc
+toMessageBar title filePath =
+  let
+    usedSpace =
+      4 + length title + 1 + length filePath
+  in
+    D.dullcyan $ D.fromChars $
+      "-- " ++ title
+      ++ " " ++ replicate (max 1 (80 - usedSpace)) '-'
+      ++ " " ++ filePath
+
+
+
+-- TO JSON
+
+
+toJson :: Module -> E.Value
+toJson (Module name path _ source err) =
+  let
+    reports =
+      toReports (Code.toSource source) err
+  in
+  E.object
+    [ "path" ==> E.chars path
+    , "name" ==> E.name name
+    , "problems" ==> E.array (map reportToJson (NE.toList reports))
+    ]
+
+
+reportToJson :: Report.Report -> E.Value
+reportToJson (Report.Report title region _sgstns message) =
+  E.object
+    [ "title" ==> E.chars title
+    , "region" ==> encodeRegion region
+    , "message" ==> D.encode message
+    ]
+
+
+encodeRegion :: A.Region -> E.Value
+encodeRegion (A.Region (A.Position sr sc) (A.Position er ec)) =
+  E.object
+    [ "start" ==>
+          E.object
+            [ "line" ==> E.int (fromIntegral sr)
+            , "column" ==> E.int (fromIntegral sc)
+            ]
+    , "end" ==>
+          E.object
+            [ "line" ==> E.int (fromIntegral er)
+            , "column" ==> E.int (fromIntegral ec)
+            ]
+    ]

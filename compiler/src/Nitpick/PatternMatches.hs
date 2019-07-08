@@ -20,14 +20,14 @@ http://moscova.inria.fr/~maranget/papers/warn/warn.pdf
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
-import qualified Data.Text as Text
+import qualified Data.Name as Name
+import qualified Data.NonEmptyList as NE
 
 import qualified AST.Canonical as Can
-import qualified AST.Module.Name as ModuleName
 import qualified Data.Index as Index
-import qualified Elm.Name as N
+import qualified Elm.ModuleName as ModuleName
+import qualified Elm.String as ES
 import qualified Reporting.Annotation as A
-import qualified Reporting.Region as R
 
 
 
@@ -37,12 +37,12 @@ import qualified Reporting.Region as R
 data Pattern
   = Anything
   | Literal Literal
-  | Ctor Can.Union N.Name [Pattern]
+  | Ctor Can.Union Name.Name [Pattern]
 
 
 data Literal
-  = Chr Text.Text
-  | Str Text.Text
+  = Chr ES.String
+  | Str ES.String
   | Int Int
   deriving (Eq)
 
@@ -95,7 +95,7 @@ simplify (A.At _ pattern) =
       Literal (Chr chr)
 
     Can.PBool union bool ->
-      Ctor union (if bool then N.true else N.false) []
+      Ctor union (if bool then Name.true else Name.false) []
 
 
 cons :: Can.Pattern -> Pattern -> Pattern
@@ -153,34 +153,34 @@ list =
     consCtor =
       Can.Ctor consName Index.second 2
         [ Can.TVar "a"
-        , Can.TType ModuleName.list N.list [Can.TVar "a"]
+        , Can.TType ModuleName.list Name.list [Can.TVar "a"]
         ]
   in
   Can.Union ["a"] [ nilCtor, consCtor ] 2 Can.Normal
 
 
 {-# NOINLINE unitName #-}
-unitName :: N.Name
+unitName :: Name.Name
 unitName = "#0"
 
 
 {-# NOINLINE pairName #-}
-pairName :: N.Name
+pairName :: Name.Name
 pairName = "#2"
 
 
 {-# NOINLINE tripleName #-}
-tripleName :: N.Name
+tripleName :: Name.Name
 tripleName = "#3"
 
 
 {-# NOINLINE consName #-}
-consName :: N.Name
+consName :: Name.Name
 consName = "::"
 
 
 {-# NOINLINE nilName #-}
-nilName :: N.Name
+nilName :: Name.Name
 nilName = "[]"
 
 
@@ -189,8 +189,8 @@ nilName = "[]"
 
 
 data Error
-  = Incomplete R.Region Context [Pattern]
-  | Redundant R.Region R.Region Int
+  = Incomplete A.Region Context [Pattern]
+  | Redundant A.Region A.Region Int
 
 
 data Context
@@ -203,14 +203,14 @@ data Context
 -- CHECK
 
 
-check :: Can.Module -> Either [Error] ()
+check :: Can.Module -> Either (NE.List Error) ()
 check (Can.Module _ _ _ decls _ _ _ _) =
   case checkDecls decls [] of
     [] ->
       Right ()
 
-    errors ->
-      Left errors
+    e:es ->
+      Left (NE.List e es)
 
 
 
@@ -223,8 +223,8 @@ checkDecls decls errors =
     Can.Declare def subDecls ->
       checkDef def $ checkDecls subDecls errors
 
-    Can.DeclareRec defs subDecls ->
-      foldr checkDef (checkDecls subDecls errors) defs
+    Can.DeclareRec def defs subDecls ->
+      checkDef def (foldr checkDef (checkDecls subDecls errors) defs)
 
     Can.SaveTheEnvironment ->
       errors
@@ -351,7 +351,7 @@ checkExpr (A.At region expression) errors =
             Just c ->
               checkExpr c errors
 
-    Can.Shader _ _ _ ->
+    Can.Shader _ _ ->
       errors
 
 
@@ -377,7 +377,7 @@ checkIfBranch (condition, branch) errs =
 -- CHECK CASE EXPRESSION
 
 
-checkCases :: R.Region -> [Can.CaseBranch] -> [Error] -> [Error]
+checkCases :: A.Region -> [Can.CaseBranch] -> [Error] -> [Error]
 checkCases region branches errors =
   let
     (patterns, newErrors) =
@@ -397,7 +397,7 @@ checkCaseBranch (Can.CaseBranch pattern expr) (patterns, errors) =
 -- CHECK PATTERNS
 
 
-checkPatterns :: R.Region -> Context -> [Can.Pattern] -> [Error] -> [Error]
+checkPatterns :: A.Region -> Context -> [Can.Pattern] -> [Error] -> [Error]
 checkPatterns region context patterns errors =
   case toNonRedundantRows region patterns of
     Left err ->
@@ -458,7 +458,7 @@ isExhaustive matrix n =
           concatMap isAltExhaustive altList
 
 
-isMissing :: Can.Union -> Map.Map N.Name a -> Can.Ctor -> Maybe Pattern
+isMissing :: Can.Union -> Map.Map Name.Name a -> Can.Ctor -> Maybe Pattern
 isMissing union ctors (Can.Ctor name _ arity _) =
   if Map.member name ctors then
     Nothing
@@ -466,7 +466,7 @@ isMissing union ctors (Can.Ctor name _ arity _) =
     Just (Ctor union name (replicate arity Anything))
 
 
-recoverCtor :: Can.Union -> N.Name -> Int -> [Pattern] -> [Pattern]
+recoverCtor :: Can.Union -> Name.Name -> Int -> [Pattern] -> [Pattern]
 recoverCtor union name arity patterns =
   let
     (args, rest) =
@@ -480,13 +480,13 @@ recoverCtor union name arity patterns =
 
 
 -- INVARIANT: Produces a list of rows where (forall row. length row == 1)
-toNonRedundantRows :: R.Region -> [Can.Pattern] -> Either Error [[Pattern]]
+toNonRedundantRows :: A.Region -> [Can.Pattern] -> Either Error [[Pattern]]
 toNonRedundantRows region patterns =
   toSimplifiedUsefulRows region [] patterns
 
 
 -- INVARIANT: Produces a list of rows where (forall row. length row == 1)
-toSimplifiedUsefulRows :: R.Region -> [[Pattern]] -> [Can.Pattern] -> Either Error [[Pattern]]
+toSimplifiedUsefulRows :: A.Region -> [[Pattern]] -> [Can.Pattern] -> Either Error [[Pattern]]
 toSimplifiedUsefulRows overallRegion checkedRows uncheckedPatterns =
   case uncheckedPatterns of
     [] ->
@@ -552,7 +552,7 @@ isUseful matrix vector =
 
 
 -- INVARIANT: (length row == N) ==> (length result == arity + N - 1)
-specializeRowByCtor :: N.Name -> Int -> [Pattern] -> Maybe [Pattern]
+specializeRowByCtor :: Name.Name -> Int -> [Pattern] -> Maybe [Pattern]
 specializeRowByCtor ctorName arity row =
   case row of
     Ctor _ name args : patterns ->
@@ -638,12 +638,12 @@ isComplete matrix =
 -- COLLECT CTORS
 
 
-collectCtors :: [[Pattern]] -> Map.Map N.Name Can.Union
+collectCtors :: [[Pattern]] -> Map.Map Name.Name Can.Union
 collectCtors matrix =
   List.foldl' collectCtorsHelp Map.empty matrix
 
 
-collectCtorsHelp :: Map.Map N.Name Can.Union -> [Pattern] -> Map.Map N.Name Can.Union
+collectCtorsHelp :: Map.Map Name.Name Can.Union -> [Pattern] -> Map.Map Name.Name Can.Union
 collectCtorsHelp ctors row =
   case row of
     Ctor union name _ : _ ->

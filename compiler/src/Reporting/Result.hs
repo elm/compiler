@@ -30,10 +30,10 @@ newtype Result info warnings error a =
   )
 
 
-run :: Result () [w] e a -> ([w], Either [e] a)
+run :: Result () [w] e a -> ([w], Either (OneOrMore.OneOrMore e) a)
 run (Result k) =
   k () []
-    (\() w e -> (reverse w, Left (OneOrMore.toList e)))
+    (\() w e -> (reverse w, Left e))
     (\() w a -> (reverse w, Right a))
 
 
@@ -117,3 +117,13 @@ instance Monad (Result i w e) where
             Result kb -> kb i1 w1 bad good
       in
       ka i w bad good1
+
+  (>>) (Result ka) (Result kb) =
+    Result $ \i w bad good ->
+      let
+        good1 i1 w1 _ =
+          kb i1 w1 bad good
+      in
+      ka i w bad good1
+
+  -- PERF add INLINE to these?

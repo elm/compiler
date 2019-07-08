@@ -9,11 +9,12 @@ module Type.Solve
 import Control.Monad
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict ((!))
+import qualified Data.Name as Name
+import qualified Data.NonEmptyList as NE
 import qualified Data.Vector as Vector
 import qualified Data.Vector.Mutable as MVector
 
 import qualified AST.Canonical as Can
-import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Reporting.Render.Type as RT
@@ -29,7 +30,7 @@ import qualified Type.UnionFind as UF
 -- RUN SOLVER
 
 
-run :: Constraint -> IO (Either [Error.Error] (Map.Map N.Name Can.Annotation))
+run :: Constraint -> IO (Either (NE.List Error.Error) (Map.Map Name.Name Can.Annotation))
 run constraint =
   do  pools <- MVector.replicate 8 []
 
@@ -40,8 +41,8 @@ run constraint =
         [] ->
           Right <$> traverse Type.toAnnotation env
 
-        _ ->
-          return $ Left errors
+        e:es ->
+          return $ Left (NE.List e es)
 
 
 
@@ -56,7 +57,7 @@ emptyState =
 
 
 type Env =
-  Map.Map N.Name Variable
+  Map.Map Name.Name Variable
 
 
 type Pools =
@@ -252,7 +253,7 @@ addError (State savedEnv rank errors) err =
 -- OCCURS CHECK
 
 
-occurs :: State -> (N.Name, A.Located Variable) -> IO State
+occurs :: State -> (Name.Name, A.Located Variable) -> IO State
 occurs state (name, A.At region variable) =
   do  hasOccurred <- Occurs.occurs variable
       if hasOccurred
@@ -426,7 +427,14 @@ typeToVariable rank pools tipe =
   typeToVar rank pools Map.empty tipe
 
 
-typeToVar :: Int -> Pools -> Map.Map N.Name Variable -> Type -> IO Variable
+-- PERF working with @mgriffith we noticed that a 784 line entry in a `let` was
+-- causing a ~1.5 second slowdown. Moving it to the top-level to be a function
+-- saved all that time. The slowdown seems to manifest in `typeToVar` and in
+-- `register` in particular. Have not explored further yet. Top-level definitions
+-- are recommended in cases like this anyway, so there is at least a safety
+-- valve for now.
+--
+typeToVar :: Int -> Pools -> Map.Map Name.Name Variable -> Type -> IO Variable
 typeToVar rank pools aliasDict tipe =
   let go = typeToVar rank pools aliasDict in
   case tipe of
@@ -491,15 +499,15 @@ unit1 =
 -- SOURCE TYPE TO VARIABLE
 
 
-srcTypeToVariable :: Int -> Pools -> Map.Map N.Name () -> Can.Type -> IO Variable
+srcTypeToVariable :: Int -> Pools -> Map.Map Name.Name () -> Can.Type -> IO Variable
 srcTypeToVariable rank pools freeVars srcType =
   let
     nameToContent name
-      | N.startsWith "number"     name = FlexSuper Number (Just name)
-      | N.startsWith "comparable" name = FlexSuper Comparable (Just name)
-      | N.startsWith "appendable" name = FlexSuper Appendable (Just name)
-      | N.startsWith "compappend" name = FlexSuper CompAppend (Just name)
-      | otherwise                      = FlexVar (Just name)
+      | Name.isNumberType     name = FlexSuper Number (Just name)
+      | Name.isComparableType name = FlexSuper Comparable (Just name)
+      | Name.isAppendableType name = FlexSuper Appendable (Just name)
+      | Name.isCompappendType name = FlexSuper CompAppend (Just name)
+      | otherwise                  = FlexVar (Just name)
 
     makeVar name _ =
       UF.fresh (Descriptor (nameToContent name) rank noMark Nothing)
@@ -509,7 +517,7 @@ srcTypeToVariable rank pools freeVars srcType =
       srcTypeToVar rank pools flexVars srcType
 
 
-srcTypeToVar :: Int -> Pools -> Map.Map N.Name Variable -> Can.Type -> IO Variable
+srcTypeToVar :: Int -> Pools -> Map.Map Name.Name Variable -> Can.Type -> IO Variable
 srcTypeToVar rank pools flexVars srcType =
   let go = srcTypeToVar rank pools flexVars in
   case srcType of
@@ -555,7 +563,7 @@ srcTypeToVar rank pools flexVars srcType =
           register rank pools (Alias home name argVars aliasVar)
 
 
-srcFieldTypeToVar :: Int -> Pools -> Map.Map N.Name Variable -> Can.FieldType -> IO Variable
+srcFieldTypeToVar :: Int -> Pools -> Map.Map Name.Name Variable -> Can.FieldType -> IO Variable
 srcFieldTypeToVar rank pools flexVars (Can.FieldType _ srcTipe) =
   srcTypeToVar rank pools flexVars srcTipe
 

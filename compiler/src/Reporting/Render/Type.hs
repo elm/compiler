@@ -15,10 +15,10 @@ module Reporting.Render.Type
 
 
 import qualified Data.Maybe as Maybe
+import qualified Data.Name as Name
 
 import qualified AST.Source as Src
 import qualified AST.Canonical as Can
-import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
 import Reporting.Doc ( Doc, (<+>), (<>) )
@@ -173,7 +173,7 @@ srcToDoc context (A.At _ tipe) =
         (map (srcToDoc None) cs)
 
 
-srcFieldToDocs :: (A.Located N.Name, Src.Type) -> (Doc, Doc)
+srcFieldToDocs :: (A.Located Name.Name, Src.Type) -> (Doc, Doc)
 srcFieldToDocs (A.At _ fieldName, fieldType) =
   ( D.fromName fieldName
   , srcToDoc None fieldType
@@ -237,7 +237,7 @@ canToDoc localizer context tipe =
         (map (canToDoc localizer App . snd) args)
 
 
-canFieldToDoc :: L.Localizer -> (N.Name, Can.Type) -> (Doc, Doc)
+canFieldToDoc :: L.Localizer -> (Name.Name, Can.Type) -> (Doc, Doc)
 canFieldToDoc localizer (name, tipe) =
   ( D.fromName name
   , canToDoc localizer None tipe

@@ -8,8 +8,9 @@ module Json.Encode
   , Value(..)
   , array
   , object
-  , text
+  , string
   , name
+  , chars
   , bool
   , int
   , number
@@ -25,17 +26,14 @@ import Prelude hiding (null)
 import Control.Arrow ((***))
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Builder as B
-import qualified Data.ByteString.Builder.Prim as BP
-import Data.ByteString.Builder.Prim ((>*<))
 import qualified Data.Map as Map
 import qualified Data.Scientific as Sci
 import Data.Monoid ((<>))
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.Word as W
-import System.IO (IOMode(WriteMode), withBinaryFile)
+import qualified Data.Name as Name
+import qualified Data.Utf8 as Utf8
 
-import qualified Elm.Name as N
+import qualified File
+import qualified Json.String as Json
 
 
 
@@ -44,7 +42,7 @@ import qualified Elm.Name as N
 
 data Value
   = Array [Value]
-  | Object [(Text.Text, Value)]
+  | Object [(Json.String, Value)]
   | String B.Builder
   | Boolean Bool
   | Integer Int
@@ -57,19 +55,19 @@ array =
   Array
 
 
-object :: [(Text.Text,Value)] -> Value
+object :: [(Json.String, Value)] -> Value
 object =
   Object
 
 
-text :: Text.Text -> Value
-text txt =
-  String (encodeText txt)
+string :: Json.String -> Value
+string str =
+  String (B.char7 '"' <> Json.toBuilder str <> B.char7 '"')
 
 
-name :: N.Name -> Value
+name :: Name.Name -> Value
 name nm =
-  String ("\"" <> N.toBuilder nm <> "\"")
+  String (B.char7 '"' <> Name.toBuilder nm <> B.char7 '"')
 
 
 bool :: Bool -> Value
@@ -92,7 +90,7 @@ null =
   Null
 
 
-dict :: (k -> Text.Text) -> (v -> Value) -> Map.Map k v -> Value
+dict :: (k -> Json.String) -> (v -> Value) -> Map.Map k v -> Value
 dict encodeKey encodeValue pairs =
   Object $ map (encodeKey *** encodeValue) (Map.toList pairs)
 
@@ -103,12 +101,35 @@ list encodeEntry entries =
 
 
 
+-- CHARS
+
+
+chars :: [Char] -> Value -- PERF can this be done better? Look for examples.
+chars chrs =
+  String (B.char7 '"' <> B.stringUtf8 (escape chrs) <> B.char7 '"')
+
+
+escape :: [Char] -> [Char]
+escape chrs =
+  case chrs of
+    [] ->
+      []
+
+    c:cs
+      | c == '\r' -> '\\' : 'r'  : escape cs
+      | c == '\n' -> '\\' : 'n'  : escape cs
+      | c == '\"' -> '\\' : '"'  : escape cs
+      | c == '\'' -> '\\' : '\'' : escape cs
+      | otherwise -> c : escape cs
+
+
+
 -- HELPERS
 
 
-(==>) :: a -> b -> (a, b)
-(==>) a b =
-  (a, b)
+(==>) :: [Char] -> value -> (Json.String, value)
+(==>) key value =
+  (Json.fromChars key, value)
 
 
 
@@ -117,14 +138,12 @@ list encodeEntry entries =
 
 write :: FilePath -> Value -> IO ()
 write path value =
-  withBinaryFile path WriteMode $ \handle ->
-    B.hPutBuilder handle (encode value <> "\n")
+  File.writeBuilder path (encode value <> "\n")
 
 
 writeUgly :: FilePath -> Value -> IO ()
 writeUgly path value =
-  withBinaryFile path WriteMode $ \handle ->
-    B.hPutBuilder handle (encodeUgly value)
+  File.writeBuilder path (encodeUgly value)
 
 
 
@@ -150,7 +169,7 @@ encodeUgly value =
     Object (first : rest) ->
       let
         encodeEntry char (key, entry) =
-          B.char7 char <> encodeText key <> B.char7 ':' <> encodeUgly entry
+          B.char7 char <> B.char7 '"' <> Utf8.toBuilder key <> B.string7 "\":" <> encodeUgly entry
       in
         encodeEntry '{' first <> mconcat (map (encodeEntry ',') rest) <> B.char7 '}'
 
@@ -233,7 +252,7 @@ arrayClose =
 -- ENCODE OBJECT
 
 
-encodeObject :: BSC.ByteString -> (Text.Text, Value) -> [(Text.Text, Value)] -> B.Builder
+encodeObject :: BSC.ByteString -> (Json.String, Value) -> [(Json.String, Value)] -> B.Builder
 encodeObject =
   encodeSequence objectOpen objectClose encodeField
 
@@ -248,9 +267,9 @@ objectClose =
   B.char7 '}'
 
 
-encodeField :: BSC.ByteString -> (Text.Text, Value) -> B.Builder
+encodeField :: BSC.ByteString -> (Json.String, Value) -> B.Builder
 encodeField indent (key, value) =
-  encodeText key <> B.string7 ": " <> encodeHelp indent value
+  B.char7 '"' <> Utf8.toBuilder key <> B.string7 "\": " <> encodeHelp indent value
 
 
 
@@ -289,34 +308,3 @@ commaNewline =
 newline :: B.Builder
 newline =
   B.char7 '\n'
-
-
-
--- ENCODE TEXT
-
-
-encodeText :: Text.Text -> B.Builder
-encodeText txt =
-  B.char7 '"' <> Text.encodeUtf8BuilderEscaped escapeAscii txt <> B.char7 '"'
-
-
-{-# INLINE escapeAscii #-}
-escapeAscii :: BP.BoundedPrim W.Word8
-escapeAscii =
-    BP.condB (== 0x5C {- \\ -}) (ascii2 ('\\','\\')) $
-    BP.condB (== 0x22 {- \" -}) (ascii2 ('\\','"' )) $
-    BP.condB (>= 0x20         ) (BP.liftFixedToBounded BP.word8) $
-    BP.condB (== 0x0A {- \n -}) (ascii2 ('\\','n' )) $
-    BP.condB (== 0x0D {- \r -}) (ascii2 ('\\','r' )) $
-    BP.condB (== 0x09 {- \t -}) (ascii2 ('\\','t' )) $
-    BP.liftFixedToBounded hexEscape -- fallback for chars < 0x20
-  where
-    hexEscape :: BP.FixedPrim W.Word8
-    hexEscape = (\c -> ('\\', ('u', fromIntegral c))) BP.>$<
-        BP.char8 >*< BP.char8 >*< BP.word16HexFixed
-
-
-{-# INLINE ascii2 #-}
-ascii2 :: (Char, Char) -> BP.BoundedPrim a
-ascii2 cs =
-  BP.liftFixedToBounded $ const cs BP.>$< BP.char7 >*< BP.char7

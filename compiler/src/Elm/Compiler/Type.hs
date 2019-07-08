@@ -14,21 +14,19 @@ module Elm.Compiler.Type
   where
 
 
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import qualified Data.Name as Name
 
 import qualified AST.Source as Src
-import qualified Elm.Name as N
-import qualified Parse.Primitives as Parse
+import qualified Json.Decode as D
+import qualified Json.Encode as E
+import Json.Encode ((==>))
+import qualified Json.String as Json
+import qualified Parse.Primitives as P
 import qualified Parse.Type as Type
 import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
 import qualified Reporting.Render.Type as RT
 import qualified Reporting.Render.Type.Localizer as L
-
-import qualified Json.Decode as Decode
-import qualified Json.Encode as Encode
-import Json.Encode ((==>))
 
 
 
@@ -37,9 +35,9 @@ import Json.Encode ((==>))
 
 data Type
   = Lambda Type Type
-  | Var N.Name
-  | Type N.Name [Type]
-  | Record [(N.Name, Type)] (Maybe N.Name)
+  | Var Name.Name
+  | Type Name.Name [Type]
+  | Record [(Name.Name, Type)] (Maybe Name.Name)
   | Unit
   | Tuple Type Type [Type]
 
@@ -52,8 +50,8 @@ data DebugMetadata =
     }
 
 
-data Alias = Alias N.Name [N.Name] Type
-data Union = Union N.Name [N.Name] [(N.Name, [Type])]
+data Alias = Alias Name.Name [Name.Name] Type
+data Union = Union Name.Name [Name.Name] [(Name.Name, [Type])]
 
 
 
@@ -94,7 +92,7 @@ toDoc localizer context tipe =
         (fmap D.fromName ext)
 
 
-entryToDoc :: L.Localizer -> (N.Name, Type) -> (D.Doc, D.Doc)
+entryToDoc :: L.Localizer -> (Name.Name, Type) -> (D.Doc, D.Doc)
 entryToDoc localizer (field, fieldType) =
   ( D.fromName field, toDoc localizer RT.None fieldType )
 
@@ -113,20 +111,18 @@ collectLambdas tipe =
 -- JSON for TYPE
 
 
-encode :: Type -> Encode.Value
+encode :: Type -> E.Value
 encode tipe =
-  Encode.text $ Text.pack $ D.toLine (toDoc L.empty RT.None tipe)
+  E.chars $ D.toLine (toDoc L.empty RT.None tipe)
 
 
-decoder :: Decode.Decoder () Type
+decoder :: D.Decoder () Type
 decoder =
-  do  txt <- Decode.text
-      case Parse.run Type.expression (Text.encodeUtf8 (Text.replace "'" "_" txt)) of
-        Left _ ->
-          Decode.fail ()
-
-        Right (tipe, _, _) ->
-          Decode.succeed (fromRawType tipe)
+  let
+    parser =
+      P.specialize (\_ _ _ -> ()) (fromRawType . fst <$> Type.expression)
+  in
+  D.customString parser (\_ _ -> ())
 
 
 fromRawType :: Src.Type -> Type
@@ -164,33 +160,35 @@ fromRawType (A.At _ astType) =
 -- JSON for PROGRAM
 
 
-encodeMetadata :: DebugMetadata -> Encode.Value
+encodeMetadata :: DebugMetadata -> E.Value
 encodeMetadata (DebugMetadata msg aliases unions) =
-  Encode.object
+  E.object
     [ "message" ==> encode msg
-    , "aliases" ==> Encode.object (map toAliasField aliases)
-    , "unions" ==> Encode.object (map toUnionField unions)
+    , "aliases" ==> E.object (map toTypeAliasField aliases)
+    , "unions" ==> E.object (map toCustomTypeField unions)
     ]
 
 
-toAliasField :: Alias -> ( Text.Text, Encode.Value )
-toAliasField (Alias name args tipe) =
-  N.toText name ==>
-    Encode.object
-      [ "args" ==> Encode.list Encode.name args
+toTypeAliasField :: Alias -> ( Json.String, E.Value )
+toTypeAliasField (Alias name args tipe) =
+  ( Json.fromName name
+  , E.object
+      [ "args" ==> E.list E.name args
       , "type" ==> encode tipe
       ]
+  )
 
 
-toUnionField :: Union -> ( Text.Text, Encode.Value )
-toUnionField (Union name args constructors) =
-  N.toText name ==>
-    Encode.object
-      [ "args" ==> Encode.list Encode.name args
-      , "tags" ==> Encode.object (map toCtorObject constructors)
+toCustomTypeField :: Union -> ( Json.String, E.Value )
+toCustomTypeField (Union name args constructors) =
+  ( Json.fromName name
+  , E.object
+      [ "args" ==> E.list E.name args
+      , "tags" ==> E.object (map toVariantObject constructors)
       ]
+  )
 
 
-toCtorObject :: (N.Name, [Type]) -> ( Text.Text, Encode.Value )
-toCtorObject (name, args) =
-  N.toText name ==> Encode.list encode args
+toVariantObject :: (Name.Name, [Type]) -> ( Json.String, E.Value )
+toVariantObject (name, args) =
+  ( Json.fromName name, E.list encode args )

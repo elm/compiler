@@ -1,0 +1,33 @@
+# Dependency Explorer
+
+Mass Updates: | RESET | PATCH | MINOR | MAJOR |
+
+⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣇  ←→
+
+DEPENDENCIES
+
+  DIRECT
+  NoRedInk/elm-json-decode-pipeline     1.0.0  →  3.0.0      (MAJOR)
+  elm/browser                           1.0.0  →  1.0.2      (MINOR)
+  elm/core                              1.0.0  →  1.0.5      (CUSTOM: 1.0.0 <= v < 2.0.0)
+  elm/html                              1.0.0  →  6.0.2      (ANY)
+  elm/http                              1.0.0  →  1.0.0      (LOCKED)
+  elm/json                              1.0.0  →  1.0.0      (LOCKED)
+  elm/time                              1.0.0  →  1.0.0      (LOCKED)
+  elm/url                               1.0.0  →  1.0.0      (LOCKED)
+  elm-explorations/markdown             1.0.0  →  1.0.0      (LOCKED)
+  rtfeldman/elm-iso8601-date-strings    1.1.0  →             (REMOVE)
+  ADD
+
+  INDIRECT
+  elm/parser                            1.0.0  →  1.0.0      (LOCKED)
+  elm/virtual-dom                       1.0.0  →  1.0.0      (LOCKED)
+
+TEST DEPENDENCIES
+
+  DIRECT
+  elm-explorations/test                 1.0.0  →  1.0.0      (LOCKED)
+  ADD
+
+  INDIRECT
+  elm/random                            1.0.0  →  1.0.0      (LOCKED)

@@ -7,16 +7,38 @@ module Reporting.Doc
   , P.hcat, P.hsep, P.indent, P.sep, P.vcat
   , P.red, P.cyan, P.magenta, P.green, P.blue, P.black, P.yellow
   , P.dullred, P.dullcyan, P.dullyellow
-
-  , fromString, fromText, fromName, fromInt
-  , toAnsi, toString, toLine
+  --
+  , fromChars
+  , fromName
+  , fromVersion
+  , fromPackage
+  , fromInt
+  --
+  , toAnsi
+  , toString
+  , toLine
+  --
   , encode
-
-  , stack, reflow, commaSep
-  , toSimpleNote, toSimpleHint, toFancyHint
-  , link, fancyLink, reflowLink, makeLink, makeNakedLink
-  , args, moreArgs
-  , ordinal, intToOrdinal
+  --
+  , stack
+  , reflow
+  , commaSep
+  --
+  , toSimpleNote
+  , toFancyNote
+  , toSimpleHint
+  , toFancyHint
+  --
+  , link
+  , fancyLink
+  , reflowLink
+  , makeLink
+  , makeNakedLink
+  --
+  , args
+  , moreArgs
+  , ordinal
+  , intToOrdinal
   , cycle
   )
   where
@@ -25,37 +47,42 @@ module Reporting.Doc
 import Prelude hiding (cycle)
 import qualified Data.List as List
 import Data.Monoid ((<>))
-import qualified Data.Text as Text
-import qualified Data.Text.Lazy as TL
-import qualified Data.Text.Lazy.Builder as TB
-import qualified Elm.Name as N
+import qualified Data.Name as Name
 import qualified System.Console.ANSI.Types as Ansi
+import qualified System.Info as Info
 import System.IO (Handle)
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import qualified Data.Index as Index
-import qualified Elm.Compiler.Version as Compiler
 import qualified Elm.Package as Pkg
+import qualified Elm.Version as V
+import Json.Encode ((==>))
 import qualified Json.Encode as E
+import qualified Json.String as Json
 
 
 
 -- FROM
 
 
-fromString :: String -> P.Doc
-fromString =
+fromChars :: String -> P.Doc
+fromChars =
   P.text
 
 
-fromText :: Text.Text -> P.Doc
-fromText txt =
-  P.text (Text.unpack txt)
-
-
-fromName :: N.Name -> P.Doc
+fromName :: Name.Name -> P.Doc
 fromName name =
-  P.text (N.toString name)
+  P.text (Name.toChars name)
+
+
+fromVersion :: V.Version -> P.Doc
+fromVersion vsn =
+  P.text (V.toChars vsn)
+
+
+fromPackage :: Pkg.Name -> P.Doc
+fromPackage pkg =
+  P.text (Pkg.toChars pkg)
 
 
 fromInt :: Int -> P.Doc
@@ -114,12 +141,21 @@ commaSep conjunction addStyle names =
 
 
 
--- HINTS
+-- NOTES
 
 
 toSimpleNote :: String -> P.Doc
 toSimpleNote message =
-  P.fillSep ((P.underline "Note" <> ":") : map P.text (words message))
+  toFancyNote (map P.text (words message))
+
+
+toFancyNote :: [P.Doc] -> P.Doc
+toFancyNote chunks =
+  P.fillSep (P.underline "Note" <> ":" : chunks)
+
+
+
+-- HINTS
 
 
 toSimpleHint :: String -> P.Doc
@@ -136,32 +172,32 @@ toFancyHint chunks =
 -- LINKS
 
 
-link :: P.Doc -> String -> String -> String -> P.Doc
+link :: String -> String -> String -> String -> P.Doc
 link word before fileName after =
   P.fillSep $
-    (P.underline word <> ":")
+    (P.underline (P.text word) <> ":")
     : map P.text (words before)
     ++ P.text (makeLink fileName)
     : map P.text (words after)
 
 
-fancyLink :: P.Doc -> [P.Doc] -> String -> [P.Doc] -> P.Doc
+fancyLink :: String -> [P.Doc] -> String -> [P.Doc] -> P.Doc
 fancyLink word before fileName after =
   P.fillSep $
-    (P.underline word <> ":") : before ++ P.text (makeLink fileName) : after
+    (P.underline (P.text word) <> ":") : before ++ P.text (makeLink fileName) : after
 
 
-makeLink :: String -> String
+makeLink :: [Char] -> [Char]
 makeLink fileName =
-  "<https://elm-lang.org/" <> Pkg.versionToString Compiler.version <> "/" <> fileName <> ">"
+  "<https://elm-lang.org/" <> V.toChars V.compiler <> "/" <> fileName <> ">"
 
 
-makeNakedLink :: String -> String
+makeNakedLink :: [Char] -> [Char]
 makeNakedLink fileName =
-  "https://elm-lang.org/" <> Pkg.versionToString Compiler.version <> "/" <> fileName
+  "https://elm-lang.org/" <> V.toChars V.compiler <> "/" <> fileName
 
 
-reflowLink :: String -> String -> String -> P.Doc
+reflowLink :: [Char] -> [Char] -> [Char] -> P.Doc
 reflowLink before fileName after =
   P.fillSep $
     map P.text (words before)
@@ -208,16 +244,25 @@ intToOrdinal number =
 
 
 
-cycle :: Int -> [N.Name] -> P.Doc
-cycle indent names =
+cycle :: Int -> Name.Name -> [Name.Name] -> P.Doc
+cycle indent name names =
   let
-    topLine       = "┌─────┐"
-    nameLine name = "│    " <> P.dullyellow (fromName name)
-    midLine       = "│     ↓"
-    bottomLine    = "└─────┘"
+    toLn n = cycleLn <> P.dullyellow (fromName n)
   in
   P.indent indent $ P.vcat $
-    topLine : List.intersperse midLine (map nameLine names) ++ [ bottomLine ]
+    cycleTop : List.intersperse cycleMid (toLn name : map toLn names) ++ [ cycleEnd ]
+
+
+cycleTop, cycleLn, cycleMid, cycleEnd :: P.Doc
+cycleTop = if isWindows then "+-----+" else "┌─────┐"
+cycleLn  = if isWindows then "|    "   else "│    "
+cycleMid = if isWindows then "|     |" else "│     ↓"
+cycleEnd = if isWindows then "+-<---+" else "└─────┘"
+
+
+isWindows :: Bool
+isWindows =
+  Info.os == "mingw32"
 
 
 
@@ -261,7 +306,7 @@ data Color
   | WHITE
 
 
-toJsonHelp :: Style -> [TB.Builder] -> P.SimpleDoc -> [E.Value]
+toJsonHelp :: Style -> [String] -> P.SimpleDoc -> [E.Value]
 toJsonHelp style revChunks simpleDoc =
   case simpleDoc of
     P.SFail ->
@@ -273,21 +318,16 @@ toJsonHelp style revChunks simpleDoc =
       [ encodeChunks style revChunks ]
 
     P.SChar char rest ->
-      toJsonHelp style (TB.singleton char : revChunks) rest
+      toJsonHelp style ([char] : revChunks) rest
 
     P.SText _ string rest ->
-      toJsonHelp style (TB.fromString string : revChunks) rest
+      toJsonHelp style (string : revChunks) rest
 
     P.SLine indent rest ->
-      toJsonHelp style (spaces indent : "\n" : revChunks) rest
+      toJsonHelp style (replicate indent ' ' : "\n" : revChunks) rest
 
     P.SSGR sgrs rest ->
       encodeChunks style revChunks : toJsonHelp (sgrToStyle sgrs style) [] rest
-
-
-spaces :: Int -> TB.Builder
-spaces n =
-  TB.fromText (Text.replicate n " ")
 
 
 sgrToStyle :: [Ansi.SGR] -> Style -> Style
@@ -351,34 +391,27 @@ toColor layer intensity color =
           Ansi.Black   -> pick Black   BLACK
 
 
-encodeChunks :: Style -> [TB.Builder] -> E.Value
+encodeChunks :: Style -> [String] -> E.Value
 encodeChunks (Style bold underline color) revChunks =
   let
-    text =
-      case revChunks of
-        [] ->
-          Text.empty
-
-        c:cs ->
-          TL.toStrict $ TB.toLazyText $
-            List.foldl' (\builder chunk -> chunk <> builder) c cs
+    chars = concat (reverse revChunks)
   in
   case color of
     Nothing | not bold && not underline ->
-      E.text text
+      E.chars chars
 
     _ ->
       E.object
-        [ ("bold", E.bool bold)
-        , ("underline", E.bool underline)
-        , ("color", maybe E.null encodeColor color)
-        , ("string", E.text text)
+        [ "bold" ==> E.bool bold
+        , "underline" ==> E.bool underline
+        , "color" ==> maybe E.null encodeColor color
+        , "string" ==> E.chars chars
         ]
 
 
 encodeColor :: Color -> E.Value
 encodeColor color =
-  E.text $
+  E.string $ Json.fromChars $
     case color of
       Red -> "red"
       RED -> "RED"

@@ -1,0 +1,197 @@
+
+Name: elm
+Version: 0.19.1
+
+Synopsis:
+    Perform tasks for various Elm websites
+
+Description:
+    Compile code for the online editor. Maybe do more someday!
+
+Homepage: https://elm-lang.org
+
+License: BSD3
+License-file: ../LICENSE
+
+Author:     Evan Czaplicki
+Maintainer: info@elm-lang.org
+Copyright:  Copyright (c) 2019-present, Evan Czaplicki
+
+Category: Compiler, Language
+
+Cabal-version: >=1.9
+Build-type: Simple
+
+source-repository head
+    type:     git
+    location: git://github.com/elm/compiler.git
+
+
+Flag dev {
+  Description: Turn off optimization and make warnings errors
+  Default: False
+}
+
+
+Executable worker
+    if flag(dev)
+        ghc-options: -O0 -Wall -Werror
+    else
+        ghc-options: -O2 -rtsopts -threaded "-with-rtsopts=-N -qg"
+
+    Hs-Source-Dirs:
+        src
+        ../compiler/src
+        ../builder/src
+
+    Main-Is:
+        Main.hs
+
+    other-modules:
+        AST.Canonical
+        AST.Optimized
+        AST.Source
+        AST.Utils.Binop
+        AST.Utils.Shader
+        AST.Utils.Type
+        BackgroundWriter
+        Build
+        Canonicalize.Effects
+        Canonicalize.Environment
+        Canonicalize.Environment.Dups
+        Canonicalize.Environment.Foreign
+        Canonicalize.Environment.Local
+        Canonicalize.Expression
+        Canonicalize.Module
+        Canonicalize.Pattern
+        Canonicalize.Type
+        Compile
+        Data.Bag
+        Data.Index
+        Data.Map.Utils
+        Data.Name
+        Data.NonEmptyList
+        Data.OneOrMore
+        Data.Utf8
+        Deps.Registry
+        Deps.Solver
+        Deps.Website
+        Elm.Compiler.Imports
+        Elm.Compiler.Type
+        Elm.Compiler.Type.Extract
+        Elm.Constraint
+        Elm.Details
+        Elm.Docs
+        Elm.Float
+        Elm.Interface
+        Elm.Kernel
+        Elm.Licenses
+        Elm.Magnitude
+        Elm.ModuleName
+        Elm.Outline
+        Elm.Package
+        Elm.String
+        Elm.Version
+        File
+        Generate
+        Generate.Html
+        Generate.JavaScript
+        Generate.JavaScript.Builder
+        Generate.JavaScript.Expression
+        Generate.JavaScript.Functions
+        Generate.JavaScript.Name
+        Generate.Mode
+        Http
+        Json.Decode
+        Json.Encode
+        Json.String
+        Nitpick.Debug
+        Nitpick.PatternMatches
+        Optimize.Case
+        Optimize.DecisionTree
+        Optimize.Expression
+        Optimize.Module
+        Optimize.Names
+        Optimize.Port
+        Parse.Declaration
+        Parse.Expression
+        Parse.Keyword
+        Parse.Module
+        Parse.Number
+        Parse.Pattern
+        Parse.Primitives
+        Parse.Shader
+        Parse.Space
+        Parse.String
+        Parse.Symbol
+        Parse.Type
+        Parse.Variable
+        Paths_elm
+        Reporting
+        Reporting.Annotation
+        Reporting.Doc
+        Reporting.Error
+        Reporting.Error.Canonicalize
+        Reporting.Error.Docs
+        Reporting.Error.Import
+        Reporting.Error.Json
+        Reporting.Error.Main
+        Reporting.Error.Pattern
+        Reporting.Error.Syntax
+        Reporting.Error.Type
+        Reporting.Exit
+        Reporting.Exit.Help
+        Reporting.Render.Code
+        Reporting.Render.Type
+        Reporting.Render.Type.Localizer
+        Reporting.Report
+        Reporting.Result
+        Reporting.Suggest
+        Reporting.Task
+        Reporting.Warning
+        Stuff
+        Type.Constrain.Expression
+        Type.Constrain.Module
+        Type.Constrain.Pattern
+        Type.Error
+        Type.Instantiate
+        Type.Occurs
+        Type.Solve
+        Type.Type
+        Type.Unify
+        Type.UnionFind
+
+    Build-depends:
+        ansi-terminal >= 0.8 && < 0.9,
+        ansi-wl-pprint >= 0.6.8 && < 0.7,
+        base >=4.11 && <5,
+        binary >= 0.8 && < 0.9,
+        bytestring >= 0.9 && < 0.11,
+        containers >= 0.5.8.2 && < 0.6,
+        directory >= 1.2.3.0 && < 2.0,
+        edit-distance >= 0.2 && < 0.3,
+        filelock,
+        filepath >= 1 && < 2.0,
+        ghc-prim >= 0.5.2,
+        HTTP >= 4000.2.5 && < 4000.4,
+        http-client >= 0.6 && < 0.7,
+        http-client-tls >= 0.3 && < 0.4,
+        http-types >= 0.12 && < 1.0,
+        io-streams,
+        language-glsl >= 0.3,
+        mtl >= 2.2.1 && < 3,
+        network >= 2.4 && < 2.7,
+        network-uri,
+        parsec,
+        raw-strings-qq,
+        scientific,
+        SHA,
+        snap-core,
+        snap-server,
+        template-haskell,
+        text,
+        time >= 1.9.1,
+        unordered-containers,
+        utf8-string,
+        vector,
+        zip-archive

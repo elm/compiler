@@ -15,12 +15,11 @@ module Canonicalize.Environment.Dups
 
 
 import qualified Data.Map as Map
+import qualified Data.Name as Name
 
 import qualified Data.OneOrMore as OneOrMore
-import qualified Elm.Name as N
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
 
 
@@ -29,12 +28,12 @@ import qualified Reporting.Result as Result
 
 
 type Dict value =
-  Map.Map N.Name (OneOrMore.OneOrMore (Info value))
+  Map.Map Name.Name (OneOrMore.OneOrMore (Info value))
 
 
 data Info value =
   Info
-    { _region :: R.Region
+    { _region :: A.Region
     , _value :: value
     }
 
@@ -44,22 +43,25 @@ data Info value =
 
 
 type ToError =
-  N.Name -> R.Region -> R.Region -> Error.Error
+  Name.Name -> A.Region -> A.Region -> Error.Error
 
 
-detect :: ToError -> Dict a -> Result.Result i w Error.Error (Map.Map N.Name a)
+detect :: ToError -> Dict a -> Result.Result i w Error.Error (Map.Map Name.Name a)
 detect toError dict =
   Map.traverseWithKey (detectHelp toError) dict
 
 
-detectHelp :: ToError -> N.Name -> OneOrMore.OneOrMore (Info a) -> Result.Result i w Error.Error a
+detectHelp :: ToError -> Name.Name -> OneOrMore.OneOrMore (Info a) -> Result.Result i w Error.Error a
 detectHelp toError name values =
   case values of
     OneOrMore.One (Info _ value) ->
       return value
 
-    OneOrMore.More _ _ ->
-      let (Info r1 _ : Info r2 _ : _) = OneOrMore.toList values in
+    OneOrMore.More left right ->
+      let
+        (Info r1 _, Info r2 _) =
+          OneOrMore.getFirstTwo left right
+      in
       Result.throw (toError name r1 r2)
 
 
@@ -67,22 +69,22 @@ detectHelp toError name values =
 -- CHECK FIELDS
 
 
-checkFields :: [(A.Located N.Name, a)] -> Result.Result i w Error.Error (Map.Map N.Name a)
+checkFields :: [(A.Located Name.Name, a)] -> Result.Result i w Error.Error (Map.Map Name.Name a)
 checkFields fields =
   detect Error.DuplicateField (foldr addField none fields)
 
 
-addField :: (A.Located N.Name, a) -> Dict a -> Dict a
+addField :: (A.Located Name.Name, a) -> Dict a -> Dict a
 addField (A.At region name, value) dups =
   Map.insertWith OneOrMore.more name (OneOrMore.one (Info region value)) dups
 
 
-checkFields' :: (R.Region -> a -> b) -> [(A.Located N.Name, a)] -> Result.Result i w Error.Error (Map.Map N.Name b)
+checkFields' :: (A.Region -> a -> b) -> [(A.Located Name.Name, a)] -> Result.Result i w Error.Error (Map.Map Name.Name b)
 checkFields' toValue fields =
   detect Error.DuplicateField (foldr (addField' toValue) none fields)
 
 
-addField' :: (R.Region -> a -> b) -> (A.Located N.Name, a) -> Dict b -> Dict b
+addField' :: (A.Region -> a -> b) -> (A.Located Name.Name, a) -> Dict b -> Dict b
 addField' toValue (A.At region name, value) dups =
   Map.insertWith OneOrMore.more name (OneOrMore.one (Info region (toValue region value))) dups
 
@@ -96,12 +98,12 @@ none =
   Map.empty
 
 
-one :: N.Name -> R.Region -> value -> Dict value
+one :: Name.Name -> A.Region -> value -> Dict value
 one name region value =
   Map.singleton name (OneOrMore.one (Info region value))
 
 
-insert :: N.Name -> R.Region -> a -> Dict a -> Dict a
+insert :: Name.Name -> A.Region -> a -> Dict a -> Dict a
 insert name region value dict =
   Map.insertWith OneOrMore.more name (OneOrMore.one (Info region value)) dict
 
