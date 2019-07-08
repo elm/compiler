@@ -12,7 +12,9 @@
             "elm/http": "2.0.0",
             "elm/json": "1.1.3",
             "elm/svg": "1.0.1",
-            "elm/time": "1.0.0"
+            "elm/time": "1.0.0",
+            "elm-explorations/linear-algebra": "1.0.3",
+            "elm-explorations/webgl": "1.1.0"
         },
         "indirect": {
             "elm/bytes": "1.0.8",
