@@ -58,6 +58,7 @@ data Name =
     { _author :: !Author
     , _project :: !Project
     }
+    deriving (Ord)
 
 
 type Author = Utf8.Utf8 AUTHOR
@@ -265,14 +266,6 @@ instance Eq Name where
 instance Eq Canonical where
   (==) (Canonical package1 version1) (Canonical package2 version2) =
     version1 == version2 && package1 == package2
-
-
-instance Ord Name where
-  compare (Name author1 project1) (Name author2 project2) =
-    case compare project1 project2 of
-      LT -> LT
-      EQ -> compare author1 author2
-      GT -> GT
 
 
 
