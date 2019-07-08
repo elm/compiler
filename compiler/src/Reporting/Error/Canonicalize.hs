@@ -242,11 +242,11 @@ toReport source err =
 
     DuplicateAliasArg typeName name r1 r2 ->
       nameClash source r1 r2 $
-        "The `" <> Name.toChars typeName <> "` type alias has multilpe `" <> Name.toChars name <> "` type variables."
+        "The `" <> Name.toChars typeName <> "` type alias has multiple `" <> Name.toChars name <> "` type variables."
 
     DuplicateUnionArg typeName name r1 r2 ->
       nameClash source r1 r2 $
-        "The `" <> Name.toChars typeName <> "` type has multilpe `" <> Name.toChars name <> "` type variables."
+        "The `" <> Name.toChars typeName <> "` type has multiple `" <> Name.toChars name <> "` type variables."
 
     DuplicatePattern context name r1 r2 ->
       nameClash source r1 r2 $
