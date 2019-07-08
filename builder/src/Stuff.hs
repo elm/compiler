@@ -62,7 +62,7 @@ prepublishDir root =
 
 compilerVersion :: FilePath
 compilerVersion =
-  V.toChars V.compiler
+  V.toChars V.compiler ++ "-alpha-1"
 
 
 
