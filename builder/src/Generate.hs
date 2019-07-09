@@ -200,7 +200,7 @@ loadTypesHelp root modul =
             Build.Unneeded ->
               do  mvar <- newEmptyMVar
                   _ <- forkIO $
-                    do  maybeIface <- File.readBinary (Stuff.elmo root name)
+                    do  maybeIface <- File.readBinary (Stuff.elmi root name)
                         putMVar mvar (Extract.fromInterface name <$> maybeIface)
                   return mvar
 
