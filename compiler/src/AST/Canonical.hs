@@ -342,7 +342,7 @@ instance Binary CtorOpts where
           0 -> return Normal
           1 -> return Enum
           2 -> return Unbox
-          _ -> error "binary encoding of CtorOpts was corrupted"
+          _ -> fail "binary encoding of CtorOpts was corrupted"
 
 
 instance Binary Annotation where
@@ -393,7 +393,7 @@ instance Binary AliasType where
         case n of
           0 -> liftM Holey get
           1 -> liftM Filled get
-          _ -> error "binary encoding of AliasType was corrupted"
+          _ -> fail "binary encoding of AliasType was corrupted"
 
 
 instance Binary FieldType where

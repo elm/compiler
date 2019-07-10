@@ -618,7 +618,7 @@ instance Binary Test where
           5 -> liftM  IsStr get
           6 -> liftM  IsInt get
           7 -> liftM  IsBool get
-          _ -> error "problem getting DecisionTree.Test binary"
+          _ -> fail "problem getting DecisionTree.Test binary"
 
 
 instance Binary Path where
@@ -634,4 +634,4 @@ instance Binary Path where
           0 -> liftM2 Index get get
           1 -> liftM Unbox get
           2 -> pure Empty
-          _ -> error "problem getting DecisionTree.Path binary"
+          _ -> fail "problem getting DecisionTree.Path binary"

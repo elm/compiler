@@ -41,12 +41,11 @@ instance Binary Precedence where
 instance Binary Associativity where
   get =
     do  n <- getWord8
-        return $
-          case n of
-            0 -> Left
-            1 -> Non
-            2 -> Right
-            _ -> error "Error reading valid associativity from serialized string"
+        case n of
+          0 -> return Left
+          1 -> return Non
+          2 -> return Right
+          _ -> fail "Error reading valid associativity from serialized string"
 
   put assoc =
     putWord8 $

@@ -216,7 +216,7 @@ instance Binary Op where
         case n of
           0 -> return Less
           1 -> return LessOrEqual
-          _ -> error "binary encoding of Op was corrupted"
+          _ -> fail "binary encoding of Op was corrupted"
 
 
 

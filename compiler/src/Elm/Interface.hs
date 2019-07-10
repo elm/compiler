@@ -215,7 +215,7 @@ instance Binary Union where
           0 -> liftM OpenUnion get
           1 -> liftM ClosedUnion get
           2 -> liftM PrivateUnion get
-          _ -> error "binary encoding of Union was corrupted"
+          _ -> fail "binary encoding of Union was corrupted"
 
 
 instance Binary Alias where
@@ -229,7 +229,7 @@ instance Binary Alias where
         case n of
           0 -> liftM PublicAlias get
           1 -> liftM PrivateAlias get
-          _ -> error "binary encoding of Alias was corrupted"
+          _ -> fail "binary encoding of Alias was corrupted"
 
 
 instance Binary Binop where
@@ -251,4 +251,4 @@ instance Binary DependencyInterface where
         case n of
           0 -> liftM  Public get
           1 -> liftM3 Private get get get
-          _ -> error "binary encoding of DependencyInterface was corrupted"
+          _ -> fail "binary encoding of DependencyInterface was corrupted"

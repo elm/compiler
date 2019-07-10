@@ -308,7 +308,7 @@ instance Binary Expr where
           24 -> pure   Unit
           25 -> liftM3 Tuple get get get
           26 -> liftM3 Shader get get get
-          _  -> error "problem getting Opt.Expr binary"
+          _  -> fail "problem getting Opt.Expr binary"
 
 
 instance Binary Def where
@@ -322,7 +322,7 @@ instance Binary Def where
         case word of
           0 -> liftM2 Def get get
           1 -> liftM3 TailDef get get get
-          _ -> error "problem getting Opt.Def binary"
+          _ -> fail "problem getting Opt.Def binary"
 
 
 instance Binary Destructor where
@@ -345,7 +345,7 @@ instance Binary Path where
           1 -> liftM2 Field get get
           2 -> liftM  Unbox get
           3 -> liftM  Root get
-          _ -> error "problem getting Opt.Path binary"
+          _ -> fail "problem getting Opt.Path binary"
 
 
 instance (Binary a) => Binary (Decider a) where
@@ -361,7 +361,7 @@ instance (Binary a) => Binary (Decider a) where
           0 -> liftM  Leaf get
           1 -> liftM3 Chain get get get
           2 -> liftM3 FanOut get get get
-          _ -> error "problem getting Opt.Decider binary"
+          _ -> fail "problem getting Opt.Decider binary"
 
 
 instance Binary Choice where
@@ -375,7 +375,7 @@ instance Binary Choice where
         case word of
           0 -> liftM Inline get
           1 -> liftM Jump get
-          _ -> error "problem getting Opt.Choice binary"
+          _ -> fail "problem getting Opt.Choice binary"
 
 
 
@@ -400,7 +400,7 @@ instance Binary Main where
         case word of
           0 -> return Static
           1 -> liftM2 Dynamic get get
-          _ -> error "problem getting Opt.Main binary"
+          _ -> fail "problem getting Opt.Main binary"
 
 
 instance Binary Node where
@@ -432,7 +432,7 @@ instance Binary Node where
           8  -> liftM2 Kernel get get
           9  -> liftM2 PortIncoming get get
           10 -> liftM2 PortOutgoing get get
-          _  -> error "problem getting Opt.Node binary"
+          _  -> fail "problem getting Opt.Node binary"
 
 
 instance Binary EffectsType where
@@ -448,4 +448,4 @@ instance Binary EffectsType where
           0 -> return Cmd
           1 -> return Sub
           2 -> return Fx
-          _ -> error "problem getting Opt.EffectsType binary"
+          _ -> fail "problem getting Opt.EffectsType binary"

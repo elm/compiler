@@ -776,7 +776,7 @@ instance Binary ValidOutline where
         case n of
           0 -> liftM  ValidApp get
           1 -> liftM3 ValidPkg get get get
-          _ -> error "binary encoding of ValidOutline was corrupted"
+          _ -> fail "binary encoding of ValidOutline was corrupted"
 
 
 instance Binary Local where
