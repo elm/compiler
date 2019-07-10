@@ -78,8 +78,20 @@ readBinary path =
         then
           do  result <- Binary.decodeFileOrFail path
               case result of
-                Right a -> return (Just a)
-                Left _  -> return Nothing
+                Right a ->
+                  return (Just a)
+
+                Left (offset, message) ->
+                  do  IO.hPutStrLn IO.stderr $ unlines $
+                        [ "+-------------------------------------------------------------------------------"
+                        , "| Corrupt File: " ++ path
+                        , "| Byte Offset: " ++ show offset
+                        , "| Message: " ++ message
+                        , "| Please report this to https://github.com/elm/compiler/issues"
+                        , "| Trying to continue anyway."
+                        , "+-------------------------------------------------------------------------------"
+                        ]
+                      return Nothing
         else
           return Nothing
 
