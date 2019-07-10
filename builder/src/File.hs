@@ -82,8 +82,7 @@ readBinary path =
                   return (Just a)
 
                 Left (offset, message) ->
-                  do  Dir.copyFile path "bad.dat"
-                      IO.hPutStrLn IO.stderr $ unlines $
+                  do  IO.hPutStrLn IO.stderr $ unlines $
                         [ "+-------------------------------------------------------------------------------"
                         , "|  Corrupt File: " ++ path
                         , "|   Byte Offset: " ++ show offset
