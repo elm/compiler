@@ -14,6 +14,7 @@ module Make
 import qualified Data.ByteString.Builder as B
 import qualified Data.Maybe as Maybe
 import qualified Data.NonEmptyList as NE
+import qualified System.Directory as Dir
 import qualified System.FilePath as FP
 
 import qualified AST.Optimized as Opt
@@ -242,7 +243,8 @@ getNoMain modules main =
 generate :: Reporting.Style -> FilePath -> B.Builder -> NE.List ModuleName.Raw -> Task ()
 generate style target builder names =
   Task.io $
-    do  File.writeBuilder target builder
+    do  Dir.createDirectoryIfMissing True (FP.takeDirectory target)
+        File.writeBuilder target builder
         Reporting.reportGenerate style names target
 
 
