@@ -33,7 +33,7 @@ import qualified Data.ByteString.Builder as B
 import qualified Data.NonEmptyList as NE
 import qualified System.Exit as Exit
 import qualified System.Info as Info
-import System.IO (hFlush, hPutStr, stderr, stdout)
+import System.IO (hFlush, hPutStr, hPutStrLn, stderr, stdout)
 
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
@@ -446,17 +446,19 @@ reportExceptionsNicely e =
 
 
 putException :: SomeException -> IO ()
-putException e =
+putException e = do
+  hPutStrLn stderr ""
   Help.toStderr $ D.stack $
-    [ D.reflow $
-        "Oh no! I ran into something that bypassed the normal error reporting process!\
+    [ D.dullyellow "-- ERROR -----------------------------------------------------------------------"
+    , D.reflow $
+        "I ran into something that bypassed the normal error reporting process!\
         \ I extracted whatever information I could from the internal error:"
     , D.vcat $ map (\line -> D.red ">" <> "   " <> D.fromChars line) (lines (show e))
     , D.reflow $
         "These errors are usually pretty confusing, so start by asking around on one of\
         \ forums listed at https://elm-lang.org/community to see if anyone can get you\
         \ unstuck quickly."
-    , "------------------------------------------------------------"
+    , D.dullyellow "-- REQUEST ---------------------------------------------------------------------"
     , D.reflow $
         "If you are feeling up to it, please try to get your code down to the smallest\
         \ version that still triggers this message. Ideally in a single Main.elm and\
