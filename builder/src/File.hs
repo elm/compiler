@@ -82,11 +82,13 @@ readBinary path =
                   return (Just a)
 
                 Left (offset, message) ->
-                  do  IO.hPutStrLn IO.stderr $ unlines $
+                  do  Dir.copyFile path "bad.dat"
+                      IO.hPutStrLn IO.stderr $ unlines $
                         [ "+-------------------------------------------------------------------------------"
-                        , "| Corrupt File: " ++ path
-                        , "| Byte Offset: " ++ show offset
-                        , "| Message: " ++ message
+                        , "|  Corrupt File: " ++ path
+                        , "|   Byte Offset: " ++ show offset
+                        , "|       Message: " ++ message
+                        , "|"
                         , "| Please report this to https://github.com/elm/compiler/issues"
                         , "| Trying to continue anyway."
                         , "+-------------------------------------------------------------------------------"
