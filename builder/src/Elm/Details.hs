@@ -309,7 +309,7 @@ verifyDependencies env@(Env key scope root cache _ _ _) time outline solution di
           let
             objs = Map.foldr addObjects Opt.empty artifacts
             ifaces = Map.foldrWithKey (addInterfaces directDeps) Map.empty artifacts
-            foreigns = Map.map (OneOrMore.destruct Foreign) $ Map.foldrWithKey gatherForeigns Map.empty artifacts
+            foreigns = Map.map (OneOrMore.destruct Foreign) $ Map.foldrWithKey gatherForeigns Map.empty $ Map.intersection artifacts directDeps
             details = Details time outline Map.empty foreigns (ArtifactsFresh ifaces objs)
           in
           do  BW.writeBinary scope (Stuff.objects    root) objs
