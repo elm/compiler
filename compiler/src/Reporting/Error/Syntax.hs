@@ -616,20 +616,112 @@ toParseErrorReport source modul =
                   "This " ++ bracket : " does not match up with an earlier open " ++ term ++ ". Try deleting it?"
               )
 
-        Code.Other ->
+        Code.Other maybeChar ->
           let
             region = toRegion row col
           in
-          Report.Report "SYNTAX PROBLEM" region [] $
-            Code.toSnippet source region Nothing
-              (
-                D.reflow $
-                  "I got stuck here:"
-              ,
-                D.reflow $
-                  "Whatever I am running into is confusing me a lot! Normally I can give fairly\
-                  \ specific hints, but something is really tripping me up this time."
-              )
+          case maybeChar of
+            Just ';' ->
+              Report.Report "UNEXPECTED SEMICOLON" region [] $
+                Code.toSnippet source region Nothing
+                  (
+                    D.reflow $
+                      "I got stuck on this semicolon:"
+                  ,
+                    D.stack
+                      [ D.reflow $ "Try removing it?"
+                      , D.toSimpleNote $
+                          "Some languages require semicolons at the end of each statement. These are\
+                          \ often called C-like languages, and they usually share a lot of language design\
+                          \ choices. (E.g. side-effects, for loops, etc.) Elm manages effects with commands\
+                          \ and subscriptions instead, so there is no special syntax for \"statements\" and\
+                          \ therefore no need to use semicolons to separate them. I think this will make\
+                          \ more sense as you work through https://guide.elm-lang.org though!"
+                      ]
+                  )
+
+            Just ',' ->
+              Report.Report "UNEXPECTED COMMA" region [] $
+                Code.toSnippet source region Nothing
+                  (
+                    D.reflow $
+                      "I got stuck on this comma:"
+                  ,
+                    D.stack
+                      [ D.reflow $
+                          "I do not think I am parsing a list or tuple right now. Try deleting the comma?"
+                      , D.toSimpleNote $
+                          "If this is supposed to be part of a list, the problem may be a bit earlier.\
+                          \ Perhaps the opening [ is missing? Or perhaps some value in the list has an extra\
+                          \ closing ] that is making me think the list ended earlier? The same kinds of\
+                          \ things could be going wrong if this is supposed to be a tuple."
+                      ]
+                  )
+
+            Just '`' ->
+              Report.Report "UNEXPECTED CHARACTER" region [] $
+                Code.toSnippet source region Nothing
+                  (
+                    D.reflow $
+                      "I got stuck on this character:"
+                  ,
+                    D.stack
+                      [ D.reflow $
+                          "It is not used for anything in Elm syntax. It is used for multi-line strings in\
+                          \ some languages though, so if you want a string that spans multiple lines, you\
+                          \ can use Elm's multi-line string syntax like this:"
+                      , D.vcat
+                          [ D.fillSep [D.green "markdown","=",D.dullyellow "\"\"\""]
+                          , mempty
+                          , D.dullyellow "# Multi-line Strings"
+                          , mempty
+                          , D.dullyellow "- start with triple double quotes"
+                          , D.dullyellow "- write whatever you want"
+                          , D.dullyellow "- no need to escape newlines or double quotes"
+                          , D.dullyellow "- end with triple double quotes"
+                          , mempty
+                          , D.dullyellow "\"\"\""
+                          ]
+                      , D.reflow $
+                          "Otherwise I do not know what is going on! Try removing the character?"
+                      ]
+                  )
+
+            Just '$' ->
+              Report.Report "UNEXPECTED SYMBOL" region [] $
+                Code.toSnippet source region Nothing
+                  (
+                    D.reflow $
+                      "I got stuck on this dollar sign:"
+                  ,
+                    D.reflow $
+                      "It is not used for anything in Elm syntax. Are you coming from a language where\
+                      \ dollar signs can be used in variable names? If so, try a name that (1) starts\
+                      \ with a letter and (2) only contains letters, numbers, and underscores."
+                  )
+
+            Just c | elem c ['#','@','!','%','~'] ->
+              Report.Report "UNEXPECTED SYMBOL" region [] $
+                Code.toSnippet source region Nothing
+                  (
+                    D.reflow $
+                      "I got stuck on this symbol:"
+                  ,
+                    D.reflow $
+                      "It is not used for anything in Elm syntax. Try removing it?"
+                  )
+
+            _ ->
+              Report.Report "SYNTAX PROBLEM" region [] $
+                Code.toSnippet source region Nothing
+                  (
+                    D.reflow $
+                      "I got stuck here:"
+                  ,
+                    D.reflow $
+                      "Whatever I am running into is confusing me a lot! Normally I can give fairly\
+                      \ specific hints, but something is really tripping me up this time."
+                  )
 
     ModuleProblem row col ->
       let
@@ -823,7 +915,7 @@ toParseErrorReport source modul =
       let
         region = toRegion row col
       in
-      Report.Report "EXECTING IMPORT ALIAS" region [] $
+      Report.Report "EXPECTING IMPORT ALIAS" region [] $
         Code.toSnippet source region Nothing
           (
             D.reflow $
@@ -1329,7 +1421,7 @@ toDeclarationsReport source decl =
                   , D.fillSep [D.cyan "type",D.green "User","=","Anonymous","|","LoggedIn String"]
                   , D.reflow $
                       "Note that all declarations start with lower-case letters in Elm. Capitalization\
-                      \ makes a difference, so be consious of that if you are working from examples!"
+                      \ makes a difference, so be conscious of that if you are working from examples!"
                   ]
               )
 
@@ -5226,7 +5318,7 @@ toTTupleReport source context tuple startRow startCol =
         Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I was expecting to see a closing parentheses next, but I got stuck here:"
+              "I was expecting to see a closing parenthesis next, but I got stuck here:"
           ,
             D.stack
               [ D.fillSep ["Try","adding","a",D.dullyellow ")","to","see","if","that","helps?"]

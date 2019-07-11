@@ -199,14 +199,14 @@ data Next
   = Keyword [Char]
   | Operator [Char]
   | Close [Char] Char
-  | Other
+  | Other (Maybe Char)
 
 
 whatIsNext :: Source -> Row -> Col -> Next
 whatIsNext (Source sourceLines) row col =
   case List.lookup row sourceLines of
     Nothing ->
-      Other
+      Other Nothing
 
     Just line ->
       let
@@ -220,14 +220,14 @@ whatIsNext (Source sourceLines) row col =
         Nothing ->
           case chars of
             [] ->
-              Other
+              Other Nothing
 
             c:cs
               | isSymbol c -> Operator (c : takeWhile isSymbol cs)
               | c == ')'   -> Close "parenthesis" ')'
               | c == ']'   -> Close "square bracket" ']'
               | c == '}'   -> Close "curly brace" '}'
-              | otherwise  -> Other
+              | otherwise  -> Other (Just c)
 
 
 isSymbol :: Char -> Bool
