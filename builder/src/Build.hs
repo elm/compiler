@@ -444,7 +444,7 @@ checkDepsHelp root results deps new same cached importProblems isBlocked =
             RKernel           -> checkDepsHelp root results otherDeps new same cached importProblems isBlocked
 
     [] ->
-      case importProblems of
+      case reverse importProblems of
         p:ps ->
           return $ DepsNotFound (NE.List p ps)
 
