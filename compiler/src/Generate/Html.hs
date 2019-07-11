@@ -38,13 +38,18 @@ You can access it as `app` in the developer console.
 </pre>
 
 <script>
+try {
 |] <> javascript <> [r|
 
-try {
   var app = Elm.|] <> name <> [r|.init({ node: document.getElementById("elm") });
 } catch (e) {
   // display initialization errors (e.g. bad flags, infinite recursion)
-  document.getElementById("elm").innerText = e;
+  var header = document.createElement("h1");
+  header.style.fontFamily = "monospace";
+  header.innerText = "Initialization Error";
+  var pre = document.getElementById("elm");
+  document.body.insertBefore(header, pre);
+  pre.innerText = e;
   throw e;
 }
 </script>
