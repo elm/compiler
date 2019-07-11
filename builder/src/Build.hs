@@ -402,7 +402,7 @@ checkModule env@(Env _ root pkg _ _ _) foreigns resultsMVar name status =
     SForeign home ->
       case foreigns ! ModuleName.Canonical home name of
         I.Public iface -> return (RForeign iface)
-        I.Private _ _ _ -> error "loading private interface in Build"
+        I.Private _ _ _ -> error $ "mistakenly seeing private interface for " ++ Pkg.toChars home ++ " " ++ ModuleName.toChars name
 
     SKernel ->
       return RKernel
