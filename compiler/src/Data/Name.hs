@@ -288,42 +288,43 @@ fromTypeVariableScheme scheme =
 
 
 -- FROM MANY NAMES
+--
+-- Creating a unique name by combining all the subnames can create names
+-- longer than 256 bytes relatively easily. So instead, the first given name
+-- (e.g. foo) is prefixed chars that are valid in JS but not Elm (e.g. _M$foo)
+--
+-- This should be a unique name since 0.19 disallows shadowing. It would not
+-- be possible for multiple top-level cycles to include values with the same
+-- name, so the important thing is to make the cycle name distinct from the
+-- normal name. Same logic for destructuring patterns like (x,y)
 
 
 fromManyNames :: [Name] -> Name
 fromManyNames names =
-  let
-    !(I# size#) = sum (map (\(Utf8.Utf8 ba#) -> I# (sizeofByteArray# ba# +# 1#)) names)
-  in
-  runST
-  (
-    ST $ \s ->
-      case newByteArray# size# s of
-        (# s, mba# #) ->
-          case writeNames mba# 0# names s of
-            s ->
-              case unsafeFreezeByteArray# mba# s of
-                (# s, ba# #) -> (# s, Utf8.Utf8 ba# #)
-  )
-
-
-writeNames :: MutableByteArray# s -> Int# -> [Name] -> State# s -> State# s
-writeNames mba# !offset# names s =
   case names of
     [] ->
-      s
+      error "trying to use fromManyNames on an empty list"
 
-    (Utf8.Utf8 ba#) : names ->
-      case writeWord8Array# mba# offset# 0x24## {- $ -} s of
-        s ->
-          let
-            !offset1# = offset# +# 1#
-            !len# = sizeofByteArray# ba#
-            !newOffset# = offset1# +# len#
-          in
-          case copyByteArray# ba# 0# mba# offset1# len# s of
-            s ->
-              writeNames mba# newOffset# names s
+    Utf8.Utf8 ba# : _ ->
+      let
+        len# = sizeofByteArray# ba#
+      in
+      runST
+      (
+        ST $ \s ->
+          case newByteArray# (len# +# 3#) s of
+            (# s, mba# #) ->
+              case writeWord8Array# mba# 0# 0x5F## {-_-} s of
+                s ->
+                  case writeWord8Array# mba# 1# 0x4D## {-M-} s of
+                    s ->
+                      case writeWord8Array# mba# 2# 0x24## {-$-} s of
+                        s ->
+                          case copyByteArray# ba# 0# mba# 3# len# s of
+                            s ->
+                              case unsafeFreezeByteArray# mba# s of
+                                (# s, ba# #) -> (# s, Utf8.Utf8 ba# #)
+      )
 
 
 
