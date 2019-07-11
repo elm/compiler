@@ -954,18 +954,19 @@ findLocation :: Env -> FilePath -> IO (Either Exit.BuildProjectProblem Location)
 findLocation env path =
   do  exists <- File.exists path
       if exists
-        then findLoc env path <$> Dir.canonicalizePath path
+        then findLoc env path =<< Dir.canonicalizePath path
         else return (Left (Exit.BP_PathUnknown path))
 
 
-findLoc :: Env -> FilePath -> FilePath -> Either Exit.BuildProjectProblem Location
+findLoc :: Env -> FilePath -> FilePath -> IO (Either Exit.BuildProjectProblem Location)
 findLoc (Env _ root _ srcDirs _ _) path absolutePath =
   let
     (dirs, file) = FP.splitFileName absolutePath
     (final, ext) = FP.splitExtension file
   in
   if ext /= ".elm"
-  then Left (Exit.BP_WithBadExtension path)
+  then
+    return $ Left $ Exit.BP_WithBadExtension path
   else
     let
       roots = FP.splitDirectories root
@@ -973,25 +974,47 @@ findLoc (Env _ root _ srcDirs _ _) path absolutePath =
     in
     case dropPrefix roots segments of
       Nothing ->
-        Right (Location absolutePath path (LOutside path))
+        return $ Right $ Location absolutePath path (LOutside path)
 
       Just relativeSegments ->
-        case Maybe.mapMaybe (isInsideSrcDir relativeSegments) srcDirs of
-          []                -> Right $ Location absolutePath path (LOutside path)
-          [(_, Right name)] -> Right $ Location absolutePath path (LInside name)
-          [(s, Left names)] -> Left  $ Exit.BP_MainNameInvalid path s names
-          (s1,_):(s2,_):_   -> Left  $ Exit.BP_WithAmbiguousSrcDir path s1 s2
+        case Maybe.mapMaybe (isInsideSrcDirByPath relativeSegments) srcDirs of
+          [] ->
+            return $ Right $ Location absolutePath path (LOutside path)
+
+          [(_, Right names)] ->
+            do  let name = Name.fromChars (List.intercalate "." names)
+                dirs <- filterM (isInsideSrcDirByName root names) srcDirs
+                case dirs of
+                  d1:d2:_ ->
+                    do  let p1 = d1 </> FP.joinPath names <.> "elm"
+                        let p2 = d2 </> FP.joinPath names <.> "elm"
+                        return $ Left $ Exit.BP_MainNameDuplicate name p1 p2
+
+                  _ ->
+                    return $ Right $ Location absolutePath path (LInside name)
+
+          [(s, Left names)] ->
+            return $ Left $ Exit.BP_MainNameInvalid path s names
+
+          (s1,_):(s2,_):_ ->
+            return $ Left $ Exit.BP_WithAmbiguousSrcDir path s1 s2
 
 
-isInsideSrcDir :: [String] -> FilePath -> Maybe (FilePath, Either [String] ModuleName.Raw)
-isInsideSrcDir segments srcDir =
+
+isInsideSrcDirByName :: FilePath -> [String] -> FilePath -> IO Bool
+isInsideSrcDirByName root names srcDir =
+  File.exists (root </> srcDir </> FP.joinPath names <.> "elm")
+
+
+isInsideSrcDirByPath :: [String] -> FilePath -> Maybe (FilePath, Either [String] [String])
+isInsideSrcDirByPath segments srcDir =
   case dropPrefix (FP.splitDirectories srcDir) segments of
     Nothing ->
       Nothing
 
     Just names ->
       if all isGoodName names
-      then Just (srcDir, Right (Name.fromChars (List.intercalate "." names)))
+      then Just (srcDir, Right names)
       else Just (srcDir, Left names)
 
 
