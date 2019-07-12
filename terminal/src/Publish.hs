@@ -198,8 +198,21 @@ getGit :: Task.Task Exit.Publish Git
 getGit =
   do  maybeGit <- Task.io $ Dir.findExecutable "git"
       case maybeGit of
-        Just git -> return (Git (Process.rawSystem git))
-        Nothing  -> Task.throw Exit.PublishNoGit
+        Nothing ->
+          Task.throw Exit.PublishNoGit
+
+        Just git ->
+          return $ Git $ \args ->
+            let
+              process =
+                (Process.proc git args)
+                  { Process.std_in  = Process.CreatePipe
+                  , Process.std_out = Process.CreatePipe
+                  , Process.std_err = Process.CreatePipe
+                  }
+            in
+            Process.withCreateProcess process $ \_ _ _ handle ->
+              Process.waitForProcess handle
 
 
 
