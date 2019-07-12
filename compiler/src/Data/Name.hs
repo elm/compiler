@@ -303,7 +303,9 @@ fromManyNames :: [Name] -> Name
 fromManyNames names =
   case names of
     [] ->
-      error "trying to use fromManyNames on an empty list"
+      blank
+      -- this case is needed for (let _ = Debug.log "x" x in ...)
+      -- but maybe unused patterns should be stripped out instead
 
     Utf8.Utf8 ba# : _ ->
       let
@@ -325,6 +327,12 @@ fromManyNames names =
                               case unsafeFreezeByteArray# mba# s of
                                 (# s, ba# #) -> (# s, Utf8.Utf8 ba# #)
       )
+
+
+{-# NOINLINE blank #-}
+blank :: Name
+blank =
+  fromWords [0x5F,0x4D,0x24] {-_M$-}
 
 
 
