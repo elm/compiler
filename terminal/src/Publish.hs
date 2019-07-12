@@ -270,7 +270,7 @@ verifyNoChanges git commitHash vsn =
 
 verifyZip :: Env -> Pkg.Name -> V.Version -> Task.Task Exit.Publish Http.Sha
 verifyZip (Env root _ manager _ _) pkg vsn =
-  withTempDir root $ \prepublishDir ->
+  withPrepublishDir root $ \prepublishDir ->
     do  let url = toZipUrl pkg vsn
 
         (sha, archive) <-
@@ -294,8 +294,8 @@ toZipUrl pkg vsn =
   "https://github.com/" ++ Pkg.toUrl pkg ++ "/zipball/" ++ V.toChars vsn ++ "/"
 
 
-withTempDir :: FilePath -> (FilePath -> Task.Task x a) -> Task.Task x a
-withTempDir root callback =
+withPrepublishDir :: FilePath -> (FilePath -> Task.Task x a) -> Task.Task x a
+withPrepublishDir root callback =
   let
     dir = Stuff.prepublishDir root
   in
