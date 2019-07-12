@@ -382,7 +382,7 @@ register :: Http.Manager -> Pkg.Name -> V.Version -> Docs.Documentation -> Strin
 register manager pkg vsn docs commitHash sha =
   if True then
     Task.io $ putStrLn $
-      "Publishing is disabled in this ALPHA release.\n\
+      "Publishing is disabled in the 0.19.1-alpha-2 release.\n\
       \Publish with 0.19.0 for now.\n"
   else
   let
