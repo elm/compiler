@@ -230,7 +230,7 @@ verifyTag git manager pkg vsn =
 
         Exit.ExitSuccess ->
           let url = toTagUrl pkg vsn in
-          Http.post manager url [Http.accept "application/json"] (Exit.PublishCannotGetTag vsn) $ \body ->
+          Http.get manager url [Http.accept "application/json"] (Exit.PublishCannotGetTag vsn) $ \body ->
             case D.fromByteString commitHashDecoder body of
               Right hash ->
                 return $ Right hash
