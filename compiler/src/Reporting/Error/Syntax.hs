@@ -517,7 +517,7 @@ toReport source err =
           ,
             D.stack
               [ D.reflow $
-                  "I need it to match the file path, so I was expecting it to see `"
+                  "I need it to match the file path, so I was expecting to see `"
                   ++ ModuleName.toChars expectedName
                   ++ "` here. Make the following change, and you should be all set!"
               , D.indent 4 $
@@ -1728,7 +1728,7 @@ toTypeAliasReport source typeAlias startRow startCol =
               ,
                 D.stack
                   [ D.reflow $
-                      "I was expecting to see a type variable or an an equals sign next."
+                      "I was expecting to see a type variable or an equals sign next."
                   , typeAliasNote
                   ]
               )
@@ -1749,7 +1749,7 @@ toTypeAliasReport source typeAlias startRow startCol =
           ,
             D.stack
               [ D.reflow $
-                  "I was expecting to see a type variable or an an equals sign next."
+                  "I was expecting to see a type variable or an equals sign next."
               , typeAliasNote
               ]
           )
@@ -1856,7 +1856,7 @@ toCustomTypeReport source customType startRow startCol =
               ,
                 D.stack
                   [ D.reflow $
-                      "I was expecting to see a type variable or an an equals sign next."
+                      "I was expecting to see a type variable or an equals sign next."
                   , customTypeNote
                   ]
               )
@@ -1916,7 +1916,7 @@ toCustomTypeReport source customType startRow startCol =
           ,
             D.stack
               [ D.reflow $
-                  "I was expecting to see a type variable or an an equals sign next."
+                  "I was expecting to see a type variable or an equals sign next."
               , customTypeNote
               ]
           )
@@ -2932,7 +2932,7 @@ toLetReport source context let_ startRow startCol =
               , D.toSimpleNote $
                   "This can also happen if you are trying to define another value within the `let` but\
                   \ it is not indented enough. Make sure each definition has exactly the same amount of\
-                  \ spaces before it. The should line up exactly!"
+                  \ spaces before it. They should line up exactly!"
               ]
           )
 
@@ -4473,7 +4473,7 @@ toPatternReport source context pattern startRow startCol =
                   ,"((" <> D.dullyellow "x" <> "," <> D.dullyellow "y" <> ") " <> D.cyan "as" <> D.dullyellow " point" <> ")"
                   ,"so","you","can","refer","to","individual","parts","of","the","tuple","with"
                   ,D.dullyellow "x","and",D.dullyellow "y","or","you","refer","to","the","whole"
-                  ,"thing","with",D.dullyellow "point."
+                  ,"thing","with",D.dullyellow "point" <> "."
                   ]
               , D.reflow $
                   "So I was expecting to see a variable name after the `as` keyword here. Sometimes\
@@ -4665,7 +4665,7 @@ toPTupleReport source context tuple startRow startCol =
                   "I just saw an open parenthesis, but I got stuck here:"
               ,
                 D.fillSep
-                  ["I","was","expecting","so","see","a","pattern","next."
+                  ["I","was","expecting","to","see","a","pattern","next."
                   ,"Maybe","it","will","end","up","being","something"
                   ,"like",D.dullyellow "(x,y)","or",D.dullyellow "(name, _)" <> "?"
                   ]
@@ -4774,7 +4774,7 @@ toPTupleReport source context tuple startRow startCol =
               "I just saw an open parenthesis, but then I got stuck here:"
           ,
             D.fillSep
-              ["I","was","expecting","so","see","a","pattern","next."
+              ["I","was","expecting","to","see","a","pattern","next."
               ,"Maybe","it","will","end","up","being","something"
               ,"like",D.dullyellow "(x,y)","or",D.dullyellow "(name, _)" <> "?"
               ]
@@ -4793,7 +4793,7 @@ toPTupleReport source context tuple startRow startCol =
           ,
             D.stack
               [ D.fillSep
-                  ["I","was","expecting","so","see","a","pattern","next."
+                  ["I","was","expecting","to","see","a","pattern","next."
                   ,"I","am","expecting","the","final","result","to","be","something"
                   ,"like",D.dullyellow "(x,y)","or",D.dullyellow "(name, _)" <> "."
                   ]
