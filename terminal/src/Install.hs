@@ -124,7 +124,7 @@ attemptChanges root env pkg oldOutline toChars changes =
 
 attemptChangesHelp :: FilePath -> Solver.Env -> Pkg.Name -> Outline.Outline -> Outline.Outline -> D.Doc -> Task ()
 attemptChangesHelp root env pkg oldOutline newOutline question =
-  Task.eio (\_ -> Exit.InstallHasBadDetails pkg (Outline.encode newOutline)) $
+  Task.eio Exit.InstallBadDetails $
   BW.withScope $ \scope ->
   do  approved <- Reporting.ask question
       if approved

@@ -751,7 +751,7 @@ data Install
   | InstallHadSolverTrouble Solver
   | InstallUnknownPackageOnline Pkg.Name [Pkg.Name]
   | InstallUnknownPackageOffline Pkg.Name [Pkg.Name]
-  | InstallHasBadDetails Pkg.Name Encode.Value
+  | InstallBadDetails Details
 
 
 installToReport :: Install -> Help.Report
@@ -895,20 +895,8 @@ installToReport exit =
         , D.reflow $ "Maybe you want one of these instead?"
         ]
 
-    InstallHasBadDetails pkg outline ->
-      Help.report "INSTALL PROBLEM" Nothing
-        (
-          "I found a version of " ++ Pkg.toChars pkg ++ " that claims to be compatible with\
-          \ your existing dependencies, but I ran into an error when I tried to build it locally."
-        )
-        [ D.reflow $
-            "Here is an elm.json that should reproduce the error with a bit more information:"
-        , D.indent 4 $ D.dullyellow $ D.vcat $ map D.fromChars $
-            map BS_UTF8.toString $ BSC.lines $ LBS.toStrict $ B.toLazyByteString $
-              Encode.encode outline
-        , D.reflow $
-            "Maybe that can help figure out what is going on here."
-        ]
+    InstallBadDetails details ->
+      toDetailsReport details
 
 
 
@@ -1334,7 +1322,7 @@ toDetailsReport details =
         "I need the list of published packages to verify your dependencies"
 
     DetailsBadDeps cacheDir deps ->
-      case deps of
+      case List.sortOn toBadDepRank deps of
         [] ->
           Help.report "PROBLEM BUILDING DEPENDENCIES" Nothing
             "I am not sure what is going wrong though."
@@ -1372,6 +1360,13 @@ toDetailsReport details =
                     \ give you much more specific information about why this package is failing to\
                     \ build, which will in turn make it easier for the package author to fix it!"
                 ]
+
+
+toBadDepRank :: DetailsBadDep -> Int -- lower is better
+toBadDepRank badDep =
+  case badDep of
+    BD_BadDownload _ _ _ -> 0
+    BD_BadBuild _ _ _ -> 1
 
 
 
