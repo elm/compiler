@@ -435,16 +435,16 @@ toByteString (State imports types decls) output =
 
 outputToBuilder :: Output -> B.Builder
 outputToBuilder output =
+  N.toBuilder N.replValueToPrint <> " =" <>
   case output of
     OutputNothing ->
-      mempty
+      " ()\n"
 
     OutputDecl _ ->
-      mempty
+      " ()\n"
 
     OutputExpr expr ->
-      N.toBuilder N.replValueToPrint <> " ="
-      <> foldr (\line rest -> "\n  " <> B.byteString line <> rest) "\n" (BSC.lines expr)
+      foldr (\line rest -> "\n  " <> B.byteString line <> rest) "\n" (BSC.lines expr)
 
 
 
