@@ -116,7 +116,6 @@ chompChunks pos end start revChunks =
     case word of
       0x0A {-\n-} -> chompEscape 0x6E {-n-} pos end start revChunks
       0x22 {-"-}  -> chompEscape 0x22 {-"-} pos end start revChunks
-      0x27 {-'-}  -> chompEscape 0x27 {-'-} pos end start revChunks
       0x5C {-\-}  -> chompEscape 0x5C {-\-} pos end start revChunks
       0x0D {-\r-} ->
         let
