@@ -32,7 +32,7 @@ module Json.Decode
 import qualified Data.ByteString.Internal as B
 import qualified Data.Map as Map
 import qualified Data.NonEmptyList as NE
-import Data.Word (Word8, Word16)
+import Data.Word (Word8)
 import Foreign.Ptr (Ptr, plusPtr, minusPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 
@@ -630,7 +630,7 @@ data StringStatus
   | BadString StringProblem
 
 
-pStringHelp :: Ptr Word8 -> Ptr Word8 -> Word16 -> Word16 -> (# StringStatus, Ptr Word8, Word16, Word16 #)
+pStringHelp :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> (# StringStatus, Ptr Word8, Row, Col #)
 pStringHelp pos end row col =
   if pos >= end then
     (# BadString BadStringEnd, pos, row, col #)
@@ -708,7 +708,7 @@ spaces =
       cok () newState
 
 
-eatSpaces :: Ptr Word8 -> Ptr Word8 -> Word16 -> Word16 -> (# Ptr Word8, Word16, Word16 #)
+eatSpaces :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> (# Ptr Word8, Row, Col #)
 eatSpaces pos end row col =
   if pos >= end then
     (# pos, row, col #)
