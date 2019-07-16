@@ -1034,10 +1034,14 @@ dropPrefix roots paths =
     [] ->
       Just paths
 
+    ".":rs ->
+      dropPrefix rs paths
+
     r:rs ->
       case paths of
-        [] -> Nothing
-        p:ps -> if r == p then dropPrefix rs ps else Nothing
+        []     -> Nothing
+        ".":ps -> dropPrefix roots ps
+        p:ps   -> if r == p then dropPrefix rs ps else Nothing
 
 
 
