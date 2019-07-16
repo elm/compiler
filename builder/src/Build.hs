@@ -983,8 +983,8 @@ findLoc (Env _ root _ srcDirs _ _) path absolutePath =
 
           [(_, Right names)] ->
             do  let name = Name.fromChars (List.intercalate "." names)
-                dirs <- filterM (isInsideSrcDirByName root names) srcDirs
-                case dirs of
+                matchingDirs <- filterM (isInsideSrcDirByName root names) srcDirs
+                case matchingDirs of
                   d1:d2:_ ->
                     do  let p1 = d1 </> FP.joinPath names <.> "elm"
                         let p2 = d2 </> FP.joinPath names <.> "elm"
