@@ -165,7 +165,7 @@ addEscape chunk start end revChunks =
 -- SINGLE STRINGS
 
 
-singleString :: Ptr Word8 -> Ptr Word8 -> Word16 -> Word16 -> Ptr Word8 -> [ES.Chunk] -> StringResult
+singleString :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> Ptr Word8 -> [ES.Chunk] -> StringResult
 singleString pos end row col initialPos revChunks =
   if pos >= end then
     Err row col E.StringEndless_Single
@@ -211,7 +211,7 @@ singleString pos end row col initialPos revChunks =
 -- MULTI STRINGS
 
 
-multiString :: Ptr Word8 -> Ptr Word8 -> Word16 -> Word16 -> Ptr Word8 -> Word16 -> Word16 -> [ES.Chunk] -> StringResult
+multiString :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> Ptr Word8 -> Row -> Col -> [ES.Chunk] -> StringResult
 multiString pos end row col initialPos sr sc revChunks =
   if pos >= end then
     Err sr sc E.StringEndless_Multi
