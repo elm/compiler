@@ -19,7 +19,7 @@ view root dirs =
     , style "align-items" "center"
     , style "height" "40px"
     ]
-    (makeLinks root dirs "/" [])
+    (makeLinks root dirs "" [])
 
 
 makeLinks : String -> List String -> String -> List (Html msg) -> List (Html msg)
