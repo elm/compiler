@@ -161,18 +161,21 @@ data Input
 
 read :: Repl.InputT M Input
 read =
-  do  line <- Repl.getInputLine "> "
-      case line of
+  do  maybeLine <- Repl.getInputLine "> "
+      case maybeLine of
         Nothing ->
           return Exit
 
-        Just chars ->
-          case categorize chars of
+        Just line ->
+          let
+            lines = Lines line []
+          in
+          case categorize lines of
             Done input -> return input
-            Continue   -> readMore chars
+            Continue   -> readMore lines
 
 
-readMore :: [Char] -> Repl.InputT M Input
+readMore :: Lines -> Repl.InputT M Input
 readMore previousLines =
   do  input <- Repl.getInputLineWithInitial "| " ("  ","")
       case input of
@@ -181,11 +184,55 @@ readMore previousLines =
 
         Just chars ->
           let
-            allLines = previousLines ++ '\n' : chars
+            lines = addLine chars previousLines
           in
-          case categorize allLines of
+          case categorize lines of
             Done input -> return input
-            Continue   -> readMore allLines
+            Continue   -> readMore lines
+
+
+
+-- LINES
+
+
+data Lines =
+  Lines
+    { _prevLine :: String
+    , _revLines :: [String]
+    }
+
+
+addLine :: [Char] -> Lines -> Lines
+addLine line (Lines x xs) =
+  Lines line (x:xs)
+
+
+isBlank :: Lines -> Bool
+isBlank (Lines prev rev) =
+  null rev && all (==' ') prev
+
+
+isSingleLine :: Lines -> Bool
+isSingleLine (Lines _ rev) =
+  null rev
+
+
+endsWithBlankLine :: Lines -> Bool
+endsWithBlankLine (Lines prev _) =
+  all (==' ') prev
+
+
+linesToByteString :: Lines -> BS_UTF8.ByteString
+linesToByteString (Lines prev rev) =
+  BS_UTF8.fromString (unlines (reverse (prev:rev)))
+
+
+getFirstLine :: Lines -> String
+getFirstLine (Lines x xs) =
+  case xs of
+    []   -> x
+    y:ys -> getFirstLine (Lines y ys)
+
 
 
 
@@ -197,18 +244,18 @@ data CategorizedInput
   | Continue
 
 
-categorize :: [Char] -> CategorizedInput
-categorize chars
-  | all (==' ') chars                = Done Skip
-  | startsWithColon chars            = Done (toCommand chars)
-  | startsWithKeyword "import" chars = attemptImport chars
-  | otherwise                        = attemptDeclOrExpr chars
+categorize :: Lines -> CategorizedInput
+categorize lines
+  | isBlank lines                    = Done Skip
+  | startsWithColon lines            = Done (toCommand lines)
+  | startsWithKeyword "import" lines = attemptImport lines
+  | otherwise                        = attemptDeclOrExpr lines
 
 
-attemptImport :: [Char] -> CategorizedInput
-attemptImport chars =
+attemptImport :: Lines -> CategorizedInput
+attemptImport lines =
   let
-    src = BS_UTF8.fromString (chars ++ "\n")
+    src = linesToByteString lines
     parser = P.specialize (\_ _ _ -> ()) PM.chompImport
   in
   case P.fromByteString parser (\_ _ -> ()) src of
@@ -216,63 +263,67 @@ attemptImport chars =
       Done (Import name src)
 
     Left () ->
-      if endsWithBlankLine chars
-      then Done (Import "ERR" src)
-      else Continue
+      ifFail lines (Import "ERR" src)
 
 
-attemptDeclOrExpr :: [Char] -> CategorizedInput
-attemptDeclOrExpr chars =
+ifFail :: Lines -> Input -> CategorizedInput
+ifFail lines input =
+  if endsWithBlankLine lines
+  then Done input
+  else Continue
+
+
+ifDone :: Lines -> Input -> CategorizedInput
+ifDone lines input =
+  if isSingleLine lines || endsWithBlankLine lines
+  then Done input
+  else Continue
+
+
+attemptDeclOrExpr :: Lines -> CategorizedInput
+attemptDeclOrExpr lines =
   let
-    src = BS_UTF8.fromString (chars ++ "\n")
+    src = linesToByteString lines
     exprParser = P.specialize (toExprPosition src) PE.expression
     declParser = P.specialize (toDeclPosition src) PD.declaration
   in
   case P.fromByteString declParser (,) src of
     Right (decl, _) ->
       case decl of
-        PD.Value _ (A.At _ (Src.Value (A.At _ name) _ _ _)) -> Done (Decl name src)
-        PD.Union _ (A.At _ (Src.Union (A.At _ name) _ _  )) -> Done (Type name src)
-        PD.Alias _ (A.At _ (Src.Alias (A.At _ name) _ _  )) -> Done (Type name src)
+        PD.Value _ (A.At _ (Src.Value (A.At _ name) _ _ _)) -> ifDone lines (Decl name src)
+        PD.Union _ (A.At _ (Src.Union (A.At _ name) _ _  )) -> ifDone lines (Type name src)
+        PD.Alias _ (A.At _ (Src.Alias (A.At _ name) _ _  )) -> ifDone lines (Type name src)
         PD.Port  _ _                                        -> Done Port
 
     Left declPosition
-      | startsWithKeyword "type" chars ->
-          if endsWithBlankLine chars
-          then Done (Type "ERR" src)
-          else Continue
+      | startsWithKeyword "type" lines ->
+          ifFail lines (Type "ERR" src)
 
-      | startsWithKeyword "port" chars ->
+      | startsWithKeyword "port" lines ->
           Done Port
 
       | otherwise ->
           case P.fromByteString exprParser (,) src of
             Right _ ->
-              Done (Expr src)
+              ifDone lines (Expr src)
 
             Left exprPosition ->
-              if endsWithBlankLine chars
-              then Done (if declPosition <= exprPosition then Expr src else Decl "ERR" src)
-              else Continue
+              if exprPosition >= declPosition then
+                ifFail lines (Expr src)
+              else
+                ifFail lines (Decl "ERR" src)
 
 
-endsWithBlankLine :: [Char] -> Bool
-endsWithBlankLine chars =
-  case reverse (List.lines chars) of
-    []   -> False
-    cs:_ -> all (==' ') cs
-
-
-startsWithColon :: [Char] -> Bool
-startsWithColon chars =
-  case dropWhile (==' ') chars of
+startsWithColon :: Lines -> Bool
+startsWithColon lines =
+  case dropWhile (==' ') (getFirstLine lines) of
     [] -> False
     c:_ -> c == ':'
 
 
-toCommand :: [Char] -> Input
-toCommand chars =
-  case drop 1 $ dropWhile (==' ') chars of
+toCommand :: Lines -> Input
+toCommand lines =
+  case drop 1 $ dropWhile (==' ') (getFirstLine lines) of
     "reset" -> Reset
     "exit"  -> Exit
     "quit"  -> Exit
@@ -280,8 +331,11 @@ toCommand chars =
     rest    -> Help (Just (takeWhile (/=' ') rest))
 
 
-startsWithKeyword :: [Char] -> [Char] -> Bool
-startsWithKeyword keyword line =
+startsWithKeyword :: [Char] -> Lines -> Bool
+startsWithKeyword keyword lines =
+  let
+    line = getFirstLine lines
+  in
   List.isPrefixOf keyword line &&
     case drop (length keyword) line of
       [] -> True
