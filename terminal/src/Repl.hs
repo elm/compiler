@@ -43,6 +43,9 @@ import qualified Parse.Expression as PE
 import qualified Parse.Declaration as PD
 import qualified Parse.Module as PM
 import qualified Parse.Primitives as P
+import qualified Parse.Space as PS
+import qualified Parse.Type as PT
+import qualified Parse.Variable as PV
 import Parse.Primitives (Row, Col)
 import qualified Reporting
 import qualified Reporting.Annotation as A
@@ -172,12 +175,12 @@ read =
           in
           case categorize lines of
             Done input -> return input
-            Continue   -> readMore lines
+            Continue p -> readMore lines p
 
 
-readMore :: Lines -> Repl.InputT M Input
-readMore previousLines =
-  do  input <- Repl.getInputLineWithInitial "| " ("  ","")
+readMore :: Lines -> Prefill -> Repl.InputT M Input
+readMore previousLines prefill =
+  do  input <- Repl.getInputLineWithInitial "| " (renderPrefill prefill, "")
       case input of
         Nothing ->
           return Skip
@@ -188,7 +191,22 @@ readMore previousLines =
           in
           case categorize lines of
             Done input -> return input
-            Continue   -> readMore lines
+            Continue p -> readMore lines p
+
+
+data Prefill
+  = Indent
+  | DefStart N.Name
+
+
+renderPrefill :: Prefill -> String
+renderPrefill lineStart =
+  case lineStart of
+    Indent ->
+      "  "
+
+    DefStart name ->
+      N.toChars name ++ " "
 
 
 
@@ -241,7 +259,7 @@ getFirstLine (Lines x xs) =
 
 data CategorizedInput
   = Done Input
-  | Continue
+  | Continue Prefill
 
 
 categorize :: Lines -> CategorizedInput
@@ -270,14 +288,14 @@ ifFail :: Lines -> Input -> CategorizedInput
 ifFail lines input =
   if endsWithBlankLine lines
   then Done input
-  else Continue
+  else Continue Indent
 
 
 ifDone :: Lines -> Input -> CategorizedInput
 ifDone lines input =
   if isSingleLine lines || endsWithBlankLine lines
   then Done input
-  else Continue
+  else Continue Indent
 
 
 attemptDeclOrExpr :: Lines -> CategorizedInput
@@ -311,7 +329,9 @@ attemptDeclOrExpr lines =
               if exprPosition >= declPosition then
                 ifFail lines (Expr src)
               else
-                ifFail lines (Decl "ERR" src)
+                case P.fromByteString annotation (\_ _ -> ()) src of
+                  Right name -> Continue (DefStart name)
+                  Left ()    -> ifFail lines (Decl "ERR" src)
 
 
 startsWithColon :: Lines -> Bool
@@ -359,6 +379,21 @@ toDeclPosition src decl r c =
     (Report.Report _ (A.Region (A.Position row col) _) _ _) = report
   in
   (row, col)
+
+
+annotation :: P.Parser () N.Name
+annotation =
+  let
+    err _ _ = ()
+    err_ _ _ _ = ()
+  in
+  do  name <- PV.lower err
+      PS.chompAndCheckIndent err_ err
+      P.word1 0x3A {-:-} err
+      PS.chompAndCheckIndent err_ err
+      (_, _) <- P.specialize err_ PT.expression
+      PS.checkFreshLine err
+      return name
 
 
 
