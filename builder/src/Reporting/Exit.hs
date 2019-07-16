@@ -1156,10 +1156,16 @@ toOutlineProblemReport path source _ region problem =
       toSnippet "HEADER TOO LONG" Nothing
         ( D.reflow $
             "I got stuck while reading your elm.json file. This section header is too long:"
-        , D.fillSep
-            ["I","need","it","to","be"
-            ,D.green "under",D.green "20",D.green "characters"
-            ,"so","it","renders","nicely","on","the","package","website!"
+        , D.stack
+            [ D.fillSep
+                ["I","need","it","to","be"
+                ,D.green "under",D.green "20",D.green "bytes"
+                ,"so","it","renders","nicely","on","the","package","website!"
+                ]
+            , D.toSimpleNote
+                "I count the length in bytes, so using non-ASCII characters costs extra.\
+                \ Please report your case at https://github.com/elm/compiler/issues if this seems\
+                \ overly restrictive for your needs."
             ]
         )
 
@@ -1204,10 +1210,16 @@ toOutlineProblemReport path source _ region problem =
       toSnippet "SUMMARY TOO LONG" Nothing
         ( D.reflow $
             "I got stuck while reading your elm.json file. Your \"summary\" is too long:"
-        , D.fillSep
-            ["I","need","it","to","be"
-            ,D.green "under",D.green "80",D.green "characters"
-            ,"so","it","renders","nicely","on","the","package","website!"
+        , D.stack
+            [ D.fillSep
+                ["I","need","it","to","be"
+                ,D.green "under",D.green "80",D.green "bytes"
+                ,"so","it","renders","nicely","on","the","package","website!"
+                ]
+            , D.toSimpleNote
+                "I count the length in bytes, so using non-ASCII characters costs extra.\
+                \ Please report your case at https://github.com/elm/compiler/issues if this seems\
+                \ overly restrictive for your needs."
             ]
         )
 
