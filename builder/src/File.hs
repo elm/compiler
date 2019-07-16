@@ -190,7 +190,11 @@ writeEntry destination root entry =
   let
     path = drop root (Zip.eRelativePath entry)
   in
-  if path == "LICENSE" || path == "elm.json" || List.isPrefixOf "src/" path then
+  if List.isPrefixOf "src/" path
+    || path == "LICENSE"
+    || path == "README.md"
+    || path == "elm.json"
+  then
       if not (null path) && last path == '/'
       then Dir.createDirectoryIfMissing True (destination </> path)
       else LBS.writeFile (destination </> path) (Zip.fromEntry entry)
