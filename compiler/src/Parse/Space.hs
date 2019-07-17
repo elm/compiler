@@ -157,7 +157,7 @@ eatSpaces pos end row col =
 -- LINE COMMENTS
 
 
-eatLineComment :: Ptr Word8 -> Ptr Word8 -> Word16 -> Word16 -> (# Status, Ptr Word8, Word16, Word16 #)
+eatLineComment :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> (# Status, Ptr Word8, Row, Col #)
 eatLineComment pos end row col =
   if pos >= end then
     (# Good, pos, row, col #)
@@ -208,7 +208,7 @@ data MultiStatus
   | MultiEndless
 
 
-eatMultiCommentHelp :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> Word16 -> (# MultiStatus, Ptr Word8, Word16, Word16 #)
+eatMultiCommentHelp :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> Word16 -> (# MultiStatus, Ptr Word8, Row, Col #)
 eatMultiCommentHelp pos end row col openComments =
   if pos >= end then
     (# MultiEndless, pos, row, col #)
