@@ -131,7 +131,7 @@ exitToHtmlBuilder exit =
 <head>
   <meta charset="UTF-8">
   <style>body { padding: 0; margin: 0; background-color: black; }</style>
-  <script src="http://localhost:8000/compile/errors.js"></script>
+  <script src="https://worker.elm-lang.org/compile/errors.js"></script>
 </head>
 <body>
   <script>Elm.Errors.init({flags:|] <> json <> [r|});</script>
