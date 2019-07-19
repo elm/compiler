@@ -175,7 +175,7 @@ diffToReport diff =
         \ with packages. That way there are previously published versions of the API to\
         \ diff against!"
         [ D.reflow $ "If you are just curious to see a diff, try running this command:"
-        , D.indent 4 $ D.dullyellow $ "elm diff elm/http 1.0.0 2.0.0"
+        , D.indent 4 $ D.dullyellow $ "elm diff elm/json 1.0.0 1.1.2"
         ]
 
     DiffNoExposed ->
