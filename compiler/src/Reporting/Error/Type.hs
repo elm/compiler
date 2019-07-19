@@ -231,7 +231,7 @@ toPatternReport source localizer patternRegion category tipe expected =
                   "But all the previous patterns match:"
                   [ D.link "Note"
                       "A `case` expression can only handle one type of value, so you may want to use"
-                      "union-types"
+                      "custom-types"
                       "to handle “mixing” types."
                   ]
               )
