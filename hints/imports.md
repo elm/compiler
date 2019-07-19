@@ -106,17 +106,17 @@ It would be the best policy to make it so every module in the whole ecosystem wo
 
 ```elm
 import Basics exposing (..)
-import List exposing ( List, (::) )
-import Maybe exposing ( Maybe( Just, Nothing ) )
-import Result exposing ( Result( Ok, Err ) )
+import List exposing (List, (::))
+import Maybe exposing (Maybe(..))
+import Result exposing (Result(..))
 import String
 import Tuple
 
 import Debug
 
-import Platform exposing ( Program )
-import Platform.Cmd as Cmd exposing ( Cmd )
-import Platform.Sub as Sub exposing ( Sub )
+import Platform exposing (Program)
+import Platform.Cmd as Cmd exposing (Cmd)
+import Platform.Sub as Sub exposing (Sub)
 ```
 
 You can think of these imports being at the top of any module you write.
