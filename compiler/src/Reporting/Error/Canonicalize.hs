@@ -274,7 +274,7 @@ toReport source err =
               "You have declared that `" ++ Name.toChars name ++ "` is an effect type:"
           ,
             D.reflow $
-              "But I cannot find a union type named `" ++ Name.toChars name ++ "` in this file!"
+              "But I cannot find a custom type named `" ++ Name.toChars name ++ "` in this file!"
           )
 
     EffectFunctionNotFound region name ->
@@ -342,7 +342,7 @@ toReport source err =
         Code.toSnippet source region Nothing
           (
             D.reflow $
-              "The (..) syntax is for exposing union type constructors. It cannot be used with a type alias like `"
+              "The (..) syntax is for exposing variants of a custom type. It cannot be used with a type alias like `"
               ++ Name.toChars name ++ "` though."
           ,
             D.reflow $
@@ -355,12 +355,12 @@ toReport source err =
           (
             D.reflow $
               "You are trying to import the `" <> Name.toChars ctor
-              <> "` type constructor by name:"
+              <> "` variant by name:"
           ,
             D.fillSep
               ["Try","importing",D.green (D.fromName tipe <> "(..)"),"instead."
               ,"The","dots","mean","“expose","the",D.fromName tipe,"type","and"
-              ,"all","its","constructors”","so","it","gives","you","access","to"
+              ,"all","its","variants","so","it","gives","you","access","to"
               , D.fromName ctor <> "."
               ]
           )
