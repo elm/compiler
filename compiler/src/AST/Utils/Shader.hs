@@ -74,9 +74,11 @@ escape chars =
       []
 
     c:cs
+      | c == '\r' -> escape cs
       | c == '\n' -> '\\' : 'n'  : escape cs
       | c == '\"' -> '\\' : '"'  : escape cs
       | c == '\'' -> '\\' : '\'' : escape cs
+      | c == '\\' -> '\\' : '\\' : escape cs
       | otherwise -> c : escape cs
 
 
