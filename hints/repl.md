@@ -28,26 +28,17 @@ The same can be done with definitions and custom types:
 > increment 41
 42 : number
 
-> factorial n =
-|   if n < 1 then
-|     1
-|   else
-|     n * factorial (n-1)
-|
+> factorial n = if n < 1 then 1 else n * factorial (n-1)
 <function> : number -> number
 
 > factorial 5
 120 : number
 
-> type User
-|   = Regular String
-|   | Visitor String
-|
+> type User = Regular String | Visitor String
 
-> case Regular "Tom" of
-|   Regular name -> "Hey again!"
+> case Regular "Tom" of \
+|   Regular name -> "Hey again!" /
 |   Visitor name -> "Nice to meet you!"
-|
 "Hey again!" : String
 ```
 
