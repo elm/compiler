@@ -75,7 +75,7 @@ Function un.onInit
 FunctionEnd
 
 Function LaunchLink
-  ExecShell "open" "http://elm-lang.org/get-started"
+  ExecShell "open" "https://elm-lang.org/get-started"
 FunctionEnd
 
 ;--------------------------------
