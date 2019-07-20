@@ -636,7 +636,7 @@ toParseErrorReport source modul =
                           \ choices. (E.g. side-effects, for loops, etc.) Elm manages effects with commands\
                           \ and subscriptions instead, so there is no special syntax for \"statements\" and\
                           \ therefore no need to use semicolons to separate them. I think this will make\
-                          \ more sense as you work through https://guide.elm-lang.org though!"
+                          \ more sense as you work through <https://guide.elm-lang.org> though!"
                       ]
                   )
 
@@ -874,8 +874,8 @@ toParseErrorReport source modul =
                       , D.indent 2 $ D.fillSep [D.cyan "Html" <> ".text",D.dullyellow "\"Hello!\""]
                       ]
                   , D.reflow $
-                      "You should be able to copy those lines directly into your file. Check out\
-                      \ some of the examples on https://elm-lang.org for more help getting started!"
+                      "You should be able to copy those lines directly into your file. Check out the\
+                      \ examples at <https://elm-lang.org/examples> for more help getting started!"
                   , D.toSimpleNote $
                       "This can also happen when something is indented too much!"
                   ]
