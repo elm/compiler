@@ -386,13 +386,8 @@ toReport source err =
             D.reflow $
               "The `" <> Name.toChars name <> "` type alias cannot be followed by (..) like this:"
           ,
-            D.stack
-              [ "Remove the (..) and it should work."
-              , D.link "Hint"
-                  "The distinction between `type` and `type alias` is important here. Read"
-                  "types-vs-type-aliases"
-                  "to learn more."
-              ]
+            D.reflow $
+              "Remove the (..) and it should work."
           )
 
     ImportExposingNotFound region (ModuleName.Canonical _ home) value possibleNames ->
