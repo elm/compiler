@@ -253,11 +253,11 @@ toPatternReport source localizer patternRegion category tipe expected =
             , patternTypeComparison localizer tipe expectedType
                 (addPatternCategory ("The " <> D.ordinal index <> " pattern is trying to match") category)
                 "But all the previous patterns in the list are:"
-                [ D.toSimpleHint $
-                    "Everything in the list needs to be the same type of value.\
-                    \ This way you never run into unexpected values partway through.\
-                    \ To mix different types in a single list, create a \"union type\" as\
-                    \ described in: <http://guide.elm-lang.org/types/union_types.html>"
+                [ D.link "Hint"
+                    "Everything in a list must be the same type of value. This way, we never\
+                    \ run into unexpected values partway through a List.map, List.foldl, etc. Read"
+                    "custom-types"
+                    "to learn how to “mix” types."
                 ]
             )
 
@@ -694,11 +694,11 @@ toExprReport source localizer exprRegion category tipe expected =
           , "The " <> ith <> " element of this list does not match all the previous elements:"
           , "The " <> ith <> " element is"
           , "But all the previous elements in the list are:"
-          , [ D.toSimpleHint $
-                "Everything in the list needs to be the same type of value.\
-                \ This way you never run into unexpected values partway through.\
-                \ To mix different types in a single list, create a \"union type\" as\
-                \ described in: <http://guide.elm-lang.org/types/union_types.html>"
+          , [ D.link "Hint"
+                "Everything in a list must be the same type of value. This way, we never\
+                \ run into unexpected values partway through a List.map, List.foldl, etc. Read"
+                "custom-types"
+                "to learn how to “mix” types."
             ]
           )
 
@@ -745,7 +745,7 @@ toExprReport source localizer exprRegion category tipe expected =
           , [ D.link "Hint"
                 "All branches in an `if` must produce the same type of values. This way, no\
                 \ matter which branch we take, the result is always a consistent shape. Read"
-                "union-types"
+                "custom-types"
                 "to learn how to “mix” types."
             ]
           )
@@ -760,7 +760,7 @@ toExprReport source localizer exprRegion category tipe expected =
           , [ D.link "Hint"
                 "All branches in a `case` must produce the same type of values. This way, no\
                 \ matter which branch we take, the result is always a consistent shape. Read"
-                "union-types"
+                "custom-types"
                 "to learn how to “mix” types."
             ]
           )
