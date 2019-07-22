@@ -253,15 +253,15 @@ crawlModule env@(Env _ root pkg srcDirs locals foreigns) mvar docsNeed name =
             Nothing ->
               case Map.lookup name locals of
                 Nothing ->
-                  crawlFile env mvar docsNeed name path
+                  crawlFile env mvar docsNeed name path =<< File.getTime path
 
                 Just local@(Details.Local oldPath oldTime deps _) ->
                   if path /= oldPath
-                  then crawlFile env mvar docsNeed name path
+                  then crawlFile env mvar docsNeed name path =<< File.getTime path
                   else
                     do  newTime <- File.getTime path
                         if oldTime < newTime || needsDocs docsNeed
-                          then crawlFile env mvar docsNeed name path
+                          then crawlFile env mvar docsNeed name path newTime
                           else crawlDeps env mvar deps (SCached local)
 
         p1:p2:ps ->
@@ -285,10 +285,9 @@ crawlModule env@(Env _ root pkg srcDirs locals foreigns) mvar docsNeed name =
                 return $ SBadImport Import.NotFound
 
 
-crawlFile :: Env -> MVar StatusDict -> DocsNeed -> ModuleName.Raw -> FilePath -> IO Status
-crawlFile env@(Env _ root pkg _ _ _) mvar docsNeed expectedName path =
-  do  time <- File.getTime path
-      source <- File.readUtf8 (root </> path)
+crawlFile :: Env -> MVar StatusDict -> DocsNeed -> ModuleName.Raw -> FilePath -> File.Time -> IO Status
+crawlFile env@(Env _ root pkg _ _ _) mvar docsNeed expectedName path time =
+  do  source <- File.readUtf8 (root </> path)
 
       case Parse.fromByteString pkg source of
         Left err ->
