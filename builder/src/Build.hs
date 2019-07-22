@@ -260,7 +260,7 @@ crawlModule env@(Env _ root pkg srcDirs locals foreigns) mvar docsNeed name =
                   then crawlFile env mvar docsNeed name path =<< File.getTime path
                   else
                     do  newTime <- File.getTime path
-                        if oldTime < newTime || needsDocs docsNeed
+                        if oldTime /= newTime || needsDocs docsNeed
                           then crawlFile env mvar docsNeed name path newTime
                           else crawlDeps env mvar deps (SCached local)
 
