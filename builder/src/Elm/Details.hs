@@ -2,6 +2,7 @@
 {-# LANGUAGE BangPatterns, OverloadedStrings #-}
 module Elm.Details
   ( Details(..)
+  , BuildID
   , ValidOutline(..)
   , Local(..)
   , Foreign(..)
@@ -15,7 +16,7 @@ module Elm.Details
 
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar, readMVar, takeMVar)
-import Control.Monad (liftM, liftM2, liftM3, liftM4)
+import Control.Monad (liftM, liftM2, liftM3)
 import Data.Binary (Binary, get, put, getWord8, putWord8)
 import qualified Data.Either as Either
 import qualified Data.Map as Map
@@ -27,6 +28,7 @@ import qualified Data.NonEmptyList as NE
 import qualified Data.OneOrMore as OneOrMore
 import qualified Data.Set as Set
 import qualified Data.Utf8 as Utf8
+import Data.Word (Word64)
 import qualified System.Directory as Dir
 import System.FilePath ((</>), (<.>))
 
@@ -66,10 +68,14 @@ data Details =
   Details
     { _outlineTime :: File.Time
     , _outline :: ValidOutline
+    , _buildID :: BuildID
     , _locals :: Map.Map ModuleName.Raw Local
     , _foreigns :: Map.Map ModuleName.Raw Foreign
     , _extras :: Extras
     }
+
+
+type BuildID = Word64
 
 
 data ValidOutline
@@ -77,12 +83,27 @@ data ValidOutline
   | ValidPkg Pkg.Name [ModuleName.Raw] (Map.Map Pkg.Name V.Version {- for docs in reactor -})
 
 
+-- NOTE: we need two ways to detect if a file must be recompiled:
+--
+-- (1) _time is the modification time from the last time we compiled the file.
+-- By checking EQUALITY with the current modification time, we can detect file
+-- saves and `git checkout` of previous versions. Both need a recompile.
+--
+-- (2) _lastChange is the BuildID from the last time a new interface file was
+-- generated, and _lastCompile is the BuildID from the last time the file was
+-- compiled. These may be different if a file is recompiled but the interface
+-- stayed the same. When the _lastCompile is LESS THAN the _lastChange of any
+-- imports, we need to recompile. This can happen when a project has multiple
+-- entrypoints and some modules are compiled less often than their imports.
+--
 data Local =
   Local
     { _path :: FilePath
     , _time :: File.Time
     , _deps :: [ModuleName.Raw]
     , _main :: Bool
+    , _lastChange :: BuildID
+    , _lastCompile :: BuildID
     }
 
 
@@ -104,14 +125,14 @@ type Interfaces =
 
 
 loadObjects :: FilePath -> Details -> IO (MVar (Maybe Opt.GlobalGraph))
-loadObjects root (Details _ _ _ _ extras) =
+loadObjects root (Details _ _ _ _ _ extras) =
   case extras of
     ArtifactsFresh _ o -> newMVar (Just o)
     ArtifactsCached    -> fork (File.readBinary (Stuff.objects root))
 
 
 loadInterfaces :: FilePath -> Details -> IO (MVar (Maybe Interfaces))
-loadInterfaces root (Details _ _ _ _ extras) =
+loadInterfaces root (Details _ _ _ _ _ extras) =
   case extras of
     ArtifactsFresh i _ -> newMVar (Just i)
     ArtifactsCached    -> fork (File.readBinary (Stuff.interfaces root))
@@ -143,9 +164,9 @@ load style scope root =
         Nothing ->
           generate style scope root newTime
 
-        Just details@(Details oldTime _ _ _ _) ->
+        Just details@(Details oldTime _ buildID _ _ _) ->
           if oldTime == newTime
-          then return (Right details)
+          then return (Right details { _buildID = buildID + 1 })
           else generate style scope root newTime
 
 
@@ -310,7 +331,7 @@ verifyDependencies env@(Env key scope root cache _ _ _) time outline solution di
             objs = Map.foldr addObjects Opt.empty artifacts
             ifaces = Map.foldrWithKey (addInterfaces directDeps) Map.empty artifacts
             foreigns = Map.map (OneOrMore.destruct Foreign) $ Map.foldrWithKey gatherForeigns Map.empty $ Map.intersection artifacts directDeps
-            details = Details time outline Map.empty foreigns (ArtifactsFresh ifaces objs)
+            details = Details time outline 0 Map.empty foreigns (ArtifactsFresh ifaces objs)
           in
           do  BW.writeBinary scope (Stuff.objects    root) objs
               BW.writeBinary scope (Stuff.interfaces root) ifaces
@@ -761,8 +782,14 @@ endpointDecoder =
 
 
 instance Binary Details where
-  get = do { a <- get; b <- get; c <- get; d <- get; return (Details a b c d ArtifactsCached) }
-  put (Details a b c d _) = put a >> put b >> put c >> put d
+  put (Details a b c d e _) = put a >> put b >> put c >> put d >> put e
+  get =
+    do  a <- get
+        b <- get
+        c <- get
+        d <- get
+        e <- get
+        return (Details a b c d e ArtifactsCached)
 
 
 instance Binary ValidOutline where
@@ -780,8 +807,15 @@ instance Binary ValidOutline where
 
 
 instance Binary Local where
-  get = liftM4 Local get get get get
-  put (Local a b c d) = put a >> put b >> put c >> put d
+  put (Local a b c d e f) = put a >> put b >> put c >> put d >> put e >> put f
+  get =
+    do  a <- get
+        b <- get
+        c <- get
+        d <- get
+        e <- get
+        f <- get
+        return (Local a b c d e f)
 
 
 instance Binary Foreign where
