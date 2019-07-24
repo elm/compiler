@@ -1,4 +1,5 @@
-# https://gist.github.com/rlefevre/1523f47e75310e28eee243c9c5651ac9
+# Create: https://gist.github.com/rlefevre/1523f47e75310e28eee243c9c5651ac9
+# Delete: docker system prune -a ; docker images -a
 
 FROM alpine:3.10
 
