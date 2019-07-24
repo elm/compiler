@@ -174,7 +174,7 @@ getExactDeps maybeOutline =
                         Left _ ->
                           return Map.empty
 
-                        Right (Details.Details _ validOutline _ _ _) ->
+                        Right (Details.Details _ validOutline _ _ _ _) ->
                           case validOutline of
                             Details.ValidApp _ ->
                               return Map.empty

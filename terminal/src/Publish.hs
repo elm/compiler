@@ -173,7 +173,7 @@ verifyBuild :: FilePath -> Task.Task Exit.Publish Docs.Documentation
 verifyBuild root =
   reportBuildCheck $ BW.withScope $ \scope ->
     Task.run $
-    do  details@(Details.Details _ outline _ _ _) <-
+    do  details@(Details.Details _ outline _ _ _ _) <-
           Task.eio Exit.PublishBadDetails $
             Details.load Reporting.silent scope root
 
@@ -309,7 +309,7 @@ withPrepublishDir root callback =
 verifyZipBuild :: FilePath -> IO (Either Exit.Publish ())
 verifyZipBuild root =
   BW.withScope $ \scope -> Task.run $
-  do  details@(Details.Details _ outline _ _ _) <-
+  do  details@(Details.Details _ outline _ _ _ _) <-
         Task.eio Exit.PublishZipBadDetails $
           Details.load Reporting.silent scope root
 
