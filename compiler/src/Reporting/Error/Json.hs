@@ -77,12 +77,20 @@ parseErrorToReport path source parseError reason =
         )
 
     ObjectField row col ->
-      toSnippet "UNFINISHED OBJECT" row col
+      toSnippet "EXTRA COMMA" row col
         (
           "I was partway through parsing a JSON object when I got stuck here:"
         ,
           D.stack
-            [ D.reflow $ "I was expecting to see a field name next."
+            [ D.fillSep
+                ["I","saw","a","comma","right","before","I","got","stuck","here,"
+                ,"so","I","was","expecting","to","see","a","field","name","like"
+                ,D.dullyellow "\"type\"","or",D.dullyellow "\"dependencies\"","next."
+                ]
+            , D.reflow $
+                "This error is commonly caused by trailing commas in JSON objects. Those are\
+                \ actually disallowed by <https://json.org> so check the previous line for a\
+                \ trailing commas that may need to be deleted."
             , objectNote
             ]
         )
