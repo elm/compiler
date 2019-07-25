@@ -2016,11 +2016,28 @@ toDeclDefReport source name declDef startRow startCol =
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
               (
-                D.reflow $
-                  "It looks like you are trying to use `" ++ keyword ++ "` as an argument:"
+                D.fillSep
+                  ["The","name"
+                  ,"`" <> D.cyan (D.fromChars keyword) <> "`"
+                  ,"is","reserved","in","Elm,","so","it","cannot"
+                  ,"be","used","as","an","argument","here:"
+                  ]
               ,
-                D.reflow $
-                  "This is a reserved word! Try using some other name?"
+                D.stack
+                  [ D.reflow $
+                      "Try renaming it to something else."
+                  , case keyword of
+                      "as" ->
+                        D.toFancyNote
+                          ["This","keyword","is","reserved","for","pattern","matches","like"
+                          ,"((x,y)",D.cyan "as","point)","where","you","want","to","name","a","tuple","and"
+                          ,"the","values","it","contains."
+                          ]
+
+                      _ ->
+                        D.toSimpleNote $
+                          "The `" ++ keyword ++ "` keyword has a special meaning in Elm, so it can only be used in certain situations."
+                  ]
               )
 
         Code.Operator "->" ->
@@ -3107,11 +3124,28 @@ toLetDefReport source name def startRow startCol =
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
               (
-                D.reflow $
-                  "It looks like you are trying to use `" ++ keyword ++ "` as an argument:"
+                D.fillSep
+                  ["The","name"
+                  ,"`" <> D.cyan (D.fromChars keyword) <> "`"
+                  ,"is","reserved","in","Elm,","so","it","cannot"
+                  ,"be","used","as","an","argument","here:"
+                  ]
               ,
-                D.reflow $
-                  "This is a reserved word! Try using some other name?"
+                D.stack
+                  [ D.reflow $
+                      "Try renaming it to something else."
+                  , case keyword of
+                      "as" ->
+                        D.toFancyNote
+                          ["This","keyword","is","reserved","for","pattern","matches","like"
+                          ,"((x,y)",D.cyan "as","point)","where","you","want","to","name","a","tuple","and"
+                          ,"the","values","it","contains."
+                          ]
+
+                      _ ->
+                        D.toSimpleNote $
+                          "The `" ++ keyword ++ "` keyword has a special meaning in Elm, so it can only be used in certain situations."
+                  ]
               )
 
         Code.Operator "->" ->
