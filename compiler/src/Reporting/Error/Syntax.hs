@@ -3883,11 +3883,13 @@ toRecordReport source context record startRow startCol =
                 D.reflow $
                   "I am partway through parsing a record, but I got stuck after that last comma:"
               ,
-                addNoteForRecordError $
-                  D.reflow $
-                    "Trailing commas are not allowed in records, so I was expecting to see another\
-                    \ record field defined next. If you are done defining the record, the fix may\
-                    \ be to delete that last comma?"
+                D.stack
+                  [ D.reflow $
+                      "Trailing commas are not allowed in records, so I was expecting to see another\
+                      \ record field defined next. If you are done defining the record, the fix may\
+                      \ be to delete that last comma?"
+                  , noteForRecordError
+                  ]
               )
 
     RecordEquals row col ->
@@ -3901,11 +3903,13 @@ toRecordReport source context record startRow startCol =
             D.reflow $
               "I am partway through parsing a record, but I got stuck here:"
           ,
-            addNoteForRecordError $
-              D.fillSep $
-                ["I","just","saw","a","field","name,","so","I","was","expecting","to","see"
-                ,"an","equals","sign","next.","So","try","putting","an",D.green "=","sign","here?"
-                ]
+            D.stack
+              [ D.fillSep $
+                  ["I","just","saw","a","field","name,","so","I","was","expecting","to","see"
+                  ,"an","equals","sign","next.","So","try","putting","an",D.green "=","sign","here?"
+                  ]
+              , noteForRecordError
+              ]
           )
 
     RecordExpr expr row col ->
@@ -3960,11 +3964,13 @@ toRecordReport source context record startRow startCol =
             D.reflow $
               "I am partway through parsing a record, but I got stuck after that last comma:"
           ,
-            addNoteForRecordError $
-              D.reflow $
-                "Trailing commas are not allowed in records, so the fix may be to\
-                \ delete that last comma? Or maybe you were in the middle of defining\
-                \ an additional field?"
+            D.stack
+              [ D.reflow $
+                  "Trailing commas are not allowed in records, so the fix may be to\
+                  \ delete that last comma? Or maybe you were in the middle of defining\
+                  \ an additional field?"
+              , noteForRecordError
+              ]
           )
 
     RecordIndentEquals row col ->
@@ -4004,11 +4010,9 @@ toRecordReport source context record startRow startCol =
           )
 
 
-addNoteForRecordError :: D.Doc -> D.Doc
-addNoteForRecordError normalRecommendation =
+noteForRecordError :: D.Doc
+noteForRecordError =
   D.stack $
-    normalRecommendation
-    :
     [ D.toSimpleNote
         "If you are trying to define a record across multiple lines, I recommend using this format:"
     , D.indent 4 $ D.vcat $
