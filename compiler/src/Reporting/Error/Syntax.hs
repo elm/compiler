@@ -2340,25 +2340,40 @@ toExprReport source context expr startRow startCol =
           )
 
     OperatorRight op row col ->
-      let region = toRegion row col in
+      let
+        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+        region = toRegion row col
+        isMath = elem op ["-","+","*","/","^"]
+      in
       Report.Report "MISSING EXPRESSION" region [] $
-        Code.toSnippet source region Nothing
+        Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I was expecting to see an expression after this " ++ Name.toChars op ++ " operator:"
+                "I just saw a " ++ Name.toChars op ++ " "
+                ++ (if isMath then "sign" else "operator")
+                ++ ", so I am getting stuck here:"
           ,
-            D.stack
-              [ D.fillSep $
-                  ["You","can","just","put","anything","for","now,","like"
-                  ,D.dullyellow "42","or",D.dullyellow"\"hello\"" <> "."
-                  ,"Once","there","is","something","there,","I","can","probably"
-                  ,"give","a","more","specific","hint!"
-                  ]
-              , D.toSimpleNote $
-                  "This can also happen if run into reserved words like `let` or `as` unexpectedly.\
-                  \ Or if I run into operators in unexpected spots. Point is, there are a\
-                  \ couple ways I can get confused and give sort of weird advice!"
-              ]
+            if isMath then
+              D.fillSep
+                ["I","was","expecting","to","see","an","expression","next."
+                ,"Something","like",D.dullyellow "42","or",D.dullyellow "1000"
+                ,"that","makes","sense","with","a",D.fromName op,"sign."
+                ]
+            else if op == "&&" || op == "||" then
+              D.fillSep
+                ["I","was","expecting","to","see","an","expression","next."
+                ,"Something","like",D.dullyellow "True","or",D.dullyellow "False"
+                ,"that","makes","sense","with","boolean","logic."
+                ]
+            else if op == "|>" then
+              D.reflow $
+                "I was expecting to see a function next."
+            else if op == "<|" then
+              D.reflow $
+                "I was expecting to see an argument next."
+            else
+              D.reflow $
+                "I was expecting to see an expression next."
           )
 
     OperatorReserved operator row col ->
