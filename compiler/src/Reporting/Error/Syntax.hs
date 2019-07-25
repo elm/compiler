@@ -3872,6 +3872,26 @@ toRecordReport source context record startRow startCol =
                   \ that is a reserved word. Try using a different name!"
               )
 
+        Code.Other (Just ',') ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
+          Report.Report "EXTRA COMMA" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I am partway through parsing a record, but I got stuck here:"
+              ,
+                D.stack
+                  [ D.reflow $
+                      "I am seeing two commas in a row. This is the second one!"
+                  , D.reflow $
+                      "Just delete one of the commas and you should be all set!"
+                  , noteForRecordError
+                  ]
+              )
+
         _ ->
           let
             surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
@@ -5235,6 +5255,26 @@ toTRecordReport source context record startRow startCol =
                 D.reflow $
                   "It looks like you are trying to use `" ++ keyword ++ "` as a field name, but \
                   \ that is a reserved word. Try using a different name!"
+              )
+
+        Code.Other (Just ',') ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
+          Report.Report "EXTRA COMMA" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I am partway through parsing a record type, but I got stuck here:"
+              ,
+                D.stack
+                  [ D.reflow $
+                      "I am seeing two commas in a row. This is the second one!"
+                  , D.reflow $
+                      "Just delete one of the commas and you should be all set!"
+                  , noteForRecordTypeError
+                  ]
               )
 
         _ ->
