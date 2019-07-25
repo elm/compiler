@@ -3758,10 +3758,11 @@ toIfReport source context if_ startRow startCol =
               "I was expecting to see an `else` branch after this:"
           ,
             D.stack
-              [ D.reflow $
-                  "I know what to do when the condition is `True`, but not when it is `False`."
-              , D.fillSep
-                  ["Add","an",D.cyan "else","branch","to","handle","that","scenario!"]
+              [ D.fillSep
+                  ["I","know","what","to","do","when","the","condition","is","True,"
+                  ,"but","what","happens","when","it","is","False?"
+                  ,"Add","an",D.cyan "else","branch","to","handle","that","scenario!"
+                  ]
               ]
           )
 
