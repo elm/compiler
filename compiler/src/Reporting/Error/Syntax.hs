@@ -3881,7 +3881,7 @@ toRecordReport source context record startRow startCol =
             Code.toSnippet source surroundings (Just region)
               (
                 D.reflow $
-                  "I am partway through parsing a record, but I got stuck after that last comma:"
+                  "I am partway through parsing a record, but I got stuck here:"
               ,
                 D.stack
                   [ D.reflow $
@@ -5248,11 +5248,13 @@ toTRecordReport source context record startRow startCol =
                 D.reflow $
                   "I am partway through parsing a record type, but I got stuck after that last comma:"
               ,
-                addNoteForRecordTypeError $
-                  D.reflow $
-                    "Trailing commas are not allowed in records, so I was expecting to see another\
-                    \ record field defined next. If you are done defining the record, the fix may\
-                    \ be to delete that last comma?"
+                D.stack
+                  [ D.reflow $
+                      "Trailing commas are not allowed in records, so I was expecting to see another\
+                      \ record field defined next. If you are done defining the record, the fix may\
+                      \ be to delete that last comma?"
+                  , noteForRecordTypeError
+                  ]
               )
 
     TRecordColon row col ->
@@ -5266,11 +5268,13 @@ toTRecordReport source context record startRow startCol =
             D.reflow $
               "I am partway through parsing a record type, but I got stuck here:"
           ,
-            addNoteForRecordTypeError $
-              D.fillSep $
-                ["I","just","saw","a","field","name,","so","I","was","expecting","to","see"
-                ,"a","colon","next.","So","try","putting","an",D.green ":","sign","here?"
-                ]
+            D.stack
+              [ D.fillSep $
+                  ["I","just","saw","a","field","name,","so","I","was","expecting","to","see"
+                  ,"a","colon","next.","So","try","putting","an",D.green ":","sign","here?"
+                  ]
+              , noteForRecordTypeError
+              ]
           )
 
     TRecordType tipe row col ->
@@ -5290,11 +5294,13 @@ toTRecordReport source context record startRow startCol =
             D.reflow $
               "I just saw the opening curly brace of a record type, but then I got stuck here:"
           ,
-            addNoteForRecordTypeIndentError $
-              D.fillSep $
-                ["I","am","expecting","a","record","like",D.dullyellow "{ name : String, age : Int }","here."
-                ,"Try","defining","some","fields","of","your","own?"
-                ]
+            D.stack
+              [ D.fillSep $
+                  ["I","am","expecting","a","record","like",D.dullyellow "{ name : String, age : Int }","here."
+                  ,"Try","defining","some","fields","of","your","own?"
+                  ]
+              , noteForRecordTypeIndentError
+              ]
           )
 
     TRecordIndentEnd row col ->
@@ -5308,10 +5314,12 @@ toTRecordReport source context record startRow startCol =
             D.reflow $
               "I was expecting to see a closing curly brace next:"
           ,
-            addNoteForRecordTypeIndentError $
-              D.fillSep $
-                ["Try","putting","an",D.green "}","and","see","if","that","helps?"
-                ]
+            D.stack
+              [ D.fillSep $
+                  ["Try","putting","an",D.green "}","and","see","if","that","helps?"
+                  ]
+              , noteForRecordTypeIndentError
+              ]
           )
 
     TRecordIndentField row col ->
@@ -5325,11 +5333,13 @@ toTRecordReport source context record startRow startCol =
             D.reflow $
               "I am partway through parsing a record type, but I got stuck after that last comma:"
           ,
-            addNoteForRecordTypeIndentError $
-              D.reflow $
-                "Trailing commas are not allowed in record types, so the fix may be to\
-                \ delete that last comma? Or maybe you were in the middle of defining\
-                \ an additional field?"
+            D.stack
+              [ D.reflow $
+                  "Trailing commas are not allowed in record types, so the fix may be to\
+                  \ delete that last comma? Or maybe you were in the middle of defining\
+                  \ an additional field?"
+              , noteForRecordTypeIndentError
+              ]
           )
 
     TRecordIndentColon row col ->
@@ -5344,10 +5354,12 @@ toTRecordReport source context record startRow startCol =
               "I am partway through parsing a record type. I just saw a record\
               \ field, so I was expecting to see a colon next:"
           ,
-            addNoteForRecordTypeIndentError $
-              D.fillSep $
-                ["Try","putting","an",D.green ":","followed","by","a","type?"
-                ]
+            D.stack
+              [ D.fillSep $
+                  ["Try","putting","an",D.green ":","followed","by","a","type?"
+                  ]
+              , noteForRecordTypeIndentError
+              ]
           )
 
     TRecordIndentType row col ->
@@ -5361,19 +5373,19 @@ toTRecordReport source context record startRow startCol =
             D.reflow $
               "I am partway through parsing a record type, and I was expecting to run into a type next:"
           ,
-            addNoteForRecordTypeIndentError $
-              D.fillSep $
-                ["Try","putting","something","like"
-                ,D.dullyellow "Int","or",D.dullyellow "String","for","now?"
-                ]
+            D.stack
+              [ D.fillSep $
+                  ["Try","putting","something","like"
+                  ,D.dullyellow "Int","or",D.dullyellow "String","for","now?"
+                  ]
+              , noteForRecordTypeIndentError
+              ]
           )
 
 
-addNoteForRecordTypeError :: D.Doc -> D.Doc
-addNoteForRecordTypeError normalRecommendation =
+noteForRecordTypeError :: D.Doc
+noteForRecordTypeError =
   D.stack $
-    normalRecommendation
-    :
     [ D.toSimpleNote
         "If you are trying to define a record type across multiple lines, I recommend using this format:"
     , D.indent 4 $ D.vcat $
@@ -5389,11 +5401,9 @@ addNoteForRecordTypeError normalRecommendation =
     ]
 
 
-addNoteForRecordTypeIndentError :: D.Doc -> D.Doc
-addNoteForRecordTypeIndentError normalRecommendation =
+noteForRecordTypeIndentError :: D.Doc
+noteForRecordTypeIndentError =
   D.stack $
-    normalRecommendation
-    :
     [ D.toSimpleNote
         "I may be confused by indentation. For example, if you are trying to define\
         \ a record type across multiple lines, I recommend using this format:"
