@@ -58,7 +58,7 @@ toEncoder tipe =
           | name == Name.array -> encodeArray arg
 
         _ ->
-          error "toEncoder: bad union type"
+          error "toEncoder: bad custom type"
 
     Can.TRecord _ (Just _) ->
       error "toEncoder: bad record"
