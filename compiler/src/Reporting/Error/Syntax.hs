@@ -2023,6 +2023,33 @@ toDeclDefReport source name declDef startRow startCol =
                   "This is a reserved word! Try using some other name?"
               )
 
+        Code.Operator "->" ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toWiderRegion row col 2
+          in
+          Report.Report "MISSING COLON?" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I was not expecting to see an arrow here:"
+              ,
+                D.stack
+                  [ D.fillSep
+                      ["This","usually","means","a",D.green ":","is","missing","a","bit","earlier","in"
+                      ,"a","type","annotation.","It","could","be","something","else","though,","so"
+                      ,"here","is","a","valid","definition","for","reference:"
+                      ]
+                  , D.vcat
+                      [ D.fillSep [D.green "add",":","Int","->","Int","->","Int"]
+                      , D.fillSep [D.green "add","x","y","="]
+                      , D.fillSep [" ","x","+","y"]
+                      ]
+                  , D.reflow $
+                      "Try to use that format with your `" ++ Name.toChars name ++ "` definition!"
+                  ]
+              )
+
         Code.Operator op ->
           let
             surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
@@ -3085,6 +3112,33 @@ toLetDefReport source name def startRow startCol =
               ,
                 D.reflow $
                   "This is a reserved word! Try using some other name?"
+              )
+
+        Code.Operator "->" ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toWiderRegion row col 2
+          in
+          Report.Report "MISSING COLON?" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I was not expecting to see an arrow here:"
+              ,
+                D.stack
+                  [ D.fillSep
+                      ["This","usually","means","a",D.green ":","is","missing","a","bit","earlier","in"
+                      ,"a","type","annotation.","It","could","be","something","else","though,","so"
+                      ,"here","is","a","valid","definition","for","reference:"
+                      ]
+                  , D.vcat
+                      [ D.indent 4 $ D.fillSep [D.green "add",":","Int","->","Int","->","Int"]
+                      , D.indent 4 $ D.fillSep [D.green "add","x","y","="]
+                      , D.indent 6 $ D.fillSep ["x","+","y"]
+                      ]
+                  , D.reflow $
+                      "Try to use that format with your `" ++ Name.toChars name ++ "` definition!"
+                  ]
               )
 
         Code.Operator op ->
