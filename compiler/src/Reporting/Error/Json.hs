@@ -51,9 +51,13 @@ parseErrorToReport :: FilePath -> Code.Source -> ParseError -> Reason -> Help.Re
 parseErrorToReport path source parseError reason =
   let
     toSnippet title row col (problem, details) =
-      let pos = A.Position row col in
+      let
+        pos = A.Position row col
+        surroundings = A.Region (A.Position (max 1 (row - 2)) 1) pos
+        region = A.Region pos pos
+      in
       Help.jsonReport title (Just path) $
-        Code.toSnippet source (A.Region pos pos) Nothing
+        Code.toSnippet source surroundings (Just region)
           ( D.reflow (because reason problem)
           , details
           )
