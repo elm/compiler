@@ -2820,7 +2820,7 @@ toOperatorReport source context operator row col =
             ,
               D.stack
                 [ D.reflow $
-                    "It makes sense to see arrows around here, so I suspect it is something earlier."
+                    "It makes sense to see arrows around here, so I suspect it is something earlier. Maybe this pattern is indented a bit farther than the previous patterns?"
                 , noteForCaseIndentError
                 ]
             )
@@ -3536,8 +3536,9 @@ noteForCaseIndentError =
         , D.indent 8 $ D.fillSep [D.dullyellow "400"]
         ]
     , D.reflow $
-        "Notice the indentation! Each pattern is aligned, and each branch is indented\
-        \ a bit more than the corresponding pattern. That is important!"
+        "Notice the indentation! Patterns are aligned with each other. Same indentation.\
+        \ The expressions after each arrow are all indented a bit more than the patterns.\
+        \ That is important!"
     ]
 
 
