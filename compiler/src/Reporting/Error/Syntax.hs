@@ -3747,24 +3747,43 @@ toIfReport source context if_ startRow startCol =
           )
 
     IfIndentElse row col ->
-      let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
-      in
-      Report.Report "UNFINISHED IF" region [] $
-        Code.toSnippet source surroundings (Just region)
-          (
-            D.reflow $
-              "I was expecting to see an `else` branch after this:"
-          ,
-            D.stack
-              [ D.fillSep
-                  ["I","know","what","to","do","when","the","condition","is","True,"
-                  ,"but","what","happens","when","it","is","False?"
-                  ,"Add","an",D.cyan "else","branch","to","handle","that","scenario!"
+      case Code.nextLineStartsWithKeyword "else" source row of
+        Just (elseRow, elseCol) ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position elseRow elseCol)
+            region = toWiderRegion elseRow elseCol 4
+          in
+          Report.Report "WEIRD ELSE BRANCH" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I was partway through an `if` expression when I got stuck here:"
+              ,
+                D.fillSep $
+                  ["I","think","this",D.cyan "else","keyword","needs","to","be","indented","more."
+                  ,"Try","adding","some","spaces","before","it."
                   ]
-              ]
-          )
+              )
+
+        Nothing ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
+          Report.Report "UNFINISHED IF" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I was expecting to see an `else` branch after this:"
+              ,
+                D.stack
+                  [ D.fillSep
+                      ["I","know","what","to","do","when","the","condition","is","True,"
+                      ,"but","what","happens","when","it","is","False?"
+                      ,"Add","an",D.cyan "else","branch","to","handle","that","scenario!"
+                      ]
+                  ]
+              )
 
 
 

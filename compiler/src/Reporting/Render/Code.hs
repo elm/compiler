@@ -7,6 +7,7 @@ module Reporting.Render.Code
   , toPair
   , Next(..)
   , whatIsNext
+  , nextLineStartsWithKeyword
   )
   where
 
@@ -245,3 +246,16 @@ startsWithKeyword restOfLine keyword =
 
     c:_ ->
       not (Char.isAlphaNum c || c == '_')
+
+
+nextLineStartsWithKeyword :: [Char] -> Source -> Row -> Maybe (Row, Col)
+nextLineStartsWithKeyword keyword (Source sourceLines) row =
+  case List.lookup (row + 1) sourceLines of
+    Nothing ->
+      Nothing
+
+    Just line ->
+      if startsWithKeyword (dropWhile (==' ') line) keyword then
+        Just (row + 1, 1 + fromIntegral (length (takeWhile (==' ') line)))
+      else
+        Nothing
