@@ -3892,12 +3892,12 @@ toRecordReport source context record startRow startCol =
                   ]
               )
 
-        _ ->
+        Code.Close _ '}' ->
           let
             surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
             region = toRegion row col
           in
-          Report.Report "UNFINISHED RECORD" region [] $
+          Report.Report "EXTRA COMMA" region [] $
             Code.toSnippet source surroundings (Just region)
               (
                 D.reflow $
@@ -3905,9 +3905,29 @@ toRecordReport source context record startRow startCol =
               ,
                 D.stack
                   [ D.reflow $
-                      "Trailing commas are not allowed in records, so I was expecting to see another\
-                      \ record field defined next. If you are done defining the record, the fix may\
-                      \ be to delete that last comma?"
+                      "Trailing commas are not allowed in records. Try deleting the comma that appears\
+                      \ before this closing curly brace."
+                  , noteForRecordError
+                  ]
+              )
+
+        _ ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
+          Report.Report "PROBLEM IN RECORD" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I am partway through parsing a record, but I got stuck here:"
+              ,
+                D.stack
+                  [ D.fillSep
+                      ["I","was","expecting","to","see","another","record","field","defined","next,"
+                      ,"so","I","am","looking","for","a","lower-case","name","like"
+                      ,D.dullyellow "userName","or",D.dullyellow "plantHeight" <> "."
+                      ]
                   , noteForRecordError
                   ]
               )
@@ -5277,22 +5297,42 @@ toTRecordReport source context record startRow startCol =
                   ]
               )
 
+        Code.Close _ '}' ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
+          Report.Report "EXTRA COMMA" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I am partway through parsing a record type, but I got stuck here:"
+              ,
+                D.stack
+                  [ D.reflow $
+                      "Trailing commas are not allowed in record types. Try deleting the comma that\
+                      \ appears before this closing curly brace."
+                  , noteForRecordTypeError
+                  ]
+              )
+
         _ ->
           let
             surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
             region = toRegion row col
           in
-          Report.Report "UNFINISHED RECORD TYPE" region [] $
+          Report.Report "PROBLEM IN RECORD TYPE" region [] $
             Code.toSnippet source surroundings (Just region)
               (
                 D.reflow $
-                  "I am partway through parsing a record type, but I got stuck after that last comma:"
+                  "I am partway through parsing a record type, but I got stuck here:"
               ,
                 D.stack
-                  [ D.reflow $
-                      "Trailing commas are not allowed in records, so I was expecting to see another\
-                      \ record field defined next. If you are done defining the record, the fix may\
-                      \ be to delete that last comma?"
+                  [ D.fillSep
+                      ["I","was","expecting","to","see","another","record","field","defined","next,"
+                      ,"so","I","am","looking","for","a","lower-case","name","like"
+                      ,D.dullyellow "userName","or",D.dullyellow "plantHeight" <> "."
+                      ]
                   , noteForRecordTypeError
                   ]
               )
