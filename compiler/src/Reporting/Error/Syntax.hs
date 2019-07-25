@@ -2868,11 +2868,15 @@ toOperatorReport source context operator row col =
           else
             (
               D.reflow $
-                "I was not expecting an arrow here:"
+                "I was partway through parsing an expression when I got stuck on this arrow:"
             ,
-              D.reflow $
-                "Arrows should only appear in `case` expressions and anonymous functions. Maybe\
-                \ you want > or >= instead?"
+              D.stack
+                [ "Arrows should only appear in `case` expressions and anonymous functions.\n\
+                  \Maybe it was supposed to be a > sign instead?"
+                , D.toSimpleNote $
+                    "The syntax for anonymous functions is (\\x -> x + 1) so the arguments all appear\
+                    \ after the backslash and before the arrow. Maybe you forgot the backslash earlier?"
+                ]
             )
 
     BadEquals ->
