@@ -2875,7 +2875,7 @@ toOperatorReport source context operator row col =
                   \Maybe it was supposed to be a > sign instead?"
                 , D.toSimpleNote $
                     "The syntax for anonymous functions is (\\x -> x + 1) so the arguments all appear\
-                    \ after the backslash and before the arrow. Maybe you forgot the backslash earlier?"
+                    \ after the backslash and before the arrow. Maybe a backslash is missing earlier?"
                 ]
             )
 
