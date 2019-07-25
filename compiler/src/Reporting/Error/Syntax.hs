@@ -1407,12 +1407,20 @@ toDeclarationsReport source decl =
             Code.toSnippet source region Nothing
               (
                 D.reflow $
-                  "I was expecting to see a new declaration here:"
+                  "I was expecting to see a declaration, but I am getting stuck here:"
               ,
                 D.stack
-                  [ D.reflow $
-                      "I am not sure what is going wrong exactly, but here are a couple valid\
-                      \ declarations for reference:"
+                  [ case Code.whatIsNext source row col of
+                      Code.Other (Just char) | Char.isUpper char ->
+                        D.reflow $
+                          "All declarations start with lower-case letters in Elm, so maybe this letter can\
+                          \ be changed to lower-case?"
+
+                      _ ->
+                       D.reflow $
+                          "Declarations normally start with a lower-case name or the `type` keyword."
+                  , D.toSimpleHint $
+                      "Here are a couple valid declarations for reference:"
                   , D.vcat
                       [ D.fillSep [D.green "add",":","Int","->","Int","->","Int"]
                       , D.fillSep [D.green "add","x","y","="]
@@ -1420,8 +1428,8 @@ toDeclarationsReport source decl =
                       ]
                   , D.fillSep [D.cyan "type",D.green "User","=","Anonymous","|","LoggedIn String"]
                   , D.reflow $
-                      "Note that all declarations start with lower-case letters in Elm. Capitalization\
-                      \ makes a difference, so be conscious of that if you are working from examples!"
+                      "Notice that these declarations start with lower-case letters. Capitalization\
+                      \ makes a difference in Elm!"
                   ]
               )
 
