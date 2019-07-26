@@ -450,6 +450,13 @@ isSuper super tipe =
         Appendable -> isString h n || isList h n
         CompAppend -> isString h n || isList h n && isSuper Comparable (head args)
 
+    Tuple a b maybeC ->
+      case super of
+        Number     -> False
+        Comparable -> isSuper super a && isSuper super b && maybe True (isSuper super) maybeC
+        Appendable -> False
+        CompAppend -> False
+
     _ ->
       False
 
