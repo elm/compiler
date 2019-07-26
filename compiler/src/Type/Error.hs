@@ -175,7 +175,6 @@ data Problem
   | StringToFloat
   | AnythingToBool
   | AnythingFromMaybe
-  | AnythingToList
   | ArityMismatch Int Int
   | BadFlexSuper Direction Super Name.Name Type
   | BadRigidVar Name.Name Type
@@ -301,7 +300,7 @@ toDiff localizer ctx tipe1 tipe2 =
       different
         (toDoc localizer ctx t1)
         (RT.apply ctx (D.dullyellow (L.toDoc localizer home name)) [toDoc localizer RT.App t2])
-        (Bag.one AnythingToList)
+        Bag.empty
 
     (Alias home1 name1 args1 t1, t2) ->
       case diffAliasedRecord localizer t1 t2 of

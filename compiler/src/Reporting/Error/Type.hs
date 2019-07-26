@@ -431,10 +431,6 @@ problemToHint problem =
           ]
       ]
 
-    T.AnythingToList ->
-      [ D.toSimpleHint "Did you forget to add [] around it?"
-      ]
-
     T.ArityMismatch x y ->
       [ D.toSimpleHint $
           if x < y then
