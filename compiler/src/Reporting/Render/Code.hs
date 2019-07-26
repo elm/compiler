@@ -8,6 +8,7 @@ module Reporting.Render.Code
   , Next(..)
   , whatIsNext
   , nextLineStartsWithKeyword
+  , nextLineStartsWithCloseCurly
   )
   where
 
@@ -259,3 +260,18 @@ nextLineStartsWithKeyword keyword (Source sourceLines) row =
         Just (row + 1, 1 + fromIntegral (length (takeWhile (==' ') line)))
       else
         Nothing
+
+
+nextLineStartsWithCloseCurly :: Source -> Row -> Maybe (Row, Col)
+nextLineStartsWithCloseCurly (Source sourceLines) row =
+  case List.lookup (row + 1) sourceLines of
+    Nothing ->
+      Nothing
+
+    Just line ->
+      case dropWhile (==' ') line of
+        '}':_ ->
+          Just (row + 1, 1 + fromIntegral (length (takeWhile (==' ') line)))
+
+        _ ->
+          Nothing

@@ -3977,21 +3977,42 @@ toRecordReport source context record startRow startCol =
           )
 
     RecordIndentEnd row col ->
-      let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
-      in
-      Report.Report "UNFINISHED RECORD" region [] $
-        Code.toSnippet source surroundings (Just region)
-          (
-            D.reflow $
-              "I was expecting to see a closing curly brace next:"
-          ,
-            addNoteForRecordIndentError $
-              D.fillSep $
-                ["Try","putting","an",D.green "}","and","see","if","that","helps?"
-                ]
-          )
+      case Code.nextLineStartsWithCloseCurly source row of
+        Just (curlyRow, curlyCol) ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position curlyRow curlyCol)
+            region = toRegion curlyRow curlyCol
+          in
+          Report.Report "NEED MORE INDENTATION" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I was partway through parsing a record, but I got stuck here:"
+              ,
+                D.stack
+                  [ D.reflow $
+                      "I need this curly brace to be indented more. Try adding some spaces before it!"
+                  , noteForRecordError
+                  ]
+              )
+
+        Nothing ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
+          Report.Report "UNFINISHED RECORD" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I was partway through parsing a record, but I got stuck here:"
+              ,
+                addNoteForRecordIndentError $
+                  D.fillSep $
+                    ["I","was","expecting","to","see","a","closing","curly","brace","next."
+                    ,"Try","putting","a",D.green "}","next","and","see","if","that","helps?"
+                    ]
+              )
 
     RecordIndentField row col ->
       let
@@ -5384,23 +5405,44 @@ toTRecordReport source context record startRow startCol =
           )
 
     TRecordIndentEnd row col ->
-      let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
-      in
-      Report.Report "UNFINISHED RECORD TYPE" region [] $
-        Code.toSnippet source surroundings (Just region)
-          (
-            D.reflow $
-              "I was expecting to see a closing curly brace next:"
-          ,
-            D.stack
-              [ D.fillSep $
-                  ["Try","putting","an",D.green "}","and","see","if","that","helps?"
+      case Code.nextLineStartsWithCloseCurly source row of
+        Just (curlyRow, curlyCol) ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position curlyRow curlyCol)
+            region = toRegion curlyRow curlyCol
+          in
+          Report.Report "NEED MORE INDENTATION" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I was partway through parsing a record type, but I got stuck here:"
+              ,
+                D.stack
+                  [ D.reflow $
+                      "I need this curly brace to be indented more. Try adding some spaces before it!"
+                  , noteForRecordTypeError
                   ]
-              , noteForRecordTypeIndentError
-              ]
-          )
+              )
+
+        Nothing ->
+          let
+            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+            region = toRegion row col
+          in
+          Report.Report "UNFINISHED RECORD TYPE" region [] $
+            Code.toSnippet source surroundings (Just region)
+              (
+                D.reflow $
+                  "I was partway through parsing a record type, but I got stuck here:"
+              ,
+                D.stack
+                  [ D.fillSep $
+                      ["I","was","expecting","to","see","a","closing","curly","brace","next."
+                      ,"Try","putting","a",D.green "}","next","and","see","if","that","helps?"
+                      ]
+                  , noteForRecordTypeIndentError
+                  ]
+              )
 
     TRecordIndentField row col ->
       let
