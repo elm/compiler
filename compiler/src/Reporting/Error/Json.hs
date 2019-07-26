@@ -94,7 +94,7 @@ parseErrorToReport path source parseError reason =
             , D.reflow $
                 "This error is commonly caused by trailing commas in JSON objects. Those are\
                 \ actually disallowed by <https://json.org> so check the previous line for a\
-                \ trailing commas that may need to be deleted."
+                \ trailing comma that may need to be deleted."
             , objectNote
             ]
         )
