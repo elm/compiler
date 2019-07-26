@@ -391,13 +391,13 @@ unifyFlexSuperStructure context super flatType =
 
         Comparable ->
             do  comparableOccursCheck context
-                merge context (Structure flatType)
                 unifyComparableRecursive variable
+                merge context (Structure flatType)
 
         CompAppend ->
             do  comparableOccursCheck context
-                merge context (Structure flatType)
                 unifyComparableRecursive variable
+                merge context (Structure flatType)
 
     Tuple1 a b maybeC ->
       case super of
@@ -409,15 +409,12 @@ unifyFlexSuperStructure context super flatType =
 
         Comparable ->
             do  comparableOccursCheck context
-                merge context (Structure flatType)
                 unifyComparableRecursive a
                 unifyComparableRecursive b
                 case maybeC of
-                  Nothing ->
-                    return ()
-
-                  Just c ->
-                    unifyComparableRecursive c
+                  Nothing -> return ()
+                  Just c  -> unifyComparableRecursive c
+                merge context (Structure flatType)
 
         CompAppend ->
             mismatch
