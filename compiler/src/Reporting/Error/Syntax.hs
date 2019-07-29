@@ -69,6 +69,9 @@ data Error
   | ModuleNameMismatch ModuleName.Raw (A.Located ModuleName.Raw)
   | UnexpectedPort A.Region
   | NoPorts A.Region
+  | NoPortsInPackage (A.Located Name.Name)
+  | NoPortModulesInPackage A.Region
+  | NoEffectsOutsideKernel A.Region
   | ParseError Module
 
 
@@ -561,8 +564,82 @@ toReport source err =
               ]
           )
 
+    NoPortsInPackage (A.At region _) ->
+      Report.Report "PACKAGES CANNOT HAVE PORTS" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "Packages cannot declare any ports, so I am getting stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "Remove this port declaration."
+              , noteForPortsInPackage
+              ]
+          )
+
+    NoPortModulesInPackage region ->
+      Report.Report "PACKAGES CANNOT HAVE PORTS" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "Packages cannot declare any ports, so I am getting stuck here:"
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["Remove","the",D.cyan "port","keyword","and","I"
+                  ,"should","be","able","to","continue."
+                  ]
+              , noteForPortsInPackage
+              ]
+          )
+
+    NoEffectsOutsideKernel region ->
+      Report.Report "INVALID EFFECT MODULE" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "It is not possible to declare an `effect module` outside the @elm organization,\
+              \ so I am getting stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "Switch to a normal module declaration."
+              , D.toSimpleNote $
+                  "Effect modules are designed to allow certain core functionality to be\
+                  \ defined separately from the compiler. So the @elm organization has access to\
+                  \ this so that certain changes, extensions, and fixes can be introduced without\
+                  \ needing to release new Elm binaries. For example, we want to make it possible\
+                  \ to test effects, but this may require changes to the design of effect modules.\
+                  \ By only having them defined in the @elm organization, that kind of design work\
+                  \ can proceed much more smoothly."
+              ]
+          )
+
     ParseError modul ->
       toParseErrorReport source modul
+
+
+noteForPortsInPackage :: D.Doc
+noteForPortsInPackage =
+  D.stack
+    [ D.toSimpleNote $
+        "One of the major goals of the package ecosystem is to be completely written\
+        \ in Elm. This means when you install an Elm package, you can be sure you are safe\
+        \ from security issues (like code that runs side-effects on install) and that you\
+        \ are not going to get any runtime exceptions coming from your new dependency.\
+        \ This design also sets the Elm ecosystem up well to target other platforms (like\
+        \ mobile phones, WebAssembly, etc.) since no community code explicitly depends on\
+        \ JavaScript even existing."
+    , D.reflow $
+        "Given that overall goal, allowing ports in packages would lead to some pretty\
+        \ surprising behavior. If ports were allowed in packages, you could install a\
+        \ package but not realize that it brings in an indirect dependency that defines a\
+        \ port. Now you have a program that does not work and the fix is to realize that\
+        \ some JavaScript needs to be added. That would be extremely frustrating! So why\
+        \ not allow the package author to include the necessary JS code as well? Now we\
+        \ are back in conflict with our goals for the ecosystem overall."
+    ]
 
 
 toParseErrorReport :: Code.Source -> Module -> Report.Report
