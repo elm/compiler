@@ -3,6 +3,7 @@
 module Parse.Module
   ( fromByteString
   , ProjectType(..)
+  , isKernel
   , chompImports
   , chompImport
   )

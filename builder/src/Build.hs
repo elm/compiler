@@ -64,7 +64,7 @@ data Env =
   Env
     { _key :: Reporting.BKey
     , _root :: FilePath
-    , _pkg :: Pkg.Name
+    , _project :: Parse.ProjectType
     , _srcDirs :: [FilePath]
     , _buildID :: Details.BuildID
     , _locals :: Map.Map ModuleName.Raw Details.Local
@@ -76,10 +76,10 @@ makeEnv :: Reporting.BKey -> FilePath -> Details.Details -> Env
 makeEnv key root (Details.Details _ validOutline buildID locals foreigns _) =
   case validOutline of
     Details.ValidApp srcDirs ->
-      Env key root Pkg.dummyName (NE.toList srcDirs) buildID locals foreigns
+      Env key root Parse.Application (NE.toList srcDirs) buildID locals foreigns
 
     Details.ValidPkg pkg _ _ ->
-      Env key root pkg ["src"] buildID locals foreigns
+      Env key root (Parse.Package pkg) ["src"] buildID locals foreigns
 
 
 
@@ -239,7 +239,7 @@ crawlDeps env mvar deps blockedValue =
 
 
 crawlModule :: Env -> MVar StatusDict -> DocsNeed -> ModuleName.Raw -> IO Status
-crawlModule env@(Env _ root pkg srcDirs buildID locals foreigns) mvar docsNeed name =
+crawlModule env@(Env _ root projectType srcDirs buildID locals foreigns) mvar docsNeed name =
   do  let fileName = ModuleName.toFilePath name <.> "elm"
       let inRoot path = File.exists (root </> path)
 
@@ -276,7 +276,7 @@ crawlModule env@(Env _ root pkg srcDirs buildID locals foreigns) mvar docsNeed n
                   return $ SBadImport $ Import.AmbiguousForeign dep d ds
 
             Nothing ->
-              if Name.isKernel name && Pkg.isKernel pkg then
+              if Name.isKernel name && Parse.isKernel projectType then
                 do  exists <- File.exists ("src" </> ModuleName.toFilePath name <.> "js")
                     return $ if exists then SKernel else SBadImport Import.NotFound
               else
@@ -284,10 +284,10 @@ crawlModule env@(Env _ root pkg srcDirs buildID locals foreigns) mvar docsNeed n
 
 
 crawlFile :: Env -> MVar StatusDict -> DocsNeed -> ModuleName.Raw -> FilePath -> File.Time -> Details.BuildID -> IO Status
-crawlFile env@(Env _ root pkg _ buildID _ _) mvar docsNeed expectedName path time lastChange =
+crawlFile env@(Env _ root projectType _ buildID _ _) mvar docsNeed expectedName path time lastChange =
   do  source <- File.readUtf8 (root </> path)
 
-      case Parse.fromByteString pkg source of
+      case Parse.fromByteString projectType source of
         Left err ->
           return $ SBadSyntax path time source err
 
@@ -338,7 +338,7 @@ data CachedInterface
 
 
 checkModule :: Env -> Dependencies -> MVar ResultDict -> ModuleName.Raw -> Status -> IO Result
-checkModule env@(Env _ root pkg _ _ _ _) foreigns resultsMVar name status =
+checkModule env@(Env _ root projectType _ _ _ _) foreigns resultsMVar name status =
   case status of
     SCached local@(Details.Local path time deps hasMain lastChange lastCompile) ->
       do  results <- readMVar resultsMVar
@@ -346,7 +346,7 @@ checkModule env@(Env _ root pkg _ _ _ _) foreigns resultsMVar name status =
           case depsStatus of
             DepsChange ifaces ->
               do  source <- File.readUtf8 path
-                  case Parse.fromByteString pkg source of
+                  case Parse.fromByteString projectType source of
                     Right modul -> compile env (DocsNeed False) local source ifaces modul
                     Left err ->
                       return $ RProblem $
@@ -362,7 +362,7 @@ checkModule env@(Env _ root pkg _ _ _ _) foreigns resultsMVar name status =
             DepsNotFound problems ->
               do  source <- File.readUtf8 path
                   return $ RProblem $ Error.Module name path time source $
-                    case Parse.fromByteString pkg source of
+                    case Parse.fromByteString projectType source of
                       Right (Src.Module _ _ _ imports _ _ _ _ _) ->
                          Error.BadImports (toImportErrors env results imports problems)
 
@@ -675,7 +675,10 @@ checkInside name p1 status =
 
 
 compile :: Env -> DocsNeed -> Details.Local -> B.ByteString -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> IO Result
-compile (Env key root pkg _ buildID _ _) docsNeed (Details.Local path time deps main lastChange _) source ifaces modul =
+compile (Env key root projectType _ buildID _ _) docsNeed (Details.Local path time deps main lastChange _) source ifaces modul =
+  let
+    pkg = projectTypeToPkg projectType
+  in
   case Compile.compile pkg ifaces modul of
     Right (Compile.Artifacts canonical annotations objects) ->
       do  let name = Src.getName modul
@@ -701,6 +704,13 @@ compile (Env key root pkg _ buildID _ _) docsNeed (Details.Local path time deps 
     Left err ->
       return $ RProblem $
         Error.Module (Src.getName modul) path time source err
+
+
+projectTypeToPkg :: Parse.ProjectType -> Pkg.Name
+projectTypeToPkg projectType =
+  case projectType of
+    Parse.Package pkg -> pkg
+    Parse.Application -> Pkg.dummyName
 
 
 
@@ -847,9 +857,9 @@ data ReplArtifacts =
 fromRepl :: FilePath -> Details.Details -> B.ByteString -> IO (Either Exit.Repl ReplArtifacts)
 fromRepl root details source =
   let
-    env@(Env _ _ pkg _ _ _ _) = makeEnv Reporting.ignorer root details
+    env@(Env _ _ projectType _ _ _ _) = makeEnv Reporting.ignorer root details
   in
-  case Parse.fromByteString pkg source of
+  case Parse.fromByteString projectType source of
     Left syntaxError ->
       return $ Left $ Exit.ReplBadInput source $ Error.BadSyntax syntaxError
 
@@ -878,8 +888,11 @@ fromRepl root details source =
 
 
 finalizeReplArtifacts :: Env -> B.ByteString -> Src.Module -> DepsStatus -> ResultDict -> Map.Map ModuleName.Raw Result -> IO (Either Exit.Repl ReplArtifacts)
-finalizeReplArtifacts env@(Env _ root pkg _ _ _ _) source modul@(Src.Module _ _ _ imports _ _ _ _ _) depsStatus resultMVars results =
+finalizeReplArtifacts env@(Env _ root projectType _ _ _ _) source modul@(Src.Module _ _ _ imports _ _ _ _ _) depsStatus resultMVars results =
   let
+    pkg =
+      projectTypeToPkg projectType
+
     compileInput ifaces =
       case Compile.compile pkg ifaces modul of
         Right (Compile.Artifacts canonical annotations objects) ->
@@ -1070,7 +1083,7 @@ data MainStatus
 
 
 crawlMain :: Env -> MVar StatusDict -> MainLocation -> IO MainStatus
-crawlMain env@(Env _ _ pkg _ buildID _ _) mvar given =
+crawlMain env@(Env _ _ projectType _ buildID _ _) mvar given =
   case given of
     LInside name ->
       do  statusMVar <- newEmptyMVar
@@ -1082,7 +1095,7 @@ crawlMain env@(Env _ _ pkg _ buildID _ _) mvar given =
     LOutside path ->
       do  time <- File.getTime path
           source <- File.readUtf8 path
-          case Parse.fromByteString pkg source of
+          case Parse.fromByteString projectType source of
             Right modul@(Src.Module _ _ _ imports values _ _ _ _) ->
               do  let deps = map Src.getImportName imports
                   let local = Details.Local path time deps (any isMain values) buildID buildID
@@ -1134,8 +1147,9 @@ checkMain env@(Env _ root _ _ _ _ _) results pendingMain =
 
 
 compileOutside :: Env -> Details.Local -> B.ByteString -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> IO MainResult
-compileOutside (Env key _ pkg _ _ _ _) (Details.Local path time _ _ _ _) source ifaces modul =
+compileOutside (Env key _ projectType _ _ _ _) (Details.Local path time _ _ _ _) source ifaces modul =
   let
+    pkg = projectTypeToPkg projectType
     name = Src.getName modul
   in
   case Compile.compile pkg ifaces modul of
@@ -1157,13 +1171,13 @@ data Main
 
 
 toArtifacts :: Env -> Dependencies -> Map.Map ModuleName.Raw Result -> NE.List MainResult -> Either Exit.BuildProblem Artifacts
-toArtifacts (Env _ _ pkg _ _ _ _) foreigns results mainResults =
+toArtifacts (Env _ _ projectType _ _ _ _) foreigns results mainResults =
   case gatherProblemsOrMains results mainResults of
     Left (NE.List e es) ->
       Left (Exit.BuildBadModules e es)
 
     Right mains ->
-      Right $ Artifacts pkg foreigns mains $
+      Right $ Artifacts (projectTypeToPkg projectType) foreigns mains $
         Map.foldrWithKey addInside (foldr addOutside [] mainResults) results
 
 
