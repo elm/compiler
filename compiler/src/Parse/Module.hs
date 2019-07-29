@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Parse.Module
   ( fromByteString
+  , ProjectType(..)
   , chompImports
   , chompImport
   )
