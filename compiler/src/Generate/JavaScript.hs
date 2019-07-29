@@ -257,7 +257,7 @@ generateCycle mode (Opt.Global home _) names values functions =
                   "Some top-level definitions from `" <> Name.toBuilder (ModuleName._module home) <> "` are causing infinite recursion:\\n"
                   <> drawCycle names
                   <> "\\n\\nThese errors are very tricky, so read "
-                  <> B.stringUtf8 (D.makeNakedLink "halting-problem")
+                  <> B.stringUtf8 (D.makeNakedLink "bad-recursion")
                   <> " to learn how to fix it!"
     ]
 

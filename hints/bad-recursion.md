@@ -5,7 +5,7 @@ There are two problems that will lead you here, both of them pretty tricky:
 
   1. [**No Mutation**](#no-mutation) &mdash; Defining values in Elm is slightly different than defining values in languages like JavaScript.
 
-  2. [**Tricky Recursion**](#tricky-recursion) &mdash; Sometimes you need to define recursive values. A common case is JSON decoders for things like discussion forums, where a comment may have replies, which may have replies, etc.
+  2. [**Tricky Recursion**](#tricky-recursion) &mdash; Sometimes you need to define recursive values when creating generators, decoders, and parsers. A common case is a JSON decoder a discussion forums where a comment may have replies, which may have replies, which may have replies, etc.
 
 
 ## No Mutation
@@ -51,10 +51,11 @@ type alias Comment =
   , responses : Responses
   }
 
-type Responses = Responses (List Comment)
+type Responses =
+  Responses (List Comment)
 ```
 
-You may have run into this definition in the [hints for recursive aliases](recursive-alias)! Anyway, once you have comments, you may want to turn them into JSON to send back to your server or to store in your database or whatever. So you will probably write some code like this:
+You may have run into this definition in the [hints for recursive aliases](recursive-alias.md)! Anyway, once you have comments, you may want to turn them into JSON to send back to your server or to store in your database or whatever. So you will probably write some code like this:
 
 ```elm
 import Json.Decode as Decode exposing (Decoder)
@@ -91,46 +92,42 @@ decodeComment =
 -- SOLUTION
 decodeResponses : Decoder Responses
 decodeResponses =
-  Decode.map Responses (Decode.list (Decode.lazy (\\_ -> decodeComment)))
+  Decode.map Responses (Decode.list (Decode.lazy (\_ -> decodeComment)))
 ```
 
-Notice that in `decodeResponses`, we hide `decodeComment` behind an anonymous function. Elm cannot evaluate an anonymous function until it is given arguments. So it allows us to delay evaluation until it is needed. If there are no comments, we will not need to expand it!
+Notice that in `decodeResponses`, we hide `decodeComment` behind an anonymous function. Elm cannot evaluate an anonymous function until it is given arguments, so it allows us to delay evaluation until it is needed. If there are no comments, we will not need to expand it!
+
+This saves us from expanding the value infinitely. Instead we only expand the value if we need to.
+
+> **Note:** The same kind of logic can be applied to tasks, random value generators, and parsers. Use `lazy` or `andThen` to make sure a recursive value is only expanded if needed.
 
 
-### Summary
+## Understanding “Bad Recursion”
 
-**Situation:** You want a recursive JSON decoder, random value generator, or task. These are all cases where a *value* represents some sort of computation.
-
-**Solution:** put the recursion behind an anonymous function.
-
-You can always do this by defining `lazy` in terms of `andThen`. In the case of random value generators, it would look like this:
-
-```elm
-import Random exposing (Generator, andThen)
-import Random.Extra exposing (constant)
-
-lazy : (() -> Generator a) -> Generator a
-lazy delayedGenerator =
-  constant ()
-    |> andThen delayedGenerator
-```
-
-If you are in some situation where this will not work, I am curious to hear about it. I would recommend asking around in [the Elm slack](http://elmlang.herokuapp.com/) first, and opening an issue here if it seems to be the real deal!
-
-
-## Defining “Bad” Recursion
-
-The compiler will yell at you for *bad* recursion, but how does it know the difference between good and bad situations? Writing `factorial` is fine, but writing `x = x + 1` is not. One version of `decodeComment` was bad, but the other was fine. What is the rule?
+The compiler tries to detect bad recursion, but how does it know the difference between good and bad situations? Writing `factorial` is fine, but writing `x = x + 1` is not. One version of `decodeComment` was bad, but the other was fine. What is the rule?
 
 **Elm will allow recursive definitions as long as there is at least one lambda before you get back to yourself.** So if we write `factorial` without any pretty syntax, it looks like this:
 
 ```elm
 factorial =
-  \\n -> if n <= 0 then 1 else n * factorial (n - 1)
+  \n -> if n <= 0 then 1 else n * factorial (n - 1)
 ```
 
-There is technically a lambda between the definition and the use! The same is true with the good version of `decodeComment`. As long as there is a lambda before you get back to yourself, the compiler will let it through.
+There is technically a lambda between the definition and the use, so it is okay! The same is true with the good version of `decodeComment`. There is a lambda between the definition and the use. As long as there is a lambda before you get back to yourself, the compiler will let it through.
 
-This rule is nice, but it does not catch *everything*. Pathological cases like `x = (\\_ -> x) () + 1` can make it through. Why not rule these out as well though?! Well, because it is impossible! And not the normal kind of impossible where your cable bill is messed up and the fifth time you call it turns out it *can* be corrected. This is the &ldquo;we proved it with math, it’s called [the halting problem](https://en.wikipedia.org/wiki/Halting_problem)&rdquo; kind of impossible. Impossible [like this](https://www.youtube.com/watch?v=nlD9JYP8u5E).
+**This rule is nice, but it does not catch everything.** It is pretty easy to write a definition where the recursion is hidden behind a lambda, but it still immediately expands forever:
 
-Anyway, I just thought it was cool that we cannot solve the halting problem *in general*, but a simple rule about lambdas can detect the majority of bad cases *in practice*.
+```elm
+x =
+  (\_ -> x) () + 1
+```
+
+This follows the rules, but it immediately expands until our program runs out of stack space. It leads to a runtime error as soon as you start your program. It is nice to fail fast, but why not have the compiler detect this as well? It turns out this is much harder than it sounds!
+
+This is called [the halting problem](https://en.wikipedia.org/wiki/Halting_problem) in computer science. Computational theorists were asking:
+
+> Can we determine if a program will finish running (i.e. halt) or if it will continue to run forever?
+
+It turns out that Alan Turing wrote a proof in 1936 showing that (1) in some cases you just have to check by running the program and (2) this check will take forever for programs that do not halt!
+
+**So we cannot solve the halting problem *in general*, but our simple rule about lambdas can detect the majority of bad cases *in practice*.**
