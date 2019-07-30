@@ -3897,15 +3897,22 @@ toRecordReport source context record startRow startCol =
             surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
             region = toRegion row col
           in
-          Report.Report "UNFINISHED RECORD" region [] $
+          Report.Report "PROBLEM IN RECORD" region [] $
             Code.toSnippet source surroundings (Just region)
               (
                 D.reflow $
                   "I just started parsing a record, but I got stuck here:"
               ,
-                D.fillSep
-                  ["Records","look","like",D.dullyellow "{ x = 3, y = 4 },"
-                  ,"so","I","was","expecting","to","see","a","field","name","next."
+                D.stack
+                  [ D.fillSep
+                      ["I","was","expecting","to","see","a","record","field","defined","next,"
+                      ,"so","I","am","looking","for","a","name","like"
+                      ,D.dullyellow "userName","or",D.dullyellow "plantHeight" <> "."
+                      ]
+                  , D.toSimpleNote $
+                      "Field names must start with a lower-case letter. After that, you can use\
+                      \ any sequence of letters, numbers, and underscores."
+                  , noteForRecordError
                   ]
               )
 
@@ -3914,7 +3921,7 @@ toRecordReport source context record startRow startCol =
         surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
         region = toRegion row col
       in
-      Report.Report "UNFINISHED RECORD" region [] $
+      Report.Report "PROBLEM IN RECORD" region [] $
         Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
@@ -4002,9 +4009,12 @@ toRecordReport source context record startRow startCol =
                 D.stack
                   [ D.fillSep
                       ["I","was","expecting","to","see","another","record","field","defined","next,"
-                      ,"so","I","am","looking","for","a","lower-case","name","like"
+                      ,"so","I","am","looking","for","a","name","like"
                       ,D.dullyellow "userName","or",D.dullyellow "plantHeight" <> "."
                       ]
+                  , D.toSimpleNote $
+                      "Field names must start with a lower-case letter. After that, you can use\
+                      \ any sequence of letters, numbers, and underscores."
                   , noteForRecordError
                   ]
               )
@@ -4014,7 +4024,7 @@ toRecordReport source context record startRow startCol =
         surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
         region = toRegion row col
       in
-      Report.Report "UNFINISHED RECORD" region [] $
+      Report.Report "PROBLEM IN RECORD" region [] $
         Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
@@ -5428,7 +5438,7 @@ toTRecordReport source context record startRow startCol =
                 D.stack
                   [ D.fillSep
                       ["I","was","expecting","to","see","another","record","field","defined","next,"
-                      ,"so","I","am","looking","for","a","lower-case","name","like"
+                      ,"so","I","am","looking","for","a","name","like"
                       ,D.dullyellow "userName","or",D.dullyellow "plantHeight" <> "."
                       ]
                   , noteForRecordTypeError
