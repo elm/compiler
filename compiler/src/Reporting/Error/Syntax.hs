@@ -626,19 +626,19 @@ noteForPortsInPackage =
     [ D.toSimpleNote $
         "One of the major goals of the package ecosystem is to be completely written\
         \ in Elm. This means when you install an Elm package, you can be sure you are safe\
-        \ from security issues (like code that runs side-effects on install) and that you\
-        \ are not going to get any runtime exceptions coming from your new dependency.\
-        \ This design also sets the Elm ecosystem up well to target other platforms (like\
-        \ mobile phones, WebAssembly, etc.) since no community code explicitly depends on\
-        \ JavaScript even existing."
+        \ from security issues on install and that you are not going to get any runtime\
+        \ exceptions coming from your new dependency. This design also sets the ecosystem\
+        \ up to target other platforms more easily (like mobile phones, WebAssembly, etc.)\
+        \ since no community code explicitly depends on JavaScript even existing."
     , D.reflow $
         "Given that overall goal, allowing ports in packages would lead to some pretty\
         \ surprising behavior. If ports were allowed in packages, you could install a\
         \ package but not realize that it brings in an indirect dependency that defines a\
         \ port. Now you have a program that does not work and the fix is to realize that\
-        \ some JavaScript needs to be added. That would be extremely frustrating! So why\
-        \ not allow the package author to include the necessary JS code as well? Now we\
-        \ are back in conflict with our goals for the ecosystem overall."
+        \ some JavaScript needs to be added for a dependency you did not even know about.\
+        \ That would be extremely frustrating! \"So why not allow the package author to\
+        \ include the necessary JS code as well?\" Now we are back in conflict with our\
+        \ overall goal to keep all community packages free from runtime exceptions."
     ]
 
 
