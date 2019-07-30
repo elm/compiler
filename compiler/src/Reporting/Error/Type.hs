@@ -559,11 +559,31 @@ badFlexSuper :: T.Direction -> T.Super -> T.Type -> [D.Doc]
 badFlexSuper direction super tipe =
   case super of
     T.Comparable ->
-      [ D.toSimpleHint "Only ints, floats, chars, strings, lists, and tuples are comparable."
-      ]
+      case tipe of
+        T.Record _ _ ->
+          [ D.link "Hint"
+              "I do not know how to compare records. I can only compare ints, floats,\
+              \ chars, strings, lists of comparable values, and tuples of comparable values.\
+              \ Check out" "comparing-records" "for ideas on how to proceed."
+          ]
+
+        T.Type _ name _ ->
+          [ D.toSimpleHint $
+              "I do not know how to compare `" ++ Name.toChars name ++ "` values. I can only\
+              \ compare ints, floats, chars, strings, lists of comparable values, and tuples\
+              \ of comparable values."
+          , D.reflowLink
+              "Check out" "comparing-custom-types" "for ideas on how to proceed."
+          ]
+
+        _ ->
+          [ D.toSimpleHint $
+              "I only know how to compare ints, floats, chars, strings, lists of\
+              \ comparable values, and tuples of comparable values."
+          ]
 
     T.Appendable ->
-      [ D.toSimpleHint "Only strings and lists are appendable."
+      [ D.toSimpleHint "I only know how to append strings and lists."
       ]
 
     T.CompAppend ->
