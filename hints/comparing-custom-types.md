@@ -50,7 +50,7 @@ get (Id id) (Table _ dict) =
 add : info -> Table info -> (Table info, Id)
 add info (Table nextId dict) =
   ( Table (nextId + 1) (Dict.insert nextId info dict)
-  , nextId
+  , Id nextId
   )
 ```
 
