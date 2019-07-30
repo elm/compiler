@@ -4170,9 +4170,8 @@ noteForRecordError =
         , "}"
         ]
     , D.reflow $
-        "Notice that each line starts with some indentation. Usually two or four spaces. I\
-        \ know this style can be jarring for people coming from C-like syntax, but folks generally\
-        \ report that they are used to it (and often prefer it!) after a week or two of using Elm."
+        "Notice that each line starts with some indentation. Usually two or four spaces.\
+        \ This is the stylistic convention in the Elm ecosystem."
     ]
 
 
@@ -4191,9 +4190,8 @@ addNoteForRecordIndentError normalRecommendation =
         , "}"
         ]
     , D.reflow $
-        "Notice that each line starts with some indentation. Usually two or four spaces. I\
-        \ know this style can be jarring for people coming from C-like syntax, but folks generally\
-        \ report that they are used to it (and often prefer it!) after a week or two of using Elm."
+        "Notice that each line starts with some indentation. Usually two or four spaces.\
+        \ This is the stylistic convention in the Elm ecosystem!"
     ]
 
 
@@ -4388,9 +4386,8 @@ toListReport source context list startRow startCol =
                       , "]"
                       ]
                   , D.reflow $
-                      "Notice that nothing comes directly after a newline. Each line starts with some spaces.\
-                      \ This style can be jarring for people coming from C-like syntax, but folks generally\
-                      \ report that they are used to it (and often prefer it!) after a week or two of using Elm."
+                      "Notice that each line starts with some indentation. Usually two or four spaces.\
+                      \ This is the stylistic convention in the Elm ecosystem."
                   ]
               )
 
@@ -4449,9 +4446,8 @@ toListReport source context list startRow startCol =
                   , "]"
                   ]
               , D.reflow $
-                  "Notice that nothing comes directly after a newline. Each line starts with some spaces.\
-                  \ This style can be jarring for people coming from C-like syntax, but folks generally\
-                  \ report that they are used to it (and often prefer it!) after a week or two of using Elm."
+                  "Notice that each line starts with some indentation. Usually two or four spaces.\
+                  \ This is the stylistic convention in the Elm ecosystem."
               ]
           )
 
@@ -4481,9 +4477,8 @@ toListReport source context list startRow startCol =
                   , "]"
                   ]
               , D.reflow $
-                  "Notice that nothing comes directly after a newline. Each line starts with some spaces.\
-                  \ This style can be jarring for people coming from C-like syntax, but folks generally\
-                  \ report that they are used to it (and often prefer it!) after a week or two of using Elm."
+                  "Notice that each line starts with some indentation. Usually two or four spaces.\
+                  \ This is the stylistic convention in the Elm ecosystem."
               ]
           )
 
@@ -4510,9 +4505,8 @@ toListReport source context list startRow startCol =
                   , "]"
                   ]
               , D.reflow $
-                  "Notice that nothing comes directly after a newline. Each line starts with some spaces.\
-                  \ This style can be jarring for people coming from C-like syntax, but folks generally\
-                  \ report that they are used to it (and often prefer it!) after a week or two of using Elm."
+                  "Notice that each line starts with some indentation. Usually two or four spaces.\
+                  \ This is the stylistic convention in the Elm ecosystem."
               ]
           )
 
@@ -5604,9 +5598,8 @@ noteForRecordTypeError =
         , "}"
         ]
     , D.reflow $
-        "Notice that each line starts with some indentation. Usually two or four spaces. I\
-        \ know this style can be jarring for people coming from C-like syntax, but folks generally\
-        \ report that they are used to it (and often prefer it!) after a week or two of using Elm."
+        "Notice that each line starts with some indentation. Usually two or four spaces.\
+        \ This is the stylistic convention in the Elm ecosystem."
     ]
 
 
@@ -5623,9 +5616,8 @@ noteForRecordTypeIndentError =
         , "}"
         ]
     , D.reflow $
-        "Notice that each line starts with some indentation. Usually two or four spaces. I\
-        \ know this style can be jarring for people coming from C-like syntax, but folks generally\
-        \ report that they are used to it (and often prefer it!) after a week or two of using Elm."
+        "Notice that each line starts with some indentation. Usually two or four spaces.\
+        \ This is the stylistic convention in the Elm ecosystem."
     ]
 
 
