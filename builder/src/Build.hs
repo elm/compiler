@@ -42,6 +42,7 @@ import qualified Elm.Details as Details
 import qualified Elm.Docs as Docs
 import qualified Elm.Interface as I
 import qualified Elm.ModuleName as ModuleName
+import qualified Elm.Outline as Outline
 import qualified Elm.Package as Pkg
 import qualified File
 import qualified Json.Encode as E
@@ -65,21 +66,46 @@ data Env =
     { _key :: Reporting.BKey
     , _root :: FilePath
     , _project :: Parse.ProjectType
-    , _srcDirs :: [FilePath]
+    , _srcDirs :: [AbsoluteSrcDir]
     , _buildID :: Details.BuildID
     , _locals :: Map.Map ModuleName.Raw Details.Local
     , _foreigns :: Map.Map ModuleName.Raw Details.Foreign
     }
 
 
-makeEnv :: Reporting.BKey -> FilePath -> Details.Details -> Env
+makeEnv :: Reporting.BKey -> FilePath -> Details.Details -> IO Env
 makeEnv key root (Details.Details _ validOutline buildID locals foreigns _) =
   case validOutline of
-    Details.ValidApp srcDirs ->
-      Env key root Parse.Application (NE.toList srcDirs) buildID locals foreigns
+    Details.ValidApp givenSrcDirs ->
+      do  srcDirs <- traverse (toAbsoluteSrcDir root) (NE.toList givenSrcDirs)
+          return $ Env key root Parse.Application srcDirs buildID locals foreigns
 
     Details.ValidPkg pkg _ _ ->
-      Env key root (Parse.Package pkg) ["src"] buildID locals foreigns
+      do  srcDir <- toAbsoluteSrcDir root (Outline.RelativeSrcDir "src")
+          return $ Env key root (Parse.Package pkg) [srcDir] buildID locals foreigns
+
+
+
+-- SOURCE DIRECTORY
+
+
+newtype AbsoluteSrcDir =
+  AbsoluteSrcDir FilePath
+
+
+toAbsoluteSrcDir :: FilePath -> Outline.SrcDir -> IO AbsoluteSrcDir
+toAbsoluteSrcDir root srcDir =
+  AbsoluteSrcDir <$> Dir.canonicalizePath
+    (
+      case srcDir of
+        Outline.AbsoluteSrcDir dir -> dir
+        Outline.RelativeSrcDir dir -> root </> dir
+    )
+
+
+addRelative :: AbsoluteSrcDir -> FilePath -> FilePath
+addRelative (AbsoluteSrcDir srcDir) path =
+  srcDir </> path
 
 
 
@@ -110,7 +136,7 @@ forkWithKey func dict =
 fromExposed :: Reporting.Style -> FilePath -> Details.Details -> DocsGoal docs -> NE.List ModuleName.Raw -> IO (Either Exit.BuildProblem docs)
 fromExposed style root details docsGoal exposed@(NE.List e es) =
   Reporting.trackBuild style $ \key ->
-  do  let env = makeEnv key root details
+  do  env <- makeEnv key root details
       dmvar <- Details.loadInterfaces root details
 
       -- crawl
@@ -161,7 +187,7 @@ type Dependencies =
 fromMains :: Reporting.Style -> FilePath -> Details.Details -> NE.List FilePath -> IO (Either Exit.BuildProblem Artifacts)
 fromMains style root details paths =
   Reporting.trackBuild style $ \key ->
-  do  let env = makeEnv key root details
+  do  env <- makeEnv key root details
 
       elmains <- findMains env paths
       case elmains of
@@ -241,9 +267,8 @@ crawlDeps env mvar deps blockedValue =
 crawlModule :: Env -> MVar StatusDict -> DocsNeed -> ModuleName.Raw -> IO Status
 crawlModule env@(Env _ root projectType srcDirs buildID locals foreigns) mvar docsNeed name =
   do  let fileName = ModuleName.toFilePath name <.> "elm"
-      let inRoot path = File.exists (root </> path)
 
-      paths <- filterM inRoot (map (</> fileName) srcDirs)
+      paths <- filterM File.exists (map (`addRelative` fileName) srcDirs)
 
       case paths of
         [path] ->
@@ -263,7 +288,7 @@ crawlModule env@(Env _ root projectType srcDirs buildID locals foreigns) mvar do
                       else crawlDeps env mvar deps (SCached local)
 
         p1:p2:ps ->
-          return $ SBadImport $ Import.AmbiguousLocal p1 p2 ps
+          return $ SBadImport $ Import.AmbiguousLocal (FP.makeRelative root p1) (FP.makeRelative root p2) (map (FP.makeRelative root) ps)
 
         [] ->
           case Map.lookup name foreigns of
@@ -856,35 +881,33 @@ data ReplArtifacts =
 
 fromRepl :: FilePath -> Details.Details -> B.ByteString -> IO (Either Exit.Repl ReplArtifacts)
 fromRepl root details source =
-  let
-    env@(Env _ _ projectType _ _ _ _) = makeEnv Reporting.ignorer root details
-  in
-  case Parse.fromByteString projectType source of
-    Left syntaxError ->
-      return $ Left $ Exit.ReplBadInput source $ Error.BadSyntax syntaxError
+  do  env@(Env _ _ projectType _ _ _ _) <- makeEnv Reporting.ignorer root details
+      case Parse.fromByteString projectType source of
+        Left syntaxError ->
+          return $ Left $ Exit.ReplBadInput source $ Error.BadSyntax syntaxError
 
-    Right modul@(Src.Module _ _ _ imports _ _ _ _ _) ->
-      do  dmvar <- Details.loadInterfaces root details
+        Right modul@(Src.Module _ _ _ imports _ _ _ _ _) ->
+          do  dmvar <- Details.loadInterfaces root details
 
-          let deps = map Src.getImportName imports
-          mvar <- newMVar Map.empty
-          crawlDeps env mvar deps ()
+              let deps = map Src.getImportName imports
+              mvar <- newMVar Map.empty
+              crawlDeps env mvar deps ()
 
-          statuses <- traverse readMVar =<< readMVar mvar
-          midpoint <- checkMidpoint dmvar statuses
+              statuses <- traverse readMVar =<< readMVar mvar
+              midpoint <- checkMidpoint dmvar statuses
 
-          case midpoint of
-            Left problem ->
-              return $ Left $ Exit.ReplProjectProblem problem
+              case midpoint of
+                Left problem ->
+                  return $ Left $ Exit.ReplProjectProblem problem
 
-            Right foreigns ->
-              do  rmvar <- newEmptyMVar
-                  resultMVars <- forkWithKey (checkModule env foreigns rmvar) statuses
-                  putMVar rmvar resultMVars
-                  results <- traverse readMVar resultMVars
-                  writeDetails root details results
-                  depsStatus <- checkDeps root resultMVars deps 0
-                  finalizeReplArtifacts env source modul depsStatus resultMVars results
+                Right foreigns ->
+                  do  rmvar <- newEmptyMVar
+                      resultMVars <- forkWithKey (checkModule env foreigns rmvar) statuses
+                      putMVar rmvar resultMVars
+                      results <- traverse readMVar resultMVars
+                      writeDetails root details results
+                      depsStatus <- checkDeps root resultMVars deps 0
+                      finalizeReplArtifacts env source modul depsStatus resultMVars results
 
 
 finalizeReplArtifacts :: Env -> B.ByteString -> Src.Module -> DepsStatus -> ResultDict -> Map.Map ModuleName.Raw Result -> IO (Either Exit.Repl ReplArtifacts)
@@ -997,45 +1020,39 @@ findLoc (Env _ root _ srcDirs _ _ _) path absolutePath =
     return $ Left $ Exit.BP_WithBadExtension path
   else
     let
-      roots = FP.splitDirectories root
-      segments = FP.splitDirectories dirs ++ [final]
+      absoluteSegments = FP.splitDirectories dirs ++ [final]
     in
-    case dropPrefix roots segments of
-      Nothing ->
+    case Maybe.mapMaybe (isInsideSrcDirByPath absoluteSegments) srcDirs of
+      [] ->
         return $ Right $ Location absolutePath path (LOutside path)
 
-      Just relativeSegments ->
-        case Maybe.mapMaybe (isInsideSrcDirByPath relativeSegments) srcDirs of
-          [] ->
-            return $ Right $ Location absolutePath path (LOutside path)
+      [(_, Right names)] ->
+        do  let name = Name.fromChars (List.intercalate "." names)
+            matchingDirs <- filterM (isInsideSrcDirByName names) srcDirs
+            case matchingDirs of
+              d1:d2:_ ->
+                do  let p1 = addRelative d1 (FP.joinPath names <.> "elm")
+                    let p2 = addRelative d2 (FP.joinPath names <.> "elm")
+                    return $ Left $ Exit.BP_MainNameDuplicate name p1 p2
 
-          [(_, Right names)] ->
-            do  let name = Name.fromChars (List.intercalate "." names)
-                matchingDirs <- filterM (isInsideSrcDirByName root names) srcDirs
-                case matchingDirs of
-                  d1:d2:_ ->
-                    do  let p1 = d1 </> FP.joinPath names <.> "elm"
-                        let p2 = d2 </> FP.joinPath names <.> "elm"
-                        return $ Left $ Exit.BP_MainNameDuplicate name p1 p2
+              _ ->
+                return $ Right $ Location absolutePath path (LInside name)
 
-                  _ ->
-                    return $ Right $ Location absolutePath path (LInside name)
+      [(s, Left names)] ->
+        return $ Left $ Exit.BP_MainNameInvalid path s names
 
-          [(s, Left names)] ->
-            return $ Left $ Exit.BP_MainNameInvalid path s names
-
-          (s1,_):(s2,_):_ ->
-            return $ Left $ Exit.BP_WithAmbiguousSrcDir path s1 s2
+      (s1,_):(s2,_):_ ->
+        return $ Left $ Exit.BP_WithAmbiguousSrcDir path s1 s2
 
 
 
-isInsideSrcDirByName :: FilePath -> [String] -> FilePath -> IO Bool
-isInsideSrcDirByName root names srcDir =
-  File.exists (root </> srcDir </> FP.joinPath names <.> "elm")
+isInsideSrcDirByName :: [String] -> AbsoluteSrcDir -> IO Bool
+isInsideSrcDirByName names srcDir =
+  File.exists (addRelative srcDir (FP.joinPath names <.> "elm"))
 
 
-isInsideSrcDirByPath :: [String] -> FilePath -> Maybe (FilePath, Either [String] [String])
-isInsideSrcDirByPath segments srcDir =
+isInsideSrcDirByPath :: [String] -> AbsoluteSrcDir -> Maybe (FilePath, Either [String] [String])
+isInsideSrcDirByPath segments (AbsoluteSrcDir srcDir) =
   case dropPrefix (FP.splitDirectories srcDir) segments of
     Nothing ->
       Nothing
@@ -1056,20 +1073,18 @@ isGoodName name =
       Char.isUpper char && all (\c -> Char.isAlphaNum c || c == '_') chars
 
 
+-- INVARIANT: Dir.canonicalizePath has been run on both inputs
+--
 dropPrefix :: [FilePath] -> [FilePath] -> Maybe [FilePath]
 dropPrefix roots paths =
   case roots of
     [] ->
       Just paths
 
-    ".":rs ->
-      dropPrefix rs paths
-
     r:rs ->
       case paths of
-        []     -> Nothing
-        ".":ps -> dropPrefix roots ps
-        p:ps   -> if r == p then dropPrefix rs ps else Nothing
+        []   -> Nothing
+        p:ps -> if r == p then dropPrefix rs ps else Nothing
 
 
 

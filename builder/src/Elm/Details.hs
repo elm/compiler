@@ -79,7 +79,7 @@ type BuildID = Word64
 
 
 data ValidOutline
-  = ValidApp (NE.List FilePath)
+  = ValidApp (NE.List Outline.SrcDir)
   | ValidPkg Pkg.Name [ModuleName.Raw] (Map.Map Pkg.Name V.Version {- for docs in reactor -})
 
 

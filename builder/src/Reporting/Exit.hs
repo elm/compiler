@@ -948,7 +948,8 @@ toSolverReport problem =
 
 data Outline
   = OutlineHasBadStructure (Decode.Error OutlineProblem)
-  | OutlineHasBadSrcDirs FilePath [FilePath]
+  | OutlineHasMissingSrcDirs FilePath [FilePath]
+  | OutlineHasDuplicateSrcDirs FilePath FilePath FilePath
   | OutlineNoPkgCore
   | OutlineNoAppCore
   | OutlineNoAppJson
@@ -974,12 +975,12 @@ toOutlineReport problem =
       Json.toReport "elm.json" (Json.FailureToReport toOutlineProblemReport) decodeError $
         Json.ExplicitReason "I ran into a problem with your elm.json file."
 
-    OutlineHasBadSrcDirs dir dirs ->
+    OutlineHasMissingSrcDirs dir dirs ->
       case dirs of
         [] ->
           Help.report "MISSING SOURCE DIRECTORY" (Just "elm.json")
             "I need a valid elm.json file, but the \"source-directories\" field lists the following directory:"
-            [ D.indent 4 $ D.dullyellow $ D.fromChars dir
+            [ D.indent 4 $ D.red $ D.fromChars dir
             , D.reflow $
                 "I cannot find it though. Is it missing? Is there a typo?"
             ]
@@ -988,10 +989,31 @@ toOutlineReport problem =
           Help.report "MISSING SOURCE DIRECTORIES" (Just "elm.json")
             "I need a valid elm.json file, but the \"source-directories\" field lists the following directories:"
             [ D.indent 4 $ D.vcat $
-                map (D.dullyellow . D.fromChars) (dir:dirs)
+                map (D.red . D.fromChars) (dir:dirs)
             , D.reflow $
                 "I cannot find them though. Are they missing? Are there typos?"
             ]
+
+    OutlineHasDuplicateSrcDirs canonicalDir dir1 dir2 ->
+      if dir1 == dir2 then
+        Help.report "REDUNDANT SOURCE DIRECTORIES" (Just "elm.json")
+          "I need a valid elm.json file, but the \"source-directories\" field lists the same directory twice:"
+          [ D.indent 4 $ D.vcat $
+              map (D.red . D.fromChars) [dir1,dir2]
+          , D.reflow $
+              "Remove one of the entries!"
+          ]
+      else
+        Help.report "REDUNDANT SOURCE DIRECTORIES" (Just "elm.json")
+          "I need a valid elm.json file, but the \"source-directories\" field has some redundant directories:"
+          [ D.indent 4 $ D.vcat $
+              map (D.red . D.fromChars) [dir1,dir2]
+          , D.reflow $
+              "These are two different ways of refering to the same directory:"
+          , D.indent 4 $ D.dullyellow $ D.fromChars canonicalDir
+          , D.reflow $
+              "Remove one of the redundant entries from your \"source-directories\" field."
+          ]
 
     OutlineNoPkgCore ->
       Help.report "MISSING DEPENDENCY" (Just "elm.json")

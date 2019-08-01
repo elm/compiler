@@ -5,6 +5,7 @@ module Elm.Outline
   , AppOutline(..)
   , PkgOutline(..)
   , Exposed(..)
+  , SrcDir(..)
   , read
   , write
   , encode
@@ -16,11 +17,14 @@ module Elm.Outline
 
 
 import Prelude hiding (read)
-import Control.Monad (filterM)
+import Control.Monad (filterM, liftM)
+import Data.Binary (Binary, get, put, getWord8, putWord8)
 import qualified Data.Map as Map
 import qualified Data.NonEmptyList as NE
+import qualified Data.OneOrMore as OneOrMore
 import Foreign.Ptr (minusPtr)
 import qualified System.Directory as Dir
+import qualified System.FilePath as FP
 import System.FilePath ((</>))
 
 import qualified Elm.Constraint as Con
@@ -49,7 +53,7 @@ data Outline
 data AppOutline =
   AppOutline
     { _app_elm_version :: V.Version
-    , _app_source_dirs :: NE.List FilePath
+    , _app_source_dirs :: NE.List SrcDir
     , _app_deps_direct :: Map.Map Pkg.Name V.Version
     , _app_deps_indirect :: Map.Map Pkg.Name V.Version
     , _app_test_direct :: Map.Map Pkg.Name V.Version
@@ -73,6 +77,11 @@ data PkgOutline =
 data Exposed
   = ExposedList [ModuleName.Raw]
   | ExposedDict [(Json.String, [ModuleName.Raw])]
+
+
+data SrcDir
+  = AbsoluteSrcDir FilePath
+  | RelativeSrcDir FilePath
 
 
 
@@ -117,7 +126,7 @@ encode outline =
     App (AppOutline elm srcDirs depsDirect depsTrans testDirect testTrans) ->
       E.object
         [ "type" ==> E.chars "application"
-        , "source-directories" ==> E.list E.chars (NE.toList srcDirs)
+        , "source-directories" ==> E.list encodeSrcDir (NE.toList srcDirs)
         , "elm-version" ==> V.encode elm
         , "dependencies" ==>
             E.object
@@ -165,6 +174,13 @@ encodeDeps encodeValue deps =
   E.dict Pkg.toJsonString encodeValue deps
 
 
+encodeSrcDir :: SrcDir -> E.Value
+encodeSrcDir srcDir =
+  case srcDir of
+    AbsoluteSrcDir dir -> E.chars dir
+    RelativeSrcDir dir -> E.chars dir
+
+
 
 -- PARSE AND VERIFY
 
@@ -192,15 +208,58 @@ read root =
                   return $ Left Exit.OutlineNoAppJson
 
               | otherwise ->
-                  do  badDirs <- filterM (isBadSrcDir root) (NE.toList srcDirs)
-                      case badDirs of
-                        []   -> return $ Right outline
-                        d:ds -> return $ Left (Exit.OutlineHasBadSrcDirs d ds)
+                  do  badDirs <- filterM (isSrcDirMissing root) (NE.toList srcDirs)
+                      case map toGiven badDirs of
+                        d:ds ->
+                          return $ Left (Exit.OutlineHasMissingSrcDirs d ds)
+
+                        [] ->
+                          do  maybeDups <- detectDuplicates root (NE.toList srcDirs)
+                              case maybeDups of
+                                Nothing ->
+                                  return $ Right outline
+
+                                Just (canonicalDir, (dir1,dir2)) ->
+                                  return $ Left (Exit.OutlineHasDuplicateSrcDirs canonicalDir dir1 dir2)
 
 
-isBadSrcDir :: FilePath -> FilePath -> IO Bool
-isBadSrcDir root dir =
-  not <$> Dir.doesDirectoryExist (root </> dir)
+isSrcDirMissing :: FilePath -> SrcDir -> IO Bool
+isSrcDirMissing root srcDir =
+  not <$> Dir.doesDirectoryExist (toAbsolute root srcDir)
+
+
+toGiven :: SrcDir -> FilePath
+toGiven srcDir =
+  case srcDir of
+    AbsoluteSrcDir dir -> dir
+    RelativeSrcDir dir -> dir
+
+
+toAbsolute :: FilePath -> SrcDir -> FilePath
+toAbsolute root srcDir =
+  case srcDir of
+    AbsoluteSrcDir dir -> dir
+    RelativeSrcDir dir -> root </> dir
+
+
+detectDuplicates :: FilePath -> [SrcDir] -> IO (Maybe (FilePath, (FilePath, FilePath)))
+detectDuplicates root srcDirs =
+  do  pairs <- traverse (toPair root) srcDirs
+      return $ Map.lookupMin $ Map.mapMaybe isDup $
+        Map.fromListWith OneOrMore.more pairs
+
+
+toPair :: FilePath -> SrcDir -> IO (FilePath, OneOrMore.OneOrMore FilePath)
+toPair root srcDir =
+  do  key <- Dir.canonicalizePath (toAbsolute root srcDir)
+      return (key, OneOrMore.one (toGiven srcDir))
+
+
+isDup :: OneOrMore.OneOrMore FilePath -> Maybe (FilePath, FilePath)
+isDup paths =
+  case paths of
+    OneOrMore.One _    -> Nothing
+    OneOrMore.More a b -> Just (OneOrMore.getFirstTwo a b)
 
 
 
@@ -278,9 +337,16 @@ depsDecoder valueDecoder =
   D.dict (Pkg.keyDecoder Exit.OP_BadDependencyName) valueDecoder
 
 
-dirsDecoder :: Decoder (NE.List FilePath)
+dirsDecoder :: Decoder (NE.List SrcDir)
 dirsDecoder =
-  fmap Json.toChars <$> D.nonEmptyList D.string Exit.OP_NoSrcDirs
+  fmap (toSrcDir . Json.toChars) <$> D.nonEmptyList D.string Exit.OP_NoSrcDirs
+
+
+toSrcDir :: FilePath -> SrcDir
+toSrcDir path =
+  if FP.isRelative path
+  then RelativeSrcDir path
+  else AbsoluteSrcDir path
 
 
 
@@ -321,3 +387,21 @@ boundParser bound tooLong =
     if len < bound
     then cok (Json.fromPtr pos end) (P.State src end end indent row newCol)
     else cerr row newCol (\_ _ -> tooLong)
+
+
+
+-- BINARY
+
+
+instance Binary SrcDir where
+  put outline =
+    case outline of
+      AbsoluteSrcDir a -> putWord8 0 >> put a
+      RelativeSrcDir a -> putWord8 1 >> put a
+
+  get =
+    do  n <- getWord8
+        case n of
+          0 -> liftM AbsoluteSrcDir get
+          1 -> liftM RelativeSrcDir get
+          _ -> fail "binary encoding of SrcDir was corrupted"
