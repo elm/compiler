@@ -987,7 +987,8 @@ toOutlineReport problem =
         _:_ ->
           Help.report "MISSING SOURCE DIRECTORIES" (Just "elm.json")
             "I need a valid elm.json file, but the \"source-directories\" field lists the following directories:"
-            [ D.indent 4 $ D.dullyellow $ D.fromChars dir
+            [ D.indent 4 $ D.vcat $
+                map (D.dullyellow . D.fromChars) (dir:dirs)
             , D.reflow $
                 "I cannot find them though. Are they missing? Are there typos?"
             ]
