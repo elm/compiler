@@ -149,14 +149,14 @@ foreignUpper toError =
       let
         !newState = P.State src upperEnd end indent row newCol
         !name = Name.fromPtr upperStart upperEnd
-        !foreign =
+        !foreign' =
           if upperStart == pos then
             Unqualified name
           else
             let !home = Name.fromPtr pos (plusPtr upperStart (-1)) in
             Qualified home name
       in
-      cok foreign newState
+      cok foreign' newState
 
 
 foreignUpperHelp :: Ptr Word8 -> Ptr Word8 -> Col -> (# Ptr Word8, Ptr Word8, Col #)
