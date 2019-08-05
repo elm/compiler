@@ -29,20 +29,16 @@ sandwich moduleName javascript =
 
 <body>
 
-<pre id="elm">
-This is a headless program, meaning there is nothing to show here.
-
-I started the program anyway though!
-
-You can access it as `app` in the developer console.
-</pre>
+<pre id="elm"></pre>
 
 <script>
 try {
 |] <> javascript <> [r|
 
   var app = Elm.|] <> name <> [r|.init({ node: document.getElementById("elm") });
-} catch (e) {
+}
+catch (e)
+{
   // display initialization errors (e.g. bad flags, infinite recursion)
   var header = document.createElement("h1");
   header.style.fontFamily = "monospace";
