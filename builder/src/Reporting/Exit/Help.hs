@@ -29,7 +29,7 @@ import qualified Reporting.Error as Error
 
 
 data Report
-  = CompilerReport Error.Module [Error.Module]
+  = CompilerReport FilePath Error.Module [Error.Module]
   | Report
       { _title :: String
       , _path :: Maybe FilePath
@@ -52,7 +52,7 @@ jsonReport =
   Report
 
 
-compilerReport :: Error.Module -> [Error.Module] -> Report
+compilerReport :: FilePath -> Error.Module -> [Error.Module] -> Report
 compilerReport =
   CompilerReport
 
@@ -64,8 +64,8 @@ compilerReport =
 reportToDoc :: Report -> D.Doc
 reportToDoc report_ =
   case report_ of
-    CompilerReport e es ->
-      Error.toDoc e es
+    CompilerReport root e es ->
+      Error.toDoc root e es
 
     Report title maybePath message ->
       let
@@ -94,7 +94,7 @@ reportToDoc report_ =
 reportToJson :: Report -> E.Value
 reportToJson report_ =
   case report_ of
-    CompilerReport e es ->
+    CompilerReport _ e es ->
       E.object
         [ "type" ==> E.chars "compile-errors"
         , "errors" ==> E.list Error.toJson (e:es)

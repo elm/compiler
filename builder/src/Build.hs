@@ -159,7 +159,7 @@ fromExposed style root details docsGoal exposed@(NE.List e es) =
               putMVar rmvar resultMVars
               results <- traverse readMVar resultMVars
               writeDetails root details results
-              finalizeExposed docsGoal exposed results
+              finalizeExposed root docsGoal exposed results
 
 
 
@@ -765,8 +765,8 @@ addNewLocal name result locals =
 -- FINALIZE EXPOSED
 
 
-finalizeExposed :: DocsGoal docs -> NE.List ModuleName.Raw -> Map.Map ModuleName.Raw Result -> IO (Either Exit.BuildProblem docs)
-finalizeExposed docsGoal exposed results =
+finalizeExposed :: FilePath -> DocsGoal docs -> NE.List ModuleName.Raw -> Map.Map ModuleName.Raw Result -> IO (Either Exit.BuildProblem docs)
+finalizeExposed root docsGoal exposed results =
   case foldr (addImportProblems results) [] (NE.toList exposed) of
     p:ps ->
       return $ Left $ Exit.BuildProjectProblem (Exit.BP_MissingExposed (NE.List p ps))
@@ -774,7 +774,7 @@ finalizeExposed docsGoal exposed results =
     [] ->
       case Map.foldr addErrors [] results of
         []   -> Right <$> finalizeDocs docsGoal results
-        e:es -> return $ Left $ Exit.BuildBadModules e es
+        e:es -> return $ Left $ Exit.BuildBadModules root e es
 
 
 addErrors :: Result -> [Error.Module] -> [Error.Module]
@@ -942,7 +942,7 @@ finalizeReplArtifacts env@(Env _ root projectType _ _ _ _) source modul@(Src.Mod
     DepsBlock ->
       case Map.foldr addErrors [] results of
         []   -> return $ Left $ Exit.ReplBlocked
-        e:es -> return $ Left $ Exit.ReplBadLocalDeps e es
+        e:es -> return $ Left $ Exit.ReplBadLocalDeps root e es
 
     DepsNotFound problems ->
       return $ Left $ Exit.ReplBadInput source $ Error.BadImports $
@@ -1186,10 +1186,10 @@ data Main
 
 
 toArtifacts :: Env -> Dependencies -> Map.Map ModuleName.Raw Result -> NE.List MainResult -> Either Exit.BuildProblem Artifacts
-toArtifacts (Env _ _ projectType _ _ _ _) foreigns results mainResults =
+toArtifacts (Env _ root projectType _ _ _ _) foreigns results mainResults =
   case gatherProblemsOrMains results mainResults of
     Left (NE.List e es) ->
-      Left (Exit.BuildBadModules e es)
+      Left (Exit.BuildBadModules root e es)
 
     Right mains ->
       Right $ Artifacts (projectTypeToPkg projectType) foreigns mains $

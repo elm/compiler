@@ -364,10 +364,10 @@ toFinalMessage done result =
 
     Left problem ->
       case problem of
-        Exit.BuildBadModules _ [] ->
+        Exit.BuildBadModules _ _ [] ->
           "Detected problems in 1 module."
 
-        Exit.BuildBadModules _ (_:ps) ->
+        Exit.BuildBadModules _ _ (_:ps) ->
           "Detected problems in " ++ show (2 + length ps) ++ " modules."
 
         Exit.BuildProjectProblem _ ->

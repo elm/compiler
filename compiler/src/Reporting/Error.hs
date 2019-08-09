@@ -12,6 +12,7 @@ module Reporting.Error
 import qualified Data.ByteString as B
 import qualified Data.NonEmptyList as NE
 import qualified Data.OneOrMore as OneOrMore
+import qualified System.FilePath as FP
 
 import qualified Elm.ModuleName as ModuleName
 import qualified File
@@ -38,8 +39,8 @@ import qualified Reporting.Report as Report
 data Module =
   Module
     { _name :: ModuleName.Raw
-    , _path :: FilePath
-    , _time :: File.Time
+    , _absolutePath :: FilePath
+    , _modificationTime :: File.Time
     , _source :: B.ByteString
     , _error :: Error
     }
@@ -92,26 +93,26 @@ toReports source err =
 -- TO DOC
 
 
-toDoc :: Module -> [Module] -> D.Doc
-toDoc err errs =
+toDoc :: FilePath -> Module -> [Module] -> D.Doc
+toDoc root err errs =
   let
-    (NE.List m ms) = NE.sortBy _time (NE.List err errs)
+    (NE.List m ms) = NE.sortBy _modificationTime (NE.List err errs)
   in
-  D.vcat (toDocHelp m ms)
+  D.vcat (toDocHelp root m ms)
 
 
-toDocHelp :: Module -> [Module] -> [D.Doc]
-toDocHelp module1 modules =
+toDocHelp :: FilePath -> Module -> [Module] -> [D.Doc]
+toDocHelp root module1 modules =
   case modules of
     [] ->
-      [moduleToDoc module1
+      [moduleToDoc root module1
       ,""
       ]
 
     module2 : otherModules ->
-      moduleToDoc module1
+      moduleToDoc root module1
       : toSeparator module1 module2
-      : toDocHelp module2 otherModules
+      : toDocHelp root module2 otherModules
 
 
 toSeparator :: Module -> Module -> D.Doc
@@ -133,19 +134,22 @@ toSeparator beforeModule afterModule =
 -- MODULE TO DOC
 
 
-moduleToDoc :: Module -> D.Doc
-moduleToDoc (Module _ path _ source err) =
+moduleToDoc :: FilePath -> Module -> D.Doc
+moduleToDoc root (Module _ absolutePath _ source err) =
   let
     reports =
       toReports (Code.toSource source) err
+
+    relativePath =
+      FP.makeRelative root absolutePath
   in
-  D.vcat $ map (reportToDoc path) (NE.toList reports)
+  D.vcat $ map (reportToDoc relativePath) (NE.toList reports)
 
 
 reportToDoc :: FilePath -> Report.Report -> D.Doc
-reportToDoc path (Report.Report title _ _ message) =
+reportToDoc relativePath (Report.Report title _ _ message) =
   D.vcat
-    [ toMessageBar title path
+    [ toMessageBar title relativePath
     , ""
     , message
     , ""

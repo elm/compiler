@@ -1759,7 +1759,7 @@ makeToReport make =
 
 
 data BuildProblem
-  = BuildBadModules Error.Module [Error.Module]
+  = BuildBadModules FilePath Error.Module [Error.Module]
   | BuildProjectProblem BuildProjectProblem
 
 
@@ -1778,8 +1778,8 @@ data BuildProjectProblem
 toBuildProblemReport :: BuildProblem -> Help.Report
 toBuildProblemReport problem =
   case problem of
-    BuildBadModules e es ->
-      Help.compilerReport e es
+    BuildBadModules root e es ->
+      Help.compilerReport root e es
 
     BuildProjectProblem projectProblem ->
       toProjectProblemReport projectProblem
@@ -2040,7 +2040,7 @@ reactorToReport problem =
 data Repl
   = ReplBadDetails Details
   | ReplBadInput BS.ByteString Error.Error
-  | ReplBadLocalDeps Error.Module [Error.Module]
+  | ReplBadLocalDeps FilePath Error.Module [Error.Module]
   | ReplProjectProblem BuildProjectProblem
   | ReplBadGenerate Generate
   | ReplBadCache
@@ -2054,10 +2054,10 @@ replToReport problem =
       toDetailsReport details
 
     ReplBadInput source err ->
-      Help.compilerReport (Error.Module N.replModule "REPL" File.zeroTime source err) []
+      Help.compilerReport "/" (Error.Module N.replModule "REPL" File.zeroTime source err) []
 
-    ReplBadLocalDeps e es ->
-      Help.compilerReport e es
+    ReplBadLocalDeps root e es ->
+      Help.compilerReport root e es
 
     ReplProjectProblem projectProblem ->
       toProjectProblemReport projectProblem
@@ -2085,7 +2085,7 @@ workerToReport :: Worker -> Help.Report
 workerToReport problem =
   case problem of
     WorkerInputError err ->
-      Help.compilerReport err []
+      Help.compilerReport "/" err []
 
     WorkerNoMain ->
       Help.report "NO MAIN" Nothing
