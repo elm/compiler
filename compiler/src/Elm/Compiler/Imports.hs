@@ -49,14 +49,14 @@ closed =
 
 typeOpen :: Name.Name -> Src.Exposing
 typeOpen name =
-  Src.Explicit [ A.At A.zero (Src.Upper name Src.Public) ]
+  Src.Explicit [ Src.Upper (A.At A.zero name) (Src.Public A.zero) ]
 
 
 typeClosed :: Name.Name -> Src.Exposing
 typeClosed name =
-  Src.Explicit [ A.At A.zero (Src.Upper name Src.Private) ]
+  Src.Explicit [ Src.Upper (A.At A.zero name) Src.Private ]
 
 
 operator :: Name.Name -> Src.Exposing
 operator op =
-  Src.Explicit [ A.At A.zero (Src.Operator op) ]
+  Src.Explicit [ Src.Operator A.zero op ]

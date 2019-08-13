@@ -236,11 +236,11 @@ checkExposed
   -> Map.Map Name.Name alias
   -> Map.Map Name.Name binop
   -> Can.Effects
-  -> A.Located Src.Exposed
+  -> Src.Exposed
   -> Result i w (Dups.Dict (A.Located Can.Export))
-checkExposed values unions aliases binops effects (A.At region exposed) =
+checkExposed values unions aliases binops effects exposed =
   case exposed of
-    Src.Lower name ->
+    Src.Lower (A.At region name) ->
       if Map.member name values then
         ok name region Can.ExportValue
       else
@@ -252,23 +252,23 @@ checkExposed values unions aliases binops effects (A.At region exposed) =
             Result.throw $ Error.ExportNotFound region Error.BadVar name $
               ports ++ Map.keys values
 
-    Src.Operator name ->
+    Src.Operator region name ->
       if Map.member name binops then
         ok name region Can.ExportBinop
       else
         Result.throw $ Error.ExportNotFound region Error.BadOp name $
           Map.keys binops
 
-    Src.Upper name Src.Public ->
+    Src.Upper (A.At region name) (Src.Public dotDotRegion) ->
       if Map.member name unions then
         ok name region Can.ExportUnionOpen
       else if Map.member name aliases then
-        Result.throw $ Error.ExportOpenAlias region name
+        Result.throw $ Error.ExportOpenAlias dotDotRegion name
       else
         Result.throw $ Error.ExportNotFound region Error.BadType name $
           Map.keys unions ++ Map.keys aliases
 
-    Src.Upper name Src.Private ->
+    Src.Upper (A.At region name) Src.Private ->
       if Map.member name unions then
         ok name region Can.ExportUnionClosed
       else if Map.member name aliases then

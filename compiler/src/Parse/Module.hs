@@ -434,18 +434,18 @@ exposing =
               Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
               word1 0x29 {-)-} E.ExposingEnd
               return Src.Open
-        , do  exposed <- addLocation chompExposed
+        , do  exposed <- chompExposed
               Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
               exposingHelp [exposed]
         ]
 
 
-exposingHelp :: [A.Located Src.Exposed] -> Parser E.Exposing Src.Exposing
+exposingHelp :: [Src.Exposed] -> Parser E.Exposing Src.Exposing
 exposingHelp revExposed =
   oneOf E.ExposingEnd
     [ do  word1 0x2C {-,-} E.ExposingEnd
           Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentValue
-          exposed <- addLocation chompExposed
+          exposed <- chompExposed
           Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
           exposingHelp (exposed:revExposed)
     , do  word1 0x29 {-)-} E.ExposingEnd
@@ -455,16 +455,21 @@ exposingHelp revExposed =
 
 chompExposed :: Parser E.Exposing Src.Exposed
 chompExposed =
-  oneOf E.ExposingValue
-    [ Src.Lower <$> Var.lower E.ExposingValue
-    , do  word1 0x28 {-(-} E.ExposingValue
-          op <- Symbol.operator E.ExposingOperator E.ExposingOperatorReserved
-          word1 0x29 {-)-} E.ExposingOperatorRightParen
-          return (Src.Operator op)
-    , do  name <- Var.upper E.ExposingValue
-          Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
-          Src.Upper name <$> privacy
-    ]
+  do  start <- getPosition
+      oneOf E.ExposingValue
+        [ do  name <- Var.lower E.ExposingValue
+              end <- getPosition
+              return $ Src.Lower $ A.at start end name
+        , do  word1 0x28 {-(-} E.ExposingValue
+              op <- Symbol.operator E.ExposingOperator E.ExposingOperatorReserved
+              word1 0x29 {-)-} E.ExposingOperatorRightParen
+              end <- getPosition
+              return $ Src.Operator (A.Region start end) op
+        , do  name <- Var.upper E.ExposingValue
+              end <- getPosition
+              Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
+              Src.Upper (A.at start end name) <$> privacy
+        ]
 
 
 privacy :: Parser E.Exposing Src.Privacy
@@ -472,9 +477,11 @@ privacy =
   oneOfWithFallback
     [ do  word1 0x28 {-(-} E.ExposingTypePrivacy
           Space.chompAndCheckIndent E.ExposingSpace E.ExposingTypePrivacy
+          start <- getPosition
           word2 0x2E 0x2E {-..-} E.ExposingTypePrivacy
+          end <- getPosition
           Space.chompAndCheckIndent E.ExposingSpace E.ExposingTypePrivacy
           word1 0x29 {-)-} E.ExposingTypePrivacy
-          return Src.Public
+          return $ Src.Public (A.Region start end)
     ]
     Src.Private

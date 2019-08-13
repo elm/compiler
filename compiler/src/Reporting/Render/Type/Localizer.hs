@@ -112,9 +112,9 @@ toExposing exposing =
       Only (foldr addType Set.empty exposedList)
 
 
-addType :: A.Located Src.Exposed -> Set.Set Name.Name -> Set.Set Name.Name
-addType (A.At _ exposed) types =
+addType :: Src.Exposed -> Set.Set Name.Name -> Set.Set Name.Name
+addType exposed types =
   case exposed of
-    Src.Lower _      -> types
-    Src.Upper name _ -> Set.insert name types
-    Src.Operator _   -> types
+    Src.Lower _               -> types
+    Src.Upper (A.At _ name) _ -> Set.insert name types
+    Src.Operator _ _          -> types

@@ -195,15 +195,15 @@ newtype Comment =
 
 data Exposing
   = Open
-  | Explicit [A.Located Exposed]
+  | Explicit [Exposed]
 
 
 data Exposed
-  = Lower Name
-  | Upper Name Privacy
-  | Operator Name
+  = Lower (A.Located Name)
+  | Upper (A.Located Name) Privacy
+  | Operator A.Region Name
 
 
 data Privacy
-  = Public
+  = Public A.Region
   | Private

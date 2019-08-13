@@ -207,11 +207,11 @@ addExposedValue
   -> Map.Map Name.Name (Env.Type, Env.Exposed Env.Ctor)
   -> Map.Map Name.Name I.Binop
   -> State
-  -> A.Located Src.Exposed
+  -> Src.Exposed
   -> Result i w State
-addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) (A.At region exposed) =
+addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) exposed =
   case exposed of
-    Src.Lower name ->
+    Src.Lower (A.At region name) ->
       case Map.lookup name vars of
         Just info ->
           Result.ok (State (Map.insertWith Map.union name info vs) ts cs bs qvs qts qcs)
@@ -219,7 +219,7 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) (A.At reg
         Nothing ->
           Result.throw (Error.ImportExposingNotFound region home name (Map.keys vars))
 
-    Src.Upper name privacy ->
+    Src.Upper (A.At region name) privacy ->
       case privacy of
         Src.Private ->
           case Map.lookup name types of
@@ -246,7 +246,7 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) (A.At reg
                 Nothing ->
                   Result.throw $ Error.ImportExposingNotFound region home name (Map.keys types)
 
-        Src.Public ->
+        Src.Public dotDotRegion ->
           case Map.lookup name types of
             Just (tipe, ctors) ->
               case tipe of
@@ -258,12 +258,12 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) (A.At reg
                   Result.ok (State vs ts2 cs2 bs qvs qts qcs)
 
                 Env.Alias _ _ _ _ ->
-                  Result.throw (Error.ImportOpenAlias region name)
+                  Result.throw (Error.ImportOpenAlias dotDotRegion name)
 
             Nothing ->
               Result.throw (Error.ImportExposingNotFound region home name (Map.keys types))
 
-    Src.Operator op ->
+    Src.Operator region op ->
       case Map.lookup op binops of
         Just binop ->
           let

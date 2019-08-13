@@ -319,19 +319,19 @@ toNames exposing =
       map toName exposedList
 
 
-toName :: A.Located Src.Exposed -> Name.Name
-toName (A.At _ exposed) =
+toName :: Src.Exposed -> Name.Name
+toName exposed =
   case exposed of
-    Src.Lower name ->
+    Src.Lower (A.At _ name) ->
       name
 
-    Src.Upper name Src.Private ->
+    Src.Upper (A.At _ name) Src.Private ->
       name
 
-    Src.Upper _ Src.Public ->
+    Src.Upper _ (Src.Public _) ->
       error "cannot have Maybe(..) syntax in kernel code header"
 
-    Src.Operator _ ->
+    Src.Operator _ _ ->
       error "cannot use binops in kernel code"
 
 
