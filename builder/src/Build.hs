@@ -50,6 +50,7 @@ import qualified Parse.Module as Parse
 import qualified Reporting
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error as Error
+import qualified Reporting.Error.Docs as EDocs
 import qualified Reporting.Error.Syntax as Syntax
 import qualified Reporting.Error.Import as Import
 import qualified Reporting.Exit as Exit
@@ -706,25 +707,30 @@ compile (Env key root projectType _ buildID _ _) docsNeed (Details.Local path ti
   in
   case Compile.compile pkg ifaces modul of
     Right (Compile.Artifacts canonical annotations objects) ->
-      do  let name = Src.getName modul
-          let iface = I.fromModule pkg canonical annotations
-          let docs = makeDocs docsNeed canonical
-          let elmi = Stuff.elmi root name
-          File.writeBinary (Stuff.elmo root name) objects
-          maybeOldi <- File.readBinary elmi
-          case maybeOldi of
-            Just oldi | oldi == iface ->
-              do  -- iface should be fully forced by equality check
-                  Reporting.report key Reporting.BDone
-                  let local = Details.Local path time deps main lastChange buildID
-                  return (RSame local iface objects docs)
+      case makeDocs docsNeed canonical of
+        Left err ->
+          return $ RProblem $
+            Error.Module (Src.getName modul) path time source (Error.BadDocs err)
 
-            _ ->
-              do  -- iface may be lazy still
-                  File.writeBinary elmi iface
-                  Reporting.report key Reporting.BDone
-                  let local = Details.Local path time deps main buildID buildID
-                  return (RNew local iface objects docs)
+        Right docs ->
+          do  let name = Src.getName modul
+              let iface = I.fromModule pkg canonical annotations
+              let elmi = Stuff.elmi root name
+              File.writeBinary (Stuff.elmo root name) objects
+              maybeOldi <- File.readBinary elmi
+              case maybeOldi of
+                Just oldi | oldi == iface ->
+                  do  -- iface should be fully forced by equality check
+                      Reporting.report key Reporting.BDone
+                      let local = Details.Local path time deps main lastChange buildID
+                      return (RSame local iface objects docs)
+
+                _ ->
+                  do  -- iface may be lazy still
+                      File.writeBinary elmi iface
+                      Reporting.report key Reporting.BDone
+                      let local = Details.Local path time deps main buildID buildID
+                      return (RNew local iface objects docs)
 
     Left err ->
       return $ RProblem $
@@ -825,14 +831,14 @@ toDocsNeed goal =
     KeepDocs    -> DocsNeed True
 
 
-makeDocs :: DocsNeed -> Can.Module -> Maybe Docs.Module
+makeDocs :: DocsNeed -> Can.Module -> Either EDocs.Error (Maybe Docs.Module)
 makeDocs (DocsNeed isNeeded) modul =
   if isNeeded then
     case Docs.fromModule modul of
-      Right docs -> Just docs
-      Left _     -> Nothing
+      Right docs -> Right (Just docs)
+      Left err   -> Left err
   else
-    Nothing
+    Right Nothing
 
 
 finalizeDocs :: DocsGoal docs -> Map.Map ModuleName.Raw Result -> IO docs
