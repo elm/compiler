@@ -145,7 +145,7 @@ exitToHtmlBuilder exit =
 
 compileToBuilder :: Artifacts -> B.ByteString -> Either Exit.Worker B.Builder
 compileToBuilder (Artifacts interfaces objects) source =
-  case Parse.fromByteString Pkg.dummyName source of
+  case Parse.fromByteString Parse.Application source of
     Left err ->
       Left $ toInputError N._Main source (Error.BadSyntax err)
 
