@@ -122,7 +122,7 @@ makeUnderline width realEndLine (A.Region (A.Position start c1) (A.Position end 
       spaces = replicate (fromIntegral c1 + width + 1) ' '
       zigzag = replicate (max 1 (fromIntegral (c2 - c1))) '^'
     in
-      Just (D.fromChars spaces <> D.dullred (D.fromChars zigzag))
+      Just (D.fromChars spaces <> D.red (D.fromChars zigzag))
 
 
 drawLines :: Bool -> Int -> A.Region -> [(Word16, String)] -> Doc -> Doc
@@ -148,7 +148,7 @@ addLineNumber addZigZag width start end n line =
 
     spacer =
       if addZigZag && start <= n && n <= end then
-        D.dullred ">"
+        D.red ">"
       else
         " "
   in
@@ -183,8 +183,8 @@ renderPair source@(Source sourceLines) region1 region2 =
     OneLine $
       D.vcat
         [ D.fromChars lineNumber <> "| " <> D.fromChars line
-        , D.fromChars spaces1 <> D.dullred (D.fromChars zigzag1) <>
-          D.fromChars spaces2 <> D.dullred (D.fromChars zigzag2)
+        , D.fromChars spaces1 <> D.red (D.fromChars zigzag1) <>
+          D.fromChars spaces2 <> D.red (D.fromChars zigzag2)
         ]
 
   else
