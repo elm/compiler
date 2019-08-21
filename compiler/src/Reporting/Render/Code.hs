@@ -201,6 +201,8 @@ data Next
   = Keyword [Char]
   | Operator [Char]
   | Close [Char] Char
+  | Upper Char [Char]
+  | Lower Char [Char]
   | Other (Maybe Char)
 
 
@@ -211,25 +213,34 @@ whatIsNext (Source sourceLines) row col =
       Other Nothing
 
     Just line ->
-      let
-        chars = drop (fromIntegral col - 1) line
-        keywords = map Name.toChars (Set.toList reservedWords)
-      in
-      case List.find (startsWithKeyword chars) keywords of
-        Just keyword ->
-          Keyword keyword
+      case drop (fromIntegral col - 1) line of
+        [] ->
+          Other Nothing
 
-        Nothing ->
-          case chars of
-            [] ->
-              Other Nothing
+        c:cs
+          | Char.isUpper c -> Upper c (takeWhile isInner cs)
+          | Char.isLower c -> detectKeywords c cs
+          | isSymbol c     -> Operator (c : takeWhile isSymbol cs)
+          | c == ')'       -> Close "parenthesis" ')'
+          | c == ']'       -> Close "square bracket" ']'
+          | c == '}'       -> Close "curly brace" '}'
+          | otherwise      -> Other (Just c)
 
-            c:cs
-              | isSymbol c -> Operator (c : takeWhile isSymbol cs)
-              | c == ')'   -> Close "parenthesis" ')'
-              | c == ']'   -> Close "square bracket" ']'
-              | c == '}'   -> Close "curly brace" '}'
-              | otherwise  -> Other (Just c)
+
+detectKeywords :: Char -> [Char] -> Next
+detectKeywords c rest =
+  let
+    cs = takeWhile isInner rest
+    name = c : cs
+  in
+  if Set.member (Name.fromChars name) reservedWords
+  then Keyword name
+  else Lower c name
+
+
+isInner :: Char -> Bool
+isInner char =
+  Char.isAlphaNum char || char == '_'
 
 
 isSymbol :: Char -> Bool
@@ -246,7 +257,7 @@ startsWithKeyword restOfLine keyword =
       True
 
     c:_ ->
-      not (Char.isAlphaNum c || c == '_')
+      not (isInner c)
 
 
 nextLineStartsWithKeyword :: [Char] -> Source -> Row -> Maybe (Row, Col)
