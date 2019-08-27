@@ -4127,11 +4127,13 @@ toRecordReport source context record startRow startCol =
             D.reflow $
               "I just saw the opening curly brace of a record, but then I got stuck here:"
           ,
-            addNoteForRecordIndentError $
-              D.fillSep $
-                ["I","am","expecting","a","record","like",D.dullyellow "{ x = 3, y = 4 }","here."
-                ,"Try","defining","some","fields","of","your","own?"
-                ]
+            D.stack
+              [ D.fillSep $
+                  ["I","am","expecting","a","record","like",D.dullyellow "{ x = 3, y = 4 }","here."
+                  ,"Try","defining","some","fields","of","your","own?"
+                  ]
+              , noteForRecordIndentError
+              ]
           )
 
     RecordIndentEnd row col ->
@@ -4165,11 +4167,13 @@ toRecordReport source context record startRow startCol =
                 D.reflow $
                   "I was partway through parsing a record, but I got stuck here:"
               ,
-                addNoteForRecordIndentError $
-                  D.fillSep $
-                    ["I","was","expecting","to","see","a","closing","curly","brace","next."
-                    ,"Try","putting","a",D.green "}","next","and","see","if","that","helps?"
-                    ]
+                D.stack
+                  [ D.fillSep $
+                      ["I","was","expecting","to","see","a","closing","curly","brace","next."
+                      ,"Try","putting","a",D.green "}","next","and","see","if","that","helps?"
+                      ]
+                  , noteForRecordIndentError
+                  ]
               )
 
     RecordIndentField row col ->
@@ -4204,10 +4208,12 @@ toRecordReport source context record startRow startCol =
               "I am partway through parsing a record. I just saw a record\
               \ field, so I was expecting to see an equals sign next:"
           ,
-            addNoteForRecordIndentError $
-              D.fillSep $
-                ["Try","putting","an",D.green "=","followed","by","an","expression?"
-                ]
+            D.stack
+              [ D.fillSep $
+                  ["Try","putting","an",D.green "=","followed","by","an","expression?"
+                  ]
+              , noteForRecordIndentError
+              ]
           )
 
     RecordIndentExpr row col ->
@@ -4221,11 +4227,13 @@ toRecordReport source context record startRow startCol =
             D.reflow $
               "I am partway through parsing a record, and I was expecting to run into an expression next:"
           ,
-            addNoteForRecordIndentError $
-              D.fillSep $
-                ["Try","putting","something","like"
-                ,D.dullyellow "42","or",D.dullyellow"\"hello\"","for","now?"
-                ]
+            D.stack
+              [ D.fillSep $
+                  ["Try","putting","something","like"
+                  ,D.dullyellow "42","or",D.dullyellow"\"hello\"","for","now?"
+                  ]
+              , noteForRecordIndentError
+              ]
           )
 
 
@@ -4246,11 +4254,9 @@ noteForRecordError =
     ]
 
 
-addNoteForRecordIndentError :: D.Doc -> D.Doc
-addNoteForRecordIndentError normalRecommendation =
-  D.stack $
-    normalRecommendation
-    :
+noteForRecordIndentError :: D.Doc
+noteForRecordIndentError =
+  D.stack
     [ D.toSimpleNote
         "I may be confused by indentation. For example, if you are trying to define\
         \ a record across multiple lines, I recommend using this format:"
