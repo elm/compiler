@@ -693,6 +693,36 @@ toParseErrorReport source modul =
                   "This " ++ bracket : " does not match up with an earlier open " ++ term ++ ". Try deleting it?"
               )
 
+        Code.Lower c cs ->
+          let
+            region = toKeywordRegion row col (c:cs)
+          in
+          Report.Report "UNEXPECTED NAME" region [] $
+            Code.toSnippet source region Nothing
+              (
+                D.reflow $
+                  "I got stuck on this name:"
+              ,
+                D.reflow $
+                  "It is confusing me a lot! Normally I can give fairly specific hints, but\
+                  \ something is really tripping me up this time."
+              )
+
+        Code.Upper c cs ->
+          let
+            region = toKeywordRegion row col (c:cs)
+          in
+          Report.Report "UNEXPECTED NAME" region [] $
+            Code.toSnippet source region Nothing
+              (
+                D.reflow $
+                  "I got stuck on this name:"
+              ,
+                D.reflow $
+                  "It is confusing me a lot! Normally I can give fairly specific hints, but\
+                  \ something is really tripping me up this time."
+              )
+
         Code.Other maybeChar ->
           let
             region = toRegion row col
@@ -747,17 +777,15 @@ toParseErrorReport source modul =
                           "It is not used for anything in Elm syntax. It is used for multi-line strings in\
                           \ some languages though, so if you want a string that spans multiple lines, you\
                           \ can use Elm's multi-line string syntax like this:"
-                      , D.vcat
-                          [ D.fillSep [D.green "markdown","=",D.dullyellow "\"\"\""]
-                          , mempty
-                          , D.dullyellow "# Multi-line Strings"
-                          , mempty
-                          , D.dullyellow "- start with triple double quotes"
-                          , D.dullyellow "- write whatever you want"
-                          , D.dullyellow "- no need to escape newlines or double quotes"
-                          , D.dullyellow "- end with triple double quotes"
-                          , mempty
-                          , D.dullyellow "\"\"\""
+                      , D.dullyellow $ D.indent 4 $ D.vcat $
+                          [ "\"\"\""
+                          , "# Multi-line Strings"
+                          , ""
+                          , "- start with triple double quotes"
+                          , "- write whatever you want"
+                          , "- no need to escape newlines or double quotes"
+                          , "- end with triple double quotes"
+                          , "\"\"\""
                           ]
                       , D.reflow $
                           "Otherwise I do not know what is going on! Try removing the character?"
@@ -944,11 +972,11 @@ toParseErrorReport source modul =
                   [ D.reflow $
                       "I am not sure what is going on, but I recommend starting an Elm\
                       \ file with the following lines:"
-                  , D.vcat
+                  , D.indent 4 $ D.vcat $
                       [ D.fillSep [D.cyan "import","Html"]
                       , ""
-                      , D.fillSep [D.green "main","="]
-                      , D.indent 2 $ D.fillSep [D.cyan "Html" <> ".text",D.dullyellow "\"Hello!\""]
+                      , "main ="
+                      , "  Html.text " <> D.dullyellow "\"Hello!\""
                       ]
                   , D.reflow $
                       "You should be able to copy those lines directly into your file. Check out the\
@@ -977,8 +1005,8 @@ toParseErrorReport source modul =
               , D.indent 4 $ D.vcat $
                   [ D.fillSep [D.cyan "import","Dict"]
                   , D.fillSep [D.cyan "import","Maybe"]
-                  , D.fillSep [D.cyan "import","Html.Attributes"]
-                  , D.fillSep [D.cyan "import","Json.Decode"]
+                  , D.fillSep [D.cyan "import","Html.Attributes",D.cyan "as","A"]
+                  , D.fillSep [D.cyan "import","Json.Decode",D.cyan "exposing","(..)"]
                   ]
               , D.reflow $
                   "Notice that the module names all start with capital letters. That is required!"
@@ -1439,8 +1467,8 @@ toDeclarationsReport source decl =
                       , D.toSimpleNote $
                           "If you are trying to write a `case` expression, it needs to be part of a\
                           \ definition. So you could write something like this instead:"
-                      , D.vcat $
-                          [ D.indent 0 $ D.fillSep [D.green "getWidth","maybeWidth","="]
+                      , D.indent 4 $ D.vcat $
+                          [ D.indent 0 $ D.fillSep ["getWidth","maybeWidth","="]
                           , D.indent 2 $ D.fillSep [D.cyan "case","maybeWidth",D.cyan "of"]
                           , D.indent 4 $ D.fillSep [D.blue "Just","width","->"]
                           , D.indent 6 $ D.fillSep ["width","+",D.dullyellow "200"]
@@ -1449,7 +1477,7 @@ toDeclarationsReport source decl =
                           , D.indent 6 $ D.fillSep [D.dullyellow "400"]
                           ]
                       , D.reflow $
-                          "This defines a `getWidth` function that we can use elsewhere in our program."
+                          "This defines a `getWidth` function that you can use elsewhere in your program."
                       ]
 
                   "if" ->
@@ -1459,16 +1487,17 @@ toDeclarationsReport source decl =
                       , D.toSimpleNote $
                           "If you are trying to write an `if` expression, it needs to be part of a\
                           \ definition. So you could write something like this instead:"
-                      , D.vcat $
-                          [ D.indent 0 $ D.fillSep [D.green "reviewPowerLevel","powerLevel","="]
-                          , D.indent 2 $ D.fillSep $
-                              [D.cyan "if","powerLevel",">",D.dullyellow "9000"
-                              ,D.cyan "then",D.dullyellow "\"OVER 9000!!!\""
-                              ,D.cyan "else",D.dullyellow "\"not bad\""
+                      , D.indent 4 $ D.vcat $
+                          [ "greet name ="
+                          , D.fillSep $
+                              [" "
+                              ,D.cyan "if","name","==",D.dullyellow "\"Abraham Lincoln\""
+                              ,D.cyan "then",D.dullyellow "\"Greetings Mr. President.\""
+                              ,D.cyan "else",D.dullyellow "\"Hey!\""
                               ]
                           ]
                       , D.reflow $
-                          "This defines a `reviewPowerLevel` function that we can use elsewhere in our program."
+                          "This defines a `reviewPowerLevel` function that you can use elsewhere in your program."
                       ]
 
                   _ ->
@@ -1476,37 +1505,83 @@ toDeclarationsReport source decl =
                       "It is a reserved word. Try changing the name to something else?"
               )
 
+        Code.Upper c cs ->
+          let
+            region = toRegion row col
+          in
+          Report.Report "UNEXPECTED CAPITAL LETTER" region [] $
+            Code.toSnippet source region Nothing
+              (
+                D.reflow $
+                  "Declarations always start with a lower-case letter, so I am getting stuck here:"
+              ,
+                D.stack
+                  [ D.fillSep $
+                      ["Try","a","name","like"
+                      ,D.green (D.fromChars (Char.toLower c : cs))
+                      ,"instead?"
+                      ]
+                  , D.toSimpleNote $
+                      "Here are a couple valid declarations for reference:"
+                  , D.indent 4 $ D.vcat $
+                      [ "greet : String -> String"
+                      , "greet name ="
+                      , "  " <> D.dullyellow "\"Hello \"" <> " ++ name ++ " <> D.dullyellow "\"!\""
+                      , ""
+                      , D.cyan "type" <> " User = Anonymous | LoggedIn String"
+                      ]
+                  , D.reflow $
+                      "Notice that they always start with a lower-case letter. Capitalization matters!"
+                  ]
+              )
+
+        Code.Other (Just char) | elem char ['(', '{', '[', '+', '-', '*', '/', '^', '&', '|', '"', '\'', '!', '@', '#', '$', '%'] ->
+          let
+            region = toRegion row col
+          in
+          Report.Report "UNEXPECTED SYMBOL" region [] $
+            Code.toSnippet source region Nothing
+              (
+                D.reflow $
+                  "I am getting stuck because this line starts with the " ++ [char] ++ " symbol:"
+              ,
+                D.stack
+                  [ D.reflow $
+                      "When a line has no spaces at the beginning, I expect it to be a declaration like one of these:"
+                  , D.indent 4 $ D.vcat $
+                      [ "greet : String -> String"
+                      , "greet name ="
+                      , "  " <> D.dullyellow "\"Hello \"" <> " ++ name ++ " <> D.dullyellow "\"!\""
+                      , ""
+                      , D.cyan "type" <> " User = Anonymous | LoggedIn String"
+                      ]
+                  , D.reflow $
+                      "If this is not supposed to be a declaration, try adding some spaces before it?"
+                  ]
+              )
+
         _ ->
           let
             region = toRegion row col
           in
-          Report.Report "SYNTAX PROBLEM" region [] $
+          Report.Report "WEIRD DECLARATION" region [] $
             Code.toSnippet source region Nothing
               (
                 D.reflow $
-                  "I was expecting to see a declaration, but I am getting stuck here:"
+                  "I am trying to parse a declaration, but I am getting stuck here:"
               ,
                 D.stack
-                  [ case Code.whatIsNext source row col of
-                      Code.Other (Just char) | Char.isUpper char ->
-                        D.reflow $
-                          "All declarations start with lower-case letters in Elm, so maybe this letter can\
-                          \ be changed to lower-case?"
-
-                      _ ->
-                       D.reflow $
-                          "Declarations normally start with a lower-case name or the `type` keyword."
-                  , D.toSimpleHint $
-                      "Here are a couple valid declarations for reference:"
-                  , D.vcat
-                      [ D.fillSep [D.green "add",":","Int","->","Int","->","Int"]
-                      , D.fillSep [D.green "add","x","y","="]
-                      , D.fillSep [" ","x","+","y"]
+                  [ D.reflow $
+                      "I am not sure what is going wrong, so here are a couple valid declarations for reference:"
+                  , D.indent 4 $ D.vcat $
+                      [ "greet : String -> String"
+                      , "greet name ="
+                      , "  " <> D.dullyellow "\"Hello \"" <> " ++ name ++ " <> D.dullyellow "\"!\""
+                      , ""
+                      , D.cyan "type" <> " User = Anonymous | LoggedIn String"
                       ]
-                  , D.fillSep [D.cyan "type",D.green "User","=","Anonymous","|","LoggedIn String"]
                   , D.reflow $
-                      "Notice that these declarations start with lower-case letters. Capitalization\
-                      \ makes a difference in Elm!"
+                      "Try to make your declaration look like one of those?"
                   ]
               )
 
@@ -1664,7 +1739,7 @@ toPortReport source port_ startRow startCol =
               [ D.reflow $
                   "I was expecting to see a type next. Here are examples of outgoing and\
                   \ incoming ports for reference:"
-              , D.vcat
+              , D.indent 4 $ D.vcat $
                   [ D.fillSep [D.cyan "port","send",":","String -> Cmd msg"]
                   , D.fillSep [D.cyan "port","receive",":","(String -> msg) -> Sub msg"]
                   ]
@@ -1683,7 +1758,7 @@ portNote =
   D.stack
     [ D.toSimpleNote $
         "Here are some example `port` declarations for reference:"
-    , D.vcat
+    , D.indent 4 $ D.vcat $
         [ D.fillSep [D.cyan "port","send",":","String -> Cmd msg"]
         , D.fillSep [D.cyan "port","receive",":","(String -> msg) -> Sub msg"]
         ]
@@ -1866,8 +1941,8 @@ typeAliasNote =
     [ D.toSimpleNote $
         "Here is an example of a valid `type alias` for reference:"
     , D.vcat $
-        [ D.indent 0 $ D.fillSep [D.cyan "type",D.cyan "alias",D.green "Person","="]
-        , D.indent 2 $ D.vcat $
+        [ D.indent 4 $ D.fillSep [D.cyan "type",D.cyan "alias","Person","="]
+        , D.indent 6 $ D.vcat $
              ["{ name : String"
              ,", age : Int"
              ,", height : Float"
@@ -2067,10 +2142,10 @@ customTypeNote =
     [ D.toSimpleNote $
         "Here is an example of a valid `type` declaration for reference:"
     , D.vcat $
-        [ D.indent 0 $ D.fillSep [D.cyan "type",D.green "Status"]
-        , D.indent 2 $ D.fillSep ["=","Failure"]
-        , D.indent 2 $ D.fillSep ["|","Waiting"]
-        , D.indent 2 $ D.fillSep ["|","Success","String"]
+        [ D.indent 4 $ D.fillSep [D.cyan "type","Status"]
+        , D.indent 6 $ D.fillSep ["=","Failure"]
+        , D.indent 6 $ D.fillSep ["|","Waiting"]
+        , D.indent 6 $ D.fillSep ["|","Success","String"]
         ]
     , D.reflow $
         "This defines a new `Status` type with three variants. This could be useful if\
@@ -2142,10 +2217,10 @@ toDeclDefReport source name declDef startRow startCol =
                       ,"a","type","annotation.","It","could","be","something","else","though,","so"
                       ,"here","is","a","valid","definition","for","reference:"
                       ]
-                  , D.vcat
-                      [ D.fillSep [D.green "add",":","Int","->","Int","->","Int"]
-                      , D.fillSep [D.green "add","x","y","="]
-                      , D.fillSep [" ","x","+","y"]
+                  , D.indent 4 $ D.vcat $
+                      [ "greet : String -> String"
+                      , "greet name ="
+                      , "  " <> D.dullyellow "\"Hello \"" <> " ++ name ++ " <> D.dullyellow "\"!\""
                       ]
                   , D.reflow $
                       "Try to use that format with your `" ++ Name.toChars name ++ "` definition!"
@@ -2167,10 +2242,10 @@ toDeclDefReport source name declDef startRow startCol =
                   [ D.reflow $
                       "I am not sure what is going wrong exactly, so here is a valid\
                       \ definition (with an optional type annotation) for reference:"
-                  , D.vcat
-                      [ D.fillSep [D.green "add",":","Int","->","Int","->","Int"]
-                      , D.fillSep [D.green "add","x","y","="]
-                      , D.fillSep [" ","x","+","y"]
+                  , D.indent 4 $ D.vcat $
+                      [ "greet : String -> String"
+                      , "greet name ="
+                      , "  " <> D.dullyellow "\"Hello \"" <> " ++ name ++ " <> D.dullyellow "\"!\""
                       ]
                   , D.reflow $
                       "Try to use that format with your `" ++ Name.toChars name ++ "` definition!"
@@ -2192,10 +2267,10 @@ toDeclDefReport source name declDef startRow startCol =
                   [ D.reflow $
                       "I am not sure what is going wrong exactly, so here is a valid\
                       \ definition (with an optional type annotation) for reference:"
-                  , D.vcat
-                      [ D.fillSep [D.green "add",":","Int","->","Int","->","Int"]
-                      , D.fillSep [D.green "add","x","y","="]
-                      , D.fillSep [" ","x","+","y"]
+                  , D.indent 4 $ D.vcat $
+                      [ "greet : String -> String"
+                      , "greet name ="
+                      , "  " <> D.dullyellow "\"Hello \"" <> " ++ name ++ " <> D.dullyellow "\"!\""
                       ]
                   , D.reflow $
                       "Try to use that format!"
@@ -2310,10 +2385,10 @@ declDefNote =
   D.stack
     [ D.reflow $
         "Here is a valid definition (with a type annotation) for reference:"
-    , D.vcat
-        [ D.fillSep [D.green "add",":","Int","->","Int","->","Int"]
-        , D.fillSep [D.green "add","x","y","="]
-        , D.fillSep [" ","x","+","y"]
+    , D.indent 4 $ D.vcat $
+        [ "greet : String -> String"
+        , "greet name ="
+        , "  " <> D.dullyellow "\"Hello \"" <> " ++ name ++ " <> D.dullyellow "\"!\""
         ]
     , D.reflow $
         "The top line (called a \"type annotation\") is optional. You can leave it off\
@@ -2646,17 +2721,15 @@ toStringReport source string row col =
               , D.toSimpleNote $
                   "For a string that spans multiple lines, you can use the multi-line string\
                   \ syntax like this:"
-              , D.vcat
-                  [ D.fillSep [D.green "markdown","=",D.dullyellow "\"\"\""]
-                  , mempty
-                  , D.dullyellow "# Multi-line Strings"
-                  , mempty
-                  , D.dullyellow "- start with triple double quotes"
-                  , D.dullyellow "- write whatever you want"
-                  , D.dullyellow "- no need to escape newlines or double quotes"
-                  , D.dullyellow "- end with triple double quotes"
-                  , mempty
-                  , D.dullyellow "\"\"\""
+              , D.dullyellow $ D.indent 4 $ D.vcat $
+                  [ "\"\"\""
+                  , "# Multi-line Strings"
+                  , ""
+                  , "- start with triple double quotes"
+                  , "- write whatever you want"
+                  , "- no need to escape newlines or double quotes"
+                  , "- end with triple double quotes"
+                  , "\"\"\""
                   ]
               ]
           )
@@ -2675,17 +2748,15 @@ toStringReport source string row col =
               [ D.reflow "Add a \"\"\" somewhere after this to end the string."
               , D.toSimpleNote $
                   "Here is a valid multi-line string for reference:"
-              , D.vcat
-                  [ D.fillSep [D.green "markdown","=",D.dullyellow "\"\"\""]
-                  , mempty
-                  , D.dullyellow "# Multi-line Strings"
-                  , mempty
-                  , D.dullyellow "- start with triple double quotes"
-                  , D.dullyellow "- write whatever you want"
-                  , D.dullyellow "- no need to escape newlines or double quotes"
-                  , D.dullyellow "- end with triple double quotes"
-                  , mempty
-                  , D.dullyellow "\"\"\""
+              , D.dullyellow $ D.indent 4 $ D.vcat $
+                  [ "\"\"\""
+                  , "# Multi-line Strings"
+                  , ""
+                  , "- start with triple double quotes"
+                  , "- write whatever you want"
+                  , "- no need to escape newlines or double quotes"
+                  , "- end with triple double quotes"
+                  , "\"\"\""
                   ]
               ]
           )
@@ -3150,8 +3221,8 @@ toUnfinishLetReport source row col startRow startCol message =
           [ message
           , D.toSimpleNote $
               "Here is an example with a valid `let` expression for reference:"
-          , D.vcat $
-              [ D.indent 0 $ D.fillSep [D.green "viewPerson","person","="]
+          , D.indent 4 $ D.vcat $
+              [ D.indent 0 $ D.fillSep ["viewPerson","person","="]
               , D.indent 2 $ D.fillSep [D.cyan "let"]
               , D.indent 4 $ D.fillSep ["fullName","="]
               , D.indent 6 $ D.fillSep ["person.firstName","++",D.dullyellow "\" \"","++","person.lastName"]
@@ -3269,10 +3340,10 @@ toLetDefReport source name def startRow startCol =
                       ,"a","type","annotation.","It","could","be","something","else","though,","so"
                       ,"here","is","a","valid","definition","for","reference:"
                       ]
-                  , D.vcat
-                      [ D.indent 4 $ D.fillSep [D.green "add",":","Int","->","Int","->","Int"]
-                      , D.indent 4 $ D.fillSep [D.green "add","x","y","="]
-                      , D.indent 6 $ D.fillSep ["x","+","y"]
+                  , D.indent 4 $ D.vcat $
+                      [ "greet : String -> String"
+                      , "greet name ="
+                      , "  " <> D.dullyellow "\"Hello \"" <> " ++ name ++ " <> D.dullyellow "\"!\""
                       ]
                   , D.reflow $
                       "Try to use that format with your `" ++ Name.toChars name ++ "` definition!"
@@ -3294,10 +3365,10 @@ toLetDefReport source name def startRow startCol =
                   [ D.reflow $
                       "I am not sure what is going wrong exactly, so here is a valid\
                       \ definition (with an optional type annotation) for reference:"
-                  , D.vcat
-                      [ D.indent 4 $ D.fillSep [D.green "add",":","Int","->","Int","->","Int"]
-                      , D.indent 4 $ D.fillSep [D.green "add","x","y","="]
-                      , D.indent 6 $ D.fillSep ["x","+","y"]
+                  , D.indent 4 $ D.vcat $
+                      [ "greet : String -> String"
+                      , "greet name ="
+                      , "  " <> D.dullyellow "\"Hello \"" <> " ++ name ++ " <> D.dullyellow "\"!\""
                       ]
                   , D.reflow $
                       "Try to use that format with your `" ++ Name.toChars name ++ "` definition!"
@@ -3319,10 +3390,10 @@ toLetDefReport source name def startRow startCol =
                   [ D.reflow $
                       "I am not sure what is going wrong exactly, so here is a valid\
                       \ definition (with an optional type annotation) for reference:"
-                  , D.vcat
-                      [ D.indent 4 $ D.fillSep [D.green "add",":","Int","->","Int","->","Int"]
-                      , D.indent 4 $ D.fillSep [D.green "add","x","y","="]
-                      , D.indent 4 $ D.fillSep ["x","+","y"]
+                  , D.indent 4 $ D.vcat $
+                      [ "greet : String -> String"
+                      , "greet name ="
+                      , "  " <> D.dullyellow "\"Hello \"" <> " ++ name ++ " <> D.dullyellow "\"!\""
                       ]
                   , D.reflow $
                       "Try to use that format!"
@@ -3412,10 +3483,10 @@ defNote =
   D.stack
     [ D.reflow $
         "Here is a valid definition (with a type annotation) for reference:"
-    , D.vcat
-        [ D.indent 4 $ D.fillSep [D.green "add",":","Int","->","Int","->","Int"]
-        , D.indent 4 $ D.fillSep [D.green "add","x","y","="]
-        , D.indent 6 $ D.fillSep ["x","+","y"]
+    , D.indent 4 $ D.vcat $
+        [ "greet : String -> String"
+        , "greet name ="
+        , "  " <> D.dullyellow "\"Hello \"" <> " ++ name ++ " <> D.dullyellow "\"!\""
         ]
     , D.reflow $
         "The top line (called a \"type annotation\") is optional. You can leave it off\
@@ -4164,9 +4235,9 @@ noteForRecordError =
     [ D.toSimpleNote
         "If you are trying to define a record across multiple lines, I recommend using this format:"
     , D.indent 4 $ D.vcat $
-        [ "{ name = \"Alice\""
-        , ", age = 42"
-        , ", height = 1.75"
+        [ "{ name = " <> D.dullyellow "\"Alice\""
+        , ", age = " <> D.dullyellow "42"
+        , ", height = " <> D.dullyellow "1.75"
         , "}"
         ]
     , D.reflow $
@@ -4184,9 +4255,9 @@ addNoteForRecordIndentError normalRecommendation =
         "I may be confused by indentation. For example, if you are trying to define\
         \ a record across multiple lines, I recommend using this format:"
     , D.indent 4 $ D.vcat $
-        [ "{ name = \"Alice\""
-        , ", age = 42"
-        , ", height = 1.75"
+        [ "{ name = " <> D.dullyellow "\"Alice\""
+        , ", age = " <> D.dullyellow "42"
+        , ", height = " <> D.dullyellow "1.75"
         , "}"
         ]
     , D.reflow $
@@ -4380,9 +4451,9 @@ toListReport source context list startRow startCol =
                   , D.toSimpleNote
                       "I recommend using the following format for lists that span multiple lines:"
                   , D.indent 4 $ D.vcat $
-                      [ "[ \"Alice\""
-                      , ", \"Bob\""
-                      , ", \"Chuck\""
+                      [ "[ " <> D.dullyellow "\"Alice\""
+                      , ", " <> D.dullyellow "\"Bob\""
+                      , ", " <> D.dullyellow "\"Chuck\""
                       , "]"
                       ]
                   , D.reflow $
@@ -4440,9 +4511,9 @@ toListReport source context list startRow startCol =
                   "I may be confused by indentation. For example, if you are trying to define\
                   \ a list across multiple lines, I recommend using this format:"
               , D.indent 4 $ D.vcat $
-                  [ "[ \"Alice\""
-                  , ", \"Bob\""
-                  , ", \"Chuck\""
+                  [ "[ " <> D.dullyellow "\"Alice\""
+                  , ", " <> D.dullyellow "\"Bob\""
+                  , ", " <> D.dullyellow "\"Chuck\""
                   , "]"
                   ]
               , D.reflow $
@@ -4471,9 +4542,9 @@ toListReport source context list startRow startCol =
                   "I may be confused by indentation. For example, if you are trying to define\
                   \ a list across multiple lines, I recommend using this format:"
               , D.indent 4 $ D.vcat $
-                  [ "[ \"Alice\""
-                  , ", \"Bob\""
-                  , ", \"Chuck\""
+                  [ "[ " <> D.dullyellow "\"Alice\""
+                  , ", " <> D.dullyellow "\"Bob\""
+                  , ", " <> D.dullyellow "\"Chuck\""
                   , "]"
                   ]
               , D.reflow $
@@ -4499,9 +4570,9 @@ toListReport source context list startRow startCol =
               , D.toSimpleNote
                   "I recommend using the following format for lists that span multiple lines:"
               , D.indent 4 $ D.vcat $
-                  [ "[ \"Alice\""
-                  , ", \"Bob\""
-                  , ", \"Chuck\""
+                  [ "[ " <> D.dullyellow "\"Alice\""
+                  , ", " <> D.dullyellow "\"Bob\""
+                  , ", " <> D.dullyellow "\"Chuck\""
                   , "]"
                   ]
               , D.reflow $
