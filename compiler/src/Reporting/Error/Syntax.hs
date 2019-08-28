@@ -1010,6 +1010,7 @@ toParseErrorReport source modul =
                   ]
               , D.reflow $
                   "Notice that the module names all start with capital letters. That is required!"
+              , D.reflowLink "Read" "imports" "to learn more."
               ]
           )
 
@@ -1036,6 +1037,7 @@ toParseErrorReport source modul =
                   ]
               , D.reflow $
                   "Notice that the alias always starts with a capital letter. That is required!"
+              , D.reflowLink "Read" "imports" "to learn more."
               ]
           )
 
@@ -1123,6 +1125,7 @@ toImportReport source row col =
               ]
           , D.reflow $
               "You are probably trying to import a different module, but try to make it look like one of these examples!"
+          , D.reflowLink "Read" "imports" "to learn more."
           ]
       )
 
