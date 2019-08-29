@@ -17,7 +17,7 @@
             "elm/time": "1.0.0",
             "elm-explorations/linear-algebra": "1.0.3",
             "elm-explorations/webgl": "1.1.0",
-            "evancz/elm-playground": "1.0.0"
+            "evancz/elm-playground": "1.0.2"
         },
         "indirect": {
             "elm/bytes": "1.0.8",
