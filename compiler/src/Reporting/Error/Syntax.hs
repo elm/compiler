@@ -649,184 +649,9 @@ toParseErrorReport source modul =
       toSpaceReport source space row col
 
     ModuleBadEnd row col ->
-      case Code.whatIsNext source row col of
-        Code.Keyword keyword ->
-          let
-            region = toKeywordRegion row col keyword
-          in
-          Report.Report "RESERVED WORD" region [] $
-            Code.toSnippet source region Nothing
-              (
-                D.reflow $
-                  "I got stuck on this reserved word:"
-              ,
-                D.reflow $
-                  "The name `" ++ keyword ++ "` is reserved, so try using a different name?"
-              )
-
-        Code.Operator op ->
-          let
-            region = toKeywordRegion row col op
-          in
-          Report.Report "UNEXPECTED SYMBOL" region [] $
-            Code.toSnippet source region Nothing
-              (
-                D.reflow $
-                  "I ran into an unexpected symbol:"
-              ,
-                D.reflow $
-                  "I was not expecting to see a " ++ op ++ " here. Try deleting it? Maybe\
-                  \ I can give a better hint from there?"
-              )
-
-        Code.Close term bracket ->
-          let
-            region = toRegion row col
-          in
-          Report.Report ("UNEXPECTED " ++ map Char.toUpper term) region [] $
-            Code.toSnippet source region Nothing
-              (
-                D.reflow $
-                  "I ran into an unexpected " ++ term ++ ":"
-              ,
-                D.reflow $
-                  "This " ++ bracket : " does not match up with an earlier open " ++ term ++ ". Try deleting it?"
-              )
-
-        Code.Lower c cs ->
-          let
-            region = toKeywordRegion row col (c:cs)
-          in
-          Report.Report "UNEXPECTED NAME" region [] $
-            Code.toSnippet source region Nothing
-              (
-                D.reflow $
-                  "I got stuck on this name:"
-              ,
-                D.reflow $
-                  "It is confusing me a lot! Normally I can give fairly specific hints, but\
-                  \ something is really tripping me up this time."
-              )
-
-        Code.Upper c cs ->
-          let
-            region = toKeywordRegion row col (c:cs)
-          in
-          Report.Report "UNEXPECTED NAME" region [] $
-            Code.toSnippet source region Nothing
-              (
-                D.reflow $
-                  "I got stuck on this name:"
-              ,
-                D.reflow $
-                  "It is confusing me a lot! Normally I can give fairly specific hints, but\
-                  \ something is really tripping me up this time."
-              )
-
-        Code.Other maybeChar ->
-          let
-            region = toRegion row col
-          in
-          case maybeChar of
-            Just ';' ->
-              Report.Report "UNEXPECTED SEMICOLON" region [] $
-                Code.toSnippet source region Nothing
-                  (
-                    D.reflow $
-                      "I got stuck on this semicolon:"
-                  ,
-                    D.stack
-                      [ D.reflow $ "Try removing it?"
-                      , D.toSimpleNote $
-                          "Some languages require semicolons at the end of each statement. These are\
-                          \ often called C-like languages, and they usually share a lot of language design\
-                          \ choices. (E.g. side-effects, for loops, etc.) Elm manages effects with commands\
-                          \ and subscriptions instead, so there is no special syntax for \"statements\" and\
-                          \ therefore no need to use semicolons to separate them. I think this will make\
-                          \ more sense as you work through <https://guide.elm-lang.org> though!"
-                      ]
-                  )
-
-            Just ',' ->
-              Report.Report "UNEXPECTED COMMA" region [] $
-                Code.toSnippet source region Nothing
-                  (
-                    D.reflow $
-                      "I got stuck on this comma:"
-                  ,
-                    D.stack
-                      [ D.reflow $
-                          "I do not think I am parsing a list or tuple right now. Try deleting the comma?"
-                      , D.toSimpleNote $
-                          "If this is supposed to be part of a list, the problem may be a bit earlier.\
-                          \ Perhaps the opening [ is missing? Or perhaps some value in the list has an extra\
-                          \ closing ] that is making me think the list ended earlier? The same kinds of\
-                          \ things could be going wrong if this is supposed to be a tuple."
-                      ]
-                  )
-
-            Just '`' ->
-              Report.Report "UNEXPECTED CHARACTER" region [] $
-                Code.toSnippet source region Nothing
-                  (
-                    D.reflow $
-                      "I got stuck on this character:"
-                  ,
-                    D.stack
-                      [ D.reflow $
-                          "It is not used for anything in Elm syntax. It is used for multi-line strings in\
-                          \ some languages though, so if you want a string that spans multiple lines, you\
-                          \ can use Elm's multi-line string syntax like this:"
-                      , D.dullyellow $ D.indent 4 $ D.vcat $
-                          [ "\"\"\""
-                          , "# Multi-line Strings"
-                          , ""
-                          , "- start with triple double quotes"
-                          , "- write whatever you want"
-                          , "- no need to escape newlines or double quotes"
-                          , "- end with triple double quotes"
-                          , "\"\"\""
-                          ]
-                      , D.reflow $
-                          "Otherwise I do not know what is going on! Try removing the character?"
-                      ]
-                  )
-
-            Just '$' ->
-              Report.Report "UNEXPECTED SYMBOL" region [] $
-                Code.toSnippet source region Nothing
-                  (
-                    D.reflow $
-                      "I got stuck on this dollar sign:"
-                  ,
-                    D.reflow $
-                      "It is not used for anything in Elm syntax. Are you coming from a language where\
-                      \ dollar signs can be used in variable names? If so, try a name that (1) starts\
-                      \ with a letter and (2) only contains letters, numbers, and underscores."
-                  )
-
-            Just c | elem c ['#','@','!','%','~'] ->
-              Report.Report "UNEXPECTED SYMBOL" region [] $
-                Code.toSnippet source region Nothing
-                  (
-                    D.reflow $
-                      "I got stuck on this symbol:"
-                  ,
-                    D.reflow $
-                      "It is not used for anything in Elm syntax. Try removing it?"
-                  )
-
-            _ ->
-              Report.Report "SYNTAX PROBLEM" region [] $
-                Code.toSnippet source region Nothing
-                  (
-                    D.reflow $
-                      "I got stuck here:"
-                  ,
-                    D.reflow $
-                      "Whatever I am running into is confusing me a lot! Normally I can give fairly\
-                      \ specific hints, but something is really tripping me up this time."
-                  )
+      if col == 1
+      then toDeclStartReport source row col
+      else toWeirdEndReport source row col
 
     ModuleProblem row col ->
       let
@@ -1097,6 +922,192 @@ toParseErrorReport source modul =
 
     Declarations decl _ _ ->
       toDeclarationsReport source decl
+
+
+
+-- WEIRD END
+
+
+toWeirdEndReport :: Code.Source -> Row -> Col -> Report.Report
+toWeirdEndReport source row col =
+  case Code.whatIsNext source row col of
+    Code.Keyword keyword ->
+      let
+        region = toKeywordRegion row col keyword
+      in
+      Report.Report "RESERVED WORD" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "I got stuck on this reserved word:"
+          ,
+            D.reflow $
+              "The name `" ++ keyword ++ "` is reserved, so try using a different name?"
+          )
+
+    Code.Operator op ->
+      let
+        region = toKeywordRegion row col op
+      in
+      Report.Report "UNEXPECTED SYMBOL" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "I ran into an unexpected symbol:"
+          ,
+            D.reflow $
+              "I was not expecting to see a " ++ op ++ " here. Try deleting it? Maybe\
+              \ I can give a better hint from there?"
+          )
+
+    Code.Close term bracket ->
+      let
+        region = toRegion row col
+      in
+      Report.Report ("UNEXPECTED " ++ map Char.toUpper term) region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "I ran into an unexpected " ++ term ++ ":"
+          ,
+            D.reflow $
+              "This " ++ bracket : " does not match up with an earlier open " ++ term ++ ". Try deleting it?"
+          )
+
+    Code.Lower c cs ->
+      let
+        region = toKeywordRegion row col (c:cs)
+      in
+      Report.Report "UNEXPECTED NAME" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "I got stuck on this name:"
+          ,
+            D.reflow $
+              "It is confusing me a lot! Normally I can give fairly specific hints, but\
+              \ something is really tripping me up this time."
+          )
+
+    Code.Upper c cs ->
+      let
+        region = toKeywordRegion row col (c:cs)
+      in
+      Report.Report "UNEXPECTED NAME" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "I got stuck on this name:"
+          ,
+            D.reflow $
+              "It is confusing me a lot! Normally I can give fairly specific hints, but\
+              \ something is really tripping me up this time."
+          )
+
+    Code.Other maybeChar ->
+      let
+        region = toRegion row col
+      in
+      case maybeChar of
+        Just ';' ->
+          Report.Report "UNEXPECTED SEMICOLON" region [] $
+            Code.toSnippet source region Nothing
+              (
+                D.reflow $
+                  "I got stuck on this semicolon:"
+              ,
+                D.stack
+                  [ D.reflow $ "Try removing it?"
+                  , D.toSimpleNote $
+                      "Some languages require semicolons at the end of each statement. These are\
+                      \ often called C-like languages, and they usually share a lot of language design\
+                      \ choices. (E.g. side-effects, for loops, etc.) Elm manages effects with commands\
+                      \ and subscriptions instead, so there is no special syntax for \"statements\" and\
+                      \ therefore no need to use semicolons to separate them. I think this will make\
+                      \ more sense as you work through <https://guide.elm-lang.org> though!"
+                  ]
+              )
+
+        Just ',' ->
+          Report.Report "UNEXPECTED COMMA" region [] $
+            Code.toSnippet source region Nothing
+              (
+                D.reflow $
+                  "I got stuck on this comma:"
+              ,
+                D.stack
+                  [ D.reflow $
+                      "I do not think I am parsing a list or tuple right now. Try deleting the comma?"
+                  , D.toSimpleNote $
+                      "If this is supposed to be part of a list, the problem may be a bit earlier.\
+                      \ Perhaps the opening [ is missing? Or perhaps some value in the list has an extra\
+                      \ closing ] that is making me think the list ended earlier? The same kinds of\
+                      \ things could be going wrong if this is supposed to be a tuple."
+                  ]
+              )
+
+        Just '`' ->
+          Report.Report "UNEXPECTED CHARACTER" region [] $
+            Code.toSnippet source region Nothing
+              (
+                D.reflow $
+                  "I got stuck on this character:"
+              ,
+                D.stack
+                  [ D.reflow $
+                      "It is not used for anything in Elm syntax. It is used for multi-line strings in\
+                      \ some languages though, so if you want a string that spans multiple lines, you\
+                      \ can use Elm's multi-line string syntax like this:"
+                  , D.dullyellow $ D.indent 4 $ D.vcat $
+                      [ "\"\"\""
+                      , "# Multi-line Strings"
+                      , ""
+                      , "- start with triple double quotes"
+                      , "- write whatever you want"
+                      , "- no need to escape newlines or double quotes"
+                      , "- end with triple double quotes"
+                      , "\"\"\""
+                      ]
+                  , D.reflow $
+                      "Otherwise I do not know what is going on! Try removing the character?"
+                  ]
+              )
+
+        Just '$' ->
+          Report.Report "UNEXPECTED SYMBOL" region [] $
+            Code.toSnippet source region Nothing
+              (
+                D.reflow $
+                  "I got stuck on this dollar sign:"
+              ,
+                D.reflow $
+                  "It is not used for anything in Elm syntax. Are you coming from a language where\
+                  \ dollar signs can be used in variable names? If so, try a name that (1) starts\
+                  \ with a letter and (2) only contains letters, numbers, and underscores."
+              )
+
+        Just c | elem c ['#','@','!','%','~'] ->
+          Report.Report "UNEXPECTED SYMBOL" region [] $
+            Code.toSnippet source region Nothing
+              (
+                D.reflow $
+                  "I got stuck on this symbol:"
+              ,
+                D.reflow $
+                  "It is not used for anything in Elm syntax. Try removing it?"
+              )
+
+        _ ->
+          Report.Report "SYNTAX PROBLEM" region [] $
+            Code.toSnippet source region Nothing
+              (
+                D.reflow $
+                  "I got stuck here:"
+              ,
+                D.reflow $
+                  "Whatever I am running into is confusing me a lot! Normally I can give fairly\
+                  \ specific hints, but something is really tripping me up this time."
+              )
 
 
 
@@ -1432,161 +1443,7 @@ toDeclarationsReport :: Code.Source -> Decl -> Report.Report
 toDeclarationsReport source decl =
   case decl of
     DeclStart row col ->
-      case Code.whatIsNext source row col of
-        Code.Close term bracket ->
-          let
-            region = toRegion row col
-          in
-          Report.Report ("STRAY " ++ map Char.toUpper term) region [] $
-            Code.toSnippet source region Nothing
-              (
-                D.reflow $
-                  "I was not expecting to see a " ++ term ++ " here:"
-              , D.reflow $
-                  "This " ++ bracket : " does not match up with an earlier open " ++ term ++ ". Try deleting it?"
-              )
-
-        Code.Keyword keyword ->
-          let
-            region = toKeywordRegion row col keyword
-          in
-          Report.Report "RESERVED WORD" region [] $
-            Code.toSnippet source region Nothing
-              (
-                D.reflow $
-                  "I was not expecting to run into the `" ++ keyword ++ "` keyword here:"
-              ,
-                case keyword of
-                  "import" ->
-                    D.reflow $
-                      "It is reserved for declaring imports at the top of your module. If you want\
-                      \ another import, try moving it up top with the other imports. If you want to\
-                      \ define a value or function, try changing the name to something else!"
-
-                  "case" ->
-                    D.stack
-                      [ D.reflow $
-                          "It is reserved for writing `case` expressions. Try using a different name?"
-                      , D.toSimpleNote $
-                          "If you are trying to write a `case` expression, it needs to be part of a\
-                          \ definition. So you could write something like this instead:"
-                      , D.indent 4 $ D.vcat $
-                          [ D.indent 0 $ D.fillSep ["getWidth","maybeWidth","="]
-                          , D.indent 2 $ D.fillSep [D.cyan "case","maybeWidth",D.cyan "of"]
-                          , D.indent 4 $ D.fillSep [D.blue "Just","width","->"]
-                          , D.indent 6 $ D.fillSep ["width","+",D.dullyellow "200"]
-                          , ""
-                          , D.indent 4 $ D.fillSep [D.blue "Nothing","->"]
-                          , D.indent 6 $ D.fillSep [D.dullyellow "400"]
-                          ]
-                      , D.reflow $
-                          "This defines a `getWidth` function that you can use elsewhere in your program."
-                      ]
-
-                  "if" ->
-                    D.stack
-                      [ D.reflow $
-                          "It is reserved for writing `if` expressions. Try using a different name?"
-                      , D.toSimpleNote $
-                          "If you are trying to write an `if` expression, it needs to be part of a\
-                          \ definition. So you could write something like this instead:"
-                      , D.indent 4 $ D.vcat $
-                          [ "greet name ="
-                          , D.fillSep $
-                              [" "
-                              ,D.cyan "if","name","==",D.dullyellow "\"Abraham Lincoln\""
-                              ,D.cyan "then",D.dullyellow "\"Greetings Mr. President.\""
-                              ,D.cyan "else",D.dullyellow "\"Hey!\""
-                              ]
-                          ]
-                      , D.reflow $
-                          "This defines a `reviewPowerLevel` function that you can use elsewhere in your program."
-                      ]
-
-                  _ ->
-                    D.reflow $
-                      "It is a reserved word. Try changing the name to something else?"
-              )
-
-        Code.Upper c cs ->
-          let
-            region = toRegion row col
-          in
-          Report.Report "UNEXPECTED CAPITAL LETTER" region [] $
-            Code.toSnippet source region Nothing
-              (
-                D.reflow $
-                  "Declarations always start with a lower-case letter, so I am getting stuck here:"
-              ,
-                D.stack
-                  [ D.fillSep $
-                      ["Try","a","name","like"
-                      ,D.green (D.fromChars (Char.toLower c : cs))
-                      ,"instead?"
-                      ]
-                  , D.toSimpleNote $
-                      "Here are a couple valid declarations for reference:"
-                  , D.indent 4 $ D.vcat $
-                      [ "greet : String -> String"
-                      , "greet name ="
-                      , "  " <> D.dullyellow "\"Hello \"" <> " ++ name ++ " <> D.dullyellow "\"!\""
-                      , ""
-                      , D.cyan "type" <> " User = Anonymous | LoggedIn String"
-                      ]
-                  , D.reflow $
-                      "Notice that they always start with a lower-case letter. Capitalization matters!"
-                  ]
-              )
-
-        Code.Other (Just char) | elem char ['(', '{', '[', '+', '-', '*', '/', '^', '&', '|', '"', '\'', '!', '@', '#', '$', '%'] ->
-          let
-            region = toRegion row col
-          in
-          Report.Report "UNEXPECTED SYMBOL" region [] $
-            Code.toSnippet source region Nothing
-              (
-                D.reflow $
-                  "I am getting stuck because this line starts with the " ++ [char] ++ " symbol:"
-              ,
-                D.stack
-                  [ D.reflow $
-                      "When a line has no spaces at the beginning, I expect it to be a declaration like one of these:"
-                  , D.indent 4 $ D.vcat $
-                      [ "greet : String -> String"
-                      , "greet name ="
-                      , "  " <> D.dullyellow "\"Hello \"" <> " ++ name ++ " <> D.dullyellow "\"!\""
-                      , ""
-                      , D.cyan "type" <> " User = Anonymous | LoggedIn String"
-                      ]
-                  , D.reflow $
-                      "If this is not supposed to be a declaration, try adding some spaces before it?"
-                  ]
-              )
-
-        _ ->
-          let
-            region = toRegion row col
-          in
-          Report.Report "WEIRD DECLARATION" region [] $
-            Code.toSnippet source region Nothing
-              (
-                D.reflow $
-                  "I am trying to parse a declaration, but I am getting stuck here:"
-              ,
-                D.stack
-                  [ D.reflow $
-                      "I am not sure what is going wrong, so here are a couple valid declarations for reference:"
-                  , D.indent 4 $ D.vcat $
-                      [ "greet : String -> String"
-                      , "greet name ="
-                      , "  " <> D.dullyellow "\"Hello \"" <> " ++ name ++ " <> D.dullyellow "\"!\""
-                      , ""
-                      , D.cyan "type" <> " User = Anonymous | LoggedIn String"
-                      ]
-                  , D.reflow $
-                      "Try to make your declaration look like one of those?"
-                  ]
-              )
+      toDeclStartReport source row col
 
     DeclSpace space row col ->
       toSpaceReport source space row col
@@ -1615,6 +1472,165 @@ toDeclarationsReport source decl =
               \ line with no indentation."
           )
 
+
+toDeclStartReport :: Code.Source -> Row -> Col -> Report.Report
+toDeclStartReport source row col =
+  case Code.whatIsNext source row col of
+    Code.Close term bracket ->
+      let
+        region = toRegion row col
+      in
+      Report.Report ("STRAY " ++ map Char.toUpper term) region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "I was not expecting to see a " ++ term ++ " here:"
+          , D.reflow $
+              "This " ++ bracket : " does not match up with an earlier open " ++ term ++ ". Try deleting it?"
+          )
+
+    Code.Keyword keyword ->
+      let
+        region = toKeywordRegion row col keyword
+      in
+      Report.Report "RESERVED WORD" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "I was not expecting to run into the `" ++ keyword ++ "` keyword here:"
+          ,
+            case keyword of
+              "import" ->
+                D.reflow $
+                  "It is reserved for declaring imports at the top of your module. If you want\
+                  \ another import, try moving it up top with the other imports. If you want to\
+                  \ define a value or function, try changing the name to something else!"
+
+              "case" ->
+                D.stack
+                  [ D.reflow $
+                      "It is reserved for writing `case` expressions. Try using a different name?"
+                  , D.toSimpleNote $
+                      "If you are trying to write a `case` expression, it needs to be part of a\
+                      \ definition. So you could write something like this instead:"
+                  , D.indent 4 $ D.vcat $
+                      [ D.indent 0 $ D.fillSep ["getWidth","maybeWidth","="]
+                      , D.indent 2 $ D.fillSep [D.cyan "case","maybeWidth",D.cyan "of"]
+                      , D.indent 4 $ D.fillSep [D.blue "Just","width","->"]
+                      , D.indent 6 $ D.fillSep ["width","+",D.dullyellow "200"]
+                      , ""
+                      , D.indent 4 $ D.fillSep [D.blue "Nothing","->"]
+                      , D.indent 6 $ D.fillSep [D.dullyellow "400"]
+                      ]
+                  , D.reflow $
+                      "This defines a `getWidth` function that you can use elsewhere in your program."
+                  ]
+
+              "if" ->
+                D.stack
+                  [ D.reflow $
+                      "It is reserved for writing `if` expressions. Try using a different name?"
+                  , D.toSimpleNote $
+                      "If you are trying to write an `if` expression, it needs to be part of a\
+                      \ definition. So you could write something like this instead:"
+                  , D.indent 4 $ D.vcat $
+                      [ "greet name ="
+                      , D.fillSep $
+                          [" "
+                          ,D.cyan "if","name","==",D.dullyellow "\"Abraham Lincoln\""
+                          ,D.cyan "then",D.dullyellow "\"Greetings Mr. President.\""
+                          ,D.cyan "else",D.dullyellow "\"Hey!\""
+                          ]
+                      ]
+                  , D.reflow $
+                      "This defines a `reviewPowerLevel` function that you can use elsewhere in your program."
+                  ]
+
+              _ ->
+                D.reflow $
+                  "It is a reserved word. Try changing the name to something else?"
+          )
+
+    Code.Upper c cs ->
+      let
+        region = toRegion row col
+      in
+      Report.Report "UNEXPECTED CAPITAL LETTER" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "Declarations always start with a lower-case letter, so I am getting stuck here:"
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["Try","a","name","like"
+                  ,D.green (D.fromChars (Char.toLower c : cs))
+                  ,"instead?"
+                  ]
+              , D.toSimpleNote $
+                  "Here are a couple valid declarations for reference:"
+              , D.indent 4 $ D.vcat $
+                  [ "greet : String -> String"
+                  , "greet name ="
+                  , "  " <> D.dullyellow "\"Hello \"" <> " ++ name ++ " <> D.dullyellow "\"!\""
+                  , ""
+                  , D.cyan "type" <> " User = Anonymous | LoggedIn String"
+                  ]
+              , D.reflow $
+                  "Notice that they always start with a lower-case letter. Capitalization matters!"
+              ]
+          )
+
+    Code.Other (Just char) | elem char ['(', '{', '[', '+', '-', '*', '/', '^', '&', '|', '"', '\'', '!', '@', '#', '$', '%'] ->
+      let
+        region = toRegion row col
+      in
+      Report.Report "UNEXPECTED SYMBOL" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "I am getting stuck because this line starts with the " ++ [char] ++ " symbol:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "When a line has no spaces at the beginning, I expect it to be a declaration like one of these:"
+              , D.indent 4 $ D.vcat $
+                  [ "greet : String -> String"
+                  , "greet name ="
+                  , "  " <> D.dullyellow "\"Hello \"" <> " ++ name ++ " <> D.dullyellow "\"!\""
+                  , ""
+                  , D.cyan "type" <> " User = Anonymous | LoggedIn String"
+                  ]
+              , D.reflow $
+                  "If this is not supposed to be a declaration, try adding some spaces before it?"
+              ]
+          )
+
+    _ ->
+      let
+        region = toRegion row col
+      in
+      Report.Report "WEIRD DECLARATION" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "I am trying to parse a declaration, but I am getting stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "When a line has no spaces at the beginning, I expect it to be a declaration like one of these:"
+              , D.indent 4 $ D.vcat $
+                  [ "greet : String -> String"
+                  , "greet name ="
+                  , "  " <> D.dullyellow "\"Hello \"" <> " ++ name ++ " <> D.dullyellow "\"!\""
+                  , ""
+                  , D.cyan "type" <> " User = Anonymous | LoggedIn String"
+                  ]
+              , D.reflow $
+                  "Try to make your declaration look like one of those? Or if this is not\
+                  \ supposed to be a declaration, try adding some spaces before it?"
+              ]
+          )
 
 
 -- PORT
