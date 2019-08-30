@@ -4,7 +4,9 @@ I very highly recommend asking for help on [the Elm slack](https://elmlang.herok
 
 There are a lot of things that can go wrong when installing software, and it can really help to have a second pair of eyes on your situation!
 
-This document goes through a couple options that may help you out!
+This document goes through a couple options that may help you out.
+
+<br/>
 
 
 ## Can you skip npm entirely?
@@ -22,12 +24,16 @@ mv elm /usr/local/bin/  # put the executable in a directory likely to be listed 
 
 If these exact commands do not work for you, you can try to do the same thing by hand.
 
+Read the section below on `PATH` variables if you are not sure what that is!
+
 [download]: https://github.com/elm/compiler/releases/tag/0.19.1
+
+<br/>
 
 
 ## Do you need to use npm for some reason?
 
-The company running npm has a list of common troubleshooting situations [here](https://npm.community/c/support/troubleshooting).
+The company running npm has a list of common troubleshooting situations [here](https://npm.community/c/support/troubleshooting), but it may be better to just try to find your specific case on Stack Overflow. Often there are permissions issues where you may need to use `sudo` with some command.
 
 ### Firewalls
 
@@ -45,6 +51,9 @@ HTTPS_PROXY=http://proxy.example.com npm install -g elm
 set HTTPS_PROXY=http://proxy.example.com
 npm install -g elm
 ```
+
+<br/>
+
 
 ## Do you know what a `PATH` variable is?
 
