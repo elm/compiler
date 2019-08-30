@@ -13,7 +13,12 @@ var fs = require('fs');
 // the real binary over itself. So in that case, the first run would
 // also make an HTTPS request to fetch the real binary. From there,
 // it calls the binary it downloaded on each run.
-
+//
+// It needs a .exe extension for Windows users. That file extension
+// should allow this file to run both as a JS script and after it is
+// replaced by the real Elm binary. The file extension does not appear
+// to matter on Mac or Linux since it is hidden by the symlink at
+// node_modules/.bin/elm that most people would refer to.
 
 
 // Make sure we get the right path even if we're executing from the symlinked
