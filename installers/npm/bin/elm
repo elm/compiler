@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 var child_process = require('child_process');
-var package = require('./package.json');
+var package = require('../package.json');
 var path = require('path');
 var fs = require('fs');
 
