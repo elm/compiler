@@ -17,7 +17,12 @@ The following command should download the `elm` binary:
 npm install -g elm
 ```
 
-If it runs successfully, it should make `elm` available at `/usr/local/bin/elm` on Mac and Linux or at `C:\Users\YOUR_NAME\AppData\Roaming\npm\` on Windows.
+If this runs successfully, the `elm` binary should be available at:
+
+- `/usr/local/bin/elm` on Mac and Linux
+- `C:\Users\YOUR_NAME\AppData\Roaming\npm\` on Windows
+
+It should be possible to run `elm` from your terminal after this.
 
 If you run into trouble, check out [troubleshooting.md](troubleshooting.md).
 
