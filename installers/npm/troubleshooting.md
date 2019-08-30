@@ -37,11 +37,13 @@ The company running npm has a list of common troubleshooting situations [here](h
 
 ### Firewalls
 
-Some companies have a firewall and want to route traffic through a proxy server.
+Some companies have a firewall.
 
-Usually that means you have a `HTTPS_PROXY` environment variable set on your computer.
+These companies usually have set the `HTTP_PROXY` or `HTTPS_PROXY` environment variable on your computer. This is more common with Windows computers.
 
-If you want to try to set it temporarily to see what happens, you can try something like this:
+The result is that the request for `https://github.com/elm/compiler/releases/download/0.19.1/binary-for-windows-64-bit.gz` is being sent to a "proxy server" where they monitor traffic. Maybe they rule out certain domains, maybe they check data when it comes back from the actual URL, etc.
+
+It is probably best to ask someone about the situation on this, but you can test things out by temporarily using an alternate `HTTPS_PROXY` value with something like this:
 
 ```
 # Mac and Linux
@@ -51,6 +53,8 @@ HTTPS_PROXY=http://proxy.example.com npm install -g elm
 set HTTPS_PROXY=http://proxy.example.com
 npm install -g elm
 ```
+
+Check out [this document](https://www.npmjs.com/package/request#controlling-proxy-behaviour-using-environment-variables) for more information on how environment variables like `NO_PROXY`, `HTTP_PROXY`, and `HTTPS_PROXY` are handled by the npm.
 
 <br/>
 
