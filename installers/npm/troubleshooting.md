@@ -1,0 +1,62 @@
+# Troubleshooting
+
+I very highly recommend asking for help on [the Elm slack](https://elmlang.herokuapp.com).
+
+There are a lot of things that can go wrong when installing software, and it can really help to have a second pair of eyes on your situation!
+
+This document goes through a couple options that may help you out!
+
+
+## Can you skip npm entirely?
+
+The most reliable way to get Elm installed using the official installers for Mac and Windows [here][download].
+
+You can also download the binaries directly. On Linux, you could do it in the terminal like this:
+
+```bash
+curl -o elm.gz https://github.com/elm/compiler/releases/download/0.19.1/binary-for-linux-64-bit.gz
+gunzip elm.gz           # unzip the file
+chmod +x elm            # make the file executable
+mv elm /usr/local/bin/  # put the executable in a directory likely to be listed in your PATH variable
+```
+
+If these exact commands do not work for you, you can try to do the same thing by hand.
+
+[download]: https://github.com/elm/compiler/releases/tag/0.19.1
+
+
+## Do you need to use npm for some reason?
+
+The company running npm has a list of common troubleshooting situations [here](https://npm.community/c/support/troubleshooting).
+
+### Firewalls
+
+Some companies have a firewall and want to route traffic through a proxy server.
+
+Usually that means you have a `HTTPS_PROXY` environment variable set on your computer.
+
+If you want to try to set it temporarily to see what happens, you can try something like this:
+
+```
+# Mac and Linux
+HTTPS_PROXY=http://proxy.example.com npm install -g elm
+
+# Windows
+set HTTPS_PROXY=http://proxy.example.com
+npm install -g elm
+```
+
+## Do you know what a `PATH` variable is?
+
+When you run a command like `elm make src/Main.elm`, your computer starts by trying to find a file called `elm`.
+
+The `PATH` is a list of directories to search within. On Mac and Linux, you can see these directories by running:
+
+```
+$ echo $PATH
+/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/usr/local/git/bin
+```
+
+The are separated by `:` for some reason. So running `elm make src/Main.elm` starts by searching the `PATH` for files named `elm`. On my computer, it finds `/usr/local/bin/elm` and then can actually run the command.
+
+Is `elm` in one of the directories listed in your `PATH` variable? I recommend asking for help if you are in this scenario and unsure how to proceed.

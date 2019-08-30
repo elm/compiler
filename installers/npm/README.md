@@ -1,38 +1,29 @@
-npm install elm [![Travis build Status](https://travis-ci.org/elm-lang/elm-platform.svg?branch=master)](http://travis-ci.org/elm-lang/elm-platform) [![AppVeyor build status](https://ci.appveyor.com/api/projects/status/6mcub79i04ianpm9/branch/master?svg=true)](https://ci.appveyor.com/project/rtfeldman/elm-platform/branch/master)
-===============
+# npm install elm
 
-Install the [Elm Platform](https://github.com/elm-lang/elm-platform) via [`npm`](https://www.npmjs.com).
+[Elm](https://elm-lang.org) is a functional programming language that compiles to JavaScript.
 
-## Installing
+There are installers for Mac and Windows available [here](https://github.com/elm/compiler/releases/tag/0.19.1). There are also binaries for direct download. These are the most reliable ways to install Elm.
 
-Run this to get the binaries:
+This package tries to download those binaries with `npm`. It is sometimes used by people intergating Elm into existing projects or workflows.
 
-```
-$ npm install -g elm
-```
+<br/>
 
-## Installing behind a proxy server
 
-If you are behind a proxy server, set the environment variable "HTTPS_PROXY".
+## Install
+
+The following command should download the `elm` binary:
 
 ```
-$ export HTTPS_PROXY=$YourProxyServer$
-$ npm install -g elm
+npm install -g elm
 ```
 
-Or on Windows:
+If it runs successfully, it should make `elm` available at `/usr/local/bin/elm` on Mac and Linux or at `C:\Users\YOUR_NAME\AppData\Roaming\npm\` on Windows.
 
-```
-$ set HTTPS_PROXY=$YourProxyServer$
-$ npm install -g elm
-```
+If you run into trouble, check out [troubleshooting.md](troubleshooting.md).
 
-## Troubleshooting
+<br/>
 
-1. [Troubleshooting npm](https://github.com/npm/npm/wiki/Troubleshooting)
-2. On Debian/Ubuntu systems, you may have to install the nodejs-legacy package: `apt-get install nodejs-legacy`.
-3. If the installer says that it cannot find any usable binaries for your operating system and architecture, check the [Build from Source](https://github.com/elm-lang/elm-platform/blob/master/README.md#build-from-source) documentation.
 
-## Getting Started
+## What is next?
 
-Once everything has installed successfully, head over to the [Get Started](http://elm-lang.org/Get-Started.elm) page!
+Head over to [The Official Guide](https://guide.elm-lang.org/) to start learning Elm!
