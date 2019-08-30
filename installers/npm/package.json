@@ -11,9 +11,9 @@
   "homepage": "https://github.com/elm/compiler/tree/master/installers/npm",
   "bugs": "https://github.com/elm/compiler/issues",
   "author": {
-    "name": "Richard Feldman",
-    "email": "richard.t.feldman@gmail.com",
-    "url": "https://github.com/rtfeldman"
+    "name": "Evan Czaplicki",
+    "email": "evan@elm-lang.org",
+    "url": "https://github.com/evancz"
   },
   "engines": {
     "node": ">=7.0.0"
