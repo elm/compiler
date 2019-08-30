@@ -35,9 +35,7 @@
     "install",
     "installer"
   ],
-  "bin": {
-    "elm": "bin/elm.exe"
-  },
+  "bin": "bin/elm.exe",
   "dependencies": {
     "request": "^2.88.0"
   }

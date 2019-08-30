@@ -5,6 +5,6 @@ var path = require('path');
 
 
 // get slashes right for Windows
-var targetPath = path.resolve(__dirname, package.bin['elm']);
+var targetPath = path.resolve(__dirname, package.bin);
 
 download(targetPath, function() {});
