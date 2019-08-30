@@ -18,12 +18,12 @@ var fs = require('fs');
 
 // Make sure we get the right path even if we're executing from the symlinked
 // node_modules/.bin/ executable
-var pathToThisFile = fs.realpathSync(process.argv[1]);
+var targetPath = fs.realpathSync(process.argv[1]);
 
-download(pathToThisFile, function() {
+download(targetPath, function() {
   // Need double quotes and { shell: true } when there are spaces in the path on windows:
   // https://github.com/nodejs/node/issues/7367#issuecomment-229721296
   child_process
-    .spawn('"' + pathToThisFile + '"', process.argv.slice(2), { stdio: 'inherit', shell: true })
+    .spawn('"' + targetPath + '"', process.argv.slice(2), { stdio: 'inherit', shell: true })
     .on('exit', process.exit);
 });
