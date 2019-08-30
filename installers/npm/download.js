@@ -1,7 +1,6 @@
 var fs = require('fs');
 var package = require('./package.json');
-var URL = require('url').URL;
-var https = require('https');
+var request = require('request');
 var zlib = require('zlib');
 
 
@@ -28,67 +27,27 @@ module.exports = function(destinationPath, callback)
 
 function download(destinationPath, url, callback)
 {
-	requestWithRedirects(url, 10,
-		function(error) {
-			exitFailure(url, 'I ran into trouble while fetching ' + url + '\n\n' + error);
-		},
-		function(response) {
-			if (response.statusCode == 404)
-			{
-				exitFailure(url, 'I got a "404 Not Found" trying to download from the following URL:\n'
-					+ url
-					+ '\n\nThis may mean you are trying to install on an unsupported platform. (e.g. some 32-bit systems?)'
-				);
-			}
+	// set up handler for request failure
+	function reportDownloadFailure(error)
+	{
+		exitFailure(url,'Something went wrong while fetching the following URL:\n\n' + url + '\n\nIt is saying:\n\n' + error);
+	}
 
-			response.on('error', function() {
-				exitFailure(url, 'Something went wrong while receiving the following URL:\n\n' + url);
-			});
-
-			var gunzip = zlib.createGunzip().on('error', function(error) {
-				exitFailure(url, 'I ran into trouble decompressing the downloaded binary. It is saying:\n\n' + error);
-			});
-			var write = fs.createWriteStream(destinationPath, {
-				encoding: 'binary',
-				mode: 0o755
-			}).on('finish', callback).on('error', function(error) {
-				exitFailure(url, 'I had some trouble writing file to disk. It is saying:\n\n' + error);
-			});
-
-			response.pipe(gunzip).pipe(write);
-		}
-	);
-}
-
-
-
-// HANDLE REDIRECTS
-
-
-function requestWithRedirects(url, maxRedirects, failure, success)
-{
-	var req = https.request(url);
-
-	req.on('response', function(response) {
-		// Check for redirects
-
-		var redirectUrl = new URL(response.headers['location'], new URL(url).origin).href;
-
-		if (typeof redirectUrl === 'string' && response.statusCode >= 300 && response.statusCode < 400)
-		{
-			return (maxRedirects <= 0)
-				? failure(new Error('followed 10 redirects and gave up'))
-				: requestWithRedirects(redirectUrl, maxRedirects - 1, failure, success);
-		}
-		else
-		{
-			return success(response);
-		}
+	// set up decompression pipe
+	var gunzip = zlib.createGunzip().on('error', function(error) {
+		exitFailure(url, 'I ran into trouble decompressing the downloaded binary. It is saying:\n\n' + error);
 	});
 
-	req.on('error', failure);
+	// set up file write pipe
+	var write = fs.createWriteStream(destinationPath, {
+		encoding: 'binary',
+		mode: 0o755
+	}).on('finish', callback).on('error', function(error) {
+		exitFailure(url, 'I had some trouble writing file to disk. It is saying:\n\n' + error);
+	});
 
-	req.end();
+	// put it all together
+	request(url).on('error', reportDownloadFailure).pipe(gunzip).pipe(write);
 }
 
 

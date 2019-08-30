@@ -39,5 +39,6 @@
     "elm": "bin/elm.cmd"
   },
   "dependencies": {
+    "request": "^2.88.0"
   }
 }
