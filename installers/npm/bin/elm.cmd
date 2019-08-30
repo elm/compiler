@@ -20,10 +20,16 @@ var fs = require('fs');
 // node_modules/.bin/ executable
 var targetPath = fs.realpathSync(process.argv[1]);
 
-download(targetPath, function() {
-  // Need double quotes and { shell: true } when there are spaces in the path on windows:
-  // https://github.com/nodejs/node/issues/7367#issuecomment-229721296
-  child_process
-    .spawn('"' + targetPath + '"', process.argv.slice(2), { stdio: 'inherit', shell: true })
-    .on('exit', process.exit);
-});
+download(targetPath, runOriginalCommandWithDownloadedBinary);
+
+
+// If the binary downloads successfully, try to run the original command.
+function runOriginalCommandWithDownloadedBinary()
+{
+	// Need double quotes and { shell: true } when there are spaces in the path on windows:
+	// https://github.com/nodejs/node/issues/7367#issuecomment-229721296
+	//
+	child_process
+		.spawn('"' + targetPath + '"', process.argv.slice(2), { stdio: 'inherit', shell: true })
+		.on('exit', process.exit);
+}
