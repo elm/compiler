@@ -45,7 +45,7 @@ sudo mv elm /usr/local/bin/
 
 # Now it should be possible to run the `elm` binary just by saying its name!
 #
-elm
+elm --help
 ```
 
 <br/>
