@@ -18,7 +18,7 @@ cd ~/Desktop/
 # | -o elm.gz | name the file elm.gz |
 # +-----------+----------------------+
 #
-curl -L -o elm.gz https://github.com/elm/compiler/releases/download/0.19.1/binary-for-linux-64-bit.gz
+curl -L -o elm.gz https://github.com/elm/compiler/releases/download/0.19.0/binary-for-linux-64-bit.gz
 
 # There should now be a file named `elm.gz` on your Desktop.
 #
