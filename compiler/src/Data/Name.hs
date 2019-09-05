@@ -304,7 +304,7 @@ fromManyNames names =
   case names of
     [] ->
       blank
-      -- this case is needed for (let _ = Debug.log "x" x in ...)
+      -- NOTE: this case is needed for (let _ = Debug.log "x" x in ...)
       -- but maybe unused patterns should be stripped out instead
 
     Utf8.Utf8 ba# : _ ->
