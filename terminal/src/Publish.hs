@@ -380,11 +380,6 @@ verifyBump (Env _ cache manager _ _) pkg vsn newDocs knownVersions@(Registry.Kno
 
 register :: Http.Manager -> Pkg.Name -> V.Version -> Docs.Documentation -> String -> Http.Sha -> Task.Task Exit.Publish ()
 register manager pkg vsn docs commitHash sha =
-  if True then
-    Task.io $ putStrLn $
-      "Publishing is disabled in the 0.19.1-rc-1 release.\n\
-      \Publish with 0.19.0 for now.\n"
-  else
   let
     url =
       Website.route "/register"
