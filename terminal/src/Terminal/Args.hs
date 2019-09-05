@@ -41,7 +41,7 @@ simple details example args_ flags_ callback =
       argStrings <- Env.getArgs
       case argStrings of
         ["--version"] ->
-          do  hPutStrLn stdout (V.toChars V.compiler ++ "-beta-1")
+          do  hPutStrLn stdout (V.toChars V.compiler ++ "-rc-1")
               Exit.exitSuccess
 
         chunks ->
@@ -69,7 +69,7 @@ complex intro outro interfaces =
           Error.exitWithOverview intro outro interfaces
 
         ["--version"] ->
-          do  hPutStrLn stdout (V.toChars V.compiler ++ "-beta-1")
+          do  hPutStrLn stdout (V.toChars V.compiler ++ "-rc-1")
               Exit.exitSuccess
 
         command : chunks ->
