@@ -3,6 +3,16 @@
 module Repl
   ( Flags(..)
   , run
+  --
+  , Lines(..)
+  , Input(..)
+  , Prefill(..)
+  , CategorizedInput(..)
+  , categorize
+  --
+  , State(..)
+  , Output(..)
+  , toByteString
   )
   where
 

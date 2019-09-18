@@ -8,7 +8,6 @@ module Reporting.Exit
   , Publish(..), publishToReport
   , Install(..), installToReport
   , Reactor(..), reactorToReport
-  , Worker(..), workerToReport
   , newPackageOverview
   --
   , Solver(..)
@@ -2070,39 +2069,3 @@ replToReport problem =
 
     ReplBlocked ->
       corruptCacheReport
-
-
-
--- WORKER
-
-
-data Worker
-  = WorkerInputError Error.Module
-  | WorkerNoMain
-
-
-workerToReport :: Worker -> Help.Report
-workerToReport problem =
-  case problem of
-    WorkerInputError err ->
-      Help.compilerReport "/" err []
-
-    WorkerNoMain ->
-      Help.report "NO MAIN" Nothing
-        (
-          "Without a `main` value, I do not know what to show on screen!"
-        )
-        [ D.reflow $
-            "Adding a `main` value can be as brief as:"
-        , D.vcat
-            [ D.fillSep [D.cyan "import","Html"]
-            , ""
-            , D.fillSep [D.green "main","="]
-            , D.indent 2 $ D.fillSep [D.cyan "Html" <> ".text",D.dullyellow "\"Hello!\""]
-            ]
-        , D.reflow $
-            "Try adding something like that!"
-        , D.toSimpleNote $
-            "I recommend looking through https://guide.elm-lang.org for more advice on\
-            \ how to fill in `main` values."
-        ]

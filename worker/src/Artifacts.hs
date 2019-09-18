@@ -1,0 +1,91 @@
+{-# OPTIONS_GHC -Wall #-}
+module Artifacts
+  ( Artifacts(..)
+  , loadCompile
+  , loadRepl
+  )
+  where
+
+
+import Control.Concurrent (readMVar)
+import Control.Monad (liftM2)
+import qualified Data.Map as Map
+import qualified Data.OneOrMore as OneOrMore
+import qualified System.Directory as Dir
+import System.FilePath ((</>))
+
+import qualified AST.Optimized as Opt
+import qualified BackgroundWriter as BW
+import qualified Elm.Details as Details
+import qualified Elm.Interface as I
+import qualified Elm.ModuleName as ModuleName
+import qualified Reporting
+
+
+
+-- ARTIFACTS
+
+
+data Artifacts =
+  Artifacts
+    { _ifaces :: Map.Map ModuleName.Raw I.Interface
+    , _graph :: Opt.GlobalGraph
+    }
+
+
+loadCompile :: IO Artifacts
+loadCompile =
+  load ("outlines" </> "compile")
+
+
+loadRepl :: IO Artifacts
+loadRepl =
+  load ("outlines" </> "repl")
+
+
+
+-- LOAD
+
+
+load :: FilePath -> IO Artifacts
+load dir =
+  BW.withScope $ \scope ->
+  do  style <- Reporting.terminal
+      root <- fmap (</> dir) Dir.getCurrentDirectory
+      result <- Details.load style scope root
+      case result of
+        Left _ ->
+          error "Ran into some problem loading elm.json details"
+
+        Right details ->
+          do  omvar <- Details.loadObjects root details
+              imvar <- Details.loadInterfaces root details
+              mdeps <- readMVar imvar
+              mobjs <- readMVar omvar
+              case liftM2 (,) mdeps mobjs of
+                Nothing ->
+                  error "Ran into some weird problem loading elm.json details"
+
+                Just (deps, objs) ->
+                  return $ Artifacts (toInterfaces deps) objs
+
+
+toInterfaces :: Map.Map ModuleName.Canonical I.DependencyInterface -> Map.Map ModuleName.Raw I.Interface
+toInterfaces deps =
+  Map.mapMaybe toUnique $ Map.fromListWith OneOrMore.more $
+    Map.elems (Map.mapMaybeWithKey getPublic deps)
+
+
+getPublic :: ModuleName.Canonical -> I.DependencyInterface -> Maybe (ModuleName.Raw, OneOrMore.OneOrMore I.Interface)
+getPublic (ModuleName.Canonical _ name) dep =
+  case dep of
+    I.Public  iface -> Just (name, OneOrMore.one iface)
+    I.Private _ _ _ -> Nothing
+
+
+toUnique :: OneOrMore.OneOrMore a -> Maybe a
+toUnique oneOrMore =
+  case oneOrMore of
+    OneOrMore.One value -> Just value
+    OneOrMore.More _ _  -> Nothing
+

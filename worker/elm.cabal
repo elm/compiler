@@ -43,11 +43,17 @@ Executable worker
         src
         ../compiler/src
         ../builder/src
+        ../terminal/src
 
     Main-Is:
         Main.hs
 
     other-modules:
+        Artifacts
+        Cors
+        Endpoint.Compile
+        Endpoint.Repl
+
         AST.Canonical
         AST.Optimized
         AST.Source
@@ -127,6 +133,7 @@ Executable worker
         Parse.Type
         Parse.Variable
         Paths_elm
+        Repl
         Reporting
         Reporting.Annotation
         Reporting.Doc
@@ -173,6 +180,7 @@ Executable worker
         filelock,
         filepath >= 1 && < 2.0,
         ghc-prim >= 0.5.2,
+        haskeline,
         HTTP >= 4000.2.5 && < 4000.4,
         http-client >= 0.6 && < 0.7,
         http-client-tls >= 0.3 && < 0.4,
@@ -183,6 +191,7 @@ Executable worker
         network >= 2.4 && < 2.7,
         network-uri,
         parsec,
+        process,
         raw-strings-qq,
         scientific,
         SHA,
