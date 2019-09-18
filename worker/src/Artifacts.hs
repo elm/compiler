@@ -50,12 +50,13 @@ loadRepl =
 load :: FilePath -> IO Artifacts
 load dir =
   BW.withScope $ \scope ->
-  do  style <- Reporting.terminal
+  do  putStrLn $ "Loading " ++ dir </> "elm.json"
+      style <- Reporting.terminal
       root <- fmap (</> dir) Dir.getCurrentDirectory
       result <- Details.load style scope root
       case result of
         Left _ ->
-          error $ "Ran into some problem loading elm.json for " ++ dir
+          error $ "Ran into some problem loading elm.json\nTry running `elm make` in: " ++ dir
 
         Right details ->
           do  omvar <- Details.loadObjects root details
@@ -64,7 +65,7 @@ load dir =
               mobjs <- readMVar omvar
               case liftM2 (,) mdeps mobjs of
                 Nothing ->
-                  error $ "Ran into some weird problem loading elm.json for " ++ dir
+                  error $ "Ran into some weird problem loading elm.json\nTry running `elm make` in: " ++ dir
 
                 Just (deps, objs) ->
                   return $ Artifacts (toInterfaces deps) objs
