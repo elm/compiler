@@ -83,7 +83,7 @@ generateForRepl :: Bool -> L.Localizer -> Opt.GlobalGraph -> ModuleName.Canonica
 generateForRepl ansi localizer (Opt.GlobalGraph graph _) home name (Can.Forall _ tipe) =
   let
     mode = Mode.Dev Nothing
-    debugState = addGlobal mode graph emptyState (Opt.Global ModuleName.debug "toAnsiString")
+    debugState = addGlobal mode graph emptyState (Opt.Global ModuleName.debug "toString")
     evalState = addGlobal mode graph debugState (Opt.Global home name)
   in
   "process.on('uncaughtException', function(err) { process.stderr.write(err.toString() + '\\n'); process.exit(1); });"
@@ -119,7 +119,7 @@ generateForReplEndpoint localizer (Opt.GlobalGraph graph _) home maybeName (Can.
   let
     name = maybe Name.replValueToPrint id maybeName
     mode = Mode.Dev Nothing
-    debugState = addGlobal mode graph emptyState (Opt.Global ModuleName.debug "toAnsiString")
+    debugState = addGlobal mode graph emptyState (Opt.Global ModuleName.debug "toString")
     evalState = addGlobal mode graph debugState (Opt.Global home name)
   in
   Functions.functions
