@@ -6,17 +6,17 @@ module Endpoint.Repl
   where
 
 
+import Data.Aeson ((.:))
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as B
-import qualified Data.ByteString.Internal as BS
 import qualified Data.ByteString.Lazy as LBS
-import qualified Data.ByteString.UTF8 as BS_UTF8
 import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Map.Utils as Map
 import qualified Data.Name as N
 import qualified Data.NonEmptyList as NE
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
-import Foreign.Ptr (minusPtr)
 import Snap.Core
 
 import qualified Artifacts as A
@@ -32,10 +32,7 @@ import qualified Elm.Package as Pkg
 import qualified File
 import qualified Generate.JavaScript as JS
 import qualified Json.Encode as Encode
-import qualified Json.Decode as D
 import qualified Parse.Module as Parse
-import qualified Parse.Primitives as P
-import qualified Parse.Variable as Var
 import qualified Repl
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error as Error
@@ -63,12 +60,12 @@ allowedOrigins =
 endpoint :: A.Artifacts -> Snap ()
 endpoint artifacts =
   Cors.allow POST allowedOrigins $
-  do  body <- LBS.toStrict <$> readRequestBody (64 * 1024)
-      case D.fromByteString decoder body of
-        Right (state, entry) ->
+  do  body <- readRequestBody (64 * 1024)
+      case decodeBody body of
+        Just (state, entry) ->
           serveOutcome (toOutcome artifacts state entry)
 
-        Left _ ->
+        Nothing ->
           do  modifyResponse $ setResponseStatus 400 "Bad Request"
               modifyResponse $ setContentType "text/html; charset=utf-8"
               writeBS "Received unexpected JSON body."
@@ -93,9 +90,9 @@ data Outcome
   | Failure BS.ByteString Error.Error
 
 
-toOutcome :: A.Artifacts -> Repl.State -> BS.ByteString -> Outcome
+toOutcome :: A.Artifacts -> Repl.State -> String -> Outcome
 toOutcome artifacts state entry =
-  case reverse (lines (BS_UTF8.toString entry)) of
+  case reverse (lines entry) of
     [] ->
       Skip
 
@@ -226,31 +223,24 @@ checkImports interfaces imports =
 
 
 
--- DECODER
+-- DECODE BODY
 
 
-decoder :: D.Decoder () ( Repl.State, BS.ByteString )
-decoder =
+decodeBody :: LBS.ByteString -> Maybe ( Repl.State, String )
+decodeBody body =
+  Aeson.parseMaybe decodeBodyHelp =<< Aeson.decode' body
+
+
+decodeBodyHelp :: Aeson.Object -> Aeson.Parser ( Repl.State, String )
+decodeBodyHelp obj =
   let
-    bail _ _ = ()
-    upper = D.KeyDecoder (Var.upper bail) bail
-    lower = D.KeyDecoder (Var.lower bail) bail
-    bytes = D.customString bytesParser bail
-    builder = B.byteString <$> bytes
+    get key =
+      do  dict <- obj .: key
+          let f (k,v) = (N.fromChars k, B.stringUtf8 v)
+          return $ Map.fromList $ map f $ Map.toList dict
   in
-  do  imports <- D.field "imports" (D.dict upper builder)
-      types   <- D.field "types" (D.dict upper builder)
-      decls   <- D.field "decls" (D.dict lower builder)
-      entry   <- D.field "entry" bytes
+  do  imports <- get "imports"
+      types   <- get "types"
+      decls   <- get "decls"
+      entry   <- obj .: "entry"
       return ( Repl.State imports types decls, entry )
-
-
-bytesParser :: P.Parser x BS.ByteString
-bytesParser =
-  P.Parser $ \(P.State src pos end indent row col) cok _ _ _ ->
-    let
-      off = minusPtr pos (unsafeForeignPtrToPtr src)
-      len = minusPtr end pos
-      newCol = col + fromIntegral len
-    in
-    cok (BS.PS src off len) (P.State src end end indent row newCol)

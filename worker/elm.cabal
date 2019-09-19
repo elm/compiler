@@ -169,6 +169,7 @@ Executable worker
         Type.UnionFind
 
     Build-depends:
+        aeson,
         ansi-terminal >= 0.8 && < 0.9,
         ansi-wl-pprint >= 0.6.8 && < 0.7,
         base >=4.11 && <5,
