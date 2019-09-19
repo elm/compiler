@@ -97,7 +97,7 @@ toOutcome :: A.Artifacts -> Repl.State -> BS.ByteString -> Outcome
 toOutcome artifacts state entry =
   case reverse (lines (BS_UTF8.toString entry)) of
     [] ->
-      Indent
+      Skip
 
     prev : rev ->
       case Repl.categorize (Repl.Lines prev rev) of
