@@ -158,15 +158,14 @@ data EntryType
 
 
 compile :: A.Artifacts -> Repl.State -> EntryType -> Outcome
-compile (A.Artifacts interfaces objects) state entryType =
+compile (A.Artifacts interfaces objects) state@(Repl.State imports types decls) entryType =
   let
     source =
-      Repl.toByteString state $
-        case entryType of
-          ImportEntry _ _  -> Repl.OutputNothing
-          TypeEntry _ _    -> Repl.OutputNothing
-          DeclEntry name _ -> Repl.OutputDecl name
-          ExprEntry src    -> Repl.OutputExpr src
+      case entryType of
+        ImportEntry name src -> Repl.toByteString (state { Repl._imports = Map.insert name (B.byteString src) imports }) Repl.OutputNothing
+        TypeEntry   name src -> Repl.toByteString (state { Repl._types = Map.insert name (B.byteString src) types }) Repl.OutputNothing
+        DeclEntry   name src -> Repl.toByteString (state { Repl._decls = Map.insert name (B.byteString src) decls }) (Repl.OutputDecl name)
+        ExprEntry        src -> Repl.toByteString state (Repl.OutputExpr src)
   in
   case
     do  modul <- mapLeft Error.BadSyntax $ Parse.fromByteString Parse.Application source
