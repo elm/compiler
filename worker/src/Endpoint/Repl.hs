@@ -80,7 +80,6 @@ data Outcome
   | NewType N.Name
   | NewWork B.Builder
   --
-  | Reset
   | Skip
   | Indent
   | DefStart N.Name
@@ -106,7 +105,7 @@ toOutcome artifacts state entry =
             Repl.Expr src        -> compile artifacts state (ExprEntry src)
             Repl.Port            -> NoPorts
             Repl.Skip            -> Skip
-            Repl.Reset           -> Reset
+            Repl.Reset           -> InvalidCommand
             Repl.Exit            -> InvalidCommand
             Repl.Help _          -> InvalidCommand
 
@@ -129,7 +128,6 @@ serveOutcome outcome =
     NewImport name -> serveString $ "add-import:" <> N.toBuilder name
     NewType name   -> serveString $ "add-type:" <> N.toBuilder name
     NewWork js     -> serveBuilder "application/javascript" js
-    Reset          -> serveString $ "reset"
     Skip           -> serveString $ "skip"
     Indent         -> serveString $ "indent"
     DefStart name  -> serveString $ "def-start:" <> N.toBuilder name
