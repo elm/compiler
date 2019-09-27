@@ -24,11 +24,14 @@ main =
   do  rArtifacts <- Artifacts.loadRepl
       cArtifacts <- Artifacts.loadCompile
       errorJS <- Compile.loadErrorJS
+      let editorHints = Artifacts.toEditorHints cArtifacts
+
       httpServe config $ msum $
         [ ifTop $ status
         , path "repl" $ Repl.endpoint rArtifacts
         , path "compile" $ Compile.endpoint cArtifacts
         , path "compile/errors.js" $ writeBS errorJS
+        , path "compile/editor-hints.json" $ writeBS editorHints
         , notFound
         ]
 
