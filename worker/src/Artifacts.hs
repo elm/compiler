@@ -123,7 +123,8 @@ encodeInterface :: I.Interface -> E.Value
 encodeInterface (I.Interface pkg values unions aliases binops) =
   E.object
     [ "home" ==> E.chars (Pkg.toChars pkg)
-    , "values" ==> E.list E.name (Map.keys binops ++ Map.keys values)
+    , "ops" ==> E.list E.name (Map.keys binops)
+    , "values" ==> E.list E.name (Map.keys values)
     , "aliases" ==> E.list E.name (Map.keys (Map.filter isPublicAlias aliases))
     , "types" ==> E.dict Json.fromName (E.list E.name) (Map.mapMaybe toPublicUnion unions)
     ]
