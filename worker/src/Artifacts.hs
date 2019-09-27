@@ -3,7 +3,7 @@ module Artifacts
   ( Artifacts(..)
   , loadCompile
   , loadRepl
-  , toEditorHints
+  , toDepsInfo
   )
   where
 
@@ -102,11 +102,11 @@ toUnique oneOrMore =
 
 
 
--- TO EDITOR HINTS
+-- TO DEPS INFO
 
 
-toEditorHints :: Artifacts -> BS.ByteString
-toEditorHints (Artifacts ifaces _) =
+toDepsInfo :: Artifacts -> BS.ByteString
+toDepsInfo (Artifacts ifaces _) =
   LBS.toStrict $ B.toLazyByteString $ E.encodeUgly $ encode ifaces
 
 
