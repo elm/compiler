@@ -122,7 +122,7 @@ encode ifaces =
 encodeInterface :: I.Interface -> E.Value
 encodeInterface (I.Interface pkg values unions aliases binops) =
   E.object
-    [ "home" ==> E.chars (Pkg.toChars pkg)
+    [ "pkg" ==> E.chars (Pkg.toChars pkg)
     , "ops" ==> E.list E.name (Map.keys binops)
     , "values" ==> E.list E.name (Map.keys values)
     , "aliases" ==> E.list E.name (Map.keys (Map.filter isPublicAlias aliases))
