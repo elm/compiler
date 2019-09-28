@@ -7,6 +7,7 @@ module Main
 
 
 import Control.Monad (msum)
+import qualified Data.ByteString as BS
 import Snap.Core
 import Snap.Http.Server
 
@@ -32,8 +33,7 @@ main =
         , path "repl" $ Repl.endpoint rArtifacts
         , path "compile" $ Compile.endpoint cArtifacts
         , path "compile/errors.js" $ writeBS errorJS
-        , path "compile/deps-info.json" $
-            Cors.allow GET ["https://elm-lang.org"] (writeBS depsInfo)
+        , path "compile/deps-info.json" $ serveDepsInfo depsInfo
         , notFound
         ]
 
@@ -54,3 +54,10 @@ notFound =
   do  modifyResponse $ setResponseStatus 404 "Not Found"
       modifyResponse $ setContentType "text/html; charset=utf-8"
       writeBuilder "Not Found"
+
+
+serveDepsInfo :: BS.ByteString -> Snap ()
+serveDepsInfo json =
+  Cors.allow GET ["https://elm-lang.org"] $
+    do  modifyResponse $ setContentType "application/json"
+        writeBS json
