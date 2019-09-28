@@ -11,6 +11,7 @@ import Snap.Core
 import Snap.Http.Server
 
 import qualified Artifacts
+import qualified Cors
 import qualified Endpoint.Compile as Compile
 import qualified Endpoint.Repl as Repl
 
@@ -31,7 +32,8 @@ main =
         , path "repl" $ Repl.endpoint rArtifacts
         , path "compile" $ Compile.endpoint cArtifacts
         , path "compile/errors.js" $ writeBS errorJS
-        , path "compile/deps-info.json" $ writeBS depsInfo
+        , path "compile/deps-info.json" $
+            Cors.allow GET ["https://elm-lang.org"] (writeBS depsInfo)
         , notFound
         ]
 
