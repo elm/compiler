@@ -69,3 +69,25 @@ So the `PATH` environment variable is a convention that allows you to refer to a
 So the point of running `sudo mv elm /usr/local/bin/` is to turn the `elm` binary into a terminal command, allowing us to call it just like `ls` and `cd`.
 
 **Note:** Why do we need to use `sudo` for that one command? Imagine if some program was able to add executables named `ls` or `cd` to `/usr/local/bin` that did something tricky and unexpected. That would be a security problem! Many distributions make this scenario less likely by requiring special permissions to modify the `/usr/local/bin/` directory.
+
+
+<br/>
+
+## Uninstall
+
+The following commands should remove everything:
+
+```bash
+# Remove the `elm` executable.
+#
+sudo rm /usr/local/bin/elm
+
+# Remove any cached files. The files here reduce compile times when
+# starting new projects and make it possible to work offline in more
+# cases. No need to keep it around if you are uninstalling though!
+#
+rm -r ~/.elm/
+```
+
+If you have any Elm projects still on your computer, you can remove their `elm-stuff/` directories as well.
+
