@@ -64,7 +64,7 @@ This prints `/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin` on my computer. The d
 
 When I run `elm make src/Main.elm`, my terminal starts by searching these five directories for an executable file named `elm`. It finds `/usr/local/bin/elm` and then runs `/usr/local/bin/elm make src/Main.elm` with whatever arguments I gave.
 
-So the `PATH` environment variable is a convention that allows you to refer to a specific executable file without knowing exactly where it lives on your computer. This is actually how all "terminal commands" work! Commands like `ls` and `cd` are really executable files that live in directories like `/bin` and `/usr/bin` that happen to be listed in your `PATH` variable.
+So the `PATH` environment variable is a convention that allows you to refer to a specific executable file without knowing exactly where it lives on your computer. This is actually how all "terminal commands" work! Commands like `ls` are really executable files that live in directories listed in your `PATH` variable.
 
 So the point of running `sudo mv elm /usr/local/bin/` is to turn the `elm` binary into a terminal command, allowing us to call it just like `ls` and `cd`.
 
