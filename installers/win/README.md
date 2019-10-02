@@ -7,9 +7,9 @@ The installer for Windows is available [here](https://guide.elm-lang.org/install
 
 ## Uninstall
 
-First run the `C:\Program Files\Elm\0.19.0\uninstall.exe` file. This will remove Elm stuff from your `PATH`.
+First run the `C:\Program Files (x86)\Elm\0.19\uninstall.exe` file. This will remove Elm stuff from your `PATH`.
 
-Then remove the whole `C:\Program Files\Elm\` directory. Elm caches some packages and build artifacts to reduce compile times and to help you work offline. Getting rid of this directory will clear that information out!
+Then remove the whole `C:\Users\<username>\AppData\Roaming\elm` directory. Elm caches some packages and build artifacts to reduce compile times and to help you work offline. Getting rid of this directory will clear that information out!
 
 <br/>
 
