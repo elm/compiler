@@ -1,16 +1,6 @@
 # Installing Elm
 
-There are two ways to install Elm:
-
-- **Installers** for Mac or Windows
-- **Instructions** for [Mac][mac] or [Linux][lin]
-
-The code in this directory builds the Mac and Windows installers, which are available [here](https://guide.elm-lang.org/install.html).
-
-It is definitely valuable to read the install instructions even if you are not using them though! They reveal how installers actually work.
-
-[mac]: https://github.com/elm/compiler/blob/master/installers/mac/README.md
-[lin]: https://github.com/elm/compiler/blob/master/installers/linux/README.md
+Use the instructions [here](https://guide.elm-lang.org/install/).
 
 
 <br/>
@@ -24,8 +14,17 @@ The instructions for [Mac][mac] and [Linux][lin] explain how to do this in more 
 
 <br/>
 
+## Installing Previous Versions
+
+The past binaries for Mac, Linux, and Windows are hosted [here](https://github.com/elm/compiler/releases).
+
+You can download the executable files directly and use them locally.
+
+
+<br/>
+
 ## Uninstall
 
 - [Mac](https://github.com/elm/compiler/blob/master/installers/mac/README.md#uninstall)
 - [Linux](https://github.com/elm/compiler/blob/master/installers/linux/README.md#uninstall)
-- [Windows](https://github.com/elm/compiler/blob/master/installers/win/README.md)
+- [Windows](https://github.com/elm/compiler/blob/master/installers/win/README.md#uninstall)
