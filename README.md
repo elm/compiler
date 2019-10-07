@@ -2,9 +2,7 @@
 
 A delightful language for reliable webapps.
 
-| Home Page | Try Online | Guide |
-|-----------|------------|-------|
-| [![elm-lang.org](docs/home.png)](http://elm-lang.org/) | [![elm-lang.org/try](docs/try.png)](http://elm-lang.org/try) | [![guide.elm-lang.org](docs/guide.png)](http://guide.elm-lang.org/) |
+[Home Page](http://elm-lang.org/) / [Try Online](http://elm-lang.org/try) / [The Official Guide](http://guide.elm-lang.org/)
 
 
 ## Install
