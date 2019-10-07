@@ -2,15 +2,9 @@
 
 A delightful language for reliable webapps.
 
-<br>
-
-**Website:** [elm-lang.org](http://elm-lang.org/)
-
-**Try:** [elm-lang.org/try](http://elm-lang.org/try)
-
-**Guide:** [guide.elm-lang.org](http://guide.elm-lang.org/)
-
-<br>
+| Home Page | Try Online | Guide |
+|-----------|------------|-------|
+| [![elm-lang.org](docs/home.png)](http://elm-lang.org/) | [![elm-lang.org/try](docs/try.png)](http://elm-lang.org/try) | [![guide.elm-lang.org](docs/guide.png)](http://guide.elm-lang.org/) |
 
 
 ## Install
@@ -19,7 +13,7 @@ A delightful language for reliable webapps.
 - **Linux** - [instructions](https://github.com/elm/compiler/blob/master/installers/linux/README.md)
 - **Windows** - [installer](https://github.com/elm/compiler/releases/download/0.19.0/installer-for-windows.exe)
 
-Instructions for multiple versions, previous versions, and uninstallation are available [here](https://github.com/elm/compiler/blob/master/installers/README.md).
+For multiple versions, previous versions, or uninstall, see [these instructions](https://github.com/elm/compiler/blob/master/installers/README.md).
 
 <br>
 
