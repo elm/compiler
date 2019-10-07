@@ -42,13 +42,13 @@ buildReactorFrontEnd =
   do  root <- Dir.getCurrentDirectory
       runTaskUnsafe $
         do  details    <- Task.eio Exit.ReactorBadDetails $ Details.load Reporting.silent scope root
-            artifacts  <- Task.eio Exit.ReactorBadBuild $ Build.fromMains Reporting.silent root details mains
+            artifacts  <- Task.eio Exit.ReactorBadBuild $ Build.fromPaths Reporting.silent root details paths
             javascript <- Task.mapError Exit.ReactorBadGenerate $ Generate.prod root details artifacts
             return (LBS.toStrict (B.toLazyByteString javascript))
 
 
-mains :: NE.List FilePath
-mains =
+paths :: NE.List FilePath
+paths =
   NE.List
     ("src" </> "NotFound.elm")
     [ "src" </> "Errors.elm"

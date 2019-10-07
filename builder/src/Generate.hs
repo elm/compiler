@@ -99,18 +99,18 @@ checkForDebugUses (Objects _ locals) =
 -- GATHER MAINS
 
 
-gatherMains :: Pkg.Name -> Objects -> NE.List Build.Main -> Map.Map ModuleName.Canonical Opt.Main
-gatherMains pkg (Objects _ locals) buildMains =
-  Map.fromList $ Maybe.mapMaybe (lookupMain pkg locals) (NE.toList buildMains)
+gatherMains :: Pkg.Name -> Objects -> NE.List Build.Root -> Map.Map ModuleName.Canonical Opt.Main
+gatherMains pkg (Objects _ locals) roots =
+  Map.fromList $ Maybe.mapMaybe (lookupMain pkg locals) (NE.toList roots)
 
 
-lookupMain :: Pkg.Name -> Map.Map ModuleName.Raw Opt.LocalGraph -> Build.Main -> Maybe (ModuleName.Canonical, Opt.Main)
-lookupMain pkg locals buildMain =
+lookupMain :: Pkg.Name -> Map.Map ModuleName.Raw Opt.LocalGraph -> Build.Root -> Maybe (ModuleName.Canonical, Opt.Main)
+lookupMain pkg locals root =
   let
     toPair name (Opt.LocalGraph maybeMain _ _) =
       (,) (ModuleName.Canonical pkg name) <$> maybeMain
   in
-  case buildMain of
+  case root of
     Build.Inside  name     -> toPair name =<< Map.lookup name locals
     Build.Outside name _ g -> toPair name g
 

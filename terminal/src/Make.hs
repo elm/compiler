@@ -107,7 +107,7 @@ runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
                   case getNoMains artifacts of
                     [] ->
                       do  builder <- toBuilder root details desiredMode artifacts
-                          generate style target builder (Build.getMainNames artifacts)
+                          generate style target builder (Build.getRootNames artifacts)
 
                     name:names ->
                       Task.throw (Exit.MakeNonMainFilesIntoJavaScript name names)
@@ -166,7 +166,7 @@ buildExposed style root details maybeDocs exposed =
 buildPaths :: Reporting.Style -> FilePath -> Details.Details -> NE.List FilePath -> Task Build.Artifacts
 buildPaths style root details paths =
   Task.eio Exit.MakeCannotBuild $
-    Build.fromMains style root details paths
+    Build.fromPaths style root details paths
 
 
 
@@ -174,13 +174,13 @@ buildPaths style root details paths =
 
 
 getMains :: Build.Artifacts -> [ModuleName.Raw]
-getMains (Build.Artifacts _ _ mains modules) =
-  Maybe.mapMaybe (getMain modules) (NE.toList mains)
+getMains (Build.Artifacts _ _ roots modules) =
+  Maybe.mapMaybe (getMain modules) (NE.toList roots)
 
 
-getMain :: [Build.Module] -> Build.Main -> Maybe ModuleName.Raw
-getMain modules main =
-  case main of
+getMain :: [Build.Module] -> Build.Root -> Maybe ModuleName.Raw
+getMain modules root =
+  case root of
     Build.Inside name ->
       if any (isMain name) modules
       then Just name
@@ -207,9 +207,9 @@ isMain targetName modul =
 
 
 hasOneMain :: Build.Artifacts -> Task ModuleName.Raw
-hasOneMain (Build.Artifacts _ _ mains modules) =
-  case mains of
-    NE.List main [] -> Task.mio Exit.MakeNoMain (return $ getMain modules main)
+hasOneMain (Build.Artifacts _ _ roots modules) =
+  case roots of
+    NE.List root [] -> Task.mio Exit.MakeNoMain (return $ getMain modules root)
     NE.List _ (_:_) -> Task.throw Exit.MakeMultipleFilesIntoHtml
 
 
@@ -218,13 +218,13 @@ hasOneMain (Build.Artifacts _ _ mains modules) =
 
 
 getNoMains :: Build.Artifacts -> [ModuleName.Raw]
-getNoMains (Build.Artifacts _ _ mains modules) =
-  Maybe.mapMaybe (getNoMain modules) (NE.toList mains)
+getNoMains (Build.Artifacts _ _ roots modules) =
+  Maybe.mapMaybe (getNoMain modules) (NE.toList roots)
 
 
-getNoMain :: [Build.Module] -> Build.Main -> Maybe ModuleName.Raw
-getNoMain modules main =
-  case main of
+getNoMain :: [Build.Module] -> Build.Root -> Maybe ModuleName.Raw
+getNoMain modules root =
+  case root of
     Build.Inside name ->
       if any (isMain name) modules
       then Nothing

@@ -2,15 +2,15 @@
 {-# LANGUAGE BangPatterns, GADTs, OverloadedStrings #-}
 module Build
   ( fromExposed
-  , fromMains
+  , fromPaths
   , fromRepl
   , Artifacts(..)
-  , Main(..)
+  , Root(..)
   , Module(..)
   , CachedInterface(..)
   , ReplArtifacts(..)
   , DocsGoal(..)
-  , getMainNames
+  , getRootNames
   )
   where
 
@@ -164,14 +164,14 @@ fromExposed style root details docsGoal exposed@(NE.List e es) =
 
 
 
--- FROM MAINS
+-- FROM PATHS
 
 
 data Artifacts =
   Artifacts
     { _name :: Pkg.Name
     , _deps :: Dependencies
-    , _mains :: NE.List Main
+    , _roots :: NE.List Root
     , _modules :: [Module]
     }
 
@@ -185,25 +185,25 @@ type Dependencies =
   Map.Map ModuleName.Canonical I.DependencyInterface
 
 
-fromMains :: Reporting.Style -> FilePath -> Details.Details -> NE.List FilePath -> IO (Either Exit.BuildProblem Artifacts)
-fromMains style root details paths =
+fromPaths :: Reporting.Style -> FilePath -> Details.Details -> NE.List FilePath -> IO (Either Exit.BuildProblem Artifacts)
+fromPaths style root details paths =
   Reporting.trackBuild style $ \key ->
   do  env <- makeEnv key root details
 
-      elmains <- findMains env paths
-      case elmains of
+      elroots <- findRoots env paths
+      case elroots of
         Left problem ->
           return (Left (Exit.BuildProjectProblem problem))
 
-        Right lmains ->
+        Right lroots ->
           do  -- crawl
               dmvar <- Details.loadInterfaces root details
               smvar <- newMVar Map.empty
-              smainMVars <- traverse (fork . crawlMain env smvar) lmains
-              smains <- traverse readMVar smainMVars
+              srootMVars <- traverse (fork . crawlRoot env smvar) lroots
+              sroots <- traverse readMVar srootMVars
               statuses <- traverse readMVar =<< readMVar smvar
 
-              midpoint <- checkMainsMidpoint dmvar statuses smains
+              midpoint <- checkMidpointAndRoots dmvar statuses sroots
               case midpoint of
                 Left problem ->
                   return (Left (Exit.BuildProjectProblem problem))
@@ -213,24 +213,24 @@ fromMains style root details paths =
                       rmvar <- newEmptyMVar
                       resultsMVars <- forkWithKey (checkModule env foreigns rmvar) statuses
                       putMVar rmvar resultsMVars
-                      rmainMVars <- traverse (fork . checkMain env resultsMVars) smains
+                      rrootMVars <- traverse (fork . checkRoot env resultsMVars) sroots
                       results <- traverse readMVar resultsMVars
                       writeDetails root details results
-                      toArtifacts env foreigns results <$> traverse readMVar rmainMVars
+                      toArtifacts env foreigns results <$> traverse readMVar rrootMVars
 
 
 
--- GET MAIN NAMES
+-- GET ROOT NAMES
 
 
-getMainNames :: Artifacts -> NE.List ModuleName.Raw
-getMainNames (Artifacts _ _ mains _) =
-  fmap getMainName mains
+getRootNames :: Artifacts -> NE.List ModuleName.Raw
+getRootNames (Artifacts _ _ roots _) =
+  fmap getRootName roots
 
 
-getMainName :: Main -> ModuleName.Raw
-getMainName main =
-  case main of
+getRootName :: Root -> ModuleName.Raw
+getRootName root =
+  case root of
     Inside  name     -> name
     Outside name _ _ -> name
 
@@ -585,11 +585,11 @@ checkMidpoint dmvar statuses =
           return (Left (Exit.BP_Cycle name names))
 
 
-checkMainsMidpoint :: MVar (Maybe Dependencies) -> Map.Map ModuleName.Raw Status -> NE.List MainStatus -> IO (Either Exit.BuildProjectProblem Dependencies)
-checkMainsMidpoint dmvar statuses smains =
+checkMidpointAndRoots :: MVar (Maybe Dependencies) -> Map.Map ModuleName.Raw Status -> NE.List RootStatus -> IO (Either Exit.BuildProjectProblem Dependencies)
+checkMidpointAndRoots dmvar statuses sroots =
   case checkForCycles statuses of
     Nothing ->
-      case checkUniqueMains statuses smains of
+      case checkUniqueRoots statuses sroots of
         Nothing ->
           do  maybeForeigns <- readMVar dmvar
               case maybeForeigns of
@@ -651,14 +651,14 @@ addToGraph name status graph =
 
 
 
--- CHECK UNIQUE MAINS
+-- CHECK UNIQUE ROOTS
 
 
-checkUniqueMains :: Map.Map ModuleName.Raw Status -> NE.List MainStatus -> Maybe Exit.BuildProjectProblem
-checkUniqueMains insides smains =
+checkUniqueRoots :: Map.Map ModuleName.Raw Status -> NE.List RootStatus -> Maybe Exit.BuildProjectProblem
+checkUniqueRoots insides sroots =
   let
     outsidesDict =
-      Map.fromListWith OneOrMore.more (Maybe.mapMaybe mainStatusToNamePathPair (NE.toList smains))
+      Map.fromListWith OneOrMore.more (Maybe.mapMaybe rootStatusToNamePathPair (NE.toList sroots))
   in
   case Map.traverseWithKey checkOutside outsidesDict of
     Left problem ->
@@ -670,9 +670,9 @@ checkUniqueMains insides smains =
         Left problem -> Just problem
 
 
-mainStatusToNamePathPair :: MainStatus -> Maybe (ModuleName.Raw, OneOrMore.OneOrMore FilePath)
-mainStatusToNamePathPair smain =
-  case smain of
+rootStatusToNamePathPair :: RootStatus -> Maybe (ModuleName.Raw, OneOrMore.OneOrMore FilePath)
+rootStatusToNamePathPair sroot =
+  case sroot of
     SInside _                                         -> Nothing
     SOutsideOk (Details.Local path _ _ _ _ _) _ modul -> Just (Src.getName modul, OneOrMore.one path)
     SOutsideErr _                                     -> Nothing
@@ -682,14 +682,14 @@ checkOutside :: ModuleName.Raw -> OneOrMore.OneOrMore FilePath -> Either Exit.Bu
 checkOutside name paths =
   case OneOrMore.destruct NE.List paths of
     NE.List p  []     -> Right p
-    NE.List p1 (p2:_) -> Left (Exit.BP_MainNameDuplicate name p1 p2)
+    NE.List p1 (p2:_) -> Left (Exit.BP_RootNameDuplicate name p1 p2)
 
 
 checkInside :: ModuleName.Raw -> FilePath -> Status -> Either Exit.BuildProjectProblem ()
 checkInside name p1 status =
   case status of
-    SCached  (Details.Local p2 _ _ _ _ _)       -> Left (Exit.BP_MainNameDuplicate name p1 p2)
-    SChanged (Details.Local p2 _ _ _ _ _) _ _ _ -> Left (Exit.BP_MainNameDuplicate name p1 p2)
+    SCached  (Details.Local p2 _ _ _ _ _)       -> Left (Exit.BP_RootNameDuplicate name p1 p2)
+    SChanged (Details.Local p2 _ _ _ _ _) _ _ _ -> Left (Exit.BP_RootNameDuplicate name p1 p2)
     SBadImport _                                -> Right ()
     SBadSyntax _ _ _ _                          -> Right ()
     SForeign _                                  -> Right ()
@@ -964,25 +964,25 @@ finalizeReplArtifacts env@(Env _ root projectType _ _ _ _) source modul@(Src.Mod
 
 
 
--- FIND MAIN
+-- FIND ROOT
 
 
-data MainLocation
+data RootLocation
   = LInside ModuleName.Raw
   | LOutside FilePath
 
 
-findMains :: Env -> NE.List FilePath -> IO (Either Exit.BuildProjectProblem (NE.List MainLocation))
-findMains env paths =
-  do  mvars <- traverse (fork . findLocation env) paths
-      elocs <- traverse readMVar mvars
-      return $ checkLocations =<< sequence elocs
+findRoots :: Env -> NE.List FilePath -> IO (Either Exit.BuildProjectProblem (NE.List RootLocation))
+findRoots env paths =
+  do  mvars <- traverse (fork . getRootInfo env) paths
+      einfos <- traverse readMVar mvars
+      return $ checkRoots =<< sequence einfos
 
 
-checkLocations :: NE.List Location -> Either Exit.BuildProjectProblem (NE.List MainLocation)
-checkLocations locations =
+checkRoots :: NE.List RootInfo -> Either Exit.BuildProjectProblem (NE.List RootLocation)
+checkRoots infos =
   let
-    toOneOrMore loc@(Location absolute _ _) =
+    toOneOrMore loc@(RootInfo absolute _ _) =
       (absolute, OneOrMore.one loc)
 
     fromOneOrMore loc locs =
@@ -990,33 +990,33 @@ checkLocations locations =
         [] -> Right ()
         loc2:_ -> Left (Exit.BP_MainPathDuplicate (_relative loc) (_relative loc2))
   in
-  fmap (\_ -> fmap _location locations) $
+  fmap (\_ -> fmap _location infos) $
     traverse (OneOrMore.destruct fromOneOrMore) $
-      Map.fromListWith OneOrMore.more $ map toOneOrMore (NE.toList locations)
+      Map.fromListWith OneOrMore.more $ map toOneOrMore (NE.toList infos)
 
 
 
--- LOCATIONS
+-- ROOT INFO
 
 
-data Location =
-  Location
+data RootInfo =
+  RootInfo
     { _absolute :: FilePath
     , _relative :: FilePath
-    , _location :: MainLocation
+    , _location :: RootLocation
     }
 
 
-findLocation :: Env -> FilePath -> IO (Either Exit.BuildProjectProblem Location)
-findLocation env path =
+getRootInfo :: Env -> FilePath -> IO (Either Exit.BuildProjectProblem RootInfo)
+getRootInfo env path =
   do  exists <- File.exists path
       if exists
-        then findLoc env path =<< Dir.canonicalizePath path
+        then getRootInfoHelp env path =<< Dir.canonicalizePath path
         else return (Left (Exit.BP_PathUnknown path))
 
 
-findLoc :: Env -> FilePath -> FilePath -> IO (Either Exit.BuildProjectProblem Location)
-findLoc (Env _ root _ srcDirs _ _ _) path absolutePath =
+getRootInfoHelp :: Env -> FilePath -> FilePath -> IO (Either Exit.BuildProjectProblem RootInfo)
+getRootInfoHelp (Env _ _ _ srcDirs _ _ _) path absolutePath =
   let
     (dirs, file) = FP.splitFileName absolutePath
     (final, ext) = FP.splitExtension file
@@ -1030,7 +1030,7 @@ findLoc (Env _ root _ srcDirs _ _ _) path absolutePath =
     in
     case Maybe.mapMaybe (isInsideSrcDirByPath absoluteSegments) srcDirs of
       [] ->
-        return $ Right $ Location absolutePath path (LOutside path)
+        return $ Right $ RootInfo absolutePath path (LOutside path)
 
       [(_, Right names)] ->
         do  let name = Name.fromChars (List.intercalate "." names)
@@ -1039,13 +1039,13 @@ findLoc (Env _ root _ srcDirs _ _ _) path absolutePath =
               d1:d2:_ ->
                 do  let p1 = addRelative d1 (FP.joinPath names <.> "elm")
                     let p2 = addRelative d2 (FP.joinPath names <.> "elm")
-                    return $ Left $ Exit.BP_MainNameDuplicate name p1 p2
+                    return $ Left $ Exit.BP_RootNameDuplicate name p1 p2
 
               _ ->
-                return $ Right $ Location absolutePath path (LInside name)
+                return $ Right $ RootInfo absolutePath path (LInside name)
 
       [(s, Left names)] ->
-        return $ Left $ Exit.BP_MainNameInvalid path s names
+        return $ Left $ Exit.BP_RootNameInvalid path s names
 
       (s1,_):(s2,_):_ ->
         return $ Left $ Exit.BP_WithAmbiguousSrcDir path s1 s2
@@ -1094,18 +1094,18 @@ dropPrefix roots paths =
 
 
 
--- CRAWL MAINS
+-- CRAWL ROOTS
 
 
-data MainStatus
+data RootStatus
   = SInside ModuleName.Raw
   | SOutsideOk Details.Local B.ByteString Src.Module
   | SOutsideErr Error.Module
 
 
-crawlMain :: Env -> MVar StatusDict -> MainLocation -> IO MainStatus
-crawlMain env@(Env _ _ projectType _ buildID _ _) mvar given =
-  case given of
+crawlRoot :: Env -> MVar StatusDict -> RootLocation -> IO RootStatus
+crawlRoot env@(Env _ _ projectType _ buildID _ _) mvar root =
+  case root of
     LInside name ->
       do  statusMVar <- newEmptyMVar
           statusDict <- takeMVar mvar
@@ -1128,19 +1128,19 @@ crawlMain env@(Env _ _ projectType _ buildID _ _) mvar given =
 
 
 
--- CHECK MAINS
+-- CHECK ROOTS
 
 
-data MainResult
+data RootResult
   = RInside ModuleName.Raw
   | ROutsideOk ModuleName.Raw I.Interface Opt.LocalGraph
   | ROutsideErr Error.Module
   | ROutsideBlocked
 
 
-checkMain :: Env -> ResultDict -> MainStatus -> IO MainResult
-checkMain env@(Env _ root _ _ _ _ _) results pendingMain =
-  case pendingMain of
+checkRoot :: Env -> ResultDict -> RootStatus -> IO RootResult
+checkRoot env@(Env _ root _ _ _ _ _) results rootStatus =
+  case rootStatus of
     SInside name ->
       return (RInside name)
 
@@ -1167,7 +1167,7 @@ checkMain env@(Env _ root _ _ _ _ _) results pendingMain =
                   Error.BadImports (toImportErrors env results imports problems)
 
 
-compileOutside :: Env -> Details.Local -> B.ByteString -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> IO MainResult
+compileOutside :: Env -> Details.Local -> B.ByteString -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> IO RootResult
 compileOutside (Env key _ projectType _ _ _ _) (Details.Local path time _ _ _ _) source ifaces modul =
   let
     pkg = projectTypeToPkg projectType
@@ -1186,35 +1186,35 @@ compileOutside (Env key _ projectType _ _ _ _) (Details.Local path time _ _ _ _)
 -- TO ARTIFACTS
 
 
-data Main
+data Root
   = Inside ModuleName.Raw
   | Outside ModuleName.Raw I.Interface Opt.LocalGraph
 
 
-toArtifacts :: Env -> Dependencies -> Map.Map ModuleName.Raw Result -> NE.List MainResult -> Either Exit.BuildProblem Artifacts
-toArtifacts (Env _ root projectType _ _ _ _) foreigns results mainResults =
-  case gatherProblemsOrMains results mainResults of
+toArtifacts :: Env -> Dependencies -> Map.Map ModuleName.Raw Result -> NE.List RootResult -> Either Exit.BuildProblem Artifacts
+toArtifacts (Env _ root projectType _ _ _ _) foreigns results rootResults =
+  case gatherProblemsOrMains results rootResults of
     Left (NE.List e es) ->
       Left (Exit.BuildBadModules root e es)
 
-    Right mains ->
-      Right $ Artifacts (projectTypeToPkg projectType) foreigns mains $
-        Map.foldrWithKey addInside (foldr addOutside [] mainResults) results
+    Right roots ->
+      Right $ Artifacts (projectTypeToPkg projectType) foreigns roots $
+        Map.foldrWithKey addInside (foldr addOutside [] rootResults) results
 
 
-gatherProblemsOrMains :: Map.Map ModuleName.Raw Result -> NE.List MainResult -> Either (NE.List Error.Module) (NE.List Main)
-gatherProblemsOrMains results (NE.List mainResult mainResults) =
+gatherProblemsOrMains :: Map.Map ModuleName.Raw Result -> NE.List RootResult -> Either (NE.List Error.Module) (NE.List Root)
+gatherProblemsOrMains results (NE.List rootResult rootResults) =
   let
-    sortMain result (es, mains) =
+    addResult result (es, roots) =
       case result of
-        RInside n        -> (  es, Inside n      : mains)
-        ROutsideOk n i o -> (  es, Outside n i o : mains)
-        ROutsideErr e    -> (e:es,                 mains)
-        ROutsideBlocked  -> (  es,                 mains)
+        RInside n        -> (  es, Inside n      : roots)
+        ROutsideOk n i o -> (  es, Outside n i o : roots)
+        ROutsideErr e    -> (e:es,                 roots)
+        ROutsideBlocked  -> (  es,                 roots)
 
     errors = Map.foldr addErrors [] results
   in
-  case (mainResult, foldr sortMain (errors, []) mainResults) of
+  case (rootResult, foldr addResult (errors, []) rootResults) of
     (RInside n       , (  [], ms)) -> Right (NE.List (Inside n) ms)
     (RInside _       , (e:es, _ )) -> Left  (NE.List e es)
     (ROutsideOk n i o, (  [], ms)) -> Right (NE.List (Outside n i o) ms)
@@ -1242,9 +1242,9 @@ badInside name =
   "Error from `" ++ Name.toChars name ++ "` should have been reported already."
 
 
-addOutside :: MainResult -> [Module] -> [Module]
-addOutside main modules =
-  case main of
+addOutside :: RootResult -> [Module] -> [Module]
+addOutside root modules =
+  case root of
     RInside _                  -> modules
     ROutsideOk name iface objs -> Fresh name iface objs : modules
     ROutsideErr _              -> modules

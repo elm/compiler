@@ -1767,8 +1767,8 @@ data BuildProjectProblem
   | BP_WithBadExtension FilePath
   | BP_WithAmbiguousSrcDir FilePath FilePath FilePath
   | BP_MainPathDuplicate FilePath FilePath
-  | BP_MainNameDuplicate ModuleName.Raw FilePath FilePath
-  | BP_MainNameInvalid FilePath FilePath [String]
+  | BP_RootNameDuplicate ModuleName.Raw FilePath FilePath
+  | BP_RootNameInvalid FilePath FilePath [String]
   | BP_CannotLoadDependencies
   | BP_Cycle ModuleName.Raw [ModuleName.Raw]
   | BP_MissingExposed (NE.List (ModuleName.Raw, Import.Problem))
@@ -1835,7 +1835,7 @@ toProjectProblemReport projectProblem =
               \ unstuck!"
         ]
 
-    BP_MainNameDuplicate name outsidePath otherPath ->
+    BP_RootNameDuplicate name outsidePath otherPath ->
       Help.report "MODULE NAME CLASH" Nothing
         "These two files are causing a module name clash:"
         [ D.indent 4 $ D.red $ D.vcat $ map D.fromChars [ outsidePath, otherPath ]
@@ -1846,7 +1846,7 @@ toProjectProblemReport projectProblem =
             "Try changing to a different module name in one of them!"
         ]
 
-    BP_MainNameInvalid givenPath srcDir _ ->
+    BP_RootNameInvalid givenPath srcDir _ ->
       Help.report "UNEXPECTED FILE NAME" Nothing
         "I am having trouble with this file name:"
         [ D.indent 4 $ D.red $ D.fromChars givenPath
