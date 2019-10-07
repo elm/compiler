@@ -1,6 +1,5 @@
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE OverloadedStrings #-}
-module Terminal.Args.Error
+{-# LANGUAGE GADTs, OverloadedStrings #-}
+module Terminal.Error
   ( Error(..)
   , ArgError(..)
   , FlagError(..)
@@ -24,7 +23,7 @@ import System.IO (hPutStrLn, stderr)
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import Reporting.Suggest as Suggest
-import Terminal.Args.Internal
+import Terminal.Internal
 
 
 
@@ -187,22 +186,22 @@ flagsToDocs flags docs =
 -- OVERVIEW
 
 
-exitWithOverview :: P.Doc -> P.Doc -> [Interface] -> IO a
-exitWithOverview intro outro interfaces =
+exitWithOverview :: P.Doc -> P.Doc -> [Command] -> IO a
+exitWithOverview intro outro commands =
   do  exeName <- getExeName
       exitSuccess
         [ intro
         , "The most common commands are:"
-        , P.indent 4 $ stack $ Maybe.mapMaybe (toSummary exeName) interfaces
+        , P.indent 4 $ stack $ Maybe.mapMaybe (toSummary exeName) commands
         , "There are a bunch of other commands as well though. Here is a full list:"
-        , P.indent 4 $ P.dullcyan $ toCommandList exeName interfaces
+        , P.indent 4 $ P.dullcyan $ toCommandList exeName commands
         , "Adding the --help flag gives a bunch of additional details about each one."
         , outro
         ]
 
 
-toSummary :: String -> Interface -> Maybe P.Doc
-toSummary exeName (Interface name summary _ _ (Args args) _ _) =
+toSummary :: String -> Command -> Maybe P.Doc
+toSummary exeName (Command name summary _ _ (Args args) _ _) =
   case summary of
     Uncommon ->
       Nothing
@@ -215,10 +214,10 @@ toSummary exeName (Interface name summary _ _ (Args args) _ _) =
           ]
 
 
-toCommandList :: String -> [Interface] -> P.Doc
-toCommandList exeName interfaces =
+toCommandList :: String -> [Command] -> P.Doc
+toCommandList exeName commands =
   let
-    names = map toName interfaces
+    names = map toName commands
     width = maximum (map length names)
 
     toExample name =

@@ -45,6 +45,7 @@ Executable elm
     Hs-Source-Dirs:
         compiler/src
         builder/src
+        terminal/impl
         terminal/src
 
     other-extensions:
@@ -64,11 +65,11 @@ Executable elm
         Repl
 
         -- terminal args
-        Terminal.Args
-        Terminal.Args.Chomp
-        Terminal.Args.Error
-        Terminal.Args.Helpers
-        Terminal.Args.Internal
+        Terminal
+        Terminal.Chomp
+        Terminal.Error
+        Terminal.Helpers
+        Terminal.Internal
 
         -- from terminal/
         Develop.Generate.Help

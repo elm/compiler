@@ -12,8 +12,8 @@ import Text.PrettyPrint.ANSI.Leijen ((<>))
 import Text.Read (readMaybe)
 
 import qualified Elm.Version as V
-import Terminal.Args
-import Terminal.Args.Helpers
+import Terminal
+import Terminal.Helpers
 
 import qualified Bump
 import qualified Develop
@@ -31,7 +31,7 @@ import qualified Repl
 
 main :: IO ()
 main =
-  complex intro outro
+  Terminal.app intro outro
     [ repl
     , init
     , reactor
@@ -72,7 +72,7 @@ outro =
 -- INIT
 
 
-init :: Interface
+init :: Terminal.Command
 init =
   let
     summary =
@@ -87,14 +87,14 @@ init =
         "It will ask permission to create an elm.json file, the one thing common\
         \ to all Elm projects. It also provides a link explaining what to do from there."
   in
-  Interface "init" (Common summary) details example noArgs noFlags Init.run
+  Terminal.Command "init" (Common summary) details example noArgs noFlags Init.run
 
 
 
 -- REPL
 
 
-repl :: Interface
+repl :: Terminal.Command
 repl =
   let
     summary =
@@ -115,7 +115,7 @@ repl =
         |-- flag "interpreter" interpreter "Path to a alternate JS interpreter, like node or nodejs."
         |-- onOff "no-colors" "Turn off the colors in the REPL. This can help if you are having trouble reading the values. Some terminals use a custom color scheme that diverges significantly from the standard ANSI colors, so another path may be to pick a more standard color scheme."
   in
-  Interface "repl" (Common summary) details example noArgs replFlags Repl.run
+  Terminal.Command "repl" (Common summary) details example noArgs replFlags Repl.run
 
 
 interpreter :: Parser String
@@ -133,7 +133,7 @@ interpreter =
 -- REACTOR
 
 
-reactor :: Interface
+reactor :: Terminal.Command
 reactor =
   let
     summary =
@@ -154,7 +154,7 @@ reactor =
       flags Develop.Flags
         |-- flag "port" port_ "The port of the server (default: 8000)"
   in
-  Interface "reactor" (Common summary) details example noArgs reactorFlags Develop.run
+  Terminal.Command "reactor" (Common summary) details example noArgs reactorFlags Develop.run
 
 
 port_ :: Parser Int
@@ -172,7 +172,7 @@ port_ =
 -- MAKE
 
 
-make :: Interface
+make :: Terminal.Command
 make =
   let
     details =
@@ -196,14 +196,14 @@ make =
         |-- flag "report" Make.reportType "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
         |-- flag "docs" Make.docsFile "Generate a JSON file of documentation for a package. Eventually it will be possible to preview docs with `reactor` because it is quite hard to deal with these JSON files directly."
   in
-  Interface "make" Uncommon details example (zeroOrMore elmFile) makeFlags Make.run
+  Terminal.Command "make" Uncommon details example (zeroOrMore elmFile) makeFlags Make.run
 
 
 
 -- INSTALL
 
 
-install :: Interface
+install :: Terminal.Command
 install =
   let
     details =
@@ -232,14 +232,14 @@ install =
         , require1 Install.Install package
         ]
   in
-  Interface "install" Uncommon details example installArgs noFlags Install.run
+  Terminal.Command "install" Uncommon details example installArgs noFlags Install.run
 
 
 
 -- PUBLISH
 
 
-publish :: Interface
+publish :: Terminal.Command
 publish =
   let
     details =
@@ -269,14 +269,14 @@ publish =
             "Check out <https://package.elm-lang.org/help/design-guidelines> for guidance on how to create great packages!"
         ]
   in
-  Interface "publish" Uncommon details example noArgs noFlags Publish.run
+  Terminal.Command "publish" Uncommon details example noArgs noFlags Publish.run
 
 
 
 -- BUMP
 
 
-bump :: Interface
+bump :: Terminal.Command
 bump =
   let
     details =
@@ -289,14 +289,14 @@ bump =
         \ it is a MAJOR change, and bump your version number to 2.0.0. I do this with\
         \ all packages, so there cannot be MAJOR changes hiding in PATCH releases in Elm!"
   in
-  Interface "bump" Uncommon details example noArgs noFlags Bump.run
+  Terminal.Command "bump" Uncommon details example noArgs noFlags Bump.run
 
 
 
 -- DIFF
 
 
-diff :: Interface
+diff :: Terminal.Command
 diff =
   let
     details =
@@ -321,7 +321,7 @@ diff =
         , require3 Diff.GlobalInquiry package version version
         ]
   in
-  Interface "diff" Uncommon details example diffArgs noFlags Diff.run
+  Terminal.Command "diff" Uncommon details example diffArgs noFlags Diff.run
 
 
 

@@ -1,6 +1,5 @@
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE Rank2Types #-}
-module Terminal.Args.Chomp
+{-# LANGUAGE GADTs, Rank2Types #-}
+module Terminal.Chomp
   ( chomp
   )
   where
@@ -8,8 +7,8 @@ module Terminal.Args.Chomp
 
 import qualified Data.List as List
 
-import Terminal.Args.Error
-import Terminal.Args.Internal
+import Terminal.Error
+import Terminal.Internal
 
 
 

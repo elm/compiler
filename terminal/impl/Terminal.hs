@@ -1,8 +1,7 @@
-module Terminal.Args
-  ( simple
-  , Interface(..)
+module Terminal
+  ( app
+  , Command(..)
   , Summary(..)
-  , complex
   , Flags, noFlags, flags, (|--)
   , Flag, flag, onOff
   , Parser(..)
@@ -26,17 +25,17 @@ import qualified Text.PrettyPrint.ANSI.Leijen as P
 import qualified Text.Read as Read
 
 import qualified Elm.Version as V
-import Terminal.Args.Internal
-import qualified Terminal.Args.Chomp as Chomp
-import qualified Terminal.Args.Error as Error
+import Terminal.Internal
+import qualified Terminal.Chomp as Chomp
+import qualified Terminal.Error as Error
 
 
 
--- GET
+-- COMMAND
 
 
-simple :: String -> P.Doc -> Args args -> Flags flags -> (args -> flags -> IO ()) -> IO ()
-simple details example args_ flags_ callback =
+_command :: String -> P.Doc -> Args args -> Flags flags -> (args -> flags -> IO ()) -> IO ()
+_command details example args_ flags_ callback =
   do  setLocaleEncoding utf8
       argStrings <- Env.getArgs
       case argStrings of
@@ -57,34 +56,38 @@ simple details example args_ flags_ callback =
                 Error.exitWithError err
 
 
-complex :: P.Doc -> P.Doc -> [Interface] -> IO ()
-complex intro outro interfaces =
+
+-- APP
+
+
+app :: P.Doc -> P.Doc -> [Command] -> IO ()
+app intro outro commands =
   do  setLocaleEncoding utf8
       argStrings <- Env.getArgs
       case argStrings of
         [] ->
-          Error.exitWithOverview intro outro interfaces
+          Error.exitWithOverview intro outro commands
 
         ["--help"] ->
-          Error.exitWithOverview intro outro interfaces
+          Error.exitWithOverview intro outro commands
 
         ["--version"] ->
           do  hPutStrLn stdout (V.toChars V.compiler ++ "-rc-1")
               Exit.exitSuccess
 
         command : chunks ->
-          do  case List.find (\iface -> toName iface == command) interfaces of
+          do  case List.find (\cmd -> toName cmd == command) commands of
                 Nothing ->
-                  Error.exitWithUnknown command (map toName interfaces)
+                  Error.exitWithUnknown command (map toName commands)
 
-                Just (Interface _ _ details example args_ flags_ callback) ->
+                Just (Command _ _ details example args_ flags_ callback) ->
                   if elem "--help" chunks then
                     Error.exitWithHelp (Just command) details example args_ flags_
 
                   else
                     case snd $ Chomp.chomp Nothing chunks args_ flags_ of
-                      Right (argsValue, flagValue) ->
-                        callback argsValue flagValue
+                      Right (argsValue, flagsValue) ->
+                        callback argsValue flagsValue
 
                       Left err ->
                         Error.exitWithError err
@@ -159,21 +162,21 @@ findIndex index point chunks =
         findIndex (index + 1) point cs
 
 
-_complexSuggest :: [Interface] -> Int -> [String] -> IO [String]
-_complexSuggest interfaces index strings =
+_complexSuggest :: [Command] -> Int -> [String] -> IO [String]
+_complexSuggest commands index strings =
   case strings of
     [] ->
-      return (map toName interfaces)
+      return (map toName commands)
 
     command : chunks ->
       if index == 1 then
-        return (filter (List.isPrefixOf command) (map toName interfaces))
+        return (filter (List.isPrefixOf command) (map toName commands))
       else
-        case List.find (\iface -> toName iface == command) interfaces of
+        case List.find (\cmd -> toName cmd == command) commands of
           Nothing ->
             return []
 
-          Just (Interface _ _ _ _ args_ flags_ _) ->
+          Just (Command _ _ _ _ args_ flags_ _) ->
             fst $ Chomp.chomp (Just (index-1)) chunks args_ flags_
 
 

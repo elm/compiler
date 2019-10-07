@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs #-}
-module Terminal.Args.Internal
-  ( Interface(..)
+module Terminal.Internal
+  ( Command(..)
   , toName
   , Summary(..)
   , Flags(..)
@@ -17,11 +17,11 @@ import Text.PrettyPrint.ANSI.Leijen (Doc)
 
 
 
--- INTERFACE
+-- COMMAND
 
 
-data Interface where
-  Interface
+data Command where
+  Command
     :: String
     -> Summary
     -> String
@@ -29,11 +29,11 @@ data Interface where
     -> Args args
     -> Flags flags
     -> (args -> flags -> IO ())
-    -> Interface
+    -> Command
 
 
-toName :: Interface -> String
-toName (Interface name _ _ _ _ _ _) =
+toName :: Command -> String
+toName (Command name _ _ _ _ _ _) =
   name
 
 

@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Terminal.Args.Helpers
+module Terminal.Helpers
   ( version
   , elmFile
   , package
@@ -14,7 +14,7 @@ import qualified Data.Map as Map
 import qualified Data.Utf8 as Utf8
 import qualified System.FilePath as FP
 
-import Terminal.Args (Parser(..))
+import Terminal (Parser(..))
 import qualified Deps.Registry as Registry
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
