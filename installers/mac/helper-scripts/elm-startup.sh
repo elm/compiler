@@ -1,3 +1,3 @@
 #!/bin/sh
 
-open 'http://elm-lang.org'
+open 'http://guide.elm-lang.org'
