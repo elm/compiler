@@ -16,10 +16,11 @@ The most reliable way to get Elm installed using the official installers for Mac
 You can also download the binaries directly. On Linux, you could do it in the terminal like this:
 
 ```bash
-curl -o elm.gz https://github.com/elm/compiler/releases/download/0.19.1/binary-for-linux-64-bit.gz
-gunzip elm.gz           # unzip the file
-chmod +x elm            # make the file executable
-mv elm /usr/local/bin/  # put the executable in a directory likely to be listed in your PATH variable
+cd ~/Desktop/
+curl -L -o elm.gz https://github.com/elm/compiler/releases/download/0.19.1/binary-for-linux-64-bit.gz
+gunzip elm.gz                # unzip the file
+chmod +x elm                 # make the file executable
+sudo mv elm /usr/local/bin/  # put the executable in a directory likely to be listed in your PATH variable
 ```
 
 If these exact commands do not work for you, you can try to do the same thing by hand.
