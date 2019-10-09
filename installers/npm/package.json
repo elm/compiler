@@ -25,7 +25,7 @@
     "install.js",
     "download.js",
     "bin",
-    "bin/elm.exe"
+    "bin/elm"
   ],
   "keywords": [
     "bin",
