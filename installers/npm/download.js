@@ -74,7 +74,7 @@ function reportDownload(version, url)
 {
 	console.log(
 		'--------------------------------------------------------------------------------\n\n'
-		+ 'Downloading Elm ' + version + ' from GitHub.' +
+		+ 'Downloading Elm ' + version + ' from GitHub.'
 		+ '\n\nNOTE: You can avoid npm entirely by downloading directly from:\n'
 		+ url + '\nAll this package does is download that file and put it somewhere.\n\n'
 		+ '--------------------------------------------------------------------------------\n'
