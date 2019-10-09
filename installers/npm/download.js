@@ -20,6 +20,8 @@ module.exports = function(callback)
 	var arch = { 'x64': '64-bit', 'ia32': '32-bit' }[process.arch];
 	var url = 'https://github.com/elm/compiler/releases/download/' + version + '/binary-for-' + os + '-' + arch + '.gz';
 
+	reportDownload(version, url);
+
 	// figure out where to put the binary (calls path.resolve() to get path separators right on Windows)
 	var binaryPath = path.resolve(__dirname, package.bin) + (process.platform === 'win32' ? '.exe' : '');
 
@@ -61,4 +63,20 @@ function exitFailure(url, message)
 		+ '--------------------------------------------------------------------------------\n'
 	);
 	process.exit(1);
+}
+
+
+
+// REPORT DOWNLOAD
+
+
+function reportDownload(version, url)
+{
+	console.log(
+		'--------------------------------------------------------------------------------\n\n'
+		+ 'Downloading Elm ' + version + ' from GitHub.' +
+		+ '\n\nNOTE: You can avoid npm entirely by downloading directly from:\n'
+		+ url + '\nAll this package does is download that file and put it somewhere.\n\n'
+		+ '--------------------------------------------------------------------------------\n'
+	);
 }
