@@ -9,11 +9,9 @@ Check out the [Home Page](http://elm-lang.org/), [Try Online](http://elm-lang.or
 
 ## Install
 
-- **Mac** - [installer](https://github.com/elm/compiler/releases/download/0.19.0/installer-for-mac.pkg)
-- **Linux** - [instructions](https://github.com/elm/compiler/blob/master/installers/linux/README.md)
-- **Windows** - [installer](https://github.com/elm/compiler/releases/download/0.19.0/installer-for-windows.exe)
+✨ [Install](https://guide.elm-lang.org/install/elm.html) ✨
 
-For multiple versions, previous versions, or uninstall, see [these instructions](https://github.com/elm/compiler/blob/master/installers/README.md).
+For multiple versions, previous versions, and uninstallation, see the instructions [here](https://github.com/elm/compiler/blob/master/installers/README.md).
 
 <br>
 
