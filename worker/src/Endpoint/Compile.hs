@@ -176,7 +176,12 @@ renderReport report =
   <script src="https://worker.elm-lang.org/compile/errors.js"></script>
 </head>
 <body>
-  <script>Elm.Errors.init({flags:|] <> Encode.encodeUgly (Exit.toJson report) <> [r|});</script>
+  <script>
+    var app = Elm.Errors.init({flags:|] <> Encode.encodeUgly (Exit.toJson report) <> [r|});
+    app.ports.jumpTo.subscribe(function(region) {
+      window.parent.postMessage(JSON.stringify(region), '*');
+    });
+  </script>
 </body>
 </html>|]
 
