@@ -63,10 +63,9 @@ intro =
 outro :: P.Doc
 outro =
   P.fillSep $ map P.text $ words $
-    "Be sure to ask on the Elm slack if you run into trouble! Folks are friendly and\
-    \ happy to help out. They hang out there because it is fun, so be kind to get the\
-    \ best results!"
-
+    "Be sure to ask on the Elm slack (https://elmlang.herokuapp.com) if you run into \
+    \ trouble! Folks are friendly and happy to help out. They hang out there because \
+    \ it is fun, so be kind to get the best results!"    
 
 
 -- INIT
