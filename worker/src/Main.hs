@@ -32,7 +32,7 @@ main =
         [ ifTop $ status
         , path "repl" $ Repl.endpoint rArtifacts
         , path "compile" $ Compile.endpoint cArtifacts
-        , path "compile/errors.js" $ writeBS errorJS
+        , path "compile/errors.js" $ serveJavaScript errorJS
         , path "compile/deps-info.json" $ serveDepsInfo depsInfo
         , notFound
         ]
@@ -54,6 +54,12 @@ notFound =
   do  modifyResponse $ setResponseStatus 404 "Not Found"
       modifyResponse $ setContentType "text/html; charset=utf-8"
       writeBuilder "Not Found"
+
+
+serveJavaScript :: BS.ByteString -> Snap ()
+serveJavaScript javascript =
+  do  modifyResponse $ setContentType "application/javascript"
+      writeBS javascript
 
 
 serveDepsInfo :: BS.ByteString -> Snap ()
