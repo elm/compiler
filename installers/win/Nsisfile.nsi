@@ -142,7 +142,7 @@ Section "Associate with .elm files" SecAssoc
   ; File associations
   WriteRegStr HKCR ".elm" "" "elm"
   WriteRegStr HKCR "elm" "" "Elm Source File"
-  WriteRegStr HKCR "elm\DefaultIcon" "" "$INSTDIR\file.ico"
+  ;WriteRegStr HKCR "elm\DefaultIcon" "" "$INSTDIR\file.ico"
   ;WriteRegStr HKCR "elm\shell\open\command" "" '"$INSTDIR\bin\elm.exe" "%1"'
 
   ;Remember that we registered associations
