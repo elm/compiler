@@ -176,7 +176,12 @@ renderReport report =
   <script src="https://worker.elm-lang.org/compile/errors.js"></script>
 </head>
 <body>
-  <script>Elm.Errors.init({flags:|] <> Encode.encodeUgly (Exit.toJson report) <> [r|});</script>
+  <script>
+    var app = Elm.Errors.init({flags:|] <> Encode.encodeUgly (Exit.toJson report) <> [r|});
+    app.ports.jumpTo.subscribe(function(region) {
+      window.parent.postMessage(JSON.stringify(region), '*');
+    });
+  </script>
 </body>
 </html>|]
 
@@ -218,11 +223,11 @@ loadErrorJS =
       do  result <- work
           case result of
             Right a -> return a
-            Left _ -> error "problem building reactor/src/Errors.elm"
+            Left _ -> error "problem building src/Errors.elm"
   in
-  Dir.withCurrentDirectory "../reactor" $ BW.withScope $ \scope ->
-    do  let root = "."
+  BW.withScope $ \scope ->
+    do  root <- Dir.getCurrentDirectory
         details <- run $ Details.load Reporting.silent scope root
-        artifacts <- run $ Build.fromMains Reporting.silent root details (NE.List "src/Errors.elm" [])
+        artifacts <- run $ Build.fromPaths Reporting.silent root details (NE.List "src/Errors.elm" [])
         javascript <- run $ Task.run $ Generate.prod root details artifacts
         return $ LBS.toStrict $ B.toLazyByteString javascript

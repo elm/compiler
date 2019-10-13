@@ -18,7 +18,9 @@ function pm_volume_check() {
 }
 
 </script>
+    <!--
     <background file="background.png" alignment="bottomleft" scaling="none" mime-type="image/png"/>
+    -->
     <welcome mime-type="text/rtf" file="welcome.rtf" />
     <conclusion mime-type="text/rtf" file="conclusion.rtf" />
     <choices-outline>
