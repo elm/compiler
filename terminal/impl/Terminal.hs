@@ -40,7 +40,7 @@ _command details example args_ flags_ callback =
       argStrings <- Env.getArgs
       case argStrings of
         ["--version"] ->
-          do  hPutStrLn stdout (V.toChars V.compiler ++ "-rc-1")
+          do  hPutStrLn stdout (V.toChars V.compiler)
               Exit.exitSuccess
 
         chunks ->
@@ -72,7 +72,7 @@ app intro outro commands =
           Error.exitWithOverview intro outro commands
 
         ["--version"] ->
-          do  hPutStrLn stdout (V.toChars V.compiler ++ "-rc-1")
+          do  hPutStrLn stdout (V.toChars V.compiler)
               Exit.exitSuccess
 
         command : chunks ->
