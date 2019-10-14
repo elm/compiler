@@ -135,20 +135,20 @@ SectionEnd
 
 SectionGroup "Update system settings" SecGr
 
-Section "Associate with .elm files" SecAssoc
-
-  SectionIn 1
-
-  ; File associations
-  WriteRegStr HKCR ".elm" "" "elm"
-  WriteRegStr HKCR "elm" "" "Elm Source File"
-  ;WriteRegStr HKCR "elm\DefaultIcon" "" "$INSTDIR\file.ico"
-  ;WriteRegStr HKCR "elm\shell\open\command" "" '"$INSTDIR\bin\elm.exe" "%1"'
-
-  ;Remember that we registered associations
-  WriteRegDWORD HKLM "${PRODUCT_DIR_REG_KEY}" Assocs 0x1
-
-SectionEnd
+;Section "Associate with .elm files" SecAssoc
+;
+;  SectionIn 1
+;
+;  ; File associations
+;  WriteRegStr HKCR ".elm" "" "elm"
+;  WriteRegStr HKCR "elm" "" "Elm Source File"
+;  WriteRegStr HKCR "elm\DefaultIcon" "" "$INSTDIR\file.ico"
+;  WriteRegStr HKCR "elm\shell\open\command" "" '"$INSTDIR\bin\elm.exe" "%1"'
+;
+;  ;Remember that we registered associations
+;  WriteRegDWORD HKLM "${PRODUCT_DIR_REG_KEY}" Assocs 0x1
+;
+;SectionEnd
 
 Section "Update the PATH environment variable" SecPath
 
