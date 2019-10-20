@@ -8,7 +8,7 @@ This document is going to outline the various things that can go wrong and show 
 
 ## Annotation vs. Definition
 
-The most common issue is with user-defined type variables that are too general. So lets say you have defined a function like this:
+The most common issue is with user-defined type variables that are too general. So let's say you have defined a function like this:
 
 ```elm
 addPair : (a, a) -> a
@@ -58,5 +58,3 @@ filter isOkay list =
 This case is very unfortunate because all the type annotations are correct, but there is a detail of how type inference works right now that **user-defined type variables are not shared between annotations**. This can lead to probably the worst type error messages we have because the problem here is that `a` in the outer annotation does not equal `a` in the inner annotation.
 
 For now the best route is to leave off the inner annotation. It is unfortunate, and hopefully we will be able to do a nicer thing in future releases.
-
-"""
