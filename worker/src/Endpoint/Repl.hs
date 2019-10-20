@@ -48,8 +48,9 @@ import qualified Reporting.Render.Type.Localizer as L
 
 allowedOrigins :: [String]
 allowedOrigins =
-  [ "https://elm-lang.org"
-  , "https://guide.elm-lang.org"
+  [ "https://guide.elm-lang.org"
+  , "https://guide.elm-lang.jp"
+  , "http://localhost:8007"
   ]
 
 
