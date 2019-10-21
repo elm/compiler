@@ -4,7 +4,7 @@
 
 There are installers for Mac and Windows available [here](https://github.com/elm/compiler/releases/tag/0.19.1). There are also binaries for direct download. These are the most reliable ways to install Elm.
 
-This package tries to download those binaries with `npm`. It is sometimes used by people intergating Elm into existing projects or workflows.
+This package tries to download those binaries with `npm`. It is sometimes used by people integrating Elm into existing projects or workflows.
 
 <br/>
 
