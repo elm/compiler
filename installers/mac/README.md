@@ -1,8 +1,8 @@
 # Install Instructions
 
-The easiest way to install is to to use [the Mac installer](https://github.com/elm/compiler/releases/download/0.19.1/installer-for-mac.pkg), but only for people on macOS 10.14 and earlier (i.e. before Catalina)
+The easiest way to install is to to use [the Mac installer](https://github.com/elm/compiler/releases/download/0.19.1/installer-for-mac.pkg)!
 
-I am working on getting the installer notarized so that it works on Catalina as well. In the meantime, it is also possible to install by running the following commands in your terminal:
+But it is also possible to install by running the following commands in your terminal:
 
 ```bash
 # Move to your Desktop so you can see what is going on easier.
