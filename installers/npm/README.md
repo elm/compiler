@@ -24,7 +24,7 @@ If this runs successfully, the `elm` binary should be available at:
 
 It should be possible to run `elm` from your terminal after this.
 
-If you run into trouble, check out [troubleshooting.md](troubleshooting.md).
+If you run into trouble, check out [troubleshooting.md](https://github.com/elm/compiler/blob/0.19.1/installers/npm/troubleshooting.md).
 
 <br/>
 
