@@ -9,11 +9,14 @@ Head over to [The Official Guide](https://guide.elm-lang.org/) to start learning
 
 ## What is this package for?
 
-**For normal installs? No.** Use the instructions [here](https://guide.elm-lang.org/install/elm.html) instead.
+**For normal installs?** ❌ Use the instructions [here](https://guide.elm-lang.org/install/elm.html) instead.
 
-**For multiple versions? Yes.** People using Elm at work may use different versions of Elm in different projects. They can run `npm install elm@latest-0.19.1` in each project and use the binary at `./node_modules/.bin/elm` for compilation.
+**For multiple versions?** ✅ People using Elm at work may use different versions of Elm in different projects. They can run `npm install elm@latest-0.19.1` in each project and use the binary at `./node_modules/.bin/elm` for compilation.
 
-**For continuous integration? Maybe.** It is possible to download binaries directly from GitHub with a script like [this](https://github.com/elm/compiler/blob/master/installers/linux/README.md) which is strictly more reliable than going through `npm`. Even better is to host the binaries such that you are not downloading from external services on each build.
+**For continuous integration?** ⚠️ This works fine, but there may be better options:
+
+1. You can download `elm` directly from GitHub with [this script](https://github.com/elm/compiler/blob/master/installers/linux/README.md). This is all the `npm` installer does, but with extra HTTP requests to `npmjs.com` servers, making it slower and adding more failure points.
+2. Many continuous integration have ways to cache files ([example](https://docs.travis-ci.com/user/caching/)) to make builds faster and more reliable.
 
 
 <br/>
