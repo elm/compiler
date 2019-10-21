@@ -7,7 +7,7 @@ It is easier to use the Mac installer, but it should be possible to install by r
 #
 cd ~/Desktop/
 
-# Download the 0.19.0 binary for Linux.
+# Download the 0.19.1 binary for Linux.
 #
 # +-----------+----------------------+
 # | FLAG      | MEANING              |
@@ -16,7 +16,7 @@ cd ~/Desktop/
 # | -o elm.gz | name the file elm.gz |
 # +-----------+----------------------+
 #
-curl -L -o elm.gz https://github.com/elm/compiler/releases/download/0.19.0/binary-for-mac-64-bit.gz
+curl -L -o elm.gz https://github.com/elm/compiler/releases/download/0.19.1/binary-for-mac-64-bit.gz
 
 # There should now be a file named `elm.gz` on your Desktop.
 #
