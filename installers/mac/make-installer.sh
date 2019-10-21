@@ -29,7 +29,8 @@ cp $(pwd)/preinstall $pkg_scripts
 cp $(pwd)/postinstall $pkg_scripts
 
 pkgbuild \
-    --identifier org.elm-lang.binaries.pkg \
+    --sign "Developer ID Installer: <NAME>" \
+    --identifier org.elm-lang.binary \
     --install-location $usr_binaries \
     --scripts $pkg_scripts \
     --filter 'Scripts.*' \
@@ -39,16 +40,42 @@ pkgbuild \
 
 #### BUNDLE ASSETS ####
 
-rm -f Elm.pkg
+rm -f installer-for-mac.pkg
 
 productbuild \
+    --sign "Developer ID Installer: <NAME>" \
+    --identifier org.elm-lang.installer \
     --distribution Distribution.xml \
     --package-path . \
     --resources Resources \
-    Elm.pkg
+    installer-for-mac.pkg
 
 
 #### CLEAN UP ####
 
 rm binaries.pkg
 rm -rf $pkg_root
+
+
+#### BEGIN NOTARIZATION ####
+
+xcrun altool \
+    --notarize-app \
+    --primary-bundle-id "org.elm-lang.installer" \
+    --username "<EMAIL>" \
+    --password "@keychain:Developer-altool" \
+    --file "installer-for-mac.pkg"
+
+# From https://scriptingosx.com/2019/09/notarize-a-command-line-tool/
+#
+#### Check on notarization:
+#
+# xcrun altool \
+#     --notarization-info "<RequestUUID>" \
+#     --username "<EMAIL>" \
+#     --password "@keychain:Developer-altool"
+#
+#
+#### Staple Notarization:
+#
+# xcrun stapler staple installer-for-mac.pkg
