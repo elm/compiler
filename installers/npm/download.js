@@ -23,7 +23,7 @@ module.exports = function(callback)
 	reportDownload(version, url);
 
 	// figure out where to put the binary (calls path.resolve() to get path separators right on Windows)
-	var binaryPath = path.resolve(__dirname, package.bin) + (process.platform === 'win32' ? '.exe' : '');
+	var binaryPath = path.resolve(__dirname, package.bin.elm) + (process.platform === 'win32' ? '.exe' : '');
 
 	// set up handler for request failure
 	function reportDownloadFailure(error)
