@@ -1,4 +1,4 @@
-# npm install elm
+# Elm Installer
 
 [Elm](https://elm-lang.org) is a functional programming language that compiles to JavaScript.
 
