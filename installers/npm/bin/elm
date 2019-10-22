@@ -32,9 +32,16 @@ var binaryPath = path.resolve(__dirname, 'elm') + (process.platform === 'win32' 
 // Run the command directly if possible, otherwise download and then run.
 // This check is important for Windows where this file will be run all the time.
 //
-fs.existsSync(binaryPath)
-	? runCommand()
-	: require('../download.js')(runCommand);
+if (process.platform === 'win32')
+{
+	fs.existsSync(binaryPath)
+		? runCommand()
+		: require('../download.js')(runCommand);
+}
+else
+{
+	require('../download.js')(runCommand);
+}
 
 
 function runCommand()
