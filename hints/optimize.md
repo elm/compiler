@@ -46,7 +46,7 @@ min="elm.min.js"
 
 elm make --optimize --output=$js $@
 
-uglifyjs $js --compress "pure_funcs=[F2,F3,F4,F5,F6,F7,F8,F9,A2,A3,A4,A5,A6,A7,A8,A9],pure_getters,keep_fargs=false,unsafe_comps,unsafe" | uglifyjs --mangle --output=$min
+uglifyjs $js --compress "pure_funcs=[F2,F3,F4,F5,F6,F7,F8,F9,A2,A3,A4,A5,A6,A7,A8,A9],pure_getters,keep_fargs=false,unsafe_comps,unsafe,passes=1" | uglifyjs --mangle --output=$min
 
 echo "Initial size: $(cat $js | wc -c) bytes  ($js)"
 echo "Minified size:$(cat $min | wc -c) bytes  ($min)"
@@ -54,6 +54,8 @@ echo "Gzipped size: $(cat $min | gzip -c | wc -c) bytes"
 ```
 
 It also prints out all the asset sizes for you! Your server should be configured to gzip the assets it sends, so the last line is telling you how many bytes would _actually_ get sent to the user.
+
+You can increase the `passes=` to 4 or 5 to eke out a few more bytes, in exchange for a longer time to run the command.
 
 Again, the important commands are `elm` and `uglifyjs` which work on any platform, so it should not be too tough to do something similar on Windows.
 
