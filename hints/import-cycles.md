@@ -55,7 +55,7 @@ type alias User =
   }
 ```
 
-Notice that the `Comment` type alias is defined in terms of the `User` type alias and vice versa. Having recursive type aliases like this does not work! That problem is described in depth [here](recursive-alias), but the quick takeaway is that one `type alias` needs to become a `type` to break the recursion. So let’s try again:
+Notice that the `Comment` type alias is defined in terms of the `User` type alias and vice versa. Having recursive type aliases like this does not work! That problem is described in depth [here](recursive-alias.md), but the quick takeaway is that one `type alias` needs to become a `type` to break the recursion. So let’s try again:
 
 ```elm
 module BadCombination2 exposing (..)
