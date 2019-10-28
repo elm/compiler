@@ -1970,7 +1970,7 @@ toGenerateReport problem =
             "The issue is that --optimize strips out info needed by `Debug` functions.\
             \ Here are two examples:"
         , D.indent 4 $ D.reflow $
-            "(1) It shortens record field names. This makes the generated JavaScript is\
+            "(1) It shortens record field names. This makes the generated JavaScript\
             \ smaller, but `Debug.toString` cannot know the real field names anymore."
         , D.indent 4 $ D.reflow $
             "(2) Values like `type Height = Height Float` are unboxed. This reduces\
