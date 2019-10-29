@@ -241,4 +241,4 @@ jsonPart name filePath value =
 
 stringPart :: String -> String -> Multi.Part
 stringPart name string =
-  Multi.partBS  (String.fromString name) (BS.pack string)
+  Multi.partBS (String.fromString name) (BS.pack string)
