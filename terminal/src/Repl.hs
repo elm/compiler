@@ -82,7 +82,7 @@ data Flags =
 
 run :: () -> Flags -> IO ()
 run () flags =
-  do  printWelcomeMessage
+  do  printWelcomeMessage flags
       settings <- initSettings
       env <- initEnv flags
       let looper = Repl.runInputT settings (Repl.withInterrupt (loop env initialState))
@@ -94,20 +94,28 @@ run () flags =
 -- WELCOME
 
 
-printWelcomeMessage :: IO ()
-printWelcomeMessage =
+printWelcomeMessage :: Flags -> IO ()
+printWelcomeMessage (Flags _ noColors) =
   let
     vsn = V.toChars V.compiler
     title = "Elm" <+> D.fromChars vsn
     dashes = replicate (70 - length vsn) '-'
+    help = "Say :help for help and :exit to exit! More at " <> D.makeLink "repl"
   in
   D.toAnsi IO.stdout $
-    D.vcat
-      [ D.black "----" <+> D.dullcyan title <+> D.black (D.fromChars dashes)
-      , D.black $ D.fromChars $ "Say :help for help and :exit to exit! More at " <> D.makeLink "repl"
-      , D.black "--------------------------------------------------------------------------------"
-      , D.empty
-      ]
+    D.vcat $
+      if noColors then
+            [ "----" <+> title <+> D.fromChars dashes
+            , D.fromChars help
+            , "--------------------------------------------------------------------------------"
+            , D.empty
+            ]
+      else
+            [ D.black "----" <+> D.dullcyan title <+> D.black (D.fromChars dashes)
+            , D.black (D.fromChars help)
+            , D.black "--------------------------------------------------------------------------------"
+            , D.empty
+            ]
 
 
 
