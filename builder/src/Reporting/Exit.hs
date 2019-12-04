@@ -1282,8 +1282,7 @@ toDetailsReport details =
         "The dependencies in your elm.json are not compatible."
         [ D.fillSep
             ["Did","you","change","them","by","hand?","Try","to","change","it","back!"
-            ,"It","is","much","more","reliable","to","add","dependencies","with",D.green "elm install"
-            ,"or","the","dependency","management","tool","in",D.green "elm reactor" <> "."
+            ,"It","is","much","more","reliable","to","add","dependencies","with",D.green "elm install" <> "."
             ]
         , D.reflow $
             "Please ask for help on the community forums if you try those paths and are still\
@@ -1300,8 +1299,7 @@ toDetailsReport details =
             \ get access to the registry!"
         , D.toFancyNote
             ["If","you","changed","your","dependencies","by","hand,","try","to","change","them","back!"
-            ,"It","is","much","more","reliable","to","add","dependencies","with",D.green "elm install"
-            ,"or","the","dependency","management","tool","in",D.green "elm reactor" <> "."
+            ,"It","is","much","more","reliable","to","add","dependencies","with",D.green "elm install" <> "."
             ]
         ]
 
@@ -1337,8 +1335,7 @@ toDetailsReport details =
         \ party tool) leaving them in an invalid state."
         [ D.fillSep
             ["Try","to","change","them","back","to","what","they","were","before!"
-            ,"It","is","much","more","reliable","to","add","dependencies","with",D.green "elm install"
-            ,"or","the","dependency","management","tool","in",D.green "elm reactor" <> "."
+            ,"It","is","much","more","reliable","to","add","dependencies","with",D.green "elm install" <> "."
             ]
         , D.reflow $
             "Please ask for help on the community forums if you try those paths and are still\
