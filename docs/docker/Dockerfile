@@ -2,7 +2,7 @@
 FROM alpine:latest
 
 # Installing the necessary tools to download the Elm binary from GitHub
-RUN apk add --update gzip curl
+RUN apk add --update gzip curl nodejs
 
 # Adding a group for our unprivileged user
 RUN addgroup -g 1000 -S user
