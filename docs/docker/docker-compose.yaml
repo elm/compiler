@@ -1,0 +1,28 @@
+version: "3"
+
+services:
+    # Usage:
+    # docker-compose run --rm elm --help
+    # docker-compose run --rm elm init
+    # docker-compose run --rm --service-ports elm reactor
+    elm:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        user: user
+        # Combined with the volume, it allows to save any cache files
+        # generated with the elm binary
+        working_dir: /home/user
+        # Allow usage of shorten docker commands like
+        # docker-compose run elm --help
+        entrypoint: elm
+        ports:
+            # Exposed port for the elm reactor command
+            # Don't forget to change it here if you add the option --port
+            - 8000:8000
+        volumes:
+            # This will help us save all fils generated inside
+            # the /home/user folder from the container to our
+            # local file system
+            - .:/home/user
+
