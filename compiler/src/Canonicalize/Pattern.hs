@@ -8,6 +8,7 @@ module Canonicalize.Pattern
   where
 
 
+import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Name as Name
 
@@ -173,8 +174,8 @@ logVar name region value =
 logFields :: [A.Located Name.Name] -> a -> Result DupsDict w a
 logFields fields value =
   let
-    addField (A.At region name) dict =
+    addField dict (A.At region name) =
       Dups.insert name region region dict
   in
   Result.Result $ \bindings warnings _ ok ->
-    ok (foldr addField bindings fields) warnings value
+    ok (List.foldl' addField bindings fields) warnings value

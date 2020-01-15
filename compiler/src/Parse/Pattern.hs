@@ -129,7 +129,7 @@ recordHelp start vars =
           Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentEnd
           recordHelp start (var:vars)
     , do  word1 0x7D {-}-} E.PRecordEnd
-          addEnd start (Src.PRecord vars)
+          addEnd start (Src.PRecord (reverse vars))
     ]
 
 

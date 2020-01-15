@@ -105,7 +105,7 @@ one name region value =
 
 insert :: Name.Name -> A.Region -> a -> Dict a -> Dict a
 insert name region value dict =
-  Map.insertWith OneOrMore.more name (OneOrMore.one (Info region value)) dict
+  Map.insertWith (\new old -> OneOrMore.more old new) name (OneOrMore.one (Info region value)) dict
 
 
 union :: Dict a -> Dict a -> Dict a
