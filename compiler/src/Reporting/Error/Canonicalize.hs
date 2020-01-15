@@ -677,7 +677,7 @@ toReport source err =
                   "The `" <> Name.toChars name <> "` value is defined directly in terms of itself, causing an infinite loop."
               ,
                 D.stack
-                  [ makeTheory "Are you are trying to mutate a variable?" $
+                  [ makeTheory "Are you trying to mutate a variable?" $
                       "Elm does not have mutation, so when I see " ++ Name.toChars name
                       ++ " defined in terms of " ++ Name.toChars name
                       ++ ", I treat it as a recursive definition. Try giving the new value a new name!"
@@ -723,7 +723,7 @@ toReport source err =
                     "The `" <> Name.toChars name <> "` value is defined directly in terms of itself, causing an infinite loop."
                 ,
                   D.stack
-                    [ makeTheory "Are you are trying to mutate a variable?" $
+                    [ makeTheory "Are you trying to mutate a variable?" $
                         "Elm does not have mutation, so when I see " ++ Name.toChars name
                         ++ " defined in terms of " ++ Name.toChars name
                         ++ ", I treat it as a recursive definition. Try giving the new value a new name!"
