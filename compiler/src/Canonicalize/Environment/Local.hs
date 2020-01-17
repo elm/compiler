@@ -110,7 +110,7 @@ addTypes (Src.Module _ _ _ _ _ unions aliases _ _) (Env.Env home vs ts cs bs qvs
 addUnion :: ModuleName.Canonical -> Env.Exposed Env.Type -> A.Located Src.Union -> Result i w (Env.Exposed Env.Type)
 addUnion home types union@(A.At _ (Src.Union (A.At _ name) _ _)) =
   do  arity <- checkUnionFreeVars union
-      let one = Map.singleton home (Env.Union arity home)
+      let one = Env.Specific home (Env.Union arity home)
       Result.ok $ Map.insert name one types
 
 
@@ -133,7 +133,7 @@ addAlias env@(Env.Env home vs ts cs bs qvs qts qcs) scc =
     Graph.AcyclicSCC alias@(A.At _ (Src.Alias (A.At _ name) _ tipe)) ->
       do  args <- checkAliasFreeVars alias
           ctype <- Type.canonicalize env tipe
-          let one = Map.singleton home (Env.Alias (length args) home args ctype)
+          let one = Env.Specific home (Env.Alias (length args) home args ctype)
           let ts1 = Map.insert name one ts
           Result.ok $ Env.Env home vs ts1 cs bs qvs qts qcs
 
@@ -281,7 +281,7 @@ addCtors (Src.Module _ _ _ _ _ unions aliases _ _) env@(Env.Env home vs ts cs bs
         )
 
 
-type CtorDups = Dups.Dict (Map.Map ModuleName.Canonical Env.Ctor)
+type CtorDups = Dups.Dict (Env.Info Env.Ctor)
 
 
 
@@ -297,7 +297,7 @@ canonicalizeAlias env@(Env.Env home _ _ _ _ _ _ _) (A.At _ (Src.Alias (A.At regi
         ,
           case ctipe of
             Can.TRecord fields Nothing ->
-              Dups.one name region (Map.singleton home (toRecordCtor home name vars fields))
+              Dups.one name region (Env.Specific home (toRecordCtor home name vars fields))
 
             _ ->
               Dups.none
@@ -351,5 +351,5 @@ toOpts ctors =
 
 toCtor :: ModuleName.Canonical -> Name.Name -> Can.Union -> A.Located Can.Ctor -> CtorDups
 toCtor home typeName union (A.At region (Can.Ctor name index _ args)) =
-  Dups.one name region $ Map.singleton home $
+  Dups.one name region $ Env.Specific home $
     Env.Ctor home typeName union index args
