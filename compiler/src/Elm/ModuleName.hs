@@ -12,7 +12,7 @@ module Elm.ModuleName
   , basics, char, string
   , maybe, result, list, array, dict, tuple
   , platform, cmd, sub
-  , debug, bitwise
+  , debug
   , virtualDom
   , jsonDecode, jsonEncode
   , webgl, texture, vector2, vector3, vector4, matrix4
@@ -223,11 +223,6 @@ sub = Canonical Pkg.core "Platform.Sub"
 {-# NOINLINE debug #-}
 debug :: Canonical
 debug = Canonical Pkg.core Name.debug
-
-
-{-# NOINLINE bitwise #-}
-bitwise :: Canonical
-bitwise = Canonical Pkg.core Name.bitwise
 
 
 
