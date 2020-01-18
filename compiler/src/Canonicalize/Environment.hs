@@ -81,7 +81,7 @@ mergeInfo info1 info2 =
   case info1 of
     Specific h1 _ ->
       case info2 of
-        Specific h2 _    -> Ambiguous h1 (OneOrMore.one h2)
+        Specific h2 _    -> if h1 == h2 then info1 else Ambiguous h1 (OneOrMore.one h2)
         Ambiguous h2 hs2 -> Ambiguous h1 (OneOrMore.more (OneOrMore.one h2) hs2)
 
     Ambiguous h1 hs1 ->
