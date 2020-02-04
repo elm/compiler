@@ -7,6 +7,7 @@ module Elm.ModuleName
   --
   , encode
   , decoder
+  , parser
   --
   , Canonical(..)
   , basics, char, string
