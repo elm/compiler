@@ -24,10 +24,10 @@ RUN apk add --no-cache ghc cabal wget musl-dev zlib-dev zlib-static ncurses-dev 
 WORKDIR /elm
 
 # Import source code
-COPY builder builder/
+COPY builder builder
 COPY compiler compiler
-COPY reactor reactor/
-COPY terminal terminal/
+COPY reactor reactor
+COPY terminal terminal
 COPY cabal.config elm.cabal LICENSE ./
 
 # Build statically linked elm binary
