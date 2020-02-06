@@ -1,0 +1,21 @@
+name: Set Issue Expectations
+on:
+  issues:
+    types: [opened]
+jobs:
+  comment-on-issue:
+    name: Comment On Issue
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github@v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: |
+            comment "Thanks for reporting this! To set expectations:
+
+            - Issues are reviewed in [batches](https://github.com/elm/expectations/blob/master/batching.md), so it can take some time to get a response.
+            - Ask questions a [community forum](https://elm-lang.org/community). You will get an answer quicker that way!
+            - If you experience something similar, open a new issue. [We like duplicates](https://github.com/elm/expectations/blob/master/duplicates.md).
+
+            Finally, please be patient with the core team. They are trying their best with limited resources."
