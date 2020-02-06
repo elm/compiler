@@ -1,6 +1,6 @@
 name: Set Pull Expectations
 on:
-  pull-requests:
+  pull_request:
     types: [opened]
 jobs:
   comment-on-pull:
