@@ -1522,7 +1522,7 @@ toHttpErrorReport title err context =
 
     Http.BadHttp url httpExceptionContent ->
       case httpExceptionContent of
-        HTTP.StatusCodeException response _ ->
+        HTTP.StatusCodeException response body ->
           let
             (HTTP.Status code message) = HTTP.responseStatus response
           in
@@ -1530,6 +1530,7 @@ toHttpErrorReport title err context =
             [ D.fillSep $
                 ["But","it","came","back","as",D.red (D.fromInt code)]
                 ++ map D.fromChars (words (BS_UTF8.toString message))
+            , D.indent 4 $ D.reflow $ BS_UTF8.toString body
             , D.reflow $
                 "This may mean some online endpoint changed in an unexpected way, so if does not\
                 \ seem like something on your side is causing this (e.g. firewall) please report\
