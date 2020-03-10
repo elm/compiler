@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Endpoint.Donate
   ( Manager
   , endpoint
@@ -7,10 +8,16 @@ module Endpoint.Donate
 
 
 import qualified Control.Exception as E
+import Control.Monad.Trans (liftIO)
+import Data.Aeson ((.:))
+import qualified Data.Aeson as Json
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Builder as B
+import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Text as T
 import Snap.Core
-import qualified Network.HTTP.Client as Http (parseRequest)
+import qualified Network.HTTP.Client as Http
 import qualified Network.HTTP.Client.TLS as Http (tlsManagerSettings)
 import qualified Network.HTTP.Types.Header as Http (Header, hAccept, hAcceptEncoding, hUserAgent)
 import qualified Network.HTTP.Types.Method as Http (methodPost)
@@ -54,11 +61,16 @@ endpoint (Manager manager) =
         frequency <- requireParameter "frequency" toFrequency
         mabyeSession <- liftIO $ getStripeCheckoutSessionID manager amount
         case mabyeSession of
-          Nothing ->
-
           Just (StripeCheckoutSession id) ->
-            do  modifyResponse $ setContentType "text/plain"
-                writeBS id
+            do  modifyResponse $ setContentType "text/plain; charset=utf-8"
+                writeText id
+
+          Nothing ->
+            do  writeBuilder $ "Problem creating Stripe session ID for checkout."
+                finishWith
+                  . setResponseStatus 500 "Internal Server Error"
+                  . setContentType "text/plain; charset=utf-8"
+                  =<< getResponse
 
 
 data Frequency
@@ -87,16 +99,16 @@ toAmount bytes =
 
 
 newtype StripeCheckoutSession =
-  StripeCheckoutSession { _id :: BS.ByteString }
+  StripeCheckoutSession { _id :: T.Text }
 
 
 getStripeCheckoutSessionID :: Http.Manager -> Int -> IO (Maybe StripeCheckoutSession)
 getStripeCheckoutSessionID manager amount =
   E.handle handleSomeException $
   do  req0 <- Http.parseRequest "https://api.stripe.com/v1/checkout/sessions"
-      req1 <- Multi.formDataBody (toOneTimeParts amount) $ req0 { method = Http.methodPost }
+      req1 <- Multi.formDataBody (toOneTimeParts amount) $ req0 { Http.method = Http.methodPost }
       Http.withResponse req1 manager $ \response ->
-        do  chunks <- brConsume (responseBody response)
+        do  chunks <- Http.brConsume (Http.responseBody response)
             return $ Json.decode $ LBS.fromChunks chunks
 
 
@@ -106,7 +118,7 @@ toOneTimeParts amount =
   , Multi.partBS "line_items[][name]" "One-time donation"
   , Multi.partBS "line_items[][description]" "One-time donation to Elm Software Foundation"
   , Multi.partBS "line_items[][images][]" "https://foundation.elm-lang.org/donation.png"
-  , Multi.partBS "line_items[][amount]" (BS.pack (show amount))
+  , Multi.partBS "line_items[][amount]" (BSC.pack (show amount))
   , Multi.partBS "line_items[][currency]" "usd"
   , Multi.partBS "line_items[][quantity]" "1"
   , Multi.partBS "success_url" "https://foundation.elm-lang.org/thank_you?session_id={CHECKOUT_SESSION_ID}"
@@ -121,7 +133,7 @@ handleSomeException exception =
 
 instance Json.FromJSON StripeCheckoutSession where
   parseJSON =
-    withObject "StripeCheckoutSessionResponse" $ \obj ->
+    Json.withObject "StripeCheckoutSessionResponse" $ \obj ->
       StripeCheckoutSession <$> obj .: "id"
 
 
@@ -144,7 +156,8 @@ requireParameter name toValue =
 
 bailForMissingParam :: BS.ByteString -> Snap a
 bailForMissingParam name =
-  do  modifyResponse $ setResponseStatus 400 "Bad Request"
-      modifyResponse $ setContentType "text/plain; charset=utf-8"
-      writeBuilder   $ "Missing parameter '" <> B.fromByteString name <> "' in requset."
-      finishWith =<< getResponse
+  do  writeBuilder $ "Missing parameter '" <> B.byteString name <> "' in requset."
+      finishWith
+        . setResponseStatus 400 "Bad Request"
+        . setContentType "text/plain; charset=utf-8"
+        =<< getResponse

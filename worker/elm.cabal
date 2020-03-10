@@ -52,6 +52,7 @@ Executable worker
         Artifacts
         Cors
         Endpoint.Compile
+        Endpoint.Donate
         Endpoint.Repl
 
         AST.Canonical

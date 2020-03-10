@@ -14,6 +14,7 @@ import Snap.Http.Server
 import qualified Artifacts
 import qualified Cors
 import qualified Endpoint.Compile as Compile
+import qualified Endpoint.Donate as Donate
 import qualified Endpoint.Repl as Repl
 
 
