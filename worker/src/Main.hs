@@ -26,6 +26,7 @@ main =
   do  rArtifacts <- Artifacts.loadRepl
       cArtifacts <- Artifacts.loadCompile
       errorJS <- Compile.loadErrorJS
+      manager <- Donate.getManager
       let depsInfo = Artifacts.toDepsInfo cArtifacts
 
       httpServe config $ msum $
@@ -34,6 +35,7 @@ main =
         , path "compile" $ Compile.endpoint cArtifacts
         , path "compile/errors.js" $ serveJavaScript errorJS
         , path "compile/deps-info.json" $ serveDepsInfo depsInfo
+        , path "donate" $ Donate.endpoint manager
         , notFound
         ]
 
