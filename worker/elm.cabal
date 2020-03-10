@@ -174,6 +174,7 @@ Executable worker
         ansi-terminal >= 0.8 && < 0.9,
         ansi-wl-pprint >= 0.6.8 && < 0.7,
         base >=4.11 && <5,
+        base64-bytestring,
         binary >= 0.8 && < 0.9,
         bytestring >= 0.9 && < 0.11,
         containers >= 0.5.8.2 && < 0.6,

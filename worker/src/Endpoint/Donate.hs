@@ -13,6 +13,7 @@ import Data.Aeson ((.:))
 import qualified Data.Aeson as Json
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as B
+import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as T
@@ -41,13 +42,17 @@ allowedOrigins =
 -- GET MANAGER
 
 
-newtype Manager =
-  Manager Http.Manager
+data Manager =
+  Manager
+    { _manager :: Http.Manager
+    , _authToken :: BS.ByteString
+    }
 
 
-getManager :: IO Manager
-getManager =
-  Manager <$> Http.newManager Http.tlsManagerSettings
+getManager :: String -> IO Manager
+getManager secret =
+  do  manager <- Http.newManager Http.tlsManagerSettings
+      return (Manager manager ("Basic " <> Base64.encode (BSC.pack secret)))
 
 
 
@@ -55,7 +60,7 @@ getManager =
 
 
 endpoint :: Manager -> Snap ()
-endpoint (Manager manager) =
+endpoint manager =
   Cors.allow POST allowedOrigins $
     do  amount <- requireParameter "amount" toAmount
         frequency <- requireParameter "frequency" toFrequency
@@ -102,14 +107,29 @@ newtype StripeCheckoutSession =
   StripeCheckoutSession { _id :: T.Text }
 
 
-getStripeCheckoutSessionID :: Http.Manager -> Int -> IO (Maybe StripeCheckoutSession)
-getStripeCheckoutSessionID manager amount =
+getStripeCheckoutSessionID :: Manager -> Int -> IO (Maybe StripeCheckoutSession)
+getStripeCheckoutSessionID (Manager manager authToken) amount =
   E.handle handleSomeException $
   do  req0 <- Http.parseRequest "https://api.stripe.com/v1/checkout/sessions"
-      req1 <- Multi.formDataBody (toOneTimeParts amount) $ req0 { Http.method = Http.methodPost }
+      req1 <- Multi.formDataBody (toOneTimeParts amount) (configureRequest authToken req0)
       Http.withResponse req1 manager $ \response ->
         do  chunks <- Http.brConsume (Http.responseBody response)
             return $ Json.decode $ LBS.fromChunks chunks
+
+
+-- The "Authorization" header is set based on combining these instructions:
+--
+--   https://stripe.com/docs/payments/checkout/one-time
+--   https://stackoverflow.com/a/35442984
+--
+-- Setting the -u flag appears to add a base64 encoded "Authorization" header.
+--
+configureRequest :: BS.ByteString -> Http.Request -> Http.Request
+configureRequest authToken req =
+  req
+    { Http.method = Http.methodPost
+    , Http.requestHeaders = ("Authorization", authToken) : Http.requestHeaders req
+    }
 
 
 toOneTimeParts :: Int -> [Multi.Part]

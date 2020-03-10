@@ -10,6 +10,9 @@ import Control.Monad (msum)
 import qualified Data.ByteString as BS
 import Snap.Core
 import Snap.Http.Server
+import qualified System.Environment as Env
+import qualified System.Exit as Exit
+import qualified System.IO as IO
 
 import qualified Artifacts
 import qualified Cors
@@ -27,7 +30,7 @@ main =
   do  rArtifacts <- Artifacts.loadRepl
       cArtifacts <- Artifacts.loadCompile
       errorJS <- Compile.loadErrorJS
-      manager <- Donate.getManager
+      manager <- Donate.getManager =<< getSecret
       let depsInfo = Artifacts.toDepsInfo cArtifacts
 
       httpServe config $ msum $
@@ -70,3 +73,24 @@ serveDepsInfo json =
   Cors.allow GET ["https://elm-lang.org"] $
     do  modifyResponse $ setContentType "application/json"
         writeBS json
+
+
+
+-- GET SECRET
+
+
+getSecret :: IO String
+getSecret =
+  do  args <- Env.getArgs
+      case args of
+        [secret] ->
+          return secret
+
+        _ ->
+          do  IO.hPutStrLn IO.stderr
+                "Expecting a secret for /donate page:\n\
+                \\n\
+                \    ./run-worker sk_test_abcdefghijklmnopqrstuvwxyz\n\
+                \\n\
+                \Needed for handling donations with Stripe."
+              Exit.exitFailure
