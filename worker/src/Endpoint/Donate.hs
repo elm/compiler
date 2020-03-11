@@ -22,8 +22,6 @@ import qualified Network.HTTP.Client as Http
 import qualified Network.HTTP.Client.TLS as Http (tlsManagerSettings)
 import qualified Network.HTTP.Types.Header as Http (Header, hAccept, hAcceptEncoding, hUserAgent)
 import qualified Network.HTTP.Types.Method as Http (methodPost)
-import qualified Network.HTTP.Client as Multi (RequestBody(RequestBodyLBS))
-import qualified Network.HTTP.Client.MultipartFormData as Multi
 
 import qualified Cors
 
@@ -95,7 +93,7 @@ toAmount :: BS.ByteString -> Maybe Int
 toAmount bytes =
   if BS.all (\w -> 0x30 <= w && w <= 0x39) bytes
     && not (BS.isPrefixOf "0" bytes)
-  then Just (BS.foldr (\w n -> 10 * n + fromIntegral (w - 0x30)) 0 bytes)
+  then Just (BS.foldl (\n w -> 10 * n + fromIntegral (w - 0x30)) 0 bytes)
   else Nothing
 
 
@@ -110,9 +108,11 @@ newtype StripeCheckoutSession =
 getStripeCheckoutSessionID :: Manager -> Int -> IO (Maybe StripeCheckoutSession)
 getStripeCheckoutSessionID (Manager manager authToken) amount =
   E.handle handleSomeException $
-  do  req0 <- Http.parseRequest "https://api.stripe.com/v1/checkout/sessions"
-      req1 <- Multi.formDataBody (toOneTimeParts amount) (configureRequest authToken req0)
-      Http.withResponse req1 manager $ \response ->
+  do  req <-
+        configureRequest authToken amount <$>
+          Http.parseRequest "https://api.stripe.com/v1/checkout/sessions"
+
+      Http.withResponse req manager $ \response ->
         do  chunks <- Http.brConsume (Http.responseBody response)
             return $ Json.decode $ LBS.fromChunks chunks
 
@@ -124,26 +124,28 @@ getStripeCheckoutSessionID (Manager manager authToken) amount =
 --
 -- Setting the -u flag appears to add a base64 encoded "Authorization" header.
 --
-configureRequest :: BS.ByteString -> Http.Request -> Http.Request
-configureRequest authToken req =
-  req
-    { Http.method = Http.methodPost
-    , Http.requestHeaders = ("Authorization", authToken) : Http.requestHeaders req
-    }
+configureRequest :: BS.ByteString -> Int -> Http.Request -> Http.Request
+configureRequest authToken amount req =
+  Http.urlEncodedBody (toOneTimeParts amount) $
+    req { Http.requestHeaders = ("Authorization", authToken) : Http.requestHeaders req }
 
 
-toOneTimeParts :: Int -> [Multi.Part]
+toOneTimeParts :: Int -> [(BS.ByteString, BS.ByteString)]
 toOneTimeParts amount =
-  [ Multi.partBS "payment_method_types[]" "card"
-  , Multi.partBS "line_items[][name]" "One-time donation"
-  , Multi.partBS "line_items[][description]" "One-time donation to Elm Software Foundation"
-  , Multi.partBS "line_items[][images][]" "https://foundation.elm-lang.org/donation.png"
-  , Multi.partBS "line_items[][amount]" (BSC.pack (show amount))
-  , Multi.partBS "line_items[][currency]" "usd"
-  , Multi.partBS "line_items[][quantity]" "1"
-  , Multi.partBS "success_url" "https://foundation.elm-lang.org/thank_you?session_id={CHECKOUT_SESSION_ID}"
-  , Multi.partBS "cancel_url" "https://foundation.elm-lang.org/donate"
+  [ "payment_method_types[]"    ==> "card"
+  , "line_items[][name]"        ==> "One-time donation"
+  , "line_items[][description]" ==> "One-time donation to Elm Software Foundation"
+  , "line_items[][images][]"    ==> "https://foundation.elm-lang.org/donation.png"
+  , "line_items[][amount]"      ==> BSC.pack (show amount)
+  , "line_items[][currency]"    ==> "usd"
+  , "line_items[][quantity]"    ==> "1"
+  , "success_url"               ==> "https://foundation.elm-lang.org/thank_you?session_id={CHECKOUT_SESSION_ID}"
+  , "cancel_url"                ==> "https://foundation.elm-lang.org/donate"
   ]
+
+
+(==>) :: a -> b -> (a,b)
+(==>) = (,)
 
 
 handleSomeException :: E.SomeException -> IO (Maybe a)
