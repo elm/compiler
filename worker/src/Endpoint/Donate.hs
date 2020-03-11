@@ -142,7 +142,6 @@ toOneTimeParts :: Int -> [(BS.ByteString, BS.ByteString)]
 toOneTimeParts cents =
   [ "payment_method_types[]"    ==> "card"
   , "line_items[][name]"        ==> "One-time donation"
-  , "line_items[][description]" ==> "One-time donation to Elm Software Foundation"
   , "line_items[][images][]"    ==> "https://foundation.elm-lang.org/donation.png"
   , "line_items[][amount]"      ==> BSC.pack (show cents)
   , "line_items[][currency]"    ==> "usd"
