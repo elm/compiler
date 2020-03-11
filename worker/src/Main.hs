@@ -81,16 +81,16 @@ serveDepsInfo json =
 
 getSecret :: IO String
 getSecret =
-  do  args <- Env.getArgs
-      case args of
-        [secret] ->
+  do  maybeValue <- Env.lookupEnv "STRIPE_SECRET"
+      case maybeValue of
+        Just secret ->
           return secret
 
-        _ ->
+        Nothing ->
           do  IO.hPutStrLn IO.stderr
-                "Expecting a secret for /donate page:\n\
+                "Expecting environment variable STRIPE_SECRET to be defined:\n\
                 \\n\
-                \    ./run-worker sk_test_abcdefghijklmnopqrstuvwxyz\n\
+                \    STRIPE_SECRET=sk_test_abcdefghijklmnopqrstuvwxyz\n\
                 \\n\
-                \Needed for handling donations with Stripe."
+                \It is needed for handling donations with Stripe."
               Exit.exitFailure
