@@ -60,9 +60,9 @@ getManager secret =
 endpoint :: Manager -> Snap ()
 endpoint manager =
   Cors.allow POST allowedOrigins $
-    do  amount <- requireParameter "amount" toAmount
+    do  cents <- requireParameter "cents" toCents
         frequency <- requireParameter "frequency" toFrequency
-        mabyeSession <- liftIO $ getStripeCheckoutSessionID manager amount
+        mabyeSession <- liftIO $ getStripeCheckoutSessionID manager cents
         case mabyeSession of
           Just (StripeCheckoutSession id) ->
             do  modifyResponse $ setContentType "text/plain; charset=utf-8"
@@ -81,20 +81,28 @@ data Frequency
   | Monthly
 
 
-toFrequency :: BS.ByteString -> Maybe Frequency
+toFrequency :: BS.ByteString -> Either B.Builder Frequency
 toFrequency bytes =
   case bytes of
-    "onetime" -> Just OneTime
-    "monthly" -> Just Monthly
-    _         -> Nothing
+    "onetime" -> Right OneTime
+    "monthly" -> Right Monthly
+    _         -> Left "The only valid values are frequency=onetime and frequency=monthly."
 
 
-toAmount :: BS.ByteString -> Maybe Int
-toAmount bytes =
-  if BS.all (\w -> 0x30 <= w && w <= 0x39) bytes
-    && not (BS.isPrefixOf "0" bytes)
-  then Just (BS.foldl (\n w -> 10 * n + fromIntegral (w - 0x30)) 0 bytes)
-  else Nothing
+toCents :: BS.ByteString -> Either B.Builder Int
+toCents bytes =
+  if BS.all (\w -> 0x30 <= w && w <= 0x39) bytes && not (BS.isPrefixOf "0" bytes) then
+    let
+      cents = BS.foldl (\n w -> 10 * n + fromIntegral (w - 0x30)) 0 bytes
+    in
+    if cents >= 500
+    then Right cents
+    else
+      Left
+        "Processing fees are (2.2% + $0.30) per transaction, so the minimum\n\
+        \donation is $5 (cents=500) to limit the worst case fee to ~8%"
+  else
+    Left "Must be a value like cents=1000 for $10 or cents=2500 for $25."
 
 
 
@@ -106,10 +114,10 @@ newtype StripeCheckoutSession =
 
 
 getStripeCheckoutSessionID :: Manager -> Int -> IO (Maybe StripeCheckoutSession)
-getStripeCheckoutSessionID (Manager manager authToken) amount =
+getStripeCheckoutSessionID (Manager manager authToken) cents =
   E.handle handleSomeException $
   do  req <-
-        configureRequest authToken amount <$>
+        configureRequest authToken cents <$>
           Http.parseRequest "https://api.stripe.com/v1/checkout/sessions"
 
       Http.withResponse req manager $ \response ->
@@ -125,18 +133,18 @@ getStripeCheckoutSessionID (Manager manager authToken) amount =
 -- Setting the -u flag appears to add a base64 encoded "Authorization" header.
 --
 configureRequest :: BS.ByteString -> Int -> Http.Request -> Http.Request
-configureRequest authToken amount req =
-  Http.urlEncodedBody (toOneTimeParts amount) $
+configureRequest authToken cents req =
+  Http.urlEncodedBody (toOneTimeParts cents) $
     req { Http.requestHeaders = ("Authorization", authToken) : Http.requestHeaders req }
 
 
 toOneTimeParts :: Int -> [(BS.ByteString, BS.ByteString)]
-toOneTimeParts amount =
+toOneTimeParts cents =
   [ "payment_method_types[]"    ==> "card"
   , "line_items[][name]"        ==> "One-time donation"
   , "line_items[][description]" ==> "One-time donation to Elm Software Foundation"
   , "line_items[][images][]"    ==> "https://foundation.elm-lang.org/donation.png"
-  , "line_items[][amount]"      ==> BSC.pack (show amount)
+  , "line_items[][amount]"      ==> BSC.pack (show cents)
   , "line_items[][currency]"    ==> "usd"
   , "line_items[][quantity]"    ==> "1"
   , "success_url"               ==> "https://foundation.elm-lang.org/thank_you?session_id={CHECKOUT_SESSION_ID}"
@@ -163,22 +171,29 @@ instance Json.FromJSON StripeCheckoutSession where
 -- REQUIRE PARAMETER
 
 
-requireParameter :: BS.ByteString -> (BS.ByteString -> Maybe a) -> Snap a
+requireParameter :: BS.ByteString -> (BS.ByteString -> Either B.Builder a) -> Snap a
 requireParameter name toValue =
   do  params <- getsRequest (rqParam name)
       case params of
         Just [bytes] ->
           case toValue bytes of
-            Just value -> return value
-            Nothing    -> bailForMissingParam name
+            Right value ->
+              return value
+
+            Left message ->
+              badParam $
+                "Ran into invalid query parameter:\n\n    "
+                <> B.byteString name <> "=" <> B.byteString bytes
+                <> "\n\n" <> message
 
         _ ->
-          bailForMissingParam name
+          badParam $
+            "Missing parameter '" <> B.byteString name <> "' in requset."
 
 
-bailForMissingParam :: BS.ByteString -> Snap a
-bailForMissingParam name =
-  do  writeBuilder $ "Missing parameter '" <> B.byteString name <> "' in requset."
+badParam :: B.Builder -> Snap a
+badParam message =
+  do  writeBuilder message
       finishWith
         . setResponseStatus 400 "Bad Request"
         . setContentType "text/plain; charset=utf-8"
