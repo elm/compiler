@@ -7,21 +7,26 @@ module Endpoint.Donate
   where
 
 
+import Prelude hiding (id)
 import qualified Control.Exception as E
+import Control.Monad.Except (ExceptT(ExceptT), runExceptT)
 import Control.Monad.Trans (liftIO)
 import Data.Aeson ((.:))
 import qualified Data.Aeson as Json
+import Data.Char (chr)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import Snap.Core
 import qualified Network.HTTP.Client as Http
 import qualified Network.HTTP.Client.TLS as Http (tlsManagerSettings)
 import qualified Network.HTTP.Types.Header as Http (Header, hAccept, hAcceptEncoding, hUserAgent)
 import qualified Network.HTTP.Types.Method as Http (methodPost)
+import qualified Network.HTTP.Types.Status as Http (statusCode)
 
 import qualified Cors
 
@@ -38,6 +43,19 @@ allowedOrigins =
 
 
 -- GET MANAGER
+--
+-- To talk to Stripe you need a header like this:
+--
+--   Authorization: Basic dXNlcm5hbWU6cGFzc3dvcmQ=
+--                        ^^^^^^^^^^^^^^^^^^^^^^^^
+-- Where the underlined part is the base64 encoded version of your Stripe
+-- secret key. The secret key is given as an environment variable, and then
+-- stored in the Manager as the "Authorization" value we will be using.
+-- I figured this out based on the following links:
+--
+--   https://stripe.com/docs/payments/checkout/one-time
+--   https://stackoverflow.com/a/35442984
+--
 
 
 data Manager =
@@ -53,6 +71,11 @@ getManager secret =
       return (Manager manager ("Basic " <> Base64.encode (BSC.pack secret)))
 
 
+addAuthorization :: BS.ByteString -> Http.Request -> Http.Request
+addAuthorization authToken req =
+  req { Http.requestHeaders = ("Authorization", authToken) : Http.requestHeaders req }
+
+
 
 -- ENDPOINT
 
@@ -62,13 +85,13 @@ endpoint manager =
   Cors.allow POST allowedOrigins $
     do  cents <- requireParameter "cents" toCents
         frequency <- requireParameter "frequency" toFrequency
-        mabyeSession <- liftIO $ getStripeCheckoutSessionID manager cents
-        case mabyeSession of
-          Just (StripeCheckoutSession id) ->
+        result <- liftIO $ runExceptT $ getStripeCheckoutSessionID manager cents frequency
+        case result of
+          Right (StripeCheckoutSession id) ->
             do  modifyResponse $ setContentType "text/plain; charset=utf-8"
                 writeText id
 
-          Nothing ->
+          Left _ ->
             do  writeBuilder $ "Problem creating Stripe session ID for checkout."
                 finishWith
                   . setResponseStatus 500 "Internal Server Error"
@@ -113,57 +136,175 @@ newtype StripeCheckoutSession =
   StripeCheckoutSession { _id :: T.Text }
 
 
-getStripeCheckoutSessionID :: Manager -> Int -> IO (Maybe StripeCheckoutSession)
-getStripeCheckoutSessionID (Manager manager authToken) cents =
-  E.handle handleSomeException $
-  do  req <-
-        configureRequest authToken cents <$>
-          Http.parseRequest "https://api.stripe.com/v1/checkout/sessions"
-
-      Http.withResponse req manager $ \response ->
-        do  chunks <- Http.brConsume (Http.responseBody response)
-            return $ Json.decode $ LBS.fromChunks chunks
+instance Json.FromJSON StripeCheckoutSession where
+  parseJSON =
+    Json.withObject "StripeCheckoutSessionResponse" $ \obj ->
+      StripeCheckoutSession <$> obj .: "id"
 
 
--- The "Authorization" header is set based on combining these instructions:
---
---   https://stripe.com/docs/payments/checkout/one-time
---   https://stackoverflow.com/a/35442984
---
--- Setting the -u flag appears to add a base64 encoded "Authorization" header.
---
-configureRequest :: BS.ByteString -> Int -> Http.Request -> Http.Request
-configureRequest authToken cents req =
-  Http.urlEncodedBody (toOneTimeParts cents) $
-    req { Http.requestHeaders = ("Authorization", authToken) : Http.requestHeaders req }
+getStripeCheckoutSessionID :: Manager -> Int -> Frequency -> Http StripeCheckoutSession
+getStripeCheckoutSessionID manager cents frequency =
+  case frequency of
+    OneTime -> setupOnetimeDonation manager cents
+    Monthly -> setupMonthlyDonation manager cents
 
 
-toOneTimeParts :: Int -> [(BS.ByteString, BS.ByteString)]
-toOneTimeParts cents =
-  [ "payment_method_types[]"    ==> "card"
-  , "line_items[][name]"        ==> "One-time donation"
-  , "line_items[][images][]"    ==> "https://foundation.elm-lang.org/donation.png"
-  , "line_items[][amount]"      ==> BSC.pack (show cents)
-  , "line_items[][currency]"    ==> "usd"
-  , "line_items[][quantity]"    ==> "1"
-  , "success_url"               ==> "https://foundation.elm-lang.org/thank_you?session_id={CHECKOUT_SESSION_ID}"
-  , "cancel_url"                ==> "https://foundation.elm-lang.org/donate"
-  ]
+
+-- SET UP ONE-TIME DONATION
+
+
+setupOnetimeDonation :: Manager -> Int -> Http StripeCheckoutSession
+setupOnetimeDonation manager cents =
+  post manager
+    "https://api.stripe.com/v1/checkout/sessions"
+    [ "payment_method_types[]" ==> "card"
+    , "line_items[][name]"     ==> "One-time donation"
+    , "line_items[][images][]" ==> "https://foundation.elm-lang.org/donation.png"
+    , "line_items[][amount]"   ==> BSC.pack (show cents)
+    , "line_items[][currency]" ==> "usd"
+    , "line_items[][quantity]" ==> "1"
+    , "success_url"            ==> "https://foundation.elm-lang.org/thank_you?session_id={CHECKOUT_SESSION_ID}"
+    , "cancel_url"             ==> "https://foundation.elm-lang.org/donate"
+    ]
+
+
+
+-- SET UP MONTHLY DONATION
+
+
+setupMonthlyDonation :: Manager -> Int -> Http StripeCheckoutSession
+setupMonthlyDonation manager cents =
+  do  (Plan id) <- getMonthlyPlan manager cents
+      post manager
+        "https://api.stripe.com/v1/checkout/sessions"
+        [ "payment_method_types[]" ==> "card"
+        , "subscription_data[items][][plan]" ==> id
+        , "success_url" ==> "https://foundation.elm-lang.org/thank_you?session_id={CHECKOUT_SESSION_ID}"
+        , "cancel_url"  ==> "https://foundation.elm-lang.org/donate"
+        ]
+
+
+
+-- GET MONTHLY PLAN
+
+
+getMonthlyPlan :: Manager -> Int -> Http Plan
+getMonthlyPlan manager cents =
+  do  result <- try $ get manager ("https://api.stripe.com/v1/plans/" ++ toPlanID cents)
+      case result of
+        Right plan -> return plan
+        Left _     -> createMonthlyPlan manager cents
+
+
+newtype Plan =
+  Plan BS.ByteString
+
+
+instance Json.FromJSON Plan where
+  parseJSON =
+    Json.withObject "StripeResponse" $ \obj ->
+      Plan . T.encodeUtf8 <$> obj .: "id"
+
+
+toPlanID :: Int -> String
+toPlanID cents =
+  "monthly_" ++ show cents
+
+
+
+-- CREATE MONTHLY PLAN
+
+
+createMonthlyPlan :: Manager -> Int -> Http Plan
+createMonthlyPlan manager cents =
+  post manager
+    "https://api.stripe.com/v1/plans"
+    [ "id"       ==> BSC.pack (toPlanID cents)
+    , "amount"   ==> BSC.pack (show cents)
+    , "currency" ==> "usd"
+    , "interval" ==> "month"
+    , "nickname" ==> toPlanNickname cents
+    , "product"  ==> "prod_GtPzOm0QbweJIE"
+    ]
+
+
+toPlanNickname :: Int -> BS.ByteString
+toPlanNickname cents =
+  let
+    (dollars, leftovers) = divMod cents 100
+    (dimes,pennies) = divMod leftovers 10
+  in
+  BSC.pack $
+    "Monthly $" ++ show dollars ++ [ '.', chr (0x30 + dimes), chr (0x30 + pennies) ]
+
+
+
+-- HTTP
+
+
+type Http a = ExceptT Error IO a
+
+
+data Error
+  = StripeError LBS.ByteString
+  | UnexpectedJson LBS.ByteString
+  | SomethingElse E.SomeException
+
+
+try :: Http a -> ExceptT x IO (Either Error a)
+try http =
+  liftIO (runExceptT http)
+
+
+
+-- HTTP GET
+
+
+get :: (Json.FromJSON a) => Manager -> String -> Http a
+get (Manager manager authToken) url =
+  request manager $
+    addAuthorization authToken <$> Http.parseRequest url
+
+
+
+-- HTTP POST
+
+
+post :: (Json.FromJSON a) => Manager -> String -> [(BS.ByteString, BS.ByteString)] -> Http a
+post (Manager manager authToken) url parts =
+  request manager $
+    Http.urlEncodedBody parts . addAuthorization authToken <$> Http.parseRequest url
 
 
 (==>) :: a -> b -> (a,b)
 (==>) = (,)
 
 
-handleSomeException :: E.SomeException -> IO (Maybe a)
+
+-- HTTP REQUEST
+
+
+request :: (Json.FromJSON a) => Http.Manager -> IO Http.Request -> Http a
+request manager mkReq =
+  ExceptT $ E.handle handleSomeException $
+  do  req <- mkReq
+      Http.withResponse req manager $ \response ->
+        do  chunks <- Http.brConsume (Http.responseBody response)
+            let code = Http.statusCode (Http.responseStatus response)
+            let body = LBS.fromChunks chunks
+            return $
+              if 200 <= code && code < 300
+              then
+                case Json.decode body of
+                  Just a  -> Right a
+                  Nothing -> Left (UnexpectedJson body)
+              else
+                Left (StripeError body)
+
+
+handleSomeException :: E.SomeException -> IO (Either Error a)
 handleSomeException exception =
-  return Nothing
-
-
-instance Json.FromJSON StripeCheckoutSession where
-  parseJSON =
-    Json.withObject "StripeCheckoutSessionResponse" $ \obj ->
-      StripeCheckoutSession <$> obj .: "id"
+  return (Left (SomethingElse exception))
 
 
 
