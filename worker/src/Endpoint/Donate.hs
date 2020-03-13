@@ -163,6 +163,7 @@ setupOnetimeDonation manager cents =
     , "line_items[][amount]"   ==> BSC.pack (show cents)
     , "line_items[][currency]" ==> "usd"
     , "line_items[][quantity]" ==> "1"
+    , "submit_type"            ==> "donate"
     , "success_url"            ==> "https://foundation.elm-lang.org/thank_you?session_id={CHECKOUT_SESSION_ID}"
     , "cancel_url"             ==> "https://foundation.elm-lang.org/donate"
     ]
