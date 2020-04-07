@@ -256,7 +256,7 @@ bumpToReport bump =
       Help.report "BUMP WHAT?" Nothing
         "I cannot find an elm.json so I am not sure what you want me to bump."
         [ D.reflow $
-            "Elm packages always have an elm.json that says current the version number. If\
+            "Elm packages always have an elm.json that says the current version number. If\
             \ you run this command from a directory with an elm.json file, I will try to bump\
             \ the version in there based on the API changes."
         ]
