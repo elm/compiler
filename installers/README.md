@@ -18,7 +18,7 @@ The instructions for [Mac][mac] and [Linux][lin] explain how to do this in more 
 
 ## Installing Previous Versions
 
-The past binaries for Mac, Linux, and Windows are hosted [here](https://github.com/elm/compiler/releases).
+The past binaries for Mac, Linux, and Windows are hosted [here](https://github.com/elm/compiler/releases) and [here](https://github.com/elm-lang/elm-platform/releases).
 
 You can download the executable files directly and use them locally.
 
