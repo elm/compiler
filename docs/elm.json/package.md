@@ -49,7 +49,7 @@ A short summary that will appear on [`package.elm-lang.org`](https://package.elm
 
 ## `"license"`
 
-An OSI approved SPDX code like `"BSD-3-Clause"` or `"MIT"`. These are the two most common licenses in the Elm ecosystem, but you can see the full list of options [here](https://spdx.org/licenses/).
+An OSI approved SPDX code like `"BSD-3-Clause"` or `"MIT"`. These are the two most common licenses in the Elm ecosystem, and BSD-3-Clause is a good default. But you can see the full list of options [here](https://spdx.org/licenses/).
 
 <br>
 
