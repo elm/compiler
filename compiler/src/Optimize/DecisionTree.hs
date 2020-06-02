@@ -84,7 +84,8 @@ data Test
 
 
 data Path
-  = Index Index.ZeroBased Path
+  = IndexBuiltin Index.ZeroBased Path
+  | IndexCustom Index.ZeroBased Path
   | Unbox Path
   | Empty
   deriving (Eq)
@@ -192,19 +193,19 @@ flatten pathPattern@(path, A.At region pattern) otherPathPatterns =
             flatten (Unbox path, arg) otherPathPatterns
 
           args ->
-            foldr flatten otherPathPatterns (subPositions path args)
+            foldr flatten otherPathPatterns (subPositions False path args)
       else
         pathPattern : otherPathPatterns
 
     Can.PTuple a b maybeC ->
-      flatten (Index Index.first path, a) $
-      flatten (Index Index.second path, b) $
+      flatten (IndexBuiltin Index.first path, a) $
+      flatten (IndexBuiltin Index.second path, b) $
         case maybeC of
           Nothing ->
             otherPathPatterns
 
           Just c ->
-            flatten (Index Index.third path, c) otherPathPatterns
+            flatten (IndexBuiltin Index.third path, c) otherPathPatterns
 
     Can.PUnit ->
       otherPathPatterns
@@ -235,9 +236,12 @@ flatten pathPattern@(path, A.At region pattern) otherPathPatterns =
       pathPattern : otherPathPatterns
 
 
-subPositions :: Path -> [Can.Pattern] -> [(Path, Can.Pattern)]
-subPositions path patterns =
-  Index.indexedMap (\index pattern -> (Index index path, pattern)) patterns
+subPositions :: Bool -> Path -> [Can.Pattern] -> [(Path, Can.Pattern)]
+subPositions isBuiltin path patterns =
+  if isBuiltin then
+    Index.indexedMap (\index pattern -> (IndexBuiltin index path, pattern)) patterns
+  else
+    Index.indexedMap (\index pattern -> (IndexCustom index path, pattern)) patterns
 
 
 dearg :: Can.PatternCtorArg -> Can.Pattern
@@ -380,7 +384,7 @@ toRelevantBranch test path branch@(Branch goal pathPatterns) =
                         start ++ [(Unbox path, arg)] ++ end
 
                       args ->
-                        start ++ subPositions path args ++ end
+                        start ++ subPositions False path args ++ end
 
                 _ ->
                   Nothing
@@ -397,7 +401,7 @@ toRelevantBranch test path branch@(Branch goal pathPatterns) =
               case test of
                 IsCons ->
                   let tl' = A.At region (Can.PList tl) in
-                  Just (Branch goal (start ++ subPositions path [ hd, tl' ] ++ end))
+                  Just (Branch goal (start ++ subPositions True path [ hd, tl' ] ++ end))
 
                 _ ->
                   Nothing
@@ -405,7 +409,7 @@ toRelevantBranch test path branch@(Branch goal pathPatterns) =
           Can.PCons hd tl ->
               case test of
                 IsCons ->
-                  Just (Branch goal (start ++ subPositions path [hd,tl] ++ end))
+                  Just (Branch goal (start ++ subPositions True path [hd,tl] ++ end))
 
                 _ ->
                   Nothing
@@ -445,7 +449,7 @@ toRelevantBranch test path branch@(Branch goal pathPatterns) =
               Just (Branch goal (start ++ end))
 
           Can.PTuple a b maybeC ->
-              Just (Branch goal (start ++ subPositions path (a : b : Maybe.maybeToList maybeC) ++ end))
+              Just (Branch goal (start ++ subPositions True path (a : b : Maybe.maybeToList maybeC) ++ end))
 
           Can.PVar _ ->
               Just branch
@@ -624,14 +628,16 @@ instance Binary Test where
 instance Binary Path where
   put path =
     case path of
-      Index a b -> putWord8 0 >> put a >> put b
-      Unbox a   -> putWord8 1 >> put a
-      Empty     -> putWord8 2
+      IndexBuiltin a b -> putWord8 0 >> put a >> put b
+      IndexCustom a b -> putWord8 1 >> put a >> put b
+      Unbox a   -> putWord8 2 >> put a
+      Empty     -> putWord8 3
 
   get =
     do  word <- getWord8
         case word of
-          0 -> liftM2 Index get get
-          1 -> liftM Unbox get
-          2 -> pure Empty
+          0 -> liftM2 IndexBuiltin get get
+          1 -> liftM2 IndexCustom get get
+          2 -> liftM Unbox get
+          3 -> pure Empty
           _ -> fail "problem getting DecisionTree.Path binary"

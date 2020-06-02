@@ -91,7 +91,8 @@ data Destructor =
 
 
 data Path
-  = Index Index.ZeroBased Path
+  = IndexBuiltin Index.ZeroBased Path
+  | IndexCustom Index.ZeroBased Path
   | Field Name Path
   | Unbox Path
   | Root Name
@@ -333,18 +334,20 @@ instance Binary Destructor where
 instance Binary Path where
   put destructor =
     case destructor of
-      Index a b -> putWord8 0 >> put a >> put b
-      Field a b -> putWord8 1 >> put a >> put b
-      Unbox a   -> putWord8 2 >> put a
-      Root a    -> putWord8 3 >> put a
+      IndexBuiltin a b -> putWord8 0 >> put a >> put b
+      IndexCustom a b -> putWord8 1 >> put a >> put b
+      Field a b -> putWord8 2 >> put a >> put b
+      Unbox a   -> putWord8 3 >> put a
+      Root a    -> putWord8 4 >> put a
 
   get =
     do  word <- getWord8
         case word of
-          0 -> liftM2 Index get get
-          1 -> liftM2 Field get get
-          2 -> liftM  Unbox get
-          3 -> liftM  Root get
+          0 -> liftM2 IndexBuiltin get get
+          1 -> liftM2 IndexCustom get get
+          2 -> liftM2 Field get get
+          3 -> liftM  Unbox get
+          4 -> liftM  Root get
           _ -> fail "problem getting Opt.Path binary"
 
 

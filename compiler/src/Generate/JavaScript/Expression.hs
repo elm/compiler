@@ -737,7 +737,10 @@ generateTailDef mode name argNames body =
 generatePath :: Mode.Mode -> Opt.Path -> JS.Expr
 generatePath mode path =
   case path of
-    Opt.Index index subPath ->
+    Opt.IndexBuiltin index subPath ->
+      JS.Access (generatePath mode subPath) (JsName.fromIndex index)
+
+    Opt.IndexCustom index subPath ->
       JS.Access (generatePath mode subPath) (JsName.fromIndex index)
 
     Opt.Root name ->
@@ -1015,7 +1018,10 @@ generateCaseTest mode root path exampleTest =
 pathToJsExpr :: Mode.Mode -> Name.Name -> DT.Path -> JS.Expr
 pathToJsExpr mode root path =
   case path of
-    DT.Index index subPath ->
+    DT.IndexBuiltin index subPath ->
+      JS.Access (pathToJsExpr mode root subPath) (JsName.fromIndex index)
+
+    DT.IndexCustom index subPath ->
       JS.Access (pathToJsExpr mode root subPath) (JsName.fromIndex index)
 
     DT.Unbox subPath ->

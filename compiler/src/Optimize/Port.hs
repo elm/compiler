@@ -107,7 +107,7 @@ encodeTuple :: Can.Type -> Can.Type -> Maybe Can.Type -> Names.Tracker Opt.Expr
 encodeTuple a b maybeC =
   let
     let_ arg index body =
-      Opt.Destruct (Opt.Destructor arg (Opt.Index index (Opt.Root Name.dollar))) body
+      Opt.Destruct (Opt.Destructor arg (Opt.IndexBuiltin index (Opt.Root Name.dollar))) body
 
     encodeArg arg tipe =
       do  encoder <- toEncoder tipe
