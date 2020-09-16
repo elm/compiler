@@ -6,7 +6,7 @@ possible.
 
 ## Licensing
 
-You need to sign the [contributor agreement](ContributorAgreement.pdf)
+You need to sign the [contributor agreement](../ContributorAgreement.pdf)
 and send it to <info@elm-lang.org> before opening your pull request.
 
 ## Style Guide
