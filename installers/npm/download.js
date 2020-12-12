@@ -17,7 +17,7 @@ module.exports = function(callback)
 	// figure out URL of binary
 	var version = package.version.replace(/^(\d+\.\d+\.\d+).*$/, '$1'); // turn '1.2.3-alpha' into '1.2.3'
 	var os = { 'darwin': 'mac', 'win32': 'windows', 'linux': 'linux' }[process.platform];
-	var arch = { 'x64': '64-bit', 'ia32': '32-bit' }[process.arch];
+	var arch = { 'x64': '64-bit', 'arm64': '64-bit', 'ia32': '32-bit' }[process.arch];
 	var url = 'https://github.com/elm/compiler/releases/download/' + version + '/binary-for-' + os + '-' + arch + '.gz';
 
 	reportDownload(version, url);
