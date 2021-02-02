@@ -20,9 +20,9 @@ If someone has a security issue from the compiler or core libraries, please DM m
 <br>
 <br>
 
-**Taking a step back**, I have found that working in this looser style has generally produced my best work. For example, all the error message work in Elm began as a project to implement the `--report=json` flag. That work happened to reveal some cool ideas on improving error messages, and if I had been using a rigid roadmap, I might have skipped those ideas to meet the publicly-stated arbitrary deadline. We'd have a clearer roadmap, but error messages no different than other type-inferred languages.
+**Taking a step back**, I have found that working in this looser style has produced a high baseline of quality, and I think that is an important part of Elm. For example, all the error message work in Elm began as a project to implement the `--report=json` flag. That work happened to reveal some cool ideas on improving error messages, and if I had been using a rigid roadmap, I might have skipped those ideas to meet the publicly-stated arbitrary deadline. We'd have a clearer roadmap, but error messages no different than other type-inferred languages.
 
-So I think having more flexibility in planning is a major competitive advantage for Elm, but obviously it is a trade off that does not work for everyone. If someone needs more certainty, I generally recommend looking into other languages to see if they have a balance that works better for their needs. For example, languages made by big corporations are generally "less risky" on things like this, but I think you see the fruits of that kind of process in the design decisions as well. Trade offs!
+So I think having more flexibility in planning is a competitive advantage for Elm in certain ways, but it is obviously a trade off that does not work for everyone. If someone needs more certainty, I generally recommend looking into other languages to see if they have a balance that works better for their needs. For example, languages made by big corporations are generally "less risky" on things like this, but I think you see the fruits of that kind of process in the design decisions as well. Trade offs!
 
 Anyway, like I said at the beginning, if you like what you see now, that's what it's going to be for a while. Even in the best case scenario with my current explorations!
 
