@@ -16,9 +16,6 @@ Languages that will add in implicit casts for addition include:
 
 These languages generally agree that an `Int` may be implicitly cast to a `Float` when necessary. So everyone is doing it, why not Elm?!
 
-> **Note:** Ruby does not follow the trend. They implicitly cast a `Float` to an `Int`, truncating all the decimal points!
-
-
 ## Type Inference + Implicit Casts
 
 Elm comes from the ML-family of languages. Languages in the ML-family that **never** do implicit casts include:
