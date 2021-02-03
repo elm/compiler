@@ -2,7 +2,7 @@
 
 If you like what you see now, that's pretty much what Elm is going to be for a while.
 
-I'm currently doing some exploratory work with the compiler, but it is still too early to tell which parts of that might work out. I know many readers take "exploring X" as a promise that "X will definitely happen", so I want to be careful in setting expectations low since there is still so much uncertainty in the work. So while there is no real news to share at this point, I can give some expectations about future stability:
+I'm currently doing some exploratory work with compiler techniques and targets, but it is still too early to tell which parts of that might work out. I know many readers take "exploring X" as a promise that "X will definitely happen", so I want to be careful in setting expectations low since there is still so much uncertainty in the work. So while there is no real news to share at this point, I can give some expectations about future stability of Elm in browsers:
 
 **If this exploratory work goes well**, even in the wildest version of success, I wouldn't expect the language or core packages to change very much. Maybe two or three years down the line it could reveal something that'd be good to fix up, but I don't really foresee notable changes right now.
 
