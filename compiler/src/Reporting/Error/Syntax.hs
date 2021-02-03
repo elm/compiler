@@ -2591,7 +2591,7 @@ toExprReport source context expr startRow startCol =
                   ,"give","a","more","specific","hint!"
                   ]
               , D.toSimpleNote $
-                  "This can also happen if run into reserved words like `let` or `as` unexpectedly.\
+                  "This can also happen if I run into reserved words like `let` or `as` unexpectedly.\
                   \ Or if I run into operators in unexpected spots. Point is, there are a\
                   \ couple ways I can get confused and give sort of weird advice!"
               ]
