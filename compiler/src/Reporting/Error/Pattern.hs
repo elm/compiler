@@ -41,7 +41,7 @@ toReport source err =
           Report.Report "UNSAFE PATTERN" region [] $
             Code.toSnippet source region Nothing
               (
-                "This pattern does not cover all possiblities:"
+                "This pattern does not cover all possibilities:"
               ,
                 D.stack
                   [ "Other possibilities include:"
@@ -64,7 +64,7 @@ toReport source err =
                   , unhandledPatternsToDocBlock unhandled
                   , D.reflow $
                       "I would have to crash if I saw one of those! You can use\
-                      \ `let` to deconstruct values only if there is ONE possiblity.\
+                      \ `let` to deconstruct values only if there is ONE possibility.\
                       \ Switch to a `case` expression to account for all possibilities."
                   , D.toSimpleHint $
                       "Are you calling a function that definitely returns values\
