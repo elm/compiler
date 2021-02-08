@@ -13,7 +13,7 @@ I'm currently doing some exploratory work with compiler techniques and targets, 
 - try to get `elm format` using the latest parsing infrastructure so it's not a perf bottleneck during development anymore
 - do another round on perf because I have one last idea that can squeeze out a bit more speed
 
-These are all nice quality of life things, but with 0.19.0 and 0.19.1 taking so long, I got pretty burnt out on "incremental improvements that are good ideas, but take a very long time and aren't very exciting to non-Elm users." Without getting too into the details, I really needed to change things up before returning to these particular ideas.
+These are all nice quality of life things, but with 0.19.0 and 0.19.1 taking so long, I got pretty burnt out on "incremental improvements that are good ideas, but take a very long time and aren't very exciting to non-Elm users." Without getting too much into the details, I really needed to change things up before returning to these particular ideas.
 
 If someone has a security issue from the compiler or core libraries, please DM me about it on the Elm Slack. Outside of security issues, I think capacity for more discretionary changes will increase once the lessons from the compiler explorations become more clear. Hopefully the discussion [here](https://discourse.elm-lang.org/t/costs-funding-in-open-source-languages/5722) clarifies the thinking on these capacity questions a bit.
 
