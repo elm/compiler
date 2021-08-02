@@ -261,7 +261,9 @@ instance Eq (Utf8 t) where
 
 
 -- COMPARE
-
+--
+-- TODO: is it fine to sort by length and only compare bytes on length ties?
+--
 
 instance Ord (Utf8 t) where
   compare (Utf8 ba1#) (Utf8 ba2#) =
