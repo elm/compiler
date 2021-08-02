@@ -10,14 +10,10 @@ import Control.Monad (msum)
 import qualified Data.ByteString as BS
 import Snap.Core
 import Snap.Http.Server
-import qualified System.Environment as Env
-import qualified System.Exit as Exit
-import qualified System.IO as IO
 
 import qualified Artifacts
 import qualified Cors
 import qualified Endpoint.Compile as Compile
-import qualified Endpoint.Donate as Donate
 import qualified Endpoint.Repl as Repl
 
 
@@ -30,7 +26,6 @@ main =
   do  rArtifacts <- Artifacts.loadRepl
       cArtifacts <- Artifacts.loadCompile
       errorJS <- Compile.loadErrorJS
-      manager <- Donate.getManager =<< getSecret
       let depsInfo = Artifacts.toDepsInfo cArtifacts
 
       httpServe config $ msum $
@@ -39,7 +34,6 @@ main =
         , path "compile" $ Compile.endpoint cArtifacts
         , path "compile/errors.js" $ serveJavaScript errorJS
         , path "compile/deps-info.json" $ serveDepsInfo depsInfo
-        , path "donate" $ Donate.endpoint manager
         , notFound
         ]
 
@@ -74,23 +68,3 @@ serveDepsInfo json =
     do  modifyResponse $ setContentType "application/json"
         writeBS json
 
-
-
--- GET SECRET
-
-
-getSecret :: IO String
-getSecret =
-  do  maybeValue <- Env.lookupEnv "STRIPE_SECRET"
-      case maybeValue of
-        Just secret ->
-          return secret
-
-        Nothing ->
-          do  IO.hPutStrLn IO.stderr
-                "Expecting environment variable STRIPE_SECRET to be defined:\n\
-                \\n\
-                \    STRIPE_SECRET=sk_test_abcdefghijklmnopqrstuvwxyz\n\
-                \\n\
-                \It is needed for handling donations with Stripe."
-              Exit.exitFailure
