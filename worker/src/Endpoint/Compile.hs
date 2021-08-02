@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
 module Endpoint.Compile
-  ( endpoint
+  ( endpointV1
+  , endpointV2
   , loadErrorJS
   )
   where
@@ -66,23 +67,49 @@ allowedOrigins =
 -- ENDPOINT
 
 
-endpoint :: A.Artifacts -> Snap ()
-endpoint artifacts =
+endpointV1 :: A.Artifacts -> Snap ()
+endpointV1 artifacts =
+  endpoint artifacts $ \source outcome ->
+    do  modifyResponse $ setContentType "text/html; charset=utf-8"
+        case outcome of
+          Success builder ->
+            writeBuilder builder
+
+          NoMain ->
+            writeBuilder $ renderHtmlReport noMain
+
+          BadInput name err ->
+            writeBuilder $ renderHtmlReport $
+              Help.compilerReport "/" (Error.Module name "/try" File.zeroTime source err) []
+
+
+endpointV2 :: A.Artifacts -> Snap ()
+endpointV2 artifacts =
+  endpoint artifacts $ \source outcome ->
+    case outcome of
+      Success builder ->
+        do  modifyResponse $ setContentType "text/html; charset=utf-8"
+            writeBuilder builder
+
+      NoMain ->
+        do  modifyResponse $ setResponseStatus 400 "Bad Request"
+            modifyResponse $ setContentType "text/json; charset=utf-8"
+            writeBuilder $ renderJsonReport noMain
+
+      BadInput name err ->
+        do  modifyResponse $ setResponseStatus 400 "Bad Request"
+            modifyResponse $ setContentType "text/json; charset=utf-8"
+            writeBuilder $ renderJsonReport $
+              Help.compilerReport "/" (Error.Module name "/try" File.zeroTime source err) []
+
+
+endpoint :: A.Artifacts -> (B.ByteString -> Outcome -> Snap ()) -> Snap ()
+endpoint artifacts respondToOutcome =
   Cors.allow POST allowedOrigins $
   do  result <- foldMultipart defaultUploadPolicy ignoreFile 0
       case result of
         ([("code",source)], 0) ->
-          do  modifyResponse $ setContentType "text/html; charset=utf-8"
-              case compile artifacts source of
-                Success builder ->
-                  writeBuilder builder
-
-                NoMain ->
-                  writeBuilder $ renderReport noMain
-
-                BadInput name err ->
-                  writeBuilder $ renderReport $
-                    Help.compilerReport "/" (Error.Module name "/try" File.zeroTime source err) []
+          respondToOutcome source (compile artifacts source)
 
         _ ->
           do  modifyResponse $ setResponseStatus 400 "Bad Request"
@@ -166,8 +193,13 @@ checkImports interfaces imports =
 -- RENDER REPORT
 
 
-renderReport :: Help.Report -> B.Builder
-renderReport report =
+renderJsonReport :: Help.Report -> B.Builder
+renderJsonReport report =
+  Encode.encodeUgly (Exit.toJson report)
+
+
+renderHtmlReport :: Help.Report -> B.Builder
+renderHtmlReport report =
   [r|<!DOCTYPE HTML>
 <html>
 <head>

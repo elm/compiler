@@ -30,16 +30,17 @@ main =
   do  rArtifacts <- Artifacts.loadRepl
       cArtifacts <- Artifacts.loadCompile
       errorJS <- Compile.loadErrorJS
-      manager <- Donate.getManager =<< getSecret
+      -- manager <- Donate.getManager =<< getSecret
       let depsInfo = Artifacts.toDepsInfo cArtifacts
 
       httpServe config $ msum $
         [ ifTop $ status
         , path "repl" $ Repl.endpoint rArtifacts
-        , path "compile" $ Compile.endpoint cArtifacts
+        , path "compile" $ Compile.endpointV1 cArtifacts
+        , path "compile/v2" $ Compile.endpointV2 cArtifacts
         , path "compile/errors.js" $ serveJavaScript errorJS
         , path "compile/deps-info.json" $ serveDepsInfo depsInfo
-        , path "donate" $ Donate.endpoint manager
+        -- , path "donate" $ Donate.endpoint manager
         , notFound
         ]
 
