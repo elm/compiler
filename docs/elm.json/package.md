@@ -21,7 +21,7 @@ This is roughly `elm.json` for the `elm/json` package:
 }
 ```
 
-*Note: There is no `source-directories` it is hardcored to `["src"]`.*
+*Note: There is no `source-directories` it is set to `["src"]`.*
 
 <br>
 
