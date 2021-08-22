@@ -72,7 +72,7 @@ endpointV1 artifacts =
   endpoint artifacts $
     RenderTemplates
       { onSuccess = Html.sandwich
-      , onProblems = renderV1ProblemReport
+      , onProblems = renderV1ProblemHtml
       }
 
 
@@ -80,8 +80,8 @@ endpointV2 :: A.Artifacts -> Snap ()
 endpointV2 artifacts =
   endpoint artifacts $
     RenderTemplates
-      { onSuccess = renderV2SuccessReport
-      , onProblems = renderV2ProblemReport
+      { onSuccess = renderV2SuccessHtml
+      , onProblems = renderV2ProblemHtml
       }
 
 
@@ -189,28 +189,31 @@ checkImports interfaces imports =
 
 
 
--- RENDER REPORT
+-- RENDER RESULTING HTML
 
 
-renderV2ProblemReport :: Help.Report -> B.Builder
-renderV2ProblemReport report =
+renderV1ProblemHtml :: Help.Report -> B.Builder
+renderV1ProblemHtml report =
   [r|<!DOCTYPE HTML>
 <html>
 <head>
   <meta charset="UTF-8">
-  <style>body { padding: 0; margin: 0; display: none; }</style>
+  <style>body { padding: 0; margin: 0; background-color: black; }</style>
+  <script src="https://worker.elm-lang.org/compile/errors.js"></script>
 </head>
 <body>
   <script>
-    var errors = |] <> Encode.encodeUgly (Exit.toJson report) <> [r|;
-    window.parent.postMessage(JSON.stringify(errors), '*');
+    var app = Elm.Errors.init({flags:|] <> Encode.encodeUgly (Exit.toJson report) <> [r|});
+    app.ports.jumpTo.subscribe(function(region) {
+      window.parent.postMessage(JSON.stringify(region), '*');
+    });
   </script>
 </body>
 </html>|]
 
 
-renderV2SuccessReport :: N.Name -> B.Builder -> B.Builder
-renderV2SuccessReport moduleName javascript =
+renderV2SuccessHtml :: N.Name -> B.Builder -> B.Builder
+renderV2SuccessHtml moduleName javascript =
   let name = N.toBuilder moduleName in
   [r|<!DOCTYPE HTML>
 <html>
@@ -249,21 +252,18 @@ catch (e)
 </html>|]
 
 
-renderV1ProblemReport :: Help.Report -> B.Builder
-renderV1ProblemReport report =
+renderV2ProblemHtml :: Help.Report -> B.Builder
+renderV2ProblemHtml report =
   [r|<!DOCTYPE HTML>
 <html>
 <head>
   <meta charset="UTF-8">
-  <style>body { padding: 0; margin: 0; background-color: black; }</style>
-  <script src="https://worker.elm-lang.org/compile/errors.js"></script>
+  <style>body { padding: 0; margin: 0; display: none; }</style>
 </head>
 <body>
   <script>
-    var app = Elm.Errors.init({flags:|] <> Encode.encodeUgly (Exit.toJson report) <> [r|});
-    app.ports.jumpTo.subscribe(function(region) {
-      window.parent.postMessage(JSON.stringify(region), '*');
-    });
+    var errors = |] <> Encode.encodeUgly (Exit.toJson report) <> [r|;
+    window.parent.postMessage(JSON.stringify(errors), '*');
   </script>
 </body>
 </html>|]
