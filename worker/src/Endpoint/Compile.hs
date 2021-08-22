@@ -70,37 +70,31 @@ allowedOrigins =
 endpointV1 :: A.Artifacts -> Snap ()
 endpointV1 artifacts =
   endpoint artifacts $ \source outcome ->
-    do  modifyResponse $ setContentType "text/html; charset=utf-8"
-        case outcome of
-          Success builder ->
-            writeBuilder builder
+    case outcome of
+      Success name builder ->
+        writeBuilder (Html.sandwich name builder)
 
-          NoMain ->
-            writeBuilder $ renderHtmlReport noMain
+      NoMain ->
+        writeBuilder $ renderV1ProblemReport noMain
 
-          BadInput name err ->
-            writeBuilder $ renderHtmlReport $
-              Help.compilerReport "/" (Error.Module name "/try" File.zeroTime source err) []
+      BadInput name err ->
+        writeBuilder $ renderV1ProblemReport $
+          Help.compilerReport "/" (Error.Module name "/try" File.zeroTime source err) []
 
 
 endpointV2 :: A.Artifacts -> Snap ()
 endpointV2 artifacts =
   endpoint artifacts $ \source outcome ->
     case outcome of
-      Success builder ->
-        do  modifyResponse $ setContentType "text/html; charset=utf-8"
-            writeBuilder builder
+      Success name builder ->
+        writeBuilder (renderV2SuccessReport name builder)
 
       NoMain ->
-        do  modifyResponse $ setResponseStatus 400 "Bad Request"
-            modifyResponse $ setContentType "text/json; charset=utf-8"
-            writeBuilder $ renderJsonReport noMain
+        writeBuilder $ renderV2ProblemReport noMain
 
       BadInput name err ->
-        do  modifyResponse $ setResponseStatus 400 "Bad Request"
-            modifyResponse $ setContentType "text/json; charset=utf-8"
-            writeBuilder $ renderJsonReport $
-              Help.compilerReport "/" (Error.Module name "/try" File.zeroTime source err) []
+        writeBuilder $ renderV2ProblemReport $
+          Help.compilerReport "/" (Error.Module name "/try" File.zeroTime source err) []
 
 
 endpoint :: A.Artifacts -> (B.ByteString -> Outcome -> Snap ()) -> Snap ()
@@ -109,7 +103,8 @@ endpoint artifacts respondToOutcome =
   do  result <- foldMultipart defaultUploadPolicy ignoreFile 0
       case result of
         ([("code",source)], 0) ->
-          respondToOutcome source (compile artifacts source)
+          do  modifyResponse $ setContentType "text/html; charset=utf-8"
+              respondToOutcome source (compile artifacts source)
 
         _ ->
           do  modifyResponse $ setResponseStatus 400 "Bad Request"
@@ -131,7 +126,7 @@ ignoreFile _ _ count =
 
 
 data Outcome
-  = Success B.Builder
+  = Success N.Name B.Builder
   | NoMain
   | BadInput ModuleName.Raw Error.Error
 
@@ -165,7 +160,7 @@ compile (A.Artifacts interfaces objects) source =
                     mains = Map.singleton home main_
                     graph = Opt.addLocalGraph locals objects
                   in
-                  Success $ Html.sandwich name $ JS.generate mode graph mains
+                  Success name $ JS.generate mode graph mains
 
 
 checkImports :: Map.Map ModuleName.Raw I.Interface -> [Src.Import] -> Either (NE.List Import.Error) (Map.Map ModuleName.Raw I.Interface)
@@ -193,13 +188,65 @@ checkImports interfaces imports =
 -- RENDER REPORT
 
 
-renderJsonReport :: Help.Report -> B.Builder
-renderJsonReport report =
-  Encode.encodeUgly (Exit.toJson report)
+renderV2ProblemReport :: Help.Report -> B.Builder
+renderV2ProblemReport report =
+  [r|<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>body { padding: 0; margin: 0; display: none; }</style>
+</head>
+<body>
+  <script>
+    var errors = |] <> Encode.encodeUgly (Exit.toJson report) <> [r|;
+    window.parent.postMessage(JSON.stringify(errors), '*');
+  </script>
+</body>
+</html>|]
 
 
-renderHtmlReport :: Help.Report -> B.Builder
-renderHtmlReport report =
+renderV2SuccessReport :: N.Name -> B.Builder -> B.Builder
+renderV2SuccessReport moduleName javascript =
+  let name = N.toBuilder moduleName in
+  [r|<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>|] <> name <> [r|</title>
+  <style>body { padding: 0; margin: 0; }</style>
+</head>
+
+<body>
+
+<pre id="elm"></pre>
+
+<script>
+window.parent.postMessage("SUCCESS", '*');
+
+try {
+|] <> javascript <> [r|
+
+  var app = Elm.|] <> name <> [r|.init({ node: document.getElementById("elm") });
+}
+catch (e)
+{
+  // display initialization errors (e.g. bad flags, infinite recursion)
+  var header = document.createElement("h1");
+  header.style.fontFamily = "monospace";
+  header.innerText = "Initialization Error";
+  var pre = document.getElementById("elm");
+  document.body.insertBefore(header, pre);
+  pre.innerText = e;
+  throw e;
+}
+</script>
+
+</body>
+</html>|]
+
+
+renderV1ProblemReport :: Help.Report -> B.Builder
+renderV1ProblemReport report =
   [r|<!DOCTYPE HTML>
 <html>
 <head>
