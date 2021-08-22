@@ -31,8 +31,8 @@ main =
       httpServe config $ msum $
         [ ifTop $ status
         , path "repl" $ Repl.endpoint rArtifacts
-        , path "compile" $ Compile.endpointV1 cArtifacts
-        , path "compile/v2" $ Compile.endpointV2 cArtifacts
+        , path "compile" $ Compile.endpoint_V1 cArtifacts
+        , path "compile/v2" $ Compile.endpoint_V2 cArtifacts
         , path "compile/errors.js" $ serveJavaScript errorJS
         , path "compile/deps-info.json" $ serveDepsInfo depsInfo
         , notFound

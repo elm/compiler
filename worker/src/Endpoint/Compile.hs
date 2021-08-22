@@ -1,8 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
 module Endpoint.Compile
-  ( endpointV1
-  , endpointV2
+  ( endpoint_V1
+  , endpoint_V2
   , loadErrorJS
   )
   where
@@ -64,51 +64,50 @@ allowedOrigins =
 
 
 
+-- ENDPOINT (V1)
+
+
+endpoint_V1 :: A.Artifacts -> Snap ()
+endpoint_V1 artifacts =
+  endpoint artifacts $ \result ->
+    case result of
+      Ok name js -> writeBuilder $ Html.sandwich name js
+      Err report -> writeBuilder $ renderProblem_V1 report
+
+
+
+-- ENDPOINT (V2)
+
+
+endpoint_V2 :: A.Artifacts -> Snap ()
+endpoint_V2 artifacts =
+  endpoint artifacts $ \result ->
+    case result of
+      Ok name js -> writeBuilder $ renderSuccess_V2 name js
+      Err report -> writeBuilder $ renderProblem_V2 report
+
+
+
 -- ENDPOINT
 
 
-endpointV1 :: A.Artifacts -> Snap ()
-endpointV1 artifacts =
-  endpoint artifacts $
-    RenderTemplates
-      { onSuccess = Html.sandwich
-      , onProblems = renderV1ProblemHtml
-      }
+data Result
+  = Ok N.Name B.Builder
+  | Err Help.Report
 
 
-endpointV2 :: A.Artifacts -> Snap ()
-endpointV2 artifacts =
-  endpoint artifacts $
-    RenderTemplates
-      { onSuccess = renderV2SuccessHtml
-      , onProblems = renderV2ProblemHtml
-      }
-
-
-data RenderTemplates =
-  RenderTemplates
-    { onSuccess :: N.Name -> B.Builder -> B.Builder
-    , onProblems :: Help.Report -> B.Builder
-    }
-
-
-endpoint :: A.Artifacts -> RenderTemplates -> Snap ()
-endpoint artifacts templates =
+endpoint :: A.Artifacts -> (Result -> Snap ()) -> Snap ()
+endpoint artifacts callback =
   Cors.allow POST allowedOrigins $
   do  result <- foldMultipart defaultUploadPolicy ignoreFile 0
       case result of
         ([("code",source)], 0) ->
           do  modifyResponse $ setContentType "text/html; charset=utf-8"
-              case compile artifacts source of
-                Success name builder ->
-                  writeBuilder (onSuccess templates name builder)
-
-                NoMain ->
-                  writeBuilder $ onProblems templates noMain
-
-                BadInput name err ->
-                  writeBuilder $ onProblems templates $
-                    Help.compilerReport "/" (Error.Module name "/try" File.zeroTime source err) []
+              callback $
+                case compile artifacts source of
+                  Success name js   -> Ok name js
+                  NoMain            -> Err noMain
+                  BadInput name err -> Err $ Help.compilerReport "/" (Error.Module name "/try" File.zeroTime source err) []
 
         _ ->
           do  modifyResponse $ setResponseStatus 400 "Bad Request"
@@ -189,11 +188,11 @@ checkImports interfaces imports =
 
 
 
--- RENDER RESULTING HTML
+-- RENDER PROBLEM (V1)
 
 
-renderV1ProblemHtml :: Help.Report -> B.Builder
-renderV1ProblemHtml report =
+renderProblem_V1 :: Help.Report -> B.Builder
+renderProblem_V1 report =
   [r|<!DOCTYPE HTML>
 <html>
 <head>
@@ -212,8 +211,12 @@ renderV1ProblemHtml report =
 </html>|]
 
 
-renderV2SuccessHtml :: N.Name -> B.Builder -> B.Builder
-renderV2SuccessHtml moduleName javascript =
+
+-- RENDER SUCCESS (V2)
+
+
+renderSuccess_V2 :: N.Name -> B.Builder -> B.Builder
+renderSuccess_V2 moduleName javascript =
   let name = N.toBuilder moduleName in
   [r|<!DOCTYPE HTML>
 <html>
@@ -252,8 +255,12 @@ catch (e)
 </html>|]
 
 
-renderV2ProblemHtml :: Help.Report -> B.Builder
-renderV2ProblemHtml report =
+
+-- RENDER PROBLEM (V2)
+
+
+renderProblem_V2 :: Help.Report -> B.Builder
+renderProblem_V2 report =
   [r|<!DOCTYPE HTML>
 <html>
 <head>
