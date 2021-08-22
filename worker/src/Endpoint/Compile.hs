@@ -205,7 +205,7 @@ renderV1ProblemHtml report =
   <script>
     var app = Elm.Errors.init({flags:|] <> Encode.encodeUgly (Exit.toJson report) <> [r|});
     app.ports.jumpTo.subscribe(function(region) {
-      window.parent.postMessage(JSON.stringify(region), '*');
+      window.parent.postMessage(JSON.stringify(region), "*");
     });
   </script>
 </body>
@@ -228,7 +228,7 @@ renderV2SuccessHtml moduleName javascript =
 <pre id="elm"></pre>
 
 <script>
-window.parent.postMessage("SUCCESS", '*');
+window.parent.postMessage("SUCCESS", "*");
 
 try {
 |] <> javascript <> [r|
@@ -263,7 +263,7 @@ renderV2ProblemHtml report =
 <body>
   <script>
     var errors = |] <> Encode.encodeUgly (Exit.toJson report) <> [r|;
-    window.parent.postMessage(JSON.stringify(errors), '*');
+    window.parent.postMessage(JSON.stringify(errors), "*");
   </script>
 </body>
 </html>|]
