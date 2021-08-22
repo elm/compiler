@@ -69,42 +69,46 @@ allowedOrigins =
 
 endpointV1 :: A.Artifacts -> Snap ()
 endpointV1 artifacts =
-  endpoint artifacts $ \source outcome ->
-    case outcome of
-      Success name builder ->
-        writeBuilder (Html.sandwich name builder)
-
-      NoMain ->
-        writeBuilder $ renderV1ProblemReport noMain
-
-      BadInput name err ->
-        writeBuilder $ renderV1ProblemReport $
-          Help.compilerReport "/" (Error.Module name "/try" File.zeroTime source err) []
+  endpoint artifacts $
+    RenderTemplates
+      { onSuccess = Html.sandwich
+      , onProblems = renderV1ProblemReport
+      }
 
 
 endpointV2 :: A.Artifacts -> Snap ()
 endpointV2 artifacts =
-  endpoint artifacts $ \source outcome ->
-    case outcome of
-      Success name builder ->
-        writeBuilder (renderV2SuccessReport name builder)
-
-      NoMain ->
-        writeBuilder $ renderV2ProblemReport noMain
-
-      BadInput name err ->
-        writeBuilder $ renderV2ProblemReport $
-          Help.compilerReport "/" (Error.Module name "/try" File.zeroTime source err) []
+  endpoint artifacts $
+    RenderTemplates
+      { onSuccess = renderV2SuccessReport
+      , onProblems = renderV2ProblemReport
+      }
 
 
-endpoint :: A.Artifacts -> (B.ByteString -> Outcome -> Snap ()) -> Snap ()
-endpoint artifacts respondToOutcome =
+data RenderTemplates =
+  RenderTemplates
+    { onSuccess :: N.Name -> B.Builder -> B.Builder
+    , onProblems :: Help.Report -> B.Builder
+    }
+
+
+endpoint :: A.Artifacts -> RenderTemplates -> Snap ()
+endpoint artifacts templates =
   Cors.allow POST allowedOrigins $
   do  result <- foldMultipart defaultUploadPolicy ignoreFile 0
       case result of
         ([("code",source)], 0) ->
           do  modifyResponse $ setContentType "text/html; charset=utf-8"
-              respondToOutcome source (compile artifacts source)
+              case compile artifacts source of
+                Success name builder ->
+                  writeBuilder (onSuccess templates name builder)
+
+                NoMain ->
+                  writeBuilder $ onProblems templates noMain
+
+                BadInput name err ->
+                  writeBuilder $ onProblems templates $
+                    Help.compilerReport "/" (Error.Module name "/try" File.zeroTime source err) []
 
         _ ->
           do  modifyResponse $ setResponseStatus 400 "Bad Request"
