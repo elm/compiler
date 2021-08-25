@@ -53,7 +53,12 @@ module.exports = function(callback)
 	});
 
 	// put it all together
-	request(url).on('error', reportDownloadFailure).pipe(gunzip).pipe(write);
+	var options = {
+		url: url,
+		headers: { 'Accept-Encoding': 'gzip' }
+	};
+
+	request(options).on('error', reportDownloadFailure).pipe(gunzip).pipe(write);
 }
 
 
