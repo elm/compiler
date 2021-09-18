@@ -1543,7 +1543,7 @@ toDeclStartReport source row col =
                           ]
                       ]
                   , D.reflow $
-                      "This defines a `reviewPowerLevel` function that you can use elsewhere in your program."
+                      "This defines a `greet` function that you can use elsewhere in your program."
                   ]
 
               _ ->
