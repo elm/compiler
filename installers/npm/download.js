@@ -21,7 +21,8 @@ module.exports = function(callback)
 		darwin_x64: 'mac-64-bit',
 		darwin_arm64: 'mac-64-bit',
 		win32_x64: 'windows-64-bit',
-		linux_x64: 'linux-64-bit'
+		linux_x64: 'linux-64-bit',
+		linux_arm64: 'linux-64-bit'
 	}[process.platform + '_' + process.arch];
 
 	verifyPlatform(version, platform);
