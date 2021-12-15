@@ -31,7 +31,8 @@ main =
       httpServe config $ msum $
         [ ifTop $ status
         , path "repl" $ Repl.endpoint rArtifacts
-        , path "compile" $ Compile.endpoint cArtifacts
+        , path "compile" $ Compile.endpoint_V1 cArtifacts
+        , path "compile/v2" $ Compile.endpoint_V2 cArtifacts
         , path "compile/errors.js" $ serveJavaScript errorJS
         , path "compile/deps-info.json" $ serveDepsInfo depsInfo
         , notFound
@@ -67,3 +68,4 @@ serveDepsInfo json =
   Cors.allow GET ["https://elm-lang.org"] $
     do  modifyResponse $ setContentType "application/json"
         writeBS json
+

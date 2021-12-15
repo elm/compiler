@@ -16,9 +16,17 @@ module.exports = function(callback)
 {
 	// figure out URL of binary
 	var version = package.version.replace(/^(\d+\.\d+\.\d+).*$/, '$1'); // turn '1.2.3-alpha' into '1.2.3'
-	var os = { 'darwin': 'mac', 'win32': 'windows', 'linux': 'linux' }[process.platform];
-	var arch = { 'x64': '64-bit', 'ia32': '32-bit' }[process.arch];
-	var url = 'https://github.com/elm/compiler/releases/download/' + version + '/binary-for-' + os + '-' + arch + '.gz';
+
+	var platform = {
+		darwin_x64: 'mac-64-bit',
+		darwin_arm64: 'mac-64-bit',
+		win32_x64: 'windows-64-bit',
+		linux_x64: 'linux-64-bit'
+	}[process.platform + '_' + process.arch];
+
+	verifyPlatform(version, platform);
+
+	var url = 'https://github.com/elm/compiler/releases/download/' + version + '/binary-for-' + platform + '.gz';
 
 	reportDownload(version, url);
 
@@ -46,6 +54,30 @@ module.exports = function(callback)
 
 	// put it all together
 	request(url).on('error', reportDownloadFailure).pipe(gunzip).pipe(write);
+}
+
+
+
+// VERIFY PLATFORM
+
+
+function verifyPlatform(version, platform)
+{
+	if (platform) return;
+
+	var situation = process.platform + '_' + process.arch;
+	console.error(
+		'-- ERROR -----------------------------------------------------------------------\n\n'
+		+ 'I am detecting that your computer (' + situation + ') may not be compatible with any\n'
+		+ 'of the official pre-built binaries.\n\n'
+		+ 'I recommend against using the npm installer for your situation. Check out the\n'
+		+ 'alternative installers at https://github.com/elm/compiler/releases/tag/' + version + '\n'
+		+ 'to see if there is something that will work better for you.\n\n'
+		+ 'From there I recommend asking for guidance on Slack or Discourse to find someone\n'
+		+ 'who can help with your specific situation.\n\n'
+		+ '--------------------------------------------------------------------------------\n'
+	);
+	process.exit(1);
 }
 
 

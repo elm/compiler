@@ -1,21 +1,19 @@
-name: Set Pull Expectations
 on:
-  pull_request:
+  pull_request_target:
     types: [opened]
+
 jobs:
   comment-on-pull:
     name: Comment On Pull
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github@v1.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/github-script@v3
         with:
-          args: |
-            comment "Thanks for suggesting these code changes. To set expectations:
-
-            - Pull requests are reviewed in [batches](https://github.com/elm/expectations/blob/master/batching.md), so it can take some time to get a response.
-            - Smaller pull requests are easier to review. To fix nine typos, nine specific issues will always go faster than one big one. Learn why [here](https://github.com/elm/expectations/blob/master/small-pull-requests.md).
-            - Reviewers may not know as much as you about certain situations, so add links to supporting evidence for important claims, especially regarding standards for CSS, HTTP, URI, etc.
-
-            Finally, please be patient with the core team. They are trying their best with limited resources."
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            github.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: "Thanks for suggesting these code changes. To set expectations:\n\n- Pull requests are reviewed in [batches](https://github.com/elm/expectations/blob/master/batching.md), so it can take some time to get a response.\n- Smaller pull requests are easier to review. To fix nine typos, nine specific issues will always go faster than one big one. Learn why [here](https://github.com/elm/expectations/blob/master/small-pull-requests.md).\n- Reviewers may not know as much as you about certain situations, so add links to supporting evidence for important claims, especially regarding standards for CSS, HTTP, URI, etc.\n\nFinally, please be patient with the core team. They are trying their best with limited resources."
+            })
