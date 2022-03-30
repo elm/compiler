@@ -224,6 +224,9 @@ chompZero pos end =
     if word == 0x78 {-x-} then
       chompHexInt (plusPtr pos 1) end
 
+    else if word == 0x62 {-b-} then
+      chompBinInt (plusPtr pos 1) end
+
     else if word == 0x2E {-.-} then
       chompFraction pos end 0
 
@@ -242,6 +245,15 @@ chompHexInt pos end =
   let (# newPos, answer #) = chompHex pos end in
   if answer < 0 then
     Err newPos E.NumberHexDigit
+  else
+    OkInt newPos answer
+
+
+chompBinInt :: Ptr Word8 -> Ptr Word8 -> Outcome
+chompBinInt pos end =
+  let (# newPos, answer #) = chompBin pos end in
+  if answer < 0 then
+    Err newPos E.NumberBinDigit
   else
     OkInt newPos answer
 
@@ -280,6 +292,38 @@ stepHex pos end word acc
   | 0x30 {-0-} <= word && word <= 0x39 {-9-} = 16 * acc + fromIntegral (word - 0x30 {-0-})
   | 0x61 {-a-} <= word && word <= 0x66 {-f-} = 16 * acc + 10 + fromIntegral (word - 0x61 {-a-})
   | 0x41 {-A-} <= word && word <= 0x46 {-F-} = 16 * acc + 10 + fromIntegral (word - 0x41 {-A-})
+  | isDirtyEnd pos end word                  = -2
+  | True                                     = -1
+
+
+
+-- CHOMP BIN
+
+{-# INLINE chompBin #-}
+chompBin :: Ptr Word8 -> Ptr Word8 -> (# Ptr Word8, Int #)
+chompBin pos end =
+  chompBinHelp pos end (-1) 0
+
+
+chompBinHelp :: Ptr Word8 -> Ptr Word8 -> Int -> Int -> (# Ptr Word8, Int #)
+chompBinHelp pos end answer accumulator =
+  if pos >= end then
+    (# pos, answer #)
+  else
+    let
+      !newAnswer =
+        stepBin pos end (P.unsafeIndex pos) accumulator
+    in
+    if newAnswer < 0 then
+      (# pos, if newAnswer == -1 then answer else -2 #)
+    else
+      chompBinHelp (plusPtr pos 1) end newAnswer newAnswer
+
+
+{-# INLINE stepBin #-}
+stepBin :: Ptr Word8 -> Ptr Word8 -> Word8 -> Int -> Int
+stepBin pos end word acc
+  | 0x30 {-0-} <= word && word <= 0x31 {-1-} = 2 * acc + fromIntegral (word - 0x30 {-0-})
   | isDirtyEnd pos end word                  = -2
   | True                                     = -1
 
