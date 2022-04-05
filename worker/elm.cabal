@@ -52,6 +52,7 @@ Executable worker
         Artifacts
         Cors
         Endpoint.Compile
+        Endpoint.Quotes
         Endpoint.Repl
 
         AST.Canonical
@@ -194,6 +195,7 @@ Executable worker
         network-uri,
         parsec,
         process,
+        random,
         raw-strings-qq,
         scientific,
         SHA,
