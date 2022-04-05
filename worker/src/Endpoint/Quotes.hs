@@ -12,7 +12,6 @@ import GHC.Prim
 import GHC.ST (ST(ST), runST)
 import qualified System.Random as Random
 
-import qualified Cors
 import Snap.Core
 
 
@@ -22,8 +21,9 @@ import Snap.Core
 
 endpoint :: Snap ()
 endpoint =
-  Cors.open GET $
-  do  modifyResponse $ setContentType "application/json"
+  do  modifyResponse
+        $ setContentType "application/json"
+        . setHeader "Access-Control-Allow-Origin" "*"
       writeBS =<< liftIO getQuote
 
 
