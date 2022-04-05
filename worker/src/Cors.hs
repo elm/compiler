@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Cors
   ( allow
+  , open
   )
   where
 
@@ -8,7 +9,7 @@ module Cors
 import qualified Data.HashSet as HashSet
 import Network.URI (parseURI)
 import Snap.Core (Snap, Method, method)
-import Snap.Util.CORS (CORSOptions(..), HashableMethod(..), OriginList(Origins), applyCORS, mkOriginSet)
+import Snap.Util.CORS (CORSOptions(..), HashableMethod(..), OriginList(..), applyCORS, mkOriginSet)
 
 
 
@@ -17,7 +18,15 @@ import Snap.Util.CORS (CORSOptions(..), HashableMethod(..), OriginList(Origins),
 
 allow :: Method -> [String] -> Snap () -> Snap ()
 allow method_ origins snap =
-  applyCORS (toOptions method_ origins) $ method method_ $
+  applyCORS (toOptions method_ (toOriginList origins)) $
+  method method_ $
+    snap
+
+
+open :: Method -> Snap () -> Snap ()
+open method_ snap =
+  applyCORS (toOptions method_ Everywhere) $
+  method method_ $
     snap
 
 
@@ -25,10 +34,9 @@ allow method_ origins snap =
 -- TO OPTIONS
 
 
-toOptions :: (Monad m) => Method -> [String] -> CORSOptions m
-toOptions method_ origins =
+toOptions :: (Monad m) => Method -> OriginList -> CORSOptions m
+toOptions method_ allowedOrigins =
   let
-    allowedOrigins = toOriginList origins
     allowedMethods = HashSet.singleton (HashableMethod method_)
   in
   CORSOptions
