@@ -14,6 +14,7 @@ import Snap.Http.Server
 import qualified Artifacts
 import qualified Cors
 import qualified Endpoint.Compile as Compile
+import qualified Endpoint.Quotes as Quotes
 import qualified Endpoint.Repl as Repl
 
 
@@ -35,6 +36,7 @@ main =
         , path "compile/v2" $ Compile.endpoint_V2 cArtifacts
         , path "compile/errors.js" $ serveJavaScript errorJS
         , path "compile/deps-info.json" $ serveDepsInfo depsInfo
+        , path "quotes" $ Quotes.endpoint
         , notFound
         ]
 
