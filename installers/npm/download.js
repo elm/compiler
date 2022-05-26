@@ -21,12 +21,13 @@ module.exports = function(callback)
 		darwin_x64: 'mac-64-bit',
 		darwin_arm64: 'mac-64-bit',
 		win32_x64: 'windows-64-bit',
-		linux_x64: 'linux-64-bit'
+		linux_x64: 'linux-64-bit',
+		linux_arm64: 'linux-arm-64-bit'
 	}[process.platform + '_' + process.arch];
 
 	verifyPlatform(version, platform);
 
-	var url = 'https://github.com/elm/compiler/releases/download/' + version + '/binary-for-' + platform + '.gz';
+	var url = 'https://github.com/carwow/elm-compiler/releases/download/' + version + '/binary-for-' + platform + '.gz';
 
 	reportDownload(version, url);
 
