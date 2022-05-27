@@ -1,12 +1,15 @@
 {
-  "name": "elm",
+  "name": "@carwow/elm",
   "version": "0.19.1",
   "description": "Installer for Elm: just downloads the binary into node_modules",
   "preferGlobal": true,
   "license": "BSD-3-Clause",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/elm/compiler.git"
+    "url": "ssh://git@github.com/carwow/elm-compiler"
   },
   "homepage": "https://github.com/elm/compiler/tree/master/installers/npm",
   "bugs": "https://github.com/elm/compiler/issues",
