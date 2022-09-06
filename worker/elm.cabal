@@ -54,6 +54,7 @@ Executable worker
         Endpoint.Compile
         Endpoint.Quotes
         Endpoint.Repl
+        Endpoint.Slack
 
         AST.Canonical
         AST.Optimized
