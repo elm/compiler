@@ -22,7 +22,7 @@ import qualified Data.Map as Map
 -- here looked in the Network tab of Developer Tools to figure it out:
 --
 --   https://levels.io/slack-typeform-auto-invite-sign-ups/
---   from https://github.com/outsideris/slack-invite-automation
+--   https://github.com/outsideris/slack-invite-automation
 --
 
 
