@@ -8,8 +8,7 @@ module Main
 
 import Control.Monad (msum)
 import qualified Data.ByteString as BS
-import Network.HTTP.Client (newManager)
-import Network.HTTP.Client.TLS (tlsManagerSettings)
+import Network.HTTP.Client.TLS (newTlsManager)
 import Snap.Core
 import Snap.Http.Server
 import qualified System.Environment as Env
@@ -28,7 +27,7 @@ import qualified Endpoint.Slack as Slack
 
 main :: IO ()
 main =
-  do  manager    <- newManager tlsManagerSettings
+  do  manager    <- newTlsManager
       slackToken <- Env.getEnv "SLACK_TOKEN"
       rArtifacts <- Artifacts.loadRepl
       cArtifacts <- Artifacts.loadCompile
