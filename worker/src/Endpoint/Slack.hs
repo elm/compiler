@@ -1,9 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Endpoint.Slack
-  ( Token(..)
-  , endpoint
+  ( endpoint
   )
   where
+
+
+import Control.Monad.IO.Class (liftIO)
+import Network.HTTP.Client
+import Snap.Core
+
+import qualified Cors
+
+import qualified Data.ByteString.Char8 as BSC
+import qualified Data.Map as Map
+
 
 
 -- Send invitations to the Elm Slack to whoever asks.
@@ -30,40 +40,28 @@ allowedOrigins =
 -- ENDPOINT
 
 
-newtype Token =
-  Token BS.ByteString
-
-
-endpoint :: Token -> Snap ()
-endpoint (Token token) =
+endpoint :: String -> Manager -> Snap ()
+endpoint token manager =
   Cors.allow POST allowedOrigins $
     do  req <- getRequest
-        case Map.lookup "email" (rqQueryParams req) of
+        case Map.findWithDefault [] "email" (rqQueryParams req) of
           [email] ->
-            withResponse (request email) manager handler
+            do  response <- liftIO $ httpLbs (request email) manager
+                modifyResponse $ setContentType "application/json"
+                writeLBS (responseBody response)
 
           _ ->
-          do  modifyResponse $ setResponseStatus 400 "Bad Request"
-              modifyResponse $ setContentType "text/html; charset=utf-8"
-              writeBS "expecting query parameter like ?email=you@example.com"
+            do  modifyResponse $ setResponseStatus 400 "Bad Request"
+                modifyResponse $ setContentType "text/html; charset=utf-8"
+                writeBS "expecting query parameter like ?email=you@example.com"
   where
+    slack_token =
+      BSC.pack token
+
     request email =
       urlEncodedBody
         [ ("email", email)
-        , ("token", token)
+        , ("token", slack_token)
         , ("set_active","true")
         ]
         (parseRequest_ "https://elmlang.slack.com/api/users.admin.invite")
-
-    handler response =
-      do  modifyResponse $ setContentType "application/json"
-          loop (responseBody response)
-      where
-        loop body =
-          do  chunk <- brRead body
-              if BS.null chunk
-                then return ()
-                else
-                  do  writeBS chunk
-                      loop body
-
