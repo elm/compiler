@@ -1,0 +1,9 @@
+{
+  "name": "@evancz/elm_darwin_x64",
+  "version": "0.19.1-0",
+  "description": "The macOS 64-bit binary for Elm.",
+  "repository": "https://github.com/elm/compiler",
+  "license": "BSD-3-Clause",
+  "os": [ "darwin" ],
+  "cpu": [ "x64" ]
+}

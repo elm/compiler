@@ -2,7 +2,6 @@
   "name": "elm",
   "version": "0.19.1-5",
   "description": "Installer for Elm: just downloads the binary into node_modules",
-  "preferGlobal": true,
   "license": "BSD-3-Clause",
   "repository": {
     "type": "git",
@@ -23,7 +22,7 @@
   },
   "files": [
     "install.js",
-    "download.js",
+    "binary.js",
     "bin",
     "bin/elm"
   ],
@@ -36,7 +35,11 @@
     "installer"
   ],
   "bin": { "elm": "bin/elm" },
-  "dependencies": {
-    "request": "^2.88.0"
+  "optionalDependencies": {
+    "@evancz/elm_darwin_arm64": "0.19.1-0",
+    "@evancz/elm_darwin_x64": "0.19.1-0",
+    "@evancz/elm_linux_arm64": "0.19.1-0",
+    "@evancz/elm_linux_x64": "0.19.1-0",
+    "@evancz/elm_win32_x64": "0.19.1-0"
   }
 }
