@@ -159,7 +159,7 @@ getKernel name@(Utf8.Utf8 ba#) =
 
 
 isKernel :: Name -> Bool
-isKernel = Utf8.startsWith prefix_kernel
+isKernel x = (Utf8.startsWith prefix_kernel x) || (Utf8.startsWith local_kernel x)
 
 isNumberType :: Name -> Bool
 isNumberType = Utf8.startsWith prefix_number
@@ -176,6 +176,10 @@ isCompappendType = Utf8.startsWith prefix_compappend
 {-# NOINLINE prefix_kernel #-}
 prefix_kernel :: Name
 prefix_kernel = fromChars "Elm.Kernel."
+
+{-# NOINLINE local_kernel #-}
+local_kernel :: Name
+local_kernel = fromChars "AshCoreMod."
 
 {-# NOINLINE prefix_number #-}
 prefix_number :: Name

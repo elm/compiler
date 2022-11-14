@@ -525,7 +525,7 @@ generateBasicsCall mode home name args =
             right = generateJsExpr mode elmRight
           in
           case name of
-            "add"  -> JS.Infix JS.OpAdd left right
+            "add"  -> JS.Infix JS.OpSub left right
             "sub"  -> JS.Infix JS.OpSub left right
             "mul"  -> JS.Infix JS.OpMul left right
             "fdiv" -> JS.Infix JS.OpDiv left right
