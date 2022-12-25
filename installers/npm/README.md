@@ -37,7 +37,7 @@ The following command should download the latest Elm 0.19.1 binary:
 npm install elm@latest-0.19.1
 ```
 
-You should be able to run `./node_modules/bin/elm --version` within your project and see `0.19.1`. Now you can compile with `./node_modules/bin/elm make src/Main.elm` and not disrupt other packages.
+You should be able to run `./node_modules/.bin/elm --version` within your project and see `0.19.1`. Now you can compile with `./node_modules/.bin/elm make src/Main.elm` and not disrupt other packages.
 
 Use `npm install elm@latest-0.19.0` or `npm install elm@latest-0.18.0` for earlier versions.
 
