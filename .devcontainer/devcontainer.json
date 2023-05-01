@@ -1,0 +1,43 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/base:jammy",
+
+	"hostRequirements": {
+		"cpus": 4
+	  },
+  
+	"features": {
+	  "ghcr.io/devcontainers/features/nix:1": {
+		"packages": "cachix"
+	  }
+	},
+  
+	"onCreateCommand": {
+	  "Setup direnv": "sudo apt install direnv; echo 'eval \"$(direnv hook bash)\"' >> ~/.bashrc && nix-shell -j auto --cores 0 --run 'make -s .envrc' && direnv allow"
+	},
+
+	"containerEnv": {
+	  "PROJECT_DIR": "${containerWorkspaceFolder}"
+	},
+  
+	"remoteUser": "vscode",
+  
+	"customizations": {
+	  "vscode": {
+		"settings": {
+		  "terminal.integrated.profiles.linux": {
+			"bash": {
+			  "path": "/bin/bash"
+			}
+		  },
+		  "terminal.integrated.defaultProfile.linux": "bash"
+		},
+		"extensions": [
+		  "bbenoist.nix",
+		  "haskell.haskell",
+		  "s0kil.vscode-hsx",
+		  "arrterian.nix-env-selector",
+		  "vigoo.stylish-haskell"
+		]
+	  }
+	}
+}
