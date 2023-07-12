@@ -1,6 +1,6 @@
 {
   "name": "elm",
-  "version": "0.19.1-5",
+  "version": "0.19.1-6",
   "description": "Installer for Elm: just downloads the binary into node_modules",
   "preferGlobal": true,
   "license": "BSD-3-Clause",
@@ -37,6 +37,6 @@
   ],
   "bin": { "elm": "bin/elm" },
   "dependencies": {
-    "request": "^2.88.0"
+    "axios": "^1.4.0"
   }
 }
