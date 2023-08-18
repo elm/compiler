@@ -35,8 +35,11 @@
     "install",
     "installer"
   ],
-  "bin": { "elm": "bin/elm" },
+  "bin": {
+    "elm": "bin/elm"
+  },
   "dependencies": {
-    "follow-redirects": "^1.15.2"
+    "follow-redirects": "^1.15.2",
+    "proxy-agent": "^6.3.0"
   }
 }

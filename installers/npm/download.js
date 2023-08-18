@@ -1,9 +1,9 @@
 var fs = require('fs');
-var package = require('./package.json');
 var path = require('path');
-var { https } = require('follow-redirects');
 var zlib = require('zlib');
-
+var { https } = require('follow-redirects');
+var { ProxyAgent } = require('proxy-agent');
+var package = require('./package.json');
 
 
 // MAIN
@@ -52,8 +52,16 @@ module.exports = function(callback)
 		exitFailure(url, 'I had some trouble writing file to disk. It is saying:\n\n' + error);
 	});
 
+	// handle *_proxy
+	var agent = new ProxyAgent();
+
 	// put it all together
-	https.get(url, (res) => { res.pipe(gunzip).pipe(write); }).on('error', reportDownloadFailure);
+	https.get(url, { agent },  (res) => {
+		if (res.statusCode >= 400) {
+			reportDownloadFailure(res.statusMessage);
+		} 
+		res.pipe(gunzip).pipe(write);
+	}).on('error', reportDownloadFailure);
 }
 
 
