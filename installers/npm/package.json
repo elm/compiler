@@ -19,7 +19,7 @@
     "node": ">=7.0.0"
   },
   "scripts": {
-    "install": "node install.js"
+    "postinstall": "node install.js"
   },
   "files": [
     "install.js",
@@ -40,6 +40,6 @@
   },
   "dependencies": {
     "follow-redirects": "^1.15.2",
-    "proxy-agent": "^6.3.0"
+    "proxy-from-env": "^1.1.0"
   }
 }

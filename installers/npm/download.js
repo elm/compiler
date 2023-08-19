@@ -2,7 +2,7 @@ var fs = require('fs');
 var path = require('path');
 var zlib = require('zlib');
 var { https } = require('follow-redirects');
-var { ProxyAgent } = require('proxy-agent');
+var { getProxyForUrl } = require('proxy-from-env');
 var package = require('./package.json');
 
 
@@ -53,10 +53,10 @@ module.exports = function(callback)
 	});
 
 	// handle *_proxy
-	var agent = new ProxyAgent();
+	var options = getHttpOptions(url);
 
 	// put it all together
-	https.get(url, { agent },  (res) => {
+	https.get(options, (res) => {
 		if (res.statusCode >= 400) {
 			reportDownloadFailure(res.statusMessage);
 		} 
@@ -64,6 +64,27 @@ module.exports = function(callback)
 	}).on('error', reportDownloadFailure);
 }
 
+
+// HANDLE HTTPS_PROXY, NO_PROXY
+function getHttpOptions(url) {
+	var proxy_url = getProxyForUrl(url);
+	if (!proxy_url) {
+		return url;
+	}
+	
+	var parsed_url = new URL(url);
+	var parsed_proxy_url = new URL(proxy_url);
+
+	return {
+		protocol: parsed_proxy_url.protocol,
+		hostname: parsed_proxy_url.hostname,
+		port: parsed_proxy_url.port,
+		path: parsed_url.href,
+		headers: {
+			Host: parsed_url.host,
+		},
+	};
+}
 
 
 // VERIFY PLATFORM
