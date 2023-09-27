@@ -19,7 +19,7 @@ module.exports = function(callback)
 
 	var platform = {
 		darwin_x64: 'mac-64-bit',
-		darwin_arm64: 'mac-64-bit',
+		darwin_arm64: 'mac-64-bit-ARM',
 		win32_x64: 'windows-64-bit',
 		linux_x64: 'linux-64-bit'
 	}[process.platform + '_' + process.arch];
