@@ -1,7 +1,7 @@
 var fs = require('fs');
 var package = require('./package.json');
 var path = require('path');
-var request = require('request');
+var request = require('axios');
 var zlib = require('zlib');
 
 
@@ -53,7 +53,7 @@ module.exports = function(callback)
 	});
 
 	// put it all together
-	request(url).on('error', reportDownloadFailure).pipe(gunzip).pipe(write);
+	request.get(url).then(gunzip).then(write).catch(reportDownloadFailure);
 }
 
 
