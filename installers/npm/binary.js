@@ -14,7 +14,7 @@ module.exports = function()
 {
 	// figure out package of binary
 	var version = package.version.replace(/^(\d+\.\d+\.\d+).*$/, '$1'); // turn '1.2.3-alpha' into '1.2.3'
-	var subPackageName = '@evancz/elm_' + process.platform + '_' + process.arch;
+	var subPackageName = '@elm_binaries/' + process.platform + '_' + process.arch;
 
 	verifyPlatform(version, subPackageName);
 

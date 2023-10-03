@@ -5,7 +5,7 @@ Here's how to update the `npm` installer.
 ## 0. Overview
 
 - There is one _main npm package_ called `elm`.
-- Then there is one _binary npm package_ for each platform, called for example `@evancz/elm_darwin_arm64`.
+- Then there is one _binary npm package_ for each platform, called for example `@elm_binaries/darwin_arm64`.
 
 The binary packages declare which OS and CPU they are compatible with. For example:
 
@@ -17,9 +17,9 @@ The binary packages declare which OS and CPU they are compatible with. For examp
 The main npm package depend on the binary packages via [optional dependencies](https://docs.npmjs.com/cli/v9/configuring-npm/package-json#optionaldependencies):
 
 ```json
-    "@evancz/elm_darwin_arm64": "0.19.1-0",
-    "@evancz/elm_darwin_x64": "0.19.1-0",
-    "@evancz/elm_linux_arm64": "0.19.1-0",
+    "@elm_binaries/darwin_arm64": "0.19.1-0",
+    "@elm_binaries/darwin_x64": "0.19.1-0",
+    "@elm_binaries/linux_arm64": "0.19.1-0",
     ...
 ```
 
@@ -60,7 +60,7 @@ Repeat this for all the packages mentioned in the previous section. This uses `p
 2. Double-check that you put the right binary in the right package: `file elm`
 3. Double-check that the file is executable: `ls -l elm`
 4. In `package.json` of the binary package, bump the version for example to `"0.19.1-2"`.
-5. In `package.json` of the main npm package, update `"optionalDependencies"` to point to the bumped version. For example: `"@evancz/elm_darwin_arm64": "0.19.1-2"`
+5. In `package.json` of the main npm package, update `"optionalDependencies"` to point to the bumped version. For example: `"@elm_binaries/darwin_arm64": "0.19.1-2"`
 6. Publish the package: `npm publish --access=public`
 
    `--access=public` is needed because scoped packages are private by default.
