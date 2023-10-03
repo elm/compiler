@@ -115,12 +115,8 @@ function exitFailure(version, message)
 function missingSubPackageHelp(subPackageName)
 {
 	return (
-		'I support your platform, but I could not find the binary package (' + subPackageName + ') for it!\n\n'
-		+ 'This can happen if you use the "--omit=optional" (or "--no-optional") npm flag.\n'
-		+ 'The "optionalDependencies" package.json feature is used by Elm to install the correct\n'
-		+ 'binary executable for your current platform. Remove that flag to use Elm.\n\n'
-		+ 'This can also happen if the "node_modules" folder was copied between two operating systems\n'
-		+ 'that need different binaries - including "virtual" operating systems like Docker and WSL.\n'
-		+ 'If so, try installing with npm rather than copying "node_modules".'
+		'I tried to get `elm` from ' + subPackageName + ', but something went wrong.\n'
+		+ 'This can happen if you use the "--omit=optional" or "--no-optional" npm flag, or\n'
+		+ 'if your "node_modules" folder was copied over from a different computer (or VM).\n'
 	);
 }
