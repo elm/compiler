@@ -1,7 +1,7 @@
 {
-  "name": "@evancz/elm_darwin_arm64",
+  "name": "@elm_binaries/darwin_arm64",
   "version": "0.19.1-0",
-  "description": "The macOS ARM 64-bit binary for Elm.",
+  "description": "Download the Elm binary for macOS (arm64)",
   "repository": "https://github.com/elm/compiler",
   "license": "BSD-3-Clause",
   "os": [ "darwin" ],
