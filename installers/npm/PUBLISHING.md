@@ -43,20 +43,20 @@ Create each of these by running the `elm` executable for each platform through `
 
 Put the above files at:
 
-1. `packages/elm_darwin_arm64/elm`
-2. `packages/elm_darwin_x64/elm`
-3. `packages/elm_linux_x64/elm`
-4. `packages/elm_linux_arm64/elm`
-5. `packages/elm_win32_x64/elm.exe` (Note the `.exe` file extension!)
+1. `packages/darwin_arm64/elm`
+2. `packages/darwin_x64/elm`
+3. `packages/linux_x64/elm`
+4. `packages/linux_arm64/elm`
+5. `packages/win32_x64/elm.exe` (Note the `.exe` file extension!)
 
 (They are ignored by git.)
 
 
 ## 3. Publish the binary packages
 
-Repeat this for all the packages mentioned in the previous section. This uses `packages/elm_darwin_arm64` as an example.
+Repeat this for all the packages mentioned in the previous section. This uses `packages/darwin_arm64` as an example.
 
-1. Go to the folder: `cd packages/elm_darwin_arm64`
+1. Go to the folder: `cd packages/darwin_arm64`
 2. Double-check that you put the right binary in the right package: `file elm`
 3. Double-check that the file is executable: `ls -l elm`
 4. In `package.json` of the binary package, bump the version for example to `"0.19.1-2"`.
