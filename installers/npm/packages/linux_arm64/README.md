@@ -1,5 +1,5 @@
 # Elm Binary for Linux (arm64)
 
-Some people install [Elm](https://elm-lang.org/) with `npm`. This package helps make [`npm install elm`](https://www.npmjs.com/package/elm) work smoothly.
+Some people install [Elm](https://elm-lang.org/) with `npm`. This package helps make [`npm install elm`](https://www.npmjs.com/package/elm) a bit faster and a bit more reliable. It is not intended for direct use!
 
-The official binaries are published via [GitHub releases](https://github.com/elm/compiler/releases), but this package allows the typical `npm install elm` command to download the relevant binary directly from npm. This makes installation a bit faster and a bit more reliable.
+If you do not need to use `npm`, the official binaries are published via [GitHub releases](https://github.com/elm/compiler/releases) with installation instructions.
