@@ -42,6 +42,7 @@ data Types =
 data Type
   = Int
   | Float
+  | Bool
   | V2
   | V3
   | V4

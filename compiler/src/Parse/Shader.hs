@@ -174,6 +174,7 @@ extractInputs decl =
                 GLS.Mat4 -> [(qual, Shader.M4, name)]
                 GLS.Int -> [(qual, Shader.Int, name)]
                 GLS.Float -> [(qual, Shader.Float, name)]
+                GLS.Bool -> [(qual, Shader.Bool, name)]
                 GLS.Sampler2D -> [(qual, Shader.Texture, name)]
                 _ -> []
     _ -> []
