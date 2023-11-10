@@ -23,6 +23,17 @@ Category: Compiler, Language
 Cabal-version: >=1.9
 Build-type: Simple
 
+Data-files:
+    reactor/elm.json
+    reactor/check.py
+    reactor/src/*.elm
+    reactor/src/Index/*.elm
+    reactor/src/mock.txt
+    reactor/assets/favicon.ico
+    reactor/assets/styles.css
+    reactor/assets/source-sans-pro.ttf
+    reactor/assets/source-code-pro.ttf
+
 source-repository head
     type:     git
     location: git://github.com/elm/compiler.git
