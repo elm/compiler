@@ -186,6 +186,11 @@ singleString pos end row col initialPos revChunks =
         singleString newPos end row (col + 1) newPos $
           addEscape singleQuote initialPos pos revChunks
 
+      else if word == 0x2F {- / -} then
+        let !newPos = plusPtr pos 1 in
+        singleString newPos end row (col + 1) newPos $
+          addEscape forwardSlash initialPos pos revChunks
+
       else if word == 0x5C {- \ -} then
         case eatEscape (plusPtr pos 1) end row col of
           EscapeNormal ->
@@ -226,6 +231,11 @@ multiString pos end row col initialPos sr sc revChunks =
       let !pos1 = plusPtr pos 1 in
       multiString pos1 end row (col + 1) pos1 sr sc $
         addEscape singleQuote initialPos pos revChunks
+
+    else if word == 0x2F {- / -} then
+      let !pos1 = plusPtr pos 1 in
+      multiString pos1 end row (col + 1) pos1 sr sc $
+        addEscape forwardSlash initialPos pos revChunks
 
     else if word == 0x0A {- \n -} then
       let !pos1 = plusPtr pos 1 in
@@ -323,6 +333,12 @@ singleQuote =
 doubleQuote :: ES.Chunk
 doubleQuote =
   ES.Escape 0x22 {-"-}
+
+
+{-# NOINLINE forwardSlash #-}
+forwardSlash :: ES.Chunk
+forwardSlash =
+  ES.Escape 0x2F {-/-}
 
 
 {-# NOINLINE newline #-}
