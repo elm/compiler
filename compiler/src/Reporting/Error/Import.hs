@@ -66,7 +66,8 @@ toReport source (Error region name unimportedModules problem) =
                   Nothing ->
                     D.toSimpleHint $
                       "If it is not a typo, check the \"dependencies\" and \"source-directories\"\
-                      \ of your elm.json to make sure all the packages you need are listed there!"
+                      \ of your elm.json to make sure all the packages you need are listed there!\
+                      \ (e.g. You can install packages like this: `elm install elm/http`)"
 
                   Just dependency ->
                     D.toFancyHint
