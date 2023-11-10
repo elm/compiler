@@ -15,8 +15,8 @@
 # Delete all unused docker images:
 # $ docker system prune -a
 
-# Use Alpine 3.11 with GHC 8.6.5
-FROM alpine:3.11
+# Use Alpine 3.12 with GHC 8.8.3
+FROM alpine:3.12
 
 # Install packages required to build elm
 RUN apk add --no-cache ghc cabal wget musl-dev zlib-dev zlib-static ncurses-dev ncurses-static
