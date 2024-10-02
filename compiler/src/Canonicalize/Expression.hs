@@ -14,7 +14,6 @@ import Control.Monad (foldM)
 import qualified Data.Graph as Graph
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
-import qualified Data.Map.Strict.Internal as I
 import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
@@ -696,15 +695,15 @@ findVar region (Env.Env localHome vs _ _ _ qvs _ _) name =
         Env.TopLevel _ ->
           logVar name (Can.VarTopLevel localHome name)
 
-        Env.Foreign (I.Bin 1 home annotation _ _) ->
+        Env.Foreign home annotation ->
           Result.ok $
             if home == ModuleName.debug then
               Can.VarDebug localHome name annotation
             else
               Can.VarForeign home name annotation
 
-        Env.Foreign homes ->
-          Result.throw (Error.AmbiguousVar region Nothing name (Map.keys homes))
+        Env.Foreigns h hs ->
+          Result.throw (Error.AmbiguousVar region Nothing name h hs)
 
     Nothing ->
       Result.throw (Error.NotFoundVar region Nothing name (toPossibleNames vs qvs))
@@ -715,15 +714,15 @@ findVarQual region (Env.Env localHome vs _ _ _ qvs _ _) prefix name =
   case Map.lookup prefix qvs of
     Just qualified ->
       case Map.lookup name qualified of
-        Just (I.Bin 1 home annotation _ _) ->
+        Just (Env.Specific home annotation) ->
           Result.ok $
             if home == ModuleName.debug then
               Can.VarDebug localHome name annotation
             else
               Can.VarForeign home name annotation
 
-        Just homes ->
-          Result.throw (Error.AmbiguousVar region (Just prefix) name (Map.keys homes))
+        Just (Env.Ambiguous h hs) ->
+          Result.throw (Error.AmbiguousVar region (Just prefix) name h hs)
 
         Nothing ->
           Result.throw (Error.NotFoundVar region (Just prefix) name (toPossibleNames vs qvs))

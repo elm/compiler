@@ -7,7 +7,7 @@ This page aims to catalog these scenarios and offer alternative paths that can g
 
 ## Sorting Records
 
-Say we want a `view` function that can show a list of students sorted by different characterists.
+Say we want a `view` function that can show a list of students sorted by different characteristics.
 
 We could create something like this:
 
@@ -23,7 +23,7 @@ type alias Student =
 type Order = Name | Age | GPA
 
 viewStudents : Order -> List Student -> Html msg
-viewStudents order studentns =
+viewStudents order students =
   let
     orderlyStudents =
       case order of
@@ -54,7 +54,7 @@ type alias Student =
   }
 
 viewStudents : Order -> List Student -> Html msg
-viewStudents order studentns =
+viewStudents order students =
   let
     orderlyStudents =
       case order of

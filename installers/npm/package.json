@@ -1,15 +1,11 @@
 {
-  "name": "@carwow/elm",
-  "version": "0.19.1",
+  "name": "elm",
+  "version": "0.19.1-6",
   "description": "Installer for Elm: just downloads the binary into node_modules",
-  "preferGlobal": true,
   "license": "BSD-3-Clause",
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
-  },
   "repository": {
     "type": "git",
-    "url": "ssh://git@github.com/carwow/elm-compiler"
+    "url": "https://github.com/elm/compiler.git"
   },
   "homepage": "https://github.com/elm/compiler/tree/master/installers/npm",
   "bugs": "https://github.com/elm/compiler/issues",
@@ -26,7 +22,7 @@
   },
   "files": [
     "install.js",
-    "download.js",
+    "binary.js",
     "bin",
     "bin/elm"
   ],
@@ -38,8 +34,11 @@
     "install",
     "installer"
   ],
-  "bin": "bin/elm",
-  "dependencies": {
-    "request": "^2.88.0"
+  "bin": { "elm": "bin/elm" },
+  "optionalDependencies": {
+    "@elm_binaries/darwin_arm64": "0.19.1-0",
+    "@elm_binaries/darwin_x64": "0.19.1-0",
+    "@elm_binaries/linux_x64": "0.19.1-0",
+    "@elm_binaries/win32_x64": "0.19.1-0"
   }
 }

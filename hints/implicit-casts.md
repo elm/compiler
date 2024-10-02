@@ -16,9 +16,6 @@ Languages that will add in implicit casts for addition include:
 
 These languages generally agree that an `Int` may be implicitly cast to a `Float` when necessary. So everyone is doing it, why not Elm?!
 
-> **Note:** Ruby does not follow the trend. They implicitly cast a `Float` to an `Int`, truncating all the decimal points!
-
-
 ## Type Inference + Implicit Casts
 
 Elm comes from the ML-family of languages. Languages in the ML-family that **never** do implicit casts include:
@@ -41,7 +38,7 @@ So for any ML-family language designed before Scala, it is safe to assume that i
 
   2. Based on experience reports from Scala users, it seemed like the convenience was not worth the hidden cost. Yes, you can convert `n` in `(n + 1.5)` and everything is nice, but when you are in larger programs that are sparsely annotated, it can be quite difficult to figure out what is going on.
 
-This user data may be confounded by the fact that Scala allows quite extensive conversions, not just from `Int` to `Float`, but I think it is worth taking seriously nonetheless. So it is _possible_, but it is has tradeoffs.
+This user data may be confounded by the fact that Scala allows quite extensive conversions, not just from `Int` to `Float`, but I think it is worth taking seriously nonetheless. So it is _possible_, but it has tradeoffs.
 
 
 ## Conclusion

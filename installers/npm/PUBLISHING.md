@@ -1,171 +1,132 @@
-# Publishing a new release
+# Publishing
 
-A new version of Elm came out. Huzzah! Here's how to update the `npm` installer.
+Here's how to update the `npm` installer.
 
-## 1. Create tarballs of binaries
+## 0. Overview
 
-You can find a list of what binaries we'll need to tar up in `index.js`.
+- There is one _main npm package_ called `elm`.
+- Then there is one _binary npm package_ for each platform, called for example `@elm_binaries/darwin_arm64`.
 
-For example:
+The binary packages declare which OS and CPU they are compatible with. For example:
 
-```javascript
-var root =
-  "https://github.com/elm/compiler/releases/download/" +
-  binVersion +
-  "/binaries-for-";
-
-module.exports = binwrap({
-  binaries: ["elm"],
-  urls: {
-    "darwin-x64": root + "mac.tar.gz",
-    "win32-x64": root + "windows.tar.gz",
-    "win32-ia32": root + "windows.tar.gz",
-    "linux-x64": root + "linux.tar.gz"
-  }
-});
+```json
+  "os": [ "darwin" ],
+  "cpu": [ "arm64" ]
 ```
 
-If this is the end of your `index.js`, you'll need to create these files:
+The main npm package depend on the binary packages via [optional dependencies](https://docs.npmjs.com/cli/v9/configuring-npm/package-json#optionaldependencies):
 
-1. `binaries-for-mac.tar.gz`
-2. `binaries-for-windows.tar.gz`
-3. `binaries-for-linux.tar.gz`
-
-Each of these tarballs should have **only the Elm binary** inside them - no
-directories!
-
-So create them by making a directory, putting all the binaries in it, `cd`-ing
-into that directory, and then running something like this:
-
-```shell
-$ tar cvzf binaries-for-linux.tar.gz elm
+```json
+    "@elm_binaries/darwin_arm64": "0.19.1-0",
+    "@elm_binaries/darwin_x64": "0.19.1-0",
+    "@elm_binaries/linux_arm64": "0.19.1-0",
+    ...
 ```
 
-Make sure each tarball contains all the binaries listed in that `binaries:` list
-in `index.js`. (The Windows ones should have `.exe` at the end; `binwrap`
-expects that they will, for Windows only.)
+When installing, `npm` fetches the metadata for all the optional dependencies and only installs the one with a matching OS and CPU. If none of them match, `npm` still considers the install successful. However, the main npm package contains an install script that gives a helpful error.
 
-## 2. Update the `bin/` binary wrappers
 
-Inside the npm installer's `bin/` directory, there should be a file for each of
-the binaries that will be included in this release.
+## 1. GitHub Release
 
-Each of these must be executable! If you're not sure whether they are,
-run `chmod +x` on them just to be sure.
+Create a [GitHub Release](https://github.com/elm/compiler/releases) with the following files:
 
-Their paths must also must all be listed in `package.json` in two places:
+1. `binary-for-mac-64-bit.gz`
+2. `binary-for-mac-arm-64-bit.gz`
+3. `binary-for-linux-64-bit.gz`
+4. `binary-for-linux-arm-64-bit.gz`
+5. `binary-for-windows-64-bit.gz`
 
-1. The `"files":` field
-2. The `"bin":` field
+Create each of these by running the `elm` executable for each platform through `gzip elm`.
 
-If the executables are the same as they were for the last release, great!
-You can proceed to the next step. If any binaries were removed, make sure to
-remove them from these lists!
 
-## 3. Update `package.json` for a beta release
+## 2. Put the binaries in place
 
-In `package.json`, bump the version to the next applicable release, and add
-a `"-beta"` suffix to it.
+Put the above files at:
 
-For example, if it was on `"0.18.0"` you might bump it to `"0.19.0-beta"`.
-The version number should match the release of Elm, such that if people do
-`npm install elm@0.19.0@beta` they get what they would expect.
+1. `packages/darwin_arm64/elm`
+2. `packages/darwin_x64/elm`
+3. `packages/linux_x64/elm`
+4. `packages/linux_arm64/elm`
+5. `packages/win32_x64/elm.exe` (Note the `.exe` file extension!)
 
-## 4. Tag the beta release
+(They are ignored by git.)
 
-Commit this change and tag it with the name of the release **without** the
-`-beta` suffix. (We will overwrite this tag later.)
 
-For example:
+## 3. Publish the binary packages
 
-```shell
-$ git tag 0.19.0
-$ git push origin 0.19.0
+Repeat this for all the packages mentioned in the previous section. This uses `packages/darwin_arm64` as an example.
+
+1. Go to the folder: `cd packages/darwin_arm64`
+2. Double-check that you put the right binary in the right package: `file elm`
+3. Double-check that the file is executable: `ls -l elm`
+4. In `package.json` of the binary package, bump the version for example to `"0.19.1-2"`.
+5. In `package.json` of the main npm package, update `"optionalDependencies"` to point to the bumped version. For example: `"@elm_binaries/darwin_arm64": "0.19.1-2"`
+6. Publish the package: `npm publish --access=public`
+
+   `--access=public` is needed because scoped packages are private by default.
+
+<details>
+<summary>Notes about the versions of the binary packages</summary>
+
+- End users never have to think about them. They only need to think about the version of the main npm package.
+
+- The binary packages can have different versions. One can have `"0.19.1-0"` while another is at `"0.19.1-1"`. This is useful if you mess up publishing one platform: Then you can bump just that one and re-release, instead of having to re-release _all_ platforms.
+
+- The version of the main npm package is not related to the versions of the binary packages – they’re all independent. So the main npm package can be at `"0.19.1-6"` while the binary packages have suffixes like `-0`, `-1` and `-9`. (They all share the `0.19.1` prefix though to make things more understandable!)
+
+- The main npm package pins the versions of the binary packages _exactly_ – no version ranges.
+  - This means that installing `elm@0.19.1-6` installs the exact same bytes in two years as today.
+  - The `package.json` of each binary package says which OS and CPU it works for. `binary.js` in the main npm package has code that deals with OS and CPU too, so the main npm package needs to install binary packages with known OS and CPU declarations.
+
+- There is no need to use `beta` suffixes for the binary packages. Just bump the number suffix and point to it in a beta release of the main npm package. As mentioned above:
+  - Already published versions of the main npm package depend on exact versions of the binary packages, so they won’t accidentally start downloading beta versions.
+  - End users only see the version of the main npm package.
+
+</details>
+
+
+## 4. Try a beta release
+
+In `package.json`, bump the version to `"0.19.2-beta"`.
+
+Double-check that `"optionalDependencies"` is in sync with the binary packages.
+
+```bash
+npm publish --tag beta
 ```
 
-Now this tag should exist on GitHub, allowing us to upload binaries to it.
+To test that it works, run these commands:
 
-## 5. Upload binaries
-
-Visit the [Create a New Release](https://github.com/elm-lang/elm-platform/releases/new)
-page and use the `Tag version` dropdown to select the tag you just pushed. Give
-it a title like `0.19.0`. Don't mention the `-beta` in it. The "beta" concept
-is for `npm` only.
-
-Upload the tarballs you created in step 1.
-
-## 6. Publish beta release
-
-Run this to publish the beta release. The `--tag beta` is **crucial** here.
-Without it, `npm` will by default publish a new top-level release, which would
-mean that what you just published would become what everyone gets when they
-`npm install -g elm` without any additional qualifiers.
-
-```shell
-$ npm publish --tag beta
+```bash
+npm dist-tags ls elm
+npm install elm@beta --ignore-scripts
 ```
 
-Afterwards you should be able to do `npm info elm | less` and see something
-like this in the JSON:
+The `latest` tag should not be changed, and there should be an additional `beta` tag.
 
-```
-'dist-tags': { latest: '0.18.0', beta: '0.19.0-beta' }
-```
+Try this on Windows, Linux, and Mac.
 
-If you messed this up, and the `latest` tag now points to the beta you just
-published, don't panic - it's fixable! `dist-tags` can always be modified after
-the fact. Read up on `npm` [dist-tags](https://docs.npmjs.com/cli/dist-tag)
-to learn how to fix things.
 
-## 7. Verify beta installer
+## 5. Publish final release
 
-Make an empty directory and run `npm init` inside it.
+Remove the `-beta` suffix from the version in `package.json`. Then run:
 
-Then run this:
-
-```shell
-$ npm install elm@beta --ignore-scripts
+```bash
+npm publish
 ```
 
-This should succeed with an exit code of `0`.
-If it did, look in `node_modules/.bin/` for the binaries you expect.
-They should be present, and they should also work as expected when you run them.
-Because you installed them with `--ignore-scripts`, the first thing they should
-do is to download themselves and then execute whatever command you requested
-(e.g. `node_modules/.bin/elm make Main.elm`). If you run the same command a
-second time, it should run faster because it doesn't have to download the binary
-first.
 
-Now try it again with `--ignore-scripts` turned off:
+## 6. Tag the `latest-0.19.1` version
 
-```shell
-$ rm -r node_modules
-$ npm install elm@beta --ignore-scripts=false
+Many compiler releases have needed multiple `npm` publications. Maybe something does not work on Windows or some dependency becomes insecure. Normal `npm` problems.
+
+The convention for each Elm release is to create a tag the latest one.
+
+```bash
+npm dist-tag add elm@0.19.1-3 latest-0.19.1
 ```
 
-This time it should download the binaries during the installation phase. Once
-again you should be able to run the binaries from `node_modules/.bin/`, and
-this time they should be fast from the first run because they're already
-downloaded.
+That way people who want a specific version can point to `latest-0.19.1` or `latest-0.18.0` instead of knowing the particular names of all the various publications.
 
-## 8. Publish for real
+You can read more about dist-tags [here](https://docs.npmjs.com/cli/dist-tag).
 
-It's a good idea to ask others to try out the beta installer before doing this!
-Especially on multiple operating systems.
-
-To publish the real version:
-
-1. Edit `package.json` to remove the `-beta` suffix from the version.
-2. Commit that change and push it.
-3. Use `git tag --force` to overwrite the previous tag (e.g. `0.19.0` - whatever you used before).
-4. Force push the tag, e.g. `git push origin 0.19.0 --force-with-lease`.
-5. `npm publish`
-
-You're done! Now whenever anyone does `npm install -g elm` they'll get the
-version you just uploaded.
-
-The reason we only used the `-beta` suffix for `npm` was so that when we ran
-tests on the beta version, it was all against the same (non-beta) URLs we'd end
-up using for the real version. This means there's no opportunity for us to
-introduce some sort of mismatch between the beta that we verified and the real
-version.

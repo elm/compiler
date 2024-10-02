@@ -14,8 +14,10 @@ module Reporting.Error.Canonicalize
 
 
 import qualified Data.Char as Char
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Name as Name
+import qualified Data.OneOrMore as OneOrMore
 import qualified Data.Set as Set
 
 import qualified AST.Canonical as Can
@@ -37,10 +39,10 @@ import qualified Reporting.Suggest as Suggest
 
 data Error
   = AnnotationTooShort A.Region Name.Name Index.ZeroBased Int
-  | AmbiguousVar A.Region (Maybe Name.Name) Name.Name [ModuleName.Canonical]
-  | AmbiguousType A.Region (Maybe Name.Name) Name.Name [ModuleName.Canonical]
-  | AmbiguousVariant A.Region (Maybe Name.Name) Name.Name [ModuleName.Canonical]
-  | AmbiguousBinop A.Region Name.Name [ModuleName.Canonical]
+  | AmbiguousVar A.Region (Maybe Name.Name) Name.Name ModuleName.Canonical (OneOrMore.OneOrMore ModuleName.Canonical)
+  | AmbiguousType A.Region (Maybe Name.Name) Name.Name ModuleName.Canonical (OneOrMore.OneOrMore ModuleName.Canonical)
+  | AmbiguousVariant A.Region (Maybe Name.Name) Name.Name ModuleName.Canonical (OneOrMore.OneOrMore ModuleName.Canonical)
+  | AmbiguousBinop A.Region Name.Name ModuleName.Canonical (OneOrMore.OneOrMore ModuleName.Canonical)
   | BadArity A.Region BadArityContext Name.Name Int Int
   | Binop A.Region Name.Name Name.Name
   | DuplicateDecl Name.Name A.Region A.Region
@@ -164,17 +166,17 @@ toReport source err =
               <> " be deleted? Maybe some parentheses are missing?"
           )
 
-    AmbiguousVar region maybePrefix name possibleHomes ->
-      ambiguousName source region maybePrefix name possibleHomes "variable"
+    AmbiguousVar region maybePrefix name h hs ->
+      ambiguousName source region maybePrefix name h hs "variable"
 
-    AmbiguousType region maybePrefix name possibleHomes ->
-      ambiguousName source region maybePrefix name possibleHomes "type"
+    AmbiguousType region maybePrefix name h hs ->
+      ambiguousName source region maybePrefix name h hs "type"
 
-    AmbiguousVariant region maybePrefix name possibleHomes ->
-      ambiguousName source region maybePrefix name possibleHomes "variant"
+    AmbiguousVariant region maybePrefix name h hs ->
+      ambiguousName source region maybePrefix name h hs "variant"
 
-    AmbiguousBinop region name possibleHomes ->
-      ambiguousName source region Nothing name possibleHomes "operator"
+    AmbiguousBinop region name h hs ->
+      ambiguousName source region Nothing name h hs "operator"
 
     BadArity region badArityContext name expected actual ->
       let
@@ -677,7 +679,7 @@ toReport source err =
                   "The `" <> Name.toChars name <> "` value is defined directly in terms of itself, causing an infinite loop."
               ,
                 D.stack
-                  [ makeTheory "Are you are trying to mutate a variable?" $
+                  [ makeTheory "Are you trying to mutate a variable?" $
                       "Elm does not have mutation, so when I see " ++ Name.toChars name
                       ++ " defined in terms of " ++ Name.toChars name
                       ++ ", I treat it as a recursive definition. Try giving the new value a new name!"
@@ -723,7 +725,7 @@ toReport source err =
                     "The `" <> Name.toChars name <> "` value is defined directly in terms of itself, causing an infinite loop."
                 ,
                   D.stack
-                    [ makeTheory "Are you are trying to mutate a variable?" $
+                    [ makeTheory "Are you trying to mutate a variable?" $
                         "Elm does not have mutation, so when I see " ++ Name.toChars name
                         ++ " defined in terms of " ++ Name.toChars name
                         ++ ", I treat it as a recursive definition. Try giving the new value a new name!"
@@ -974,8 +976,11 @@ nameClash source r1 r2 messageThatEndsWithPunctuation =
 -- AMBIGUOUS NAME
 
 
-ambiguousName :: Code.Source -> A.Region -> Maybe Name.Name -> Name.Name -> [ModuleName.Canonical] -> String -> Report.Report
-ambiguousName source region maybePrefix name possibleHomes thing =
+ambiguousName :: Code.Source -> A.Region -> Maybe Name.Name -> Name.Name -> ModuleName.Canonical -> OneOrMore.OneOrMore ModuleName.Canonical -> String -> Report.Report
+ambiguousName source region maybePrefix name h hs thing =
+  let
+    possibleHomes = List.sort (h : OneOrMore.destruct (:) hs)
+  in
   Report.Report "AMBIGUOUS NAME" region [] $
     Code.toSnippet source region Nothing $
       case maybePrefix of

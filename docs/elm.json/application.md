@@ -8,7 +8,7 @@ This is a decent baseline for pretty much any applications made with Elm. You wi
     "source-directories": [
         "src"
     ],
-    "elm-version": "0.19.0",
+    "elm-version": "0.19.1",
     "dependencies": {
         "direct": {
             "elm/browser": "1.0.0",
@@ -48,7 +48,7 @@ A list of directories where Elm code lives. Most projects just use `"src"` for e
 
 ## `"elm-version"`
 
-The exact version of Elm this builds with. Should be `"0.19.0"` for most people!
+The exact version of Elm this builds with. Should be `"0.19.1"` for most people!
 
 <br>
 

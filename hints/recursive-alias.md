@@ -39,7 +39,7 @@ It is much easier to write down `Person` in a type, and then it will just expand
 
 ## Recursive type aliases?
 
-Okay, so lets say you have some type that may contain itself. In Elm, a common example of this is a comment that might have subcomments:
+Okay, so let's say you have some type that may contain itself. In Elm, a common example of this is a comment that might have subcomments:
 
 ```elm
 type alias Comment =
@@ -102,7 +102,7 @@ type Comment =
       }
 ```
 
-Now lets say you want to register an upvote on a comment:
+Now let's say you want to register an upvote on a comment:
 
 ```elm
 upvote : Comment -> Comment

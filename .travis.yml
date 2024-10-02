@@ -1,0 +1,28 @@
+language: minimal
+services: docker
+
+env:
+  global:
+    - LINUX_ARCHIVE=binary-for-linux-64-bit.gz
+
+before_install:
+  - docker build -t elm -f installers/linux/Dockerfile .
+  - docker cp $(docker create elm):/usr/local/bin/elm .
+  - gzip -9 -c elm > $LINUX_ARCHIVE
+
+deploy:
+  provider: releases
+  api_key:
+    secure: Yz2Lo4u9rZQ7Ee7ohAsrZpkqsYDUerCSMdSQIH8ryrf7phHhiloPEkTKsM+NupHqU/LEAVsunxbau4QrCEjA2vPavAPVk8cKomRUWK/YjbXHKa24hPkal2c+A2bnMQ6w3qYk/PjL9rW+Goq++/SNLcYZwHBV0Chl2blivMwWCSA=
+  file: $LINUX_ARCHIVE
+  skip_cleanup: true
+  on:
+    branch: master
+    tags: true
+
+notifications:
+  email:
+    recipients:
+      - rlefevre@dmy.fr
+    on_success: change
+    on_failure: change

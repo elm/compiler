@@ -1282,8 +1282,7 @@ toDetailsReport details =
         "The dependencies in your elm.json are not compatible."
         [ D.fillSep
             ["Did","you","change","them","by","hand?","Try","to","change","it","back!"
-            ,"It","is","much","more","reliable","to","add","dependencies","with",D.green "elm install"
-            ,"or","the","dependency","management","tool","in",D.green "elm reactor" <> "."
+            ,"It","is","much","more","reliable","to","add","dependencies","with",D.green "elm install" <> "."
             ]
         , D.reflow $
             "Please ask for help on the community forums if you try those paths and are still\
@@ -1300,8 +1299,7 @@ toDetailsReport details =
             \ get access to the registry!"
         , D.toFancyNote
             ["If","you","changed","your","dependencies","by","hand,","try","to","change","them","back!"
-            ,"It","is","much","more","reliable","to","add","dependencies","with",D.green "elm install"
-            ,"or","the","dependency","management","tool","in",D.green "elm reactor" <> "."
+            ,"It","is","much","more","reliable","to","add","dependencies","with",D.green "elm install" <> "."
             ]
         ]
 
@@ -1337,8 +1335,7 @@ toDetailsReport details =
         \ party tool) leaving them in an invalid state."
         [ D.fillSep
             ["Try","to","change","them","back","to","what","they","were","before!"
-            ,"It","is","much","more","reliable","to","add","dependencies","with",D.green "elm install"
-            ,"or","the","dependency","management","tool","in",D.green "elm reactor" <> "."
+            ,"It","is","much","more","reliable","to","add","dependencies","with",D.green "elm install" <> "."
             ]
         , D.reflow $
             "Please ask for help on the community forums if you try those paths and are still\
@@ -1525,7 +1522,7 @@ toHttpErrorReport title err context =
 
     Http.BadHttp url httpExceptionContent ->
       case httpExceptionContent of
-        HTTP.StatusCodeException response _ ->
+        HTTP.StatusCodeException response body ->
           let
             (HTTP.Status code message) = HTTP.responseStatus response
           in
@@ -1533,6 +1530,7 @@ toHttpErrorReport title err context =
             [ D.fillSep $
                 ["But","it","came","back","as",D.red (D.fromInt code)]
                 ++ map D.fromChars (words (BS_UTF8.toString message))
+            , D.indent 4 $ D.reflow $ BS_UTF8.toString body
             , D.reflow $
                 "This may mean some online endpoint changed in an unexpected way, so if does not\
                 \ seem like something on your side is causing this (e.g. firewall) please report\
@@ -1970,7 +1968,7 @@ toGenerateReport problem =
             "The issue is that --optimize strips out info needed by `Debug` functions.\
             \ Here are two examples:"
         , D.indent 4 $ D.reflow $
-            "(1) It shortens record field names. This makes the generated JavaScript is\
+            "(1) It shortens record field names. This makes the generated JavaScript\
             \ smaller, but `Debug.toString` cannot know the real field names anymore."
         , D.indent 4 $ D.reflow $
             "(2) Values like `type Height = Height Float` are unboxed. This reduces\

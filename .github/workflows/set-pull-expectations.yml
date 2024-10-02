@@ -1,0 +1,19 @@
+on:
+  pull_request_target:
+    types: [opened]
+
+jobs:
+  comment-on-pull:
+    name: Comment On Pull
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v3
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            github.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: "Thanks for suggesting these code changes. To set expectations:\n\n- Pull requests are reviewed in [batches](https://github.com/elm/expectations/blob/master/batching.md), so it can take some time to get a response.\n- Smaller pull requests are easier to review. To fix nine typos, nine specific issues will always go faster than one big one. Learn why [here](https://github.com/elm/expectations/blob/master/small-pull-requests.md).\n- Reviewers may not know as much as you about certain situations, so add links to supporting evidence for important claims, especially regarding standards for CSS, HTTP, URI, etc.\n\nFinally, please be patient with the core team. They are trying their best with limited resources."
+            })

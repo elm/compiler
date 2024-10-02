@@ -35,7 +35,14 @@ type Result i w a =
 createInitialEnv :: ModuleName.Canonical -> Map.Map ModuleName.Raw I.Interface -> [Src.Import] -> Result i w Env.Env
 createInitialEnv home ifaces imports =
   do  (State vs ts cs bs qvs qts qcs) <- foldM (addImport ifaces) emptyState (toSafeImports home imports)
-      Result.ok (Env.Env home (Map.map Env.Foreign vs) ts cs bs qvs qts qcs)
+      Result.ok (Env.Env home (Map.map infoToVar vs) ts cs bs qvs qts qcs)
+
+
+infoToVar :: Env.Info Can.Annotation -> Env.Var
+infoToVar info =
+  case info of
+    Env.Specific home tipe -> Env.Foreign home tipe
+    Env.Ambiguous h hs     -> Env.Foreigns h hs
 
 
 
@@ -61,7 +68,7 @@ emptyState =
 
 emptyTypes :: Env.Exposed Env.Type
 emptyTypes =
-  Map.singleton "List" (Map.singleton ModuleName.list (Env.Union 1 ModuleName.list))
+  Map.singleton "List" (Env.Specific ModuleName.list (Env.Union 1 ModuleName.list))
 
 
 
@@ -102,8 +109,8 @@ addImport ifaces (State vs ts cs bs qvs qts qcs) (Src.Import (A.At _ name) maybe
         (Map.mapMaybeWithKey (unionToType home) unions)
         (Map.mapMaybeWithKey (aliasToType home) aliases)
 
-    !vars = Map.map (Map.singleton home) defs
-    !types = Map.map (Map.singleton home . fst) rawTypeInfo
+    !vars = Map.map (Env.Specific home) defs
+    !types = Map.map (Env.Specific home . fst) rawTypeInfo
     !ctors = Map.foldr (addExposed . snd) Map.empty rawTypeInfo
 
     !qvs2 = addQualified prefix vars qvs
@@ -129,7 +136,7 @@ addImport ifaces (State vs ts cs bs qvs qts qcs) (Src.Import (A.At _ name) maybe
 
 addExposed :: Env.Exposed a -> Env.Exposed a -> Env.Exposed a
 addExposed =
-  Map.unionWith Map.union
+  Map.unionWith Env.mergeInfo
 
 
 addQualified :: Name.Name -> Env.Exposed a -> Env.Qualified a -> Env.Qualified a
@@ -150,7 +157,7 @@ unionToTypeHelp :: ModuleName.Canonical -> Name.Name -> Can.Union -> (Env.Type, 
 unionToTypeHelp home name union@(Can.Union vars ctors _ _) =
   let
     addCtor dict (Can.Ctor ctor index _ args) =
-      Map.insert ctor (Map.singleton home (Env.Ctor home name union index args)) dict
+      Map.insert ctor (Env.Specific home (Env.Ctor home name union index args)) dict
   in
   ( Env.Union (length vars) home
   , List.foldl' addCtor Map.empty ctors
@@ -181,7 +188,7 @@ aliasToTypeHelp home name (Can.Alias vars tipe) =
               (Can.TAlias home name avars (Can.Filled tipe))
               (Can.fieldsToList fields)
         in
-        Map.singleton name (Map.singleton home (Env.RecordCtor home vars alias))
+        Map.singleton name (Env.Specific home (Env.RecordCtor home vars alias))
 
       _ ->
         Map.empty
@@ -192,9 +199,9 @@ aliasToTypeHelp home name (Can.Alias vars tipe) =
 -- BINOP
 
 
-binopToBinop :: ModuleName.Canonical -> Name.Name -> I.Binop -> Map.Map ModuleName.Canonical Env.Binop
+binopToBinop :: ModuleName.Canonical -> Name.Name -> I.Binop -> Env.Info Env.Binop
 binopToBinop home op (I.Binop name annotation associativity precedence) =
-  Map.singleton home (Env.Binop op home name annotation associativity precedence)
+  Env.Specific home (Env.Binop op home name annotation associativity precedence)
 
 
 
@@ -214,7 +221,7 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) exposed =
     Src.Lower (A.At region name) ->
       case Map.lookup name vars of
         Just info ->
-          Result.ok (State (Map.insertWith Map.union name info vs) ts cs bs qvs qts qcs)
+          Result.ok (State (Map.insertWith Env.mergeInfo name info vs) ts cs bs qvs qts qcs)
 
         Nothing ->
           Result.throw (Error.ImportExposingNotFound region home name (Map.keys vars))
@@ -227,23 +234,23 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) exposed =
               case tipe of
                 Env.Union _ _ ->
                   let
-                    !ts2 = Map.insert name (Map.singleton home tipe) ts
+                    !ts2 = Map.insert name (Env.Specific home tipe) ts
                   in
                   Result.ok (State vs ts2 cs bs qvs qts qcs)
 
                 Env.Alias _ _ _ _ ->
                   let
-                    !ts2 = Map.insert name (Map.singleton home tipe) ts
+                    !ts2 = Map.insert name (Env.Specific home tipe) ts
                     !cs2 = addExposed cs ctors
                   in
                   Result.ok (State vs ts2 cs2 bs qvs qts qcs)
 
             Nothing ->
-              case Map.lookup name (toCtors types) of
-                Just tipe ->
+              case checkForCtorMistake name types of
+                tipe:_ ->
                   Result.throw $ Error.ImportCtorByName region name tipe
 
-                Nothing ->
+                [] ->
                   Result.throw $ Error.ImportExposingNotFound region home name (Map.keys types)
 
         Src.Public dotDotRegion ->
@@ -252,7 +259,7 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) exposed =
               case tipe of
                 Env.Union _ _ ->
                   let
-                    !ts2 = Map.insert name (Map.singleton home tipe) ts
+                    !ts2 = Map.insert name (Env.Specific home tipe) ts
                     !cs2 = addExposed cs ctors
                   in
                   Result.ok (State vs ts2 cs2 bs qvs qts qcs)
@@ -275,18 +282,23 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) exposed =
           Result.throw (Error.ImportExposingNotFound region home op (Map.keys binops))
 
 
-
-toCtors :: Map.Map Name.Name (Env.Type, Env.Exposed Env.Ctor) -> Map.Map Name.Name Name.Name
-toCtors types =
-    Map.foldr addCtors Map.empty types
+checkForCtorMistake :: Name.Name -> Map.Map Name.Name (Env.Type, Env.Exposed Env.Ctor) -> [Name.Name]
+checkForCtorMistake givenName types =
+    Map.foldr addMatches [] types
   where
-    addCtors (_, exposedCtors) dict =
-      Map.foldrWithKey addCtor dict exposedCtors
+    addMatches (_, exposedCtors) matches =
+      Map.foldrWithKey addMatch matches exposedCtors
 
-    addCtor ctorName homes dict =
-      case Map.elems homes of
-        [Env.Ctor _ tipeName _ _ _] ->
-          Map.insert ctorName tipeName dict
+    addMatch ctorName info matches =
+      if ctorName /= givenName
+      then matches
+      else
+        case info of
+          Env.Specific _ (Env.Ctor _ tipeName _ _ _) ->
+            tipeName : matches
 
-        _ ->
-          dict
+          Env.Specific _ (Env.RecordCtor _ _ _) ->
+            matches
+
+          Env.Ambiguous _ _ ->
+            matches

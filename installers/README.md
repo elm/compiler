@@ -11,6 +11,8 @@ The secret is that Elm is just a single executable file. If you are developing a
 
 The instructions for [Mac][mac] and [Linux][lin] explain how to do this in more detail. You can follow the same steps on Windows, but you need to do each step by hand. (E.g. download the file through your browser rather than with a terminal command.)
 
+[mac]: https://github.com/elm/compiler/blob/master/installers/mac/README.md
+[lin]: https://github.com/elm/compiler/blob/master/installers/linux/README.md
 
 <br/>
 

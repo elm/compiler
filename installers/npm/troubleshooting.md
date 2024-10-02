@@ -42,7 +42,7 @@ Some companies have a firewall.
 
 These companies usually have set the `HTTP_PROXY` or `HTTPS_PROXY` environment variable on your computer. This is more common with Windows computers.
 
-The result is that the request for `https://github.com/elm/compiler/releases/download/0.19.1/binary-for-windows-64-bit.gz` is being sent to a "proxy server" where they monitor traffic. Maybe they rule out certain domains, maybe they check data when it comes back from the actual URL, etc.
+The result is that the requests for npm packages are being sent to a "proxy server" where they monitor traffic. Maybe they rule out certain domains, maybe they check data when it comes back from the actual URL, etc.
 
 It is probably best to ask someone about the situation on this, but you can test things out by temporarily using an alternate `HTTPS_PROXY` value with something like this:
 
@@ -55,7 +55,7 @@ set HTTPS_PROXY=http://proxy.example.com
 npm install -g elm
 ```
 
-Check out [this document](https://www.npmjs.com/package/request#controlling-proxy-behaviour-using-environment-variables) for more information on how environment variables like `NO_PROXY`, `HTTP_PROXY`, and `HTTPS_PROXY` are handled by the npm.
+Check out [this document](https://docs.npmjs.com/cli/using-npm/config/) for more information on how environment variables like [NO_PROXY](https://docs.npmjs.com/cli/using-npm/config#noproxy), [HTTP_PROXY](https://docs.npmjs.com/cli/using-npm/config#proxy), and [HTTPS_PROXY](https://docs.npmjs.com/cli/using-npm/config#https-proxy) are handled by npm.
 
 <br/>
 

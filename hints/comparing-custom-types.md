@@ -54,7 +54,7 @@ add info (Table nextId dict) =
   )
 ```
 
-There are a couple nice thing about this approach:
+There are a couple nice things about this approach:
 
 1. The only way to get a new `User.Id` is to `add` information to a `User.Table`.
 2. All the operations on a `User.Table` are explicit. Does it make sense to remove users? To merge two tables together? Are there any special details to consider in those cases? This will always be captured explicitly in the interface of the `User` module.

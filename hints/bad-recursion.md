@@ -10,7 +10,7 @@ There are two problems that will lead you here, both of them pretty tricky:
 
 ## No Mutation
 
-Languages like JavaScript let you “reassign” variables. When you say `x = x + 1` it means: whatever `x` was pointing to, have it point to `x + 1` instead. This called *mutating* a variable. All values are immutable in Elm, so reassigning variables does not make any sense! Okay, so what *should* `x = x + 1` mean in Elm?
+Languages like JavaScript let you “reassign” variables. When you say `x = x + 1` it means: whatever `x` was pointing to, have it point to `x + 1` instead. This is called *mutating* a variable. All values are immutable in Elm, so reassigning variables does not make any sense! Okay, so what *should* `x = x + 1` mean in Elm?
 
 Well, what does it mean with functions? In Elm, we write recursive functions like this:
 
