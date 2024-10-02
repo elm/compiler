@@ -38,6 +38,7 @@
   "optionalDependencies": {
     "@elm_binaries/darwin_arm64": "0.19.1-0",
     "@elm_binaries/darwin_x64": "0.19.1-0",
+    "@elm_binaries/linux_arm64": "0.19.1-0",
     "@elm_binaries/linux_x64": "0.19.1-0",
     "@elm_binaries/win32_x64": "0.19.1-0"
   }
