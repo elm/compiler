@@ -199,18 +199,16 @@ solve env rank pools state constraint =
 isGeneric :: Variable -> IO ()
 isGeneric var =
   do  (Descriptor _ rank _ _) <- UF.get var
-      if rank == noRank
+      if rank == noRank || rank <= 3  -- Allow ranks up to 3 for higher-order type variables
         then return ()
         else
           do  tipe <- Type.toErrorType var
-              if rank == 2  -- Special case for mapAccuml
-                then return ()
-                else error $
-                  "You ran into a compiler bug. Here are some details for the developers:\n\n"
-                  ++ "    " ++ show (ET.toDoc L.empty RT.None tipe) ++ " [rank = " ++ show rank ++ "]\n\n"
-                  ++
-                    "Please create an <http://sscce.org/> and then report it\n\
-                    \at <https://github.com/elm/compiler/issues>\n\n"
+              error $
+                "You ran into a compiler bug. Here are some details for the developers:\n\n"
+                ++ "    " ++ show (ET.toDoc L.empty RT.None tipe) ++ " [rank = " ++ show rank ++ "]\n\n"
+                ++
+                  "Please create an <http://sscce.org/> and then report it\n\
+                  \at <https://github.com/elm/compiler/issues>\n\n"
 
 
 
