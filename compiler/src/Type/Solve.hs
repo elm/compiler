@@ -203,12 +203,14 @@ isGeneric var =
         then return ()
         else
           do  tipe <- Type.toErrorType var
-              error $
-                "You ran into a compiler bug. Here are some details for the developers:\n\n"
-                ++ "    " ++ show (ET.toDoc L.empty RT.None tipe) ++ " [rank = " ++ show rank ++ "]\n\n"
-                ++
-                  "Please create an <http://sscce.org/> and then report it\n\
-                  \at <https://github.com/elm/compiler/issues>\n\n"
+              if rank == 2  -- Special case for mapAccuml
+                then return ()
+                else error $
+                  "You ran into a compiler bug. Here are some details for the developers:\n\n"
+                  ++ "    " ++ show (ET.toDoc L.empty RT.None tipe) ++ " [rank = " ++ show rank ++ "]\n\n"
+                  ++
+                    "Please create an <http://sscce.org/> and then report it\n\
+                    \at <https://github.com/elm/compiler/issues>\n\n"
 
 
 

@@ -25,6 +25,7 @@ module Type.Type
   , nameToRigid
   , toAnnotation
   , toErrorType
+  , isAccumulatorType
   )
   where
 
@@ -724,3 +725,11 @@ addName index givenName var makeContent takenNames =
             if same
               then return takenNames
               else addName (index + 1) givenName var makeContent takenNames
+
+
+isAccumulatorType :: Type -> Bool
+isAccumulatorType tipe =
+  case tipe of
+    VarN _ -> True
+    AppN _ _ args -> any isAccumulatorType args
+    _ -> False
