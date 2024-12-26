@@ -24,57 +24,58 @@ occurs var =
 
 occursHelp :: [Type.Variable] -> Type.Variable -> Bool -> IO Bool
 occursHelp seen var foundCycle =
-  if elem var seen then
+  if var `elem` seen then
     return True
-
   else
-    do  (Descriptor content _ _ _) <- UF.get var
+    do  (Descriptor content _ _ _ _) <- UF.get var
         case content of
-          FlexVar _ ->
-              return foundCycle
-
-          FlexSuper _ _ ->
-              return foundCycle
-
-          RigidVar _ ->
-              return foundCycle
-
-          RigidSuper _ _ ->
-              return foundCycle
-
+          FlexVar _ -> return foundCycle
+          FlexSuper _ _ -> return foundCycle
+          RigidVar _ -> return foundCycle
+          RigidSuper _ _ -> return foundCycle
           Structure term ->
-              let newSeen = var : seen in
-              case term of
-                App1 _ _ args ->
-                    foldrM (occursHelp newSeen) foundCycle args
+            case term of
+              App1 _ _ args ->
+                foldrM (occursHelp (var : seen)) foundCycle args
 
-                Fun1 a b ->
-                    occursHelp newSeen a =<<
-                      occursHelp newSeen b foundCycle
+              Fun1 arg result ->
+                do  cycleInArg <- occursHelp (var : seen) arg foundCycle
+                    if cycleInArg
+                      then return True
+                      else occursHelp (var : seen) result foundCycle
 
-                EmptyRecord1 ->
-                    return foundCycle
+              EmptyRecord1 ->
+                return foundCycle
 
-                Record1 fields ext ->
-                    occursHelp newSeen ext =<<
-                      foldrM (occursHelp newSeen) foundCycle (Map.elems fields)
+              Record1 fields extension ->
+                do  cycleInFields <- foldrM (occursHelp (var : seen)) foundCycle (Map.elems fields)
+                    if cycleInFields
+                      then return True
+                      else occursHelp (var : seen) extension foundCycle
 
-                Unit1 ->
-                    return foundCycle
+              Unit1 ->
+                return foundCycle
 
-                Tuple1 a b maybeC ->
-                    case maybeC of
-                      Nothing ->
-                        occursHelp newSeen a =<<
-                          occursHelp newSeen b foundCycle
+              Tuple1 a b maybeC ->
+                case maybeC of
+                  Nothing ->
+                    do  cycleInA <- occursHelp (var : seen) a foundCycle
+                        if cycleInA
+                          then return True
+                          else occursHelp (var : seen) b foundCycle
 
-                      Just c ->
-                        occursHelp newSeen a =<<
-                          occursHelp newSeen b =<<
-                            occursHelp newSeen c foundCycle
+                  Just c ->
+                    do  cycleInA <- occursHelp (var : seen) a foundCycle
+                        if cycleInA
+                          then return True
+                          else do
+                            cycleInB <- occursHelp (var : seen) b foundCycle
+                            if cycleInB
+                              then return True
+                              else occursHelp (var : seen) c foundCycle
 
           Alias _ _ args _ ->
-              foldrM (occursHelp (var:seen)) foundCycle (map snd args)
+            foldrM (occursHelp (var : seen)) foundCycle (map snd args)
 
           Error ->
-              return foundCycle
+            return foundCycle

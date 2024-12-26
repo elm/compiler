@@ -26,6 +26,8 @@ module Type.Type
   , toAnnotation
   , toErrorType
   , isAccumulatorType
+  , Expansiveness(..)
+  , combineExpansiveness
   )
   where
 
@@ -111,16 +113,17 @@ data Descriptor =
     , _rank :: Int
     , _mark :: Mark
     , _copy :: Maybe Variable
+    , _expansiveness :: Expansiveness
     }
 
 
 data Content
-    = FlexVar (Maybe Name.Name)
+    = Structure FlatType
+    | FlexVar (Maybe Name.Name)
     | FlexSuper SuperType (Maybe Name.Name)
     | RigidVar Name.Name
     | RigidSuper SuperType Name.Name
-    | Structure FlatType
-    | Alias ModuleName.Canonical Name.Name [(Name.Name,Variable)] Variable
+    | Alias ModuleName.Canonical Name.Name [(Name.Name, Variable)] Variable
     | Error
 
 
@@ -134,7 +137,7 @@ data SuperType
 
 makeDescriptor :: Content -> Descriptor
 makeDescriptor content =
-  Descriptor content noRank noMark Nothing
+  Descriptor content noRank noMark Nothing NonExpansive
 
 
 
@@ -345,7 +348,7 @@ toAnnotation variable =
 
 variableToCanType :: Variable -> StateT NameState IO Can.Type
 variableToCanType variable =
-  do  (Descriptor content _ _ _) <- liftIO $ UF.get variable
+  do  (Descriptor content _ _ _ _) <- liftIO $ UF.get variable
       case content of
         Structure term ->
             termToCanType term
@@ -644,11 +647,11 @@ getFreshSuperHelp prefix index taken =
 
 getVarNames :: Variable -> Map.Map Name.Name Variable -> IO (Map.Map Name.Name Variable)
 getVarNames var takenNames =
-  do  (Descriptor content rank mark copy) <- UF.get var
+  do  (Descriptor content rank mark copy expansiveness) <- UF.get var
       if mark == getVarNamesMark
         then return takenNames
         else
-        do  UF.set var (Descriptor content rank getVarNamesMark copy)
+        do  UF.set var (Descriptor content rank getVarNamesMark copy expansiveness)
             case content of
               Error ->
                 return takenNames
@@ -716,8 +719,8 @@ addName index givenName var makeContent takenNames =
     case Map.lookup indexedName takenNames of
       Nothing ->
         do  if indexedName == givenName then return () else
-              UF.modify var $ \(Descriptor _ rank mark copy) ->
-                Descriptor (makeContent indexedName) rank mark copy
+              UF.modify var $ \(Descriptor _ rank mark copy expansiveness) ->
+                Descriptor (makeContent indexedName) rank mark copy expansiveness
             return $ Map.insert indexedName var takenNames
 
       Just otherVar ->
@@ -733,3 +736,14 @@ isAccumulatorType tipe =
     VarN _ -> True
     AppN _ _ args -> any isAccumulatorType args
     _ -> False
+
+
+data Expansiveness
+  = NonExpansive    -- Variables, constants, lambdas
+  | Expansive       -- Function applications, etc.
+  deriving (Eq, Show, Ord)
+
+-- Update how we combine expansiveness
+combineExpansiveness :: Expansiveness -> Expansiveness -> Expansiveness
+combineExpansiveness NonExpansive NonExpansive = NonExpansive
+combineExpansiveness _ _ = Expansive
