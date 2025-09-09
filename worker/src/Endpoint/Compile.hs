@@ -17,7 +17,6 @@ import qualified Data.Name as N
 import qualified Data.NonEmptyList as NE
 import Snap.Core
 import Snap.Util.FileUploads
-import qualified System.Directory as Dir
 import qualified System.IO.Streams as Stream
 import Text.RawString.QQ (r)
 

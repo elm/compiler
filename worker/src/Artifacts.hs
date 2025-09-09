@@ -17,7 +17,6 @@ import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map as Map
 import qualified Data.Name as N
 import qualified Data.OneOrMore as OneOrMore
-import qualified System.Directory as Dir
 import System.FilePath ((</>))
 
 import qualified AST.Canonical as Can
