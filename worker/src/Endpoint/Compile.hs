@@ -306,8 +306,8 @@ noMain =
 -- LOAD ERROR JS
 
 
-loadErrorJS :: IO B.ByteString
-loadErrorJS =
+loadErrorJS :: A.Root -> IO B.ByteString
+loadErrorJS (A.Root root) =
   let
     run work =
       do  result <- work
@@ -316,8 +316,7 @@ loadErrorJS =
             Left _ -> error "problem building src/Errors.elm"
   in
   BW.withScope $ \scope ->
-    do  root <- Dir.getCurrentDirectory
-        details <- run $ Details.load Reporting.silent scope root
+    do  details <- run $ Details.load Reporting.silent scope root
         artifacts <- run $ Build.fromPaths Reporting.silent root details (NE.List "src/Errors.elm" [])
         javascript <- run $ Task.run $ Generate.prod root details artifacts
         return $ LBS.toStrict $ B.toLazyByteString javascript

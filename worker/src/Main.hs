@@ -27,11 +27,12 @@ import qualified Endpoint.Slack as Slack
 
 main :: IO ()
 main =
+  withArgs $ \root ->
   do  manager    <- newTlsManager
       slackToken <- Env.getEnv "SLACK_TOKEN"
-      rArtifacts <- Artifacts.loadRepl
-      cArtifacts <- Artifacts.loadCompile
-      errorJS    <- Compile.loadErrorJS
+      rArtifacts <- Artifacts.loadRepl root
+      cArtifacts <- Artifacts.loadCompile root
+      errorJS    <- Compile.loadErrorJS root
       let depsInfo = Artifacts.toDepsInfo cArtifacts
 
       httpServe config $ msum $
@@ -49,7 +50,18 @@ main =
 
 config :: Config Snap a
 config =
-  setPort 8000 $ setAccessLog ConfigNoLog $ setErrorLog ConfigNoLog $ defaultConfig
+  setPort 8000 $
+  setAccessLog ConfigNoLog $
+  setErrorLog ConfigNoLog $
+    defaultConfig
+
+
+withArgs :: (Artifacts.Root -> IO r) -> IO r
+withArgs cont =
+  do  args <- Env.getArgs
+      case args of
+        [rootPath] -> cont (Artifacts.Root rootPath)
+        _          -> error "expecting one argument, the path to the artifacts directory"
 
 
 status :: Snap ()
