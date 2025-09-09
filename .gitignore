@@ -1,5 +1,6 @@
 elm-stuff
 dist
+dist-newstyle
 cabal-dev
 .cabal-sandbox/
 cabal.sandbox.config
