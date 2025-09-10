@@ -1994,7 +1994,7 @@ corruptCacheReport =
         "Try deleting your elm-stuff/ directory to get unstuck."
     , D.toSimpleNote $
         "This almost certainly means that a 3rd party tool (or editor plugin) is\
-        \ causing problems your the elm-stuff/ directory. Try disabling 3rd party tools\
+        \ causing problems to the elm-stuff/ directory. Try disabling 3rd party tools\
         \ one by one until you figure out which it is!"
     ]
 
