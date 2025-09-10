@@ -17,6 +17,7 @@ import qualified Data.Name as N
 import qualified Data.NonEmptyList as NE
 import Snap.Core
 import Snap.Util.FileUploads
+import System.FilePath ((</>))
 import qualified System.IO.Streams as Stream
 import Text.RawString.QQ (r)
 
@@ -316,6 +317,6 @@ loadErrorJS (A.Root root) =
   in
   BW.withScope $ \scope ->
     do  details <- run $ Details.load Reporting.silent scope root
-        artifacts <- run $ Build.fromPaths Reporting.silent root details (NE.List "src/Errors.elm" [])
+        artifacts <- run $ Build.fromPaths Reporting.silent root details (NE.List (root </> "src" </> "Errors.elm") [])
         javascript <- run $ Task.run $ Generate.prod root details artifacts
         return $ LBS.toStrict $ B.toLazyByteString javascript
