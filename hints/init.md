@@ -29,7 +29,7 @@ If you want to do things more manually, you can run `elm make src/Main.elm` and 
 
 Many folks get anxious about their project structure. “If I get it wrong, I am doomed!” This anxiety makes sense in languages where refactoring is risky, but Elm is not one of those languages!
 
-So we recommend that newcomers staying in one file until you get into the 600 to 1000 range. Push out of your comfort zone. Having the experience of being fine in large files will help you understand the boundaries in Elm, rather than just defaulting to the boundaries you learned in another language.
+So we recommend that newcomers stay in one file until you get to a file size of about 600 to 1000 lines. Push out of your comfort zone. Having the experience of being fine in large files will help you understand the boundaries in Elm, rather than just defaulting to the boundaries you learned in another language.
 
 The talk [The Life of a File](https://youtu.be/XpDsk374LDE) gets into this a lot more. The advice about building modules around a specific [custom type](https://guide.elm-lang.org/types/custom_types.html) is particularly important! You will see that emphasized a lot as you work through the official guide.
 
