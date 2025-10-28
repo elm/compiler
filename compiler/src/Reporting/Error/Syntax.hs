@@ -2959,7 +2959,7 @@ toNumberReport source number row col =
               [ D.reflow $
                   "Valid binary digits include 0 and 1, so I can\
                   \ only recognize things like this:"
-              , D.indent 4 $ D.vcat [ "0x10", "0x0010", "0x011011" ]
+              , D.indent 4 $ D.vcat [ "0b10", "0b0010", "0b011011" ]
               ]
           )
 
