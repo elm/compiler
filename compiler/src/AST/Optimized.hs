@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 module AST.Optimized
   ( Def(..)
   , Expr(..)

@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE MultiWayIf, OverloadedStrings #-}
 module Elm.Outline
   ( Outline(..)

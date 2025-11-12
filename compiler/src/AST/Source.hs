@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 module AST.Source
   ( Expr, Expr_(..), VarType(..)
   , Def(..)

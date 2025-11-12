@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE BangPatterns, OverloadedStrings #-}
 module Deps.Registry
   ( Registry(..)

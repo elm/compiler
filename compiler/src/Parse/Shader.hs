@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE BangPatterns, UnboxedTuples #-}
 module Parse.Shader
   ( shader

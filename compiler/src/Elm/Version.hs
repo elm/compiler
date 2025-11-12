@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE BangPatterns, UnboxedTuples #-}
 module Elm.Version
   ( Version(..)

@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
 module Endpoint.Compile
   ( endpoint_V1

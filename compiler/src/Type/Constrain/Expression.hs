@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 module Type.Constrain.Expression
   ( constrain
   , constrainDef

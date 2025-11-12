@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE BangPatterns, MultiWayIf, OverloadedStrings, UnboxedTuples #-}
 module Elm.Docs
   ( Documentation
