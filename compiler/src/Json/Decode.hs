@@ -119,7 +119,9 @@ instance Functor (Decoder x) where
 
 instance Applicative (Decoder x) where
   {-# INLINE pure #-}
-  pure = return
+  pure a =
+    Decoder $ \_ ok _ ->
+      ok a
 
   {-# INLINE (<*>) #-}
   (<*>) (Decoder decodeFunc) (Decoder decodeArg) =
@@ -135,11 +137,6 @@ instance Applicative (Decoder x) where
 
 
 instance Monad (Decoder x) where
-  {-# INLINE return #-}
-  return a =
-    Decoder $ \_ ok _ ->
-      ok a
-
   {-# INLINE (>>=) #-}
   (>>=) (Decoder decodeA) callback =
     Decoder $ \ast ok err ->

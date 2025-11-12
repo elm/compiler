@@ -17,7 +17,7 @@ module Build
 
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar
-import Control.Monad (filterM, mapM_, sequence_)
+import Control.Monad (filterM)
 import qualified Data.ByteString as B
 import qualified Data.Char as Char
 import qualified Data.Graph as Graph

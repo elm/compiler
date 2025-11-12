@@ -12,7 +12,6 @@ import Control.Monad.Trans (MonadIO(liftIO))
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString as BS
 import qualified Data.HashMap.Strict as HashMap
-import Data.Monoid ((<>))
 import qualified Data.NonEmptyList as NE
 import qualified System.Directory as Dir
 import System.FilePath as FP

@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE BangPatterns, EmptyDataDecls, FlexibleInstances, UnboxedTuples #-}
 module Elm.Package
   ( Name(..)
@@ -34,7 +33,6 @@ import qualified Data.Coerce as Coerce
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Name as Name
-import Data.Monoid ((<>))
 import qualified Data.Utf8 as Utf8
 import Data.Word (Word8)
 import Foreign.Ptr (Ptr, plusPtr, minusPtr)

@@ -7,7 +7,6 @@ module Generate.Html
 
 
 import qualified Data.ByteString.Builder as B
-import Data.Monoid ((<>))
 import qualified Data.Name as Name
 import Text.RawString.QQ (r)
 

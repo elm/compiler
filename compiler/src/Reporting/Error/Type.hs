@@ -21,7 +21,6 @@ module Reporting.Error.Type
 
 import Prelude hiding (round)
 import qualified Data.Map as Map
-import Data.Monoid ((<>))
 import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can

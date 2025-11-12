@@ -105,24 +105,22 @@ instance Applicative (Result i w e) where
       in
       kf i w bad1 good1
 
+  (*>) (Result ka) (Result kb) =
+    Result $ \i w bad good ->
+      let
+        good1 i1 w1 _ =
+          kb i1 w1 bad good
+      in
+      ka i w bad good1
+
 
 instance Monad (Result i w e) where
-  return = ok
-
   (>>=) (Result ka) callback =
     Result $ \i w bad good ->
       let
         good1 i1 w1 a =
           case callback a of
             Result kb -> kb i1 w1 bad good
-      in
-      ka i w bad good1
-
-  (>>) (Result ka) (Result kb) =
-    Result $ \i w bad good ->
-      let
-        good1 i1 w1 _ =
-          kb i1 w1 bad good
       in
       ka i w bad good1
 

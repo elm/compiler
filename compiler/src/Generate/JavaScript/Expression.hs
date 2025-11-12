@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-x-partial #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Generate.JavaScript.Expression
   ( generate

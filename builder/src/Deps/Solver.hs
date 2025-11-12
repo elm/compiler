@@ -408,9 +408,6 @@ instance Applicative Solver where
 
 
 instance Monad Solver where
-  return a =
-    Solver $ \state ok back _ -> ok state a back
-
   (>>=) (Solver solverA) callback =
     Solver $ \state ok back err ->
       let

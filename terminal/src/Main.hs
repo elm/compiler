@@ -8,7 +8,6 @@ module Main
 import Prelude hiding (init)
 import qualified Data.List as List
 import qualified Text.PrettyPrint.ANSI.Leijen as P
-import Text.PrettyPrint.ANSI.Leijen ((<>))
 import Text.Read (readMaybe)
 
 import qualified Elm.Version as V

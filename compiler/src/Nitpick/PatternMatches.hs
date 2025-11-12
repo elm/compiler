@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -fno-warn-x-partial #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Nitpick.PatternMatches
   ( check

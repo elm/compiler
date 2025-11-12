@@ -21,7 +21,7 @@ import qualified AST.Source as Src
 import qualified AST.Canonical as Can
 import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
-import Reporting.Doc ( Doc, (<+>), (<>) )
+import Reporting.Doc (Doc, (<+>))
 import qualified Reporting.Render.Type.Localizer as L
 
 

@@ -27,7 +27,7 @@ import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
 import qualified Http
 import qualified Reporting
-import Reporting.Doc ((<>), (<+>))
+import Reporting.Doc ((<+>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Help as Help

@@ -16,7 +16,6 @@ import qualified Data.NonEmptyList as NE
 import Parse.Primitives (Row, Col)
 import Parse.Symbol (BadOperator(..))
 import qualified Reporting.Annotation as A
-import Reporting.Doc ((<>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Render.Code as Code
 import qualified Reporting.Error.Syntax as E

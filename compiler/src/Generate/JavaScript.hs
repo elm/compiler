@@ -9,7 +9,6 @@ module Generate.JavaScript
 
 import Prelude hiding (cycle, print)
 import qualified Data.ByteString.Builder as B
-import Data.Monoid ((<>))
 import qualified Data.List as List
 import Data.Map ((!))
 import qualified Data.Map as Map

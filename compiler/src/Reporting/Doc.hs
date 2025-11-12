@@ -46,7 +46,6 @@ module Reporting.Doc
 
 import Prelude hiding (cycle)
 import qualified Data.List as List
-import Data.Monoid ((<>))
 import qualified Data.Name as Name
 import qualified System.Console.ANSI.Types as Ansi
 import qualified System.Info as Info
@@ -348,6 +347,8 @@ sgrToStyle sgrs style@(Style bold underline color) =
           Ansi.SetSwapForegroundBackground _ -> style
           Ansi.SetColor l i c                -> Style bold underline (toColor l i c)
           Ansi.SetRGBColor _ _               -> style
+          Ansi.SetPaletteColor _ _           -> style
+          Ansi.SetDefaultColor _             -> style
 
 
 isBold :: Ansi.ConsoleIntensity -> Bool

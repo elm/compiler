@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wall -fno-warn-name-shadowing #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing -fno-warn-incomplete-uni-patterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Repl
   ( Flags(..)
@@ -29,7 +29,6 @@ import qualified Data.ByteString.UTF8 as BS_UTF8
 import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Map as Map
-import Data.Monoid ((<>))
 import qualified Data.Name as N
 import qualified System.Console.Haskeline as Repl
 import qualified System.Directory as Dir

@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-x-partial #-}
 module Terminal
   ( app
   , Command(..)

@@ -18,7 +18,6 @@ import Prelude hiding (lines)
 import qualified Data.List as List
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder as B
-import Data.Monoid ((<>))
 import qualified Generate.JavaScript.Name as Name
 import Generate.JavaScript.Name (Name)
 import qualified Json.Encode as Json

@@ -19,7 +19,6 @@ module Generate.JavaScript.Name
 
 
 import qualified Data.ByteString.Builder as B
-import Data.Monoid ((<>))
 import qualified Data.Map as Map
 import qualified Data.Name as Name
 import qualified Data.Set as Set

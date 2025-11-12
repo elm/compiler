@@ -53,7 +53,6 @@ import qualified Json.Encode as Encode
 import qualified Json.String as Json
 import Parse.Primitives (Row, Col)
 import qualified Reporting.Annotation as A
-import Reporting.Doc ((<>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Error.Import as Import
 import qualified Reporting.Error.Json as Json

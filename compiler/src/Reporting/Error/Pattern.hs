@@ -10,7 +10,6 @@ import qualified Data.List as List
 
 import qualified Elm.String as ES
 import qualified Nitpick.PatternMatches as P
-import Reporting.Doc ((<>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Report as Report
 import qualified Reporting.Render.Code as Code

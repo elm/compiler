@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-x-partial #-}
 {-# LANGUAGE GADTs, OverloadedStrings #-}
 module Terminal.Error
   ( Error(..)
@@ -12,7 +13,6 @@ module Terminal.Error
   where
 
 
-import Data.Monoid ((<>))
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 import GHC.IO.Handle (hIsTerminalDevice)
