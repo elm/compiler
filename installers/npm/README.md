@@ -9,7 +9,7 @@ Head over to [The Official Guide](https://guide.elm-lang.org/) to start learning
 
 ## What is this package for?
 
-For normal installs, I reccomend using the instructions [here](https://guide.elm-lang.org/install/elm.html) instead. This package is only for people who enjoy using `npm` even when it is not necessary, or for people who want to use `npm` for certain scenarios such as:
+For normal installs, I recommend using the instructions [here](https://guide.elm-lang.org/install/elm.html) instead. This package is only for people who enjoy using `npm` even when it is not necessary, or for people who want to use `npm` for certain scenarios such as:
 
 **Multiple versions**
 
