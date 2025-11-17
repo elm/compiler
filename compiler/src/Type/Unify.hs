@@ -161,15 +161,20 @@ fresh (Context _ (Descriptor _ rank1 _ _) _ (Descriptor _ rank2 _ _)) content =
 guardedUnify :: Variable -> Variable -> Unify ()
 guardedUnify left right =
   Unify $ \vars ok err ->
-    do  equivalent <- UF.equivalent left right
-        if equivalent
-          then ok vars ()
+    do  occursLeft <- Occurs.occurs left
+        occursRight <- Occurs.occurs right
+        if occursLeft || occursRight
+          then err vars ()
           else
-            do  leftDesc <- UF.get left
-                rightDesc <- UF.get right
-                case actuallyUnify (Context left leftDesc right rightDesc) of
-                  Unify k ->
-                    k vars ok err
+            equivalent <- UF.equivalent left right
+            if equivalent
+              then ok vars ()
+              else
+                do  leftDesc <- UF.get left
+                    rightDesc <- UF.get right
+                    case actuallyUnify (Context left leftDesc right rightDesc) of
+                      Unify k ->
+                        k vars ok err
 
 
 subUnify :: Variable -> Variable -> Unify ()
