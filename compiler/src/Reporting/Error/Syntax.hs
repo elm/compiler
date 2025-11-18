@@ -471,6 +471,7 @@ data Number
   = NumberEnd
   | NumberDot Int
   | NumberHexDigit
+  | NumberBinDigit
   | NumberNoLeadingZero
 
 
@@ -2911,7 +2912,7 @@ toNumberReport source number row col =
             D.stack
               [ D.reflow $
                   "I recognize numbers in the following formats:"
-              , D.indent 4 $ D.vcat [ "42", "3.14", "6.022e23", "0x002B" ]
+              , D.indent 4 $ D.vcat [ "42", "3.14", "6.022e23", "0x002B", "0b1010" ]
               , D.reflow $
                   "So is there a way to write it like one of those?"
               ]
@@ -2943,6 +2944,21 @@ toNumberReport source number row col =
                   "Valid hexidecimal digits include 0123456789abcdefABCDEF, so I can\
                   \ only recognize things like this:"
               , D.indent 4 $ D.vcat [ "0x2B", "0x002B", "0x00ffb3" ]
+              ]
+          )
+
+    NumberBinDigit ->
+      Report.Report "WEIRD BINARY LITERAL" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "I thought I was reading a binary literal until I got here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "Valid binary digits include 0 and 1, so I can\
+                  \ only recognize things like this:"
+              , D.indent 4 $ D.vcat [ "0b10", "0b0010", "0b011011" ]
               ]
           )
 
