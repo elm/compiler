@@ -233,3 +233,153 @@ Executable elm
         utf8-string,
         vector,
         zip-archive
+
+
+Test-Suite elm-tests
+    Type: exitcode-stdio-1.0
+
+    ghc-options: -O0 -Wall
+
+    Hs-Source-Dirs:
+        tests
+        compiler/src
+        builder/src
+
+    Main-Is:
+        Test.hs
+
+    other-modules:
+        Test.Parse
+        Test.Compile
+
+        -- from builder/src
+        File
+        Reporting.Exit.Help
+
+        -- auto-generated
+        Paths_elm
+
+        -- from compiler/src (needed by Parse.Module and its transitive deps)
+        AST.Canonical
+        AST.Optimized
+        AST.Source
+        AST.Utils.Binop
+        AST.Utils.Shader
+        AST.Utils.Type
+        Canonicalize.Effects
+        Canonicalize.Environment
+        Canonicalize.Environment.Dups
+        Canonicalize.Environment.Foreign
+        Canonicalize.Environment.Local
+        Canonicalize.Expression
+        Canonicalize.Module
+        Canonicalize.Pattern
+        Canonicalize.Type
+        Compile
+        Data.Bag
+        Data.Index
+        Data.Map.Utils
+        Data.Name
+        Data.NonEmptyList
+        Data.OneOrMore
+        Data.Utf8
+        Elm.Compiler.Imports
+        Elm.Compiler.Type
+        Elm.Compiler.Type.Extract
+        Elm.Constraint
+        Elm.Docs
+        Elm.Float
+        Elm.Interface
+        Elm.Kernel
+        Elm.Licenses
+        Elm.Magnitude
+        Elm.ModuleName
+        Elm.Package
+        Elm.String
+        Elm.Version
+        Generate.Html
+        Generate.JavaScript
+        Generate.JavaScript.Builder
+        Generate.JavaScript.Expression
+        Generate.JavaScript.Functions
+        Generate.JavaScript.Name
+        Generate.Mode
+        Json.Decode
+        Json.Encode
+        Json.String
+        Nitpick.Debug
+        Nitpick.PatternMatches
+        Optimize.Case
+        Optimize.DecisionTree
+        Optimize.Expression
+        Optimize.Module
+        Optimize.Names
+        Optimize.Port
+        Parse.Declaration
+        Parse.Expression
+        Parse.Keyword
+        Parse.Module
+        Parse.Number
+        Parse.Pattern
+        Parse.Primitives
+        Parse.Shader
+        Parse.Space
+        Parse.String
+        Parse.Symbol
+        Parse.Type
+        Parse.Variable
+        Reporting.Annotation
+        Reporting.Doc
+        Reporting.Error
+        Reporting.Error.Canonicalize
+        Reporting.Error.Docs
+        Reporting.Error.Import
+        Reporting.Error.Json
+        Reporting.Error.Main
+        Reporting.Error.Pattern
+        Reporting.Error.Syntax
+        Reporting.Error.Type
+        Reporting.Render.Code
+        Reporting.Render.Type
+        Reporting.Render.Type.Localizer
+        Reporting.Report
+        Reporting.Result
+        Reporting.Suggest
+        Reporting.Warning
+        Type.Constrain.Expression
+        Type.Constrain.Module
+        Type.Constrain.Pattern
+        Type.Error
+        Type.Instantiate
+        Type.Occurs
+        Type.Solve
+        Type.Type
+        Type.Unify
+        Type.UnionFind
+
+    Build-depends:
+        base,
+        bytestring,
+        containers,
+        directory,
+        filepath,
+        ghc-prim,
+        binary,
+        scientific,
+        utf8-string,
+        vector,
+        unordered-containers,
+        language-glsl,
+        raw-strings-qq,
+        template-haskell,
+        ansi-terminal,
+        ansi-wl-pprint < 1,
+        edit-distance,
+        file-embed,
+        mtl,
+        parsec,
+        process,
+        time,
+        zip-archive,
+        tasty,
+        tasty-hunit
