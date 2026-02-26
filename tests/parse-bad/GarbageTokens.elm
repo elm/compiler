@@ -1,0 +1,3 @@
+module GarbageTokens exposing (..)
+
+foo = @#$%
