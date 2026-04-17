@@ -1,0 +1,10 @@
+packages: .
+
+-- Suppress warnings from third-party dependencies when building with GHC 9.8+.
+-- These warnings are upstream issues and cannot be fixed in this project.
+package *
+  ghc-options: -w
+
+-- Re-enable warnings for this project only.
+package elm
+  ghc-options: -Wall -Werror

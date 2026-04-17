@@ -15,11 +15,11 @@
 # Delete all unused docker images:
 # $ docker system prune -a
 
-# Use Alpine 3.11 with GHC 8.6.5
-FROM alpine:3.11
+# Use Alpine 3.23 with GHC 9.8.2
+FROM alpine:3.23
 
 # Install packages required to build elm
-RUN apk add --no-cache ghc cabal wget musl-dev zlib-dev zlib-static ncurses-dev ncurses-static
+RUN apk add --no-cache build-base ghc cabal wget musl-dev gmp-dev gmp-static zlib-dev zlib-static ncurses-dev ncurses-static
 
 WORKDIR /elm
 
@@ -28,12 +28,17 @@ COPY builder builder
 COPY compiler compiler
 COPY reactor reactor
 COPY terminal terminal
-COPY cabal.config elm.cabal LICENSE ./
+COPY cabal.config cabal.project elm.cabal LICENSE ./
+
+# Build sendfile64 shim: musl only has sendfile; snap-server references sendfile64 (glibc-only)
+COPY installers/linux/sendfile64.c /tmp/sendfile64.c
+RUN cc -c /tmp/sendfile64.c -o /tmp/sf64.o \
+    && ar rcs /usr/lib/libsf64.a /tmp/sf64.o
 
 # Build statically linked elm binary
 RUN cabal new-update
-RUN cabal new-build --ghc-option=-optl=-static --ghc-option=-split-sections
-RUN cp ./dist-newstyle/build/x86_64-linux/ghc-*/elm-*/x/elm/build/elm/elm /usr/local/bin/elm
+RUN cabal new-build --enable-executable-static --ghc-option=-split-sections --ghc-option=-optl=-lsf64
+RUN cp ./dist-newstyle/build/*-linux/ghc-*/elm-*/x/elm/build/elm/elm /usr/local/bin/elm
 
 # Remove debug symbols to optimize the binary size
 RUN strip -s /usr/local/bin/elm
