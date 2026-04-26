@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ExtendedLiterals, OverloadedStrings #-}
 module Elm.Constraint
   ( Constraint
   , exactly
@@ -27,7 +27,8 @@ import qualified Elm.Version as V
 import qualified Json.Decode as D
 import qualified Json.Encode as E
 import qualified Parse.Primitives as P
-import Parse.Primitives (Row, Col)
+import Parse.Primitives (Cursor)
+import qualified Reporting.Annotation as A
 
 
 
@@ -223,37 +224,37 @@ instance Binary Op where
 
 
 data Error
-  = BadFormat Row Col
+  = BadFormat Cursor
   | InvalidRange V.Version V.Version
 
 
 parser :: P.Parser Error Constraint
 parser =
   do  lower <- parseVersion
-      P.word1 0x20 {- -} BadFormat
+      P.word1 0x20#Word8 {- -} BadFormat
       loOp <- parseOp
-      P.word1 0x20 {- -} BadFormat
-      P.word1 0x76 {-v-} BadFormat
-      P.word1 0x20 {- -} BadFormat
+      P.word1 0x20#Word8 {- -} BadFormat
+      P.word1 0x76#Word8 {-v-} BadFormat
+      P.word1 0x20#Word8 {- -} BadFormat
       hiOp <- parseOp
-      P.word1 0x20 {- -} BadFormat
+      P.word1 0x20#Word8 {- -} BadFormat
       higher <- parseVersion
-      P.Parser $ \state@(P.State _ _ _ _ row col) _ eok _ eerr ->
+      P.Parser $ \_ state@(P.State _ _ _ cur) _ eok _ eerr ->
         if lower < higher
         then eok (Range lower loOp hiOp higher) state
-        else eerr row col (\_ _ -> InvalidRange lower higher)
+        else eerr cur (\_ -> InvalidRange lower higher)
 
 
 parseVersion :: P.Parser Error V.Version
 parseVersion =
-  P.specialize (\(r,c) _ _ -> BadFormat r c) V.parser
+  P.specialize (\(A.Position c) _ -> BadFormat c) V.parser
 
 
 parseOp :: P.Parser Error Op
 parseOp =
-  do  P.word1 0x3C {-<-} BadFormat
+  do  P.word1 0x3C#Word8 {-<-} BadFormat
       P.oneOfWithFallback
-        [ do  P.word1 0x3D {-=-} BadFormat
+        [ do  P.word1 0x3D#Word8 {-=-} BadFormat
               return LessOrEqual
         ]
         Less
