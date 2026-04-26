@@ -1,4 +1,6 @@
-{-# LANGUAGE BangPatterns, EmptyDataDecls, FlexibleInstances, UnboxedTuples #-}
+{-# LANGUAGE BangPatterns, EmptyDataDecls, ExtendedLiterals, FlexibleInstances,
+MagicHash, UnboxedTuples
+#-}
 module Elm.Package
   ( Name(..)
   , Author
@@ -34,8 +36,8 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Name as Name
 import qualified Data.Utf8 as Utf8
-import Data.Word (Word8)
-import Foreign.Ptr (Ptr, plusPtr, minusPtr)
+import GHC.Exts (isTrue#)
+import GHC.Prim
 import System.FilePath ((</>))
 
 import qualified Elm.Version as V
@@ -43,7 +45,8 @@ import qualified Json.Decode as D
 import qualified Json.Encode as E
 import qualified Json.String as Json
 import qualified Parse.Primitives as P
-import Parse.Primitives (Row, Col)
+import Parse.Primitives (Cursor)
+import qualified Reporting.Annotation as A
 import qualified Reporting.Suggest as Suggest
 
 
@@ -284,9 +287,9 @@ instance Binary Canonical where
 -- JSON
 
 
-decoder :: D.Decoder (Row, Col) Name
+decoder :: D.Decoder A.Position Name
 decoder =
-  D.customString parser (,)
+  D.customString parser A.Position
 
 
 encode :: Name -> E.Value
@@ -294,11 +297,11 @@ encode name =
   E.chars (toChars name)
 
 
-keyDecoder :: (Row -> Col -> x) -> D.KeyDecoder x Name
+keyDecoder :: (Cursor -> x) -> D.KeyDecoder x Name
 keyDecoder toError =
   let
     keyParser =
-      P.specialize (\(r,c) _ _ -> toError r c) parser
+      P.specialize (\(A.Position c) _ -> toError c) parser
   in
   D.KeyDecoder keyParser toError
 
@@ -307,66 +310,73 @@ keyDecoder toError =
 -- PARSER
 
 
-parser :: P.Parser (Row, Col) Name
+parser :: P.Parser A.Position Name
 parser =
   do  author <- parseName isAlphaOrDigit isAlphaOrDigit
-      P.word1 0x2F {-/-} (,)
+      P.word1 0x2F#Word8 {-/-} A.Position
       project <- parseName isLower isLowerOrDigit
       return (Name author project)
 
 
-parseName :: (Word8 -> Bool) -> (Word8 -> Bool) -> P.Parser (Row, Col) (Utf8.Utf8 t)
+parseName :: (Word8# -> Bool) -> (Word8# -> Bool) -> P.Parser A.Position (Utf8.Utf8 t)
 parseName isGoodStart isGoodInner =
-  P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
-    if pos >= end then
-      eerr row col (,)
+  P.Parser $ \_ (P.State pos end indent cur) cok _ cerr eerr ->
+    if P.notLtAddr pos end then
+      eerr cur A.Position
     else
-      let !word = P.unsafeIndex pos in
+      let !word = indexWord8OffAddr# pos 0# in
       if not (isGoodStart word) then
-        eerr row col (,)
+        eerr cur A.Position
       else
         let
-          (# isGood, newPos #) = chompName isGoodInner (plusPtr pos 1) end False
-          !len = fromIntegral (minusPtr newPos pos)
-          !newCol = col + len
+          !(# isGood, newPos #) = chompName isGoodInner (plusAddr# pos 1#) end False
+          !len = minusAddr# newPos pos
+          !newCur = P.slide cur (wordToWord64# (int2Word# len))
         in
-        if isGood && len < 256 then
-          let !newState = P.State src newPos end indent row newCol in
-          cok (Utf8.fromPtr pos newPos) newState
+        if isGood && isTrue# (len <# 256#) then
+          do  let !newState = P.State newPos end indent newCur
+              name <- Utf8.fromAddr pos newPos
+              cok name newState
         else
-          cerr row newCol (,)
+          cerr newCur A.Position
 
 
-isLower :: Word8 -> Bool
-isLower word =
-  0x61 {-a-} <= word && word <= 0x7A {-z-}
+isLower :: Word8# -> Bool
+isLower w =
+  isBetween 0x61#Word8 w 0x7A#Word8 {-a-} {-z-}
 
 
-isLowerOrDigit :: Word8 -> Bool
-isLowerOrDigit word =
-     0x61 {-a-} <= word && word <= 0x7A {-z-}
-  || 0x30 {-0-} <= word && word <= 0x39 {-9-}
+isLowerOrDigit :: Word8# -> Bool
+isLowerOrDigit w =
+     isBetween 0x61#Word8 w 0x7A#Word8 {-a-} {-z-}
+  || isBetween 0x30#Word8 w 0x39#Word8 {-0-} {-9-}
 
 
-isAlphaOrDigit :: Word8 -> Bool
-isAlphaOrDigit word =
-     0x61 {-a-} <= word && word <= 0x7A {-z-}
-  || 0x41 {-A-} <= word && word <= 0x5A {-Z-}
-  || 0x30 {-0-} <= word && word <= 0x39 {-9-}
+isAlphaOrDigit :: Word8# -> Bool
+isAlphaOrDigit w =
+     isBetween 0x61#Word8 w 0x7A#Word8 {-a-} {-z-}
+  || isBetween 0x41#Word8 w 0x5A#Word8 {-A-} {-Z-}
+  || isBetween 0x30#Word8 w 0x39#Word8 {-0-} {-9-}
 
 
-chompName :: (Word8 -> Bool) -> Ptr Word8 -> Ptr Word8 -> Bool -> (# Bool, Ptr Word8 #)
+{-# INLINE isBetween #-}
+isBetween :: Word8# -> Word8# -> Word8# -> Bool
+isBetween lo w hi =
+  isTrue# (leWord8# lo w) && isTrue# (leWord8# w hi)
+
+
+chompName :: (Word8# -> Bool) -> Addr# -> Addr# -> Bool -> (# Bool, Addr# #)
 chompName isGoodChar pos end prevWasDash =
-  if pos >= end then
+  if P.notLtAddr pos end then
     (# not prevWasDash, pos #)
   else
-    let !word = P.unsafeIndex pos in
+    let !word = indexWord8OffAddr# pos 0# in
     if isGoodChar word then
-      chompName isGoodChar (plusPtr pos 1) end False
-    else if word == 0x2D {---} then
+      chompName isGoodChar (plusAddr# pos 1#) end False
+    else if isTrue# (eqWord8# word 0x2D#Word8 {---}) then
       if prevWasDash then
         (# False, pos #)
       else
-        chompName isGoodChar (plusPtr pos 1) end True
+        chompName isGoodChar (plusAddr# pos 1#) end True
     else
       (# True, pos #)
