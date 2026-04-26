@@ -22,7 +22,7 @@ module Data.Utf8
   , toBuilder
   , toEscapedBuilder
   --
-  , fromPtr
+  , fromAddr
   , fromSnippet
   , fromChars
   --
@@ -476,28 +476,31 @@ escape before@(W8# before#) after ptr name@(Utf8 ba#) offset@(I# offset#) len@(I
 -- FROM PTR
 
 
-fromPtr :: Ptr Word8 -> Ptr Word8 -> Utf8 t
-fromPtr pos end =
-  unsafeDupablePerformIO (stToIO (
-    do  let !len = minusPtr end pos
-        mba <- newByteArray len
-        copyFromPtr pos mba 0 len
-        freeze mba
-  ))
+fromAddr :: Addr# -> Addr# -> IO (Utf8 t)
+fromAddr pos end =
+  IO $ \s0 ->
+    let
+      !len = minusAddr# end pos
+    in
+    case newByteArray# len s0                   of { (# s1, mba #) ->
+    case copyAddrToByteArray# pos mba 0# len s1 of {    s2         ->
+    case unsafeFreezeByteArray# mba s2          of { (# s3, ba  #) -> (# s3, Utf8 ba #) }}}
 
 
 
 -- FROM SNIPPET
 
 
-fromSnippet :: P.Snippet -> Utf8 t
-fromSnippet (P.Snippet fptr off len _ _) =
-  unsafeDupablePerformIO (stToIO (
-    do  mba <- newByteArray len
-        let !pos = plusPtr (unsafeForeignPtrToPtr fptr) off
-        copyFromPtr pos mba 0 len
-        freeze mba
-  ))
+fromSnippet :: P.Snippet -> IO (Utf8 t)
+fromSnippet (P.Snippet fpc pos end _) =
+  IO $ \s0 ->
+    let
+      !len = minusAddr# end pos
+    in
+    case newByteArray# len                   s0 of { (# s1, mba #) ->
+    case copyAddrToByteArray# pos mba 0# len s1 of {    s2         ->
+    case touch# fpc                          s2 of {    s3         ->
+    case unsafeFreezeByteArray# mba          s3 of { (# s4, ba  #) -> (# s4, Utf8 ba #) }}}}
 
 
 

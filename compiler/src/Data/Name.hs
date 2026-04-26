@@ -7,7 +7,7 @@ module Data.Name
   , toElmString
   , toBuilder
   --
-  , fromPtr
+  , fromAddr
   , fromChars
   --
   , getKernel
@@ -44,7 +44,7 @@ import qualified Data.Coerce as Coerce
 import qualified Data.List as List
 import qualified Data.String as Chars
 import qualified Data.Utf8 as Utf8
-import GHC.Exts (Int(I#), Ptr, isTrue#)
+import GHC.Exts (Int(I#), isTrue#)
 import GHC.ST (ST(ST), runST)
 import GHC.Prim
 import GHC.Word (Word8(W8#))
@@ -99,9 +99,9 @@ toBuilder =
 -- FROM
 
 
-fromPtr :: Ptr Word8 -> Ptr Word8 -> Name
-fromPtr =
-  Utf8.fromPtr
+fromAddr :: Addr# -> Addr# -> IO Name
+fromAddr =
+  Utf8.fromAddr
 
 
 fromChars :: [Char] -> Name
