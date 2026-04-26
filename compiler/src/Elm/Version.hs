@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, UnboxedTuples #-}
+{-# LANGUAGE BangPatterns, ExtendedLiterals, MagicHash, UnboxedTuples #-}
 module Elm.Version
   ( Version(..)
   , one
@@ -21,14 +21,15 @@ import Prelude hiding (max)
 import Control.Monad (liftM3)
 import Data.Binary (Binary, get, put, getWord8, putWord8)
 import qualified Data.Version as Version
-import Data.Word (Word8, Word16)
-import Foreign.Ptr (Ptr, plusPtr, minusPtr)
+import GHC.Exts (isTrue#)
+import GHC.Prim
+import GHC.Word (Word8(..), Word16)
 import qualified Paths_elm
 
 import qualified Json.Decode as D
 import qualified Json.Encode as E
 import qualified Parse.Primitives as P
-import Parse.Primitives (Row, Col)
+import qualified Reporting.Annotation as A
 
 
 
@@ -102,9 +103,9 @@ toChars (Version major minor patch) =
 -- JSON
 
 
-decoder :: D.Decoder (Row, Col) Version
+decoder :: D.Decoder A.Position Version
 decoder =
-  D.customString parser (,)
+  D.customString parser A.Position
 
 
 encode :: Version -> E.Value
@@ -142,54 +143,54 @@ instance Binary Version where
 -- PARSER
 
 
-parser :: P.Parser (Row, Col) Version
+parser :: P.Parser A.Position Version
 parser =
   do  major <- numberParser
-      P.word1 0x2E {-.-} (,)
+      P.word1 0x2E#Word8 {-.-} A.Position
       minor <- numberParser
-      P.word1 0x2E {-.-} (,)
+      P.word1 0x2E#Word8 {-.-} A.Position
       patch <- numberParser
       return (Version major minor patch)
 
 
-numberParser :: P.Parser (Row, Col) Word16
+numberParser :: P.Parser A.Position Word16
 numberParser =
-  P.Parser $ \(P.State src pos end indent row col) cok _ _ eerr ->
-    if pos >= end then
-      eerr row col (,)
+  P.Parser $ \_ (P.State pos end indent cur) cok _ _ eerr ->
+    if P.notLtAddr pos end then
+      eerr cur A.Position
     else
-      let !word = P.unsafeIndex pos in
-      if word == 0x30 {-0-} then
+      let !word = indexWord8OffAddr# pos 0# in
+      if isTrue# (eqWord8# word 0x30#Word8 {-0-}) then
 
         let
-          !newState = P.State src (plusPtr pos 1) end indent row (col + 1)
+          !newState = P.State (plusAddr# pos 1#) end indent (P.slide cur 1#Word64)
         in
         cok 0 newState
 
       else if isDigit word then
 
         let
-          (# total, newPos #) = chompWord16 (plusPtr pos 1) end (fromIntegral (word - 0x30))
-          !newState = P.State src newPos end indent row (col + fromIntegral (minusPtr newPos pos))
+          !(# total, newPos #) = chompWord16 (plusAddr# pos 1#) end (fromIntegral (W8# word - 0x30))
+          !newState = P.State newPos end indent (P.slide cur (wordToWord64# (int2Word# (minusAddr# newPos pos))))
         in
         cok total newState
 
       else
-        eerr row col (,)
+        eerr cur A.Position
 
 
-chompWord16 :: Ptr Word8 -> Ptr Word8 -> Word16 -> (# Word16, Ptr Word8 #)
+chompWord16 :: Addr# -> Addr# -> Word16 -> (# Word16, Addr# #)
 chompWord16 pos end total =
-  if pos >= end then
+  if P.notLtAddr pos end then
     (# total, pos #)
   else
-    let !word = P.unsafeIndex pos in
+    let !word = indexWord8OffAddr# pos 0# in
     if isDigit word then
-      chompWord16 (plusPtr pos 1) end (10 * total + fromIntegral (word - 0x30))
+      chompWord16 (plusAddr# pos 1#) end (10 * total + fromIntegral (W8# word - 0x30))
     else
       (# total, pos #)
 
 
-isDigit :: Word8 -> Bool
+isDigit :: Word8# -> Bool
 isDigit word =
-  0x30 {-0-} <= word && word <= 0x39 {-9-}
+  isTrue# (0x30#Word8 {-0-} `leWord8#` word) && isTrue# (word `leWord8#` 0x39#Word8 {-9-})
