@@ -1,7 +1,7 @@
-{-# LANGUAGE EmptyDataDecls, FlexibleInstances #-}
+{-# LANGUAGE EmptyDataDecls, FlexibleInstances, MagicHash #-}
 module Elm.Float
   ( Float
-  , fromPtr
+  , fromAddr
   , toBuilder
   )
   where
@@ -11,8 +11,7 @@ import Prelude hiding (Float)
 import Data.Binary (Binary, get, put)
 import qualified Data.ByteString.Builder as B
 import qualified Data.Utf8 as Utf8
-import Data.Word (Word8)
-import Foreign.Ptr (Ptr)
+import GHC.Prim
 
 
 
@@ -30,9 +29,9 @@ data ELM_FLOAT
 -- HELPERS
 
 
-fromPtr :: Ptr Word8 -> Ptr Word8 -> Float
-fromPtr =
-  Utf8.fromPtr
+fromAddr :: Addr# -> Addr# -> IO Float
+fromAddr =
+  Utf8.fromAddr
 
 
 {-# INLINE toBuilder #-}
