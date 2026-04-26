@@ -1,5 +1,7 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind -fno-warn-name-shadowing #-}
-{-# LANGUAGE BangPatterns, Rank2Types, OverloadedStrings, UnboxedTuples #-}
+{-# LANGUAGE BangPatterns, ExtendedLiterals, MagicHash, OverloadedStrings,
+QuasiQuotes, Rank2Types, UnboxedTuples
+#-}
 module Json.Decode
   ( fromByteString
   , Decoder
@@ -29,17 +31,18 @@ module Json.Decode
   where
 
 
-import qualified Data.ByteString.Internal as B
+import qualified Data.ByteString.Internal as BS
 import qualified Data.Map as Map
 import qualified Data.NonEmptyList as NE
-import Data.Word (Word8)
-import Foreign.Ptr (Ptr, plusPtr, minusPtr)
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
+import GHC.Exts (Int(..), isTrue#)
+import GHC.ForeignPtr (ForeignPtr(..))
+import GHC.Prim
+import GHC.Word (Word8(..))
 
 import qualified Json.String as Json
-import qualified Parse.Keyword as K
+import qualified Parse.Keyword_TH as TH
 import qualified Parse.Primitives as P
-import Parse.Primitives (Row, Col)
+import Parse.Primitives (Cursor, slide, newline)
 import qualified Reporting.Annotation as A
 
 
@@ -47,14 +50,12 @@ import qualified Reporting.Annotation as A
 -- RUNNERS
 
 
-fromByteString :: Decoder x a -> B.ByteString -> Either (Error x) a
+fromByteString :: Decoder x a -> BS.ByteString -> IO (Either (Error x) a)
 fromByteString (Decoder decode) src =
-  case P.fromByteString pFile BadEnd src of
-    Right ast ->
-      decode ast Right (Left . DecodeProblem src)
-
-    Left problem ->
-      Left (ParseProblem src problem)
+  do  result <- P.fromByteString pFile BadEnd src
+      case result of
+        Right ast    -> decode ast (pure . Right) (pure . Left . DecodeProblem src)
+        Left problem -> pure $ Left $ ParseProblem src problem
 
 
 
@@ -62,14 +63,7 @@ fromByteString (Decoder decode) src =
 
 
 newtype Decoder x a =
-  Decoder
-  (
-    forall b.
-      AST
-      -> (a -> b)
-      -> (Problem x -> b)
-      -> b
-  )
+  Decoder (forall r. AST -> (a -> IO r) -> (Problem x -> IO r) -> IO r)
 
 
 
@@ -77,8 +71,8 @@ newtype Decoder x a =
 
 
 data Error x
-  = DecodeProblem B.ByteString (Problem x)
-  | ParseProblem B.ByteString ParseError
+  = DecodeProblem BS.ByteString (Problem x)
+  | ParseProblem BS.ByteString ParseError
 
 
 
@@ -86,7 +80,7 @@ data Error x
 
 
 data Problem x
-  = Field B.ByteString (Problem x)
+  = Field BS.ByteString (Problem x)
   | Index Int (Problem x)
   | OneOf (Problem x) [Problem x]
   | Failure A.Region x
@@ -99,7 +93,7 @@ data DecodeExpectation
   | TString
   | TBool
   | TInt
-  | TObjectWith B.ByteString
+  | TObjectWith BS.ByteString
   | TArrayPair Int
 
 
@@ -109,12 +103,12 @@ data DecodeExpectation
 
 instance Functor (Decoder x) where
   {-# INLINE fmap #-}
-  fmap func (Decoder decodeA) =
+  fmap func (Decoder kA) =
     Decoder $ \ast ok err ->
       let
         ok' a = ok (func a)
       in
-      decodeA ast ok' err
+      kA ast ok' err
 
 
 instance Applicative (Decoder x) where
@@ -124,28 +118,28 @@ instance Applicative (Decoder x) where
       ok a
 
   {-# INLINE (<*>) #-}
-  (<*>) (Decoder decodeFunc) (Decoder decodeArg) =
+  (<*>) (Decoder kFunc) (Decoder kArg) =
     Decoder $ \ast ok err ->
       let
         okF func =
           let
             okA arg = ok (func arg)
           in
-          decodeArg ast okA err
+          kArg ast okA err
       in
-      decodeFunc ast okF err
+      kFunc ast okF err
 
 
 instance Monad (Decoder x) where
   {-# INLINE (>>=) #-}
-  (>>=) (Decoder decodeA) callback =
+  (>>=) (Decoder kA) callback =
     Decoder $ \ast ok err ->
       let
         ok' a =
           case callback a of
-            Decoder decodeB -> decodeB ast ok err
+            Decoder kB -> kB ast ok err
       in
-      decodeA ast ok' err
+      kA ast ok' err
 
 
 
@@ -157,20 +151,21 @@ string =
   Decoder $ \(A.At region ast) ok err ->
     case ast of
       String snippet ->
-        ok (Json.fromSnippet snippet)
+        ok =<< Json.fromSnippet snippet
 
       _ ->
         err (Expecting region TString)
 
 
-customString :: P.Parser x a -> (Row -> Col -> x) -> Decoder x a
+customString :: P.Parser x a -> (Cursor -> x) -> Decoder x a
 customString parser toBadEnd =
   Decoder $ \(A.At region ast) ok err ->
     case ast of
       String snippet ->
-        case P.fromSnippet parser toBadEnd snippet of
-          Right a -> ok a
-          Left  x -> err (Failure region x)
+        do  result <- P.fromSnippet parser toBadEnd snippet
+            case result of
+              Right a -> ok a
+              Left  x -> err (Failure region x)
 
       _ ->
         err (Expecting region TString)
@@ -224,8 +219,8 @@ list decoder =
         err (Expecting region TArray)
 
 
-listHelp :: Decoder x a -> ([a] -> b) -> (Problem x -> b) -> Int -> [AST] -> [a] -> b
-listHelp decoder@(Decoder decodeA) ok err !i asts revs =
+listHelp :: Decoder x a -> ([a] -> IO r) -> (Problem x -> IO r) -> Int -> [AST] -> [a] -> IO r
+listHelp decoder@(Decoder kA) ok err !i asts revs =
   case asts of
     [] ->
       ok (reverse revs)
@@ -235,7 +230,7 @@ listHelp decoder@(Decoder decodeA) ok err !i asts revs =
         ok' value = listHelp decoder ok err (i+1) asts (value:revs)
         err' prob = err (Index i prob)
       in
-      decodeA ast ok' err'
+      kA ast ok' err'
 
 
 
@@ -255,7 +250,7 @@ nonEmptyList decoder x =
 
 
 pair :: Decoder x a -> Decoder x b -> Decoder x (a,b)
-pair (Decoder decodeA) (Decoder decodeB) =
+pair (Decoder kA) (Decoder decodeB) =
   Decoder $ \(A.At region ast) ok err ->
     case ast of
       Array vs ->
@@ -270,7 +265,7 @@ pair (Decoder decodeA) (Decoder decodeB) =
                 in
                 decodeB astB ok1 err1
             in
-            decodeA astA ok0 err0
+            kA astA ok0 err0
 
           _ ->
             err (Expecting region (TArrayPair (length vs)))
@@ -284,7 +279,7 @@ pair (Decoder decodeA) (Decoder decodeB) =
 
 
 data KeyDecoder x a =
-  KeyDecoder (P.Parser x a) (Row -> Col -> x)
+  KeyDecoder (P.Parser x a) (Cursor -> x)
 
 
 dict :: (Ord k) => KeyDecoder x k -> Decoder x a -> Decoder x (Map.Map k a)
@@ -303,38 +298,39 @@ pairs keyDecoder valueDecoder =
         err (Expecting region TObject)
 
 
-pairsHelp :: KeyDecoder x k -> Decoder x a -> ([(k, a)] -> b) -> (Problem x -> b) -> [(P.Snippet, AST)] -> [(k, a)] -> b
-pairsHelp keyDecoder@(KeyDecoder keyParser toBadEnd) valueDecoder@(Decoder decodeA) ok err kvs revs =
+pairsHelp :: KeyDecoder x k -> Decoder x a -> ([(k, a)] -> IO r) -> (Problem x -> IO r) -> [(P.Snippet, AST)] -> [(k, a)] -> IO r
+pairsHelp keyDecoder@(KeyDecoder keyParser toBadEnd) valueDecoder@(Decoder kA) ok err kvs revs =
   case kvs of
     [] ->
       ok (reverse revs)
 
     (snippet, ast) : kvs ->
-      case P.fromSnippet keyParser toBadEnd snippet of
-        Left x ->
-          err (Failure (snippetToRegion snippet) x)
+      do  result <- P.fromSnippet keyParser toBadEnd snippet
+          case result of
+            Left x ->
+              err (Failure (snippetToRegion snippet) x)
 
-        Right key ->
-          let
-            ok' value = pairsHelp keyDecoder valueDecoder ok err kvs ((key,value):revs)
-            err' prob =
-              let (P.Snippet fptr off len _ _) = snippet in
-              err (Field (B.PS fptr off len) prob)
-          in
-          decodeA ast ok' err'
+            Right key ->
+              let
+                ok' value = pairsHelp keyDecoder valueDecoder ok err kvs ((key,value):revs)
+                err' prob =
+                  let !(P.Snippet fpc pos end _) = snippet in
+                  err (Field (BS.BS (ForeignPtr pos fpc) (I# (minusAddr# end pos))) prob)
+              in
+              kA ast ok' err'
 
 
 snippetToRegion :: P.Snippet -> A.Region
-snippetToRegion (P.Snippet _ _ len row col) =
-  A.Region (A.Position row col) (A.Position row (col + fromIntegral len))
+snippetToRegion (P.Snippet _ pos end cur) =
+  A.Region cur (slide cur (wordToWord64# (int2Word# (minusAddr# end pos))))
 
 
 
 -- FIELDS
 
 
-field :: B.ByteString -> Decoder x a -> Decoder x a
-field key (Decoder decodeA) =
+field :: BS.ByteString -> Decoder x a -> Decoder x a
+field key (Decoder kA) =
   Decoder $ \(A.At region ast) ok err ->
     case ast of
       Object kvs ->
@@ -344,7 +340,7 @@ field key (Decoder decodeA) =
               err' prob =
                 err (Field key prob)
             in
-            decodeA value ok err'
+            kA value ok err'
 
           Nothing ->
             err (Expecting region (TObjectWith key))
@@ -353,14 +349,14 @@ field key (Decoder decodeA) =
         err (Expecting region TObject)
 
 
-findField :: B.ByteString -> [(P.Snippet, AST)] -> Maybe AST
+findField :: BS.ByteString -> [(P.Snippet, AST)] -> Maybe AST
 findField key pairs =
   case pairs of
     [] ->
       Nothing
 
-    (P.Snippet fptr off len _ _, value) : remainingPairs ->
-      if key == B.PS fptr off len
+    (P.Snippet fpc pos end _, value) : remainingPairs ->
+      if key == BS.BS (ForeignPtr pos fpc) (I# (minusAddr# end pos))
       then Just value
       else findField key remainingPairs
 
@@ -373,26 +369,26 @@ oneOf :: [Decoder x a] -> Decoder x a
 oneOf decoders =
   Decoder $ \ast ok err ->
     case decoders of
-      Decoder decodeA : decoders ->
+      Decoder kA : decoders ->
         let
           err' e =
             oneOfHelp ast ok err decoders e []
         in
-        decodeA ast ok err'
+        kA ast ok err'
 
       [] ->
         error "Ran into (Json.Decode.oneOf [])"
 
 
-oneOfHelp :: AST -> (a -> b) -> (Problem x -> b) -> [Decoder x a] -> Problem x -> [Problem x] -> b
+oneOfHelp :: AST -> (a -> IO r) -> (Problem x -> IO r) -> [Decoder x a] -> Problem x -> [Problem x] -> IO r
 oneOfHelp ast ok err decoders p ps =
   case decoders of
-    Decoder decodeA : decoders ->
+    Decoder kA : decoders ->
       let
         err' p' =
           oneOfHelp ast ok err decoders p' (p:ps)
       in
-      decodeA ast ok err'
+      kA ast ok err'
 
     [] ->
       err (oneOfError [] p ps)
@@ -423,12 +419,12 @@ failure x =
 
 
 mapError :: (x -> y) -> Decoder x a -> Decoder y a
-mapError func (Decoder decodeA) =
+mapError func (Decoder kA) =
   Decoder $ \ast ok err ->
     let
       err' prob = err (mapErrorHelp func prob)
     in
-    decodeA ast ok err'
+    kA ast ok err'
 
 
 mapErrorHelp :: (x -> y) -> Problem x -> Problem y
@@ -468,18 +464,18 @@ type Parser a =
 
 
 data ParseError
-  = Start Row Col
-  | ObjectField Row Col
-  | ObjectColon Row Col
-  | ObjectEnd Row Col
-  | ArrayEnd Row Col
-  | StringProblem StringProblem Row Col
-  | NoLeadingZeros Row Col
-  | NoFloats Row Col
-  | BadEnd Row Col
+  = Start Cursor
+  | ObjectField Cursor
+  | ObjectColon Cursor
+  | ObjectEnd Cursor
+  | ArrayEnd Cursor
+  | StringProblem StringProblem Cursor
+  | NoLeadingZeros Cursor
+  | NoFloats Cursor
+  | BadEnd Cursor
 
---  PIndex Int ParseError Row Col
---  PField Json.String ParseError Row Col
+--  PIndex Int ParseError Cursor
+--  PField Json.String ParseError Cursor
 
 
 data StringProblem
@@ -487,6 +483,7 @@ data StringProblem
   | BadStringControlChar
   | BadStringEscapeChar
   | BadStringEscapeHex
+  | BadStringNotUtf8
 
 
 
@@ -509,10 +506,19 @@ pValue =
     , pObject
     , pArray
     , pInt
-    , K.k4 0x74 0x72 0x75 0x65      Start >> return TRUE
-    , K.k5 0x66 0x61 0x6C 0x73 0x65 Start >> return FALSE
-    , K.k4 0x6E 0x75 0x6C 0x6C      Start >> return NULL
+    , pTrue  Start >> return TRUE
+    , pFalse Start >> return FALSE
+    , pNull  Start >> return NULL
     ]
+
+
+pTrue  :: (Cursor -> x) -> P.Parser x ()
+pFalse :: (Cursor -> x) -> P.Parser x ()
+pNull  :: (Cursor -> x) -> P.Parser x ()
+
+pTrue  = [TH.keyword|true|]
+pFalse = [TH.keyword|false|]
+pNull  = [TH.keyword|null|]
 
 
 
@@ -521,13 +527,13 @@ pValue =
 
 pObject :: Parser AST_
 pObject =
-  do  P.word1 0x7B {- { -} Start
+  do  P.word1 0x7B#Word8 {- { -} Start
       spaces
       P.oneOf ObjectField
         [ do  entry <- pField
               spaces
               pObjectHelp [entry]
-        , do  P.word1 0x7D {-}-} ObjectEnd
+        , do  P.word1 0x7D#Word8 {-}-} ObjectEnd
               return (Object [])
         ]
 
@@ -536,13 +542,13 @@ pObjectHelp :: [(P.Snippet, AST)] -> Parser AST_
 pObjectHelp revEntries =
   P.oneOf ObjectEnd
     [
-      do  P.word1 0x2C {-,-} ObjectEnd
+      do  P.word1 0x2C#Word8 {-,-} ObjectEnd
           spaces
           entry <- pField
           spaces
           pObjectHelp (entry:revEntries)
     ,
-      do  P.word1 0x7D {-}-} ObjectEnd
+      do  P.word1 0x7D#Word8 {-}-} ObjectEnd
           return (Object (reverse revEntries))
     ]
 
@@ -551,7 +557,7 @@ pField :: Parser (P.Snippet, AST)
 pField =
   do  key <- pString ObjectField
       spaces
-      P.word1 0x3A {-:-} ObjectColon
+      P.word1 0x3A#Word8 {-:-} ObjectColon
       spaces
       value <- pValue
       return (key, value)
@@ -563,13 +569,13 @@ pField =
 
 pArray :: Parser AST_
 pArray =
-  do  P.word1 0x5B {-[-} Start
+  do  P.word1 0x5B#Word8 {-[-} Start
       spaces
       P.oneOf Start
         [ do  entry <- pValue
               spaces
               pArrayHelp 1 [entry]
-        , do  P.word1 0x5D {-]-} ArrayEnd
+        , do  P.word1 0x5D#Word8 {-]-} ArrayEnd
               return (Array [])
         ]
 
@@ -578,13 +584,13 @@ pArrayHelp :: Int -> [AST] -> Parser AST_
 pArrayHelp !len revEntries =
   P.oneOf ArrayEnd
     [
-      do  P.word1 0x2C {-,-} ArrayEnd
+      do  P.word1 0x2C#Word8 {-,-} ArrayEnd
           spaces
           entry <- pValue
           spaces
           pArrayHelp (len + 1) (entry:revEntries)
     ,
-      do  P.word1 0x5D {-]-} ArrayEnd
+      do  P.word1 0x5D#Word8 {-]-} ArrayEnd
           return (Array (reverse revEntries))
     ]
 
@@ -593,33 +599,31 @@ pArrayHelp !len revEntries =
 -- STRING
 
 
-pString :: (Row -> Col -> ParseError) -> Parser P.Snippet
+pString :: (Cursor -> ParseError) -> Parser P.Snippet
 pString start =
-  P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
-    if pos < end && P.unsafeIndex pos == 0x22 {-"-} then
+  P.Parser $ \fpc (P.State pos end indent cur) cok _ cerr eerr ->
+    if P.ltAddr pos end && P.eqIndex pos 0# 0x22#Word8 {-"-} then
 
       let
-        !pos1 = plusPtr pos 1
-        !col1 = col + 1
+        !pos1 = plusAddr# pos 1#
+        !cur1 = slide cur 1#Word64
 
-        (# status, newPos, newRow, newCol #) =
-          pStringHelp pos1 end row col1
+        !(# status, newPos, newCur #) =
+          pStringHelp pos1 end cur1
       in
       case status of
         GoodString ->
           let
-            !off = minusPtr pos1 (unsafeForeignPtrToPtr src)
-            !len = minusPtr newPos pos1 - 1
-            !snp = P.Snippet src off len row col1
-            !newState = P.State src newPos end indent newRow newCol
+            !snp = P.Snippet fpc pos1 (plusAddr# newPos (-1#)) cur1
+            !newState = P.State newPos end indent newCur
           in
           cok snp newState
 
         BadString problem ->
-          cerr newRow newCol (StringProblem problem)
+          cerr newCur (StringProblem problem)
 
     else
-      eerr row col start
+      eerr cur start
 
 
 data StringStatus
@@ -627,61 +631,63 @@ data StringStatus
   | BadString StringProblem
 
 
-pStringHelp :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> (# StringStatus, Ptr Word8, Row, Col #)
-pStringHelp pos end row col =
-  if pos >= end then
-    (# BadString BadStringEnd, pos, row, col #)
+pStringHelp :: Addr# -> Addr# -> Cursor -> (# StringStatus, Addr#, Cursor #)
+pStringHelp pos end cur =
+  if P.notLtAddr pos end then
+    (# BadString BadStringEnd, pos, cur #)
 
   else
-    case P.unsafeIndex pos of
-      0x22 {-"-} ->
-        (# GoodString, plusPtr pos 1, row, col + 1 #)
+    case indexWord8OffAddr# pos 0# of
+      0x22#Word8 {-"-} ->
+        (# GoodString, plusAddr# pos 1#, slide cur 1#Word64 #)
 
-      0x0A {-\n-} ->
-        (# BadString BadStringEnd, pos, row, col #)
+      0x0A#Word8 {-\n-} ->
+        (# BadString BadStringEnd, pos, cur #)
 
-      0x5C {-\-} ->
-        let !pos1 = plusPtr pos 1 in
-        if pos1 >= end then
-          (# BadString BadStringEnd, pos1, row + 1, col #)
+      0x5C#Word8 {-\-} ->
+        let !pos1 = plusAddr# pos 1# in
+        if P.notLtAddr pos1 end then
+          (# BadString BadStringEnd, pos1, slide cur 1#Word64 #)
         else
-          case P.unsafeIndex pos1 of
-            0x22 {-"-} -> pStringHelp (plusPtr pos 2) end row (col + 2)
-            0x5C {-\-} -> pStringHelp (plusPtr pos 2) end row (col + 2)
-            0x2F {-/-} -> pStringHelp (plusPtr pos 2) end row (col + 2)
-            0x62 {-b-} -> pStringHelp (plusPtr pos 2) end row (col + 2)
-            0x66 {-f-} -> pStringHelp (plusPtr pos 2) end row (col + 2)
-            0x6E {-n-} -> pStringHelp (plusPtr pos 2) end row (col + 2)
-            0x72 {-r-} -> pStringHelp (plusPtr pos 2) end row (col + 2)
-            0x74 {-t-} -> pStringHelp (plusPtr pos 2) end row (col + 2)
-            0x75 {-u-} ->
-              let !pos6 = plusPtr pos 6 in
-              if pos6 <= end
-                && isHex (P.unsafeIndex (plusPtr pos 2))
-                && isHex (P.unsafeIndex (plusPtr pos 3))
-                && isHex (P.unsafeIndex (plusPtr pos 4))
-                && isHex (P.unsafeIndex (plusPtr pos 5))
+          case indexWord8OffAddr# pos1 0# of
+            0x22#Word8 {-"-} -> pStringHelp (plusAddr# pos 2#) end (slide cur 2#Word64)
+            0x5C#Word8 {-\-} -> pStringHelp (plusAddr# pos 2#) end (slide cur 2#Word64)
+            0x2F#Word8 {-/-} -> pStringHelp (plusAddr# pos 2#) end (slide cur 2#Word64)
+            0x62#Word8 {-b-} -> pStringHelp (plusAddr# pos 2#) end (slide cur 2#Word64)
+            0x66#Word8 {-f-} -> pStringHelp (plusAddr# pos 2#) end (slide cur 2#Word64)
+            0x6E#Word8 {-n-} -> pStringHelp (plusAddr# pos 2#) end (slide cur 2#Word64)
+            0x72#Word8 {-r-} -> pStringHelp (plusAddr# pos 2#) end (slide cur 2#Word64)
+            0x74#Word8 {-t-} -> pStringHelp (plusAddr# pos 2#) end (slide cur 2#Word64)
+            0x75#Word8 {-u-} ->
+              let !pos6 = plusAddr# pos 6# in
+              if P.leAddr pos6 end
+                && isHex (indexWord8OffAddr# pos 2#)
+                && isHex (indexWord8OffAddr# pos 3#)
+                && isHex (indexWord8OffAddr# pos 4#)
+                && isHex (indexWord8OffAddr# pos 5#)
               then
-                pStringHelp pos6 end row (col + 6)
+                pStringHelp pos6 end (slide cur 6#Word64)
               else
-                (# BadString BadStringEscapeHex, pos, row, col #)
+                (# BadString BadStringEscapeHex, pos, cur #)
 
             _ ->
-              (# BadString BadStringEscapeChar, pos, row, col #)
+              (# BadString BadStringEscapeChar, pos, cur #)
 
       word ->
-        if word < 0x20 then
-          (# BadString BadStringControlChar, pos, row, col #)
+        if isTrue# (ltWord8# word 0x20#Word8) then
+          (# BadString BadStringControlChar, pos, cur #)
         else
-          let !newPos = plusPtr pos (P.getCharWidth word) in
-          pStringHelp newPos end row (col + 1)
+          let !newPos = P.skipUtf8 pos end word in
+          if P.eqAddr pos newPos
+          then (# BadString BadStringNotUtf8, pos, cur #)
+          else pStringHelp newPos end (slide cur 1#Word64)
 
 
-isHex :: Word8 -> Bool
-isHex word =
-     0x30 {-0-} <= word && word <= 0x39 {-9-}
-  || 0x61 {-a-} <= word && word <= 0x66 {-f-}
-  || 0x41 {-A-} <= word && word <= 0x46 {-F-}
+isHex :: Word8# -> Bool
+isHex w =
+     isTrue# (0x30#Word8 {-0-} `leWord8#` w) && isTrue# (w `leWord8#` 0x39#Word8 {-9-})
+  || isTrue# (0x61#Word8 {-a-} `leWord8#` w) && isTrue# (w `leWord8#` 0x66#Word8 {-f-})
+  || isTrue# (0x41#Word8 {-A-} `leWord8#` w) && isTrue# (w `leWord8#` 0x46#Word8 {-F-})
 
 
 
@@ -690,34 +696,34 @@ isHex word =
 
 spaces :: Parser ()
 spaces =
-  P.Parser $ \state@(P.State src pos end indent row col) cok eok _ _ ->
+  P.Parser $ \_ state@(P.State pos end indent cur) cok eok _ _ ->
     let
-      (# newPos, newRow, newCol #) =
-        eatSpaces pos end row col
+      !(# newPos, newCur #) =
+        eatSpaces pos end cur
     in
-    if pos == newPos then
+    if P.eqAddr pos newPos then
       eok () state
     else
       let
         !newState =
-          P.State src newPos end indent newRow newCol
+          P.State newPos end indent newCur
       in
       cok () newState
 
 
-eatSpaces :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> (# Ptr Word8, Row, Col #)
-eatSpaces pos end row col =
-  if pos >= end then
-    (# pos, row, col #)
+eatSpaces :: Addr# -> Addr# -> Cursor -> (# Addr#, Cursor #)
+eatSpaces pos end cur =
+  if P.notLtAddr pos end then
+    (# pos, cur #)
 
   else
-    case P.unsafeIndex pos of
-      0x20 {-  -} -> eatSpaces (plusPtr pos 1) end row (col + 1)
-      0x09 {-\t-} -> eatSpaces (plusPtr pos 1) end row (col + 1)
-      0x0A {-\n-} -> eatSpaces (plusPtr pos 1) end (row + 1) 1
-      0x0D {-\r-} -> eatSpaces (plusPtr pos 1) end row col
+    case indexWord8OffAddr# pos 0# of
+      0x20#Word8 {-  -} -> eatSpaces (plusAddr# pos 1#) end (slide cur 1#Word64)
+      0x09#Word8 {-\t-} -> eatSpaces (plusAddr# pos 1#) end (slide cur 1#Word64)
+      0x0A#Word8 {-\n-} -> eatSpaces (plusAddr# pos 1#) end (newline cur)
+      0x0D#Word8 {-\r-} -> eatSpaces (plusAddr# pos 1#) end cur
       _ ->
-        (# pos, row, col #)
+        (# pos, cur #)
 
 
 
@@ -726,27 +732,27 @@ eatSpaces pos end row col =
 
 pInt :: Parser AST_
 pInt =
-  P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
-    if pos >= end then
-      eerr row col Start
+  P.Parser $ \_ (P.State pos end indent cur) cok _ cerr eerr ->
+    if P.notLtAddr pos end then
+      eerr cur Start
 
     else
-      let !word = P.unsafeIndex pos in
+      let !word = indexWord8OffAddr# pos 0# in
       if not (isDecimalDigit word) then
-        eerr row col Start
+        eerr cur Start
 
-      else if word == 0x30 {-0-} then
+      else if isTrue# (eqWord8# word 0x30#Word8 {-0-}) then
 
         let
-          !pos1 = plusPtr pos 1
-          !newState = P.State src pos1 end indent row (col + 1)
+          !pos1 = plusAddr# pos 1#
+          !newState = P.State pos1 end indent (slide cur 1#Word64)
         in
-        if pos1 < end then
-          let !word1 = P.unsafeIndex pos1 in
+        if P.ltAddr pos1 end then
+          let !word1 = indexWord8OffAddr# pos1 0# in
           if isDecimalDigit word1 then
-            cerr row (col + 1) NoLeadingZeros
-          else if word1 == 0x2E {-.-} then
-            cerr row (col + 1) NoFloats
+            cerr (slide cur 1#Word64) NoLeadingZeros
+          else if isTrue# (eqWord8# word1 0x2E#Word8 {-.-}) then
+            cerr (slide cur 1#Word64) NoFloats
           else
             cok (Int 0) newState
         else
@@ -754,34 +760,34 @@ pInt =
 
       else
         let
-          (# status, n, newPos #) =
-            chompInt (plusPtr pos 1) end (fromIntegral (word - 0x30 {-0-}))
+          !(# status, n, newPos #) =
+            chompInt (plusAddr# pos 1#) end (fromIntegral (W8# word) - 0x30 {-0-})
 
-          !len = fromIntegral (minusPtr newPos pos)
+          !len = wordToWord64# (int2Word# (minusAddr# newPos pos))
         in
         case status of
           GoodInt ->
             let
               !newState =
-                P.State src newPos end indent row (col + len)
+                P.State newPos end indent (slide cur len)
             in
             cok (Int n) newState
 
           BadIntEnd ->
-            cerr row (col + len) NoFloats
+            cerr (slide cur len) NoFloats
 
 
 data IntStatus = GoodInt | BadIntEnd
 
 
-chompInt :: Ptr Word8 -> Ptr Word8 -> Int -> (# IntStatus, Int, Ptr Word8 #)
+chompInt :: Addr# -> Addr# -> Int -> (# IntStatus, Int, Addr# #)
 chompInt pos end n =
-  if pos < end then
-    let !word = P.unsafeIndex pos in
+  if P.ltAddr pos end then
+    let !word = indexWord8OffAddr# pos 0# in
     if isDecimalDigit word then
-      let !m = 10 * n + fromIntegral (word - 0x30 {-0-}) in
-      chompInt (plusPtr pos 1) end m
-    else if word == 0x2E {-.-} || word == 0x65 {-e-} || word == 0x45 {-E-} then
+      let !m = 10 * n + fromIntegral (W8# word - 0x30 {-0-}) in
+      chompInt (plusAddr# pos 1#) end m
+    else if isTrue# (eqWord8# word 0x2E#Word8 {-.-}) || isTrue# (eqWord8# word 0x65#Word8 {-e-}) || isTrue# (eqWord8# word 0x45#Word8 {-E-}) then
       (# BadIntEnd, n, pos #)
     else
       (# GoodInt, n, pos #)
@@ -791,6 +797,6 @@ chompInt pos end n =
 
 
 {-# INLINE isDecimalDigit #-}
-isDecimalDigit :: Word8 -> Bool
-isDecimalDigit word =
-  word <= 0x39 {-9-} && word >= 0x30 {-0-}
+isDecimalDigit :: Word8# -> Bool
+isDecimalDigit w =
+  isTrue# (w `leWord8#` 0x39#Word8 {-9-}) && isTrue# (w `geWord8#` 0x30#Word8 {-0-})
