@@ -1,51 +1,27 @@
+cabal-version: 3.6
+build-type: Simple
 
-Name: elm
-Version: 0.19.2
+name: elm
+version: 0.19.2
 
-Synopsis:
-    Perform tasks for various Elm websites
-
-Description:
-    Compile code for the online editor. Maybe do more someday!
-
-Homepage: https://elm-lang.org
-
-License: BSD3
-License-file: ../LICENSE
-
-Author:     Evan Czaplicki
-Maintainer: info@elm-lang.org
-Copyright:  Copyright (c) 2019-present, Evan Czaplicki
-
-Category: Compiler, Language
-
-Cabal-version: >=1.9
-Build-type: Simple
-
-source-repository head
-    type:     git
-    location: git://github.com/elm/compiler.git
+homepage: https://elm-lang.org
+author: Evan Czaplicki
+maintainer: info@elm-lang.org
+copyright: Copyright (c) 2019-present, Evan Czaplicki
+license: BSD-3-Clause
+license-file: ../LICENSE
 
 
-Flag dev {
-  Description: Turn off optimization and make warnings errors
-  Default: False
-}
+executable worker
+    ghc-options: -O2 -rtsopts -threaded "-with-rtsopts=-N -qg"
 
-
-Executable worker
-    if flag(dev)
-        ghc-options: -O0 -Wall -Werror
-    else
-        ghc-options: -O2 -rtsopts -threaded "-with-rtsopts=-N -qg"
-
-    Hs-Source-Dirs:
+    hs-source-dirs:
         src
         ../compiler/src
         ../builder/src
         ../terminal/src
 
-    Main-Is:
+    main-is:
         Main.hs
 
     other-modules:
@@ -197,7 +173,6 @@ Executable worker
         parsec,
         process,
         random,
-        raw-strings-qq,
         scientific,
         SHA,
         snap-core,
