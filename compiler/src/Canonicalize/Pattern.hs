@@ -109,7 +109,7 @@ canonicalize env (A.At region pattern) =
       Result.ok (Can.PStr str)
 
     Src.PInt int ->
-      Result.ok (Can.PInt int)
+      Result.ok (Can.PInt (fromIntegral int)) -- TODO make overflow an error
 
 
 canonicalizeCtor :: Env.Env -> A.Region -> Name.Name -> [Src.Pattern] -> Env.Ctor -> Result DupsDict w Can.Pattern_
