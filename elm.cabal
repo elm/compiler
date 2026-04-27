@@ -1,55 +1,30 @@
+cabal-version: 3.6
+build-type: Simple
 
-Name: elm
-Version: 0.19.2
+name: elm
+version: 0.19.2
 
-Synopsis:
-    The `elm` command line interface.
-
-Description:
-    This includes commands like `elm make`, `elm repl`, and many others
-    for helping make Elm developers happy and productive.
-
-Homepage: https://elm-lang.org
-
-License: BSD3
-License-file: LICENSE
-
-Author:     Evan Czaplicki
-Maintainer: info@elm-lang.org
-Copyright:  Copyright (c) 2011-present, Evan Czaplicki
-
-Category: Compiler, Language
-
-Cabal-version: >=1.9
-Build-type: Simple
-
-source-repository head
-    type:     git
-    location: git://github.com/elm/compiler.git
+homepage: https://elm-lang.org
+author: Evan Czaplicki
+maintainer: info@elm-lang.org
+copyright: Copyright (c) 2011-present, Evan Czaplicki
+license: BSD-3-Clause
+license-file: LICENSE
 
 
-Flag dev {
-  Description: Turn off optimization and make warnings errors
-  Default: False
-}
-
-
-Executable elm
-        ghc-options: -O2 -rtsopts -threaded "-with-rtsopts=-N -qg -A128m" -Wall -Werror
+executable elm
+    ghc-options: -O2 -rtsopts -threaded "-with-rtsopts=-N -qg -A128m" -Wall -Werror
         -- add -eventlog for (elm make src/Main.elm +RTS -l; threadscope elm.eventlog)
         -- https://www.oreilly.com/library/view/parallel-and-concurrent/9781449335939/
 
-    Hs-Source-Dirs:
+    hs-source-dirs:
         compiler/src
         builder/src
         src/utils
         terminal/impl
         terminal/src
 
-    other-extensions:
-        TemplateHaskell
-
-    Main-Is:
+    main-is:
         Main.hs
 
     other-modules:
