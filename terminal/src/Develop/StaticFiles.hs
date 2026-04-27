@@ -10,9 +10,7 @@ module Develop.StaticFiles
 
 import Prelude hiding (lookup)
 import qualified Data.ByteString as BS
-import Data.FileEmbed (bsToExp)
 import qualified Data.HashMap.Strict as HM
-import Language.Haskell.TH (runIO)
 import System.FilePath ((</>))
 
 import qualified Literals
