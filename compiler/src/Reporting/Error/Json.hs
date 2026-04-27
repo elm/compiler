@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ExtendedLiterals, MagicHash, OverloadedStrings #-}
 module Reporting.Error.Json
   ( toReport
   , FailureToReport(..)
@@ -11,6 +11,8 @@ module Reporting.Error.Json
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.UTF8 as BS_UTF8
 import qualified Data.NonEmptyList as NE
+import GHC.Exts (isTrue#)
+import GHC.Prim
 
 import Json.Decode (Error(..), Problem(..), DecodeExpectation(..), ParseError(..), StringProblem(..))
 import qualified Reporting.Annotation as A
@@ -49,11 +51,14 @@ because (ExplicitReason iNeedThings) problem =
 parseErrorToReport :: FilePath -> Code.Source -> ParseError -> Reason -> Help.Report
 parseErrorToReport path source parseError reason =
   let
-    toSnippet title row col (problem, details) =
+    toSnippet title cur (problem, details) =
       let
-        pos = A.Position row col
-        surroundings = A.Region (A.Position (max 1 (row - 2)) 1) pos
-        region = A.Region pos pos
+        rewindCur =
+          if isTrue# (ltWord64# cur 0x200000000#Word64)
+          then 0#Word64
+          else and64# 0xFFFFFFFF00000000#Word64 cur `subWord64#` 0x200000000#Word64
+        surroundings = A.Region rewindCur cur
+        region = A.Region cur cur
       in
       Help.jsonReport title (Just path) $
         Code.toSnippet source surroundings (Just region)
@@ -62,8 +67,8 @@ parseErrorToReport path source parseError reason =
           )
   in
   case parseError of
-    Start row col ->
-      toSnippet "EXPECTING A VALUE" row col
+    Start cur ->
+      toSnippet "EXPECTING A VALUE" cur
         (
           "I was expecting to see a JSON value next:"
         ,
@@ -79,8 +84,8 @@ parseErrorToReport path source parseError reason =
             ]
         )
 
-    ObjectField row col ->
-      toSnippet "EXTRA COMMA" row col
+    ObjectField cur ->
+      toSnippet "EXTRA COMMA" cur
         (
           "I was partway through parsing a JSON object when I got stuck here:"
         ,
@@ -98,8 +103,8 @@ parseErrorToReport path source parseError reason =
             ]
         )
 
-    ObjectColon row col ->
-      toSnippet "EXPECTING COLON" row col
+    ObjectColon cur ->
+      toSnippet "EXPECTING COLON" cur
         (
           "I was partway through parsing a JSON object when I got stuck here:"
         ,
@@ -109,8 +114,8 @@ parseErrorToReport path source parseError reason =
             ]
         )
 
-    ObjectEnd row col ->
-      toSnippet "UNFINISHED OBJECT" row col
+    ObjectEnd cur ->
+      toSnippet "UNFINISHED OBJECT" cur
         (
           "I was partway through parsing a JSON object when I got stuck here:"
         ,
@@ -124,8 +129,8 @@ parseErrorToReport path source parseError reason =
             ]
         )
 
-    ArrayEnd row col ->
-      toSnippet "UNFINISHED ARRAY" row col
+    ArrayEnd cur ->
+      toSnippet "UNFINISHED ARRAY" cur
         (
           "I was partway through parsing a JSON array when I got stuck here:"
         ,
@@ -136,10 +141,10 @@ parseErrorToReport path source parseError reason =
             ]
         )
 
-    StringProblem stringProblem row col ->
+    StringProblem stringProblem cur ->
       case stringProblem of
         BadStringEnd ->
-          toSnippet "ENDLESS STRING" row col
+          toSnippet "ENDLESS STRING" cur
             (
               "I got to the end of the line without seeing the closing double quote:"
             ,
@@ -151,7 +156,7 @@ parseErrorToReport path source parseError reason =
             )
 
         BadStringControlChar ->
-          toSnippet "UNEXPECTED CONTROL CHARACTER" row col
+          toSnippet "UNEXPECTED CONTROL CHARACTER" cur
             (
               "I ran into a control character unexpectedly:"
             ,
@@ -163,7 +168,7 @@ parseErrorToReport path source parseError reason =
             )
 
         BadStringEscapeChar ->
-          toSnippet "UNKNOWN ESCAPE" row col
+          toSnippet "UNKNOWN ESCAPE" cur
             (
               "Backslashes always start escaped characters, but I do not recognize this one:"
             ,
@@ -178,7 +183,7 @@ parseErrorToReport path source parseError reason =
             )
 
         BadStringEscapeHex ->
-          toSnippet "BAD HEX ESCAPE" row col
+          toSnippet "BAD HEX ESCAPE" cur
             (
               "This is not a valid hex escape:"
             ,
@@ -189,16 +194,25 @@ parseErrorToReport path source parseError reason =
                 ]
             )
 
-    NoLeadingZeros row col ->
-      toSnippet "BAD NUMBER" row col
+        BadStringNotUtf8 ->
+          toSnippet "UNEXPECTED ENCODING" cur
+            (
+              "JSON files use UTF-8 character encoding, but I ran into something outside of that format:"
+            ,
+              D.reflow $
+                "Is there a way to convert this to a valid UTF-8 character?"
+            )
+
+    NoLeadingZeros cur ->
+      toSnippet "BAD NUMBER" cur
         (
           "Numbers cannot start with zeros like this:"
         ,
           D.reflow $ "Try deleting the leading zeros?"
         )
 
-    NoFloats row col ->
-      toSnippet "UNEXPECTED NUMBER" row col
+    NoFloats cur ->
+      toSnippet "UNEXPECTED NUMBER" cur
         (
           "I got stuck while trying to parse this number:"
         ,
@@ -207,8 +221,8 @@ parseErrorToReport path source parseError reason =
             \ of JSON value is not needed for any of the uses that Elm has for now."
         )
 
-    BadEnd row col ->
-      toSnippet "JSON PROBLEM" row col
+    BadEnd cur ->
+      toSnippet "JSON PROBLEM" cur
         (
           "I was partway through parsing some JSON when I got stuck here:"
         ,
@@ -285,11 +299,8 @@ newtype FailureToReport x =
 expectationToReport :: FilePath -> Code.Source -> Context -> A.Region -> DecodeExpectation -> Reason -> Help.Report
 expectationToReport path source context (A.Region start end) expectation reason =
   let
-    (A.Position sr _) = start
-    (A.Position er _) = end
-
     region =
-      if sr == er then region else A.Region start start
+      if A.toRow start == A.toRow end then region else A.Region start start
 
     introduction =
       case context of

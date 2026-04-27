@@ -5,7 +5,9 @@ module Reporting.Error.Pattern
   )
   where
 
+import qualified Data.Char as Char
 import qualified Data.List as List
+import Numeric (showHex)
 
 import qualified Elm.String as ES
 import qualified Nitpick.PatternMatches as P
@@ -115,14 +117,9 @@ patternToDoc context pattern =
 
     NonList (P.Literal literal) ->
       case literal of
-        P.Chr chr ->
-          "'" <> D.fromChars (ES.toChars chr) <> "'"
-
-        P.Str str ->
-          "\"" <> D.fromChars (ES.toChars str) <> "\""
-
-        P.Int int ->
-          D.fromInt int
+        P.Chr chr -> "'" <> D.fromChars (charToChars chr) <> "'"
+        P.Str str -> "\"" <> D.fromChars (ES.toChars str) <> "\""
+        P.Int int -> D.fromInt int
 
     NonList (P.Ctor _ "#0" []) ->
       "()"
@@ -191,3 +188,19 @@ delist pattern revEntries =
 
         _ ->
           Conses (reverse revEntries) pattern
+
+
+charToChars :: Char -> String
+charToChars chr =
+  if code < 0x20
+    then
+      case code of
+        0x09 -> "\\t"
+        0x0A -> "\\n"
+        0x0D -> "\\r"
+        _    -> "\\u{" ++ pad (showHex code "") ++ "}"
+    else
+      [chr]
+  where
+    code = Char.ord chr
+    pad s = List.replicate (4 - length s) '0' ++ s

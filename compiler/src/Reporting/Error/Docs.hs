@@ -12,7 +12,7 @@ module Reporting.Error.Docs
 import qualified Data.Name as Name
 import qualified Data.NonEmptyList as NE
 
-import Parse.Primitives (Row, Col)
+import Parse.Primitives (Cursor)
 import Parse.Symbol (BadOperator(..))
 import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
@@ -31,12 +31,12 @@ data Error
 
 
 data SyntaxProblem
-  = Op Row Col
-  | OpBad BadOperator Row Col
-  | Name Row Col
-  | Space E.Space Row Col
-  | Comma Row Col
-  | BadEnd Row Col
+  = Op Cursor
+  | OpBad BadOperator Cursor
+  | Name Cursor
+  | Space E.Space Cursor
+  | Comma Cursor
+  | BadEnd Cursor
 
 
 data NameProblem
@@ -104,9 +104,9 @@ toReports source err =
 toSyntaxProblemReport :: Code.Source -> SyntaxProblem -> Report.Report
 toSyntaxProblemReport source problem =
   let
-    toSyntaxReport row col details =
+    toSyntaxReport cur details =
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report "PROBLEM IN DOCS" region [] $
         Code.toSnippet source region Nothing
@@ -120,37 +120,34 @@ toSyntaxProblemReport source problem =
           )
   in
   case problem of
-    Op row col ->
-      toSyntaxReport row col $
+    Op cur ->
+      toSyntaxReport cur $
         "I am trying to parse an operator like (+) or (*) but something is going wrong."
 
-    OpBad _ row col ->
-      toSyntaxReport row col $
+    OpBad _ cur ->
+      toSyntaxReport cur $
         "I am trying to parse an operator like (+) or (*) but it looks like you are using\
         \ a reserved symbol in this case."
 
-    Name row col ->
-      toSyntaxReport row col $
+    Name cur ->
+      toSyntaxReport cur $
         "I was expecting to see the name of another exposed value from this module."
 
-    Space space row col ->
-      E.toSpaceReport source space row col
+    Space space cur ->
+      E.toSpaceReport source space cur
 
-    Comma row col ->
-      toSyntaxReport row col $
+    Comma cur ->
+      toSyntaxReport cur $
         "I was expecting to see a comma next."
 
-    BadEnd row col ->
-      toSyntaxReport row col $
+    BadEnd cur ->
+      toSyntaxReport cur $
         "I am not really sure what I am getting stuck on though."
 
 
-toRegion :: Row -> Col -> A.Region
-toRegion row col =
-  let
-    pos = A.Position row col
-  in
-  A.Region pos pos
+toRegion :: Cursor -> A.Region
+toRegion cur =
+  A.Region cur cur
 
 
 

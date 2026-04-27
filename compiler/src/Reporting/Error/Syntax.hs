@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, ExtendedLiterals, MagicHash, OverloadedStrings, UnboxedTuples #-}
 module Reporting.Error.Syntax
   ( Error(..)
   , toReport
@@ -47,11 +47,12 @@ module Reporting.Error.Syntax
 import Prelude hiding (Char, String)
 import qualified Data.Char as Char
 import qualified Data.Name as Name
-import Data.Word (Word16)
+import GHC.Prim
+import GHC.Word (Word32(..), Word64(..))
 import Numeric (showHex)
 
 import qualified Elm.ModuleName as ModuleName
-import Parse.Primitives (Row, Col)
+import Parse.Primitives (Cursor, Indent, slide, isLineStart, distanceToIndent)
 import Parse.Symbol (BadOperator(..))
 import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
@@ -79,50 +80,50 @@ data Error
 
 
 data Module
-  = ModuleSpace Space Row Col
-  | ModuleBadEnd Row Col
+  = ModuleSpace Space Cursor
+  | ModuleBadEnd Cursor
   --
-  | ModuleProblem Row Col
-  | ModuleName Row Col
-  | ModuleExposing Exposing Row Col
+  | ModuleProblem Cursor
+  | ModuleName Cursor
+  | ModuleExposing Exposing Cursor
   --
-  | PortModuleProblem Row Col
-  | PortModuleName Row Col
-  | PortModuleExposing Exposing Row Col
+  | PortModuleProblem Cursor
+  | PortModuleName Cursor
+  | PortModuleExposing Exposing Cursor
   --
-  | Effect Row Col
+  | Effect Cursor
   --
-  | FreshLine Row Col
+  | FreshLine Cursor
   --
-  | ImportStart Row Col
-  | ImportName Row Col
-  | ImportAs Row Col
-  | ImportAlias Row Col
-  | ImportExposing Row Col
-  | ImportExposingList Exposing Row Col
-  | ImportEnd Row Col -- different based on col=1 or if greater
+  | ImportStart Cursor
+  | ImportName Cursor
+  | ImportAs Cursor
+  | ImportAlias Cursor
+  | ImportExposing Cursor
+  | ImportExposingList Exposing Cursor
+  | ImportEnd Cursor -- different based on col=1 or if greater
   --
-  | ImportIndentName Row Col
-  | ImportIndentAlias Row Col
-  | ImportIndentExposingList Row Col
+  | ImportIndentName Cursor
+  | ImportIndentAlias Cursor
+  | ImportIndentExposingList Cursor
   --
-  | Infix Row Col
+  | Infix Cursor
   --
-  | Declarations Decl Row Col
+  | Declarations Decl Cursor
 
 
 data Exposing
-  = ExposingSpace Space Row Col
-  | ExposingStart Row Col
-  | ExposingValue Row Col
-  | ExposingOperator Row Col
-  | ExposingOperatorReserved BadOperator Row Col
-  | ExposingOperatorRightParen Row Col
-  | ExposingTypePrivacy Row Col
-  | ExposingEnd Row Col
+  = ExposingSpace Space Cursor
+  | ExposingStart Cursor
+  | ExposingValue Cursor
+  | ExposingOperator Cursor
+  | ExposingOperatorReserved BadOperator Cursor
+  | ExposingOperatorRightParen Cursor
+  | ExposingTypePrivacy Cursor
+  | ExposingEnd Cursor
   --
-  | ExposingIndentEnd Row Col
-  | ExposingIndentValue Row Col
+  | ExposingIndentEnd Cursor
+  | ExposingIndentValue Cursor
 
 
 
@@ -130,38 +131,38 @@ data Exposing
 
 
 data Decl
-  = DeclStart Row Col
-  | DeclSpace Space Row Col
+  = DeclStart Cursor
+  | DeclSpace Space Cursor
   --
-  | Port Port Row Col
-  | DeclType DeclType Row Col
-  | DeclDef Name.Name DeclDef Row Col
+  | Port Port Cursor
+  | DeclType DeclType Cursor
+  | DeclDef Name.Name DeclDef Cursor
   --
-  | DeclFreshLineAfterDocComment Row Col
+  | DeclFreshLineAfterDocComment Cursor
 
 
 data DeclDef
-  = DeclDefSpace Space Row Col
-  | DeclDefEquals Row Col
-  | DeclDefType Type Row Col
-  | DeclDefArg Pattern Row Col
-  | DeclDefBody Expr Row Col
-  | DeclDefNameRepeat Row Col
-  | DeclDefNameMatch Name.Name Row Col
+  = DeclDefSpace Space Cursor
+  | DeclDefEquals Cursor
+  | DeclDefType Type Cursor
+  | DeclDefArg Pattern Cursor
+  | DeclDefBody Expr Cursor
+  | DeclDefNameRepeat Cursor
+  | DeclDefNameMatch Name.Name Cursor
   --
-  | DeclDefIndentType Row Col
-  | DeclDefIndentEquals Row Col
-  | DeclDefIndentBody Row Col
+  | DeclDefIndentType Cursor
+  | DeclDefIndentEquals Cursor
+  | DeclDefIndentBody Cursor
 
 
 data Port
-  = PortSpace Space Row Col
-  | PortName Row Col
-  | PortColon Row Col
-  | PortType Type Row Col
-  | PortIndentName Row Col
-  | PortIndentColon Row Col
-  | PortIndentType Row Col
+  = PortSpace Space Cursor
+  | PortName Cursor
+  | PortColon Cursor
+  | PortType Type Cursor
+  | PortIndentName Cursor
+  | PortIndentColon Cursor
+  | PortIndentType Cursor
 
 
 
@@ -169,36 +170,36 @@ data Port
 
 
 data DeclType
-  = DT_Space Space Row Col
-  | DT_Name Row Col
-  | DT_Alias TypeAlias Row Col
-  | DT_Union CustomType Row Col
+  = DT_Space Space Cursor
+  | DT_Name Cursor
+  | DT_Alias TypeAlias Cursor
+  | DT_Union CustomType Cursor
   --
-  | DT_IndentName Row Col
+  | DT_IndentName Cursor
 
 
 data TypeAlias
-  = AliasSpace Space Row Col
-  | AliasName Row Col
-  | AliasEquals Row Col
-  | AliasBody Type Row Col
+  = AliasSpace Space Cursor
+  | AliasName Cursor
+  | AliasEquals Cursor
+  | AliasBody Type Cursor
   --
-  | AliasIndentEquals Row Col
-  | AliasIndentBody Row Col
+  | AliasIndentEquals Cursor
+  | AliasIndentBody Cursor
 
 
 data CustomType
-  = CT_Space Space Row Col
-  | CT_Name Row Col
-  | CT_Equals Row Col
-  | CT_Bar Row Col
-  | CT_Variant Row Col
-  | CT_VariantArg Type Row Col
+  = CT_Space Space Cursor
+  | CT_Name Cursor
+  | CT_Equals Cursor
+  | CT_Bar Cursor
+  | CT_Variant Cursor
+  | CT_VariantArg Type Cursor
   --
-  | CT_IndentEquals Row Col
-  | CT_IndentBar Row Col
-  | CT_IndentAfterBar Row Col
-  | CT_IndentAfterEquals Row Col
+  | CT_IndentEquals Cursor
+  | CT_IndentBar Cursor
+  | CT_IndentAfterBar Cursor
+  | CT_IndentAfterEquals Cursor
 
 
 
@@ -206,145 +207,146 @@ data CustomType
 
 
 data Expr
-  = Let Let Row Col
-  | Case Case Row Col
-  | If If Row Col
-  | List List Row Col
-  | Record Record Row Col
-  | Tuple Tuple Row Col
-  | Func Func Row Col
+  = Let Let Cursor
+  | Case Case Cursor
+  | If If Cursor
+  | List List Cursor
+  | Record Record Cursor
+  | Tuple Tuple Cursor
+  | Func Func Cursor
   --
-  | Dot Row Col
-  | Access Row Col
-  | OperatorRight Name.Name Row Col
-  | OperatorReserved BadOperator Row Col
+  | Dot Cursor
+  | Access Cursor
+  | OperatorRight Name.Name Cursor
+  | OperatorReserved BadOperator Cursor
   --
-  | Start Row Col
-  | Char Char Row Col
-  | String String Row Col
-  | Number Number Row Col
-  | Space Space Row Col
-  | EndlessShader Row Col
-  | ShaderProblem [Char.Char] Row Col
-  | IndentOperatorRight Name.Name Row Col
+  | Start Cursor
+  | Char Char Cursor
+  | String String Cursor
+  | Number Number Cursor
+  | Space Space Cursor
+  | ShaderEndless Cursor
+  | ShaderNotUtf8 Cursor
+  | ShaderProblem [Char.Char] Cursor
+  | IndentOperatorRight Name.Name Cursor
 
 
 data Record
-  = RecordOpen Row Col
-  | RecordEnd Row Col
-  | RecordField Row Col
-  | RecordEquals Row Col
-  | RecordExpr Expr Row Col
-  | RecordSpace Space Row Col
+  = RecordOpen Cursor
+  | RecordEnd Cursor
+  | RecordField Cursor
+  | RecordEquals Cursor
+  | RecordExpr Expr Cursor
+  | RecordSpace Space Cursor
   --
-  | RecordIndentOpen Row Col
-  | RecordIndentEnd Row Col
-  | RecordIndentField Row Col
-  | RecordIndentEquals Row Col
-  | RecordIndentExpr Row Col
+  | RecordIndentOpen Cursor
+  | RecordIndentEnd Cursor
+  | RecordIndentField Cursor
+  | RecordIndentEquals Cursor
+  | RecordIndentExpr Cursor
 
 
 data Tuple
-  = TupleExpr Expr Row Col
-  | TupleSpace Space Row Col
-  | TupleEnd Row Col
-  | TupleOperatorClose Row Col
-  | TupleOperatorReserved BadOperator Row Col
+  = TupleExpr Expr Cursor
+  | TupleSpace Space Cursor
+  | TupleEnd Cursor
+  | TupleOperatorClose Cursor
+  | TupleOperatorReserved BadOperator Cursor
   --
-  | TupleIndentExpr1 Row Col
-  | TupleIndentExprN Row Col
-  | TupleIndentEnd Row Col
+  | TupleIndentExpr1 Cursor
+  | TupleIndentExprN Cursor
+  | TupleIndentEnd Cursor
 
 
 data List
-  = ListSpace Space Row Col
-  | ListOpen Row Col
-  | ListExpr Expr Row Col
-  | ListEnd Row Col
+  = ListSpace Space Cursor
+  | ListOpen Cursor
+  | ListExpr Expr Cursor
+  | ListEnd Cursor
   --
-  | ListIndentOpen Row Col
-  | ListIndentEnd Row Col
-  | ListIndentExpr Row Col
+  | ListIndentOpen Cursor
+  | ListIndentEnd Cursor
+  | ListIndentExpr Cursor
 
 
 data Func
-  = FuncSpace Space Row Col
-  | FuncArg Pattern Row Col
-  | FuncBody Expr Row Col
-  | FuncArrow Row Col
+  = FuncSpace Space Cursor
+  | FuncArg Pattern Cursor
+  | FuncBody Expr Cursor
+  | FuncArrow Cursor
   --
-  | FuncIndentArg Row Col
-  | FuncIndentArrow Row Col
-  | FuncIndentBody Row Col
+  | FuncIndentArg Cursor
+  | FuncIndentArrow Cursor
+  | FuncIndentBody Cursor
 
 
 data Case
-  = CaseSpace Space Row Col
-  | CaseOf Row Col
-  | CasePattern Pattern Row Col
-  | CaseArrow Row Col
-  | CaseExpr Expr Row Col
-  | CaseBranch Expr Row Col
+  = CaseSpace Space Cursor
+  | CaseOf Cursor
+  | CasePattern Pattern Cursor
+  | CaseArrow Cursor
+  | CaseExpr Expr Cursor
+  | CaseBranch Expr Cursor
   --
-  | CaseIndentOf Row Col
-  | CaseIndentExpr Row Col
-  | CaseIndentPattern Row Col
-  | CaseIndentArrow Row Col
-  | CaseIndentBranch Row Col
-  | CasePatternAlignment Word16 Row Col
+  | CaseIndentOf Cursor
+  | CaseIndentExpr Cursor
+  | CaseIndentPattern Cursor
+  | CaseIndentArrow Cursor
+  | CaseIndentBranch Cursor
+  | CasePatternAlignment Indent Cursor
 
 
 data If
-  = IfSpace Space Row Col
-  | IfThen Row Col
-  | IfElse Row Col
-  | IfElseBranchStart Row Col
+  = IfSpace Space Cursor
+  | IfThen Cursor
+  | IfElse Cursor
+  | IfElseBranchStart Cursor
   --
-  | IfCondition Expr Row Col
-  | IfThenBranch Expr Row Col
-  | IfElseBranch Expr Row Col
+  | IfCondition Expr Cursor
+  | IfThenBranch Expr Cursor
+  | IfElseBranch Expr Cursor
   --
-  | IfIndentCondition Row Col
-  | IfIndentThen Row Col
-  | IfIndentThenBranch Row Col
-  | IfIndentElseBranch Row Col
-  | IfIndentElse Row Col
+  | IfIndentCondition Cursor
+  | IfIndentThen Cursor
+  | IfIndentThenBranch Cursor
+  | IfIndentElseBranch Cursor
+  | IfIndentElse Cursor
 
 
 data Let
-  = LetSpace Space Row Col
-  | LetIn Row Col
-  | LetDefAlignment Word16 Row Col
-  | LetDefName Row Col
-  | LetDef Name.Name Def Row Col
-  | LetDestruct Destruct Row Col
-  | LetBody Expr Row Col
-  | LetIndentDef Row Col
-  | LetIndentIn Row Col
-  | LetIndentBody Row Col
+  = LetSpace Space Cursor
+  | LetIn Cursor
+  | LetDefAlignment Indent Cursor
+  | LetDefName Cursor
+  | LetDef Name.Name Def Cursor
+  | LetDestruct Destruct Cursor
+  | LetBody Expr Cursor
+  | LetIndentDef Cursor
+  | LetIndentIn Cursor
+  | LetIndentBody Cursor
 
 
 data Def
-  = DefSpace Space Row Col
-  | DefType Type Row Col
-  | DefNameRepeat Row Col
-  | DefNameMatch Name.Name Row Col
-  | DefArg Pattern Row Col
-  | DefEquals Row Col
-  | DefBody Expr Row Col
-  | DefIndentEquals Row Col
-  | DefIndentType Row Col
-  | DefIndentBody Row Col
-  | DefAlignment Word16 Row Col
+  = DefSpace Space Cursor
+  | DefType Type Cursor
+  | DefNameRepeat Cursor
+  | DefNameMatch Name.Name Cursor
+  | DefArg Pattern Cursor
+  | DefEquals Cursor
+  | DefBody Expr Cursor
+  | DefIndentEquals Cursor
+  | DefIndentType Cursor
+  | DefIndentBody Cursor
+  | DefAlignment Indent Cursor
 
 
 data Destruct
-  = DestructSpace Space Row Col
-  | DestructPattern Pattern Row Col
-  | DestructEquals Row Col
-  | DestructBody Expr Row Col
-  | DestructIndentEquals Row Col
-  | DestructIndentBody Row Col
+  = DestructSpace Space Cursor
+  | DestructPattern Pattern Cursor
+  | DestructEquals Cursor
+  | DestructBody Expr Cursor
+  | DestructIndentEquals Cursor
+  | DestructIndentBody Cursor
 
 
 
@@ -352,54 +354,54 @@ data Destruct
 
 
 data Pattern
-  = PRecord PRecord Row Col
-  | PTuple PTuple Row Col
-  | PList PList Row Col
+  = PRecord PRecord Cursor
+  | PTuple PTuple Cursor
+  | PList PList Cursor
   --
-  | PStart Row Col
-  | PChar Char Row Col
-  | PString String Row Col
-  | PNumber Number Row Col
-  | PFloat Word16 Row Col
-  | PAlias Row Col
-  | PWildcardNotVar Name.Name Int Row Col
-  | PSpace Space Row Col
+  | PStart Cursor
+  | PChar Char Cursor
+  | PString String Cursor
+  | PNumber Number Cursor
+  | PFloat Word64# Cursor
+  | PAlias Cursor
+  | PWildcardNotVar Name.Name Word64# Cursor
+  | PSpace Space Cursor
   --
-  | PIndentStart Row Col
-  | PIndentAlias Row Col
+  | PIndentStart Cursor
+  | PIndentAlias Cursor
 
 
 data PRecord
-  = PRecordOpen Row Col
-  | PRecordEnd Row Col
-  | PRecordField Row Col
-  | PRecordSpace Space Row Col
+  = PRecordOpen Cursor
+  | PRecordEnd Cursor
+  | PRecordField Cursor
+  | PRecordSpace Space Cursor
   --
-  | PRecordIndentOpen Row Col
-  | PRecordIndentEnd Row Col
-  | PRecordIndentField Row Col
+  | PRecordIndentOpen Cursor
+  | PRecordIndentEnd Cursor
+  | PRecordIndentField Cursor
 
 
 data PTuple
-  = PTupleOpen Row Col
-  | PTupleEnd Row Col
-  | PTupleExpr Pattern Row Col
-  | PTupleSpace Space Row Col
+  = PTupleOpen Cursor
+  | PTupleEnd Cursor
+  | PTupleExpr Pattern Cursor
+  | PTupleSpace Space Cursor
   --
-  | PTupleIndentEnd Row Col
-  | PTupleIndentExpr1 Row Col
-  | PTupleIndentExprN Row Col
+  | PTupleIndentEnd Cursor
+  | PTupleIndentExpr1 Cursor
+  | PTupleIndentExprN Cursor
 
 
 data PList
-  = PListOpen Row Col
-  | PListEnd Row Col
-  | PListExpr Pattern Row Col
-  | PListSpace Space Row Col
+  = PListOpen Cursor
+  | PListEnd Cursor
+  | PListExpr Pattern Cursor
+  | PListSpace Space Cursor
   --
-  | PListIndentOpen Row Col
-  | PListIndentEnd Row Col
-  | PListIndentExpr Row Col
+  | PListIndentOpen Cursor
+  | PListIndentEnd Cursor
+  | PListIndentExpr Cursor
 
 
 
@@ -407,41 +409,41 @@ data PList
 
 
 data Type
-  = TRecord TRecord Row Col
-  | TTuple TTuple Row Col
+  = TRecord TRecord Cursor
+  | TTuple TTuple Cursor
   --
-  | TStart Row Col
-  | TSpace Space Row Col
+  | TStart Cursor
+  | TSpace Space Cursor
   --
-  | TIndentStart Row Col
+  | TIndentStart Cursor
 
 
 data TRecord
-  = TRecordOpen Row Col
-  | TRecordEnd Row Col
+  = TRecordOpen Cursor
+  | TRecordEnd Cursor
   --
-  | TRecordField Row Col
-  | TRecordColon Row Col
-  | TRecordType Type Row Col
+  | TRecordField Cursor
+  | TRecordColon Cursor
+  | TRecordType Type Cursor
   --
-  | TRecordSpace Space Row Col
+  | TRecordSpace Space Cursor
   --
-  | TRecordIndentOpen Row Col
-  | TRecordIndentField Row Col
-  | TRecordIndentColon Row Col
-  | TRecordIndentType Row Col
-  | TRecordIndentEnd Row Col
+  | TRecordIndentOpen Cursor
+  | TRecordIndentField Cursor
+  | TRecordIndentColon Cursor
+  | TRecordIndentType Cursor
+  | TRecordIndentEnd Cursor
 
 
 data TTuple
-  = TTupleOpen Row Col
-  | TTupleEnd Row Col
-  | TTupleType Type Row Col
-  | TTupleSpace Space Row Col
+  = TTupleOpen Cursor
+  | TTupleEnd Cursor
+  | TTupleType Type Cursor
+  | TTupleSpace Space Cursor
   --
-  | TTupleIndentType1 Row Col
-  | TTupleIndentTypeN Row Col
-  | TTupleIndentEnd Row Col
+  | TTupleIndentType1 Cursor
+  | TTupleIndentTypeN Cursor
+  | TTupleIndentEnd Cursor
 
 
 
@@ -449,27 +451,29 @@ data TTuple
 
 
 data Char
-  = CharEndless
+  = CharNotUtf8
+  | CharEndless
   | CharEscape Escape
-  | CharNotString Word16
+  | CharNotString Word64#
 
 
 data String
-  = StringEndless_Single
+  = StringNotUtf8
+  | StringEndless_Single
   | StringEndless_Multi
   | StringEscape Escape
 
 
 data Escape
   = EscapeUnknown
-  | BadUnicodeFormat Word16
-  | BadUnicodeCode Word16
-  | BadUnicodeLength Word16 Int Int
+  | BadUnicodeFormat Word64#
+  | BadUnicodeCode Word64#
+  | BadUnicodeLength Word64# Int Integer
 
 
 data Number
   = NumberEnd
-  | NumberDot Int
+  | NumberDot Integer
   | NumberHexDigit
   | NumberNoLeadingZero
 
@@ -480,6 +484,7 @@ data Number
 
 data Space
   = HasTab
+  | HasNonUtf8
   | EndlessMultiComment
 
 
@@ -492,7 +497,7 @@ toReport source err =
   case err of
     ModuleNameUnspecified name ->
       let
-        region = toRegion 1 1
+        region = A.zero
       in
       Report.Report "MODULE NAME MISSING" region [] $
         D.stack
@@ -644,17 +649,17 @@ noteForPortsInPackage =
 toParseErrorReport :: Code.Source -> Module -> Report.Report
 toParseErrorReport source modul =
   case modul of
-    ModuleSpace space row col ->
-      toSpaceReport source space row col
+    ModuleSpace space cur ->
+      toSpaceReport source space cur
 
-    ModuleBadEnd row col ->
-      if col == 1
-      then toDeclStartReport source row col
-      else toWeirdEndReport source row col
+    ModuleBadEnd cur ->
+      if isLineStart cur
+      then toDeclStartReport source cur
+      else toWeirdEndReport source cur
 
-    ModuleProblem row col ->
+    ModuleProblem cur ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report "UNFINISHED MODULE DECLARATION" region [] $
         Code.toSnippet source region Nothing
@@ -676,9 +681,9 @@ toParseErrorReport source modul =
               ]
           )
 
-    ModuleName row col ->
+    ModuleName cur ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report "EXPECTING MODULE NAME" region [] $
         Code.toSnippet source region Nothing
@@ -700,12 +705,12 @@ toParseErrorReport source modul =
               ]
           )
 
-    ModuleExposing exposing row col ->
-      toExposingReport source exposing row col
+    ModuleExposing exposing cur ->
+      toExposingReport source exposing cur
 
-    PortModuleProblem row col ->
+    PortModuleProblem cur ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report "UNFINISHED PORT MODULE DECLARATION" region [] $
         Code.toSnippet source region Nothing
@@ -724,9 +729,9 @@ toParseErrorReport source modul =
               ]
           )
 
-    PortModuleName row col ->
+    PortModuleName cur ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report "EXPECTING MODULE NAME" region [] $
         Code.toSnippet source region Nothing
@@ -746,12 +751,12 @@ toParseErrorReport source modul =
               ]
           )
 
-    PortModuleExposing exposing row col ->
-      toExposingReport source exposing row col
+    PortModuleExposing exposing cur ->
+      toExposingReport source exposing cur
 
-    Effect row col ->
+    Effect cur ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report "BAD MODULE DECLARATION" region [] $
         Code.toSnippet source region Nothing
@@ -764,9 +769,9 @@ toParseErrorReport source modul =
               \ define certain effects, avoiding building them into the compiler."
           )
 
-    FreshLine row col ->
+    FreshLine cur ->
       let
-        region = toRegion row col
+        region = toRegion cur
 
         toBadFirstLineReport keyword =
           Report.Report "TOO MUCH INDENTATION" region [] $
@@ -780,7 +785,7 @@ toParseErrorReport source modul =
               )
 
       in
-      case Code.whatIsNext source row col of
+      case Code.whatIsNext source cur of
         Code.Keyword "module" -> toBadFirstLineReport "module"
         Code.Keyword "import" -> toBadFirstLineReport "import"
         Code.Keyword "type" -> toBadFirstLineReport "type"
@@ -810,12 +815,12 @@ toParseErrorReport source modul =
                   ]
               )
 
-    ImportStart row col ->
-      toImportReport source row col
+    ImportStart cur ->
+      toImportReport source cur
 
-    ImportName row col ->
+    ImportName cur ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report "EXPECTING IMPORT NAME" region [] $
         Code.toSnippet source region Nothing
@@ -838,12 +843,12 @@ toParseErrorReport source modul =
               ]
           )
 
-    ImportAs row col ->
-      toImportReport source row col
+    ImportAs cur ->
+      toImportReport source cur
 
-    ImportAlias row col ->
+    ImportAlias cur ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report "EXPECTING IMPORT ALIAS" region [] $
         Code.toSnippet source region Nothing
@@ -865,24 +870,24 @@ toParseErrorReport source modul =
               ]
           )
 
-    ImportExposing row col ->
-      toImportReport source row col
+    ImportExposing cur ->
+      toImportReport source cur
 
-    ImportExposingList exposing row col ->
-      toExposingReport source exposing row col
+    ImportExposingList exposing cur ->
+      toExposingReport source exposing cur
 
-    ImportEnd row col ->
-      toImportReport source row col
+    ImportEnd cur ->
+      toImportReport source cur
 
-    ImportIndentName row col ->
-      toImportReport source row col
+    ImportIndentName cur ->
+      toImportReport source cur
 
-    ImportIndentAlias row col ->
-      toImportReport source row col
+    ImportIndentAlias cur ->
+      toImportReport source cur
 
-    ImportIndentExposingList row col ->
+    ImportIndentExposingList cur ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report "UNFINISHED IMPORT" region [] $
         Code.toSnippet source region Nothing
@@ -904,9 +909,9 @@ toParseErrorReport source modul =
               ]
           )
 
-    Infix row col ->
+    Infix cur ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report "BAD INFIX" region [] $
         Code.toSnippet source region Nothing
@@ -919,7 +924,7 @@ toParseErrorReport source modul =
               \ languages built-in operators."
           )
 
-    Declarations decl _ _ ->
+    Declarations decl _ ->
       toDeclarationsReport source decl
 
 
@@ -927,12 +932,12 @@ toParseErrorReport source modul =
 -- WEIRD END
 
 
-toWeirdEndReport :: Code.Source -> Row -> Col -> Report.Report
-toWeirdEndReport source row col =
-  case Code.whatIsNext source row col of
+toWeirdEndReport :: Code.Source -> Cursor -> Report.Report
+toWeirdEndReport source cur =
+  case Code.whatIsNext source cur of
     Code.Keyword keyword ->
       let
-        region = toKeywordRegion row col keyword
+        region = toKeywordRegion cur keyword
       in
       Report.Report "RESERVED WORD" region [] $
         Code.toSnippet source region Nothing
@@ -946,7 +951,7 @@ toWeirdEndReport source row col =
 
     Code.Operator op ->
       let
-        region = toKeywordRegion row col op
+        region = toKeywordRegion cur op
       in
       Report.Report "UNEXPECTED SYMBOL" region [] $
         Code.toSnippet source region Nothing
@@ -961,7 +966,7 @@ toWeirdEndReport source row col =
 
     Code.Close term bracket ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report ("UNEXPECTED " ++ map Char.toUpper term) region [] $
         Code.toSnippet source region Nothing
@@ -975,7 +980,7 @@ toWeirdEndReport source row col =
 
     Code.Lower c cs ->
       let
-        region = toKeywordRegion row col (c:cs)
+        region = toKeywordRegion cur (c:cs)
       in
       Report.Report "UNEXPECTED NAME" region [] $
         Code.toSnippet source region Nothing
@@ -990,7 +995,7 @@ toWeirdEndReport source row col =
 
     Code.Upper c cs ->
       let
-        region = toKeywordRegion row col (c:cs)
+        region = toKeywordRegion cur (c:cs)
       in
       Report.Report "UNEXPECTED NAME" region [] $
         Code.toSnippet source region Nothing
@@ -1005,7 +1010,7 @@ toWeirdEndReport source row col =
 
     Code.Other maybeChar ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       case maybeChar of
         Just ';' ->
@@ -1113,10 +1118,10 @@ toWeirdEndReport source row col =
 -- IMPORTS
 
 
-toImportReport :: Code.Source -> Row -> Col -> Report.Report
-toImportReport source row col =
+toImportReport :: Code.Source -> Cursor -> Report.Report
+toImportReport source cur =
   let
-    region = toRegion row col
+    region = toRegion cur
   in
   Report.Report "UNFINISHED IMPORT" region [] $
     Code.toSnippet source region Nothing
@@ -1144,16 +1149,16 @@ toImportReport source row col =
 -- EXPOSING
 
 
-toExposingReport :: Code.Source -> Exposing -> Row -> Col -> Report.Report
-toExposingReport source exposing startRow startCol =
+toExposingReport :: Code.Source -> Exposing -> Cursor -> Report.Report
+toExposingReport source exposing startCur =
   case exposing of
-    ExposingSpace space row col ->
-      toSpaceReport source space row col
+    ExposingSpace space cur ->
+      toSpaceReport source space cur
 
-    ExposingStart row col ->
+    ExposingStart cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "PROBLEM IN EXPOSING" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -1177,12 +1182,12 @@ toExposingReport source exposing startRow startCol =
               ]
           )
 
-    ExposingValue row col ->
-      case Code.whatIsNext source row col of
+    ExposingValue cur ->
+      case Code.whatIsNext source cur of
         Code.Keyword keyword ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toKeywordRegion row col keyword
+            surroundings = A.Region startCur cur
+            region = toKeywordRegion cur keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -1196,8 +1201,8 @@ toExposingReport source exposing startRow startCol =
 
         Code.Operator op ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toKeywordRegion row col op
+            surroundings = A.Region startCur cur
+            region = toKeywordRegion cur op
           in
           Report.Report "UNEXPECTED SYMBOL" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -1214,8 +1219,8 @@ toExposingReport source exposing startRow startCol =
 
         _ ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "PROBLEM IN EXPOSING" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -1237,10 +1242,10 @@ toExposingReport source exposing startRow startCol =
                   ]
               )
 
-    ExposingOperator row col ->
+    ExposingOperator cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "PROBLEM IN EXPOSING" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -1255,10 +1260,10 @@ toExposingReport source exposing startRow startCol =
               ]
           )
 
-    ExposingOperatorReserved op row col ->
+    ExposingOperatorReserved op cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "RESERVED SYMBOL" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -1274,10 +1279,10 @@ toExposingReport source exposing startRow startCol =
               BadHasType -> D.fillSep ["Maybe","you","want",D.dullyellow "(::)","instead?"]
           )
 
-    ExposingOperatorRightParen row col ->
+    ExposingOperatorRightParen cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "PROBLEM IN EXPOSING" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -1291,10 +1296,10 @@ toExposingReport source exposing startRow startCol =
               ]
           )
 
-    ExposingEnd row col ->
+    ExposingEnd cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED EXPOSING" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -1306,10 +1311,10 @@ toExposingReport source exposing startRow startCol =
               "Maybe there is a comma missing before this?"
           )
 
-    ExposingTypePrivacy row col ->
+    ExposingTypePrivacy cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "PROBLEM EXPOSING CUSTOM TYPE VARIANTS" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -1333,10 +1338,10 @@ toExposingReport source exposing startRow startCol =
               ]
           )
 
-    ExposingIndentEnd row col ->
+    ExposingIndentEnd cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED EXPOSING" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -1355,10 +1360,10 @@ toExposingReport source exposing startRow startCol =
               ]
           )
 
-    ExposingIndentValue row col ->
+    ExposingIndentValue cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED EXPOSING" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -1375,12 +1380,12 @@ toExposingReport source exposing startRow startCol =
 -- SPACES
 
 
-toSpaceReport :: Code.Source -> Space -> Row -> Col -> Report.Report
-toSpaceReport source space row col =
+toSpaceReport :: Code.Source -> Space -> Cursor -> Report.Report
+toSpaceReport source space cur =
   case space of
     HasTab ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report "NO TABS" region [] $
         Code.toSnippet source region Nothing
@@ -1392,9 +1397,23 @@ toSpaceReport source space row col =
               "Replace the tab with spaces."
           )
 
+    HasNonUtf8 ->
+      let
+        region = toRegion cur
+      in
+      Report.Report "UNEXPECTED ENCODING" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "Elm files use UTF-8 character encoding, but I ran into something outside of that format:"
+          ,
+            D.reflow $
+              "Is there a way to convert this to a valid UTF-8 character?"
+          )
+
     EndlessMultiComment ->
       let
-        region = toWiderRegion row col 2
+        region = toWiderRegion cur 2#Word64
       in
       Report.Report "ENDLESS COMMENT" region [] $
         Code.toSnippet source region Nothing
@@ -1416,49 +1435,44 @@ toSpaceReport source space row col =
 -- DECLARATIONS
 
 
-toRegion :: Row -> Col -> A.Region
-toRegion row col =
-  let
-    pos = A.Position row col
-  in
-  A.Region pos pos
+toRegion :: Cursor -> A.Region
+toRegion cur =
+  A.Region cur cur
 
 
-toWiderRegion :: Row -> Col -> Word16 -> A.Region
-toWiderRegion row col extra =
-  A.Region
-    (A.Position row col)
-    (A.Position row (col + extra))
+toWiderRegion :: Cursor -> Word64# -> A.Region
+toWiderRegion cur extra =
+  A.Region cur (slide cur extra)
 
 
-toKeywordRegion :: Row -> Col -> [Char.Char] -> A.Region
-toKeywordRegion row col keyword =
-  A.Region
-    (A.Position row col)
-    (A.Position row (col + fromIntegral (length keyword)))
+toKeywordRegion :: Cursor -> [Char.Char] -> A.Region
+toKeywordRegion cur keyword =
+    A.Region cur (slide cur len)
+  where
+    !(W64# len) = fromIntegral (length keyword)
 
 
 toDeclarationsReport :: Code.Source -> Decl -> Report.Report
 toDeclarationsReport source decl =
   case decl of
-    DeclStart row col ->
-      toDeclStartReport source row col
+    DeclStart cur ->
+      toDeclStartReport source cur
 
-    DeclSpace space row col ->
-      toSpaceReport source space row col
+    DeclSpace space cur ->
+      toSpaceReport source space cur
 
-    Port port_ row col ->
-      toPortReport source port_ row col
+    Port port_ cur ->
+      toPortReport source port_ cur
 
-    DeclType declType row col ->
-      toDeclTypeReport source declType row col
+    DeclType declType cur ->
+      toDeclTypeReport source declType cur
 
-    DeclDef name declDef row col ->
-      toDeclDefReport source name declDef row col
+    DeclDef name declDef cur ->
+      toDeclDefReport source name declDef cur
 
-    DeclFreshLineAfterDocComment row col ->
+    DeclFreshLineAfterDocComment cur ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report "EXPECTING DECLARATION" region [] $
         Code.toSnippet source region Nothing
@@ -1472,12 +1486,12 @@ toDeclarationsReport source decl =
           )
 
 
-toDeclStartReport :: Code.Source -> Row -> Col -> Report.Report
-toDeclStartReport source row col =
-  case Code.whatIsNext source row col of
+toDeclStartReport :: Code.Source -> Cursor -> Report.Report
+toDeclStartReport source cur =
+  case Code.whatIsNext source cur of
     Code.Close term bracket ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report ("STRAY " ++ map Char.toUpper term) region [] $
         Code.toSnippet source region Nothing
@@ -1490,7 +1504,7 @@ toDeclStartReport source row col =
 
     Code.Keyword keyword ->
       let
-        region = toKeywordRegion row col keyword
+        region = toKeywordRegion cur keyword
       in
       Report.Report "RESERVED WORD" region [] $
         Code.toSnippet source region Nothing
@@ -1552,7 +1566,7 @@ toDeclStartReport source row col =
 
     Code.Upper c cs ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report "UNEXPECTED CAPITAL LETTER" region [] $
         Code.toSnippet source region Nothing
@@ -1582,7 +1596,7 @@ toDeclStartReport source row col =
 
     Code.Other (Just char) | elem char ['(', '{', '[', '+', '-', '*', '/', '^', '&', '|', '"', '\'', '!', '@', '#', '$', '%'] ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report "UNEXPECTED SYMBOL" region [] $
         Code.toSnippet source region Nothing
@@ -1607,7 +1621,7 @@ toDeclStartReport source row col =
 
     _ ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report "WEIRD DECLARATION" region [] $
         Code.toSnippet source region Nothing
@@ -1635,18 +1649,18 @@ toDeclStartReport source row col =
 -- PORT
 
 
-toPortReport :: Code.Source -> Port -> Row -> Col -> Report.Report
-toPortReport source port_ startRow startCol =
+toPortReport :: Code.Source -> Port -> Cursor -> Report.Report
+toPortReport source port_ startCur =
   case port_ of
-    PortSpace space row col ->
-      toSpaceReport source space row col
+    PortSpace space cur ->
+      toSpaceReport source space cur
 
-    PortName row col ->
-      case Code.whatIsNext source row col of
+    PortName cur ->
+      case Code.whatIsNext source cur of
         Code.Keyword keyword ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toKeywordRegion row col keyword
+            surroundings = A.Region startCur cur
+            region = toKeywordRegion cur keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -1661,8 +1675,8 @@ toPortReport source port_ startRow startCol =
 
         _ ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "PORT PROBLEM" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -1680,10 +1694,10 @@ toPortReport source port_ startRow startCol =
                   ]
               )
 
-    PortColon row col ->
+    PortColon cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "PORT PROBLEM" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -1699,13 +1713,13 @@ toPortReport source port_ startRow startCol =
               ]
           )
 
-    PortType tipe row col ->
-      toTypeReport source TC_Port tipe row col
+    PortType tipe cur ->
+      toTypeReport source TC_Port tipe cur
 
-    PortIndentName row col ->
+    PortIndentName cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED PORT" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -1723,10 +1737,10 @@ toPortReport source port_ startRow startCol =
               ]
           )
 
-    PortIndentColon row col ->
+    PortIndentColon cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED PORT" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -1742,10 +1756,10 @@ toPortReport source port_ startRow startCol =
               ]
           )
 
-    PortIndentType row col ->
+    PortIndentType cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED PORT" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -1793,16 +1807,16 @@ portNote =
 -- DECL TYPE
 
 
-toDeclTypeReport :: Code.Source -> DeclType -> Row -> Col -> Report.Report
-toDeclTypeReport source declType startRow startCol =
+toDeclTypeReport :: Code.Source -> DeclType -> Cursor -> Report.Report
+toDeclTypeReport source declType startCur =
   case declType of
-    DT_Space space row col ->
-      toSpaceReport source space row col
+    DT_Space space cur ->
+      toSpaceReport source space cur
 
-    DT_Name row col ->
+    DT_Name cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "EXPECTING TYPE NAME" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -1819,16 +1833,16 @@ toDeclTypeReport source declType startRow startCol =
               ]
           )
 
-    DT_Alias typeAlias row col ->
-      toTypeAliasReport source typeAlias row col
+    DT_Alias typeAlias cur ->
+      toTypeAliasReport source typeAlias cur
 
-    DT_Union customType row col ->
-      toCustomTypeReport source customType row col
+    DT_Union customType cur ->
+      toCustomTypeReport source customType cur
 
-    DT_IndentName row col ->
+    DT_IndentName cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "EXPECTING TYPE NAME" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -1846,16 +1860,16 @@ toDeclTypeReport source declType startRow startCol =
           )
 
 
-toTypeAliasReport :: Code.Source -> TypeAlias -> Row -> Col -> Report.Report
-toTypeAliasReport source typeAlias startRow startCol =
+toTypeAliasReport :: Code.Source -> TypeAlias -> Cursor -> Report.Report
+toTypeAliasReport source typeAlias startCur =
   case typeAlias of
-    AliasSpace space row col ->
-      toSpaceReport source space row col
+    AliasSpace space cur ->
+      toSpaceReport source space cur
 
-    AliasName row col ->
+    AliasName cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "EXPECTING TYPE ALIAS NAME" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -1872,12 +1886,12 @@ toTypeAliasReport source typeAlias startRow startCol =
               ]
           )
 
-    AliasEquals row col ->
-      case Code.whatIsNext source row col of
+    AliasEquals cur ->
+      case Code.whatIsNext source cur of
         Code.Keyword keyword ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toKeywordRegion row col keyword
+            surroundings = A.Region startCur cur
+            region = toKeywordRegion cur keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -1895,8 +1909,8 @@ toTypeAliasReport source typeAlias startRow startCol =
 
         _ ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "PROBLEM IN TYPE ALIAS" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -1911,13 +1925,13 @@ toTypeAliasReport source typeAlias startRow startCol =
                   ]
               )
 
-    AliasBody tipe row col ->
-      toTypeReport source TC_TypeAlias tipe row col
+    AliasBody tipe cur ->
+      toTypeReport source TC_TypeAlias tipe cur
 
-    AliasIndentEquals row col ->
+    AliasIndentEquals cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED TYPE ALIAS" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -1932,10 +1946,10 @@ toTypeAliasReport source typeAlias startRow startCol =
               ]
           )
 
-    AliasIndentBody row col ->
+    AliasIndentBody cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED TYPE ALIAS" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -1974,16 +1988,16 @@ typeAliasNote =
     ]
 
 
-toCustomTypeReport :: Code.Source -> CustomType -> Row -> Col -> Report.Report
-toCustomTypeReport source customType startRow startCol =
+toCustomTypeReport :: Code.Source -> CustomType -> Cursor -> Report.Report
+toCustomTypeReport source customType startCur =
   case customType of
-    CT_Space space row col ->
-      toSpaceReport source space row col
+    CT_Space space cur ->
+      toSpaceReport source space cur
 
-    CT_Name row col ->
+    CT_Name cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "EXPECTING TYPE NAME" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -2000,12 +2014,12 @@ toCustomTypeReport source customType startRow startCol =
               ]
           )
 
-    CT_Equals row col ->
-      case Code.whatIsNext source row col of
+    CT_Equals cur ->
+      case Code.whatIsNext source cur of
         Code.Keyword keyword ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toKeywordRegion row col keyword
+            surroundings = A.Region startCur cur
+            region = toKeywordRegion cur keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -2023,8 +2037,8 @@ toCustomTypeReport source customType startRow startCol =
 
         _ ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "PROBLEM IN CUSTOM TYPE" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -2039,10 +2053,10 @@ toCustomTypeReport source customType startRow startCol =
                   ]
               )
 
-    CT_Bar row col ->
+    CT_Bar cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "PROBLEM IN CUSTOM TYPE" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -2057,10 +2071,10 @@ toCustomTypeReport source customType startRow startCol =
               ]
           )
 
-    CT_Variant row col ->
+    CT_Variant cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "PROBLEM IN CUSTOM TYPE" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -2078,13 +2092,13 @@ toCustomTypeReport source customType startRow startCol =
               ]
           )
 
-    CT_VariantArg tipe row col ->
-      toTypeReport source TC_CustomType tipe row col
+    CT_VariantArg tipe cur ->
+      toTypeReport source TC_CustomType tipe cur
 
-    CT_IndentEquals row col ->
+    CT_IndentEquals cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED CUSTOM TYPE" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -2099,10 +2113,10 @@ toCustomTypeReport source customType startRow startCol =
               ]
           )
 
-    CT_IndentBar row col ->
+    CT_IndentBar cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED CUSTOM TYPE" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -2117,10 +2131,10 @@ toCustomTypeReport source customType startRow startCol =
               ]
           )
 
-    CT_IndentAfterBar row col ->
+    CT_IndentAfterBar cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED CUSTOM TYPE" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -2135,10 +2149,10 @@ toCustomTypeReport source customType startRow startCol =
               ]
           )
 
-    CT_IndentAfterEquals row col ->
+    CT_IndentAfterEquals cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED CUSTOM TYPE" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -2178,18 +2192,18 @@ customTypeNote =
 -- DECL DEF
 
 
-toDeclDefReport :: Code.Source -> Name.Name -> DeclDef -> Row -> Col -> Report.Report
-toDeclDefReport source name declDef startRow startCol =
+toDeclDefReport :: Code.Source -> Name.Name -> DeclDef -> Cursor -> Report.Report
+toDeclDefReport source name declDef startCur =
   case declDef of
-    DeclDefSpace space row col ->
-      toSpaceReport source space row col
+    DeclDefSpace space cur ->
+      toSpaceReport source space cur
 
-    DeclDefEquals row col ->
-      case Code.whatIsNext source row col of
+    DeclDefEquals cur ->
+      case Code.whatIsNext source cur of
         Code.Keyword keyword ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toKeywordRegion row col keyword
+            surroundings = A.Region startCur cur
+            region = toKeywordRegion cur keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -2220,8 +2234,8 @@ toDeclDefReport source name declDef startRow startCol =
 
         Code.Operator "->" ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toWiderRegion row col 2
+            surroundings = A.Region startCur cur
+            region = toWiderRegion cur 2#Word64
           in
           Report.Report "MISSING COLON?" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -2247,8 +2261,8 @@ toDeclDefReport source name declDef startRow startCol =
 
         Code.Operator op ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toKeywordRegion row col op
+            surroundings = A.Region startCur cur
+            region = toKeywordRegion cur op
           in
           Report.Report "UNEXPECTED SYMBOL" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -2272,8 +2286,8 @@ toDeclDefReport source name declDef startRow startCol =
 
         _ ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "PROBLEM IN DEFINITION" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -2295,19 +2309,19 @@ toDeclDefReport source name declDef startRow startCol =
                   ]
               )
 
-    DeclDefType tipe row col ->
-      toTypeReport source (TC_Annotation name) tipe row col
+    DeclDefType tipe cur ->
+      toTypeReport source (TC_Annotation name) tipe cur
 
-    DeclDefArg pattern row col ->
-      toPatternReport source PArg pattern row col
+    DeclDefArg pattern cur ->
+      toPatternReport source PArg pattern cur
 
-    DeclDefBody expr row col ->
-      toExprReport source (InDef name startRow startCol) expr row col
+    DeclDefBody expr cur ->
+      toExprReport source (InDef name startCur) expr cur
 
-    DeclDefNameRepeat row col ->
+    DeclDefNameRepeat cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "EXPECTING DEFINITION" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -2324,10 +2338,10 @@ toDeclDefReport source name declDef startRow startCol =
               ]
           )
 
-    DeclDefNameMatch defName row col ->
+    DeclDefNameMatch defName cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "NAME MISMATCH" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -2343,10 +2357,10 @@ toDeclDefReport source name declDef startRow startCol =
               ]
           )
 
-    DeclDefIndentType row col ->
+    DeclDefIndentType cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED DEFINITION" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -2361,10 +2375,10 @@ toDeclDefReport source name declDef startRow startCol =
               ]
           )
 
-    DeclDefIndentEquals row col ->
+    DeclDefIndentEquals cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED DEFINITION" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -2379,10 +2393,10 @@ toDeclDefReport source name declDef startRow startCol =
               ]
           )
 
-    DeclDefIndentBody row col ->
+    DeclDefIndentBody cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED DEFINITION" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -2421,9 +2435,9 @@ declDefNote =
 
 
 data Context
-  = InNode Node Row Col Context
-  | InDef Name.Name Row Col
-  | InDestruct Row Col
+  = InNode Node Cursor Context
+  | InDef Name.Name Cursor
+  | InDestruct Cursor
 
 
 data Node
@@ -2442,49 +2456,49 @@ data Node
 getDefName :: Context -> Maybe Name.Name
 getDefName context =
   case context of
-    InDestruct _ _ -> Nothing
-    InDef name _ _ -> Just name
-    InNode _ _ _ c -> getDefName c
+    InDestruct _ -> Nothing
+    InDef name _ -> Just name
+    InNode _ _ c -> getDefName c
 
 
 isWithin :: Node -> Context -> Bool
 isWithin desiredNode context =
   case context of
-    InDestruct _ _          -> False
-    InDef _ _ _             -> False
-    InNode actualNode _ _ _ -> desiredNode == actualNode
+    InDestruct _          -> False
+    InDef _ _             -> False
+    InNode actualNode _ _ -> desiredNode == actualNode
 
 
 
 -- EXPR REPORTS
 
 
-toExprReport :: Code.Source -> Context -> Expr -> Row -> Col -> Report.Report
-toExprReport source context expr startRow startCol =
+toExprReport :: Code.Source -> Context -> Expr -> Cursor -> Report.Report
+toExprReport source context expr startCur =
   case expr of
-    Let let_ row col ->
-      toLetReport source context let_ row col
+    Let let_ cur ->
+      toLetReport source context let_ cur
 
-    Case case_ row col ->
-      toCaseReport source context case_ row col
+    Case case_ cur ->
+      toCaseReport source context case_ cur
 
-    If if_ row col ->
-      toIfReport source context if_ row col
+    If if_ cur ->
+      toIfReport source context if_ cur
 
-    List list row col ->
-      toListReport source context list row col
+    List list cur ->
+      toListReport source context list cur
 
-    Record record row col ->
-      toRecordReport source context record row col
+    Record record cur ->
+      toRecordReport source context record cur
 
-    Tuple tuple row col ->
-      toTupleReport source context tuple row col
+    Tuple tuple cur ->
+      toTupleReport source context tuple cur
 
-    Func func row col ->
-      toFuncReport source context func row col
+    Func func cur ->
+      toFuncReport source context func cur
 
-    Dot row col ->
-      let region = toRegion row col in
+    Dot cur ->
+      let region = toRegion cur in
       Report.Report "EXPECTING RECORD ACCESSOR" region [] $
         Code.toSnippet source region Nothing
           (
@@ -2497,8 +2511,8 @@ toExprReport source context expr startRow startCol =
               ]
           )
 
-    Access row col ->
-      let region = toRegion row col in
+    Access cur ->
+      let region = toRegion cur in
       Report.Report "EXPECTING RECORD ACCESSOR" region [] $
         Code.toSnippet source region Nothing
           (
@@ -2517,10 +2531,10 @@ toExprReport source context expr startRow startCol =
               ]
           )
 
-    OperatorRight op row col ->
+    OperatorRight op cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
         isMath = elem op ["-","+","*","/","^"]
       in
       Report.Report "MISSING EXPRESSION" region [] $
@@ -2554,27 +2568,27 @@ toExprReport source context expr startRow startCol =
                 "I was expecting to see an expression next."
           )
 
-    OperatorReserved operator row col ->
-      toOperatorReport source context operator row col
+    OperatorReserved operator cur ->
+      toOperatorReport source context operator cur
 
-    Start row col ->
+    Start cur ->
       let
-        (contextRow, contextCol, aThing) =
+        !(# contextCur, aThing #) =
           case context of
-            InDestruct r c       -> (r, c, "a definition")
-            InDef name r c       -> (r, c, "the `" ++ Name.toChars name ++ "` definition")
-            InNode NRecord r c _ -> (r, c, "a record")
-            InNode NParens r c _ -> (r, c, "some parentheses")
-            InNode NList   r c _ -> (r, c, "a list")
-            InNode NFunc   r c _ -> (r, c, "an anonymous function")
-            InNode NCond   r c _ -> (r, c, "an `if` expression")
-            InNode NThen   r c _ -> (r, c, "an `if` expression")
-            InNode NElse   r c _ -> (r, c, "an `if` expression")
-            InNode NCase   r c _ -> (r, c, "a `case` expression")
-            InNode NBranch r c _ -> (r, c, "a `case` expression")
+            InDestruct c       -> (# c, "a definition" #)
+            InDef name c       -> (# c, "the `" ++ Name.toChars name ++ "` definition" #)
+            InNode NRecord c _ -> (# c, "a record" #)
+            InNode NParens c _ -> (# c, "some parentheses" #)
+            InNode NList   c _ -> (# c, "a list" #)
+            InNode NFunc   c _ -> (# c, "an anonymous function" #)
+            InNode NCond   c _ -> (# c, "an `if` expression" #)
+            InNode NThen   c _ -> (# c, "an `if` expression" #)
+            InNode NElse   c _ -> (# c, "an `if` expression" #)
+            InNode NCase   c _ -> (# c, "a `case` expression" #)
+            InNode NBranch c _ -> (# c, "a `case` expression" #)
 
-        surroundings = A.Region (A.Position contextRow contextCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region contextCur cur
+        region = toRegion cur
       in
       Report.Report "MISSING EXPRESSION" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -2596,21 +2610,21 @@ toExprReport source context expr startRow startCol =
               ]
           )
 
-    Char char row col ->
-      toCharReport source char row col
+    Char char cur ->
+      toCharReport source char cur
 
-    String string row col ->
-      toStringReport source string row col
+    String string cur ->
+      toStringReport source string cur
 
-    Number number row col ->
-      toNumberReport source number row col
+    Number number cur ->
+      toNumberReport source number cur
 
-    Space space row col ->
-      toSpaceReport source space row col
+    Space space cur ->
+      toSpaceReport source space cur
 
-    EndlessShader row col ->
+    ShaderEndless cur ->
       let
-        region = toWiderRegion row col 6
+        region = toRegion cur
       in
       Report.Report "ENDLESS SHADER" region [] $
         Code.toSnippet source region Nothing
@@ -2620,9 +2634,23 @@ toExprReport source context expr startRow startCol =
             D.reflow "Add a |] somewhere after this to end the shader."
           )
 
-    ShaderProblem problem row col ->
+    ShaderNotUtf8 cur ->
       let
-        region = toRegion row col
+        region = toRegion cur
+      in
+      Report.Report "UNEXPECTED ENCODING" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "Elm files use UTF-8 character encoding, but I ran into something outside of that format:"
+          ,
+            D.reflow $
+              "Is there a way to convert this to a valid UTF-8 character?"
+          )
+
+    ShaderProblem problem cur ->
+      let
+        region = toRegion cur
       in
       Report.Report "SHADER PROBLEM" region [] $
         Code.toSnippet source region Nothing
@@ -2638,10 +2666,10 @@ toExprReport source context expr startRow startCol =
               ]
           )
 
-    IndentOperatorRight op row col ->
+    IndentOperatorRight op cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "MISSING EXPRESSION" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -2670,12 +2698,26 @@ toExprReport source context expr startRow startCol =
 -- CHAR
 
 
-toCharReport :: Code.Source -> Char -> Row -> Col -> Report.Report
-toCharReport source char row col =
+toCharReport :: Code.Source -> Char -> Cursor -> Report.Report
+toCharReport source char cur =
   case char of
+    CharNotUtf8 ->
+      let
+        region = toRegion cur
+      in
+      Report.Report "UNEXPECTED ENCODING" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "Elm files use UTF-8 character encoding, but I ran into something outside of that format:"
+          ,
+            D.reflow $
+              "Is there a way to convert this to a valid UTF-8 character?"
+          )
+
     CharEndless ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report "MISSING SINGLE QUOTE" region [] $
         Code.toSnippet source region Nothing
@@ -2689,11 +2731,11 @@ toCharReport source char row col =
           )
 
     CharEscape escape ->
-      toEscapeReport source escape row col
+      toEscapeReport source escape cur
 
     CharNotString width ->
       let
-        region = toWiderRegion row col width
+        region = toWiderRegion cur width
       in
       Report.Report "NEEDS DOUBLE QUOTES" region [] $
         Code.toSnippet source region Nothing
@@ -2717,12 +2759,26 @@ toCharReport source char row col =
 -- STRING
 
 
-toStringReport :: Code.Source -> String -> Row -> Col -> Report.Report
-toStringReport source string row col =
+toStringReport :: Code.Source -> String -> Cursor -> Report.Report
+toStringReport source string cur =
   case string of
+    StringNotUtf8 ->
+      let
+        region = toRegion cur
+      in
+      Report.Report "UNEXPECTED ENCODING" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "Elm files use UTF-8 character encoding, but I ran into something outside of that format:"
+          ,
+            D.reflow $
+              "Is there a way to convert this to a valid UTF-8 character?"
+          )
+
     StringEndless_Single ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report "ENDLESS STRING" region [] $
         Code.toSnippet source region Nothing
@@ -2754,7 +2810,7 @@ toStringReport source string row col =
 
     StringEndless_Multi ->
       let
-        region = toWiderRegion row col 3
+        region = toWiderRegion cur 3#Word64
       in
       Report.Report "ENDLESS STRING" region [] $
         Code.toSnippet source region Nothing
@@ -2780,19 +2836,19 @@ toStringReport source string row col =
           )
 
     StringEscape escape ->
-      toEscapeReport source escape row col
+      toEscapeReport source escape cur
 
 
 
 -- ESCAPES
 
 
-toEscapeReport :: Code.Source -> Escape -> Row -> Col -> Report.Report
-toEscapeReport source escape row col =
+toEscapeReport :: Code.Source -> Escape -> Cursor -> Report.Report
+toEscapeReport source escape cur =
   case escape of
     EscapeUnknown ->
       let
-        region = toWiderRegion row col 2
+        region = toWiderRegion cur 2#Word64
       in
       Report.Report "UNKNOWN ESCAPE" region [] $
         Code.toSnippet source region Nothing
@@ -2823,7 +2879,7 @@ toEscapeReport source escape row col =
 
     BadUnicodeFormat width ->
       let
-        region = toWiderRegion row col width
+        region = toWiderRegion cur width
       in
       Report.Report "BAD UNICODE ESCAPE" region [] $
         Code.toSnippet source region Nothing
@@ -2847,7 +2903,7 @@ toEscapeReport source escape row col =
             )
     BadUnicodeCode width ->
       let
-        region = toWiderRegion row col width
+        region = toWiderRegion cur width
       in
       Report.Report "BAD UNICODE ESCAPE" region [] $
         Code.toSnippet source region Nothing
@@ -2861,7 +2917,7 @@ toEscapeReport source escape row col =
 
     BadUnicodeLength width numDigits badCode ->
       let
-        region = toWiderRegion row col width
+        region = toWiderRegion cur width
       in
       Report.Report "BAD UNICODE ESCAPE" region [] $
         Code.toSnippet source region Nothing $
@@ -2895,10 +2951,10 @@ toEscapeReport source escape row col =
 -- NUMBERS
 
 
-toNumberReport :: Code.Source -> Number -> Row -> Col -> Report.Report
-toNumberReport source number row col =
+toNumberReport :: Code.Source -> Number -> Cursor -> Report.Report
+toNumberReport source number cur =
   let
-    region = toRegion row col
+    region = toRegion cur
   in
   case number of
     NumberEnd ->
@@ -2970,12 +3026,12 @@ toNumberReport source number row col =
 -- OPERATORS
 
 
-toOperatorReport :: Code.Source -> Context -> BadOperator -> Row -> Col -> Report.Report
-toOperatorReport source context operator row col =
+toOperatorReport :: Code.Source -> Context -> BadOperator -> Cursor -> Report.Report
+toOperatorReport source context operator cur =
   case operator of
     BadDot ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report "UNEXPECTED SYMBOL" region [] $
         Code.toSnippet source region Nothing
@@ -2990,7 +3046,7 @@ toOperatorReport source context operator row col =
 
     BadPipe ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report "UNEXPECTED SYMBOL" region [] $
         Code.toSnippet source region Nothing
@@ -3004,7 +3060,7 @@ toOperatorReport source context operator row col =
 
     BadArrow ->
       let
-        region = toWiderRegion row col 2
+        region = toWiderRegion cur 2#Word64
       in
       Report.Report "UNEXPECTED ARROW" region [] $
         Code.toSnippet source region Nothing $
@@ -3047,7 +3103,7 @@ toOperatorReport source context operator row col =
 
     BadEquals ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report "UNEXPECTED EQUALS" region [] $
         Code.toSnippet source region Nothing
@@ -3081,7 +3137,7 @@ toOperatorReport source context operator row col =
 
     BadHasType ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report "UNEXPECTED SYMBOL" region [] $
         Code.toSnippet source region Nothing $
@@ -3121,16 +3177,16 @@ toOperatorReport source context operator row col =
 -- CASE
 
 
-toLetReport :: Code.Source -> Context -> Let -> Row -> Col -> Report.Report
-toLetReport source context let_ startRow startCol =
+toLetReport :: Code.Source -> Context -> Let -> Cursor -> Report.Report
+toLetReport source context let_ startCur =
   case let_ of
-    LetSpace space row col ->
-      toSpaceReport source space row col
+    LetSpace space cur ->
+      toSpaceReport source space cur
 
-    LetIn row col ->
+    LetIn cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "LET PROBLEM" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -3150,10 +3206,10 @@ toLetReport source context let_ startRow startCol =
               ]
           )
 
-    LetDefAlignment _ row col ->
+    LetDefAlignment _ cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "LET PROBLEM" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -3173,12 +3229,12 @@ toLetReport source context let_ startRow startCol =
               ]
           )
 
-    LetDefName row col ->
-      case Code.whatIsNext source row col of
+    LetDefName cur ->
+      case Code.whatIsNext source cur of
         Code.Keyword keyword ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toKeywordRegion row col keyword
+            surroundings = A.Region startCur cur
+            region = toKeywordRegion cur keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -3192,42 +3248,42 @@ toLetReport source context let_ startRow startCol =
               )
 
         _ ->
-          toUnfinishLetReport source row col startRow startCol $
+          toUnfinishLetReport source cur startCur $
             D.reflow $
               "I was expecting the name of a definition next."
 
-    LetDef name def row col ->
-      toLetDefReport source name def row col
+    LetDef name def cur ->
+      toLetDefReport source name def cur
 
-    LetDestruct destruct row col ->
-      toLetDestructReport source destruct row col
+    LetDestruct destruct cur ->
+      toLetDestructReport source destruct cur
 
-    LetBody expr row col ->
-      toExprReport source context expr row col
+    LetBody expr cur ->
+      toExprReport source context expr cur
 
-    LetIndentDef row col ->
-      toUnfinishLetReport source row col startRow startCol $
+    LetIndentDef cur ->
+      toUnfinishLetReport source cur startCur $
         D.reflow $
           "I was expecting a value to be defined here."
 
-    LetIndentIn row col ->
-      toUnfinishLetReport source row col startRow startCol $
+    LetIndentIn cur ->
+      toUnfinishLetReport source cur startCur $
         D.fillSep $
           ["I","was","expecting","to","see","the",D.cyan "in","keyword","next."
           ,"Or","maybe","more","of","that","expression?"
           ]
 
-    LetIndentBody row col ->
-      toUnfinishLetReport source row col startRow startCol $
+    LetIndentBody cur ->
+      toUnfinishLetReport source cur startCur $
         D.reflow $
           "I was expecting an expression next. Tell me what should happen with the value you just defined!"
 
 
-toUnfinishLetReport :: Code.Source -> Row -> Col -> Row -> Col -> D.Doc -> Report.Report
-toUnfinishLetReport source row col startRow startCol message =
+toUnfinishLetReport :: Code.Source -> Cursor -> Cursor -> D.Doc -> Report.Report
+toUnfinishLetReport source cur startCur message =
   let
-    surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-    region = toRegion row col
+    surroundings = A.Region startCur cur
+    region = toRegion cur
   in
   Report.Report "UNFINISHED LET" region [] $
     Code.toSnippet source surroundings (Just region)
@@ -3256,19 +3312,19 @@ toUnfinishLetReport source row col startRow startCol message =
       )
 
 
-toLetDefReport :: Code.Source -> Name.Name -> Def -> Row -> Col -> Report.Report
-toLetDefReport source name def startRow startCol =
+toLetDefReport :: Code.Source -> Name.Name -> Def -> Cursor -> Report.Report
+toLetDefReport source name def startCur =
   case def of
-    DefSpace space row col ->
-      toSpaceReport source space row col
+    DefSpace space cur ->
+      toSpaceReport source space cur
 
-    DefType tipe row col ->
-      toTypeReport source (TC_Annotation name) tipe row col
+    DefType tipe cur ->
+      toTypeReport source (TC_Annotation name) tipe cur
 
-    DefNameRepeat row col ->
+    DefNameRepeat cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "EXPECTING DEFINITION" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -3285,10 +3341,10 @@ toLetDefReport source name def startRow startCol =
               ]
           )
 
-    DefNameMatch defName row col ->
+    DefNameMatch defName cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "NAME MISMATCH" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -3304,15 +3360,15 @@ toLetDefReport source name def startRow startCol =
               ]
           )
 
-    DefArg pattern row col ->
-      toPatternReport source PArg pattern row col
+    DefArg pattern cur ->
+      toPatternReport source PArg pattern cur
 
-    DefEquals row col ->
-      case Code.whatIsNext source row col of
+    DefEquals cur ->
+      case Code.whatIsNext source cur of
         Code.Keyword keyword ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toKeywordRegion row col keyword
+            surroundings = A.Region startCur cur
+            region = toKeywordRegion cur keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -3343,8 +3399,8 @@ toLetDefReport source name def startRow startCol =
 
         Code.Operator "->" ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toWiderRegion row col 2
+            surroundings = A.Region startCur cur
+            region = toWiderRegion cur 2#Word64
           in
           Report.Report "MISSING COLON?" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -3370,8 +3426,8 @@ toLetDefReport source name def startRow startCol =
 
         Code.Operator op ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toKeywordRegion row col op
+            surroundings = A.Region startCur cur
+            region = toKeywordRegion cur op
           in
           Report.Report "UNEXPECTED SYMBOL" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -3395,8 +3451,8 @@ toLetDefReport source name def startRow startCol =
 
         _ ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "PROBLEM IN DEFINITION" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -3418,13 +3474,13 @@ toLetDefReport source name def startRow startCol =
                   ]
               )
 
-    DefBody expr row col ->
-      toExprReport source (InDef name startRow startCol) expr row col
+    DefBody expr cur ->
+      toExprReport source (InDef name startCur) expr cur
 
-    DefIndentEquals row col ->
+    DefIndentEquals cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED DEFINITION" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -3439,10 +3495,10 @@ toLetDefReport source name def startRow startCol =
               ]
           )
 
-    DefIndentType row col ->
+    DefIndentType cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED DEFINITION" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -3457,10 +3513,10 @@ toLetDefReport source name def startRow startCol =
               ]
           )
 
-    DefIndentBody row col ->
+    DefIndentBody cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED DEFINITION" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -3475,11 +3531,11 @@ toLetDefReport source name def startRow startCol =
               ]
           )
 
-    DefAlignment indent row col ->
+    DefAlignment indent cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
-        offset = indent - col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
+        offset = distanceToIndent indent cur
       in
       Report.Report "PROBLEM IN DEFINITION" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -3488,7 +3544,7 @@ toLetDefReport source name def startRow startCol =
               "I got stuck while parsing the `" ++ Name.toChars name ++ "` definition:"
           ,
             D.reflow $
-              "I just saw a type annotation indented " ++ show indent ++ " spaces, so I was\
+              "I just saw a type annotation indented " ++ show (W32# indent) ++ " spaces, so I was\
               \ expecting to see the corresponding definition next with the exact same amount\
               \ of indentation. It looks like this line needs "
               ++ show offset ++ " more " ++ (if offset == 1 then "space" else "spaces") ++ "?"
@@ -3514,19 +3570,19 @@ defNote =
     ]
 
 
-toLetDestructReport :: Code.Source -> Destruct -> Row -> Col -> Report.Report
-toLetDestructReport source destruct startRow startCol =
+toLetDestructReport :: Code.Source -> Destruct -> Cursor -> Report.Report
+toLetDestructReport source destruct startCur =
   case destruct of
-    DestructSpace space row col ->
-      toSpaceReport source space row col
+    DestructSpace space cur ->
+      toSpaceReport source space cur
 
-    DestructPattern pattern row col ->
-      toPatternReport source PLet pattern row col
+    DestructPattern pattern cur ->
+      toPatternReport source PLet pattern cur
 
-    DestructEquals row col ->
+    DestructEquals cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "PROBLEM IN DEFINITION" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -3534,7 +3590,7 @@ toLetDestructReport source destruct startRow startCol =
             D.reflow $
               "I got stuck trying to parse this definition:"
           ,
-            case Code.whatIsNext source row col of
+            case Code.whatIsNext source cur of
               Code.Operator ":" ->
                 D.stack
                   [ D.reflow $
@@ -3553,13 +3609,13 @@ toLetDestructReport source destruct startRow startCol =
                   \ telling me what to compute."
           )
 
-    DestructBody expr row col ->
-      toExprReport source (InDestruct startRow startCol) expr row col
+    DestructBody expr cur ->
+      toExprReport source (InDestruct startCur) expr cur
 
-    DestructIndentEquals row col ->
+    DestructIndentEquals cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED DEFINITION" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -3572,10 +3628,10 @@ toLetDestructReport source destruct startRow startCol =
               \ telling me what to compute."
           )
 
-    DestructIndentBody row col ->
+    DestructIndentBody cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED DEFINITION" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -3592,25 +3648,25 @@ toLetDestructReport source destruct startRow startCol =
 -- CASE
 
 
-toCaseReport :: Code.Source -> Context -> Case -> Row -> Col -> Report.Report
-toCaseReport source context case_ startRow startCol =
+toCaseReport :: Code.Source -> Context -> Case -> Cursor -> Report.Report
+toCaseReport source context case_ startCur =
   case case_ of
-    CaseSpace space row col ->
-      toSpaceReport source space row col
+    CaseSpace space cur ->
+      toSpaceReport source space cur
 
-    CaseOf row col ->
-      toUnfinishCaseReport source row col startRow startCol $
+    CaseOf cur ->
+      toUnfinishCaseReport source cur startCur $
         D.fillSep ["I","was","expecting","to","see","the",D.dullyellow "of","keyword","next."]
 
-    CasePattern pattern row col ->
-      toPatternReport source PCase pattern row col
+    CasePattern pattern cur ->
+      toPatternReport source PCase pattern cur
 
-    CaseArrow row col ->
-      case Code.whatIsNext source row col of
+    CaseArrow cur ->
+      case Code.whatIsNext source cur of
         Code.Keyword keyword ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toKeywordRegion row col keyword
+            surroundings = A.Region startCur cur
+            region = toKeywordRegion cur keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -3625,8 +3681,8 @@ toCaseReport source context case_ startRow startCol =
 
         Code.Operator ":" ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "UNEXPECTED OPERATOR" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -3642,8 +3698,8 @@ toCaseReport source context case_ startRow startCol =
 
         Code.Operator "=" ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "UNEXPECTED OPERATOR" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -3658,8 +3714,8 @@ toCaseReport source context case_ startRow startCol =
 
         _ ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "MISSING ARROW" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -3673,48 +3729,48 @@ toCaseReport source context case_ startRow startCol =
                   ]
               )
 
-    CaseExpr expr row col ->
-      toExprReport source (InNode NCase startRow startCol context) expr row col
+    CaseExpr expr cur ->
+      toExprReport source (InNode NCase startCur context) expr cur
 
-    CaseBranch expr row col ->
-      toExprReport source (InNode NBranch startRow startCol context) expr row col
+    CaseBranch expr cur ->
+      toExprReport source (InNode NBranch startCur context) expr cur
 
-    CaseIndentOf row col ->
-      toUnfinishCaseReport source row col startRow startCol $
+    CaseIndentOf cur ->
+      toUnfinishCaseReport source cur startCur $
         D.fillSep ["I","was","expecting","to","see","the",D.dullyellow "of","keyword","next."]
 
-    CaseIndentExpr row col ->
-      toUnfinishCaseReport source row col startRow startCol $
+    CaseIndentExpr cur ->
+      toUnfinishCaseReport source cur startCur $
         D.reflow "I was expecting to see a expression next."
 
-    CaseIndentPattern row col ->
-      toUnfinishCaseReport source row col startRow startCol $
+    CaseIndentPattern cur ->
+      toUnfinishCaseReport source cur startCur $
         D.reflow "I was expecting to see a pattern next."
 
-    CaseIndentArrow row col ->
-      toUnfinishCaseReport source row col startRow startCol $
+    CaseIndentArrow cur ->
+      toUnfinishCaseReport source cur startCur $
         D.fillSep
           ["I","just","saw","a","pattern,","so","I","was","expecting"
           ,"to","see","a",D.dullyellow "->","next."
           ]
 
-    CaseIndentBranch row col ->
-      toUnfinishCaseReport source row col startRow startCol $
+    CaseIndentBranch cur ->
+      toUnfinishCaseReport source cur startCur $
         D.reflow $
           "I was expecting to see an expression next. What should I do when\
           \ I run into this particular pattern?"
 
-    CasePatternAlignment indent row col ->
-      toUnfinishCaseReport source row col startRow startCol $
+    CasePatternAlignment indent cur ->
+      toUnfinishCaseReport source cur startCur $
         D.reflow $
-          "I suspect this is a pattern that is not indented far enough? (" ++ show indent ++ " spaces)"
+          "I suspect this is a pattern that is not indented far enough? (" ++ show (W32# indent) ++ " spaces)"
 
 
-toUnfinishCaseReport :: Code.Source -> Row -> Col -> Row -> Col -> D.Doc -> Report.Report
-toUnfinishCaseReport source row col startRow startCol message =
+toUnfinishCaseReport :: Code.Source -> Cursor -> Cursor -> D.Doc -> Report.Report
+toUnfinishCaseReport source cur startCur message =
   let
-    surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-    region = toRegion row col
+    surroundings = A.Region startCur cur
+    region = toRegion cur
   in
   Report.Report "UNFINISHED CASE" region [] $
     Code.toSnippet source surroundings (Just region)
@@ -3773,16 +3829,16 @@ noteForCaseIndentError =
 -- IF
 
 
-toIfReport :: Code.Source -> Context -> If -> Row -> Col -> Report.Report
-toIfReport source context if_ startRow startCol =
+toIfReport :: Code.Source -> Context -> If -> Cursor -> Report.Report
+toIfReport source context if_ startCur =
   case if_ of
-    IfSpace space row col ->
-      toSpaceReport source space row col
+    IfSpace space cur ->
+      toSpaceReport source space cur
 
-    IfThen row col ->
+    IfThen cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED IF" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -3795,10 +3851,10 @@ toIfReport source context if_ startRow startCol =
               ]
           )
 
-    IfElse row col ->
+    IfElse cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED IF" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -3811,10 +3867,10 @@ toIfReport source context if_ startRow startCol =
               ]
           )
 
-    IfElseBranchStart row col ->
+    IfElseBranchStart cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED IF" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -3826,19 +3882,19 @@ toIfReport source context if_ startRow startCol =
               "I was expecting to see an expression next. Maybe it is not filled in yet?"
           )
 
-    IfCondition expr row col ->
-      toExprReport source (InNode NCond startRow startCol context) expr row col
+    IfCondition expr cur ->
+      toExprReport source (InNode NCond startCur context) expr cur
 
-    IfThenBranch expr row col ->
-      toExprReport source (InNode NThen startRow startCol context) expr row col
+    IfThenBranch expr cur ->
+      toExprReport source (InNode NThen startCur context) expr cur
 
-    IfElseBranch expr row col ->
-      toExprReport source (InNode NElse startRow startCol context) expr row col
+    IfElseBranch expr cur ->
+      toExprReport source (InNode NElse startCur context) expr cur
 
-    IfIndentCondition row col ->
+    IfIndentCondition cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED IF" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -3856,10 +3912,10 @@ toIfReport source context if_ startRow startCol =
               ]
           )
 
-    IfIndentThen row col ->
+    IfIndentThen cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED IF" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -3876,10 +3932,10 @@ toIfReport source context if_ startRow startCol =
               ]
           )
 
-    IfIndentThenBranch row col ->
+    IfIndentThenBranch cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED IF" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -3896,10 +3952,10 @@ toIfReport source context if_ startRow startCol =
               ]
           )
 
-    IfIndentElseBranch row col ->
+    IfIndentElseBranch cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED IF" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -3916,12 +3972,12 @@ toIfReport source context if_ startRow startCol =
               ]
           )
 
-    IfIndentElse row col ->
-      case Code.nextLineStartsWithKeyword "else" source row of
-        Just (elseRow, elseCol) ->
+    IfIndentElse cur ->
+      case Code.nextLineStartsWithKeyword "else" source cur of
+        Code.Yes elseCur ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position elseRow elseCol)
-            region = toWiderRegion elseRow elseCol 4
+            surroundings = A.Region startCur elseCur
+            region = toWiderRegion elseCur 4#Word64
           in
           Report.Report "WEIRD ELSE BRANCH" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -3935,10 +3991,10 @@ toIfReport source context if_ startRow startCol =
                   ]
               )
 
-        Nothing ->
+        Code.No ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "UNFINISHED IF" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -3960,15 +4016,15 @@ toIfReport source context if_ startRow startCol =
 -- RECORD
 
 
-toRecordReport :: Code.Source -> Context -> Record -> Row -> Col -> Report.Report
-toRecordReport source context record startRow startCol =
+toRecordReport :: Code.Source -> Context -> Record -> Cursor -> Report.Report
+toRecordReport source context record startCur =
   case record of
-    RecordOpen row col ->
-      case Code.whatIsNext source row col of
+    RecordOpen cur ->
+      case Code.whatIsNext source cur of
         Code.Keyword keyword ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toKeywordRegion row col keyword
+            surroundings = A.Region startCur cur
+            region = toKeywordRegion cur keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -3983,8 +4039,8 @@ toRecordReport source context record startRow startCol =
 
         _ ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "PROBLEM IN RECORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -4005,10 +4061,10 @@ toRecordReport source context record startRow startCol =
                   ]
               )
 
-    RecordEnd row col ->
+    RecordEnd cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "PROBLEM IN RECORD" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -4027,12 +4083,12 @@ toRecordReport source context record startRow startCol =
               ]
           )
 
-    RecordField row col ->
-      case Code.whatIsNext source row col of
+    RecordField cur ->
+      case Code.whatIsNext source cur of
         Code.Keyword keyword ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toKeywordRegion row col keyword
+            surroundings = A.Region startCur cur
+            region = toKeywordRegion cur keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -4047,8 +4103,8 @@ toRecordReport source context record startRow startCol =
 
         Code.Other (Just ',') ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "EXTRA COMMA" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -4067,8 +4123,8 @@ toRecordReport source context record startRow startCol =
 
         Code.Close _ '}' ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "EXTRA COMMA" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -4086,8 +4142,8 @@ toRecordReport source context record startRow startCol =
 
         _ ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "PROBLEM IN RECORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -4108,10 +4164,10 @@ toRecordReport source context record startRow startCol =
                   ]
               )
 
-    RecordEquals row col ->
+    RecordEquals cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "PROBLEM IN RECORD" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -4128,16 +4184,16 @@ toRecordReport source context record startRow startCol =
               ]
           )
 
-    RecordExpr expr row col ->
-      toExprReport source (InNode NRecord startRow startCol context) expr row col
+    RecordExpr expr cur ->
+      toExprReport source (InNode NRecord startCur context) expr cur
 
-    RecordSpace space row col ->
-      toSpaceReport source space row col
+    RecordSpace space cur ->
+      toSpaceReport source space cur
 
-    RecordIndentOpen row col ->
+    RecordIndentOpen cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED RECORD" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -4154,12 +4210,12 @@ toRecordReport source context record startRow startCol =
               ]
           )
 
-    RecordIndentEnd row col ->
-      case Code.nextLineStartsWithCloseCurly source row of
-        Just (curlyRow, curlyCol) ->
+    RecordIndentEnd cur ->
+      case Code.nextLineStartsWithCloseCurly source cur of
+        Code.Yes curlyCur ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position curlyRow curlyCol)
-            region = toRegion curlyRow curlyCol
+            surroundings = A.Region startCur curlyCur
+            region = toRegion curlyCur
           in
           Report.Report "NEED MORE INDENTATION" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -4174,10 +4230,10 @@ toRecordReport source context record startRow startCol =
                   ]
               )
 
-        Nothing ->
+        Code.No ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "UNFINISHED RECORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -4194,10 +4250,10 @@ toRecordReport source context record startRow startCol =
                   ]
               )
 
-    RecordIndentField row col ->
+    RecordIndentField cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED RECORD" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -4214,10 +4270,10 @@ toRecordReport source context record startRow startCol =
               ]
           )
 
-    RecordIndentEquals row col ->
+    RecordIndentEquals cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED RECORD" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -4234,10 +4290,10 @@ toRecordReport source context record startRow startCol =
               ]
           )
 
-    RecordIndentExpr row col ->
+    RecordIndentExpr cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED RECORD" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -4294,19 +4350,19 @@ noteForRecordIndentError =
 -- TUPLE
 
 
-toTupleReport :: Code.Source -> Context -> Tuple -> Row -> Col -> Report.Report
-toTupleReport source context tuple startRow startCol =
+toTupleReport :: Code.Source -> Context -> Tuple -> Cursor -> Report.Report
+toTupleReport source context tuple startCur =
   case tuple of
-    TupleExpr expr row col ->
-      toExprReport source (InNode NParens startRow startCol context) expr row col
+    TupleExpr expr cur ->
+      toExprReport source (InNode NParens startCur context) expr cur
 
-    TupleSpace space row col ->
-      toSpaceReport source space row col
+    TupleSpace space cur ->
+      toSpaceReport source space cur
 
-    TupleEnd row col ->
+    TupleEnd cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED PARENTHESES" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -4323,10 +4379,10 @@ toTupleReport source context tuple startRow startCol =
               ]
           )
 
-    TupleOperatorClose row col ->
+    TupleOperatorClose cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED OPERATOR FUNCTION" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -4342,10 +4398,10 @@ toTupleReport source context tuple startRow startCol =
               ]
           )
 
-    TupleOperatorReserved operator row col ->
+    TupleOperatorReserved operator cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNEXPECTED SYMBOL" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -4362,10 +4418,10 @@ toTupleReport source context tuple startRow startCol =
                 BadHasType -> ["Try",D.dullyellow "(::)","instead?","To","add","values","to","the","front","of","lists?"]
           )
 
-    TupleIndentExpr1 row col ->
+    TupleIndentExpr1 cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED PARENTHESES" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -4385,10 +4441,10 @@ toTupleReport source context tuple startRow startCol =
               ]
           )
 
-    TupleIndentExprN row col ->
+    TupleIndentExprN cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED TUPLE" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -4408,10 +4464,10 @@ toTupleReport source context tuple startRow startCol =
               ]
           )
 
-    TupleIndentEnd row col ->
+    TupleIndentEnd cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED PARENTHESES" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -4428,16 +4484,16 @@ toTupleReport source context tuple startRow startCol =
           )
 
 
-toListReport :: Code.Source -> Context -> List -> Row -> Col -> Report.Report
-toListReport source context list startRow startCol =
+toListReport :: Code.Source -> Context -> List -> Cursor -> Report.Report
+toListReport source context list startCur =
   case list of
-    ListSpace space row col ->
-      toSpaceReport source space row col
+    ListSpace space cur ->
+      toSpaceReport source space cur
 
-    ListOpen row col ->
+    ListOpen cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED LIST" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -4456,12 +4512,12 @@ toListReport source context list startRow startCol =
               ]
           )
 
-    ListExpr expr row col ->
+    ListExpr expr cur ->
       case expr of
-        Start r c ->
+        Start c ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position r c)
-            region = toRegion r c
+            surroundings = A.Region startCur c
+            region = toRegion c
           in
           Report.Report "UNFINISHED LIST" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -4487,12 +4543,12 @@ toListReport source context list startRow startCol =
               )
 
         _ ->
-          toExprReport source (InNode NList startRow startCol context) expr row col
+          toExprReport source (InNode NList startCur context) expr cur
 
-    ListEnd row col ->
+    ListEnd cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED LIST" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -4511,10 +4567,10 @@ toListReport source context list startRow startCol =
               ]
           )
 
-    ListIndentOpen row col ->
+    ListIndentOpen cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED LIST" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -4546,10 +4602,10 @@ toListReport source context list startRow startCol =
               ]
           )
 
-    ListIndentEnd row col ->
+    ListIndentEnd cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED LIST" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -4577,10 +4633,10 @@ toListReport source context list startRow startCol =
               ]
           )
 
-    ListIndentExpr row col ->
+    ListIndentExpr cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED LIST" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -4606,24 +4662,24 @@ toListReport source context list startRow startCol =
           )
 
 
-toFuncReport :: Code.Source -> Context -> Func -> Row -> Col -> Report.Report
-toFuncReport source context func startRow startCol =
+toFuncReport :: Code.Source -> Context -> Func -> Cursor -> Report.Report
+toFuncReport source context func startCur =
   case func of
-    FuncSpace space row col ->
-      toSpaceReport source space row col
+    FuncSpace space cur ->
+      toSpaceReport source space cur
 
-    FuncArg pattern row col ->
-      toPatternReport source PArg pattern row col
+    FuncArg pattern cur ->
+      toPatternReport source PArg pattern cur
 
-    FuncBody expr row col ->
-      toExprReport source (InNode NFunc startRow startCol context) expr row col
+    FuncBody expr cur ->
+      toExprReport source (InNode NFunc startCur context) expr cur
 
-    FuncArrow row col ->
-      case Code.whatIsNext source row col of
+    FuncArrow cur ->
+      case Code.whatIsNext source cur of
         Code.Keyword keyword ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toKeywordRegion row col keyword
+            surroundings = A.Region startCur cur
+            region = toKeywordRegion cur keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -4638,8 +4694,8 @@ toFuncReport source context func startRow startCol =
 
         _ ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "UNFINISHED ANONYMOUS FUNCTION" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -4654,10 +4710,10 @@ toFuncReport source context func startRow startCol =
                   ]
               )
 
-    FuncIndentArg row col ->
+    FuncIndentArg cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "MISSING ARGUMENT" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -4677,10 +4733,10 @@ toFuncReport source context func startRow startCol =
               ]
           )
 
-    FuncIndentArrow row col ->
+    FuncIndentArrow cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED ANONYMOUS FUNCTION" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -4702,10 +4758,10 @@ toFuncReport source context func startRow startCol =
               ]
           )
 
-    FuncIndentBody row col ->
+    FuncIndentBody cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED ANONYMOUS FUNCTION" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -4738,24 +4794,24 @@ data PContext
   | PLet
 
 
-toPatternReport :: Code.Source -> PContext -> Pattern -> Row -> Col -> Report.Report
-toPatternReport source context pattern startRow startCol =
+toPatternReport :: Code.Source -> PContext -> Pattern -> Cursor -> Report.Report
+toPatternReport source context pattern startCur =
   case pattern of
-    PRecord record row col ->
-      toPRecordReport source record row col
+    PRecord record cur ->
+      toPRecordReport source record cur
 
-    PTuple tuple row col ->
-      toPTupleReport source context tuple row col
+    PTuple tuple cur ->
+      toPTupleReport source context tuple cur
 
-    PList list row col ->
-      toPListReport source context list row col
+    PList list cur ->
+      toPListReport source context list cur
 
-    PStart row col ->
-      case Code.whatIsNext source row col of
+    PStart cur ->
+      case Code.whatIsNext source cur of
         Code.Keyword keyword ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toKeywordRegion row col keyword
+            surroundings = A.Region startCur cur
+            region = toKeywordRegion cur keyword
             inThisThing =
               case context of
                 PArg  -> "as an argument"
@@ -4774,8 +4830,8 @@ toPatternReport source context pattern startRow startCol =
 
         Code.Operator "-" ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "UNEXPECTED SYMBOL" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -4790,8 +4846,8 @@ toPatternReport source context pattern startRow startCol =
 
         _ ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "PROBLEM IN PATTERN" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -4808,18 +4864,18 @@ toPatternReport source context pattern startRow startCol =
                   ]
               )
 
-    PChar char row col ->
-      toCharReport source char row col
+    PChar char cur ->
+      toCharReport source char cur
 
-    PString string row col ->
-      toStringReport source string row col
+    PString string cur ->
+      toStringReport source string cur
 
-    PNumber number row col ->
-      toNumberReport source number row col
+    PNumber number cur ->
+      toNumberReport source number cur
 
-    PFloat width row col ->
+    PFloat width cur ->
       let
-        region = toWiderRegion row col width
+        region = toWiderRegion cur width
       in
       Report.Report "UNEXPECTED PATTERN" region [] $
         Code.toSnippet source region Nothing
@@ -4834,9 +4890,9 @@ toPatternReport source context pattern startRow startCol =
               ]
           )
 
-    PAlias row col ->
+    PAlias cur ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report "UNFINISHED PATTERN" region [] $
         Code.toSnippet source region Nothing $
@@ -4859,9 +4915,9 @@ toPatternReport source context pattern startRow startCol =
               ]
           )
 
-    PWildcardNotVar name width row col ->
+    PWildcardNotVar name width cur ->
       let
-        region = toWiderRegion row col (fromIntegral width)
+        region = toWiderRegion cur width
         examples =
           case dropWhile (=='_') (Name.toChars name) of
             [] -> [D.dullyellow "x","or",D.dullyellow "age"]
@@ -4879,13 +4935,13 @@ toPatternReport source context pattern startRow startCol =
               ] ++ examples ++ ["to","use","the","matched","value." ]
           )
 
-    PSpace space row col ->
-      toSpaceReport source space row col
+    PSpace space cur ->
+      toSpaceReport source space cur
 
-    PIndentStart row col ->
+    PIndentStart cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED PATTERN" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -4907,9 +4963,9 @@ toPatternReport source context pattern startRow startCol =
               ]
           )
 
-    PIndentAlias row col ->
+    PIndentAlias cur ->
       let
-        region = toRegion row col
+        region = toRegion cur
       in
       Report.Report "UNFINISHED PATTERN" region [] $
         Code.toSnippet source region Nothing $
@@ -4933,26 +4989,26 @@ toPatternReport source context pattern startRow startCol =
           )
 
 
-toPRecordReport :: Code.Source -> PRecord -> Row -> Col -> Report.Report
-toPRecordReport source record startRow startCol =
+toPRecordReport :: Code.Source -> PRecord -> Cursor -> Report.Report
+toPRecordReport source record startCur =
   case record of
-    PRecordOpen row col ->
-      toUnfinishRecordPatternReport source row col startRow startCol $
+    PRecordOpen cur ->
+      toUnfinishRecordPatternReport source cur startCur $
         D.reflow "I was expecting to see a field name next."
 
-    PRecordEnd row col ->
-      toUnfinishRecordPatternReport source row col startRow startCol $
+    PRecordEnd cur ->
+      toUnfinishRecordPatternReport source cur startCur $
         D.fillSep
           ["I","was","expecting","to","see","a","closing","curly","brace","next."
           ,"Try","adding","a",D.dullyellow "}","here?"
           ]
 
-    PRecordField row col ->
-      case Code.whatIsNext source row col of
+    PRecordField cur ->
+      case Code.whatIsNext source cur of
         Code.Keyword keyword ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toKeywordRegion row col keyword
+            surroundings = A.Region startCur cur
+            region = toKeywordRegion cur keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -4965,33 +5021,33 @@ toPRecordReport source record startRow startCol =
               )
 
         _ ->
-          toUnfinishRecordPatternReport source row col startRow startCol $
+          toUnfinishRecordPatternReport source cur startCur $
             D.reflow "I was expecting to see a field name next."
 
-    PRecordSpace space row col ->
-      toSpaceReport source space row col
+    PRecordSpace space cur ->
+      toSpaceReport source space cur
 
-    PRecordIndentOpen row col ->
-      toUnfinishRecordPatternReport source row col startRow startCol $
+    PRecordIndentOpen cur ->
+      toUnfinishRecordPatternReport source cur startCur $
         D.reflow "I was expecting to see a field name next."
 
-    PRecordIndentEnd row col ->
-      toUnfinishRecordPatternReport source row col startRow startCol $
+    PRecordIndentEnd cur ->
+      toUnfinishRecordPatternReport source cur startCur $
         D.fillSep
           ["I","was","expecting","to","see","a","closing","curly","brace","next."
           ,"Try","adding","a",D.dullyellow "}","here?"
           ]
 
-    PRecordIndentField row col ->
-      toUnfinishRecordPatternReport source row col startRow startCol $
+    PRecordIndentField cur ->
+      toUnfinishRecordPatternReport source cur startCur $
         D.reflow "I was expecting to see a field name next."
 
 
-toUnfinishRecordPatternReport :: Code.Source -> Row -> Col -> Row -> Col -> D.Doc -> Report.Report
-toUnfinishRecordPatternReport source row col startRow startCol message =
+toUnfinishRecordPatternReport :: Code.Source -> Cursor -> Cursor -> D.Doc -> Report.Report
+toUnfinishRecordPatternReport source cur startCur message =
   let
-    surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-    region = toRegion row col
+    surroundings = A.Region startCur cur
+    region = toRegion cur
   in
   Report.Report "UNFINISHED RECORD PATTERN" region [] $
     Code.toSnippet source surroundings (Just region)
@@ -5010,15 +5066,15 @@ toUnfinishRecordPatternReport source row col startRow startCol message =
 
 
 
-toPTupleReport :: Code.Source -> PContext -> PTuple -> Row -> Col -> Report.Report
-toPTupleReport source context tuple startRow startCol =
+toPTupleReport :: Code.Source -> PContext -> PTuple -> Cursor -> Report.Report
+toPTupleReport source context tuple startCur =
   case tuple of
-    PTupleOpen row col ->
-      case Code.whatIsNext source row col of
+    PTupleOpen cur ->
+      case Code.whatIsNext source cur of
         Code.Keyword keyword ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toKeywordRegion row col keyword
+            surroundings = A.Region startCur cur
+            region = toKeywordRegion cur keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -5032,8 +5088,8 @@ toPTupleReport source context tuple startRow startCol =
 
         _ ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "UNFINISHED PARENTHESES" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -5048,12 +5104,12 @@ toPTupleReport source context tuple startRow startCol =
                   ]
               )
 
-    PTupleEnd row col ->
-      case Code.whatIsNext source row col of
+    PTupleEnd cur ->
+      case Code.whatIsNext source cur of
         Code.Keyword keyword ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toKeywordRegion row col keyword
+            surroundings = A.Region startCur cur
+            region = toKeywordRegion cur keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region) $
@@ -5067,8 +5123,8 @@ toPTupleReport source context tuple startRow startCol =
 
         Code.Operator op ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toKeywordRegion row col op
+            surroundings = A.Region startCur cur
+            region = toKeywordRegion cur op
           in
           Report.Report "UNEXPECTED SYMBOL" region [] $
             Code.toSnippet source surroundings (Just region) $
@@ -5084,8 +5140,8 @@ toPTupleReport source context tuple startRow startCol =
 
         Code.Close term bracket ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report ("STRAY " ++ map Char.toUpper term) region [] $
             Code.toSnippet source surroundings (Just region) $
@@ -5099,8 +5155,8 @@ toPTupleReport source context tuple startRow startCol =
 
         _ ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "UNFINISHED PARENTHESES" region [] $
             Code.toSnippet source surroundings (Just region) $
@@ -5114,16 +5170,16 @@ toPTupleReport source context tuple startRow startCol =
                   ]
               )
 
-    PTupleExpr pattern row col ->
-      toPatternReport source context pattern row col
+    PTupleExpr pattern cur ->
+      toPatternReport source context pattern cur
 
-    PTupleSpace space row col ->
-      toSpaceReport source space row col
+    PTupleSpace space cur ->
+      toSpaceReport source space cur
 
-    PTupleIndentEnd row col ->
+    PTupleIndentEnd cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED PARENTHESES" region [] $
         Code.toSnippet source surroundings (Just region) $
@@ -5139,10 +5195,10 @@ toPTupleReport source context tuple startRow startCol =
               ]
           )
 
-    PTupleIndentExpr1 row col ->
+    PTupleIndentExpr1 cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED PARENTHESES" region [] $
         Code.toSnippet source surroundings (Just region) $
@@ -5157,10 +5213,10 @@ toPTupleReport source context tuple startRow startCol =
               ]
           )
 
-    PTupleIndentExprN row col ->
+    PTupleIndentExprN cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED TUPLE PATTERN" region [] $
         Code.toSnippet source surroundings (Just region) $
@@ -5181,15 +5237,15 @@ toPTupleReport source context tuple startRow startCol =
           )
 
 
-toPListReport :: Code.Source -> PContext -> PList -> Row -> Col -> Report.Report
-toPListReport source context list startRow startCol =
+toPListReport :: Code.Source -> PContext -> PList -> Cursor -> Report.Report
+toPListReport source context list startCur =
   case list of
-    PListOpen row col ->
-      case Code.whatIsNext source row col of
+    PListOpen cur ->
+      case Code.whatIsNext source cur of
         Code.Keyword keyword ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toKeywordRegion row col keyword
+            surroundings = A.Region startCur cur
+            region = toKeywordRegion cur keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -5203,8 +5259,8 @@ toPListReport source context list startRow startCol =
 
         _ ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "UNFINISHED LIST PATTERN" region [] $
             Code.toSnippet source surroundings (Just region) $
@@ -5215,10 +5271,10 @@ toPListReport source context list startRow startCol =
                 D.fillSep ["Try","adding","a",D.dullyellow "]","to","see","if","that","helps?"]
               )
 
-    PListEnd row col ->
+    PListEnd cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED LIST PATTERN" region [] $
         Code.toSnippet source surroundings (Just region) $
@@ -5229,16 +5285,16 @@ toPListReport source context list startRow startCol =
             D.fillSep ["Try","adding","a",D.dullyellow "]","to","see","if","that","helps?"]
           )
 
-    PListExpr pattern row col ->
-      toPatternReport source context pattern row col
+    PListExpr pattern cur ->
+      toPatternReport source context pattern cur
 
-    PListSpace space row col ->
-      toSpaceReport source space row col
+    PListSpace space cur ->
+      toSpaceReport source space cur
 
-    PListIndentOpen row col ->
+    PListIndentOpen cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED LIST PATTERN" region [] $
         Code.toSnippet source surroundings (Just region) $
@@ -5254,10 +5310,10 @@ toPListReport source context list startRow startCol =
               ]
           )
 
-    PListIndentEnd row col ->
+    PListIndentEnd cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED LIST PATTERN" region [] $
         Code.toSnippet source surroundings (Just region) $
@@ -5273,10 +5329,10 @@ toPListReport source context list startRow startCol =
               ]
           )
 
-    PListIndentExpr row col ->
+    PListIndentExpr cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED LIST PATTERN" region [] $
         Code.toSnippet source surroundings (Just region) $
@@ -5305,21 +5361,21 @@ data TContext
   | TC_Port
 
 
-toTypeReport :: Code.Source -> TContext -> Type -> Row -> Col -> Report.Report
-toTypeReport source context tipe startRow startCol =
+toTypeReport :: Code.Source -> TContext -> Type -> Cursor -> Report.Report
+toTypeReport source context tipe startCur =
   case tipe of
-    TRecord record row col ->
-      toTRecordReport source context record row col
+    TRecord record cur ->
+      toTRecordReport source context record cur
 
-    TTuple tuple row col ->
-      toTTupleReport source context tuple row col
+    TTuple tuple cur ->
+      toTTupleReport source context tuple cur
 
-    TStart row col ->
-      case Code.whatIsNext source row col of
+    TStart cur ->
+      case Code.whatIsNext source cur of
         Code.Keyword keyword ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toKeywordRegion row col keyword
+            surroundings = A.Region startCur cur
+            region = toKeywordRegion cur keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -5334,8 +5390,8 @@ toTypeReport source context tipe startRow startCol =
 
         _ ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
 
             thing =
               case context of
@@ -5363,13 +5419,13 @@ toTypeReport source context tipe startRow startCol =
                   ]
               )
 
-    TSpace space row col ->
-      toSpaceReport source space row col
+    TSpace space cur ->
+      toSpaceReport source space cur
 
-    TIndentStart row col ->
+    TIndentStart cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
 
         thing =
           case context of
@@ -5396,15 +5452,15 @@ toTypeReport source context tipe startRow startCol =
           )
 
 
-toTRecordReport :: Code.Source -> TContext -> TRecord -> Row -> Col -> Report.Report
-toTRecordReport source context record startRow startCol =
+toTRecordReport :: Code.Source -> TContext -> TRecord -> Cursor -> Report.Report
+toTRecordReport source context record startCur =
   case record of
-    TRecordOpen row col ->
-      case Code.whatIsNext source row col of
+    TRecordOpen cur ->
+      case Code.whatIsNext source cur of
         Code.Keyword keyword ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toKeywordRegion row col keyword
+            surroundings = A.Region startCur cur
+            region = toKeywordRegion cur keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -5419,8 +5475,8 @@ toTRecordReport source context record startRow startCol =
 
         _ ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "UNFINISHED RECORD TYPE" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -5434,10 +5490,10 @@ toTRecordReport source context record startRow startCol =
                   ]
               )
 
-    TRecordEnd row col ->
+    TRecordEnd cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED RECORD TYPE" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -5456,12 +5512,12 @@ toTRecordReport source context record startRow startCol =
               ]
           )
 
-    TRecordField row col ->
-      case Code.whatIsNext source row col of
+    TRecordField cur ->
+      case Code.whatIsNext source cur of
         Code.Keyword keyword ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toKeywordRegion row col keyword
+            surroundings = A.Region startCur cur
+            region = toKeywordRegion cur keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -5476,8 +5532,8 @@ toTRecordReport source context record startRow startCol =
 
         Code.Other (Just ',') ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "EXTRA COMMA" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -5496,8 +5552,8 @@ toTRecordReport source context record startRow startCol =
 
         Code.Close _ '}' ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "EXTRA COMMA" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -5515,8 +5571,8 @@ toTRecordReport source context record startRow startCol =
 
         _ ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "PROBLEM IN RECORD TYPE" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -5534,10 +5590,10 @@ toTRecordReport source context record startRow startCol =
                   ]
               )
 
-    TRecordColon row col ->
+    TRecordColon cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED RECORD TYPE" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -5554,16 +5610,16 @@ toTRecordReport source context record startRow startCol =
               ]
           )
 
-    TRecordType tipe row col ->
-      toTypeReport source context tipe row col
+    TRecordType tipe cur ->
+      toTypeReport source context tipe cur
 
-    TRecordSpace space row col ->
-      toSpaceReport source space row col
+    TRecordSpace space cur ->
+      toSpaceReport source space cur
 
-    TRecordIndentOpen row col ->
+    TRecordIndentOpen cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED RECORD TYPE" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -5580,12 +5636,12 @@ toTRecordReport source context record startRow startCol =
               ]
           )
 
-    TRecordIndentEnd row col ->
-      case Code.nextLineStartsWithCloseCurly source row of
-        Just (curlyRow, curlyCol) ->
+    TRecordIndentEnd cur ->
+      case Code.nextLineStartsWithCloseCurly source cur of
+        Code.Yes curlyCur ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position curlyRow curlyCol)
-            region = toRegion curlyRow curlyCol
+            surroundings = A.Region startCur curlyCur
+            region = toRegion curlyCur
           in
           Report.Report "NEED MORE INDENTATION" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -5600,10 +5656,10 @@ toTRecordReport source context record startRow startCol =
                   ]
               )
 
-        Nothing ->
+        Code.No ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "UNFINISHED RECORD TYPE" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -5620,10 +5676,10 @@ toTRecordReport source context record startRow startCol =
                   ]
               )
 
-    TRecordIndentField row col ->
+    TRecordIndentField cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED RECORD TYPE" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -5640,10 +5696,10 @@ toTRecordReport source context record startRow startCol =
               ]
           )
 
-    TRecordIndentColon row col ->
+    TRecordIndentColon cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED RECORD TYPE" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -5660,10 +5716,10 @@ toTRecordReport source context record startRow startCol =
               ]
           )
 
-    TRecordIndentType row col ->
+    TRecordIndentType cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED RECORD TYPE" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -5716,15 +5772,15 @@ noteForRecordTypeIndentError =
     ]
 
 
-toTTupleReport :: Code.Source -> TContext -> TTuple -> Row -> Col -> Report.Report
-toTTupleReport source context tuple startRow startCol =
+toTTupleReport :: Code.Source -> TContext -> TTuple -> Cursor -> Report.Report
+toTTupleReport source context tuple startCur =
   case tuple of
-    TTupleOpen row col ->
-      case Code.whatIsNext source row col of
+    TTupleOpen cur ->
+      case Code.whatIsNext source cur of
         Code.Keyword keyword ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toKeywordRegion row col keyword
+            surroundings = A.Region startCur cur
+            region = toKeywordRegion cur keyword
           in
           Report.Report "RESERVED WORD" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -5739,8 +5795,8 @@ toTTupleReport source context tuple startRow startCol =
 
         _ ->
           let
-            surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-            region = toRegion row col
+            surroundings = A.Region startCur cur
+            region = toRegion cur
           in
           Report.Report "UNFINISHED PARENTHESES" region [] $
             Code.toSnippet source surroundings (Just region)
@@ -5755,10 +5811,10 @@ toTTupleReport source context tuple startRow startCol =
                   ]
               )
 
-    TTupleEnd row col ->
+    TTupleEnd cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED PARENTHESES" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -5775,16 +5831,16 @@ toTTupleReport source context tuple startRow startCol =
               ]
           )
 
-    TTupleType tipe row col ->
-      toTypeReport source context tipe row col
+    TTupleType tipe cur ->
+      toTypeReport source context tipe cur
 
-    TTupleSpace space row col ->
-      toSpaceReport source space row col
+    TTupleSpace space cur ->
+      toSpaceReport source space cur
 
-    TTupleIndentType1 row col ->
+    TTupleIndentType1 cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED PARENTHESES" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -5804,10 +5860,10 @@ toTTupleReport source context tuple startRow startCol =
               ]
           )
 
-    TTupleIndentTypeN row col ->
+    TTupleIndentTypeN cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED TUPLE TYPE" region [] $
         Code.toSnippet source surroundings (Just region)
@@ -5827,10 +5883,10 @@ toTTupleReport source context tuple startRow startCol =
               ]
           )
 
-    TTupleIndentEnd row col ->
+    TTupleIndentEnd cur ->
       let
-        surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-        region = toRegion row col
+        surroundings = A.Region startCur cur
+        region = toRegion cur
       in
       Report.Report "UNFINISHED PARENTHESES" region [] $
         Code.toSnippet source surroundings (Just region)
