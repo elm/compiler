@@ -13,7 +13,7 @@ For normal installs, I reccomend using the instructions [here](https://guide.elm
 
 **Multiple versions**
 
-People using Elm at work may use different versions of Elm in different projects. They can run `npm install elm@latest-0.19.1` in each project and use the binary at `./node_modules/.bin/elm` for compilation.
+People using Elm at work may use different versions of Elm in different projects. They can run `npm install elm@latest-0.19.2` in each project and use the binary at `./node_modules/.bin/elm` for compilation.
 
 **Continuous integration**
 
@@ -29,13 +29,13 @@ That said, it works to use the `npm` installer on CI if you prefer that option.
 
 ## Install Locally
 
-The following command should download the latest Elm 0.19.1 binary:
+The following command should download the latest Elm 0.19.2 binary:
 
 ```
-npm install elm@latest-0.19.1
+npm install elm@latest-0.19.2
 ```
 
-You should be able to run `./node_modules/bin/elm --version` within your project and see `0.19.1`. Now you can compile with `./node_modules/bin/elm make src/Main.elm` and not disrupt other packages.
+You should be able to run `./node_modules/bin/elm --version` within your project and see `0.19.2`. Now you can compile with `./node_modules/bin/elm make src/Main.elm` and not disrupt other packages.
 
 Use `npm install elm@latest-0.19.0` or `npm install elm@latest-0.18.0` for earlier versions.
 

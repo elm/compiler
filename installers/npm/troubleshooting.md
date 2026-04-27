@@ -17,7 +17,7 @@ You can also download the binaries directly. On Linux, you could do it in the te
 
 ```bash
 cd ~/Desktop/
-curl -L -o elm.gz https://github.com/elm/compiler/releases/download/0.19.1/binary-for-linux-64-bit.gz
+curl -L -o elm.gz https://github.com/elm/compiler/releases/download/0.19.2/binary-for-linux-64-bit.gz
 gunzip elm.gz                # unzip the file
 chmod +x elm                 # make the file executable
 sudo mv elm /usr/local/bin/  # put the executable in a directory likely to be listed in your PATH variable
@@ -27,7 +27,7 @@ If these exact commands do not work for you, you can try to do the same thing by
 
 Read the section below on `PATH` variables if you are not sure what that is!
 
-[download]: https://github.com/elm/compiler/releases/tag/0.19.1
+[download]: https://github.com/elm/compiler/releases/tag/0.19.2
 
 <br/>
 
