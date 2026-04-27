@@ -13,6 +13,9 @@ module Generate.JavaScript.Expression
   where
 
 
+import Data.ByteString.Builder.Prim ((>$<), (>*<))
+import qualified Data.ByteString.Builder.Prim as P
+import qualified Data.Char as Char
 import qualified Data.IntMap as IntMap
 import qualified Data.List as List
 import Data.Map ((!))
@@ -58,10 +61,10 @@ generate mode expression =
       JsExpr $
         case mode of
           Mode.Dev _ ->
-            JS.Call toChar [ JS.String (Utf8.toBuilder char) ]
+            JS.Call toChar [ JS.String (P.primBounded charUtf8 char) ]
 
           Mode.Prod _ ->
-            JS.String (Utf8.toBuilder char)
+            JS.String (P.primBounded charUtf8 char)
 
     Opt.Str string ->
       JsExpr $ JS.String (Utf8.toBuilder string)
@@ -337,17 +340,13 @@ generateDebug name (ModuleName.Canonical _ home) region unhandledValueName =
 regionToJsExpr :: A.Region -> JS.Expr
 regionToJsExpr (A.Region start end) =
   JS.Object
-    [ ( JsName.fromLocal "start", positionToJsExpr start )
-    , ( JsName.fromLocal "end", positionToJsExpr end )
+    [ "start" ===> JS.Object [ "line" ===> JS.Int sr, "column" ===> JS.Int sc ]
+    , "end"   ===> JS.Object [ "line" ===> JS.Int er, "column" ===> JS.Int ec ]
     ]
-
-
-positionToJsExpr :: A.Position -> JS.Expr
-positionToJsExpr (A.Position line column) =
-  JS.Object
-    [ ( JsName.fromLocal "line", JS.Int (fromIntegral line) )
-    , ( JsName.fromLocal "column", JS.Int (fromIntegral column) )
-    ]
+  where
+    (===>) n v = (JsName.fromLocal n, v)
+    (sr, sc) = A.toRowCol start
+    (er, ec) = A.toRowCol end
 
 
 
@@ -900,7 +899,7 @@ generateIfTest mode root (path, test) =
       strictEq value (JS.Int int)
 
     DT.IsChr char ->
-      strictEq (JS.String (Utf8.toBuilder char)) $
+      strictEq (JS.String (P.primBounded charUtf8 char)) $
         case mode of
           Mode.Dev _ -> JS.Call (JS.Access value (JsName.fromLocal "valueOf")) []
           Mode.Prod _ -> value
@@ -939,7 +938,7 @@ generateCaseValue mode test =
       JS.Int int
 
     DT.IsChr char ->
-      JS.String (Utf8.toBuilder char)
+      JS.String (P.primBounded charUtf8 char)
 
     DT.IsStr string ->
       JS.String (Utf8.toBuilder string)
@@ -1029,6 +1028,38 @@ pathToJsExpr mode root path =
 
     DT.Empty ->
       JS.Ref (JsName.fromLocal root)
+
+
+
+-- GENERATE CHAR
+
+
+charUtf8 :: P.BoundedPrim Char
+charUtf8 =
+    P.condB (== '\\') (esc 0x5C) $
+    P.condB (== '"' ) (esc 0x22) $
+    P.condB (>= ' ' ) P.charUtf8 $
+    P.condB (== '\b') (esc 0x62) $
+    P.condB (== '\f') (esc 0x66) $
+    P.condB (== '\n') (esc 0x6E) $
+    P.condB (== '\r') (esc 0x72) $
+    P.condB (== '\t') (esc 0x74) $ fallback
+  where
+    {-# INLINE esc #-}
+    esc w =
+      P.liftFixedToBounded $ const (0x5C,w) >$< P.word8 >*< P.word8
+
+    {-# INLINE fallback #-}
+    fallback =
+      P.liftFixedToBounded $ (\c -> (0x5C,(0x75,(0x30,(0x30,toFallback c))))) >$<
+        P.word8 >*< P.word8 >*< P.word8 >*< P.word8 >*< P.word8 >*< P.word8
+
+    toFallback char =
+        if w < 0x10
+        then (0x30, if w < 0x0a then w + 0x30 else w + 0x57)
+        else (0x31, if w < 0x1a then w + 0x20 else w + 0x47)
+      where
+        w = fromIntegral (Char.ord char)
 
 
 

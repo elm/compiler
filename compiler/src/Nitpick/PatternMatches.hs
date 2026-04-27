@@ -41,7 +41,7 @@ data Pattern
 
 
 data Literal
-  = Chr ES.String
+  = Chr Char
   | Str ES.String
   | Int Int
   deriving (Eq)
