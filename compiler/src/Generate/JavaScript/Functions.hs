@@ -6,7 +6,8 @@ module Generate.JavaScript.Functions
 
 
 import qualified Data.ByteString.Builder as B
-import Text.RawString.QQ (r)
+
+import qualified Literals
 
 
 
@@ -14,7 +15,7 @@ import Text.RawString.QQ (r)
 
 
 functions :: B.Builder
-functions = [r|
+functions = [Literals.builder|
 
 function F(arity, fun, wrapper) {
   wrapper.a = arity;

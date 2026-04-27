@@ -9,9 +9,9 @@ module Develop.Generate.Help
 
 import qualified Data.ByteString.Builder as B
 import qualified Data.Name as Name
-import Text.RawString.QQ (r)
 
 import qualified Json.Encode as Encode
+import Literals (b)
 
 
 
@@ -20,7 +20,7 @@ import qualified Json.Encode as Encode
 
 makePageHtml :: Name.Name -> Maybe Encode.Value -> B.Builder
 makePageHtml moduleName maybeFlags =
-  [r|<!DOCTYPE HTML>
+  [b|<!DOCTYPE HTML>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -29,7 +29,7 @@ makePageHtml moduleName maybeFlags =
 </head>
 <body>
 <script>
-Elm.|] <> Name.toBuilder moduleName <> [r|.init({ flags: |] <> maybe "undefined" Encode.encode maybeFlags <> [r| });
+Elm.|] <> Name.toBuilder moduleName <> [b|.init({ flags: |] <> maybe "undefined" Encode.encode maybeFlags <> [b| });
 </script>
 </body>
 </html>
@@ -42,11 +42,11 @@ Elm.|] <> Name.toBuilder moduleName <> [r|.init({ flags: |] <> maybe "undefined"
 
 makeCodeHtml :: FilePath -> B.Builder -> B.Builder
 makeCodeHtml title code =
-  [r|<!DOCTYPE HTML>
+  [b|<!DOCTYPE HTML>
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>|] <> B.stringUtf8 title <> [r|</title>
+  <title>|] <> B.stringUtf8 title <> [b|</title>
   <style type="text/css">
     @import url(/_elm/source-code-pro.ttf);
     html, head, body, pre { margin: 0; height: 100%; }
@@ -57,7 +57,7 @@ makeCodeHtml title code =
   <script>if (hljs) { hljs.initHighlightingOnLoad(); }</script>
 </head>
 <body style="background-color: #F0F0F0;">
-<pre><code>|] <> code <> [r|</code></pre>
+<pre><code>|] <> code <> [b|</code></pre>
 </body>
 </html>
 |]

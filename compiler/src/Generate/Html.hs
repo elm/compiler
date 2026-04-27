@@ -8,7 +8,8 @@ module Generate.Html
 
 import qualified Data.ByteString.Builder as B
 import qualified Data.Name as Name
-import Text.RawString.QQ (r)
+
+import Literals (b)
 
 
 
@@ -18,11 +19,11 @@ import Text.RawString.QQ (r)
 sandwich :: Name.Name -> B.Builder -> B.Builder
 sandwich moduleName javascript =
   let name = Name.toBuilder moduleName in
-  [r|<!DOCTYPE HTML>
+  [b|<!DOCTYPE HTML>
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>|] <> name <> [r|</title>
+  <title>|] <> name <> [b|</title>
   <style>body { padding: 0; margin: 0; }</style>
 </head>
 
@@ -32,9 +33,9 @@ sandwich moduleName javascript =
 
 <script>
 try {
-|] <> javascript <> [r|
+|] <> javascript <> [b|
 
-  var app = Elm.|] <> name <> [r|.init({ node: document.getElementById("elm") });
+  var app = Elm.|] <> name <> [b|.init({ node: document.getElementById("elm") });
 }
 catch (e)
 {

@@ -203,7 +203,6 @@ executable elm
         network,
         parsec,
         process,
-        raw-strings-qq,
         scientific,
         SHA,
         snap-core,
