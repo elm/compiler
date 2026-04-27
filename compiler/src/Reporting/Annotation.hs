@@ -19,6 +19,7 @@ module Reporting.Annotation
 
 
 import Prelude hiding (traverse)
+import Data.Binary (Binary, get, put)
 import GHC.Exts (isTrue#)
 import GHC.Prim
 import GHC.Word (Word(..), Word64(..))
@@ -93,7 +94,14 @@ toCol pos =
 
 
 instance Eq Position where
-  (==) (Position p1) (Position p2) = isTrue# (eqWord64# p1 p2)
+  (==) (Position x) (Position y) = isTrue# (eqWord64# x y)
+
+instance Ord Position where
+  compare (Position x) (Position y)
+    | isTrue# (ltWord64# x y) = LT
+    | isTrue# (gtWord64# x y) = GT
+    | otherwise               = EQ
+
 
 
 
@@ -136,5 +144,15 @@ instance Ord Region where
     | isTrue# (ltWord64# s s') = LT
     | isTrue# (gtWord64# s s') = GT
     | isTrue# (ltWord64# e e') = LT
-    | isTrue# (eqWord64# e e') = EQ
-    | otherwise                = GT
+    | isTrue# (gtWord64# e e') = GT
+    | otherwise                = EQ
+
+
+instance Binary Region where
+  get =
+    do  (W64# s) <- get
+        (W64# e) <- get
+        pure $ Region s e
+
+  put (Region s e) =
+    put (W64# s) >> put (W64# e)
