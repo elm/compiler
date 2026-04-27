@@ -1,15 +1,17 @@
-{-# LANGUAGE OverloadedStrings #-}
-module Develop.StaticFiles.Build
-  ( readAsset
-  , buildReactorFrontEnd
+{-# LANGUAGE OverloadedStrings, TemplateHaskellQuotes #-}
+module Develop.StaticFiles_TH
+  ( buildReactorFrontEnd
   )
   where
 
 
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Internal as BS
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.NonEmptyList as NE
+import GHC.ForeignPtr (ForeignPtr(..), ForeignPtrContents(..))
+import Language.Haskell.TH.Syntax (Q, Exp(..), Lit(..), Bytes(Bytes), runIO)
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
 
@@ -23,20 +25,12 @@ import qualified Reporting.Task as Task
 
 
 
--- ASSETS
-
-
-readAsset :: FilePath -> IO BS.ByteString
-readAsset path =
-  BS.readFile ("reactor" </> "assets" </> path)
-
-
-
 -- BUILD REACTOR ELM
 
 
-buildReactorFrontEnd :: IO BS.ByteString
+buildReactorFrontEnd :: Q Exp -- BS.ByteString
 buildReactorFrontEnd =
+  fmap bsToExp $ runIO $
   BW.withScope $ \scope ->
   Dir.withCurrentDirectory "reactor" $
   do  root <- Dir.getCurrentDirectory
@@ -71,3 +65,14 @@ runTaskUnsafe task =
                 \\nCompile with `elm make` directly to figure it out faster\
                 \\n--------------------------------------------------------\
                 \\n"
+
+
+bsToExp :: BS.ByteString -> Exp
+bsToExp (BS.BS fptr len) =
+  ConE 'BS.BS
+    `AppE` (ConE 'ForeignPtr `AppE` LitE (BytesPrimL bytes) `AppE` ConE 'FinalPtr)
+    `AppE` LitE (IntegerL (fromIntegral len))
+  where
+    bytes = Bytes fptr 0 (fromIntegral len)
+
+

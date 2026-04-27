@@ -15,7 +15,9 @@ import qualified Data.HashMap.Strict as HM
 import Language.Haskell.TH (runIO)
 import System.FilePath ((</>))
 
-import qualified Develop.StaticFiles.Build as Build
+import qualified Literals
+
+import qualified Develop.StaticFiles_TH as TH
 
 
 
@@ -51,72 +53,21 @@ dict =
 -- PATHS
 
 
-faviconPath :: FilePath
-faviconPath =
-  "favicon.ico"
-
-
-waitingPath :: FilePath
-waitingPath =
-  "_elm" </> "waiting.gif"
-
-
-elmPath :: FilePath
-elmPath =
-  "_elm" </> "elm.js"
-
-
-cssPath :: FilePath
-cssPath =
-  "_elm" </> "styles.css"
-
-
-codeFontPath :: FilePath
-codeFontPath =
-  "_elm" </> "source-code-pro.ttf"
-
-
-sansFontPath :: FilePath
-sansFontPath =
-  "_elm" </> "source-sans-pro.ttf"
+faviconPath  :: FilePath; faviconPath  = "favicon.ico"
+waitingPath  :: FilePath; waitingPath  = "_elm" </> "waiting.gif"
+elmPath      :: FilePath; elmPath      = "_elm" </> "elm.js"
+cssPath      :: FilePath; cssPath      = "_elm" </> "styles.css"
+codeFontPath :: FilePath; codeFontPath = "_elm" </> "source-code-pro.ttf"
+sansFontPath :: FilePath; sansFontPath = "_elm" </> "source-sans-pro.ttf"
 
 
 
--- ELM
+-- ASSETS
 
 
-elm :: BS.ByteString
-elm =
-  $(bsToExp =<< runIO Build.buildReactorFrontEnd)
+elm      :: BS.ByteString; elm      = $(TH.buildReactorFrontEnd)
+css      :: BS.ByteString; css      = $(Literals.file ("reactor" </> "assets" </> "styles.css"))
+codeFont :: BS.ByteString; codeFont = $(Literals.file ("reactor" </> "assets" </> "source-code-pro.ttf"))
+sansFont :: BS.ByteString; sansFont = $(Literals.file ("reactor" </> "assets" </> "source-sans-pro.ttf"))
+favicon  :: BS.ByteString; favicon  = $(Literals.file ("reactor" </> "assets" </> "favicon.ico"))
 
-
-
--- CSS
-
-
-css :: BS.ByteString
-css =
-  $(bsToExp =<< runIO (Build.readAsset "styles.css"))
-
-
-
--- FONTS
-
-
-codeFont :: BS.ByteString
-codeFont =
-  $(bsToExp =<< runIO (Build.readAsset "source-code-pro.ttf"))
-
-
-sansFont :: BS.ByteString
-sansFont =
-  $(bsToExp =<< runIO (Build.readAsset "source-sans-pro.ttf"))
-
-
-
--- IMAGES
-
-
-favicon :: BS.ByteString
-favicon =
-  $(bsToExp =<< runIO (Build.readAsset "favicon.ico"))
