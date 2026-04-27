@@ -5,6 +5,7 @@ module Endpoint.Repl
   where
 
 
+import Control.Monad.IO.Class (liftIO)
 import Data.Aeson ((.:))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
@@ -63,7 +64,8 @@ endpoint artifacts =
   do  body <- readRequestBody (64 * 1024)
       case decodeBody body of
         Just (state, entry) ->
-          serveOutcome (toOutcome artifacts state entry)
+          do  outcome <- liftIO $ toOutcome artifacts state entry
+              serveOutcome outcome
 
         Nothing ->
           do  modifyResponse $ setResponseStatus 400 "Bad Request"
@@ -89,30 +91,31 @@ data Outcome
   | Failure BS.ByteString Error.Error
 
 
-toOutcome :: A.Artifacts -> Repl.State -> String -> Outcome
+toOutcome :: A.Artifacts -> Repl.State -> String -> IO Outcome
 toOutcome artifacts state entry =
   case reverse (lines entry) of
     [] ->
-      Skip
+      pure Skip
 
     prev : rev ->
-      case Repl.categorize (Repl.Lines prev rev) of
-        Repl.Done input ->
-          case input of
-            Repl.Import name src -> compile artifacts state (ImportEntry name src)
-            Repl.Type name src   -> compile artifacts state (TypeEntry name src)
-            Repl.Decl name src   -> compile artifacts state (DeclEntry name src)
-            Repl.Expr src        -> compile artifacts state (ExprEntry src)
-            Repl.Port            -> NoPorts
-            Repl.Skip            -> Skip
-            Repl.Reset           -> InvalidCommand
-            Repl.Exit            -> InvalidCommand
-            Repl.Help _          -> InvalidCommand
+      do  cat <- Repl.categorize (Repl.Lines prev rev)
+          case cat of
+            Repl.Done input ->
+              case input of
+                Repl.Import name src -> compile artifacts state (ImportEntry name src)
+                Repl.Type name src   -> compile artifacts state (TypeEntry name src)
+                Repl.Decl name src   -> compile artifacts state (DeclEntry name src)
+                Repl.Expr src        -> compile artifacts state (ExprEntry src)
+                Repl.Port            -> pure $ NoPorts
+                Repl.Skip            -> pure $ Skip
+                Repl.Reset           -> pure $ InvalidCommand
+                Repl.Exit            -> pure $ InvalidCommand
+                Repl.Help _          -> pure $ InvalidCommand
 
-        Repl.Continue prefill ->
-          case prefill of
-            Repl.Indent        -> Indent
-            Repl.DefStart name -> DefStart name
+            Repl.Continue prefill ->
+              case prefill of
+                Repl.Indent        -> pure $ Indent
+                Repl.DefStart name -> pure $ DefStart name
 
 
 
@@ -155,7 +158,7 @@ data EntryType
   | ExprEntry BS.ByteString
 
 
-compile :: A.Artifacts -> Repl.State -> EntryType -> Outcome
+compile :: A.Artifacts -> Repl.State -> EntryType -> IO Outcome
 compile (A.Artifacts interfaces objects) state@(Repl.State imports types decls) entryType =
   let
     source =
@@ -165,21 +168,23 @@ compile (A.Artifacts interfaces objects) state@(Repl.State imports types decls) 
         DeclEntry   name src -> Repl.toByteString (state { Repl._decls = Map.insert name (B.byteString src) decls }) (Repl.OutputDecl name)
         ExprEntry        src -> Repl.toByteString state (Repl.OutputExpr src)
   in
-  case
-    do  modul <- mapLeft Error.BadSyntax $ Parse.fromByteString Parse.Application source
-        ifaces <- mapLeft Error.BadImports $ checkImports interfaces (Src._imports modul)
-        artifacts <- Compile.compile Pkg.dummyName ifaces modul
-        return ( modul, artifacts, objects )
-  of
-    Left err ->
-      Failure source err
+  do  result <- Parse.fromByteString Parse.Application source
+      return $
+        case
+          do  modul <- mapLeft Error.BadSyntax result
+              ifaces <- mapLeft Error.BadImports $ checkImports interfaces (Src._imports modul)
+              artifacts <- Compile.compile Pkg.dummyName ifaces modul
+              return ( modul, artifacts, objects )
+        of
+          Left err ->
+            Failure source err
 
-    Right info ->
-      case entryType of
-        ImportEntry name _ -> NewImport name
-        TypeEntry name _   -> NewType name
-        DeclEntry name _   -> NewWork (toJavaScript info (Just name))
-        ExprEntry _        -> NewWork (toJavaScript info Nothing)
+          Right info ->
+            case entryType of
+              ImportEntry name _ -> NewImport name
+              TypeEntry name _   -> NewType name
+              DeclEntry name _   -> NewWork (toJavaScript info (Just name))
+              ExprEntry _        -> NewWork (toJavaScript info Nothing)
 
 
 toJavaScript :: (Src.Module, Compile.Artifacts, Opt.GlobalGraph) -> Maybe N.Name -> B.Builder
