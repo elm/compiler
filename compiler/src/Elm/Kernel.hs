@@ -1,4 +1,6 @@
-{-# LANGUAGE BangPatterns, EmptyDataDecls, OverloadedStrings, UnboxedTuples #-}
+{-# LANGUAGE BangPatterns, EmptyDataDecls, ExtendedLiterals, MagicHash,
+OverloadedStrings, UnboxedTuples
+#-}
 module Elm.Kernel
   ( Content(..)
   , Chunk(..)
@@ -10,14 +12,14 @@ module Elm.Kernel
 
 import Control.Monad (liftM, liftM2)
 import Data.Binary (Binary, get, put, getWord8, putWord8)
-import qualified Data.ByteString.Internal as B
+import qualified Data.ByteString.Internal as BS
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Name as Name
-import Data.Word (Word8)
-import Foreign.Ptr (Ptr, plusPtr, minusPtr)
-import Foreign.ForeignPtr (ForeignPtr)
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
+import GHC.ForeignPtr (ForeignPtr(..), ForeignPtrContents)
+import GHC.Int (Int(..))
+import GHC.Prim
+import GHC.Word (Word8(..))
 
 import qualified AST.Source as Src
 import qualified Elm.ModuleName as ModuleName
@@ -35,7 +37,7 @@ import qualified Reporting.Annotation as A
 
 
 data Chunk
-  = JS B.ByteString
+  = JS BS.ByteString
   | ElmVar ModuleName.Canonical Name.Name
   | JsVar Name.Name Name.Name
   | ElmField Name.Name
@@ -79,34 +81,32 @@ type Foreigns =
   Map.Map ModuleName.Raw Pkg.Name
 
 
-fromByteString :: Pkg.Name -> Foreigns -> B.ByteString -> Maybe Content
+fromByteString :: Pkg.Name -> Foreigns -> BS.ByteString -> IO (Maybe Content)
 fromByteString pkg foreigns bytes =
-  case P.fromByteString (parser pkg foreigns) toError bytes of
-    Right content ->
-      Just content
-
-    Left () ->
-      Nothing
+  do  result <- P.fromByteString (parser pkg foreigns) toError bytes
+      case result of
+        Right content -> pure $ Just content
+        Left  ()      -> pure $ Nothing
 
 
 parser :: Pkg.Name -> Foreigns -> Parser () Content
 parser pkg foreigns =
-  do  word2 0x2F 0x2A {-/*-} toError
+  do  word2 0x2F#Word8 0x2A#Word8 {-/*-} toError
       Space.chomp ignoreError
       Space.checkFreshLine toError
       imports <- specialize ignoreError (Module.chompImports [])
-      word2 0x2A 0x2F {-*/-} toError
+      word2 0x2A#Word8 0x2F#Word8 {-*/-} toError
       chunks <- parseChunks (toVarTable pkg foreigns imports) Map.empty Map.empty
       return (Content imports chunks)
 
 
-toError :: Row -> Col -> ()
-toError _ _ =
+toError :: Cursor -> ()
+toError _ =
   ()
 
 
-ignoreError :: a -> Row -> Col -> ()
-ignoreError _ _ _ =
+ignoreError :: a -> Cursor -> ()
+ignoreError _ _ =
   ()
 
 
@@ -116,103 +116,82 @@ ignoreError _ _ _ =
 
 parseChunks :: VarTable -> Enums -> Fields -> Parser () [Chunk]
 parseChunks vtable enums fields =
-  P.Parser $ \(P.State src pos end indent row col) cok _ cerr _ ->
-    let
-      (# chunks, newPos, newRow, newCol #) =
-        chompChunks vtable enums fields src pos end row col pos []
-    in
-    if newPos == end then
-      cok chunks (P.State src newPos end indent newRow newCol)
-    else
-      cerr row col toError
+  P.Parser $ \fpc (P.State pos end indent cur) cok _ cerr _ ->
+    do  !(Answer chunks newPos newCur) <- chompChunks vtable enums fields fpc pos end cur pos []
+        if eqAddr newPos end
+          then cok chunks (P.State newPos end indent newCur)
+          else cerr cur toError
 
 
-chompChunks :: VarTable -> Enums -> Fields -> ForeignPtr Word8 -> Ptr Word8 -> Ptr Word8 -> Row -> Col -> Ptr Word8 -> [Chunk] -> (# [Chunk], Ptr Word8, Row, Col #)
-chompChunks vs es fs src pos end row col lastPos revChunks =
-  if pos >= end then
-    let !js = toByteString src lastPos end in
-    (# reverse (JS js : revChunks), pos, row, col #)
+data Answer = Answer [Chunk] Addr# Cursor
+
+
+chompChunks :: VarTable -> Enums -> Fields -> ForeignPtrContents -> Addr# -> Addr# -> Cursor -> Addr# -> [Chunk] -> IO Answer
+chompChunks vs es fs fpc pos end cur lastPos revChunks =
+  if notLtAddr pos end then
+    let !js = toBS fpc lastPos end in
+    pure $ Answer (reverse (JS js : revChunks)) pos cur
 
   else
-    let !word = unsafeIndex pos in
-    if word == 0x5F {-_-} then
-      let
-        !pos1 = plusPtr pos 1
-        !pos3 = plusPtr pos 3
-      in
-      if pos3 <= end && unsafeIndex pos1 == 0x5F {-_-} then
-        let !js = toByteString src lastPos pos in
-        chompTag vs es fs src pos3 end row (col + 3) (JS js : revChunks)
-      else
-        chompChunks vs es fs src pos1 end row (col + 1) lastPos revChunks
+    case indexWord8OffAddr# pos 0# of
+      0x5F#Word8 {-_-} ->
+        let
+          !pos1 = plusAddr# pos 1#
+          !pos3 = plusAddr# pos 3#
+        in
+        if leAddr pos3 end && eqIndex pos1 0# 0x5F#Word8 {-_-} then
+          let !js = toBS fpc lastPos pos in
+          chompTag vs es fs fpc pos3 end (slide cur 3#Word64) (JS js : revChunks)
+        else
+          chompChunks vs es fs fpc pos1 end (slide cur 1#Word64) lastPos revChunks
 
-    else if word == 0x0A {-\n-} then
-      chompChunks vs es fs src (plusPtr pos 1) end (row + 1) 1 lastPos revChunks
+      0x0A#Word8 {-\n-} ->
+        chompChunks vs es fs fpc (plusAddr# pos 1#) end (newline cur) lastPos revChunks
 
-    else
-      let
-        !newPos = plusPtr pos (getCharWidth word)
-      in
-      chompChunks vs es fs src newPos end row (col + 1) lastPos revChunks
+      word ->
+        do  let !newPos = skipUtf8 pos end word
+            if eqAddr pos newPos
+              then error "kernel must be UTF8"
+              else chompChunks vs es fs fpc newPos end (slide cur 1#Word64) lastPos revChunks
 
 
-toByteString :: ForeignPtr Word8 -> Ptr Word8 -> Ptr Word8 -> B.ByteString
-toByteString src pos end =
-  let
-    !off = minusPtr pos (unsafeForeignPtrToPtr src)
-    !len = minusPtr end pos
-  in
-  B.PS src off len
+toBS :: ForeignPtrContents -> Addr# -> Addr# -> BS.ByteString
+toBS fpc pos end =
+  BS.BS (ForeignPtr pos fpc) (I# (minusAddr# end pos))
 
 
 
 -- relies on external checks in chompChunks
-chompTag :: VarTable -> Enums -> Fields -> ForeignPtr Word8 -> Ptr Word8 -> Ptr Word8 -> Row -> Col -> [Chunk] -> (# [Chunk], Ptr Word8, Row, Col #)
-chompTag vs es fs src pos end row col revChunks =
+chompTag :: VarTable -> Enums -> Fields -> ForeignPtrContents -> Addr# -> Addr# -> Cursor -> [Chunk] -> IO Answer
+chompTag vs es fs fpc pos end cur revChunks =
   let
-    (# newPos, newCol #) = Var.chompInnerChars pos end col
-    !tagPos = plusPtr pos (-1)
-    !word = unsafeIndex tagPos
+    !(# newPos, newCur #) = Var.chompInnerChars pos end cur
+    !tagPos = plusAddr# pos (-1#)
+    !word = W8# (indexWord8OffAddr# tagPos 0#)
   in
   if word == 0x24 {-$-} then
-    let
-      !name = Name.fromPtr pos newPos
-    in
-    chompChunks vs es fs src newPos end row newCol newPos $
-      ElmField name : revChunks
+    do  name <- Name.fromAddr pos newPos
+        chompChunks vs es fs fpc newPos end newCur newPos $
+          ElmField name : revChunks
   else
-    let
-      !name = Name.fromPtr tagPos newPos
-    in
-    if 0x30 {-0-} <= word && word <= 0x39 {-9-} then
-      let
-        (enum, newEnums) =
-          lookupEnum (word - 0x30) name es
-      in
-      chompChunks vs newEnums fs src newPos end row newCol newPos $
-        JsEnum enum : revChunks
+    do  name <- Name.fromAddr tagPos newPos
+        case () of
+          _ | 0x30 {-0-} <= word && word <= 0x39 {-9-} ->
+                do  let (enum, newEnums) = lookupEnum (word - 0x30) name es
+                    chompChunks vs newEnums fs fpc newPos end newCur newPos $
+                      JsEnum enum : revChunks
 
-    else if 0x61 {-a-} <= word && word <= 0x7A {-z-} then
-      let
-        (field, newFields) =
-          lookupField name fs
-      in
-      chompChunks vs es newFields src newPos end row newCol newPos $
-        JsField field : revChunks
+            | 0x61 {-a-} <= word && word <= 0x7A {-z-} ->
+                do  let (field, newFields) = lookupField name fs
+                    chompChunks vs es newFields fpc newPos end newCur newPos $
+                      JsField field : revChunks
 
-    else if name == "DEBUG" then
-      chompChunks vs es fs src newPos end row newCol newPos (Debug : revChunks)
-
-    else if name == "PROD" then
-      chompChunks vs es fs src newPos end row newCol newPos (Prod : revChunks)
-
-    else
-      case Map.lookup name vs of
-        Just chunk ->
-          chompChunks vs es fs src newPos end row newCol newPos (chunk : revChunks)
-
-        Nothing ->
-          (# revChunks, pos, row, col #)
+            | name == "DEBUG" -> chompChunks vs es fs fpc newPos end newCur newPos (Debug : revChunks)
+            | name == "PROD"  -> chompChunks vs es fs fpc newPos end newCur newPos (Prod : revChunks)
+            | otherwise ->
+                case Map.lookup name vs of
+                  Just chunk -> chompChunks vs es fs fpc newPos end newCur newPos (chunk : revChunks)
+                  Nothing    -> pure $ Answer (reverse revChunks) pos cur
 
 
 
