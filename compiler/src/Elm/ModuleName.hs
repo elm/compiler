@@ -90,7 +90,7 @@ parser =
           name <- Utf8.fromAddr pos newPos
           cok name newState
 
-    else if isTrue# (eqWord64# cur newCur) then
+    else if P.eqAddr pos newPos then
       eerr newCur A.Position
 
     else
@@ -99,7 +99,7 @@ parser =
 
 chompStart :: Addr# -> Addr# -> Cursor -> (# Bool, Addr#, Cursor #)
 chompStart pos end cur =
-  if P.ltAddr pos end
+  if P.notLtAddr pos end
   then (# False, pos, cur #)
   else
     let
@@ -121,10 +121,9 @@ chompInner pos end cur =
       !newPos = Var.chompInner pos end word
     in
     if P.eqAddr pos newPos then
-      if isTrue# (eqWord8# word 0x2E#Word8 {-.-}) then
-        chompStart (plusAddr# pos 1#) end (P.slide cur 1#Word64)
-      else
-        (# True, pos, cur #)
+      case word of
+        0x2E#Word8 {-.-} -> chompStart (plusAddr# pos 1#) end (P.slide cur 1#Word64)
+        _                -> (# True, pos, cur #)
     else
       chompInner newPos end (P.slide cur 1#Word64)
 
