@@ -363,7 +363,8 @@ getDocs cache manager name version =
       if exists
         then
           do  bytes <- File.readUtf8 path
-              case D.fromByteString Docs.decoder bytes of
+              result <- D.fromByteString Docs.decoder bytes
+              case result of
                 Right docs ->
                   return $ Right docs
 
@@ -373,11 +374,12 @@ getDocs cache manager name version =
         else
           do  let url = Website.metadata name version "docs.json"
               Http.get manager url [] Exit.DP_Http $ \body ->
-                case D.fromByteString Docs.decoder body of
-                  Right docs ->
-                    do  Dir.createDirectoryIfMissing True home
-                        File.writeUtf8 path body
-                        return $ Right docs
+                do  result <- D.fromByteString Docs.decoder body
+                    case result of
+                      Right docs ->
+                        do  Dir.createDirectoryIfMissing True home
+                            File.writeUtf8 path body
+                            return $ Right docs
 
-                  Left _ ->
-                    return $ Left $ Exit.DP_Data url body
+                      Left _ ->
+                        return $ Left $ Exit.DP_Data url body

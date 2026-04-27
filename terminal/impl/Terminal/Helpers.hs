@@ -13,6 +13,7 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Utf8 as Utf8
 import qualified System.FilePath as FP
+import qualified System.IO.Unsafe as Unsafe
 
 import Terminal (Parser(..))
 import qualified Deps.Registry as Registry
@@ -20,6 +21,7 @@ import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
 import qualified Parse.Primitives as P
 import qualified Stuff
+import qualified Reporting.Annotation as A
 import qualified Reporting.Suggest as Suggest
 
 
@@ -40,7 +42,7 @@ version =
 
 parseVersion :: String -> Maybe V.Version
 parseVersion chars =
-  case P.fromByteString V.parser (,) (BS_UTF8.fromString chars) of
+  case Unsafe.unsafePerformIO $ P.fromByteString V.parser A.Position (BS_UTF8.fromString chars) of
     Right vsn -> Just vsn
     Left _    -> Nothing
 
@@ -112,7 +114,7 @@ package =
 
 parsePackage :: String -> Maybe Pkg.Name
 parsePackage chars =
-  case P.fromByteString Pkg.parser (,) (BS_UTF8.fromString chars) of
+  case Unsafe.unsafePerformIO $ P.fromByteString Pkg.parser A.Position (BS_UTF8.fromString chars) of
     Right pkg -> Just pkg
     Left _    -> Nothing
 

@@ -312,8 +312,8 @@ crawlModule env@(Env _ root projectType srcDirs buildID locals foreigns) mvar do
 crawlFile :: Env -> MVar StatusDict -> DocsNeed -> ModuleName.Raw -> FilePath -> File.Time -> Details.BuildID -> IO Status
 crawlFile env@(Env _ root projectType _ buildID _ _) mvar docsNeed expectedName path time lastChange =
   do  source <- File.readUtf8 (root </> path)
-
-      case Parse.fromByteString projectType source of
+      result <- Parse.fromByteString projectType source
+      case result of
         Left err ->
           return $ SBadSyntax path time source err
 
@@ -372,7 +372,8 @@ checkModule env@(Env _ root projectType _ _ _ _) foreigns resultsMVar name statu
           case depsStatus of
             DepsChange ifaces ->
               do  source <- File.readUtf8 path
-                  case Parse.fromByteString projectType source of
+                  result <- Parse.fromByteString projectType source
+                  case result of
                     Right modul -> compile env (DocsNeed False) local source ifaces modul
                     Left err ->
                       return $ RProblem $
@@ -387,8 +388,9 @@ checkModule env@(Env _ root projectType _ _ _ _) foreigns resultsMVar name statu
 
             DepsNotFound problems ->
               do  source <- File.readUtf8 path
+                  result <- Parse.fromByteString projectType source
                   return $ RProblem $ Error.Module name path time source $
-                    case Parse.fromByteString projectType source of
+                    case result of
                       Right (Src.Module _ _ _ imports _ _ _ _ _) ->
                          Error.BadImports (toImportErrors env results imports problems)
 
@@ -707,30 +709,31 @@ compile (Env key root projectType _ buildID _ _) docsNeed (Details.Local path ti
   in
   case Compile.compile pkg ifaces modul of
     Right (Compile.Artifacts canonical annotations objects) ->
-      case makeDocs docsNeed canonical of
-        Left err ->
-          return $ RProblem $
-            Error.Module (Src.getName modul) path time source (Error.BadDocs err)
+      do  result <- makeDocs docsNeed canonical
+          case result of
+            Left err ->
+              return $ RProblem $
+                Error.Module (Src.getName modul) path time source (Error.BadDocs err)
 
-        Right docs ->
-          do  let name = Src.getName modul
-              let iface = I.fromModule pkg canonical annotations
-              let elmi = Stuff.elmi root name
-              File.writeBinary (Stuff.elmo root name) objects
-              maybeOldi <- File.readBinary elmi
-              case maybeOldi of
-                Just oldi | oldi == iface ->
-                  do  -- iface should be fully forced by equality check
-                      Reporting.report key Reporting.BDone
-                      let local = Details.Local path time deps main lastChange buildID
-                      return (RSame local iface objects docs)
+            Right docs ->
+              do  let name = Src.getName modul
+                  let iface = I.fromModule pkg canonical annotations
+                  let elmi = Stuff.elmi root name
+                  File.writeBinary (Stuff.elmo root name) objects
+                  maybeOldi <- File.readBinary elmi
+                  case maybeOldi of
+                    Just oldi | oldi == iface ->
+                      do  -- iface should be fully forced by equality check
+                          Reporting.report key Reporting.BDone
+                          let local = Details.Local path time deps main lastChange buildID
+                          return (RSame local iface objects docs)
 
-                _ ->
-                  do  -- iface may be lazy still
-                      File.writeBinary elmi iface
-                      Reporting.report key Reporting.BDone
-                      let local = Details.Local path time deps main buildID buildID
-                      return (RNew local iface objects docs)
+                    _ ->
+                      do  -- iface may be lazy still
+                          File.writeBinary elmi iface
+                          Reporting.report key Reporting.BDone
+                          let local = Details.Local path time deps main buildID buildID
+                          return (RNew local iface objects docs)
 
     Left err ->
       return $ RProblem $
@@ -831,14 +834,15 @@ toDocsNeed goal =
     KeepDocs    -> DocsNeed True
 
 
-makeDocs :: DocsNeed -> Can.Module -> Either EDocs.Error (Maybe Docs.Module)
+makeDocs :: DocsNeed -> Can.Module -> IO (Either EDocs.Error (Maybe Docs.Module))
 makeDocs (DocsNeed isNeeded) modul =
   if isNeeded then
-    case Docs.fromModule modul of
-      Right docs -> Right (Just docs)
-      Left err   -> Left err
+    do  result <- Docs.fromModule modul
+        case result of
+          Right docs -> return $ Right (Just docs)
+          Left err   -> return $ Left err
   else
-    Right Nothing
+    return $ Right Nothing
 
 
 finalizeDocs :: DocsGoal docs -> Map.Map ModuleName.Raw Result -> IO docs
@@ -888,7 +892,8 @@ data ReplArtifacts =
 fromRepl :: FilePath -> Details.Details -> B.ByteString -> IO (Either Exit.Repl ReplArtifacts)
 fromRepl root details source =
   do  env@(Env _ _ projectType _ _ _ _) <- makeEnv Reporting.ignorer root details
-      case Parse.fromByteString projectType source of
+      result <- Parse.fromByteString projectType source
+      case result of
         Left syntaxError ->
           return $ Left $ Exit.ReplBadInput source $ Error.BadSyntax syntaxError
 
@@ -1116,7 +1121,8 @@ crawlRoot env@(Env _ _ projectType _ buildID _ _) mvar root =
     LOutside path ->
       do  time <- File.getTime path
           source <- File.readUtf8 path
-          case Parse.fromByteString projectType source of
+          result <- Parse.fromByteString projectType source
+          case result of
             Right modul@(Src.Module _ _ _ imports values _ _ _ _) ->
               do  let deps = map Src.getImportName imports
                   let local = Details.Local path time deps (any isMain values) buildID buildID
