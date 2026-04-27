@@ -1,17 +1,18 @@
-{-# LANGUAGE BangPatterns, UnboxedTuples #-}
+{-# LANGUAGE BangPatterns, ExtendedLiterals, MagicHash, UnboxedTuples #-}
 module Parse.Shader
   ( shader
   )
   where
 
 
-import qualified Data.ByteString.Internal as B
+import qualified Data.ByteString.Internal as BS
 import qualified Data.ByteString.UTF8 as BS_UTF8
 import qualified Data.Map as Map
 import qualified Data.Name as Name
-import Data.Word (Word8)
-import Foreign.Ptr (Ptr, plusPtr, minusPtr)
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
+import GHC.ForeignPtr (ForeignPtr(..))
+import GHC.Int (Int(..))
+import GHC.Prim
+import GHC.Word (Word64(..))
 import qualified Language.GLSL.Parser as GLP
 import qualified Language.GLSL.Syntax as GLS
 import qualified Text.Parsec as Parsec
@@ -19,7 +20,7 @@ import qualified Text.Parsec.Error as Parsec
 
 import qualified AST.Source as Src
 import qualified AST.Utils.Shader as Shader
-import Parse.Primitives (Parser, Row, Col)
+import Parse.Primitives (Parser, Cursor)
 import qualified Parse.Primitives as P
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as E
@@ -30,9 +31,9 @@ import qualified Reporting.Error.Syntax as E
 
 
 shader :: A.Position -> Parser E.Expr Src.Expr
-shader start@(A.Position row col) =
+shader start@(A.Position cur) =
   do  block <- parseBlock
-      shdr <- parseGlsl row col block
+      shdr <- parseGlsl cur block
       end <- P.getPosition
       return (A.at start end (Src.Shader (Shader.fromChars block) shdr))
 
@@ -43,95 +44,96 @@ shader start@(A.Position row col) =
 
 parseBlock :: Parser E.Expr [Char]
 parseBlock =
-  P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
+  P.Parser $ \fpc (P.State pos end indent cur) cok _ cerr eerr ->
     let
-      !pos6 = plusPtr pos 6
+      !pos6 = plusAddr# pos 6#
     in
-    if pos6 <= end
-      && P.unsafeIndex (        pos  ) == 0x5B {- [ -}
-      && P.unsafeIndex (plusPtr pos 1) == 0x67 {- g -}
-      && P.unsafeIndex (plusPtr pos 2) == 0x6C {- l -}
-      && P.unsafeIndex (plusPtr pos 3) == 0x73 {- s -}
-      && P.unsafeIndex (plusPtr pos 4) == 0x6C {- l -}
-      && P.unsafeIndex (plusPtr pos 5) == 0x7C {- | -}
+    if P.leAddr pos6 end
+      && P.eqIndex pos 0# 0x5B#Word8 {- [ -}
+      && P.eqIndex pos 1# 0x67#Word8 {- g -}
+      && P.eqIndex pos 2# 0x6C#Word8 {- l -}
+      && P.eqIndex pos 3# 0x73#Word8 {- s -}
+      && P.eqIndex pos 4# 0x6C#Word8 {- l -}
+      && P.eqIndex pos 5# 0x7C#Word8 {- | -}
     then
       let
-        (# status, newPos, newRow, newCol #) =
-          eatShader pos6 end row (col + 6)
+        !(# status, newPos, newCur #) =
+          eatShader pos6 end (P.slide cur 6#Word64)
       in
       case status of
         Good ->
           let
-            !off = minusPtr pos6 (unsafeForeignPtrToPtr src)
-            !len = minusPtr newPos pos6
-            !block = BS_UTF8.toString (B.PS src off len)
-            !newState = P.State src (plusPtr newPos 2) end indent newRow (newCol + 2)
+            !block = BS_UTF8.toString (BS.BS (ForeignPtr pos fpc) (I# (minusAddr# end pos)))
+            !newState = P.State (plusAddr# newPos 2#) end indent (P.slide newCur 2#Word64)
           in
           cok block newState
 
-        Unending ->
-          cerr row col E.EndlessShader
+        Unending -> cerr cur E.ShaderEndless
+        NotUtf8  -> cerr cur E.ShaderNotUtf8
 
     else
-      eerr row col E.Start
+      eerr cur E.Start
 
 
 data Status
   = Good
   | Unending
+  | NotUtf8
 
 
-eatShader :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> (# Status, Ptr Word8, Row, Col #)
-eatShader pos end row col =
-  if pos >= end then
-    (# Unending, pos, row, col #)
+eatShader :: Addr# -> Addr# -> Cursor -> (# Status, Addr#, Cursor #)
+eatShader pos end cur =
+  if P.notLtAddr pos end then
+    (# Unending, pos, cur #)
 
   else
-    let !word = P.unsafeIndex pos in
-    if word == 0x007C {- | -} && P.isWord (plusPtr pos 1) end 0x5D {- ] -} then
-      (# Good, pos, row, col #)
+    case indexWord8OffAddr# pos 0# of
+      0x7C#Word8 {-|-} | P.ltAddr (plusAddr# pos 1#) end && P.eqIndex pos 1# 0x5D#Word8 {-]-} ->
+        (# Good, pos, cur #)
 
-    else if word == 0x0A {- \n -} then
-      eatShader (plusPtr pos 1) end (row + 1) 1
+      0x0A#Word8 {- \n -} ->
+        eatShader (plusAddr# pos 1#) end (P.newline cur)
 
-    else
-      let !newPos = plusPtr pos (P.getCharWidth word) in
-      eatShader newPos end row (col + 1)
+      word ->
+        let !newPos = P.skipUtf8 pos end word in
+        if P.eqAddr pos newPos
+          then (# NotUtf8, pos, cur #)
+          else eatShader newPos end (P.slide cur 1#Word64)
 
 
 
 -- GLSL
 
 
-parseGlsl :: Row -> Col -> [Char] -> Parser E.Expr Shader.Types
-parseGlsl startRow startCol src =
+parseGlsl :: Cursor -> [Char] -> Parser E.Expr Shader.Types
+parseGlsl cur src =
   case GLP.parse src of
     Right (GLS.TranslationUnit decls) ->
       return (foldr addInput emptyTypes (concatMap extractInputs decls))
 
     Left err ->
-      let
-        pos = Parsec.errorPos err
-        row = fromIntegral (Parsec.sourceLine pos)
-        col = fromIntegral (Parsec.sourceColumn pos)
-        msg =
-          Parsec.showErrorMessages
-            "or"
-            "unknown parse error"
-            "expecting"
-            "unexpected"
-            "end of input"
-            (Parsec.errorMessages err)
-      in
-      if row == 1
-        then failure startRow (startCol + 6 + col) msg
-        else failure (startRow + row - 1) col msg
+      P.Parser $ \_ _ _ _ cerr _ ->
+        let
+          pos = Parsec.errorPos err
+          row = fromIntegral (Parsec.sourceLine   pos - 1)
+          col = fromIntegral (Parsec.sourceColumn pos - 1)
+          msg =
+            Parsec.showErrorMessages
+              "or"
+              "unknown parse error"
+              "expecting"
+              "unexpected"
+              "end of input"
+              (Parsec.errorMessages err)
+        in
+        cerr (jump (P.slide cur 6#Word64) row col) (E.ShaderProblem msg)
 
 
-failure :: Row -> Col -> [Char] -> Parser E.Expr a
-failure row col msg =
-  P.Parser $ \(P.State _ _ _ _ _ _) _ _ cerr _ ->
-    cerr row col (E.ShaderProblem msg)
+jump :: Cursor -> Word64 -> Word64 -> Cursor
+jump cur (W64# row) (W64# col) =
+  case row of
+    0#Word64 -> P.slide cur col
+    _        -> P.slide (and64# (plusWord64# cur (uncheckedShiftL64# row 32#)) 0xFFFFFFFF00000000#Word64) col
 
 
 

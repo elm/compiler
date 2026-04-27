@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, ExtendedLiterals, MagicHash, OverloadedStrings #-}
 module Parse.Declaration
   ( Decl(..)
   , declaration
@@ -9,13 +9,15 @@ module Parse.Declaration
 
 
 import qualified Data.Name as Name
+import GHC.Exts (isTrue#)
+import GHC.Prim
+import GHC.Word (Word8(..))
 
 import qualified AST.Source as Src
 import qualified AST.Utils.Binop as Binop
 import qualified Parse.Expression as Expr
 import qualified Parse.Pattern as Pattern
 import qualified Parse.Keyword as Keyword
-import qualified Parse.Number as Number
 import qualified Parse.Space as Space
 import qualified Parse.Symbol as Symbol
 import qualified Parse.Type as Type
@@ -77,7 +79,7 @@ valueDecl maybeDocs start =
         do  Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
             oneOf E.DeclDefEquals
               [
-                do  word1 0x3A {-:-} E.DeclDefEquals
+                do  word1 0x3A#Word8 {-:-} E.DeclDefEquals
                     Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentType
                     (tipe, _) <- specialize E.DeclDefType Type.expression
                     Space.checkFreshLine E.DeclDefNameRepeat
@@ -95,7 +97,7 @@ chompDefArgsAndBody maybeDocs start name tipe revArgs =
     [ do  arg <- specialize E.DeclDefArg Pattern.term
           Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
           chompDefArgsAndBody maybeDocs start name tipe (arg : revArgs)
-    , do  word1 0x3D {-=-} E.DeclDefEquals
+    , do  word1 0x3D#Word8 {-=-} E.DeclDefEquals
           Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentBody
           (body, end) <- specialize E.DeclDefBody Expr.expression
           let value = Src.Value name (reverse revArgs) body tipe
@@ -107,21 +109,21 @@ chompDefArgsAndBody maybeDocs start name tipe revArgs =
 chompMatchingName :: Name.Name -> Parser E.DeclDef (A.Located Name.Name)
 chompMatchingName expectedName =
   let
-    (P.Parser parserL) = Var.lower E.DeclDefNameRepeat
+    (P.Parser k) = Var.lower E.DeclDefNameRepeat
   in
-  P.Parser $ \state@(P.State _ _ _ _ sr sc) cok eok cerr eerr ->
+  P.Parser $ \fpc state@(P.State _ _ _ start) cok eok cerr eerr ->
     let
-      cokL name newState@(P.State _ _ _ _ er ec) =
+      cokL name newState@(P.State _ _ _ end) =
         if expectedName == name
-        then cok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
-        else cerr sr sc (E.DeclDefNameMatch name)
+        then cok (A.At (A.Region start end) name) newState
+        else cerr start (E.DeclDefNameMatch name)
 
-      eokL name newState@(P.State _ _ _ _ er ec) =
+      eokL name newState@(P.State _ _ _ end) =
         if expectedName == name
-        then eok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
-        else eerr sr sc (E.DeclDefNameMatch name)
+        then eok (A.At (A.Region start end) name) newState
+        else eerr start (E.DeclDefNameMatch name)
     in
-    parserL state cokL eokL cerr eerr
+    k fpc state cokL eokL cerr eerr
 
 
 
@@ -168,7 +170,7 @@ chompAliasNameToEqualsHelp name args =
     [ do  arg <- addLocation (Var.lower E.AliasEquals)
           Space.chompAndCheckIndent E.AliasSpace E.AliasIndentEquals
           chompAliasNameToEqualsHelp name (arg:args)
-    , do  word1 0x3D {-=-} E.AliasEquals
+    , do  word1 0x3D#Word8 {-=-} E.AliasEquals
           Space.chompAndCheckIndent E.AliasSpace E.AliasIndentBody
           return ( name, reverse args )
     ]
@@ -191,7 +193,7 @@ chompCustomNameToEqualsHelp name args =
     [ do  arg <- addLocation (Var.lower E.CT_Equals)
           Space.chompAndCheckIndent E.CT_Space E.CT_IndentEquals
           chompCustomNameToEqualsHelp name (arg:args)
-    , do  word1 0x3D {-=-} E.CT_Equals
+    , do  word1 0x3D#Word8 {-=-} E.CT_Equals
           Space.chompAndCheckIndent E.CT_Space E.CT_IndentAfterEquals
           return ( name, reverse args )
     ]
@@ -201,7 +203,7 @@ chompVariants :: [(A.Located Name.Name, [Src.Type])] -> A.Position -> Space.Pars
 chompVariants variants end =
   oneOfWithFallback
     [ do  Space.checkIndent end E.CT_IndentBar
-          word1 0x7C {-|-} E.CT_Bar
+          word1 0x7C#Word8 {-|-} E.CT_Bar
           Space.chompAndCheckIndent E.CT_Space E.CT_IndentAfterBar
           (variant, newEnd) <- Type.variant
           chompVariants (variant:variants) newEnd
@@ -220,7 +222,7 @@ portDecl maybeDocs =
     do  Space.chompAndCheckIndent E.PortSpace E.PortIndentName
         name <- addLocation (Var.lower E.PortName)
         Space.chompAndCheckIndent E.PortSpace E.PortIndentColon
-        word1 0x3A {-:-} E.PortColon
+        word1 0x3A#Word8 {-:-} E.PortColon
         Space.chompAndCheckIndent E.PortSpace E.PortIndentType
         (tipe, end) <- specialize E.PortType Type.expression
         return
@@ -244,23 +246,46 @@ infix_ =
   do  start <- getPosition
       Keyword.infix_ err
       Space.chompAndCheckIndent _err err
-      associativity <-
+      assoc <-
         oneOf err
           [ Keyword.left_  err >> return Binop.Left
           , Keyword.right_ err >> return Binop.Right
           , Keyword.non_   err >> return Binop.Non
           ]
       Space.chompAndCheckIndent _err err
-      precedence <- Number.precedence err
+      prec <- precedence err
       Space.chompAndCheckIndent _err err
-      word1 0x28 {-(-} err
+      word1 0x28#Word8 {-(-} err
       op <- Symbol.operator err _err
-      word1 0x29 {-)-} err
+      word1 0x29#Word8 {-)-} err
       Space.chompAndCheckIndent _err err
-      word1 0x3D {-=-} err
+      word1 0x3D#Word8 {-=-} err
       Space.chompAndCheckIndent _err err
       name <- Var.lower err
       end <- getPosition
       Space.chomp _err
       Space.checkFreshLine err
-      return (A.at start end (Src.Infix op associativity precedence name))
+      return (A.at start end (Src.Infix op assoc prec name))
+
+
+precedence :: (Cursor -> x) -> Parser x Binop.Precedence
+precedence toExpectation =
+  P.Parser $ \_ (P.State pos end indent cur) cok _ _ eerr ->
+    if P.notLtAddr pos end then
+      eerr cur toExpectation
+
+    else
+      let !word = indexWord8OffAddr# pos 0# in
+      if isDecDigit word then
+        cok
+          (Binop.Precedence (fromIntegral (W8# word - 0x30 {-0-})))
+          (P.State (plusAddr# pos 1#) end indent (P.slide cur 1#Word64))
+
+      else
+        eerr cur toExpectation
+
+
+{-# INLINE isDecDigit #-}
+isDecDigit :: Word8# -> Bool
+isDecDigit word =
+  isTrue# (leWord8# 0x30#Word8 word) && isTrue# (leWord8# word 0x39#Word8)

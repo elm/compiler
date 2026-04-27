@@ -1,5 +1,4 @@
-{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
-{-# LANGUAGE BangPatterns, UnboxedTuples, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, ExtendedLiterals, MagicHash, UnboxedTuples, UnliftedDatatypes #-}
 module Parse.Space
   ( Parser
   --
@@ -15,12 +14,11 @@ module Parse.Space
   where
 
 
-import Data.Word (Word8, Word16)
-import Foreign.Ptr (Ptr, plusPtr, minusPtr)
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
+import GHC.Base (UnliftedType)
+import GHC.Prim
 
 import qualified AST.Source as Src
-import Parse.Primitives (Row, Col)
+import Parse.Primitives (Cursor, Indent, slide, newline, ltAddr, leAddr, notLtAddr, eqIndex)
 import qualified Parse.Primitives as P
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as E
@@ -38,236 +36,236 @@ type Parser x a =
 -- CHOMP
 
 
-chomp :: (E.Space -> Row -> Col -> x) -> P.Parser x ()
+chomp :: (E.Space -> Cursor -> x) -> P.Parser x ()
 chomp toError =
-  P.Parser $ \(P.State src pos end indent row col) cok _ cerr _ ->
+  P.Parser $ \_ (P.State pos end indent cur) cok _ cerr _ ->
     let
-      (# status, newPos, newRow, newCol #) = eatSpaces pos end row col
+      !(# status, newPos, newCur #) = eatSpaces pos end cur
     in
     case status of
       Good ->
         let
-          !newState = P.State src newPos end indent newRow newCol
+          !newState = P.State newPos end indent newCur
         in
         cok () newState
 
-      HasTab               -> cerr newRow newCol (toError E.HasTab)
-      EndlessMultiComment  -> cerr newRow newCol (toError E.EndlessMultiComment)
+      HasTab              -> cerr newCur (toError E.HasTab)
+      HasNonUtf8          -> cerr newCur (toError E.HasNonUtf8)
+      EndlessMultiComment -> cerr newCur (toError E.EndlessMultiComment)
 
 
 
 -- CHECKS -- to be called right after a `chomp`
 
 
-checkIndent :: A.Position -> (Row -> Col -> x) -> P.Parser x ()
-checkIndent (A.Position endRow endCol) toError =
-  P.Parser $ \state@(P.State _ _ _ indent _ col) _ eok _ eerr ->
-    if col > indent && col > 1
+checkIndent :: A.Position -> (Cursor -> x) -> P.Parser x ()
+checkIndent (A.Position endCur) toError =
+  P.Parser $ \_ state@(P.State _ _ indent cur) _ eok _ eerr ->
+    if P.isIndented indent cur
     then eok () state
-    else eerr endRow endCol toError
+    else eerr endCur toError
 
 
-checkAligned :: (Word16 -> Row -> Col -> x) -> P.Parser x ()
+checkAligned :: (Indent -> Cursor -> x) -> P.Parser x ()
 checkAligned toError =
-  P.Parser $ \state@(P.State _ _ _ indent row col) _ eok _ eerr ->
-    if col == indent
+  P.Parser $ \_ state@(P.State _ _ indent cur) _ eok _ eerr ->
+    if P.isAligned indent cur
     then eok () state
-    else eerr row col (toError indent)
+    else eerr cur (toError indent)
 
 
-checkFreshLine :: (Row -> Col -> x) -> P.Parser x ()
+checkFreshLine :: (Cursor -> x) -> P.Parser x ()
 checkFreshLine toError =
-  P.Parser $ \state@(P.State _ _ _ _ row col) _ eok _ eerr ->
-    if col == 1
+  P.Parser $ \_ state@(P.State _ _ _ cur) _ eok _ eerr ->
+    if P.isLineStart cur
     then eok () state
-    else eerr row col toError
+    else eerr cur toError
 
 
 
 -- CHOMP AND CHECK
 
 
-chompAndCheckIndent :: (E.Space -> Row -> Col -> x) -> (Row -> Col -> x) -> P.Parser x ()
+chompAndCheckIndent :: (E.Space -> Cursor -> x) -> (Cursor -> x) -> P.Parser x ()
 chompAndCheckIndent toSpaceError toIndentError =
-  P.Parser $ \(P.State src pos end indent row col) cok _ cerr _ ->
+  P.Parser $ \_ (P.State pos end indent cur) cok _ cerr _ ->
     let
-      (# status, newPos, newRow, newCol #) = eatSpaces pos end row col
+      !(# status, newPos, newCur #) = eatSpaces pos end cur
     in
     case status of
       Good ->
-        if newCol > indent && newCol > 1
+        if P.isIndented indent newCur
         then
-
           let
-            !newState = P.State src newPos end indent newRow newCol
+            !newState = P.State newPos end indent newCur
           in
           cok () newState
 
         else
-          cerr row col toIndentError
+          cerr cur toIndentError
 
-      HasTab               -> cerr newRow newCol (toSpaceError E.HasTab)
-      EndlessMultiComment  -> cerr newRow newCol (toSpaceError E.EndlessMultiComment)
+      HasTab              -> cerr newCur (toSpaceError E.HasTab)
+      HasNonUtf8          -> cerr newCur (toSpaceError E.HasNonUtf8)
+      EndlessMultiComment -> cerr newCur (toSpaceError E.EndlessMultiComment)
 
 
 
 -- EAT SPACES
 
 
+type Status :: UnliftedType
 data Status
   = Good
   | HasTab
+  | HasNonUtf8
   | EndlessMultiComment
 
 
-eatSpaces :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> (# Status, Ptr Word8, Row, Col #)
-eatSpaces pos end row col =
-  if pos >= end then
-    (# Good, pos, row, col #)
+eatSpaces :: Addr# -> Addr# -> Cursor -> (# Status, Addr#, Cursor #)
+eatSpaces pos end cur =
+  if notLtAddr pos end then
+    (# Good, pos, cur #)
 
   else
-    case P.unsafeIndex pos of
-      0x20 {-   -} ->
-        eatSpaces (plusPtr pos 1) end row (col + 1)
+    case indexWord8OffAddr# pos 0# of
+      0x20#Word8 {-   -}  -> eatSpaces (plusAddr# pos 1#) end (slide cur 1#Word64)
+      0x0A#Word8 {- \n -} -> eatSpaces (plusAddr# pos 1#) end (newline cur)
+      0x7B#Word8 {- { -}  -> eatMultiComment pos end cur
+      0x2D#Word8 {- - -}  ->
+        let !pos1 = plusAddr# pos 1# in
+        if ltAddr pos1 end && eqIndex pos1 0# 0x2D#Word8 {- - -}
+        then eatLineComment (plusAddr# pos 2#) end (slide cur 2#Word64)
+        else (# Good, pos, cur #)
 
-      0x0A {- \n -} ->
-        eatSpaces (plusPtr pos 1) end (row + 1) 1
-
-      0x7B {- { -} ->
-        eatMultiComment pos end row col
-
-      0x2D {- - -} ->
-        let !pos1 = plusPtr pos 1 in
-        if pos1 < end && P.unsafeIndex pos1 == 0x2D {- - -} then
-          eatLineComment (plusPtr pos 2) end row (col + 2)
-        else
-          (# Good, pos, row, col #)
-
-      0x0D {- \r -} ->
-        eatSpaces (plusPtr pos 1) end row col
-
-      0x09 {- \t -} ->
-        (# HasTab, pos, row, col #)
-
-      _ ->
-        (# Good, pos, row, col #)
+      0x0D#Word8 {- \r -} -> eatSpaces (plusAddr# pos 1#) end cur
+      0x09#Word8 {- \t -} -> (# HasTab, pos, cur #)
+      _                   -> (# Good, pos, cur #)
 
 
 
 -- LINE COMMENTS
 
 
-eatLineComment :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> (# Status, Ptr Word8, Row, Col #)
-eatLineComment pos end row col =
-  if pos >= end then
-    (# Good, pos, row, col #)
+eatLineComment :: Addr# -> Addr# -> Cursor -> (# Status, Addr#, Cursor #)
+eatLineComment pos end cur =
+  if notLtAddr pos end then
+    (# Good, pos, cur #)
 
   else
-    let !word = P.unsafeIndex pos in
-    if word == 0x0A {- \n -} then
-      eatSpaces (plusPtr pos 1) end (row + 1) 1
-    else
-      let !newPos = plusPtr pos (P.getCharWidth word) in
-      eatLineComment newPos end row (col + 1)
+    case indexWord8OffAddr# pos 0# of
+      0x0A#Word8 {-\n-} ->
+        eatSpaces (plusAddr# pos 1#) end (newline cur)
+
+      word ->
+        let !newPos = P.skipUtf8 pos end word in
+        if ltAddr pos newPos
+        then eatLineComment newPos end (slide cur 1#Word64)
+        else (# HasNonUtf8, pos, cur #)
 
 
 
 -- MULTI COMMENTS
 
 
-eatMultiComment :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> (# Status, Ptr Word8, Row, Col #)
-eatMultiComment pos end row col =
+eatMultiComment :: Addr# -> Addr# -> Cursor -> (# Status, Addr#, Cursor #)
+eatMultiComment pos end cur =
   let
-    !pos1 = plusPtr pos 1
-    !pos2 = plusPtr pos 2
+    !pos2 = plusAddr# pos 2#
   in
-  if pos2 >= end then
-    (# Good, pos, row, col #)
+  if notLtAddr pos2 end then
+    (# Good, pos, cur #)
 
-  else if P.unsafeIndex pos1 == 0x2D {- - -} then
+  else if eqIndex pos 1# 0x2D#Word8 {- - -} then
 
-    if P.unsafeIndex pos2 == 0x7C {- | -} then
-      (# Good, pos, row, col #)
+    if eqIndex pos2 0# 0x7C#Word8 {- | -} then
+      (# Good, pos, cur #)
     else
       let
-        (# status, newPos, newRow, newCol #) =
-          eatMultiCommentHelp pos2 end row (col + 2) 1
+        !(# status, newPos, newCur #) =  eatMultiCommentHelp pos2 end (slide cur 2#Word64) 1
       in
       case status of
-        MultiGood    -> eatSpaces newPos end newRow newCol
-        MultiTab     -> (# HasTab, newPos, newRow, newCol #)
-        MultiEndless -> (# EndlessMultiComment, pos, row, col #)
+        MultiGood    -> eatSpaces newPos end newCur
+        MultiTab     -> (# HasTab, newPos, newCur #)
+        MultiNonUtf8 -> (# HasNonUtf8, newPos, newCur #)
+        MultiEndless -> (# EndlessMultiComment, pos, cur #)
 
   else
-    (# Good, pos, row, col #)
+    (# Good, pos, cur #)
 
 
+type MultiStatus :: UnliftedType
 data MultiStatus
   = MultiGood
   | MultiTab
+  | MultiNonUtf8
   | MultiEndless
 
 
-eatMultiCommentHelp :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> Word16 -> (# MultiStatus, Ptr Word8, Row, Col #)
-eatMultiCommentHelp pos end row col openComments =
-  if pos >= end then
-    (# MultiEndless, pos, row, col #)
-
+eatMultiCommentHelp :: Addr# -> Addr# -> Cursor -> Word -> (# MultiStatus, Addr#, Cursor #)
+eatMultiCommentHelp pos end cur openComments =
+  if notLtAddr pos end
+  then (# MultiEndless, pos, cur #)
   else
-    let !word = P.unsafeIndex pos in
-    if word == 0x0A {- \n -} then
-      eatMultiCommentHelp (plusPtr pos 1) end (row + 1) 1 openComments
+    case indexWord8OffAddr# pos 0# of
+      0x0A#Word8 {-\n-} ->
+        eatMultiCommentHelp (plusAddr# pos 1#) end (newline cur) openComments
 
-    else if word == 0x09 {- \t -} then
-      (# MultiTab, pos, row, col #)
+      0x09#Word8 {-\t-} ->
+        (# MultiTab, pos, cur #)
 
-    else if word == 0x2D {- - -} && P.isWord (plusPtr pos 1) end 0x7D {- } -} then
-      if openComments == 1 then
-        (# MultiGood, plusPtr pos 2, row, col + 2 #)
-      else
-        eatMultiCommentHelp (plusPtr pos 2) end row (col + 2) (openComments - 1)
+      0x2D#Word8 {---} | isPos1 0x7D#Word8 {- } -} ->
+        if openComments == 1
+        then (# MultiGood, plusAddr# pos 2#, slide cur 2#Word64 #)
+        else eatMultiCommentHelp (plusAddr# pos 2#) end (slide cur 2#Word64) (openComments - 1)
 
-    else if word == 0x7B {- { -} && P.isWord (plusPtr pos 1) end 0x2D {- - -} then
-      eatMultiCommentHelp (plusPtr pos 2) end row (col + 2) (openComments + 1)
+      0x7B#Word8 {- { -} | isPos1 0x2D#Word8 {---} ->
+        eatMultiCommentHelp (plusAddr# pos 2#) end (slide cur 2#Word64) (openComments + 1)
 
-    else
-      let !newPos = plusPtr pos (P.getCharWidth word) in
-      eatMultiCommentHelp newPos end row (col + 1) openComments
+      word ->
+        let !newPos = P.skipUtf8 pos end word in
+        if ltAddr pos newPos
+        then eatMultiCommentHelp newPos end (slide cur 1#Word64) openComments
+        else (# MultiNonUtf8, pos, cur #)
+  where
+    isPos1 w =
+      let
+        !pos1 = plusAddr# pos 1#
+      in
+      ltAddr pos1 end && eqIndex pos1 0# w
+
 
 
 
 -- DOCUMENTATION COMMENT
 
 
-docComment :: (Row -> Col -> x) -> (E.Space -> Row -> Col -> x) -> P.Parser x Src.Comment
+docComment :: (Cursor -> x) -> (E.Space -> Cursor -> x) -> P.Parser x Src.Comment
 docComment toExpectation toSpaceError =
-  P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
+  P.Parser $ \fpc (P.State pos end indent cur) cok _ cerr eerr ->
     let
-      !pos3 = plusPtr pos 3
+      !pos3 = plusAddr# pos 3#
     in
-    if pos3 <= end
-      && P.unsafeIndex (        pos  ) == 0x7B {- { -}
-      && P.unsafeIndex (plusPtr pos 1) == 0x2D {- - -}
-      && P.unsafeIndex (plusPtr pos 2) == 0x7C {- | -}
+    if leAddr pos3 end
+      && eqIndex pos 0# 0x7B#Word8 {- { -}
+      && eqIndex pos 1# 0x2D#Word8 {- - -}
+      && eqIndex pos 2# 0x7C#Word8 {- | -}
     then
       let
-        !col3 = col + 3
-
-        (# status, newPos, newRow, newCol #) =
-           eatMultiCommentHelp pos3 end row col3 1
+        !cur3 = slide cur 3#Word64
+        !(# status, newPos, newCur #) =  eatMultiCommentHelp pos3 end cur3 1
       in
       case status of
         MultiGood ->
           let
-            !off = minusPtr pos3 (unsafeForeignPtrToPtr src)
-            !len = minusPtr newPos pos3 - 2
-            !snippet = P.Snippet src off len row col3
+            !snippet = P.Snippet fpc pos3 (plusAddr# newPos (-2#)) cur3
             !comment = Src.Comment snippet
-            !newState = P.State src newPos end indent newRow newCol
+            !newState = P.State newPos end indent newCur
           in
           cok comment newState
 
-        MultiTab -> cerr newRow newCol (toSpaceError E.HasTab)
-        MultiEndless -> cerr row col (toSpaceError E.EndlessMultiComment)
+        MultiTab     -> cerr newCur (toSpaceError E.HasTab)
+        MultiNonUtf8 -> cerr newCur (toSpaceError E.HasNonUtf8)
+        MultiEndless -> cerr cur    (toSpaceError E.EndlessMultiComment)
     else
-      eerr row col toExpectation
+      eerr cur toExpectation
+
