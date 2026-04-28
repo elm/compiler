@@ -577,22 +577,13 @@ isStringLiteral expr =
 strictEq :: JS.Expr -> JS.Expr -> JS.Expr
 strictEq left right =
   case left of
-    JS.Int 0 ->
-      JS.Prefix JS.PrefixNot right
-
-    JS.Bool bool ->
-      if bool then right else JS.Prefix JS.PrefixNot right
-
+    JS.Int  0 -> JS.Prefix JS.PrefixNot right
+    JS.Bool b -> if b then right else JS.Prefix JS.PrefixNot right
     _ ->
       case right of
-        JS.Int 0 ->
-          JS.Prefix JS.PrefixNot left
-
-        JS.Bool bool ->
-          if bool then left else JS.Prefix JS.PrefixNot left
-
-        _ ->
-          JS.Infix JS.OpEq left right
+        JS.Int  0 -> JS.Prefix JS.PrefixNot left
+        JS.Bool b -> if b then left else JS.Prefix JS.PrefixNot left
+        _         -> JS.Infix JS.OpEq left right
 
 
 strictNEq :: JS.Expr -> JS.Expr -> JS.Expr
