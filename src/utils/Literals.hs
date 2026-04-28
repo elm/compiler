@@ -226,6 +226,7 @@ table =
 
         c:cs
           | c == ' '  -> spaces revs cs
+          | c == '\r' -> spaces revs cs
           | c == '\n' -> spaces revs cs
           | isDigit c -> digits (ord c - 48) revs cs
           | isLower c -> digits (ord c - 87) revs cs
@@ -240,6 +241,7 @@ table =
 
         c:cs
           | c == ' '  -> spaces (Just n : revs) cs
+          | c == '\r' -> spaces (Just n : revs) cs
           | c == '\n' -> spaces (Just n : revs) cs
           | isDigit c -> digits (16 * n + (ord c - 48)) revs cs
           | isLower c -> digits (16 * n + (ord c - 87)) revs cs
@@ -253,6 +255,7 @@ table =
 
         c:cs
           | c == ' '  -> spaces (Nothing : revs) cs
+          | c == '\r' -> spaces (Nothing : revs) cs
           | c == '\n' -> spaces (Nothing : revs) cs
           | c == '_'  -> blanks revs cs
           | otherwise -> fail $ "ran into unexpected character (" ++ show c ++ ")"
@@ -318,6 +321,7 @@ fsm =
 
         c:cs
           | c == ' '             -> loop1 cs rtable
+          | c == '\r'            -> loop1 cs rtable
           | c == '\n'            -> loop1 cs rtable
           | '0' <= c && c <= '9' -> loop1 cs (ord c - 48 : rtable)
           | 'a' <= c && c <= 'f' -> loop1 cs (ord c - 87 : rtable)
@@ -341,6 +345,7 @@ fsm =
 
         c:cs
           | c == ' '             -> loop3 cs rtable rcols rrows
+          | c == '\r'            -> loop3 cs rtable rcols rrows
           | c == '\n'            -> loop3 cs rtable [] (rcols:rrows)
           | '0' <= c && c <= '9' -> loop3 cs rtable (ord c - 48 : rcols) rrows
           | 'a' <= c && c <= 'f' -> loop3 cs rtable (ord c - 87 : rcols) rrows
