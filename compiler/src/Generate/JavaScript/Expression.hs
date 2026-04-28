@@ -1037,7 +1037,7 @@ pathToJsExpr mode root path =
 charUtf8 :: P.BoundedPrim Char
 charUtf8 =
     P.condB (== '\\') (esc 0x5C) $
-    P.condB (== '"' ) (esc 0x22) $
+    P.condB (== '\'') (esc 0x27) $
     P.condB (>= ' ' ) P.charUtf8 $
     P.condB (== '\b') (esc 0x62) $
     P.condB (== '\f') (esc 0x66) $
