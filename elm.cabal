@@ -17,6 +17,39 @@ executable elm
         -- add -eventlog for (elm make src/Main.elm +RTS -l; threadscope elm.eventlog)
         -- https://www.oreilly.com/library/view/parallel-and-concurrent/9781449335939/
 
+    build-depends:
+        ansi-terminal,
+        ansi-wl-pprint < 1,
+        base,
+        binary,
+        bytestring,
+        containers,
+        directory,
+        edit-distance,
+        filelock,
+        filepath,
+        ghc-prim,
+        haskeline,
+        HTTP,
+        http-client,
+        http-client-tls,
+        http-types,
+        language-glsl,
+        mtl,
+        network,
+        parsec,
+        process,
+        scientific,
+        SHA,
+        snap-core,
+        snap-server,
+        template-haskell,
+        time,
+        unordered-containers,
+        utf8-string,
+        vector,
+        zip-archive
+
     hs-source-dirs:
         compiler/src
         builder/src
@@ -180,36 +213,3 @@ executable elm
         -- utils
         Bytes
         Literals
-
-    Build-depends:
-        ansi-terminal,
-        ansi-wl-pprint < 1,
-        base,
-        binary,
-        bytestring,
-        containers,
-        directory,
-        edit-distance,
-        filelock,
-        filepath,
-        ghc-prim,
-        haskeline,
-        HTTP,
-        http-client,
-        http-client-tls,
-        http-types,
-        language-glsl,
-        mtl,
-        network,
-        parsec,
-        process,
-        scientific,
-        SHA,
-        snap-core,
-        snap-server,
-        template-haskell,
-        time,
-        unordered-containers,
-        utf8-string,
-        vector,
-        zip-archive
