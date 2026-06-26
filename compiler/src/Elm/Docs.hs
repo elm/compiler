@@ -325,7 +325,11 @@ parseOverview :: Src.Comment -> IO (Either E.Error [A.Located Name.Name])
 parseOverview (Src.Comment snippet) =
   do  result <- P.fromSnippet (chompOverview []) E.BadEnd snippet
       case result of
-        Right names -> return $ Right names
+        Right names ->
+         do
+          print (length names)
+          return $ Right names
+
         Left  x     -> return $ Left $ E.SyntaxProblem x
 
 
@@ -336,6 +340,9 @@ type Parser a =
 chompOverview :: [A.Located Name.Name] -> Parser [A.Located Name.Name]
 chompOverview names =
   do  isDocs <- chompUntilDocs
+      P.Parser $ \_ s _ eok _ _ ->
+        do  print isDocs
+            eok () s
       if isDocs
         then
           do  Space.chomp E.Space
@@ -403,7 +410,7 @@ untilDocs pos end cur =
           && P.eqIndex pos 2# 0x6F#Word8 {-o-}
           && P.eqIndex pos 3# 0x63#Word8 {-c-}
           && P.eqIndex pos 4# 0x73#Word8 {-s-}
-          && P.eqAddr pos (Var.chompInner pos5 end (indexWord8OffAddr# pos5 0#))
+          && P.eqAddr pos5 (Var.chompInner pos5 end (indexWord8OffAddr# pos5 0#))
         then
           (# True, pos5, P.slide cur 5#Word64 #)
         else
