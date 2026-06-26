@@ -133,7 +133,7 @@ makeUnderline width realEndLine (A.Region p1 p2) =
     let
       c1     = A.toCol p1
       c2     = A.toCol p2
-      spaces = replicate (fromIntegral c1 + width + 1) ' '
+      spaces = replicate (fromIntegral c1 + width + 2) ' '
       zigzag = replicate (max 1 (fromIntegral (c2 - c1))) '^'
     in
       Just (D.fromChars spaces <> D.red (D.fromChars zigzag))
