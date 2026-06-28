@@ -63,7 +63,7 @@ parseBlock =
       case status of
         Good ->
           let
-            !block = BS_UTF8.toString (BS.BS (ForeignPtr pos fpc) (I# (minusAddr# end pos)))
+            !block = BS_UTF8.toString (BS.BS (ForeignPtr pos6 fpc) (I# (minusAddr# newPos pos6)))
             !newState = P.State (plusAddr# newPos 2#) end indent (P.slide newCur 2#Word64)
           in
           cok block newState
