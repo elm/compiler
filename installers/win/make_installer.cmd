@@ -5,7 +5,7 @@ set version=%2
 mkdir files
 mkdir files\bin
 
-xcopy %binary% files\bin /s /e
+xcopy %binary% files\bin\elm.exe /s /e
 xcopy updatepath.vbs files
 
 if EXIST "%ProgramFiles%\NSIS" (
