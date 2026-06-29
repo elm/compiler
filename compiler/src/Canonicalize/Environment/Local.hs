@@ -186,13 +186,13 @@ getEdges edges (A.At _ tipe) =
 checkUnionFreeVars :: A.Located Src.Union -> Result i w Int
 checkUnionFreeVars (A.At unionRegion (Src.Union (A.At _ name) args ctors)) =
   let
-    addArg (A.At region arg) dict =
+    addArg dict (A.At region arg) =
       Dups.insert arg region region dict
 
     addCtorFreeVars (_, tipes) freeVars =
       List.foldl' addFreeVars freeVars tipes
   in
-  do  boundVars <- Dups.detect (Error.DuplicateUnionArg name) (foldr addArg Dups.none args)
+  do  boundVars <- Dups.detect (Error.DuplicateUnionArg name) (List.foldl' addArg Dups.none args)
       let freeVars = foldr addCtorFreeVars Map.empty ctors
       case Map.toList (Map.difference freeVars boundVars) of
         [] ->
@@ -206,10 +206,10 @@ checkUnionFreeVars (A.At unionRegion (Src.Union (A.At _ name) args ctors)) =
 checkAliasFreeVars :: A.Located Src.Alias -> Result i w [Name.Name]
 checkAliasFreeVars (A.At aliasRegion (Src.Alias (A.At _ name) args tipe)) =
   let
-    addArg (A.At region arg) dict =
+    addArg dict (A.At region arg) =
       Dups.insert arg region region dict
   in
-  do  boundVars <- Dups.detect (Error.DuplicateAliasArg name) (foldr addArg Dups.none args)
+  do  boundVars <- Dups.detect (Error.DuplicateAliasArg name) (List.foldl' addArg Dups.none args)
       let freeVars = addFreeVars Map.empty tipe
       let overlap = Map.size (Map.intersection boundVars freeVars)
       if Map.size boundVars == overlap && Map.size freeVars == overlap
