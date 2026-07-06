@@ -30,11 +30,11 @@ When installing, `npm` fetches the metadata for all the optional dependencies an
 
 Create a [GitHub Release](https://github.com/elm/compiler/releases) with the following files:
 
-1. `binary-for-mac-64-bit.gz`
-2. `binary-for-mac-arm-64-bit.gz`
-3. `binary-for-linux-64-bit.gz`
-4. `binary-for-linux-arm-64-bit.gz`
-5. `binary-for-windows-64-bit.gz`
+1. `elm-0.19.2-mac-x64.gz`
+2. `elm-0.19.2-mac-arm.gz`
+3. `elm-0.19.2-linux-x64.gz`
+4. `elm-0.19.2-linux-arm.gz`
+5. `elm-0.19.2-windows-x64.gz`
 
 Create each of these by running the `elm` executable for each platform through `gzip elm`.
 
