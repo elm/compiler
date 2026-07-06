@@ -2,8 +2,15 @@
   "name": "@elm_binaries/darwin_x64",
   "version": "0.19.2-0",
   "description": "Download the Elm binary for macOS (x64)",
-  "repository": "https://github.com/elm/compiler",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/elm/compiler.git"
+  },
   "license": "BSD-3-Clause",
-  "os": [ "darwin" ],
-  "cpu": [ "x64" ]
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "x64"
+  ]
 }
