@@ -1,6 +1,6 @@
 # Troubleshooting
 
-I very highly recommend asking for help on [the Elm slack](https://elmlang.herokuapp.com).
+I very highly recommend asking for help on [the Elm slack](https://elm-lang.org/community/slack).
 
 There are a lot of things that can go wrong when installing software, and it can really help to have a second pair of eyes on your situation!
 
