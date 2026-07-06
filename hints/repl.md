@@ -51,7 +51,7 @@ The same can be done with definitions and custom types:
 "Hey again!" : String
 ```
 
-When you run `elm repl` in a project with an [`elm.json`](https://github.com/elm/compiler/blob/master/docs/elm.json/application.md) file, you can import any module available in the project. So if your project has an `elm/html` dependency, you could say:
+When you run `elm repl` in a project with an [`elm.json`](https://github.com/elm/compiler/blob/main/docs/elm.json/application.md) file, you can import any module available in the project. So if your project has an `elm/html` dependency, you could say:
 
 ```elm
 > import Html exposing (Html)

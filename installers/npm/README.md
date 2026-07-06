@@ -19,7 +19,7 @@ People using Elm at work may use different versions of Elm in different projects
 
 The `npm` installer works for this, but there are faster and more reliable options:
 
-1. You can download `elm` directly from GitHub with [this script](https://github.com/elm/compiler/blob/master/installers/linux/README.md). This allows you to skip `npm` entirely.
+1. You can download `elm` directly from GitHub with [this script](https://github.com/elm/compiler/blob/main/installers/linux/README.md). This allows you to skip `npm` entirely.
 2. Many continuous integration have ways to cache files ([example](https://docs.travis-ci.com/user/caching/)) to make builds faster and more reliable. This is the ideal setup.
 
 That said, it works to use the `npm` installer on CI if you prefer that option.

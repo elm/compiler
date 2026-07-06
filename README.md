@@ -11,7 +11,7 @@ Check out the [Home Page](https://elm-lang.org/), [Try Online](https://elm-lang.
 
 ✨ [Install](https://guide.elm-lang.org/install/elm.html) ✨
 
-For multiple versions, previous versions, and uninstallation, see the instructions [here](https://github.com/elm/compiler/blob/master/installers/README.md).
+For multiple versions, previous versions, and uninstallation, see the instructions [here](https://github.com/elm/compiler/blob/main/installers/README.md).
 
 <br>
 

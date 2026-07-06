@@ -11,8 +11,8 @@ The secret is that Elm is just a single executable file. If you are developing a
 
 The instructions for [Mac][mac] and [Linux][lin] explain how to do this in more detail. You can follow the same steps on Windows, but you need to do each step by hand. (E.g. download the file through your browser rather than with a terminal command.)
 
-[mac]: https://github.com/elm/compiler/blob/master/installers/mac/README.md
-[lin]: https://github.com/elm/compiler/blob/master/installers/linux/README.md
+[mac]: https://github.com/elm/compiler/blob/main/installers/mac/README.md
+[lin]: https://github.com/elm/compiler/blob/main/installers/linux/README.md
 
 <br/>
 
@@ -27,6 +27,6 @@ You can download the executable files directly and use them locally.
 
 ## Uninstall
 
-- [Mac](https://github.com/elm/compiler/blob/master/installers/mac/README.md#uninstall)
-- [Linux](https://github.com/elm/compiler/blob/master/installers/linux/README.md#uninstall)
-- [Windows](https://github.com/elm/compiler/blob/master/installers/win/README.md#uninstall)
+- [Mac](https://github.com/elm/compiler/blob/main/installers/mac/README.md#uninstall)
+- [Linux](https://github.com/elm/compiler/blob/main/installers/linux/README.md#uninstall)
+- [Windows](https://github.com/elm/compiler/blob/main/installers/win/README.md#uninstall)

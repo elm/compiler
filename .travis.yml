@@ -17,7 +17,7 @@ deploy:
   file: $LINUX_ARCHIVE
   skip_cleanup: true
   on:
-    branch: master
+    branch: main
     tags: true
 
 notifications:

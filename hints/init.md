@@ -8,7 +8,7 @@ It just creates an `elm.json` file and a `src/` directory for your code.
 
 ## What is `elm.json`?
 
-This file describes your project. It lists all of the packages you depend upon, so it will say the particular version of [`elm/core`](https://package.elm-lang.org/packages/elm/core/latest/) and [`elm/html`](https://package.elm-lang.org/packages/elm/html/latest/) that you are using. It makes builds reproducible! You can read a bit more about it [here](https://github.com/elm/compiler/blob/master/docs/elm.json/application.md).
+This file describes your project. It lists all of the packages you depend upon, so it will say the particular version of [`elm/core`](https://package.elm-lang.org/packages/elm/core/latest/) and [`elm/html`](https://package.elm-lang.org/packages/elm/html/latest/) that you are using. It makes builds reproducible! You can read a bit more about it [here](https://github.com/elm/compiler/blob/main/docs/elm.json/application.md).
 
 You should generally not edit it by hand. It is better to add new dependencies with commands like `elm install elm/http` or `elm install elm/json`.
 
