@@ -1,6 +1,6 @@
 # Troubleshooting
 
-I very highly recommend asking for help on [the Elm slack](https://elmlang.herokuapp.com).
+I very highly recommend asking for help on [the Elm slack](https://elm-lang.org/community/slack).
 
 There are a lot of things that can go wrong when installing software, and it can really help to have a second pair of eyes on your situation!
 
@@ -17,7 +17,7 @@ You can also download the binaries directly. On Linux, you could do it in the te
 
 ```bash
 cd ~/Desktop/
-curl -L -o elm.gz https://github.com/elm/compiler/releases/download/0.19.1/binary-for-linux-64-bit.gz
+curl -L -o elm.gz https://github.com/elm/compiler/releases/download/0.19.2/elm-0.19.2-linux-x64.gz
 gunzip elm.gz                # unzip the file
 chmod +x elm                 # make the file executable
 sudo mv elm /usr/local/bin/  # put the executable in a directory likely to be listed in your PATH variable
@@ -27,7 +27,7 @@ If these exact commands do not work for you, you can try to do the same thing by
 
 Read the section below on `PATH` variables if you are not sure what that is!
 
-[download]: https://github.com/elm/compiler/releases/tag/0.19.1
+[download]: https://github.com/elm/compiler/releases/tag/0.19.2
 
 <br/>
 

@@ -1,10 +1,10 @@
 {-# OPTIONS_GHC -Wall -fno-warn-name-shadowing #-}
-{-# LANGUAGE BangPatterns, EmptyDataDecls #-}
+{-# LANGUAGE BangPatterns, EmptyDataDecls, ExtendedLiterals, MagicHash, UnboxedTuples #-}
 module Json.String
   ( String
   , isEmpty
   --
-  , fromPtr
+  , fromAddr
   , fromName
   , fromChars
   , fromSnippet
@@ -21,13 +21,12 @@ import qualified Data.ByteString.Builder as B
 import qualified Data.Coerce as Coerce
 import qualified Data.Name as Name
 import qualified Data.Utf8 as Utf8
-import Data.Utf8 (MBA, newByteArray, copyFromPtr, freeze, writeWord8)
-import Data.Word (Word8)
-import Foreign.Ptr (Ptr, plusPtr, minusPtr)
-import Foreign.ForeignPtr (withForeignPtr)
-import GHC.Exts (RealWorld)
-import GHC.IO (stToIO, unsafeDupablePerformIO, unsafePerformIO)
-import GHC.ST (ST)
+import GHC.Exts (isTrue#)
+import GHC.ForeignPtr (ForeignPtrContents)
+import GHC.Prim
+import GHC.Int (Int(..))
+import GHC.IO (IO(IO))
+import System.IO.Unsafe (unsafePerformIO)
 
 import qualified Parse.Primitives as P
 
@@ -55,9 +54,9 @@ isEmpty =
 -- FROM
 
 
-fromPtr :: Ptr Word8 -> Ptr Word8 -> String
-fromPtr =
-  Utf8.fromPtr
+fromAddr :: Addr# -> Addr# -> IO String
+fromAddr =
+  Utf8.fromAddr
 
 
 fromChars :: [Char] -> String
@@ -65,7 +64,7 @@ fromChars =
   Utf8.fromChars
 
 
-fromSnippet :: P.Snippet -> String
+fromSnippet :: P.Snippet -> IO String
 fromSnippet =
   Utf8.fromSnippet
 
@@ -95,55 +94,57 @@ toBuilder =
 
 
 fromComment :: P.Snippet -> String
-fromComment (P.Snippet fptr off len _ _) =
-  unsafePerformIO $ withForeignPtr fptr $ \ptr ->
-    let
-      !pos = plusPtr ptr off
-      !end = plusPtr pos len
-      !str = fromChunks (chompChunks pos end pos [])
-    in
-    return str
+fromComment (P.Snippet fpc pos end _) =
+  unsafePerformIO $
+    fromChunks fpc (chompChunks pos end pos [])
 
 
-chompChunks :: Ptr Word8 -> Ptr Word8 -> Ptr Word8 -> [Chunk] -> [Chunk]
+chompChunks :: Addr# -> Addr# -> Addr# -> [Chunk] -> [Chunk]
 chompChunks pos end start revChunks =
-  if pos >= end then
+  if P.notLtAddr pos end then
     reverse (addSlice start end revChunks)
   else
-    let
-      !word = P.unsafeIndex pos
-    in
-    case word of
-      0x0A {-\n-} -> chompEscape 0x6E {-n-} pos end start revChunks
-      0x22 {-"-}  -> chompEscape 0x22 {-"-} pos end start revChunks
-      0x5C {-\-}  -> chompEscape 0x5C {-\-} pos end start revChunks
-      0x0D {-\r-} ->
+    case indexWord8OffAddr# pos 0# of
+      0x0A#Word8 {-\n-} -> chompEscape 0x6E#Word8 {-n-} pos end start revChunks
+      0x22#Word8 {-"-}  -> chompEscape 0x22#Word8 {-"-} pos end start revChunks
+      0x5C#Word8 {-\-}  -> chompEscape 0x5C#Word8 {-\-} pos end start revChunks
+      0x0D#Word8 {-\r-} ->
         let
-          !newPos = plusPtr pos 1
+          !newPos = plusAddr# pos 1#
         in
         chompChunks newPos end newPos (addSlice start pos revChunks)
 
-      _ ->
+      word ->
         let
-          !width = P.getCharWidth word
-          !newPos = plusPtr pos width
+          !width = getCharWidth word
+          !newPos = plusAddr# pos width
         in
         chompChunks newPos end start revChunks
 
 
-chompEscape :: Word8 -> Ptr Word8 -> Ptr Word8 -> Ptr Word8 -> [Chunk] -> [Chunk]
+chompEscape :: Word8# -> Addr# -> Addr# -> Addr# -> [Chunk] -> [Chunk]
 chompEscape escape pos end start revChunks =
   let
-    !pos1 = plusPtr pos 1
+    !pos1 = plusAddr# pos 1#
   in
   chompChunks pos1 end pos1 (Escape escape : addSlice start pos revChunks)
 
 
-addSlice :: Ptr Word8 -> Ptr Word8 -> [Chunk] -> [Chunk]
+addSlice :: Addr# -> Addr# -> [Chunk] -> [Chunk]
 addSlice start end revChunks =
-  if start == end
+  if P.eqAddr start end
     then revChunks
-    else Slice start (minusPtr end start) : revChunks
+    else Slice start (minusAddr# end start) : revChunks
+
+
+getCharWidth :: Word8# -> Int#
+getCharWidth word
+  | isTrue# (ltWord8# word 0x80#Word8) = 1#
+  | isTrue# (ltWord8# word 0xc0#Word8) = error "Need UTF-8 encoded input. Ran into unrecognized bits."
+  | isTrue# (ltWord8# word 0xe0#Word8) = 2#
+  | isTrue# (ltWord8# word 0xf0#Word8) = 3#
+  | isTrue# (ltWord8# word 0xf8#Word8) = 4#
+  | True                               = error "Need UTF-8 encoded input. Ran into unrecognized bits."
 
 
 
@@ -151,42 +152,43 @@ addSlice start end revChunks =
 
 
 data Chunk
-  = Slice (Ptr Word8) Int
-  | Escape Word8
+  = Slice Addr# Int#
+  | Escape Word8#
 
 
-fromChunks :: [Chunk] -> String
-fromChunks chunks =
-  unsafeDupablePerformIO (stToIO (
-    do  let !len = sum (map chunkToWidth chunks)
-        mba <- newByteArray len
-        writeChunks mba 0 chunks
-        freeze mba
-  ))
+fromChunks :: ForeignPtrContents -> [Chunk] -> IO String
+fromChunks fpc chunks =
+  IO $ \s0 ->
+    case newByteArray# len          s0 of { (# s1, mba #) ->
+    case writeChunks mba 0# chunks  s1 of {    s2         ->
+    case touch# fpc                 s2 of {    s3         ->
+    case unsafeFreezeByteArray# mba s3 of { (# s4, ba  #) -> (# s4, Utf8.Utf8 ba #) }}}}
+  where
+    !(I# len) = sum (map chunkToWidth chunks)
 
 
 chunkToWidth :: Chunk -> Int
 chunkToWidth chunk =
   case chunk of
-    Slice _ len -> len
+    Slice _ len -> I# len
     Escape _    -> 2
 
 
-writeChunks :: MBA RealWorld -> Int -> [Chunk] -> ST RealWorld ()
-writeChunks mba offset chunks =
+writeChunks :: MutableByteArray# s -> Int# -> [Chunk] -> State# s -> State# s
+writeChunks mba off chunks s0 =
   case chunks of
     [] ->
-      return ()
+      s0
 
     chunk : chunks ->
       case chunk of
-        Slice ptr len ->
-          do  copyFromPtr ptr mba offset len
-              let !newOffset = offset + len
-              writeChunks mba newOffset chunks
+        Slice pos len ->
+          case copyAddrToByteArray# pos mba off len s0 of { s1 ->
+            writeChunks mba (off +# len) chunks s1
+          }
 
         Escape word ->
-          do  writeWord8 mba offset 0x5C {- \ -}
-              writeWord8 mba (offset + 1) word
-              let !newOffset = offset + 2
-              writeChunks mba newOffset chunks
+          case writeWord8Array# mba (off      ) 0x5C#Word8 {-\-} s0 of { s1 ->
+          case writeWord8Array# mba (off +# 1#) word             s1 of { s2 ->
+            writeChunks mba (off +# 2#) chunks s2
+          }}

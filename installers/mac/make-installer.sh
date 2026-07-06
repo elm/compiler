@@ -1,14 +1,28 @@
 #!/bin/sh
 # Run the following command to create an installer:
 #
-#     bash make-installer.sh
+#     bash make-installer.sh universal-binary
 #
 
+
+#### ARGUMENTS ####
+
+set -e
+
+if [[ $# -eq 1 && -x "$1" ]]; then
+    BINARY=$1
+else
+    echo "expecting one argument, the path to the universal binary"
+    exit 1
+fi
 
 
 #### SETUP ####
 
-set -e
+function cleanup {
+    rm -f elm.entitlements
+}
+trap cleanup EXIT
 
 # Create directory structure for new pkgs
 pkg_root=$(mktemp -d -t package-artifacts)
@@ -23,13 +37,31 @@ usr_binaries=/usr/local/bin
 
 #### BUILD ASSETS ####
 
-cp ../../dist/build/elm/elm $pkg_binaries/elm
+
+DEVELOPER_NAME="NAME"
+TEAM_ID="TEAM"
+EMAIL="EMAIL"
+PASSWORD="PASSWORD"
+
+
+cp $BINARY $pkg_binaries/elm
+
+/usr/libexec/PlistBuddy -c "Add :com.apple.security.files.all bool true" elm.entitlements
+
+codesign --sign "Developer ID Application: $DEVELOPER_NAME ($TEAM_ID)" \
+    --identifier=org.elm-lang.binary \
+    --options=runtime \
+    --entitlements=elm.entitlements \
+    --strict \
+    --strip-disallowed-xattrs \
+    --force \
+    $pkg_binaries/elm
 
 cp $(pwd)/preinstall $pkg_scripts
 cp $(pwd)/postinstall $pkg_scripts
 
 pkgbuild \
-    --sign "Developer ID Installer: <NAME>" \
+    --sign "Developer ID Installer: $DEVELOPER_NAME ($TEAM_ID)" \
     --identifier org.elm-lang.binary \
     --install-location $usr_binaries \
     --scripts $pkg_scripts \
@@ -43,7 +75,7 @@ pkgbuild \
 rm -f installer-for-mac.pkg
 
 productbuild \
-    --sign "Developer ID Installer: <NAME>" \
+    --sign "Developer ID Installer: $DEVELOPER_NAME ($TEAM_ID)" \
     --identifier org.elm-lang.installer \
     --distribution Distribution.xml \
     --package-path . \
@@ -57,25 +89,17 @@ rm binaries.pkg
 rm -rf $pkg_root
 
 
-#### BEGIN NOTARIZATION ####
+#### NOTARIZE
+#
+# https://developer.apple.com/documentation/security/resolving-common-notarization-issues
 
-xcrun altool \
-    --notarize-app \
-    --primary-bundle-id "org.elm-lang.installer" \
-    --username "<EMAIL>" \
-    --password "@keychain:Developer-altool" \
-    --file "installer-for-mac.pkg"
+xcrun notarytool submit \
+    --apple-id $EMAIL \
+    --team-id $TEAM_ID \
+    --password $PASSWORD \
+    --wait \
+    installer-for-mac.pkg
 
-# From https://scriptingosx.com/2019/09/notarize-a-command-line-tool/
-#
-#### Check on notarization:
-#
-# xcrun altool \
-#     --notarization-info "<RequestUUID>" \
-#     --username "<EMAIL>" \
-#     --password "@keychain:Developer-altool"
-#
-#
-#### Staple Notarization:
-#
-# xcrun stapler staple installer-for-mac.pkg
+xcrun stapler staple installer-for-mac.pkg
+
+

@@ -1,4 +1,6 @@
-{-# LANGUAGE BangPatterns, MultiWayIf, OverloadedStrings, UnboxedTuples #-}
+{-# LANGUAGE BangPatterns, ExtendedLiterals, MagicHash, MultiWayIf,
+OverloadedStrings, UnboxedTuples
+#-}
 module Elm.Docs
   ( Documentation
   , Module(..)
@@ -24,11 +26,12 @@ import qualified Data.Map.Merge.Strict as Map
 import qualified Data.Name as Name
 import qualified Data.NonEmptyList as NE
 import qualified Data.OneOrMore as OneOrMore
-import Data.Word (Word8)
-import Foreign.Ptr (Ptr, plusPtr)
+import GHC.Exts (isTrue#)
+import GHC.Prim
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
+import qualified AST.Prim.Variable as Var
 import qualified AST.Utils.Binop as Binop
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Compiler.Type.Extract as Extract
@@ -37,7 +40,7 @@ import qualified Json.Decode as D
 import qualified Json.Encode as E
 import Json.Encode ((==>))
 import qualified Json.String as Json
-import Parse.Primitives (Row, Col, word1)
+import Parse.Primitives (Cursor, word1)
 import qualified Parse.Primitives as P
 import qualified Parse.Space as Space
 import qualified Parse.Symbol as Symbol
@@ -295,35 +298,35 @@ precDecoder =
 -- FROM MODULE
 
 
-fromModule :: Can.Module -> Either E.Error Module
+fromModule :: Can.Module -> IO (Either E.Error Module)
 fromModule modul@(Can.Module _ exports docs _ _ _ _ _) =
   case exports of
     Can.ExportEverything region ->
-      Left (E.ImplicitExposing region)
+      return $ Left $ E.ImplicitExposing region
 
     Can.Export exportDict ->
       case docs of
         Src.NoDocs region ->
-          Left (E.NoDocs region)
+          return $ Left $ E.NoDocs region
 
         Src.YesDocs overview comments ->
-          do  names <- parseOverview overview
-              checkNames exportDict names
-              checkDefs exportDict overview (Map.fromList comments) modul
+          do  namesResult <- parseOverview overview
+              return $
+                do  names <- namesResult
+                    checkNames exportDict names
+                    checkDefs exportDict overview (Map.fromList comments) modul
 
 
 
 -- PARSE OVERVIEW
 
 
-parseOverview :: Src.Comment -> Either E.Error [A.Located Name.Name]
+parseOverview :: Src.Comment -> IO (Either E.Error [A.Located Name.Name])
 parseOverview (Src.Comment snippet) =
-  case P.fromSnippet (chompOverview []) E.BadEnd snippet of
-    Left err ->
-      Left (E.SyntaxProblem err)
-
-    Right names ->
-      Right names
+  do  result <- P.fromSnippet (chompOverview []) E.BadEnd snippet
+      case result of
+        Right names -> return $ Right names
+        Left  x     -> return $ Left $ E.SyntaxProblem x
 
 
 type Parser a =
@@ -356,7 +359,7 @@ chompDocs names =
       P.oneOfWithFallback
         [ do  pos <- P.getPosition
               Space.checkIndent pos E.Comma
-              word1 0x2C {-,-} E.Comma
+              word1 0x2C#Word8 {-,-} E.Comma
               Space.chomp E.Space
               chompDocs (name:names)
         ]
@@ -365,9 +368,9 @@ chompDocs names =
 
 chompOperator :: Parser Name.Name
 chompOperator =
-  do  word1 0x28 {-(-} E.Op
+  do  word1 0x28#Word8 {-(-} E.Op
       op <- Symbol.operator E.Op E.OpBad
-      word1 0x29 {-)-} E.Op
+      word1 0x29#Word8 {-)-} E.Op
       return op
 
 
@@ -375,36 +378,47 @@ chompOperator =
 --
 chompUntilDocs :: Parser Bool
 chompUntilDocs =
-  P.Parser $ \(P.State src pos end indent row col) cok _ _ _ ->
+  P.Parser $ \_ (P.State pos end indent cur) cok _ _ _ ->
     let
-      (# isDocs, newPos, newRow, newCol #) = untilDocs pos end row col
-      !newState = P.State src newPos end indent newRow newCol
+      !(# isDocs, newPos, newCur #) = untilDocs pos end cur
+      !newState = P.State newPos end indent newCur
     in
     cok isDocs newState
 
 
-untilDocs :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> (# Bool, Ptr Word8, Row, Col #)
-untilDocs pos end row col =
-  if pos >= end then
-    (# False, pos, row, col #)
+untilDocs :: Addr# -> Addr# -> Cursor -> (# Bool, Addr#, Cursor #)
+untilDocs pos end cur =
+  if P.notLtAddr pos end then
+    (# False, pos, cur #)
   else
-    let !word = P.unsafeIndex pos in
-    if word == 0x0A {-\n-} then
-      untilDocs (plusPtr pos 1) end (row + 1) 1
-    else
-      let !pos5 = plusPtr pos 5 in
-      if pos5 <= end
-        && P.unsafeIndex (        pos  ) == 0x40 {-@-}
-        && P.unsafeIndex (plusPtr pos 1) == 0x64 {-d-}
-        && P.unsafeIndex (plusPtr pos 2) == 0x6F {-o-}
-        && P.unsafeIndex (plusPtr pos 3) == 0x63 {-c-}
-        && P.unsafeIndex (plusPtr pos 4) == 0x73 {-s-}
-        && Var.getInnerWidth pos5 end == 0
-      then
-        (# True, pos5, row, col + 5 #)
-      else
-        let !newPos = plusPtr pos (P.getCharWidth word) in
-        untilDocs newPos end row (col + 1)
+    case indexWord8OffAddr# pos 0# of
+      0x0A#Word8 {-\n-} ->
+        untilDocs (plusAddr# pos 1#) end (P.newline cur)
+
+      word ->
+        let !pos5 = plusAddr# pos 5# in
+        if P.ltAddr pos5 end
+          && P.eqIndex pos 0# 0x40#Word8 {-@-}
+          && P.eqIndex pos 1# 0x64#Word8 {-d-}
+          && P.eqIndex pos 2# 0x6F#Word8 {-o-}
+          && P.eqIndex pos 3# 0x63#Word8 {-c-}
+          && P.eqIndex pos 4# 0x73#Word8 {-s-}
+          && P.eqAddr pos5 (Var.chompInner pos5 end (indexWord8OffAddr# pos5 0#))
+        then
+          (# True, pos5, P.slide cur 5#Word64 #)
+        else
+          let !newPos = plusAddr# pos (getCharWidth word) in
+          untilDocs newPos end (P.slide cur 1#Word64)
+
+
+getCharWidth :: Word8# -> Int#
+getCharWidth word
+  | isTrue# (ltWord8# word 0x80#Word8) = 1#
+  | isTrue# (ltWord8# word 0xc0#Word8) = error "Need UTF-8 encoded input. Ran into unrecognized bits."
+  | isTrue# (ltWord8# word 0xe0#Word8) = 2#
+  | isTrue# (ltWord8# word 0xf0#Word8) = 3#
+  | isTrue# (ltWord8# word 0xf8#Word8) = 4#
+  | True                               = error "Need UTF-8 encoded input. Ran into unrecognized bits."
 
 
 

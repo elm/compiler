@@ -19,6 +19,6 @@ You will need the [NSIS installer](http://nsis.sourceforge.net/Download) to be i
 
 Once everything is installed, run something like this command:
 
-    make_installer.cmd 0.19.0
+    make_installer.cmd path/to/elm.exe 0.19.0
 
 It will build an installer called `Elm-0.19.0-setup.exe`.

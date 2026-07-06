@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings, UnboxedTuples #-}
+{-# LANGUAGE BangPatterns, ExtendedLiterals, MagicHash, OverloadedStrings, UnboxedTuples #-}
 module Elm.ModuleName
   ( Raw
   , toChars
@@ -25,17 +25,18 @@ import Control.Monad (liftM2)
 import Data.Binary (Binary(..))
 import qualified Data.Name as Name
 import qualified Data.Utf8 as Utf8
-import Data.Word (Word8)
-import Foreign.Ptr (Ptr, plusPtr, minusPtr)
+import GHC.Exts (isTrue#)
+import GHC.Prim
 import Prelude hiding (maybe)
 import qualified System.FilePath as FP
 
+import qualified AST.Prim.Variable as Var
 import qualified Elm.Package as Pkg
 import qualified Json.Decode as D
 import qualified Json.Encode as E
-import qualified Parse.Variable as Var
 import qualified Parse.Primitives as P
-import Parse.Primitives (Row, Col)
+import Parse.Primitives (Cursor)
+import qualified Reporting.Annotation as A
 
 
 
@@ -69,59 +70,62 @@ encode =
   E.name
 
 
-decoder :: D.Decoder (Row, Col) Raw
+decoder :: D.Decoder A.Position Raw
 decoder =
-  D.customString parser (,)
+  D.customString parser A.Position
 
 
 
 -- PARSER
 
 
-parser :: P.Parser (Row, Col) Raw
+parser :: P.Parser A.Position Raw
 parser =
-  P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
+  P.Parser $ \_ (P.State pos end indent cur) cok _ cerr eerr ->
     let
-      (# isGood, newPos, newCol #) = chompStart pos end col
+      !(# isGood, newPos, newCur #) = chompStart pos end cur
     in
-    if isGood && minusPtr newPos pos < 256 then
-      let !newState = P.State src newPos end indent row newCol in
-      cok (Utf8.fromPtr pos newPos) newState
+    if isGood && isTrue# (minusAddr# newPos pos <# 256#) then
+      do  let !newState = P.State newPos end indent newCur
+          name <- Utf8.fromAddr pos newPos
+          cok name newState
 
-    else if col == newCol then
-      eerr row newCol (,)
+    else if P.eqAddr pos newPos then
+      eerr newCur A.Position
 
     else
-      cerr row newCol (,)
+      cerr newCur A.Position
 
 
-chompStart :: Ptr Word8 -> Ptr Word8 -> Col -> (# Bool, Ptr Word8, Col #)
-chompStart pos end col =
-  let
-    !width = Var.getUpperWidth pos end
-  in
-  if width == 0 then
-    (# False, pos, col #)
-  else
-    chompInner (plusPtr pos width) end (col + 1)
-
-
-chompInner :: Ptr Word8 -> Ptr Word8 -> Col -> (# Bool, Ptr Word8, Col #)
-chompInner pos end col =
-  if pos >= end then
-    (# True, pos, col #)
+chompStart :: Addr# -> Addr# -> Cursor -> (# Bool, Addr#, Cursor #)
+chompStart pos end cur =
+  if P.notLtAddr pos end
+  then (# False, pos, cur #)
   else
     let
-      !word = P.unsafeIndex pos
-      !width = Var.getInnerWidthHelp pos end word
+      !newPos = Var.chompUpper pos end (indexWord8OffAddr# pos 0#)
     in
-    if width == 0 then
-      if word == 0x2E {-.-} then
-        chompStart (plusPtr pos 1) end (col + 1)
-      else
-        (# True, pos, col #)
+    if P.eqAddr pos newPos then
+      (# False, pos, cur #)
     else
-      chompInner (plusPtr pos width) end (col + 1)
+      chompInner newPos end (P.slide cur 1#Word64)
+
+
+chompInner :: Addr# -> Addr# -> Cursor -> (# Bool, Addr#, Cursor #)
+chompInner pos end cur =
+  if P.notLtAddr pos end then
+    (# True, pos, cur #)
+  else
+    let
+      !word = indexWord8OffAddr# pos 0#
+      !newPos = Var.chompInner pos end word
+    in
+    if P.eqAddr pos newPos then
+      case word of
+        0x2E#Word8 {-.-} -> chompStart (plusAddr# pos 1#) end (P.slide cur 1#Word64)
+        _                -> (# True, pos, cur #)
+    else
+      chompInner newPos end (P.slide cur 1#Word64)
 
 
 

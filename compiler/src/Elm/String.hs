@@ -1,5 +1,7 @@
 {-# OPTIONS_GHC -Wall -fno-warn-name-shadowing #-}
-{-# LANGUAGE BangPatterns, EmptyDataDecls, FlexibleInstances #-}
+{-# LANGUAGE BangPatterns, EmptyDataDecls, ExtendedLiterals, FlexibleInstances,
+MagicHash, UnboxedTuples
+#-}
 module Elm.String
   ( String
   , toChars
@@ -12,14 +14,15 @@ module Elm.String
 
 import Prelude hiding (String)
 import Data.Binary (Binary, get, put)
-import Data.Bits ((.&.), shiftR)
 import qualified Data.ByteString.Builder as B
 import qualified Data.Utf8 as Utf8
-import Data.Utf8 (MBA, newByteArray, copyFromPtr, freeze, writeWord8)
-import GHC.Exts (RealWorld, Ptr)
+import Data.Utf8 (MBA, newByteArray, copyFromAddr, freeze, writeWord8)
+import GHC.Exts (isTrue#)
+import GHC.Int (Int(..))
 import GHC.IO (stToIO, unsafeDupablePerformIO)
+import GHC.Prim
 import GHC.ST (ST)
-import GHC.Word (Word8)
+import GHC.Word (Word8(..))
 
 
 
@@ -53,9 +56,9 @@ toBuilder =
 
 
 data Chunk
-  = Slice (Ptr Word8) Int
+  = Slice Addr# Int#
   | Escape Word8
-  | CodePoint Int
+  | CodePoint Word#
 
 
 fromChunks :: [Chunk] -> String
@@ -71,9 +74,9 @@ fromChunks chunks =
 chunkToWidth :: Chunk -> Int
 chunkToWidth chunk =
   case chunk of
-    Slice _ len -> len
+    Slice _ len -> I# len
     Escape _    -> 2
-    CodePoint c -> if c < 0xFFFF then 6 else 12
+    CodePoint c -> if isTrue# (ltWord# c 0xFFFF##) then 6 else 12
 
 
 writeChunks :: MBA RealWorld -> Int -> [Chunk] -> ST RealWorld ()
@@ -84,9 +87,9 @@ writeChunks mba offset chunks =
 
     chunk : chunks ->
       case chunk of
-        Slice ptr len ->
-          do  copyFromPtr ptr mba offset len
-              let !newOffset = offset + len
+        Slice addr len ->
+          do  copyFromAddr addr mba offset len
+              let !newOffset = offset + I# len
               writeChunks mba newOffset chunks
 
         Escape word ->
@@ -96,32 +99,32 @@ writeChunks mba offset chunks =
               writeChunks mba newOffset chunks
 
         CodePoint code ->
-          if code < 0xFFFF then
+          if isTrue# (ltWord# code 0xFFFF##) then
             do  writeCode mba offset code
                 let !newOffset = offset + 6
                 writeChunks mba newOffset chunks
           else
-            do  let (hi,lo) = divMod (code - 0x10000) 0x400
-                writeCode mba (offset    ) (hi + 0xD800)
-                writeCode mba (offset + 6) (lo + 0xDC00)
+            do  let !(# hi, lo #) = quotRemWord# (minusWord# code 0x10000##) 0x400##
+                writeCode mba (offset    ) (plusWord# hi 0xD800##)
+                writeCode mba (offset + 6) (plusWord# lo 0xDC00##)
                 let !newOffset = offset + 12
                 writeChunks mba newOffset chunks
 
 
-writeCode :: MBA RealWorld -> Int -> Int -> ST RealWorld ()
+writeCode :: MBA RealWorld -> Int -> Word# -> ST RealWorld ()
 writeCode mba offset code =
   do  writeWord8 mba offset 0x5C {- \ -}
       writeWord8 mba (offset + 1) 0x75 {- u -}
-      writeHex mba (offset + 2) (shiftR code 12)
-      writeHex mba (offset + 3) (shiftR code 8)
-      writeHex mba (offset + 4) (shiftR code 4)
+      writeHex mba (offset + 2) (uncheckedShiftRL# code 12#)
+      writeHex mba (offset + 3) (uncheckedShiftRL# code 8#)
+      writeHex mba (offset + 4) (uncheckedShiftRL# code 4#)
       writeHex mba (offset + 5) code
 
 
-writeHex :: MBA RealWorld -> Int -> Int -> ST RealWorld ()
-writeHex mba !offset !bits =
-  do  let !n = fromIntegral bits .&. 0x0F
-      writeWord8 mba offset (if n < 10 then 0x30 + n else 0x37 + n)
+writeHex :: MBA RealWorld -> Int -> Word# -> ST RealWorld ()
+writeHex mba !offset bits =
+  do  let !n = wordToWord8# (and# bits 0x0F##)
+      writeWord8 mba offset (W8# (if isTrue# (ltWord8# n 10#Word8) then plusWord8# 0x30#Word8 n else plusWord8# 0x37#Word8 n))
 
 
 

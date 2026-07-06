@@ -77,7 +77,7 @@ data Test
   | IsNil
   | IsTuple
   | IsInt Int
-  | IsChr ES.String
+  | IsChr Char
   | IsStr ES.String
   | IsBool Bool
   deriving (Eq, Ord)

@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiWayIf, OverloadedStrings #-}
+{-# LANGUAGE MagicHash, MultiWayIf, OverloadedStrings #-}
 module Elm.Outline
   ( Outline(..)
   , AppOutline(..)
@@ -21,7 +21,8 @@ import Data.Binary (Binary, get, put, getWord8, putWord8)
 import qualified Data.Map as Map
 import qualified Data.NonEmptyList as NE
 import qualified Data.OneOrMore as OneOrMore
-import Foreign.Ptr (minusPtr)
+import GHC.Exts (isTrue#)
+import GHC.Prim
 import qualified System.Directory as Dir
 import qualified System.FilePath as FP
 import System.FilePath ((</>))
@@ -187,9 +188,10 @@ encodeSrcDir srcDir =
 read :: FilePath -> IO (Either Exit.Outline Outline)
 read root =
   do  bytes <- File.readUtf8 (root </> "elm.json")
-      case D.fromByteString decoder bytes of
-        Left err ->
-          return $ Left (Exit.OutlineHasBadStructure err)
+      result <- D.fromByteString decoder bytes
+      case result of
+        Left x ->
+          return $ Left $ Exit.OutlineHasBadStructure x
 
         Right outline ->
           case outline of
@@ -311,19 +313,19 @@ pkgDecoder =
 
 nameDecoder :: Decoder Pkg.Name
 nameDecoder =
-  D.mapError (uncurry Exit.OP_BadPkgName) Pkg.decoder
+  D.mapError Exit.OP_BadPkgName Pkg.decoder
 
 
 summaryDecoder :: Decoder Json.String
 summaryDecoder =
   D.customString
-    (boundParser 80 Exit.OP_BadSummaryTooLong)
-    (\_ _ -> Exit.OP_BadSummaryTooLong)
+    (boundParser 80# Exit.OP_BadSummaryTooLong)
+    (\_ -> Exit.OP_BadSummaryTooLong)
 
 
 versionDecoder :: Decoder V.Version
 versionDecoder =
-  D.mapError (uncurry Exit.OP_BadVersion) V.decoder
+  D.mapError Exit.OP_BadVersion V.decoder
 
 
 constraintDecoder :: Decoder Con.Constraint
@@ -362,30 +364,33 @@ exposedDecoder =
 
 moduleDecoder :: Decoder ModuleName.Raw
 moduleDecoder =
-  D.mapError (uncurry Exit.OP_BadModuleName) ModuleName.decoder
+  D.mapError Exit.OP_BadModuleName ModuleName.decoder
 
 
 headerKeyDecoder :: D.KeyDecoder Exit.OutlineProblem Json.String
 headerKeyDecoder =
   D.KeyDecoder
-    (boundParser 20 Exit.OP_BadModuleHeaderTooLong)
-    (\_ _ -> Exit.OP_BadModuleHeaderTooLong)
+    (boundParser 20# Exit.OP_BadModuleHeaderTooLong)
+    (\_ -> Exit.OP_BadModuleHeaderTooLong)
 
 
 
 -- BOUND PARSER
 
 
-boundParser :: Int -> x -> P.Parser x Json.String
+boundParser :: Int# -> x -> P.Parser x Json.String
 boundParser bound tooLong =
-  P.Parser $ \(P.State src pos end indent row col) cok _ cerr _ ->
+  P.Parser $ \_ (P.State pos end indent cur) cok _ cerr _ ->
     let
-      len = minusPtr end pos
-      newCol = col + fromIntegral len
+      len = minusAddr# end pos
+      newCur = P.slide cur (wordToWord64# (int2Word# len))
     in
-    if len < bound
-    then cok (Json.fromPtr pos end) (P.State src end end indent row newCol)
-    else cerr row newCol (\_ _ -> tooLong)
+    if isTrue# (len <# bound)
+    then
+      do  str <- Json.fromAddr pos end
+          cok str (P.State end end indent newCur)
+    else
+      cerr newCur (\_ -> tooLong)
 
 
 

@@ -594,7 +594,8 @@ crawlModule foreignDeps mvar pkg src docsStatus name =
 crawlFile :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> ModuleName.Raw -> FilePath -> IO (Maybe Status)
 crawlFile foreignDeps mvar pkg src docsStatus expectedName path =
   do  bytes <- File.readUtf8 path
-      case Parse.fromByteString (Parse.Package pkg) bytes of
+      result <- Parse.fromByteString (Parse.Package pkg) bytes
+      case result of
         Right modul@(Src.Module (Just (A.At _ actualName)) _ _ imports _ _ _ _ _) | expectedName == actualName ->
           do  deps <- crawlImports foreignDeps mvar pkg src imports
               return (Just (SLocal docsStatus deps modul))
@@ -621,7 +622,8 @@ crawlKernel foreignDeps mvar pkg src name =
       if exists
         then
           do  bytes <- File.readUtf8 path
-              case Kernel.fromByteString pkg (Map.mapMaybe getDepHome foreignDeps) bytes of
+              result <- Kernel.fromByteString pkg (Map.mapMaybe getDepHome foreignDeps) bytes
+              case result of
                 Nothing ->
                   return Nothing
 
@@ -666,11 +668,9 @@ compile pkg mvar status =
                   return Nothing
 
                 Right (Compile.Artifacts canonical annotations objects) ->
-                  let
-                    ifaces = I.fromModule pkg canonical annotations
-                    docs = makeDocs docsStatus canonical
-                  in
-                  return (Just (RLocal ifaces objects docs))
+                  do  let ifaces = I.fromModule pkg canonical annotations
+                      docs <- makeDocs docsStatus canonical
+                      return $ Just $ RLocal ifaces objects docs
 
     SForeign iface ->
       return (Just (RForeign iface))
@@ -708,16 +708,17 @@ getDocsStatus cache pkg vsn =
         else return DocsNeeded
 
 
-makeDocs :: DocsStatus -> Can.Module -> Maybe Docs.Module
+makeDocs :: DocsStatus -> Can.Module -> IO (Maybe Docs.Module)
 makeDocs status modul =
   case status of
     DocsNeeded ->
-      case Docs.fromModule modul of
-        Right docs -> Just docs
-        Left _     -> Nothing
+      do  result <- Docs.fromModule modul
+          case result of
+            Right docs -> return $ Just docs
+            Left _     -> return $ Nothing
 
     DocsNotNeeded ->
-      Nothing
+      return Nothing
 
 
 writeDocs :: Stuff.PackageCache -> Pkg.Name -> V.Version -> DocsStatus -> Map.Map ModuleName.Raw Result -> IO ()
@@ -757,16 +758,17 @@ downloadPackage cache manager pkg vsn =
           return $ Left $ Exit.PP_BadEndpointRequest err
 
         Right byteString ->
-          case D.fromByteString endpointDecoder byteString of
-            Left _ ->
-              return $ Left $ Exit.PP_BadEndpointContent url
+          do  result <- D.fromByteString endpointDecoder byteString
+              case result of
+                Left _ ->
+                  return $ Left $ Exit.PP_BadEndpointContent url
 
-            Right (endpoint, expectedHash) ->
-              Http.getArchive manager endpoint Exit.PP_BadArchiveRequest (Exit.PP_BadArchiveContent endpoint) $
-                \(sha, archive) ->
-                  if expectedHash == Http.shaToChars sha
-                  then Right <$> File.writePackage (Stuff.package cache pkg vsn) archive
-                  else return $ Left $ Exit.PP_BadArchiveHash endpoint expectedHash (Http.shaToChars sha)
+                Right (endpoint, expectedHash) ->
+                  Http.getArchive manager endpoint Exit.PP_BadArchiveRequest (Exit.PP_BadArchiveContent endpoint) $
+                    \(sha, archive) ->
+                      if expectedHash == Http.shaToChars sha
+                      then Right <$> File.writePackage (Stuff.package cache pkg vsn) archive
+                      else return $ Left $ Exit.PP_BadArchiveHash endpoint expectedHash (Http.shaToChars sha)
 
 
 endpointDecoder :: D.Decoder e (String, String)

@@ -51,7 +51,7 @@ import qualified Http
 import qualified Json.Decode as Decode
 import qualified Json.Encode as Encode
 import qualified Json.String as Json
-import Parse.Primitives (Row, Col)
+import Parse.Primitives (Cursor)
 import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
 import qualified Reporting.Error.Import as Import
@@ -955,12 +955,12 @@ data Outline
 
 data OutlineProblem
   = OP_BadType
-  | OP_BadPkgName Row Col
-  | OP_BadVersion Row Col
+  | OP_BadPkgName A.Position
+  | OP_BadVersion A.Position
   | OP_BadConstraint C.Error
-  | OP_BadModuleName Row Col
+  | OP_BadModuleName A.Position
   | OP_BadModuleHeaderTooLong
-  | OP_BadDependencyName Row Col
+  | OP_BadDependencyName Cursor
   | OP_BadLicense Json.String [Json.String]
   | OP_BadSummaryTooLong
   | OP_NoSrcDirs
@@ -1047,8 +1047,8 @@ toOutlineReport problem =
 toOutlineProblemReport :: FilePath -> Code.Source -> Json.Context -> A.Region -> OutlineProblem -> Help.Report
 toOutlineProblemReport path source _ region problem =
   let
-    toHighlight row col =
-      Just $ A.Region (A.Position row col) (A.Position row col)
+    toHighlight cur =
+      Just $ A.Region cur cur
 
     toSnippet title highlight pair =
       Help.jsonReport title (Just path) $
@@ -1065,8 +1065,8 @@ toOutlineProblemReport path source _ region problem =
             ]
         )
 
-    OP_BadPkgName row col ->
-      toSnippet "INVALID PACKAGE NAME" (toHighlight row col)
+    OP_BadPkgName (A.Position cur) ->
+      toSnippet "INVALID PACKAGE NAME" (toHighlight cur)
         ( D.reflow $
             "I got stuck while reading your elm.json file. I ran into trouble with the package name:"
         , D.stack
@@ -1103,8 +1103,8 @@ toOutlineProblemReport path source _ region problem =
             ]
         )
 
-    OP_BadVersion row col ->
-      toSnippet "PROBLEM WITH VERSION" (toHighlight row col)
+    OP_BadVersion (A.Position cur) ->
+      toSnippet "PROBLEM WITH VERSION" (toHighlight cur)
         ( D.reflow $
             "I got stuck while reading your elm.json file. I was expecting a version number here:"
         , D.fillSep
@@ -1115,8 +1115,8 @@ toOutlineProblemReport path source _ region problem =
 
     OP_BadConstraint constraintError ->
       case constraintError of
-        C.BadFormat row col ->
-          toSnippet "PROBLEM WITH CONSTRAINT" (toHighlight row col)
+        C.BadFormat cur ->
+          toSnippet "PROBLEM WITH CONSTRAINT" (toHighlight cur)
             ( D.reflow $
                 "I got stuck while reading your elm.json file. I do not understand this version constraint:"
             , D.stack
@@ -1158,8 +1158,8 @@ toOutlineProblemReport path source _ region problem =
                   ]
               )
 
-    OP_BadModuleName row col ->
-      toSnippet "PROBLEM WITH MODULE NAME" (toHighlight row col)
+    OP_BadModuleName (A.Position cur) ->
+      toSnippet "PROBLEM WITH MODULE NAME" (toHighlight cur)
         ( D.reflow $
             "I got stuck while reading your elm.json file. I was expecting a module name here:"
         , D.fillSep
@@ -1187,8 +1187,8 @@ toOutlineProblemReport path source _ region problem =
             ]
         )
 
-    OP_BadDependencyName row col ->
-      toSnippet "PROBLEM WITH DEPENDENCY NAME" (toHighlight row col)
+    OP_BadDependencyName cur ->
+      toSnippet "PROBLEM WITH DEPENDENCY NAME" (toHighlight cur)
         ( D.reflow $
             "I got stuck while reading your elm.json file. There is something wrong with this dependency name:"
         , D.stack

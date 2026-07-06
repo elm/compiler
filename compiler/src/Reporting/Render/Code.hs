@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-incomplete-uni-patterns #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE MagicHash, OverloadedStrings #-}
 module Reporting.Render.Code
   ( Source
   , toSource
@@ -7,6 +7,7 @@ module Reporting.Render.Code
   , toPair
   , Next(..)
   , whatIsNext
+  , Outcome(..)
   , nextLineStartsWithKeyword
   , nextLineStartsWithCloseCurly
   )
@@ -20,14 +21,16 @@ import qualified Data.IntSet as IntSet
 import qualified Data.List as List
 import qualified Data.Name as Name
 import qualified Data.Set as Set
-import Data.Word (Word16)
+import GHC.Exts (Int(..))
+import GHC.Prim
+import GHC.Word (Word32)
 
+import Parse.Primitives (Cursor, newline)
+import Parse.Symbol (binopCharSet)
+import Parse.Variable (reservedWords)
 import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
 import Reporting.Doc (Doc)
-import Parse.Primitives (Row, Col)
-import Parse.Symbol (binopCharSet)
-import Parse.Variable (reservedWords)
 
 
 
@@ -35,12 +38,12 @@ import Parse.Variable (reservedWords)
 
 
 newtype Source =
-  Source [(Word16, String)]
+  Source [(Word32, String)]
 
 
 toSource :: B.ByteString -> Source
 toSource source =
-  Source $ zip [1..] $
+  Source $ zip [0..] $
     lines (UTF8_BS.toString source) ++ [""]
 
 
@@ -91,18 +94,23 @@ toPair source r1 r2 (oneStart, oneEnd) (twoStart, twoMiddle, twoEnd) =
 
 
 render :: Source -> A.Region -> Maybe A.Region -> Doc
-render (Source sourceLines) region@(A.Region (A.Position startLine _) (A.Position endLine _)) maybeSubRegion =
+render (Source sourceLines) region@(A.Region start end) maybeSubRegion =
   let
+    startLine = fromIntegral $ A.toRow start
+    endLine   = fromIntegral $ A.toRow end
+
     relevantLines =
       sourceLines
-        |> drop (fromIntegral (startLine - 1))
+        |> drop (fromIntegral startLine)
         |> take (fromIntegral (1 + endLine - startLine))
 
     width =
-      length (show (fst (last relevantLines)))
+      length (viewLineNumber (fst (last relevantLines)))
 
     smallerRegion =
-      maybe region id maybeSubRegion
+      case maybeSubRegion of
+        Just r  -> r
+        Nothing -> region
   in
     case makeUnderline width endLine smallerRegion of
       Nothing ->
@@ -112,36 +120,46 @@ render (Source sourceLines) region@(A.Region (A.Position startLine _) (A.Positio
         drawLines False width smallerRegion relevantLines underline
 
 
-makeUnderline :: Int -> Word16 -> A.Region -> Maybe Doc
-makeUnderline width realEndLine (A.Region (A.Position start c1) (A.Position end c2)) =
-  if start /= end || end < realEndLine then
+makeUnderline :: Int -> Word32 -> A.Region -> Maybe Doc
+makeUnderline width realEndLine (A.Region p1 p2) =
+  let
+    startLine = fromIntegral $ A.toRow p1
+    endLine   = fromIntegral $ A.toRow p2
+  in
+  if startLine /= endLine || endLine < realEndLine then
     Nothing
 
   else
     let
-      spaces = replicate (fromIntegral c1 + width + 1) ' '
+      c1     = A.toCol p1
+      c2     = A.toCol p2
+      spaces = replicate (fromIntegral c1 + width + 2) ' '
       zigzag = replicate (max 1 (fromIntegral (c2 - c1))) '^'
     in
       Just (D.fromChars spaces <> D.red (D.fromChars zigzag))
 
 
-drawLines :: Bool -> Int -> A.Region -> [(Word16, String)] -> Doc -> Doc
-drawLines addZigZag width (A.Region (A.Position startLine _) (A.Position endLine _)) sourceLines finalLine =
+drawLines :: Bool -> Int -> A.Region -> [(Word32, String)] -> Doc -> Doc
+drawLines addZigZag width (A.Region start end) sourceLines finalLine =
+  let
+    startLine = fromIntegral $ A.toRow start
+    endLine   = fromIntegral $ A.toRow end
+  in
   D.vcat $
     map (drawLine addZigZag width startLine endLine) sourceLines
     ++ [finalLine]
 
 
-drawLine :: Bool -> Int -> Word16 -> Word16 -> (Word16, String) -> Doc
+drawLine :: Bool -> Int -> Word32 -> Word32 -> (Word32, String) -> Doc
 drawLine addZigZag width startLine endLine (n, line) =
   addLineNumber addZigZag width startLine endLine n (D.fromChars line)
 
 
-addLineNumber :: Bool -> Int -> Word16 -> Word16 -> Word16 -> Doc -> Doc
+addLineNumber :: Bool -> Int -> Word32 -> Word32 -> Word32 -> Doc -> Doc
 addLineNumber addZigZag width start end n line =
   let
     number =
-      show n
+      viewLineNumber n
 
     lineNumber =
       replicate (width - length number) ' ' ++ number ++ "|"
@@ -155,6 +173,11 @@ addLineNumber addZigZag width start end n line =
     D.fromChars lineNumber <> spacer <> line
 
 
+viewLineNumber :: Word32 -> String
+viewLineNumber row =
+  show (row + 1)
+
+
 
 -- RENDER PAIR
 
@@ -165,20 +188,26 @@ data CodePair
 
 
 renderPair :: Source -> A.Region -> A.Region -> CodePair
-renderPair source@(Source sourceLines) region1 region2 =
+renderPair source@(Source sourceLines) r1@(A.Region s1 e1) r2@(A.Region s2 e2) =
   let
-    (A.Region (A.Position startRow1 startCol1) (A.Position endRow1 endCol1)) = region1
-    (A.Region (A.Position startRow2 startCol2) (A.Position endRow2 endCol2)) = region2
+    startRow1 = A.toRow s1
+    startCol1 = A.toCol s1
+    endRow1   = A.toRow e1
+    endCol1   = A.toCol e1
+    startRow2 = A.toRow s2
+    startCol2 = A.toCol s2
+    endRow2   = A.toRow e2
+    endCol2   = A.toCol e2
   in
   if startRow1 == endRow1 && endRow1 == startRow2 && startRow2 == endRow2 then
     let
       lineNumber = show startRow1
-      spaces1 = replicate (fromIntegral startCol1 + length lineNumber + 1) ' '
+      spaces1 = replicate (fromIntegral startCol1 + length lineNumber + 2) ' '
       zigzag1 = replicate (fromIntegral (endCol1 - startCol1)) '^'
       spaces2 = replicate (fromIntegral (startCol2 - endCol1)) ' '
       zigzag2 = replicate (fromIntegral (endCol2 - startCol2)) '^'
 
-      (Just line) = List.lookup startRow1 sourceLines
+      (_,line) = List.genericIndex sourceLines startRow1
     in
     OneLine $
       D.vcat
@@ -189,8 +218,8 @@ renderPair source@(Source sourceLines) region1 region2 =
 
   else
     TwoChunks
-      (render source region1 Nothing)
-      (render source region2 Nothing)
+      (render source r1 Nothing)
+      (render source r2 Nothing)
 
 
 
@@ -206,14 +235,14 @@ data Next
   | Other (Maybe Char)
 
 
-whatIsNext :: Source -> Row -> Col -> Next
-whatIsNext (Source sourceLines) row col =
+whatIsNext :: Source -> Cursor -> Next
+whatIsNext (Source sourceLines) cur =
   case List.lookup row sourceLines of
     Nothing ->
       Other Nothing
 
     Just line ->
-      case drop (fromIntegral col - 1) line of
+      case drop (col - 1) line of
         [] ->
           Other Nothing
 
@@ -225,6 +254,9 @@ whatIsNext (Source sourceLines) row col =
           | c == ']'       -> Close "square bracket" ']'
           | c == '}'       -> Close "curly brace" '}'
           | otherwise      -> Other (Just c)
+  where
+    row = fromIntegral $ A.toRow cur
+    col = fromIntegral $ A.toCol cur
 
 
 detectKeywords :: Char -> [Char] -> Next
@@ -260,29 +292,41 @@ startsWithKeyword restOfLine keyword =
       not (isInner c)
 
 
-nextLineStartsWithKeyword :: [Char] -> Source -> Row -> Maybe (Row, Col)
-nextLineStartsWithKeyword keyword (Source sourceLines) row =
-  case List.lookup (row + 1) sourceLines of
+data Outcome
+  = Yes Cursor
+  | No
+
+
+nextLineStartsWithKeyword :: [Char] -> Source -> Cursor -> Outcome
+nextLineStartsWithKeyword keyword (Source sourceLines) cur =
+  case List.lookup next sourceLines of
     Nothing ->
-      Nothing
+      No
 
     Just line ->
-      if startsWithKeyword (dropWhile (==' ') line) keyword then
-        Just (row + 1, 1 + fromIntegral (length (takeWhile (==' ') line)))
-      else
-        Nothing
+      if startsWithKeyword (List.dropWhile (==' ') line) keyword
+      then Yes (newline cur `plusWord64#` countSpaces line)
+      else No
+  where
+    next = fromIntegral (A.toRow cur) + 1
 
 
-nextLineStartsWithCloseCurly :: Source -> Row -> Maybe (Row, Col)
-nextLineStartsWithCloseCurly (Source sourceLines) row =
-  case List.lookup (row + 1) sourceLines of
+nextLineStartsWithCloseCurly :: Source -> Cursor -> Outcome
+nextLineStartsWithCloseCurly (Source sourceLines) cur =
+  case List.lookup next sourceLines of
     Nothing ->
-      Nothing
+      No
 
     Just line ->
-      case dropWhile (==' ') line of
-        '}':_ ->
-          Just (row + 1, 1 + fromIntegral (length (takeWhile (==' ') line)))
+      case List.dropWhile (==' ') line of
+        '}':_ -> Yes (newline cur `plusWord64#` countSpaces line)
+        _     -> No
+  where
+    next = fromIntegral (A.toRow cur) + 1
 
-        _ ->
-          Nothing
+
+countSpaces :: String -> Word64#
+countSpaces line =
+  case List.length (List.takeWhile (==' ') line) of
+    I# len ->
+      wordToWord64# (int2Word# len)

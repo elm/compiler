@@ -5,6 +5,7 @@ module Data.Utf8
   , isEmpty
   , empty
   , size
+  , size#
   , contains
   , startsWith
   , startsWithChar
@@ -22,13 +23,14 @@ module Data.Utf8
   , toBuilder
   , toEscapedBuilder
   --
-  , fromPtr
+  , fromAddr
   , fromSnippet
   , fromChars
   --
   , MBA
   , newByteArray
   , copyFromPtr
+  , copyFromAddr
   , writeWord8
   , freeze
   )
@@ -75,8 +77,8 @@ empty =
 
 
 isEmpty :: Utf8 t -> Bool
-isEmpty (Utf8 ba#) =
-  isTrue# (sizeofByteArray# ba# ==# 0#)
+isEmpty (Utf8 ba) =
+  isTrue# (sizeofByteArray# ba ==# 0#)
 
 
 
@@ -84,8 +86,13 @@ isEmpty (Utf8 ba#) =
 
 
 size :: Utf8 t -> Int
-size (Utf8 ba#) =
-  I# (sizeofByteArray# ba#)
+size (Utf8 ba) =
+  I# (sizeofByteArray# ba)
+
+
+size# :: Utf8 t -> Int#
+size# (Utf8 ba) =
+  sizeofByteArray# ba
 
 
 
@@ -93,16 +100,16 @@ size (Utf8 ba#) =
 
 
 contains :: Word8 -> Utf8 t -> Bool
-contains (W8# word#) (Utf8 ba#) =
-  containsHelp word# ba# 0# (sizeofByteArray# ba#)
+contains (W8# word#) (Utf8 ba) =
+  containsHelp word# ba 0# (sizeofByteArray# ba)
 
 
 containsHelp :: Word8# -> ByteArray# -> Int# -> Int# -> Bool
-containsHelp word# ba# !offset# len# =
+containsHelp word# ba !offset# len# =
   if isTrue# (offset# <# len#) then
-    if isTrue# (eqWord8# word# (indexWord8Array# ba# offset#))
+    if isTrue# (eqWord8# word# (indexWord8Array# ba offset#))
       then True
-      else containsHelp word# ba# (offset# +# 1#) len#
+      else containsHelp word# ba (offset# +# 1#) len#
   else
     False
 
@@ -128,17 +135,17 @@ startsWith (Utf8 ba1#) (Utf8 ba2#) =
 
 
 startsWithChar :: (Char -> Bool) -> Utf8 t -> Bool
-startsWithChar isGood bytes@(Utf8 ba#) =
+startsWithChar isGood bytes@(Utf8 ba) =
   if isEmpty bytes then
     False
   else
     let
-      !w# = word8ToWord# (indexWord8Array# ba# 0#)
+      !w# = word8ToWord# (indexWord8Array# ba 0#)
       !char
         | isTrue# (ltWord# w# 0xC0##) = C# (chr# (word2Int# w#))
-        | isTrue# (ltWord# w# 0xE0##) = chr2 ba# 0# w#
-        | isTrue# (ltWord# w# 0xF0##) = chr3 ba# 0# w#
-        | True                        = chr4 ba# 0# w#
+        | isTrue# (ltWord# w# 0xE0##) = chr2 ba 0# w#
+        | isTrue# (ltWord# w# 0xF0##) = chr3 ba 0# w#
+        | True                        = chr4 ba 0# w#
     in
     isGood char
 
@@ -148,11 +155,11 @@ startsWithChar isGood bytes@(Utf8 ba#) =
 
 
 endsWithWord8 :: Word8 -> Utf8 t -> Bool
-endsWithWord8 (W8# w#) (Utf8 ba#) =
-  let len# = sizeofByteArray# ba# in
+endsWithWord8 (W8# w#) (Utf8 ba) =
+  let len# = sizeofByteArray# ba in
   isTrue# (len# ># 0#)
   &&
-  isTrue# (eqWord8# w# (indexWord8Array# ba# (len# -# 1#)))
+  isTrue# (eqWord8# w# (indexWord8Array# ba (len# -# 1#)))
 
 
 
@@ -160,8 +167,8 @@ endsWithWord8 (W8# w#) (Utf8 ba#) =
 
 
 split :: Word8 -> Utf8 t -> [Utf8 t]
-split (W8# divider#) str@(Utf8 ba#) =
-  splitHelp str 0 (findDividers divider# ba# 0# (sizeofByteArray# ba#) [])
+split (W8# divider#) str@(Utf8 ba) =
+  splitHelp str 0 (findDividers divider# ba 0# (sizeofByteArray# ba) [])
 
 
 splitHelp :: Utf8 t -> Int -> [Int] -> [Utf8 t]
@@ -175,10 +182,10 @@ splitHelp str start offsets =
 
 
 findDividers :: Word8# -> ByteArray# -> Int# -> Int# -> [Int] -> [Int]
-findDividers divider# ba# !offset# len# revOffsets =
+findDividers divider# ba !offset# len# revOffsets =
   if isTrue# (offset# <# len#) then
-    findDividers divider# ba# (offset# +# 1#) len# $
-      if isTrue# (eqWord8# divider# (indexWord8Array# ba# offset#))
+    findDividers divider# ba (offset# +# 1#) len# $
+      if isTrue# (eqWord8# divider# (indexWord8Array# ba offset#))
       then I# offset# : revOffsets
       else revOffsets
   else
@@ -331,34 +338,34 @@ getWidth char
 
 
 toChars :: Utf8 t -> [Char]
-toChars (Utf8 ba#) =
-  toCharsHelp ba# 0# (sizeofByteArray# ba#)
+toChars (Utf8 ba) =
+  toCharsHelp ba 0# (sizeofByteArray# ba)
 
 
 toCharsHelp :: ByteArray# -> Int# -> Int# -> [Char]
-toCharsHelp ba# offset# len# =
+toCharsHelp ba offset# len# =
   if isTrue# (offset# >=# len#) then
     []
   else
     let
-      !w# = word8ToWord# (indexWord8Array# ba# offset#)
+      !w# = word8ToWord# (indexWord8Array# ba offset#)
       !(# char, width# #)
         | isTrue# (ltWord# w# 0xC0##) = (# C# (chr# (word2Int# w#)), 1# #)
-        | isTrue# (ltWord# w# 0xE0##) = (# chr2 ba# offset# w#, 2# #)
-        | isTrue# (ltWord# w# 0xF0##) = (# chr3 ba# offset# w#, 3# #)
-        | True                        = (# chr4 ba# offset# w#, 4# #)
+        | isTrue# (ltWord# w# 0xE0##) = (# chr2 ba offset# w#, 2# #)
+        | isTrue# (ltWord# w# 0xF0##) = (# chr3 ba offset# w#, 3# #)
+        | True                        = (# chr4 ba offset# w#, 4# #)
 
       !newOffset# = offset# +# width#
     in
-    char : toCharsHelp ba# newOffset# len#
+    char : toCharsHelp ba newOffset# len#
 
 
 {-# INLINE chr2 #-}
 chr2 :: ByteArray# -> Int# -> Word# -> Char
-chr2 ba# offset# firstWord# =
+chr2 ba offset# firstWord# =
   let
     !i1# = word2Int# firstWord#
-    !i2# = word2Int# (word8ToWord# (indexWord8Array# ba# (offset# +# 1#)))
+    !i2# = word2Int# (word8ToWord# (indexWord8Array# ba (offset# +# 1#)))
     !c1# = uncheckedIShiftL# (i1# -# 0xC0#) 6#
     !c2# = i2# -# 0x80#
   in
@@ -367,11 +374,11 @@ chr2 ba# offset# firstWord# =
 
 {-# INLINE chr3 #-}
 chr3 :: ByteArray# -> Int# -> Word# -> Char
-chr3 ba# offset# firstWord# =
+chr3 ba offset# firstWord# =
   let
     !i1# = word2Int# firstWord#
-    !i2# = word2Int# (word8ToWord# (indexWord8Array# ba# (offset# +# 1#)))
-    !i3# = word2Int# (word8ToWord# (indexWord8Array# ba# (offset# +# 2#)))
+    !i2# = word2Int# (word8ToWord# (indexWord8Array# ba (offset# +# 1#)))
+    !i3# = word2Int# (word8ToWord# (indexWord8Array# ba (offset# +# 2#)))
     !c1# = uncheckedIShiftL# (i1# -# 0xE0#) 12#
     !c2# = uncheckedIShiftL# (i2# -# 0x80#) 6#
     !c3# = i3# -# 0x80#
@@ -381,12 +388,12 @@ chr3 ba# offset# firstWord# =
 
 {-# INLINE chr4 #-}
 chr4 :: ByteArray# -> Int# -> Word# -> Char
-chr4 ba# offset# firstWord# =
+chr4 ba offset# firstWord# =
   let
     !i1# = word2Int# firstWord#
-    !i2# = word2Int# (word8ToWord# (indexWord8Array# ba# (offset# +# 1#)))
-    !i3# = word2Int# (word8ToWord# (indexWord8Array# ba# (offset# +# 2#)))
-    !i4# = word2Int# (word8ToWord# (indexWord8Array# ba# (offset# +# 3#)))
+    !i2# = word2Int# (word8ToWord# (indexWord8Array# ba (offset# +# 1#)))
+    !i3# = word2Int# (word8ToWord# (indexWord8Array# ba (offset# +# 2#)))
+    !i4# = word2Int# (word8ToWord# (indexWord8Array# ba (offset# +# 3#)))
     !c1# = uncheckedIShiftL# (i1# -# 0xF0#) 18#
     !c2# = uncheckedIShiftL# (i2# -# 0x80#) 12#
     !c3# = uncheckedIShiftL# (i3# -# 0x80#) 6#
@@ -407,8 +414,8 @@ toBuilder =
 
 {-# INLINE toBuilderHelp #-}
 toBuilderHelp :: Utf8 t -> B.BuildStep a -> B.BuildStep a
-toBuilderHelp !bytes@(Utf8 ba#) k =
-    go 0 (I# (sizeofByteArray# ba#))
+toBuilderHelp !bytes@(Utf8 ba) k =
+    go 0 (I# (sizeofByteArray# ba))
   where
     go !offset !end !(B.BufferRange bOffset bEnd) =
       let
@@ -437,8 +444,8 @@ toEscapedBuilder before after =
 
 {-# INLINE toEscapedBuilderHelp #-}
 toEscapedBuilderHelp :: Word8 -> Word8 -> Utf8 t -> B.BuildStep a -> B.BuildStep a
-toEscapedBuilderHelp before after !name@(Utf8 ba#) k =
-    go 0 (I# (sizeofByteArray# ba#))
+toEscapedBuilderHelp before after !name@(Utf8 ba) k =
+    go 0 (I# (sizeofByteArray# ba))
   where
     go !offset !len !(B.BufferRange bOffset bEnd) =
       let
@@ -459,9 +466,9 @@ toEscapedBuilderHelp before after !name@(Utf8 ba#) k =
 
 
 escape :: Word8 -> Word8 -> Ptr a -> Utf8 t -> Int -> Int -> Int -> IO ()
-escape before@(W8# before#) after ptr name@(Utf8 ba#) offset@(I# offset#) len@(I# len#) i@(I# i#) =
+escape before@(W8# before#) after ptr name@(Utf8 ba) offset@(I# offset#) len@(I# len#) i@(I# i#) =
   if isTrue# (i# <# len#) then
-    if isTrue# (eqWord8# before# (indexWord8Array# ba# (offset# +# i#)))
+    if isTrue# (eqWord8# before# (indexWord8Array# ba (offset# +# i#)))
     then
       do  writeWordToPtr ptr i after
           escape before after ptr name offset len (i + 1)
@@ -476,28 +483,31 @@ escape before@(W8# before#) after ptr name@(Utf8 ba#) offset@(I# offset#) len@(I
 -- FROM PTR
 
 
-fromPtr :: Ptr Word8 -> Ptr Word8 -> Utf8 t
-fromPtr pos end =
-  unsafeDupablePerformIO (stToIO (
-    do  let !len = minusPtr end pos
-        mba <- newByteArray len
-        copyFromPtr pos mba 0 len
-        freeze mba
-  ))
+fromAddr :: Addr# -> Addr# -> IO (Utf8 t)
+fromAddr pos end =
+  IO $ \s0 ->
+    let
+      !len = minusAddr# end pos
+    in
+    case newByteArray# len s0                   of { (# s1, mba #) ->
+    case copyAddrToByteArray# pos mba 0# len s1 of {    s2         ->
+    case unsafeFreezeByteArray# mba s2          of { (# s3, ba  #) -> (# s3, Utf8 ba #) }}}
 
 
 
 -- FROM SNIPPET
 
 
-fromSnippet :: P.Snippet -> Utf8 t
-fromSnippet (P.Snippet fptr off len _ _) =
-  unsafeDupablePerformIO (stToIO (
-    do  mba <- newByteArray len
-        let !pos = plusPtr (unsafeForeignPtrToPtr fptr) off
-        copyFromPtr pos mba 0 len
-        freeze mba
-  ))
+fromSnippet :: P.Snippet -> IO (Utf8 t)
+fromSnippet (P.Snippet fpc pos end _) =
+  IO $ \s0 ->
+    let
+      !len = minusAddr# end pos
+    in
+    case newByteArray# len                   s0 of { (# s1, mba #) ->
+    case copyAddrToByteArray# pos mba 0# len s1 of {    s2         ->
+    case touch# fpc                          s2 of {    s3         ->
+    case unsafeFreezeByteArray# mba          s3 of { (# s4, ba  #) -> (# s4, Utf8 ba #) }}}}
 
 
 
@@ -559,42 +569,49 @@ newByteArray :: Int -> ST s (MBA s) -- PERF see if newPinnedByteArray for len > 
 newByteArray (I# len#) =
   ST $ \s ->
     case newByteArray# len# s of
-      (# s, mba# #) -> (# s, MBA# mba# #)
+      (# s, mba #) -> (# s, MBA# mba #)
 
 
 freeze :: MBA s -> ST s (Utf8 t)
-freeze (MBA# mba#) =
+freeze (MBA# mba) =
   ST $ \s ->
-    case unsafeFreezeByteArray# mba# s of
-      (# s, ba# #) -> (# s, Utf8 ba# #)
+    case unsafeFreezeByteArray# mba s of
+      (# s, ba #) -> (# s, Utf8 ba #)
 
 
 copy :: Utf8 t -> Int -> MBA s -> Int -> Int -> ST s ()
-copy (Utf8 ba#) (I# offset#) (MBA# mba#) (I# i#) (I# len#) =
+copy (Utf8 ba) (I# offset#) (MBA# mba) (I# i#) (I# len#) =
   ST $ \s ->
-    case copyByteArray# ba# offset# mba# i# len# s of
+    case copyByteArray# ba offset# mba i# len# s of
       s -> (# s, () #)
 
 
 copyFromPtr :: Ptr a -> MBA RealWorld -> Int -> Int -> ST RealWorld ()
-copyFromPtr (Ptr src#) (MBA# mba#) (I# offset#) (I# len#) =
+copyFromPtr (Ptr src) (MBA# mba) (I# offset#) (I# len#) =
   ST $ \s ->
-    case copyAddrToByteArray# src# mba# offset# len# s of
+    case copyAddrToByteArray# src mba offset# len# s of
+      s -> (# s, () #)
+
+
+copyFromAddr :: Addr# -> MBA RealWorld -> Int -> Int# -> ST RealWorld ()
+copyFromAddr src (MBA# mba) (I# offset#) len# =
+  ST $ \s ->
+    case copyAddrToByteArray# src mba offset# len# s of
       s -> (# s, () #)
 
 
 copyToPtr :: Utf8 t -> Int -> Ptr a -> Int -> IO ()
-copyToPtr (Utf8 ba#) (I# offset#) (Ptr mba#) (I# len#) =
+copyToPtr (Utf8 ba) (I# offset#) (Ptr mba) (I# len#) =
   IO $ \s ->
-    case copyByteArrayToAddr# ba# offset# mba# len# s of
+    case copyByteArrayToAddr# ba offset# mba len# s of
       s -> (# s, () #)
 
 
 {-# INLINE writeWord8 #-}
 writeWord8 :: MBA s -> Int -> Word8 -> ST s ()
-writeWord8 (MBA# mba#) (I# offset#) (W8# w#) =
+writeWord8 (MBA# mba) (I# offset#) (W8# w#) =
   ST $ \s ->
-    case writeWord8Array# mba# offset# w# s of
+    case writeWord8Array# mba offset# w# s of
       s -> (# s, () #)
 
 

@@ -1,39 +1,40 @@
 # Based initially on https://gist.github.com/rlefevre/1523f47e75310e28eee243c9c5651ac9
 #
 # Build Linux x64 binary from elm compiler top-level directory:
-# $ docker build -t elm -f installers/linux/Dockerfile .
 #
-# Retrieve elm Linux binary:
-# $ docker cp $(docker create elm):/usr/local/bin/elm DESTINATION_DIRECTORY
+#     container build --arch=amd64 --tag=elm --file=installers/linux/Dockerfile .
 #
-# Delete docker elm image:
-# $ docker rmi elm
+# Retrieve the Linux binary:
 #
-# Display all images:
-# $ docker images -a
+#     container run --name=elm --arch=amd64 --detach elm sleep infinity
+#     container copy elm:/usr/local/bin/elm ~/Desktop
+#     container stop --all
+#     container prune
+#     container image prune --all
+#     container system df
 #
-# Delete all unused docker images:
-# $ docker system prune -a
 
-# Use Alpine 3.11 with GHC 8.6.5
-FROM alpine:3.11
+FROM alpine:3.17
 
-# Install packages required to build elm
-RUN apk add --no-cache ghc cabal wget musl-dev zlib-dev zlib-static ncurses-dev ncurses-static
+RUN apk add --no-cache curl pkgconfig build-base musl-dev zlib-dev zlib-static gmp-dev ncurses-dev ncurses-static
 
 WORKDIR /elm
 
-# Import source code
+ARG GHCUP_INSTALL_BASE_PREFIX=/elm
+ARG PATH="${PATH}:/elm/.ghcup/bin"
+RUN curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 BOOTSTRAP_HASKELL_MINIMAL=1 sh
+RUN ghcup install ghc --set 9.8.4
+RUN ghcup install cabal --set 3.12.1.0
+
+RUN cabal update
+
+COPY elm.cabal ./
 COPY builder builder
 COPY compiler compiler
 COPY reactor reactor
 COPY terminal terminal
-COPY cabal.config elm.cabal LICENSE ./
+COPY src src
 
-# Build statically linked elm binary
-RUN cabal new-update
-RUN cabal new-build --ghc-option=-optl=-static --ghc-option=-split-sections
-RUN cp ./dist-newstyle/build/x86_64-linux/ghc-*/elm-*/x/elm/build/elm/elm /usr/local/bin/elm
-
-# Remove debug symbols to optimize the binary size
+RUN cabal build elm --enable-executable-static --ghc-option=-split-sections
+RUN cp $(cabal list-bin elm) /usr/local/bin/elm
 RUN strip -s /usr/local/bin/elm

@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, ExtendedLiterals, OverloadedStrings #-}
 module Deps.Registry
   ( Registry(..)
   , KnownVersions(..)
@@ -140,14 +140,14 @@ newPkgDecoder =
 
 newPkgParser :: P.Parser () (Pkg.Name, V.Version)
 newPkgParser =
-  do  pkg <- P.specialize (\_ _ _ -> ()) Pkg.parser
-      P.word1 0x40 {-@-} bail
-      vsn <- P.specialize (\_ _ _ -> ()) V.parser
+  do  pkg <- P.specialize (\_ _ -> ()) Pkg.parser
+      P.word1 0x40#Word8 {-@-} bail
+      vsn <- P.specialize (\_ _ -> ()) V.parser
       return (pkg, vsn)
 
 
-bail :: row -> col -> ()
-bail _ _ =
+bail :: P.Cursor -> ()
+bail _ =
   ()
 
 
@@ -193,9 +193,10 @@ post manager path decoder callback =
   in
   Http.post manager url [] Exit.RP_Http $
     \body ->
-      case D.fromByteString decoder body of
-        Right a -> Right <$> callback a
-        Left _ -> return $ Left $ Exit.RP_Data url body
+      do  result <- D.fromByteString decoder body
+          case result of
+            Right a -> Right <$> callback a
+            Left _ -> return $ Left $ Exit.RP_Data url body
 
 
 

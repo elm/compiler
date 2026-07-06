@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ExtendedLiterals, OverloadedStrings #-}
 module Parse.Expression
   ( expression
   )
@@ -67,7 +67,7 @@ number start =
 
 accessor :: A.Position -> Parser E.Expr Src.Expr
 accessor start =
-  do  word1 0x2E {-.-} E.Dot
+  do  word1 0x2E#Word8 {-.-} E.Dot
       field <- Var.lower E.Access
       addEnd start (Src.Accessor field)
 
@@ -81,7 +81,7 @@ variable start =
 accessible :: A.Position -> Src.Expr -> Parser E.Expr Src.Expr
 accessible start expr =
   oneOfWithFallback
-    [ do  word1 0x2E {-.-} E.Dot
+    [ do  word1 0x2E#Word8 {-.-} E.Dot
           pos <- getPosition
           field <- Var.lower E.Access
           end <- getPosition
@@ -97,13 +97,13 @@ accessible start expr =
 
 list :: A.Position -> Parser E.Expr Src.Expr
 list start =
-  inContext E.List (word1 0x5B {-[-} E.Start) $
+  inContext E.List (word1 0x5B#Word8 {-[-} E.Start) $
     do  Space.chompAndCheckIndent E.ListSpace E.ListIndentOpen
         oneOf E.ListOpen
           [ do  (entry, end) <- specialize E.ListExpr expression
                 Space.checkIndent end E.ListIndentEnd
                 chompListEnd start [entry]
-          , do  word1 0x5D {-]-} E.ListOpen
+          , do  word1 0x5D#Word8 {-]-} E.ListOpen
                 addEnd start (Src.List [])
           ]
 
@@ -111,12 +111,12 @@ list start =
 chompListEnd :: A.Position -> [Src.Expr] -> Parser E.List Src.Expr
 chompListEnd start entries =
   oneOf E.ListEnd
-    [ do  word1 0x2C {-,-} E.ListEnd
+    [ do  word1 0x2C#Word8 {-,-} E.ListEnd
           Space.chompAndCheckIndent E.ListSpace E.ListIndentExpr
           (entry, end) <- specialize E.ListExpr expression
           Space.checkIndent end E.ListIndentEnd
           chompListEnd start (entry:entries)
-    , do  word1 0x5D {-]-} E.ListEnd
+    , do  word1 0x5D#Word8 {-]-} E.ListEnd
           addEnd start (Src.List (reverse entries))
     ]
 
@@ -126,8 +126,8 @@ chompListEnd start entries =
 
 
 tuple :: A.Position -> Parser E.Expr Src.Expr
-tuple start@(A.Position row col) =
-  inContext E.Tuple (word1 0x28 {-(-} E.Start) $
+tuple start@(A.Position startCur) =
+  inContext E.Tuple (word1 0x28#Word8 {-(-} E.Start) $
     do  before <- getPosition
         Space.chompAndCheckIndent E.TupleSpace E.TupleIndentExpr1
         after <- getPosition
@@ -144,24 +144,25 @@ tuple start@(A.Position row col) =
                       then
                         oneOf E.TupleOperatorClose
                           [
-                            do  word1 0x29 {-)-} E.TupleOperatorClose
+                            do  word1 0x29#Word8 {-)-} E.TupleOperatorClose
                                 addEnd start (Src.Op op)
                           ,
                             do  (entry, end) <-
                                   specialize E.TupleExpr $
-                                    do  negatedExpr@(A.At (A.Region _ end) _) <- term
+                                    do  negatedExpr@(A.At (A.Region _ e) _) <- term
+                                        let end = A.Position e
                                         Space.chomp E.Space
-                                        let exprStart = A.Position row (col + 2)
+                                        let exprStart = A.Position (P.slide startCur 2#Word64)
                                         let expr = A.at exprStart end (Src.Negate negatedExpr)
                                         chompExprEnd exprStart (State [] expr [] end)
                                 Space.checkIndent end E.TupleIndentEnd
                                 chompTupleEnd start entry []
                           ]
                       else
-                        do  word1 0x29 {-)-} E.TupleOperatorClose
+                        do  word1 0x29#Word8 {-)-} E.TupleOperatorClose
                             addEnd start (Src.Op op)
               ,
-                do  word1 0x29 {-)-} E.TupleIndentExpr1
+                do  word1 0x29#Word8 {-)-} E.TupleIndentExpr1
                     addEnd start Src.Unit
               ,
                 do  (entry, end) <- specialize E.TupleExpr expression
@@ -173,12 +174,12 @@ tuple start@(A.Position row col) =
 chompTupleEnd :: A.Position -> Src.Expr -> [Src.Expr] -> Parser E.Tuple Src.Expr
 chompTupleEnd start firstExpr revExprs =
   oneOf E.TupleEnd
-    [ do  word1 0x2C {-,-} E.TupleEnd
+    [ do  word1 0x2C#Word8 {-,-} E.TupleEnd
           Space.chompAndCheckIndent E.TupleSpace E.TupleIndentExprN
           (entry, end) <- specialize E.TupleExpr expression
           Space.checkIndent end E.TupleIndentEnd
           chompTupleEnd start firstExpr (entry : revExprs)
-    , do  word1 0x29 {-)-} E.TupleEnd
+    , do  word1 0x29#Word8 {-)-} E.TupleEnd
           case reverse revExprs of
             [] ->
               return firstExpr
@@ -194,20 +195,20 @@ chompTupleEnd start firstExpr revExprs =
 
 record :: A.Position -> Parser E.Expr Src.Expr
 record start =
-  inContext E.Record (word1 0x7B {- { -} E.Start) $
+  inContext E.Record (word1 0x7B#Word8 {- { -} E.Start) $
     do  Space.chompAndCheckIndent E.RecordSpace E.RecordIndentOpen
         oneOf E.RecordOpen
-          [ do  word1 0x7D {-}-} E.RecordOpen
+          [ do  word1 0x7D#Word8 {-}-} E.RecordOpen
                 addEnd start (Src.Record [])
           , do  starter <- addLocation (Var.lower E.RecordField)
                 Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
                 oneOf E.RecordEquals
-                  [ do  word1 0x7C {-|-} E.RecordEquals
+                  [ do  word1 0x7C#Word8 {-|-} E.RecordEquals
                         Space.chompAndCheckIndent E.RecordSpace E.RecordIndentField
                         firstField <- chompField
                         fields <- chompFields [firstField]
                         addEnd start (Src.Update starter fields)
-                  , do  word1 0x3D {-=-} E.RecordEquals
+                  , do  word1 0x3D#Word8 {-=-} E.RecordEquals
                         Space.chompAndCheckIndent E.RecordSpace E.RecordIndentExpr
                         (value, end) <- specialize E.RecordExpr expression
                         Space.checkIndent end E.RecordIndentEnd
@@ -223,11 +224,11 @@ type Field = ( A.Located Name.Name, Src.Expr )
 chompFields :: [Field] -> Parser E.Record [Field]
 chompFields fields =
   oneOf E.RecordEnd
-    [ do  word1 0x2C {-,-} E.RecordEnd
+    [ do  word1 0x2C#Word8 {-,-} E.RecordEnd
           Space.chompAndCheckIndent E.RecordSpace E.RecordIndentField
           f <- chompField
           chompFields (f : fields)
-    , do  word1 0x7D {-}-} E.RecordEnd
+    , do  word1 0x7D#Word8 {-}-} E.RecordEnd
           return (reverse fields)
     ]
 
@@ -236,7 +237,7 @@ chompField :: Parser E.Record Field
 chompField =
   do  key <- addLocation (Var.lower E.RecordField)
       Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
-      word1 0x3D {-=-} E.RecordEquals
+      word1 0x3D#Word8 {-=-} E.RecordEquals
       Space.chompAndCheckIndent E.RecordSpace E.RecordIndentExpr
       (value, end) <- specialize E.RecordExpr expression
       Space.checkIndent end E.RecordIndentEnd
@@ -286,13 +287,13 @@ chompExprEnd start (State ops expr args end) =
           op@(A.At (A.Region opStart opEnd) opName) <- addLocation (Symbol.operator E.Start E.OperatorReserved)
           Space.chompAndCheckIndent E.Space (E.IndentOperatorRight opName)
           newStart <- getPosition
-          if "-" == opName && end /= opStart && opEnd == newStart
+          if "-" == opName && end /= A.Position opStart && A.Position opEnd == newStart
             then
               -- negative terms
               do  negatedExpr <- term
                   newEnd <- getPosition
                   Space.chomp E.Space
-                  let arg = A.at opStart newEnd (Src.Negate negatedExpr)
+                  let arg = A.at (A.Position opStart) newEnd (Src.Negate negatedExpr)
                   chompExprEnd start (State ops expr (arg:args) newEnd)
             else
               let err = E.OperatorRight opName in
@@ -336,7 +337,7 @@ chompExprEnd start (State ops expr args end) =
 possiblyNegativeTerm :: A.Position -> Parser E.Expr Src.Expr
 possiblyNegativeTerm start =
   oneOf E.Start
-    [ do  word1 0x2D {---} E.Start
+    [ do  word1 0x2D#Word8 {---} E.Start
           expr <- term
           addEnd start (Src.Negate expr)
     , term
@@ -392,7 +393,7 @@ chompIfEnd start branches =
 
 function :: A.Position -> Space.Parser E.Expr Src.Expr
 function start =
-  inContext E.Func (word1 0x5C {-\-} E.Start) $
+  inContext E.Func (word1 0x5C#Word8 {-\-} E.Start) $
     do  Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArg
         arg <- specialize E.FuncArg Pattern.term
         Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArrow
@@ -409,7 +410,7 @@ chompArgs revArgs =
     [ do  arg <- specialize E.FuncArg Pattern.term
           Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArrow
           chompArgs (arg:revArgs)
-    , do  word2 0x2D 0x3E {-->-} E.FuncArrow
+    , do  word2 0x2D#Word8 0x3E#Word8 {-->-} E.FuncArrow
           return revArgs
     ]
 
@@ -439,7 +440,7 @@ chompBranch :: Space.Parser E.Case (Src.Pattern, Src.Expr)
 chompBranch =
   do  (pattern, patternEnd) <- specialize E.CasePattern Pattern.expression
       Space.checkIndent patternEnd E.CaseIndentArrow
-      word2 0x2D 0x3E {-->-} E.CaseArrow
+      word2 0x2D#Word8 0x3E#Word8 {-->-} E.CaseArrow
       Space.chompAndCheckIndent E.CaseSpace E.CaseIndentBranch
       (branchExpr, end) <- specialize E.CaseBranch expression
       return ( (pattern, branchExpr), end )
@@ -507,12 +508,13 @@ chompLetDef =
 
 definition :: Space.Parser E.Let (A.Located Src.Def)
 definition =
-  do  aname@(A.At (A.Region start _) name) <- addLocation (Var.lower E.LetDefName)
+  do  aname@(A.At (A.Region s _) name) <- addLocation (Var.lower E.LetDefName)
+      let start = A.Position s
       specialize (E.LetDef name) $
         do  Space.chompAndCheckIndent E.DefSpace E.DefIndentEquals
             oneOf E.DefEquals
               [
-                do  word1 0x3A {-:-} E.DefEquals
+                do  word1 0x3A#Word8 {-:-} E.DefEquals
                     Space.chompAndCheckIndent E.DefSpace E.DefIndentType
                     (tipe, _) <- specialize E.DefType Type.expression
                     Space.checkAligned E.DefAlignment
@@ -530,7 +532,7 @@ chompDefArgsAndBody start name tipe revArgs =
     [ do  arg <- specialize E.DefArg Pattern.term
           Space.chompAndCheckIndent E.DefSpace E.DefIndentEquals
           chompDefArgsAndBody start name tipe (arg : revArgs)
-    , do  word1 0x3D {-=-} E.DefEquals
+    , do  word1 0x3D#Word8 {-=-} E.DefEquals
           Space.chompAndCheckIndent E.DefSpace E.DefIndentBody
           (body, end) <- specialize E.DefBody expression
           return
@@ -543,21 +545,21 @@ chompDefArgsAndBody start name tipe revArgs =
 chompMatchingName :: Name.Name -> Parser E.Def (A.Located Name.Name)
 chompMatchingName expectedName =
   let
-    (P.Parser parserL) = Var.lower E.DefNameRepeat
+    (P.Parser k) = Var.lower E.DefNameRepeat
   in
-  P.Parser $ \state@(P.State _ _ _ _ sr sc) cok eok cerr eerr ->
+  P.Parser $ \fpc state@(P.State _ _ _ startCur) cok eok cerr eerr ->
     let
-      cokL name newState@(P.State _ _ _ _ er ec) =
+      cokL name newState@(P.State _ _ _ endCur) =
         if expectedName == name
-        then cok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
-        else cerr sr sc (E.DefNameMatch name)
+        then cok (A.At (A.Region startCur endCur) name) newState
+        else cerr startCur (E.DefNameMatch name)
 
-      eokL name newState@(P.State _ _ _ _ er ec) =
+      eokL name newState@(P.State _ _ _ endCur) =
         if expectedName == name
-        then eok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
-        else eerr sr sc (E.DefNameMatch name)
+        then eok (A.At (A.Region startCur endCur) name) newState
+        else eerr startCur (E.DefNameMatch name)
     in
-    parserL state cokL eokL cerr eerr
+    k fpc state cokL eokL cerr eerr
 
 
 
@@ -571,7 +573,7 @@ destructure =
   do  start <- getPosition
       pattern <- specialize E.DestructPattern Pattern.term
       Space.chompAndCheckIndent E.DestructSpace E.DestructIndentEquals
-      word1 0x3D {-=-} E.DestructEquals
+      word1 0x3D#Word8 {-=-} E.DestructEquals
       Space.chompAndCheckIndent E.DestructSpace E.DestructIndentBody
       (expr, end) <- specialize E.DestructBody expression
       return ( A.at start end (Src.Destruct pattern expr), end )

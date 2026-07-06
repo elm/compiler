@@ -17,9 +17,9 @@ The binary packages declare which OS and CPU they are compatible with. For examp
 The main npm package depend on the binary packages via [optional dependencies](https://docs.npmjs.com/cli/v9/configuring-npm/package-json#optionaldependencies):
 
 ```json
-    "@elm_binaries/darwin_arm64": "0.19.1-0",
-    "@elm_binaries/darwin_x64": "0.19.1-0",
-    "@elm_binaries/linux_arm64": "0.19.1-0",
+    "@elm_binaries/darwin_arm64": "0.19.2-0",
+    "@elm_binaries/darwin_x64": "0.19.2-0",
+    "@elm_binaries/linux_arm64": "0.19.2-0",
     ...
 ```
 
@@ -30,11 +30,11 @@ When installing, `npm` fetches the metadata for all the optional dependencies an
 
 Create a [GitHub Release](https://github.com/elm/compiler/releases) with the following files:
 
-1. `binary-for-mac-64-bit.gz`
-2. `binary-for-mac-arm-64-bit.gz`
-3. `binary-for-linux-64-bit.gz`
-4. `binary-for-linux-arm-64-bit.gz`
-5. `binary-for-windows-64-bit.gz`
+1. `elm-0.19.2-mac-x64.gz`
+2. `elm-0.19.2-mac-arm.gz`
+3. `elm-0.19.2-linux-x64.gz`
+4. `elm-0.19.2-linux-arm.gz`
+5. `elm-0.19.2-windows-x64.gz`
 
 Create each of these by running the `elm` executable for each platform through `gzip elm`.
 
@@ -59,8 +59,8 @@ Repeat this for all the packages mentioned in the previous section. This uses `p
 1. Go to the folder: `cd packages/darwin_arm64`
 2. Double-check that you put the right binary in the right package: `file elm`
 3. Double-check that the file is executable: `ls -l elm`
-4. In `package.json` of the binary package, bump the version for example to `"0.19.1-2"`.
-5. In `package.json` of the main npm package, update `"optionalDependencies"` to point to the bumped version. For example: `"@elm_binaries/darwin_arm64": "0.19.1-2"`
+4. In `package.json` of the binary package, bump the version for example to `"0.19.2-2"`.
+5. In `package.json` of the main npm package, update `"optionalDependencies"` to point to the bumped version. For example: `"@elm_binaries/darwin_arm64": "0.19.2-2"`
 6. Publish the package: `npm publish --access=public`
 
    `--access=public` is needed because scoped packages are private by default.
@@ -70,12 +70,12 @@ Repeat this for all the packages mentioned in the previous section. This uses `p
 
 - End users never have to think about them. They only need to think about the version of the main npm package.
 
-- The binary packages can have different versions. One can have `"0.19.1-0"` while another is at `"0.19.1-1"`. This is useful if you mess up publishing one platform: Then you can bump just that one and re-release, instead of having to re-release _all_ platforms.
+- The binary packages can have different versions. One can have `"0.19.2-0"` while another is at `"0.19.2-1"`. This is useful if you mess up publishing one platform: Then you can bump just that one and re-release, instead of having to re-release _all_ platforms.
 
-- The version of the main npm package is not related to the versions of the binary packages – they’re all independent. So the main npm package can be at `"0.19.1-6"` while the binary packages have suffixes like `-0`, `-1` and `-9`. (They all share the `0.19.1` prefix though to make things more understandable!)
+- The version of the main npm package is not related to the versions of the binary packages – they’re all independent. So the main npm package can be at `"0.19.2-6"` while the binary packages have suffixes like `-0`, `-1` and `-9`. (They all share the `0.19.2` prefix though to make things more understandable!)
 
 - The main npm package pins the versions of the binary packages _exactly_ – no version ranges.
-  - This means that installing `elm@0.19.1-6` installs the exact same bytes in two years as today.
+  - This means that installing `elm@0.19.2-6` installs the exact same bytes in two years as today.
   - The `package.json` of each binary package says which OS and CPU it works for. `binary.js` in the main npm package has code that deals with OS and CPU too, so the main npm package needs to install binary packages with known OS and CPU declarations.
 
 - There is no need to use `beta` suffixes for the binary packages. Just bump the number suffix and point to it in a beta release of the main npm package. As mentioned above:
@@ -116,17 +116,17 @@ npm publish
 ```
 
 
-## 6. Tag the `latest-0.19.1` version
+## 6. Tag the `latest-0.19.2` version
 
 Many compiler releases have needed multiple `npm` publications. Maybe something does not work on Windows or some dependency becomes insecure. Normal `npm` problems.
 
 The convention for each Elm release is to create a tag the latest one.
 
 ```bash
-npm dist-tag add elm@0.19.1-3 latest-0.19.1
+npm dist-tag add elm@0.19.2-3 latest-0.19.2
 ```
 
-That way people who want a specific version can point to `latest-0.19.1` or `latest-0.18.0` instead of knowing the particular names of all the various publications.
+That way people who want a specific version can point to `latest-0.19.2` or `latest-0.18.0` instead of knowing the particular names of all the various publications.
 
 You can read more about dist-tags [here](https://docs.npmjs.com/cli/dist-tag).
 

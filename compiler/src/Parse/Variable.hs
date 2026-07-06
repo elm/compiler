@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, MagicHash, OverloadedStrings, UnboxedTuples #-}
+{-# LANGUAGE BangPatterns, ExtendedLiterals, MagicHash, OverloadedStrings, UnboxedTuples #-}
 module Parse.Variable
   ( lower
   , upper
@@ -6,25 +6,21 @@ module Parse.Variable
   , Upper(..)
   , foreignUpper
   , foreignAlpha
-  , chompInnerChars
-  , getUpperWidth
-  , getInnerWidth
-  , getInnerWidthHelp
+  --
   , reservedWords
+  --
+  , chompInnerChars
   )
   where
 
 
-import qualified Data.Char as Char
 import qualified Data.Name as Name
 import qualified Data.Set as Set
-import Data.Word (Word8)
-import Foreign.Ptr (Ptr, plusPtr)
-import GHC.Exts (Char(C#), Int#, (+#), (-#), chr#, uncheckedIShiftL#, word2Int#, word8ToWord#)
-import GHC.Word (Word8(W8#))
+import GHC.Prim
 
 import qualified AST.Source as Src
-import Parse.Primitives (Parser, Row, Col, unsafeIndex)
+import qualified AST.Prim.Variable as Var
+import Parse.Primitives (Parser, Cursor, eqAddr, ltAddr, eqIndex, slide)
 import qualified Parse.Primitives as P
 
 
@@ -32,37 +28,36 @@ import qualified Parse.Primitives as P
 -- LOCAL UPPER
 
 
-upper :: (Row -> Col -> x) -> Parser x Name.Name
+upper :: (Cursor -> x) -> Parser x Name.Name
 upper toError =
-  P.Parser $ \(P.State src pos end indent row col) cok _ _ eerr ->
-    let (# newPos, newCol #) = chompUpper pos end col in
-    if pos == newPos then
-      eerr row col toError
+  P.Parser $ \_ (P.State pos end indent cur) cok _ _ eerr ->
+    let !(# newPos, newCur #) = chompUpper pos end cur in
+    if eqAddr pos newPos then
+      eerr cur toError
     else
-      let !name = Name.fromPtr pos newPos in
-      cok name (P.State src newPos end indent row newCol)
+      do  name <- Name.fromAddr pos newPos
+          cok name (P.State newPos end indent newCur)
 
 
 
 -- LOCAL LOWER
 
 
-lower :: (Row -> Col -> x) -> Parser x Name.Name
+lower :: (Cursor -> x) -> Parser x Name.Name
 lower toError =
-  P.Parser $ \(P.State src pos end indent row col) cok _ _ eerr ->
-    let (# newPos, newCol #) = chompLower pos end col in
-    if pos == newPos then
-      eerr row col toError
+  P.Parser $ \_ (P.State pos end indent cur) cok _ _ eerr ->
+    let !(# newPos, newCur #) = chompLower pos end cur in
+    if eqAddr pos newPos then
+      eerr cur toError
     else
-      let !name = Name.fromPtr pos newPos in
-      if Set.member name reservedWords then
-        eerr row col toError
-      else
-        let
-          !newState =
-            P.State src newPos end indent row newCol
-        in
-        cok name newState
+      do  name <- Name.fromAddr pos newPos
+          if Set.member name reservedWords
+            then eerr cur toError
+            else
+              let
+                !newState = P.State newPos end indent newCur
+              in
+              cok name newState
 
 
 {-# NOINLINE reservedWords #-}
@@ -84,28 +79,26 @@ reservedWords =
 -- MODULE NAME
 
 
-moduleName :: (Row -> Col -> x) -> Parser x Name.Name
+moduleName :: (Cursor -> x) -> Parser x Name.Name
 moduleName toError =
-  P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
+  P.Parser $ \_ (P.State pos end indent cur) cok _ cerr eerr ->
     let
-      (# pos1, col1 #) = chompUpper pos end col
+      !(# pos1, cur1 #) = chompUpper pos end cur
     in
-    if pos == pos1 then
-      eerr row col toError
+    if eqAddr pos pos1 then
+      eerr cur toError
     else
       let
-        (# status, newPos, newCol #) = moduleNameHelp pos1 end col1
+        !(# status, newPos, newCur #) = moduleNameHelp pos1 end cur1
       in
       case status of
         Good ->
-          let
-            !name = Name.fromPtr pos newPos
-            !newState = P.State src newPos end indent row newCol
-          in
-          cok name newState
+          do  name <- Name.fromAddr pos newPos
+              let !newState = P.State newPos end indent newCur
+              cok name newState
 
         Bad ->
-          cerr row newCol toError
+          cerr newCur toError
 
 
 data ModuleNameStatus
@@ -113,20 +106,20 @@ data ModuleNameStatus
   | Bad
 
 
-moduleNameHelp :: Ptr Word8 -> Ptr Word8 -> Col -> (# ModuleNameStatus, Ptr Word8, Col #)
-moduleNameHelp pos end col =
+moduleNameHelp :: Addr# -> Addr# -> Cursor -> (# ModuleNameStatus, Addr#, Cursor #)
+moduleNameHelp pos end cur =
   if isDot pos end then
     let
-      !pos1 = plusPtr pos 1
-      (# newPos, newCol #) = chompUpper pos1 end (col + 1)
+      !pos1 = plusAddr# pos 1#
+      !(# newPos, newCur #) = chompUpper pos1 end (slide cur 1#Word64)
     in
-    if pos1 == newPos then
-      (# Bad, newPos, newCol #)
+    if eqAddr pos1 newPos then
+      (# Bad, newPos, newCur #)
     else
-      moduleNameHelp newPos end newCol
+      moduleNameHelp newPos end newCur
 
   else
-    (# Good, pos, col #)
+    (# Good, pos, cur #)
 
 
 
@@ -138,86 +131,82 @@ data Upper
   | Qualified Name.Name Name.Name
 
 
-foreignUpper :: (Row -> Col -> x) -> Parser x Upper
+foreignUpper :: (Cursor -> x) -> Parser x Upper
 foreignUpper toError =
-  P.Parser $ \(P.State src pos end indent row col) cok _ _ eerr ->
-    let (# upperStart, upperEnd, newCol #) = foreignUpperHelp pos end col in
-    if upperStart == upperEnd then
-      eerr row newCol toError
+  P.Parser $ \_ (P.State pos end indent cur) cok _ _ eerr ->
+    let !(# upperStart, upperEnd, newCur #) = foreignUpperHelp pos end cur in
+    if eqAddr upperStart upperEnd then
+      eerr newCur toError
     else
-      let
-        !newState = P.State src upperEnd end indent row newCol
-        !name = Name.fromPtr upperStart upperEnd
-        !upperName =
-          if upperStart == pos then
-            Unqualified name
-          else
-            let !home = Name.fromPtr pos (plusPtr upperStart (-1)) in
-            Qualified home name
-      in
-      cok upperName newState
+      do  let !newState = P.State upperEnd end indent newCur
+          !upperName <-
+            if eqAddr upperStart pos
+            then Unqualified <$> Name.fromAddr upperStart upperEnd
+            else
+              do  !home <- Name.fromAddr pos (plusAddr# upperStart (-1#))
+                  !name <- Name.fromAddr upperStart upperEnd
+                  return (Qualified home name)
+          cok upperName newState
 
 
-foreignUpperHelp :: Ptr Word8 -> Ptr Word8 -> Col -> (# Ptr Word8, Ptr Word8, Col #)
-foreignUpperHelp pos end col =
+foreignUpperHelp :: Addr# -> Addr# -> Cursor -> (# Addr#, Addr#, Cursor #)
+foreignUpperHelp pos end cur =
   let
-    (# newPos, newCol #) = chompUpper pos end col
+    !(# newPos, newCur #) = chompUpper pos end cur
   in
-  if pos == newPos then
-    (# pos, pos, col #)
+  if eqAddr pos newPos then
+    (# pos, pos, cur #)
 
   else if isDot newPos end then
-    foreignUpperHelp (plusPtr newPos 1) end (newCol + 1)
+    foreignUpperHelp (plusAddr# newPos 1#) end (slide newCur 1#Word64)
 
   else
-    (# pos, newPos, newCol #)
+    (# pos, newPos, newCur #)
 
 
 
 -- FOREIGN ALPHA
 
 
-foreignAlpha :: (Row -> Col -> x) -> Parser x Src.Expr_
+foreignAlpha :: (Cursor -> x) -> Parser x Src.Expr_
 foreignAlpha toError =
-  P.Parser $ \(P.State src pos end indent row col) cok _ _ eerr ->
-    let (# alphaStart, alphaEnd, newCol, varType #) = foreignAlphaHelp pos end col in
-    if alphaStart == alphaEnd then
-      eerr row newCol toError
+  P.Parser $ \_ (P.State pos end indent cur) cok _ _ eerr ->
+    let !(# alphaStart, alphaEnd, newCur, varType #) = foreignAlphaHelp pos end cur in
+    if eqAddr alphaStart alphaEnd then
+      eerr newCur toError
     else
-      let
-        !newState = P.State src alphaEnd end indent row newCol
-        !name = Name.fromPtr alphaStart alphaEnd
-      in
-      if alphaStart == pos then
-        if Set.member name reservedWords then
-          eerr row col toError
-        else
-          cok (Src.Var varType name) newState
-      else
-        let !home = Name.fromPtr pos (plusPtr alphaStart (-1)) in
-        cok (Src.VarQual varType home name) newState
+      do  let !newState = P.State alphaEnd end indent newCur
+          name <- Name.fromAddr alphaStart alphaEnd
+          if eqAddr alphaStart pos
+            then
+              if Set.member name reservedWords
+              then eerr cur toError
+              else cok (Src.Var varType name) newState
+            else
+              do  home <- Name.fromAddr pos (plusAddr# alphaStart (-1#))
+                  cok (Src.VarQual varType home name) newState
 
 
-foreignAlphaHelp :: Ptr Word8 -> Ptr Word8 -> Col -> (# Ptr Word8, Ptr Word8, Col, Src.VarType #)
-foreignAlphaHelp pos end col =
+foreignAlphaHelp :: Addr# -> Addr# -> Cursor -> (# Addr#, Addr#, Cursor, Src.VarType #)
+foreignAlphaHelp pos end cur =
   let
-    (# lowerPos, lowerCol #) = chompLower pos end col
+    !(# lowerPos, lowerCur #) = chompLower pos end cur
   in
-  if pos < lowerPos then
-    (# pos, lowerPos, lowerCol, Src.LowVar #)
+  if ltAddr pos lowerPos then
+    (# pos, lowerPos, lowerCur, Src.LowVar #)
 
   else
     let
-      (# upperPos, upperCol #) = chompUpper pos end col
+      !(# upperPos, upperCur #) = chompUpper pos end cur
     in
-    if pos == upperPos then
-      (# pos, pos, col, Src.CapVar #)
+    if eqAddr pos upperPos then
+      (# pos, pos, cur, Src.CapVar #)
 
     else if isDot upperPos end then
-      foreignAlphaHelp (plusPtr upperPos 1) end (upperCol + 1)
+      foreignAlphaHelp (plusAddr# upperPos 1#) end (slide upperCur 1#Word64)
 
     else
-      (# pos, upperPos, upperCol, Src.CapVar #)
+      (# pos, upperPos, upperCur, Src.CapVar #)
 
 
 
@@ -229,158 +218,61 @@ foreignAlphaHelp pos end col =
 
 
 {-# INLINE isDot #-}
-isDot :: Ptr Word8 -> Ptr Word8 -> Bool
+isDot :: Addr# -> Addr# -> Bool
 isDot pos end =
-  pos < end && unsafeIndex pos == 0x2e {- . -}
+  ltAddr pos end && eqIndex pos 0# 0x2e#Word8 {-.-}
 
 
 
 -- UPPER CHARS
 
 
-chompUpper :: Ptr Word8 -> Ptr Word8 -> Col -> (# Ptr Word8, Col #)
-chompUpper pos end col =
-  let !width = getUpperWidth pos end in
-  if width == 0 then
-    (# pos, col #)
+chompUpper :: Addr# -> Addr# -> Cursor -> (# Addr#, Cursor #)
+chompUpper pos end cur =
+  if ltAddr pos end
+  then
+    let
+      !next = Var.chompUpper pos end (indexWord8OffAddr# pos 0#)
+    in
+    if eqAddr pos next
+    then (# pos, cur #)
+    else chompInnerChars next end (slide cur 1#Word64)
   else
-    chompInnerChars (plusPtr pos width) end (col + 1)
-
-
-{-# INLINE getUpperWidth #-}
-getUpperWidth :: Ptr Word8 -> Ptr Word8 -> Int
-getUpperWidth pos end =
-  if pos < end then
-    getUpperWidthHelp pos end (unsafeIndex pos)
-  else
-    0
-
-
-{-# INLINE getUpperWidthHelp #-}
-getUpperWidthHelp :: Ptr Word8 -> Ptr Word8 -> Word8 -> Int
-getUpperWidthHelp pos _ word
-  | 0x41 {- A -} <= word && word <= 0x5A {- Z -} = 1
-  | word < 0xc0 = 0
-  | word < 0xe0 = if Char.isUpper (chr2 pos word) then 2 else 0
-  | word < 0xf0 = if Char.isUpper (chr3 pos word) then 3 else 0
-  | word < 0xf8 = if Char.isUpper (chr4 pos word) then 4 else 0
-  | True        = 0
+    (# pos, cur #)
 
 
 
 -- LOWER CHARS
 
 
-chompLower :: Ptr Word8 -> Ptr Word8 -> Col -> (# Ptr Word8, Col #)
-chompLower pos end col =
-  let !width = getLowerWidth pos end in
-  if width == 0 then
-    (# pos, col #)
+chompLower :: Addr# -> Addr# -> Cursor -> (# Addr#, Cursor #)
+chompLower pos end cur =
+  if ltAddr pos end
+  then
+    let
+      !next = Var.chompLower pos end (indexWord8OffAddr# pos 0#)
+    in
+    if ltAddr pos next
+    then chompInnerChars next end (slide cur 1#Word64)
+    else (# pos, cur #)
   else
-    chompInnerChars (plusPtr pos width) end (col + 1)
-
-
-{-# INLINE getLowerWidth #-}
-getLowerWidth :: Ptr Word8 -> Ptr Word8 -> Int
-getLowerWidth pos end =
-  if pos < end then
-    getLowerWidthHelp pos end (unsafeIndex pos)
-  else
-    0
-
-
-{-# INLINE getLowerWidthHelp #-}
-getLowerWidthHelp :: Ptr Word8 -> Ptr Word8 -> Word8 -> Int
-getLowerWidthHelp pos _ word
-  | 0x61 {- a -} <= word && word <= 0x7A {- z -} = 1
-  | word < 0xc0 = 0
-  | word < 0xe0 = if Char.isLower (chr2 pos word) then 2 else 0
-  | word < 0xf0 = if Char.isLower (chr3 pos word) then 3 else 0
-  | word < 0xf8 = if Char.isLower (chr4 pos word) then 4 else 0
-  | True        = 0
+    (# pos, cur #)
 
 
 
 -- INNER CHARS
 
 
-chompInnerChars :: Ptr Word8 -> Ptr Word8 -> Col -> (# Ptr Word8, Col #)
-chompInnerChars !pos end !col =
-  let !width = getInnerWidth pos end in
-  if width == 0 then
-    (# pos, col #)
+chompInnerChars :: Addr# -> Addr# -> Cursor -> (# Addr#, Cursor #)
+chompInnerChars pos end !cur =
+  if ltAddr pos end
+  then
+    let
+      !next = Var.chompInner pos end (indexWord8OffAddr# pos 0#)
+    in
+    if ltAddr pos next
+    then chompInnerChars next end (slide cur 1#Word64)
+    else (# pos, cur #)
   else
-    chompInnerChars (plusPtr pos width) end (col + 1)
+    (# pos, cur #)
 
-
-getInnerWidth :: Ptr Word8 -> Ptr Word8 -> Int
-getInnerWidth pos end =
-  if pos < end then
-    getInnerWidthHelp pos end (unsafeIndex pos)
-  else
-    0
-
-
-{-# INLINE getInnerWidthHelp #-}
-getInnerWidthHelp :: Ptr Word8 -> Ptr Word8 -> Word8 -> Int
-getInnerWidthHelp pos _ word
-  | 0x61 {- a -} <= word && word <= 0x7A {- z -} = 1
-  | 0x41 {- A -} <= word && word <= 0x5A {- Z -} = 1
-  | 0x30 {- 0 -} <= word && word <= 0x39 {- 9 -} = 1
-  | word == 0x5F {- _ -} = 1
-  | word < 0xc0 = 0
-  | word < 0xe0 = if Char.isAlpha (chr2 pos word) then 2 else 0
-  | word < 0xf0 = if Char.isAlpha (chr3 pos word) then 3 else 0
-  | word < 0xf8 = if Char.isAlpha (chr4 pos word) then 4 else 0
-  | True        = 0
-
-
-
--- EXTRACT CHARACTERS
-
-
-{-# INLINE chr2 #-}
-chr2 :: Ptr Word8 -> Word8 -> Char
-chr2 pos firstWord =
-  let
-    !i1# = unpack firstWord
-    !i2# = unpack (unsafeIndex (plusPtr pos 1))
-    !c1# = uncheckedIShiftL# (i1# -# 0xC0#) 6#
-    !c2# = i2# -# 0x80#
-  in
-  C# (chr# (c1# +# c2#))
-
-
-{-# INLINE chr3 #-}
-chr3 :: Ptr Word8 -> Word8 -> Char
-chr3 pos firstWord =
-  let
-    !i1# = unpack firstWord
-    !i2# = unpack (unsafeIndex (plusPtr pos 1))
-    !i3# = unpack (unsafeIndex (plusPtr pos 2))
-    !c1# = uncheckedIShiftL# (i1# -# 0xE0#) 12#
-    !c2# = uncheckedIShiftL# (i2# -# 0x80#) 6#
-    !c3# = i3# -# 0x80#
-  in
-  C# (chr# (c1# +# c2# +# c3#))
-
-
-{-# INLINE chr4 #-}
-chr4 :: Ptr Word8 -> Word8 -> Char
-chr4 pos firstWord =
-  let
-    !i1# = unpack firstWord
-    !i2# = unpack (unsafeIndex (plusPtr pos 1))
-    !i3# = unpack (unsafeIndex (plusPtr pos 2))
-    !i4# = unpack (unsafeIndex (plusPtr pos 3))
-    !c1# = uncheckedIShiftL# (i1# -# 0xF0#) 18#
-    !c2# = uncheckedIShiftL# (i2# -# 0x80#) 12#
-    !c3# = uncheckedIShiftL# (i3# -# 0x80#) 6#
-    !c4# = i4# -# 0x80#
-  in
-  C# (chr# (c1# +# c2# +# c3# +# c4#))
-
-
-unpack :: Word8 -> Int#
-unpack (W8# word#) =
-  word2Int# (word8ToWord# word#)

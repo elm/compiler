@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ExtendedLiterals, OverloadedStrings #-}
 module Parse.Module
   ( fromByteString
   , ProjectType(..)
@@ -30,11 +30,12 @@ import qualified Reporting.Error.Syntax as E
 -- FROM BYTE STRING
 
 
-fromByteString :: ProjectType -> BS.ByteString -> Either E.Error Src.Module
+fromByteString :: ProjectType -> BS.ByteString -> IO (Either E.Error Src.Module)
 fromByteString projectType source =
-  case P.fromByteString (chompModule projectType) E.ModuleBadEnd source of
-    Right modul -> checkModule projectType modul
-    Left err    -> Left (E.ParseError err)
+  do  result <- P.fromByteString (chompModule projectType) E.ModuleBadEnd source
+      case result of
+        Right modul -> return $ checkModule projectType modul
+        Left err    -> return $ Left $ E.ParseError err
 
 
 
@@ -98,7 +99,7 @@ checkModule projectType (Module maybeHeader imports infixes decls) =
 
     Nothing ->
       Right $
-        Src.Module Nothing (A.At A.one Src.Open) (Src.NoDocs A.one) imports values unions aliases infixes $
+        Src.Module Nothing (A.At A.zero Src.Open) (Src.NoDocs A.zero) imports values unions aliases infixes $
           case ports of
             [] -> Src.NoEffects
             _:_ -> Src.Ports ports
@@ -190,7 +191,7 @@ addComment maybeComment (A.At _ name) comments =
 -- FRESH LINES
 
 
-freshLine :: (Row -> Col -> E.Module) -> Parser E.Module ()
+freshLine :: (Cursor -> E.Module) -> Parser E.Module ()
 freshLine toFreshLineError =
   do  Space.chomp E.ModuleSpace
       Space.checkFreshLine toFreshLineError
@@ -267,7 +268,7 @@ chompHeader =
               exports <- addLocation (specialize E.ModuleExposing exposing)
               comment <- chompModuleDocCommentSpace
               return $ Just $
-                Header name (NoEffects (A.Region start effectEnd)) exports comment
+                Header name (NoEffects (A.region start effectEnd)) exports comment
         ,
           -- port module MyThing exposing (..)
           do  Keyword.port_ E.PortModuleProblem
@@ -282,7 +283,7 @@ chompHeader =
               exports <- addLocation (specialize E.PortModuleExposing exposing)
               comment <- chompModuleDocCommentSpace
               return $ Just $
-                Header name (Ports (A.Region start effectEnd)) exports comment
+                Header name (Ports (A.region start effectEnd)) exports comment
         ,
           -- effect module MyThing where { command = MyCmd } exposing (..)
           do  Keyword.effect_ E.Effect
@@ -301,7 +302,7 @@ chompHeader =
               exports <- addLocation (specialize (const E.Effect) exposing)
               comment <- chompModuleDocCommentSpace
               return $ Just $
-                Header name (Manager (A.Region start effectEnd) manager) exports comment
+                Header name (Manager (A.region start effectEnd) manager) exports comment
         ]
         -- default header
         Nothing
@@ -309,34 +310,34 @@ chompHeader =
 
 chompManager :: Parser E.Module Src.Manager
 chompManager =
-  do  word1 0x7B {- { -} E.Effect
+  do  word1 0x7B#Word8 {- { -} E.Effect
       spaces_em
       oneOf E.Effect
         [ do  cmd <- chompCommand
               spaces_em
               oneOf E.Effect
-                [ do  word1 0x7D {-}-} E.Effect
+                [ do  word1 0x7D#Word8 {-}-} E.Effect
                       spaces_em
                       return (Src.Cmd cmd)
-                , do  word1 0x2C {-,-} E.Effect
+                , do  word1 0x2C#Word8 {-,-} E.Effect
                       spaces_em
                       sub <- chompSubscription
                       spaces_em
-                      word1 0x7D {-}-} E.Effect
+                      word1 0x7D#Word8 {-}-} E.Effect
                       spaces_em
                       return (Src.Fx cmd sub)
                 ]
         , do  sub <- chompSubscription
               spaces_em
               oneOf E.Effect
-                [ do  word1 0x7D {-}-} E.Effect
+                [ do  word1 0x7D#Word8 {-}-} E.Effect
                       spaces_em
                       return (Src.Sub sub)
-                , do  word1 0x2C {-,-} E.Effect
+                , do  word1 0x2C#Word8 {-,-} E.Effect
                       spaces_em
                       cmd <- chompCommand
                       spaces_em
-                      word1 0x7D {-}-} E.Effect
+                      word1 0x7D#Word8 {-}-} E.Effect
                       spaces_em
                       return (Src.Fx cmd sub)
                 ]
@@ -347,7 +348,7 @@ chompCommand :: Parser E.Module (A.Located Name.Name)
 chompCommand =
   do  Keyword.command_ E.Effect
       spaces_em
-      word1 0x3D {-=-} E.Effect
+      word1 0x3D#Word8 {-=-} E.Effect
       spaces_em
       addLocation (Var.upper E.Effect)
 
@@ -356,7 +357,7 @@ chompSubscription :: Parser E.Module (A.Located Name.Name)
 chompSubscription =
   do  Keyword.subscription_ E.Effect
       spaces_em
-      word1 0x3D {-=-} E.Effect
+      word1 0x3D#Word8 {-=-} E.Effect
       spaces_em
       addLocation (Var.upper E.Effect)
 
@@ -388,7 +389,7 @@ chompImport =
       oneOf E.ImportEnd
         [ do  Space.checkFreshLine E.ImportEnd
               return $ Src.Import name Nothing (Src.Explicit [])
-        , do  Space.checkIndent end E.ImportEnd
+        , do  Space.checkIndent (A.Position end) E.ImportEnd
               oneOf E.ImportAs
                 [ chompAs name
                 , chompExposing name Nothing
@@ -426,12 +427,12 @@ chompExposing name maybeAlias =
 
 exposing :: Parser E.Exposing Src.Exposing
 exposing =
-  do  word1 0x28 {-(-} E.ExposingStart
+  do  word1 0x28#Word8 {-(-} E.ExposingStart
       Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentValue
       oneOf E.ExposingValue
-        [ do  word2 0x2E 0x2E {-..-} E.ExposingValue
+        [ do  word2 0x2E#Word8 0x2E#Word8 {-..-} E.ExposingValue
               Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
-              word1 0x29 {-)-} E.ExposingEnd
+              word1 0x29#Word8 {-)-} E.ExposingEnd
               return Src.Open
         , do  exposed <- chompExposed
               Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
@@ -442,12 +443,12 @@ exposing =
 exposingHelp :: [Src.Exposed] -> Parser E.Exposing Src.Exposing
 exposingHelp revExposed =
   oneOf E.ExposingEnd
-    [ do  word1 0x2C {-,-} E.ExposingEnd
+    [ do  word1 0x2C#Word8 {-,-} E.ExposingEnd
           Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentValue
           exposed <- chompExposed
           Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
           exposingHelp (exposed:revExposed)
-    , do  word1 0x29 {-)-} E.ExposingEnd
+    , do  word1 0x29#Word8 {-)-} E.ExposingEnd
           return (Src.Explicit (reverse revExposed))
     ]
 
@@ -459,11 +460,11 @@ chompExposed =
         [ do  name <- Var.lower E.ExposingValue
               end <- getPosition
               return $ Src.Lower $ A.at start end name
-        , do  word1 0x28 {-(-} E.ExposingValue
+        , do  word1 0x28#Word8 {-(-} E.ExposingValue
               op <- Symbol.operator E.ExposingOperator E.ExposingOperatorReserved
-              word1 0x29 {-)-} E.ExposingOperatorRightParen
+              word1 0x29#Word8 {-)-} E.ExposingOperatorRightParen
               end <- getPosition
-              return $ Src.Operator (A.Region start end) op
+              return $ Src.Operator (A.region start end) op
         , do  name <- Var.upper E.ExposingValue
               end <- getPosition
               Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
@@ -474,13 +475,13 @@ chompExposed =
 privacy :: Parser E.Exposing Src.Privacy
 privacy =
   oneOfWithFallback
-    [ do  word1 0x28 {-(-} E.ExposingTypePrivacy
+    [ do  word1 0x28#Word8 {-(-} E.ExposingTypePrivacy
           Space.chompAndCheckIndent E.ExposingSpace E.ExposingTypePrivacy
           start <- getPosition
-          word2 0x2E 0x2E {-..-} E.ExposingTypePrivacy
+          word2 0x2E#Word8 0x2E#Word8 {-..-} E.ExposingTypePrivacy
           end <- getPosition
           Space.chompAndCheckIndent E.ExposingSpace E.ExposingTypePrivacy
-          word1 0x29 {-)-} E.ExposingTypePrivacy
-          return $ Src.Public (A.Region start end)
+          word1 0x29#Word8 {-)-} E.ExposingTypePrivacy
+          return $ Src.Public (A.region start end)
     ]
     Src.Private

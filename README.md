@@ -2,7 +2,7 @@
 
 A delightful language for reliable webapps.
 
-Check out the [Home Page](http://elm-lang.org/), [Try Online](http://elm-lang.org/try), or [The Official Guide](http://guide.elm-lang.org/)
+Check out the [Home Page](https://elm-lang.org/), [Try Online](https://elm-lang.org/try), or [The Official Guide](https://guide.elm-lang.org/)
 
 
 <br>
@@ -11,7 +11,7 @@ Check out the [Home Page](http://elm-lang.org/), [Try Online](http://elm-lang.or
 
 ✨ [Install](https://guide.elm-lang.org/install/elm.html) ✨
 
-For multiple versions, previous versions, and uninstallation, see the instructions [here](https://github.com/elm/compiler/blob/master/installers/README.md).
+For multiple versions, previous versions, and uninstallation, see the instructions [here](https://github.com/elm/compiler/blob/main/installers/README.md).
 
 <br>
 
@@ -19,4 +19,4 @@ For multiple versions, previous versions, and uninstallation, see the instructio
 
 If you are stuck, ask around on [the Elm slack channel][slack]. Folks are friendly and happy to help with questions!
 
-[slack]: http://elmlang.herokuapp.com/
+[slack]: https://elm-lang.org/community/slack

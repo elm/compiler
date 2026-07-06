@@ -67,7 +67,7 @@ canonicalize env (A.At region expression) =
       Result.ok (Can.Chr char)
 
     Src.Int int ->
-      Result.ok (Can.Int int)
+      Result.ok (Can.Int (fromIntegral int)) -- TODO error on overflow
 
     Src.Float float ->
       Result.ok (Can.Float float)
