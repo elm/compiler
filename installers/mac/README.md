@@ -18,7 +18,7 @@ cd ~/Desktop/
 # | -o elm.gz | name the file elm.gz |
 # +-----------+----------------------+
 #
-curl -L -o elm.gz https://github.com/elm/compiler/releases/download/0.19.2/binary-for-mac-64-bit.gz
+curl -L -o elm.gz https://github.com/elm/compiler/releases/download/0.19.2/elm-0.19.2-mac-arm.gz
 
 # There should now be a file named `elm.gz` on your Desktop.
 #
