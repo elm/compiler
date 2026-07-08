@@ -200,6 +200,6 @@ encodeRegion (A.Region start end) =
     , "end"   ==> E.object [ "line" ==> E.int er, "column" ==> E.int ec ]
     ]
   where
-    (sr,sc) = A.toRowCol start
-    (er,ec) = A.toRowCol end
+    (sr,sc) = A.toEditorRowCol start
+    (er,ec) = A.toEditorRowCol end
 

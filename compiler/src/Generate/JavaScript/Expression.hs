@@ -309,8 +309,8 @@ regionToJsExpr (A.Region start end) =
     ]
   where
     (===>) n v = (JsName.fromLocal n, v)
-    (sr, sc) = A.toRowCol start
-    (er, ec) = A.toRowCol end
+    (sr, sc) = A.toEditorRowCol start
+    (er, ec) = A.toEditorRowCol end
 
 
 

@@ -9,6 +9,7 @@ module Reporting.Annotation
   , merge
   , at
   , toRowCol
+  , toEditorRowCol
   , toRow
   , toCol
   , toRegion
@@ -78,6 +79,17 @@ toRowCol :: Word64# -> (Int, Int)
 toRowCol pos =
   ( fromIntegral (toRow pos)
   , fromIntegral (toCol pos)
+  )
+
+
+-- Editor coordinates start at (1,1); the packed representation starts at (0,0).
+-- Anything that leaves the compiler for a human or a tool must go through this,
+-- not through toRowCol.
+{-# INLINE toEditorRowCol #-}
+toEditorRowCol :: Word64# -> (Int, Int)
+toEditorRowCol pos =
+  ( fromIntegral (toRow pos) + 1
+  , fromIntegral (toCol pos) + 1
   )
 
 
