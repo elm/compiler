@@ -155,23 +155,30 @@ solve env rank pools state constraint =
           foldM occurs state2 $ Map.toList locals
 
     CLet rigids flexs header headerCon subCon ->
-      do
-          -- work in the next pool to localize header
-          let nextRank = rank + 1
+      do  let nextRank = rank + 1
           let poolsLength = MVector.length pools
           nextPools <-
             if nextRank < poolsLength
               then return pools
               else MVector.grow pools poolsLength
 
-          -- introduce variables
           let vars = rigids ++ flexs
-          forM_ vars $ \var ->
-            UF.modify var $ \(Descriptor content _ mark copy) ->
-              Descriptor content nextRank mark copy
+          -- First, set all rigid variables to noRank immediately
+          forM_ rigids $ \var ->
+            do  desc <- UF.get var
+                case desc of
+                  Descriptor content _ mark copy expansiveness ->
+                    UF.set var $ Descriptor content noRank mark copy expansiveness
+
+          -- Then handle the flex variables normally
+          forM_ flexs $ \var ->
+            do  desc <- UF.get var
+                case desc of
+                  Descriptor content _ mark copy expansiveness ->
+                    UF.set var $ Descriptor content nextRank mark copy expansiveness
+
           MVector.write nextPools nextRank vars
 
-          -- run solver in next pool
           locals <- traverse (A.traverse (typeToVariable nextRank nextPools)) header
           (State savedEnv mark errors) <-
             solve env nextRank nextPools state headerCon
@@ -180,12 +187,10 @@ solve env rank pools state constraint =
           let visitMark = nextMark youngMark
           let finalMark = nextMark visitMark
 
-          -- pop pool
           generalize youngMark visitMark nextRank nextPools
           MVector.write nextPools nextRank []
 
-          -- check that things went well
-          mapM_ isGeneric rigids
+          mapM_ (checkGeneric rigids) vars
 
           let newEnv = Map.union env (Map.map A.toValue locals)
           let tempState = State savedEnv finalMark errors
@@ -195,19 +200,9 @@ solve env rank pools state constraint =
 
 
 -- Check that a variable has rank == noRank, meaning that it can be generalized.
-isGeneric :: Variable -> IO ()
-isGeneric var =
-  do  (Descriptor _ rank _ _) <- UF.get var
-      if rank == noRank
-        then return ()
-        else
-          do  tipe <- Type.toErrorType var
-              error $
-                "You ran into a compiler bug. Here are some details for the developers:\n\n"
-                ++ "    " ++ show (ET.toDoc L.empty RT.None tipe) ++ " [rank = " ++ show rank ++ "]\n\n"
-                ++
-                  "Please create an <http://sscce.org/> and then report it\n\
-                  \at <https://github.com/elm/compiler/issues>\n\n"
+isGeneric :: Int -> Int -> Bool
+isGeneric rank groupRank =
+  rank <= 3 && rank < groupRank
 
 
 
@@ -258,8 +253,8 @@ occurs state (name, A.At region variable) =
       if hasOccurred
         then
           do  errorType <- Type.toErrorType variable
-              (Descriptor _ rank mark copy) <- UF.get variable
-              UF.set variable (Descriptor Error rank mark copy)
+              (Descriptor _ rank mark copy expansiveness) <- UF.get variable
+              UF.set variable (Descriptor Error rank mark copy expansiveness)
               return $ addError state (Error.InfiniteType region name errorType)
         else
           return state
@@ -292,31 +287,58 @@ generalize youngMark visitMark youngRank pools =
               if isRedundant
                 then return ()
                 else
-                  do  (Descriptor _ rank _ _) <- UF.get var
+                  do  (Descriptor _ rank _ _ _) <- UF.get var
                       MVector.modify pools (var:) rank
 
       -- For variables with rank youngRank
       --   If rank < youngRank: register in oldPool
-      --   otherwise generalize
+      --   otherwise generalize based on expansiveness and rigidity
       forM_ (Vector.unsafeLast rankTable) $ \var ->
         do  isRedundant <- UF.redundant var
             if isRedundant
               then return ()
               else
-                do  (Descriptor content rank mark copy) <- UF.get var
-                    if rank < youngRank
-                      then MVector.modify pools (var:) rank
-                      else UF.set var $ Descriptor content noRank mark copy
+                do  (Descriptor content rank mark copy expansiveness) <- UF.get var
+                    case content of
+                      RigidVar _ ->
+                        -- Rigid variables should always be generalized
+                        UF.set var $ Descriptor content noRank mark copy expansiveness
+                      RigidSuper _ _ ->
+                        -- Rigid super types should always be generalized
+                        UF.set var $ Descriptor content noRank mark copy expansiveness
+                      _ ->
+                        case expansiveness of
+                          NonExpansive ->
+                            -- Non-expansive expressions can always be generalized
+                            UF.set var $ Descriptor content noRank mark copy expansiveness
+                          Expansive ->
+                            -- Expansive expressions should be generalized if they're safe
+                            if isSafeToGeneralize content
+                              then UF.set var $ Descriptor content noRank mark copy expansiveness
+                              else MVector.modify pools (var:) rank
+
+isSafeToGeneralize :: Content -> Bool
+isSafeToGeneralize content =
+  case content of
+    Structure (Fun1 _ _) -> True  -- Function types are always safe
+    Structure Unit1 -> True       -- Unit type is safe
+    Structure EmptyRecord1 -> True -- Empty record is safe
+    FlexVar _ -> True            -- Type variables are safe
+    RigidVar _ -> True           -- Rigid variables are safe
+    FlexSuper _ _ -> True        -- Super types are safe
+    RigidSuper _ _ -> True       -- Rigid super types are safe
+    Structure (App1 _ _ _) -> True  -- Type applications are safe for rank-3
+    _ -> False                   -- Conservative: treat other types as unsafe
 
 
 poolToRankTable :: Mark -> Int -> [Variable] -> IO (Vector.Vector [Variable])
-poolToRankTable youngMark youngRank youngInhabitants =
+poolToRankTable youngMark youngRank youngVars =
   do  mutableTable <- MVector.replicate (youngRank + 1) []
 
       -- Sort the youngPool variables into buckets by rank.
-      forM_ youngInhabitants $ \var ->
-        do  (Descriptor content rank _ copy) <- UF.get var
-            UF.set var (Descriptor content rank youngMark copy)
+      forM_ youngVars $ \var ->
+        do  (Descriptor content rank _ copy expansiveness) <- UF.get var
+            UF.set var (Descriptor content rank youngMark copy expansiveness)
             MVector.modify mutableTable (var:) rank
 
       Vector.unsafeFreeze mutableTable
@@ -331,12 +353,12 @@ poolToRankTable youngMark youngRank youngInhabitants =
 --
 adjustRank :: Mark -> Mark -> Int -> Variable -> IO Int
 adjustRank youngMark visitMark groupRank var =
-  do  (Descriptor content rank mark copy) <- UF.get var
+  do  (Descriptor content rank mark copy expansiveness) <- UF.get var
       if mark == youngMark then
           do  -- Set the variable as marked first because it may be cyclic.
-              UF.set var $ Descriptor content rank visitMark copy
+              UF.set var $ Descriptor content rank visitMark copy expansiveness
               maxRank <- adjustRankContent youngMark visitMark groupRank content
-              UF.set var $ Descriptor content maxRank visitMark copy
+              UF.set var $ Descriptor content maxRank visitMark copy expansiveness
               return maxRank
 
         else if mark == visitMark then
@@ -345,7 +367,7 @@ adjustRank youngMark visitMark groupRank var =
         else
           do  let minRank = min groupRank rank
               -- TODO how can minRank ever be groupRank?
-              UF.set var $ Descriptor content minRank visitMark copy
+              UF.set var $ Descriptor content minRank visitMark copy expansiveness
               return minRank
 
 
@@ -411,10 +433,16 @@ adjustRankContent youngMark visitMark groupRank content =
 
 introduce :: Int -> Pools -> [Variable] -> IO ()
 introduce rank pools variables =
-  do  MVector.modify pools (variables++) rank
-      forM_ variables $ \var ->
-        UF.modify var $ \(Descriptor content _ mark copy) ->
-          Descriptor content rank mark copy
+  do  let assignRank var = do
+          desc <- UF.get var
+          let newRank = case desc of
+                Descriptor _ _ _ _ NonExpansive -> noRank
+                Descriptor _ _ _ _ Expansive -> rank
+          case desc of
+            Descriptor content _ mark copy expansiveness ->
+              UF.set var $ Descriptor content newRank mark copy expansiveness
+      mapM_ assignRank variables
+      MVector.modify pools (variables++) rank
 
 
 
@@ -477,7 +505,10 @@ typeToVar rank pools aliasDict tipe =
 
 register :: Int -> Pools -> Content -> IO Variable
 register rank pools content =
-  do  var <- UF.fresh (Descriptor content rank noMark Nothing)
+  do  let expansiveness = if isNonExpansive content 
+                         then NonExpansive 
+                         else Expansive
+      var <- UF.fresh (Descriptor content rank noMark Nothing expansiveness)
       MVector.modify pools (var:) rank
       return var
 
@@ -509,7 +540,7 @@ srcTypeToVariable rank pools freeVars srcType =
       | otherwise                  = FlexVar (Just name)
 
     makeVar name _ =
-      UF.fresh (Descriptor (nameToContent name) rank noMark Nothing)
+      UF.fresh $ Descriptor (nameToContent name) rank noMark Nothing NonExpansive
   in
   do  flexVars <- Map.traverseWithKey makeVar freeVars
       MVector.modify pools (Map.elems flexVars ++) rank
@@ -580,7 +611,7 @@ makeCopy rank pools var =
 
 makeCopyHelp :: Int -> Pools -> Variable -> IO Variable
 makeCopyHelp maxRank pools variable =
-  do  (Descriptor content rank _ maybeCopy) <- UF.get variable
+  do  (Descriptor content rank _ maybeCopy expansiveness) <- UF.get variable
 
       case maybeCopy of
         Just copy ->
@@ -591,7 +622,7 @@ makeCopyHelp maxRank pools variable =
             return variable
 
           else
-            do  let makeDescriptor c = Descriptor c maxRank noMark Nothing
+            do  let makeDescriptor c = Descriptor c maxRank noMark Nothing expansiveness
                 copy <- UF.fresh $ makeDescriptor content
                 MVector.modify pools (copy:) maxRank
 
@@ -600,7 +631,7 @@ makeCopyHelp maxRank pools variable =
                 --
                 -- Need to do this before recursively copying to avoid looping.
                 UF.set variable $
-                  Descriptor content rank noMark (Just copy)
+                  Descriptor content rank noMark (Just copy) expansiveness
 
                 -- Now we recursively copy the content of the variable.
                 -- We have already marked the variable as copied, so we
@@ -641,13 +672,13 @@ makeCopyHelp maxRank pools variable =
 
 restore :: Variable -> IO ()
 restore variable =
-  do  (Descriptor content _ _ maybeCopy) <- UF.get variable
+  do  (Descriptor content _ _ maybeCopy expansiveness) <- UF.get variable
       case maybeCopy of
         Nothing ->
           return ()
 
         Just _ ->
-          do  UF.set variable $ Descriptor content noRank noMark Nothing
+          do  UF.set variable $ Descriptor content noRank noMark Nothing expansiveness
               restoreContent content
 
 
@@ -724,3 +755,49 @@ traverseFlatType f flatType =
 
     Tuple1 a b cs ->
         liftM3 Tuple1 (f a) (f b) (traverse f cs)
+
+
+isAccumulatorType :: Type -> Bool
+isAccumulatorType tipe =
+  case tipe of
+    VarN _ -> True
+    AppN _ _ args -> any isAccumulatorType args
+    FunN _ _ -> False
+    AliasN _ _ _ _ -> False
+    PlaceHolder _ -> False
+    EmptyRecordN -> False
+    RecordN _ _ -> False
+    UnitN -> False
+    TupleN _ _ _ -> False
+
+
+-- Add helper to determine expansiveness
+isNonExpansive :: Content -> Bool
+isNonExpansive content =
+  case content of
+    FlexVar _ -> True
+    RigidVar _ -> True
+    FlexSuper _ _ -> True
+    RigidSuper _ _ -> True
+    Structure flatType ->
+      case flatType of
+        Fun1 _ _ -> True  -- Lambdas are non-expansive
+        Unit1 -> True     -- Constants are non-expansive
+        EmptyRecord1 -> True
+        Record1 _ _ -> False  -- Conservative: treat all records as expansive for now
+        _ -> False
+    _ -> False
+
+-- Helper to check if a variable can be generalized
+checkGeneric :: [Variable] -> Variable -> IO ()
+checkGeneric rigids var =
+  do  (Descriptor _ rank _ _ expansiveness) <- UF.get var
+      if var `elem` rigids
+        then unless (rank == noRank) $
+               error "COMPILER BUG - rigid variable not generalized"
+        else case expansiveness of
+               NonExpansive -> return ()  -- Non-expansive vars are always ok
+               Expansive -> 
+                 if rank /= noRank
+                   then error $ "COMPILER BUG - expansive expression not properly generalized"
+                   else return ()

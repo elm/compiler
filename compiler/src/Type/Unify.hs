@@ -44,7 +44,7 @@ onSuccess vars () =
 {-# NOINLINE errorDescriptor #-}
 errorDescriptor :: Descriptor
 errorDescriptor =
-  Descriptor Error noRank noMark Nothing
+  Descriptor Error noRank noMark Nothing Expansive
 
 
 
@@ -142,16 +142,14 @@ reorient (Context var1 desc1 var2 desc2) =
 
 
 merge :: Context -> Content -> Unify ()
-merge (Context var1 (Descriptor _ rank1 _ _) var2 (Descriptor _ rank2 _ _)) content =
+merge (Context var1 (Descriptor _ rank1 _ _ exp1) var2 (Descriptor _ rank2 _ _ exp2)) content =
   Unify $ \vars ok _ ->
-    ok vars =<<
-      UF.union var1 var2 (Descriptor content (min rank1 rank2) noMark Nothing)
+    ok vars =<< UF.union var1 var2 (Descriptor content (min rank1 rank2) noMark Nothing (Type.combineExpansiveness exp1 exp2))
 
 
 fresh :: Context -> Content -> Unify Variable
-fresh (Context _ (Descriptor _ rank1 _ _) _ (Descriptor _ rank2 _ _)) content =
-  register $ UF.fresh $
-    Descriptor content (min rank1 rank2) noMark Nothing
+fresh (Context _ (Descriptor _ rank1 _ _ exp1) _ (Descriptor _ rank2 _ _ exp2)) content =
+  register $ UF.fresh $ Descriptor content (min rank1 rank2) noMark Nothing (Type.combineExpansiveness exp1 exp2)
 
 
 
@@ -178,7 +176,7 @@ subUnify var1 var2 =
 
 
 actuallyUnify :: Context -> Unify ()
-actuallyUnify context@(Context _ (Descriptor firstContent _ _ _) _ (Descriptor secondContent _ _ _)) =
+actuallyUnify context@(Context _ (Descriptor firstContent _ _ _ _) _ (Descriptor secondContent _ _ _ _)) =
   case firstContent of
     FlexVar _ ->
         unifyFlex context firstContent secondContent
@@ -432,8 +430,8 @@ comparableOccursCheck (Context _ _ var _) =
 unifyComparableRecursive :: Variable -> Unify ()
 unifyComparableRecursive var =
   do  compVar <- register $
-        do  (Descriptor _ rank _ _) <- UF.get var
-            UF.fresh $ Descriptor (Type.unnamedFlexSuper Comparable) rank noMark Nothing
+        do  (Descriptor _ rank _ _ _) <- UF.get var
+            UF.fresh $ Descriptor (Type.unnamedFlexSuper Comparable) rank noMark Nothing Expansive
       guardedUnify compVar var
 
 
@@ -676,7 +674,7 @@ data RecordStructure =
 
 gatherFields :: Map.Map Name.Name Variable -> Variable -> IO RecordStructure
 gatherFields fields variable =
-  do  (Descriptor content _ _ _) <- UF.get variable
+  do  (Descriptor content _ _ _ _) <- UF.get variable
       case content of
         Structure (Record1 subFields subExt) ->
             gatherFields (Map.union fields subFields) subExt
