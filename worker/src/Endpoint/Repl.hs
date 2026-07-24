@@ -50,6 +50,7 @@ allowedOrigins :: [String]
 allowedOrigins =
   [ "https://guide.elm-lang.org"
   , "https://guide.elm-lang.jp"
+  , "https://agj.github.io"
   , "http://localhost:8007"
   ]
 
