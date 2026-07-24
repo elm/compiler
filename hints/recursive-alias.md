@@ -160,3 +160,8 @@ type SortBy = Time | Score | MostResponses
 When you try to expand `Comment` you have to expand `Responses` which needs to expand `Comment` which needs to expand `Responses`, etc.
 
 So this is just a fancy case of a self-recursive type alias. The solution is the same. Somewhere in that cycle, you need to define an actual `type` to end the infinite expansion.
+
+### Further Links:
+
+* [Demystifying Decoders](https://github.com/zwilias/elm-demystify-decoders/blob/master/recursive-help.md)
+* [Bad Recursion](https://github.com/elm/compiler/blob/0.18.0/hints/bad-recursion.md)
