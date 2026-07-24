@@ -500,6 +500,7 @@ glToType glType =
     Shader.M4 -> Type.mat4
     Shader.Int -> Type.int
     Shader.Float -> Type.float
+    Shader.Bool -> Type.bool
     Shader.Texture -> Type.texture
 
 
