@@ -5,7 +5,7 @@ There are two problems that will lead you here, both of them pretty tricky:
 
   1. [**No Mutation**](#no-mutation) &mdash; Defining values in Elm is slightly different than defining values in languages like JavaScript.
 
-  2. [**Tricky Recursion**](#tricky-recursion) &mdash; Sometimes you need to define recursive values when creating generators, decoders, and parsers. A common case is a JSON decoder a discussion forums where a comment may have replies, which may have replies, which may have replies, etc.
+  2. [**Tricky Recursion**](#tricky-recursion) &mdash; Sometimes you need to define recursive values when creating generators, decoders, and parsers. A common case is a JSON decoder on a discussion forum where a comment may have replies, which may have replies, which may have replies, etc.
 
 
 ## No Mutation
