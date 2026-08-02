@@ -1,5 +1,4 @@
-{-# OPTIONS_GHC -Wno-unused-do-bind #-}
-{-# LANGUAGE BangPatterns, GADTs, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, GADTs, TemplateHaskell, OverloadedStrings #-}
 module Build
   ( fromExposed
   , fromPaths
@@ -15,7 +14,6 @@ module Build
   where
 
 
-import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar
 import Control.Monad (filterM)
 import qualified Data.ByteString as B
@@ -33,6 +31,8 @@ import qualified Data.Set as Set
 import qualified System.Directory as Dir
 import qualified System.FilePath as FP
 import System.FilePath ((</>), (<.>))
+
+import qualified ThreadSafe.Fork as Fork
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
@@ -110,27 +110,6 @@ addRelative (AbsoluteSrcDir srcDir) path =
 
 
 
--- FORK
-
-
--- PERF try using IORef semephore on file crawl phase?
--- described in Chapter 13 of Parallel and Concurrent Programming in Haskell by Simon Marlow
--- https://www.oreilly.com/library/view/parallel-and-concurrent/9781449335939/ch13.html#sec_conc-par-overhead
---
-fork :: IO a -> IO (MVar a)
-fork work =
-  do  mvar <- newEmptyMVar
-      _ <- forkIO $ putMVar mvar =<< work
-      return mvar
-
-
-{-# INLINE forkWithKey #-}
-forkWithKey :: (k -> a -> IO b) -> Map.Map k a -> IO (Map.Map k (MVar b))
-forkWithKey func dict =
-  Map.traverseWithKey (\k v -> fork (func k v)) dict
-
-
-
 -- FROM EXPOSED
 
 
@@ -143,10 +122,10 @@ fromExposed writer style root details docsGoal exposed@(NE.List e es) =
       -- crawl
       mvar <- newEmptyMVar
       let docsNeed = toDocsNeed docsGoal
-      roots <- Map.fromKeysA (fork . crawlModule env mvar docsNeed) (e:es)
+      roots <- Map.fromKeysA (\n -> Fork.fork n (crawlModule env mvar docsNeed n)) (e:es)
       putMVar mvar roots
-      mapM_ readMVar roots
-      statuses <- traverse readMVar =<< readMVar mvar
+      mapM_ Fork.await roots
+      statuses <- traverse Fork.await =<< readMVar mvar
 
       -- compile
       midpoint <- checkMidpoint dmvar statuses
@@ -156,9 +135,9 @@ fromExposed writer style root details docsGoal exposed@(NE.List e es) =
 
         Right foreigns ->
           do  rmvar <- newEmptyMVar
-              resultMVars <- forkWithKey (checkModule writer env foreigns rmvar) statuses
+              resultMVars <- Fork.forkWithKey (checkModule writer env foreigns rmvar) statuses
               putMVar rmvar resultMVars
-              results <- traverse readMVar resultMVars
+              results <- traverse Fork.await resultMVars
               writeDetails writer root details results
               finalizeExposed writer root docsGoal exposed results
 
@@ -199,9 +178,9 @@ fromPaths writer style root details paths =
           do  -- crawl
               dmvar <- Details.loadInterfaces root details
               smvar <- newMVar Map.empty
-              srootMVars <- traverse (fork . crawlRoot env smvar) lroots
-              sroots <- traverse readMVar srootMVars
-              statuses <- traverse readMVar =<< readMVar smvar
+              srootMVars <- traverse (Fork.fork_ . crawlRoot env smvar) lroots
+              sroots <- traverse Fork.await srootMVars
+              statuses <- traverse Fork.await =<< readMVar smvar
 
               midpoint <- checkMidpointAndRoots dmvar statuses sroots
               case midpoint of
@@ -211,12 +190,12 @@ fromPaths writer style root details paths =
                 Right foreigns ->
                   do  -- compile
                       rmvar <- newEmptyMVar
-                      resultsMVars <- forkWithKey (checkModule writer env foreigns rmvar) statuses
+                      resultsMVars <- Fork.forkWithKey (checkModule writer env foreigns rmvar) statuses
                       putMVar rmvar resultsMVars
-                      rrootMVars <- traverse (fork . checkRoot env resultsMVars) sroots
-                      results <- traverse readMVar resultsMVars
+                      rrootMVars <- traverse (Fork.fork_ . checkRoot env resultsMVars) sroots
+                      results <- traverse Fork.await resultsMVars
                       writeDetails writer root details results
-                      toArtifacts env foreigns results <$> traverse readMVar rrootMVars
+                      toArtifacts env foreigns results <$> traverse Fork.await rrootMVars
 
 
 
@@ -240,7 +219,7 @@ getRootName root =
 
 
 type StatusDict =
-  Map.Map ModuleName.Raw (MVar Status)
+  Map.Map ModuleName.Raw (Fork.SafeMVar Status)
 
 
 data Status
@@ -257,12 +236,12 @@ crawlDeps env mvar deps blockedValue =
   do  statusDict <- takeMVar mvar
       let depsDict = Map.fromKeys (\_ -> ()) deps
       let newsDict = Map.difference depsDict statusDict
-      statuses <- Map.traverseWithKey crawlNew newsDict
+      statuses <- Fork.forkWithKey crawlNew newsDict
       putMVar mvar (Map.union statuses statusDict)
-      mapM_ readMVar statuses
+      mapM_ Fork.await statuses
       return blockedValue
   where
-    crawlNew name () = fork (crawlModule env mvar (DocsNeed False) name)
+    crawlNew name () = crawlModule env mvar (DocsNeed False) name
 
 
 crawlModule :: Env -> MVar StatusDict -> DocsNeed -> ModuleName.Raw -> IO Status
@@ -343,7 +322,7 @@ isMain (A.At _ (Src.Value (A.At _ name) _ _ _)) =
 
 
 type ResultDict =
-  Map.Map ModuleName.Raw (MVar Result)
+  Map.Map ModuleName.Raw (Fork.SafeMVar Result)
 
 
 data Result
@@ -457,7 +436,7 @@ checkDepsHelp :: FilePath -> ResultDict -> [ModuleName.Raw] -> [Dep] -> [Dep] ->
 checkDepsHelp root results deps new same cached importProblems isBlocked lastDepChange lastCompile =
   case deps of
     dep:otherDeps ->
-      do  result <- readMVar (results ! dep)
+      do  result <- Fork.await $ $(Map.require 'checkDepsHelp) dep results ModuleName.toChars
           case result of
             RNew (Details.Local _ _ _ _ lastChange _) iface _ _ ->
               checkDepsHelp root results otherDeps ((dep,iface) : new) same cached importProblems isBlocked (max lastChange lastDepChange) lastCompile
@@ -535,8 +514,8 @@ toImportErrors (Env _ _ _ _ _ locals foreigns) results imports problems =
 
 loadInterfaces :: FilePath -> [Dep] -> [CDep] -> IO (Maybe (Map.Map ModuleName.Raw I.Interface))
 loadInterfaces root same cached =
-  do  loading <- traverse (fork . loadInterface root) cached
-      maybeLoaded <- traverse readMVar loading
+  do  loading <- traverse (\(n,v) -> Fork.fork n (loadInterface root n v)) cached
+      maybeLoaded <- traverse Fork.await loading
       case sequence maybeLoaded of
         Nothing ->
           return Nothing
@@ -545,8 +524,8 @@ loadInterfaces root same cached =
           return $ Just $ Map.union (Map.fromList loaded) (Map.fromList same)
 
 
-loadInterface :: FilePath -> CDep -> IO (Maybe Dep)
-loadInterface root (name, ciMvar) =
+loadInterface :: FilePath -> ModuleName.Raw -> MVar CachedInterface -> IO (Maybe Dep)
+loadInterface root name ciMvar =
   do  cachedInterface <- takeMVar ciMvar
       case cachedInterface of
         Corrupted ->
@@ -801,7 +780,7 @@ addErrors result errors =
 
 addImportProblems :: Map.Map ModuleName.Raw Result -> ModuleName.Raw -> [(ModuleName.Raw, Import.Problem)] -> [(ModuleName.Raw, Import.Problem)]
 addImportProblems results name problems =
-  case results ! name of
+  case $(Map.require 'addImportProblems) name results ModuleName.toChars of
     RNew  _ _ _ _ -> problems
     RSame _ _ _ _ -> problems
     RCached _ _ _ -> problems
@@ -904,7 +883,7 @@ fromRepl writer root details source =
               mvar <- newMVar Map.empty
               crawlDeps env mvar deps ()
 
-              statuses <- traverse readMVar =<< readMVar mvar
+              statuses <- traverse Fork.await =<< readMVar mvar
               midpoint <- checkMidpoint dmvar statuses
 
               case midpoint of
@@ -913,9 +892,9 @@ fromRepl writer root details source =
 
                 Right foreigns ->
                   do  rmvar <- newEmptyMVar
-                      resultMVars <- forkWithKey (checkModule writer env foreigns rmvar) statuses
+                      resultMVars <- Fork.forkWithKey (checkModule writer env foreigns rmvar) statuses
                       putMVar rmvar resultMVars
-                      results <- traverse readMVar resultMVars
+                      results <- traverse Fork.await resultMVars
                       writeDetails writer root details results
                       depsStatus <- checkDeps root resultMVars deps 0
                       finalizeReplArtifacts env source modul depsStatus resultMVars results
@@ -979,8 +958,8 @@ data RootLocation
 
 findRoots :: Env -> NE.List FilePath -> IO (Either Exit.BuildProjectProblem (NE.List RootLocation))
 findRoots env paths =
-  do  mvars <- traverse (fork . getRootInfo env) paths
-      einfos <- traverse readMVar mvars
+  do  mvars <- traverse (Fork.fork_ . getRootInfo env) paths
+      einfos <- traverse Fork.await mvars
       return $ checkRoots =<< sequence einfos
 
 
@@ -1112,10 +1091,10 @@ crawlRoot :: Env -> MVar StatusDict -> RootLocation -> IO RootStatus
 crawlRoot env@(Env _ _ projectType _ buildID _ _) mvar root =
   case root of
     LInside name ->
-      do  statusMVar <- newEmptyMVar
-          statusDict <- takeMVar mvar
+      do  statusDict <- takeMVar mvar
+          statusMVar <- Fork.fork name $ crawlModule env mvar (DocsNeed False) name
           putMVar mvar (Map.insert name statusMVar statusDict)
-          putMVar statusMVar =<< crawlModule env mvar (DocsNeed False) name
+          _ <- Fork.await statusMVar
           return (SInside name)
 
     LOutside path ->
