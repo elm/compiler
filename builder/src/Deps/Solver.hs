@@ -17,11 +17,12 @@ module Deps.Solver
 
 
 import Control.Monad (foldM)
-import Control.Concurrent (forkIO, newEmptyMVar, putMVar, readMVar)
 import qualified Data.Map as Map
 import qualified Data.Map.Utils as Map
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
+
+import qualified ThreadSafe.Fork as Fork
 
 import qualified Deps.Registry as Registry
 import qualified Deps.Website as Website
@@ -356,12 +357,11 @@ data Env =
 
 initEnv :: IO (Either Exit.RegistryProblem Env)
 initEnv =
-  do  mvar  <- newEmptyMVar
-      _     <- forkIO $ putMVar mvar =<< Http.getManager
+  do  mvar  <- Fork.fork_ Http.getManager
       cache <- Stuff.getPackageCache
       Stuff.withRegistryLock cache $ \writer ->
         do  maybeRegistry <- Registry.read cache
-            manager       <- readMVar mvar
+            manager       <- Fork.await mvar
 
             case maybeRegistry of
               Nothing ->
