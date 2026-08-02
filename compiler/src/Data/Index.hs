@@ -12,12 +12,15 @@ module Data.Index
   , VerifiedList(..)
   , indexedZipWith
   , indexedZipWithA
+  --
+  , dZeroBased
+  , eZeroBased
   )
   where
 
 
-import Control.Monad (liftM)
-import Data.Binary
+import qualified Bytes.Decode as D
+import qualified Bytes.Encode as E
 
 
 
@@ -127,6 +130,11 @@ indexedZipWithA func listX listY =
 -- BINARY
 
 
-instance Binary ZeroBased where
-  get = liftM ZeroBased get
-  put (ZeroBased n) = put n
+dZeroBased :: D.Decoder ZeroBased
+dZeroBased =
+  ZeroBased <$> D.int
+
+
+eZeroBased :: ZeroBased -> E.Builder
+eZeroBased (ZeroBased n) =
+  E.int n
