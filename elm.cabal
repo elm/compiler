@@ -85,7 +85,6 @@ executable elm
 
         -- from builder/
         Build
-        BackgroundWriter
         Deps.Bump
         Deps.Diff
         Deps.Registry
@@ -122,6 +121,7 @@ executable elm
         -- data structures
         Data.Bag
         Data.Index
+        Data.List.Utils
         Data.Map.Utils
         Data.Name
         Data.NonEmptyList
@@ -211,5 +211,11 @@ executable elm
         Paths_elm
 
         -- utils
+        Array
+        Buffer
         Bytes
+        Bytes.Decode
+        Bytes.Encode
+        Crash
         Literals
+        String
