@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, ExtendedLiterals, MagicHash, OverloadedStrings #-}
 module Elm.Details
   ( Details(..)
   , BuildID
@@ -9,6 +9,8 @@ module Elm.Details
   , loadObjects
   , loadInterfaces
   , verifyInstall
+  --
+  , eDetails, dDetails
   )
   where
 
@@ -16,7 +18,6 @@ module Elm.Details
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar, readMVar, takeMVar)
 import Control.Monad (liftM, liftM2, liftM3)
-import Data.Binary (Binary, get, put, getWord8, putWord8)
 import qualified Data.Either as Either
 import qualified Data.Map as Map
 import qualified Data.Map.Utils as Map
@@ -31,10 +32,12 @@ import Data.Word (Word64)
 import qualified System.Directory as Dir
 import System.FilePath ((</>), (<.>))
 
+import qualified Bytes.Decode as D
+import qualified Bytes.Encode as E
+
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
 import qualified AST.Optimized as Opt
-import qualified BackgroundWriter as BW
 import qualified Compile
 import qualified Deps.Registry as Registry
 import qualified Deps.Solver as Solver
@@ -49,8 +52,8 @@ import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
 import qualified File
 import qualified Http
-import qualified Json.Decode as D
-import qualified Json.Encode as E
+import qualified Json.Decode as JD
+import qualified Json.Encode as JE
 import qualified Parse.Module as Parse
 import qualified Reporting
 import qualified Reporting.Annotation as A
@@ -127,64 +130,64 @@ loadObjects :: FilePath -> Details -> IO (MVar (Maybe Opt.GlobalGraph))
 loadObjects root (Details _ _ _ _ _ extras) =
   case extras of
     ArtifactsFresh _ o -> newMVar (Just o)
-    ArtifactsCached    -> fork (File.readBinary (Stuff.objects root))
+    ArtifactsCached    -> fork (File.readBytes Opt.dGlobalGraph (Stuff.objects root))
 
 
 loadInterfaces :: FilePath -> Details -> IO (MVar (Maybe Interfaces))
 loadInterfaces root (Details _ _ _ _ _ extras) =
   case extras of
     ArtifactsFresh i _ -> newMVar (Just i)
-    ArtifactsCached    -> fork (File.readBinary (Stuff.interfaces root))
+    ArtifactsCached    -> fork (File.readBytes (D.dict64 ModuleName.dCanonical I.dDependencyInterface) (Stuff.interfaces root))
 
 
 
 -- VERIFY INSTALL -- used by Install
 
 
-verifyInstall :: BW.Scope -> FilePath -> Solver.Env -> Outline.Outline -> IO (Either Exit.Details ())
-verifyInstall scope root (Solver.Env cache manager connection registry) outline =
+verifyInstall :: File.Writer Stuff.PROJECT -> FilePath -> Solver.Env -> Outline.Outline -> IO (Either Exit.Details ())
+verifyInstall writer root (Solver.Env cache manager connection registry) outline =
   do  time <- File.getTime (root </> "elm.json")
       let key = Reporting.ignorer
-      let env = Env key scope root cache manager connection registry
+      let env = Env key root cache manager connection registry
       case outline of
-        Outline.Pkg pkg -> Task.run (verifyPkg env time pkg >> return ())
-        Outline.App app -> Task.run (verifyApp env time app >> return ())
+        Outline.Pkg pkg -> Task.run (verifyPkg writer env time pkg >> return ())
+        Outline.App app -> Task.run (verifyApp writer env time app >> return ())
 
 
 
 -- LOAD -- used by Make, Repl, Reactor
 
 
-load :: Reporting.Style -> BW.Scope -> FilePath -> IO (Either Exit.Details Details)
-load style scope root =
+load :: File.Writer Stuff.PROJECT -> Reporting.Style -> FilePath -> IO (Either Exit.Details Details)
+load writer style root =
   do  newTime <- File.getTime (root </> "elm.json")
-      maybeDetails <- File.readBinary (Stuff.details root)
+      maybeDetails <- File.readBytes dDetails (Stuff.details root)
       case maybeDetails of
         Nothing ->
-          generate style scope root newTime
+          generate writer style root newTime
 
         Just details@(Details oldTime _ buildID _ _ _) ->
           if oldTime == newTime
           then return (Right details { _buildID = buildID + 1 })
-          else generate style scope root newTime
+          else generate writer style root newTime
 
 
 
 -- GENERATE
 
 
-generate :: Reporting.Style -> BW.Scope -> FilePath -> File.Time -> IO (Either Exit.Details Details)
-generate style scope root time =
+generate :: File.Writer Stuff.PROJECT -> Reporting.Style -> FilePath -> File.Time -> IO (Either Exit.Details Details)
+generate writer style root time =
   Reporting.trackDetails style $ \key ->
-    do  result <- initEnv key scope root
+    do  result <- initEnv key root
         case result of
           Left exit ->
             return (Left exit)
 
           Right (env, outline) ->
             case outline of
-              Outline.Pkg pkg -> Task.run (verifyPkg env time pkg)
-              Outline.App app -> Task.run (verifyApp env time app)
+              Outline.Pkg pkg -> Task.run (verifyPkg writer env time pkg)
+              Outline.App app -> Task.run (verifyApp writer env time app)
 
 
 
@@ -194,7 +197,6 @@ generate style scope root time =
 data Env =
   Env
     { _key :: Reporting.DKey
-    , _scope :: BW.Scope
     , _root :: FilePath
     , _cache :: Stuff.PackageCache
     , _manager :: Http.Manager
@@ -203,8 +205,8 @@ data Env =
     }
 
 
-initEnv :: Reporting.DKey -> BW.Scope -> FilePath -> IO (Either Exit.Details (Env, Outline.Outline))
-initEnv key scope root =
+initEnv :: Reporting.DKey -> FilePath -> IO (Either Exit.Details (Env, Outline.Outline))
+initEnv key root =
   do  mvar <- fork Solver.initEnv
       eitherOutline <- Outline.read root
       case eitherOutline of
@@ -218,7 +220,7 @@ initEnv key scope root =
                   return $ Left $ Exit.DetailsCannotGetRegistry problem
 
                 Right (Solver.Env cache manager connection registry) ->
-                  return $ Right (Env key scope root cache manager connection registry, outline)
+                  return $ Right (Env key root cache manager connection registry, outline)
 
 
 
@@ -228,26 +230,26 @@ initEnv key scope root =
 type Task a = Task.Task Exit.Details a
 
 
-verifyPkg :: Env -> File.Time -> Outline.PkgOutline -> Task Details
-verifyPkg env time (Outline.PkgOutline pkg _ _ _ exposed direct testDirect elm) =
+verifyPkg :: File.Writer Stuff.PROJECT -> Env -> File.Time -> Outline.PkgOutline -> Task Details
+verifyPkg writer env time (Outline.PkgOutline pkg _ _ _ exposed direct testDirect elm) =
   if Con.goodElm elm
   then
     do  solution <- verifyConstraints env =<< union noDups direct testDirect
         let exposedList = Outline.flattenExposed exposed
         let exactDeps = Map.map (\(Solver.Details v _) -> v) solution -- for pkg docs in reactor
-        verifyDependencies env time (ValidPkg pkg exposedList exactDeps) solution direct
+        verifyDependencies writer env time (ValidPkg pkg exposedList exactDeps) solution direct
   else
     Task.throw $ Exit.DetailsBadElmInPkg elm
 
 
-verifyApp :: Env -> File.Time -> Outline.AppOutline -> Task Details
-verifyApp env time outline@(Outline.AppOutline elmVersion srcDirs direct _ _ _) =
+verifyApp :: File.Writer Stuff.PROJECT -> Env -> File.Time -> Outline.AppOutline -> Task Details
+verifyApp writer env time outline@(Outline.AppOutline elmVersion srcDirs direct _ _ _) =
   if elmVersion == V.compiler
   then
     do  stated <- checkAppDeps outline
         actual <- verifyConstraints env (Map.map Con.exactly stated)
         if Map.size stated == Map.size actual
-          then verifyDependencies env time (ValidApp srcDirs) actual direct
+          then verifyDependencies writer env time (ValidApp srcDirs) actual direct
           else Task.throw $ Exit.DetailsHandEditedDependencies
   else
     Task.throw $ Exit.DetailsBadElmInAppOutline elmVersion
@@ -265,7 +267,7 @@ checkAppDeps (Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
 
 
 verifyConstraints :: Env -> Map.Map Pkg.Name Con.Constraint -> Task (Map.Map Pkg.Name Solver.Details)
-verifyConstraints (Env _ _ _ cache _ connection registry) constraints =
+verifyConstraints (Env _ _ cache _ connection registry) constraints =
   do  result <- Task.io $ Solver.verify cache connection registry constraints
       case result of
         Solver.Ok details        -> return details
@@ -310,13 +312,13 @@ fork work =
 -- VERIFY DEPENDENCIES
 
 
-verifyDependencies :: Env -> File.Time -> ValidOutline -> Map.Map Pkg.Name Solver.Details -> Map.Map Pkg.Name a -> Task Details
-verifyDependencies env@(Env key scope root cache _ _ _) time outline solution directDeps =
+verifyDependencies :: File.Writer Stuff.PROJECT -> Env -> File.Time -> ValidOutline -> Map.Map Pkg.Name Solver.Details -> Map.Map Pkg.Name a -> Task Details
+verifyDependencies writer env@(Env key root cache _ _ _) time outline solution directDeps =
   Task.eio id $
   do  Reporting.report key (Reporting.DStart (Map.size solution))
       mvar <- newEmptyMVar
-      mvars <- Stuff.withRegistryLock cache $
-        Map.traverseWithKey (\k v -> fork (verifyDep env mvar solution k v)) solution
+      mvars <- Stuff.withRegistryLock cache $ \pkg_writer ->
+        Map.traverseWithKey (\k v -> fork (verifyDep pkg_writer env mvar solution k v)) solution
       putMVar mvar mvars
       deps <- traverse readMVar mvars
       case sequence deps of
@@ -332,9 +334,9 @@ verifyDependencies env@(Env key scope root cache _ _ _) time outline solution di
             foreigns = Map.map (OneOrMore.destruct Foreign) $ Map.foldrWithKey gatherForeigns Map.empty $ Map.intersection artifacts directDeps
             details = Details time outline 0 Map.empty foreigns (ArtifactsFresh ifaces objs)
           in
-          do  BW.writeBinary scope (Stuff.objects    root) objs
-              BW.writeBinary scope (Stuff.interfaces root) ifaces
-              BW.writeBinary scope (Stuff.details    root) details
+          do  File.writeBytes_ writer (Stuff.objects    root) Opt.eGlobalGraph objs
+              File.writeBytes_ writer (Stuff.interfaces root) (E.dict64 ModuleName.eCanonical I.eDependencyInterface) ifaces
+              File.writeBytes_ writer (Stuff.details    root) eDetails details
               return (Right details)
 
 
@@ -377,22 +379,22 @@ type Dep =
   Either (Maybe Exit.DetailsBadDep) Artifacts
 
 
-verifyDep :: Env -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Map.Map Pkg.Name Solver.Details -> Pkg.Name -> Solver.Details -> IO Dep
-verifyDep (Env key _ _ cache manager _ _) depsMVar solution pkg details@(Solver.Details vsn directDeps) =
+verifyDep :: File.Writer Stuff.PACKAGES -> Env -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Map.Map Pkg.Name Solver.Details -> Pkg.Name -> Solver.Details -> IO Dep
+verifyDep writer (Env key _ cache manager _ _) depsMVar solution pkg details@(Solver.Details vsn directDeps) =
   do  let fingerprint = Map.intersectionWith (\(Solver.Details v _) _ -> v) solution directDeps
       exists <- Dir.doesDirectoryExist (Stuff.package cache pkg vsn </> "src")
       if exists
         then
           do  Reporting.report key Reporting.DCached
-              maybeCache <- File.readBinary (Stuff.package cache pkg vsn </> "artifacts.dat")
+              maybeCache <- File.readBytes dArtifactCache (Stuff.package cache pkg vsn </> "artifacts.dat")
               case maybeCache of
                 Nothing ->
-                  build key cache depsMVar pkg details fingerprint Set.empty
+                  build writer key cache depsMVar pkg details fingerprint Set.empty
 
                 Just (ArtifactCache fingerprints artifacts) ->
                   if Set.member fingerprint fingerprints
                     then Reporting.report key Reporting.DBuilt >> return (Right artifacts)
-                    else build key cache depsMVar pkg details fingerprint fingerprints
+                    else build writer key cache depsMVar pkg details fingerprint fingerprints
         else
           do  Reporting.report key Reporting.DRequested
               result <- downloadPackage cache manager pkg vsn
@@ -403,7 +405,7 @@ verifyDep (Env key _ _ cache manager _ _) depsMVar solution pkg details@(Solver.
 
                 Right () ->
                   do  Reporting.report key (Reporting.DReceived pkg vsn)
-                      build key cache depsMVar pkg details fingerprint Set.empty
+                      build writer key cache depsMVar pkg details fingerprint Set.empty
 
 
 
@@ -425,8 +427,8 @@ type Fingerprint =
 -- BUILD
 
 
-build :: Reporting.DKey -> Stuff.PackageCache -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Pkg.Name -> Solver.Details -> Fingerprint -> Set.Set Fingerprint -> IO Dep
-build key cache depsMVar pkg (Solver.Details vsn _) f fs =
+build :: File.Writer Stuff.PACKAGES -> Reporting.DKey -> Stuff.PackageCache -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Pkg.Name -> Solver.Details -> Fingerprint -> Set.Set Fingerprint -> IO Dep
+build writer key cache depsMVar pkg (Solver.Details vsn _) f fs =
   do  eitherOutline <- Outline.read (Stuff.package cache pkg vsn)
       case eitherOutline of
         Left _ ->
@@ -478,8 +480,8 @@ build key cache depsMVar pkg (Solver.Details vsn _) f fs =
                                     artifacts = Artifacts ifaces objects
                                     fingerprints = Set.insert f fs
                                   in
-                                  do  writeDocs cache pkg vsn docsStatus results
-                                      File.writeBinary path (ArtifactCache fingerprints artifacts)
+                                  do  writeDocs writer cache pkg vsn docsStatus results
+                                      File.writeBytes writer path eArtifactCache (ArtifactCache fingerprints artifacts)
                                       Reporting.report key Reporting.DBuilt
                                       return (Right artifacts)
 
@@ -721,11 +723,11 @@ makeDocs status modul =
       return Nothing
 
 
-writeDocs :: Stuff.PackageCache -> Pkg.Name -> V.Version -> DocsStatus -> Map.Map ModuleName.Raw Result -> IO ()
-writeDocs cache pkg vsn status results =
+writeDocs :: File.Writer Stuff.PACKAGES -> Stuff.PackageCache -> Pkg.Name -> V.Version -> DocsStatus -> Map.Map ModuleName.Raw Result -> IO ()
+writeDocs writer cache pkg vsn status results =
   case status of
     DocsNeeded ->
-      E.writeUgly (Stuff.package cache pkg vsn </> "docs.json") $
+      JE.writeUgly writer (Stuff.package cache pkg vsn </> "docs.json") $
         Docs.encode $ Map.mapMaybe toDocs results
 
     DocsNotNeeded ->
@@ -758,7 +760,7 @@ downloadPackage cache manager pkg vsn =
           return $ Left $ Exit.PP_BadEndpointRequest err
 
         Right byteString ->
-          do  result <- D.fromByteString endpointDecoder byteString
+          do  result <- JD.fromByteString endpointDecoder byteString
               case result of
                 Left _ ->
                   return $ Left $ Exit.PP_BadEndpointContent url
@@ -767,14 +769,14 @@ downloadPackage cache manager pkg vsn =
                   Http.getArchive manager endpoint Exit.PP_BadArchiveRequest (Exit.PP_BadArchiveContent endpoint) $
                     \(sha, archive) ->
                       if expectedHash == Http.shaToChars sha
-                      then Right <$> File.writePackage (Stuff.package cache pkg vsn) archive
+                      then Right <$> Http.writePackage (Stuff.package cache pkg vsn) archive
                       else return $ Left $ Exit.PP_BadArchiveHash endpoint expectedHash (Http.shaToChars sha)
 
 
-endpointDecoder :: D.Decoder e (String, String)
+endpointDecoder :: JD.Decoder e (String, String)
 endpointDecoder =
-  do  url <- D.field "url" D.string
-      hash <- D.field "hash" D.string
+  do  url <- JD.field "url" JD.string
+      hash <- JD.field "hash" JD.string
       return (Utf8.toChars url, Utf8.toChars hash)
 
 
@@ -782,53 +784,84 @@ endpointDecoder =
 -- BINARY
 
 
-instance Binary Details where
-  put (Details a b c d e _) = put a >> put b >> put c >> put d >> put e
-  get =
-    do  a <- get
-        b <- get
-        c <- get
-        d <- get
-        e <- get
-        return (Details a b c d e ArtifactsCached)
+eDetails :: Details -> E.Builder
+eDetails (Details t o i l f _) =
+  File.eTime t
+  <> eValidOutline o
+  <> E.u64 i
+  <> E.dict64 ModuleName.eRaw eLocal l
+  <> E.dict64 ModuleName.eRaw eForeign f
 
 
-instance Binary ValidOutline where
-  put outline =
-    case outline of
-      ValidApp a     -> putWord8 0 >> put a
-      ValidPkg a b c -> putWord8 1 >> put a >> put b >> put c
-
-  get =
-    do  n <- getWord8
-        case n of
-          0 -> liftM  ValidApp get
-          1 -> liftM3 ValidPkg get get get
-          _ -> fail "binary encoding of ValidOutline was corrupted"
+dDetails :: D.Decoder Details
+dDetails =
+  do  t <- File.dTime
+      o <- dValidOutline
+      i <- D.u64
+      l <- D.dict64 ModuleName.dRaw dLocal
+      f <- D.dict64 ModuleName.dRaw dForeign
+      return (Details t o i l f ArtifactsCached)
 
 
-instance Binary Local where
-  put (Local a b c d e f) = put a >> put b >> put c >> put d >> put e >> put f
-  get =
-    do  a <- get
-        b <- get
-        c <- get
-        d <- get
-        e <- get
-        f <- get
-        return (Local a b c d e f)
+eValidOutline :: ValidOutline -> E.Builder
+eValidOutline outline =
+  case outline of
+    ValidApp s     -> E.u8# 0#Word8 <> NE.eList64 Outline.eSrcDir s
+    ValidPkg p m d -> E.u8# 1#Word8 <> Pkg.eName p <> E.list64 ModuleName.eRaw m <> E.dict64 Pkg.eName V.eVersion d
 
 
-instance Binary Foreign where
-  get = liftM2 Foreign get get
-  put (Foreign a b) = put a >> put b
+dValidOutline :: D.Decoder ValidOutline
+dValidOutline =
+  do  tag <- D.u8
+      case tag of
+        0 -> liftM  ValidApp (NE.dList64 Outline.dSrcDir)
+        1 -> liftM3 ValidPkg Pkg.dName (D.list64 ModuleName.dRaw) (D.dict64 Pkg.dName V.dVersion)
+        _ -> D.expecting "ValidOutline"
 
 
-instance Binary Artifacts where
-  get = liftM2 Artifacts get get
-  put (Artifacts a b) = put a >> put b
+eLocal :: Local -> E.Builder
+eLocal (Local p t d m i j) =
+  E.chars64 p <> File.eTime t <> E.list64 ModuleName.eRaw d <> E.bool m <> E.u64 i <> E.u64 j
 
 
-instance Binary ArtifactCache where
-  get = liftM2 ArtifactCache get get
-  put (ArtifactCache a b) = put a >> put b
+dLocal :: D.Decoder Local
+dLocal =
+  do  p <- D.chars64
+      t <- File.dTime
+      d <- D.list64 ModuleName.dRaw
+      m <- D.bool
+      i <- D.u64
+      j <- D.u64
+      return (Local p t d m i j)
+
+
+eForeign :: Foreign -> E.Builder
+eForeign (Foreign p ps) =
+  Pkg.eName p <> E.list64 Pkg.eName ps
+
+
+dForeign :: D.Decoder Foreign
+dForeign =
+  liftM2 Foreign Pkg.dName (D.list64 Pkg.dName)
+
+
+eArtifacts :: Artifacts -> E.Builder
+eArtifacts (Artifacts i o) =
+  E.dict64 ModuleName.eRaw I.eDependencyInterface i <> Opt.eGlobalGraph o
+
+
+dArtifacts :: D.Decoder Artifacts
+dArtifacts =
+  liftM2 Artifacts (D.dict64 ModuleName.dRaw I.dDependencyInterface) Opt.dGlobalGraph
+
+
+eArtifactCache :: ArtifactCache -> E.Builder
+eArtifactCache (ArtifactCache f a) =
+  E.set64 (E.dict64 Pkg.eName V.eVersion) f <> eArtifacts a
+
+
+dArtifactCache :: D.Decoder ArtifactCache
+dArtifactCache =
+  liftM2 ArtifactCache (D.set64 (D.dict64 Pkg.dName V.dVersion)) dArtifacts
+
+
