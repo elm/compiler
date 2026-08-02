@@ -34,6 +34,7 @@ import qualified System.FilePath as FP
 
 import qualified Bytes.Decode as D
 import qualified Bytes.Encode as E
+import qualified ThreadSafe.Fork as Fork
 
 import qualified AST.Prim.Variable as Var
 import qualified Elm.Package as Pkg
@@ -159,6 +160,11 @@ instance Ord Canonical where
       LT -> LT
       EQ -> compare pkg1 pkg2
       GT -> GT
+
+
+instance Fork.Context Canonical where
+  toContextChars (Canonical pkg home) =
+    Name.toChars home ++ " in " ++ Pkg.toChars pkg
 
 
 

@@ -49,6 +49,7 @@ import GHC.Word (Word8(W8#))
 
 import qualified Bytes.Decode as D
 import qualified Bytes.Encode as E
+import qualified ThreadSafe.Fork as Fork
 
 import qualified Parse.Primitives as P
 
@@ -269,6 +270,14 @@ instance Ord (Utf8 t) where
         | isTrue# (len1# <# len2#) -> LT
         | isTrue# (len1# ># len2#) -> GT
         | True                     -> EQ
+
+
+
+-- FORK CONTEXT
+
+
+instance Fork.Context (Utf8 t) where
+  toContextChars = toChars
 
 
 
