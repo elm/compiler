@@ -1,13 +1,18 @@
+{-# LANGUAGE ExtendedLiterals, MagicHash #-}
 module AST.Utils.Binop
   ( Precedence(..)
   , Associativity(..)
+  , ePrecedence, dPrecedence
+  , eAssociativity, dAssociativity
   )
   where
 
 
 import Prelude hiding (Either(..))
-import Control.Monad (liftM)
-import Data.Binary
+import Data.Coerce (coerce)
+
+import qualified Bytes.Decode as D
+import qualified Bytes.Encode as E
 
 
 
@@ -29,26 +34,29 @@ data Associativity
 -- BINARY
 
 
-instance Binary Precedence where
-  get =
-    liftM Precedence get
-
-  put (Precedence n) =
-    put n
+dPrecedence :: D.Decoder Precedence
+dPrecedence =
+  coerce D.int
 
 
-instance Binary Associativity where
-  get =
-    do  n <- getWord8
-        case n of
-          0 -> return Left
-          1 -> return Non
-          2 -> return Right
-          _ -> fail "Error reading valid associativity from serialized string"
+ePrecedence :: Precedence -> E.Builder
+ePrecedence (Precedence n) =
+  E.int n
 
-  put assoc =
-    putWord8 $
-      case assoc of
-        Left  -> 0
-        Non   -> 1
-        Right -> 2
+
+dAssociativity :: D.Decoder Associativity
+dAssociativity =
+  do  n <- D.u8
+      case n of
+        0 -> return Left
+        1 -> return Non
+        2 -> return Right
+        _ -> D.expecting "Associativity"
+
+
+eAssociativity :: Associativity -> E.Builder
+eAssociativity assoc =
+  case assoc of
+    Left  -> E.u8# 0#Word8
+    Non   -> E.u8# 1#Word8
+    Right -> E.u8# 2#Word8

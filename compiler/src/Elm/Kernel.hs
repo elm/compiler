@@ -6,12 +6,13 @@ module Elm.Kernel
   , Chunk(..)
   , fromByteString
   , countFields
+  --
+  , eChunk, dChunk
   )
   where
 
 
 import Control.Monad (liftM, liftM2)
-import Data.Binary (Binary, get, put, getWord8, putWord8)
 import qualified Data.ByteString.Internal as BS
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -21,7 +22,11 @@ import GHC.Int (Int(..))
 import GHC.Prim
 import GHC.Word (Word8(..))
 
+import qualified Bytes.Decode as D
+import qualified Bytes.Encode as E
+
 import qualified AST.Source as Src
+import qualified Data.Utf8 as Utf8
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Parse.Module as Module
@@ -317,27 +322,30 @@ toName exposed =
 -- BINARY
 
 
-instance Binary Chunk where
-  put chunk =
-    case chunk of
-      JS a       -> putWord8 0 >> put a
-      ElmVar a b -> putWord8 1 >> put a >> put b
-      JsVar a b  -> putWord8 2 >> put a >> put b
-      ElmField a -> putWord8 3 >> put a
-      JsField a  -> putWord8 4 >> put a
-      JsEnum a   -> putWord8 5 >> put a
-      Debug      -> putWord8 6
-      Prod       -> putWord8 7
+eChunk :: Chunk -> E.Builder
+eChunk chunk =
+  case chunk of
+    JS     c   -> E.u8# 0#Word8 <> E.byteString64 c
+    ElmVar h n -> E.u8# 1#Word8 <> ModuleName.eCanonical h <> Utf8.encode8 n
+    JsVar  h n -> E.u8# 2#Word8 <> Utf8.encode8 h <> Utf8.encode8 n
+    ElmField f -> E.u8# 3#Word8 <> Utf8.encode8 f
+    JsField  f -> E.u8# 4#Word8 <> E.int f
+    JsEnum   i -> E.u8# 5#Word8 <> E.int i
+    Debug      -> E.u8# 6#Word8
+    Prod       -> E.u8# 7#Word8
 
-  get =
-    do  word <- getWord8
-        case word of
-          0 -> liftM  JS get
-          1 -> liftM2 ElmVar get get
-          2 -> liftM2 JsVar get get
-          3 -> liftM  ElmField get
-          4 -> liftM  JsField get
-          5 -> liftM  JsEnum get
-          6 -> return Debug
-          7 -> return Prod
-          _ -> error "problem deserializing Elm.Kernel.Chunk"
+
+dChunk :: D.Decoder Chunk
+dChunk =
+  do  tag <- D.u8
+      case tag of
+        0 -> liftM  JS D.byteString64
+        1 -> liftM2 ElmVar ModuleName.dCanonical Utf8.decode8
+        2 -> liftM2 JsVar Utf8.decode8 Utf8.decode8
+        3 -> liftM  ElmField Utf8.decode8
+        4 -> liftM  JsField D.int
+        5 -> liftM  JsEnum D.int
+        6 -> return Debug
+        7 -> return Prod
+        _ -> D.expecting "Elm.Kernel.Chunk"
+

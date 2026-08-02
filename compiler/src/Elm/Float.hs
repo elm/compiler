@@ -3,15 +3,20 @@ module Elm.Float
   ( Float
   , fromAddr
   , toBuilder
+  --
+  , encode
+  , decode
   )
   where
 
 
 import Prelude hiding (Float)
-import Data.Binary (Binary, get, put)
 import qualified Data.ByteString.Builder as B
 import qualified Data.Utf8 as Utf8
 import GHC.Prim
+
+import qualified Bytes.Decode as D
+import qualified Bytes.Encode as E
 
 
 
@@ -44,6 +49,13 @@ toBuilder =
 -- BINARY
 
 
-instance Binary (Utf8.Utf8 ELM_FLOAT) where
-  get = Utf8.getUnder256
-  put = Utf8.putUnder256
+encode :: Float -> E.Builder
+encode =
+  Utf8.encode8
+
+
+decode :: D.Decoder Float
+decode =
+  Utf8.decode8
+
+

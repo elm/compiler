@@ -8,12 +8,14 @@ module Elm.String
   , toBuilder
   , Chunk(..)
   , fromChunks
+  --
+  , encode
+  , decode
   )
   where
 
 
 import Prelude hiding (String)
-import Data.Binary (Binary, get, put)
 import qualified Data.ByteString.Builder as B
 import qualified Data.Utf8 as Utf8
 import Data.Utf8 (MBA, newByteArray, copyFromAddr, freeze, writeWord8)
@@ -23,6 +25,9 @@ import GHC.IO (stToIO, unsafeDupablePerformIO)
 import GHC.Prim
 import GHC.ST (ST)
 import GHC.Word (Word8(..))
+
+import qualified Bytes.Decode as D
+import qualified Bytes.Encode as E
 
 
 
@@ -131,6 +136,13 @@ writeHex mba !offset bits =
 -- BINARY
 
 
-instance Binary (Utf8.Utf8 ELM_STRING) where
-  get = Utf8.getVeryLong
-  put = Utf8.putVeryLong
+encode :: String -> E.Builder
+encode =
+  Utf8.encode32
+
+
+decode :: D.Decoder String
+decode =
+  Utf8.decode32
+
+

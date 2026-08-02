@@ -1,4 +1,4 @@
-{-# LANGUAGE ExtendedLiterals, OverloadedStrings #-}
+{-# LANGUAGE ExtendedLiterals, MagicHash, OverloadedStrings #-}
 module Elm.Constraint
   ( Constraint
   , exactly
@@ -16,16 +16,20 @@ module Elm.Constraint
   , Error(..)
   , decoder
   , encode
+  --
+  , dConstraint, eConstraint
   )
   where
 
 
 import Control.Monad (liftM4)
-import Data.Binary (Binary, get, put, getWord8, putWord8)
+
+import qualified Bytes.Decode as D
+import qualified Bytes.Encode as E
 
 import qualified Elm.Version as V
-import qualified Json.Decode as D
-import qualified Json.Encode as E
+import qualified Json.Decode as JD
+import qualified Json.Encode as JE
 import qualified Parse.Primitives as P
 import Parse.Primitives (Cursor)
 import qualified Reporting.Annotation as A
@@ -151,7 +155,8 @@ goodElm constraint =
 
 defaultElm :: Constraint
 defaultElm =
-  if V._major V.compiler > 0
+  V.fromVersion V.compiler $ \major _ _ ->
+    if major > 0
     then untilNextMajor V.compiler
     else untilNextMinor V.compiler
 
@@ -186,37 +191,44 @@ expand constraint@(Range lower lowerOp upperOp upper) version
 -- JSON
 
 
-encode :: Constraint -> E.Value
+encode :: Constraint -> JE.Value
 encode constraint =
-  E.chars (toChars constraint)
+  JE.chars (toChars constraint)
 
 
-decoder :: D.Decoder Error Constraint
+decoder :: JD.Decoder Error Constraint
 decoder =
-  D.customString parser BadFormat
+  JD.customString parser BadFormat
 
 
 
 -- BINARY
 
 
-instance Binary Constraint where
-  get = liftM4 Range get get get get
-  put (Range a b c d) = put a >> put b >> put c >> put d
+dConstraint :: D.Decoder Constraint
+dConstraint =
+  liftM4 Range V.dVersion dOp dOp V.dVersion
 
 
-instance Binary Op where
-  put op =
-    case op of
-      Less        -> putWord8 0
-      LessOrEqual -> putWord8 1
+eConstraint :: Constraint -> E.Builder
+eConstraint (Range lo op op' hi) =
+  V.eVersion lo <> eOp op <> eOp op' <> V.eVersion hi
 
-  get =
-    do  n <- getWord8
-        case n of
-          0 -> return Less
-          1 -> return LessOrEqual
-          _ -> fail "binary encoding of Op was corrupted"
+
+dOp :: D.Decoder Op
+dOp =
+  do  n <- D.u8
+      case n of
+        0 -> pure Less
+        1 -> pure LessOrEqual
+        _ -> D.expecting "Op"
+
+
+eOp :: Op -> E.Builder
+eOp op =
+  case op of
+    Less        -> E.u8# 0#Word8
+    LessOrEqual -> E.u8# 1#Word8
 
 
 
