@@ -29,7 +29,7 @@ import Prelude hiding (max)
 import qualified Data.Version as Version
 import GHC.Exts (isTrue#)
 import GHC.Prim
-import GHC.Word (Word8(..), Word16(..))
+import GHC.Word (Word8(..), Word32(..), Word64(..))
 import qualified Paths_elm
 
 import qualified Bytes.Decode as D
@@ -44,25 +44,31 @@ import qualified Reporting.Annotation as A
 
 
 -- VERSION
+--
+-- 21-bits for major and minor (2^21 = 2M)
+-- 22-bits for patch (2^22 = 4M)
 
 
-data Version =
-  Version
-    { _major :: {-# UNPACK #-} !Word16
-    , _minor :: {-# UNPACK #-} !Word16
-    , _patch :: {-# UNPACK #-} !Word16
-    }
-    deriving (Eq, Ord)
+newtype Version = Version Word64
+  deriving (Eq, Ord)
 
 
-toVersion :: Word16 -> Word16 -> Word16 -> Version
-toVersion =
-  Version
+toVersion :: Word32 -> Word32 -> Word32 -> Version
+toVersion (W32# major) (W32# minor) (W32# patch) =
+  Version $ W64# $
+    uncheckedShiftL64# (wordToWord64# (word32ToWord# major)) 43#
+    `or64#`
+    uncheckedShiftL64# (and64# 0b111111111111111111111#Word64 (wordToWord64# (word32ToWord# minor))) 22#
+    `or64#`
+    and64# 0b1111111111111111111111#Word64 (wordToWord64# (word32ToWord# patch))
 
 
-fromVersion :: Version -> (Word16 -> Word16 -> Word16 -> r) -> r
-fromVersion (Version x y z) cont =
-  cont x y z
+fromVersion :: Version -> (Word32 -> Word32 -> Word32 -> r) -> r
+fromVersion (Version (W64# vsn)) cont =
+  cont
+    (W32# (wordToWord32# (word64ToWord# (uncheckedShiftRL64# vsn 43#                                         ))))
+    (W32# (wordToWord32# (word64ToWord# (uncheckedShiftRL64# vsn 22# `and64#` 0b111111111111111111111#Word64 ))))
+    (W32# (wordToWord32# (word64ToWord# (                    vsn     `and64#` 0b1111111111111111111111#Word64))))
 
 
 
@@ -97,18 +103,20 @@ compiler =
 
 
 bumpPatch :: Version -> Version
-bumpPatch (Version major minor patch) =
-  Version major minor (patch + 1)
+bumpPatch (Version vsn) =
+  Version (vsn + 1)
 
 
 bumpMinor :: Version -> Version
-bumpMinor (Version major minor _patch) =
-  Version major (minor + 1) 0
+bumpMinor (Version (W64# vsn)) =
+  Version $ W64# $
+    (vsn `and64#` 0b1111111111111111111111111111111111111111110000000000000000000000#Word64) `plusWord64#` 0b10000000000000000000000#Word64
 
 
 bumpMajor :: Version -> Version
-bumpMajor (Version major _minor _patch) =
-  Version (major + 1) 0 0
+bumpMajor (Version (W64# vsn)) =
+  Version $ W64# $
+    (vsn `and64#` 0b1111111111111111111110000000000000000000000000000000000000000000#Word64) `plusWord64#` 0b10000000000000000000000000000000000000000000#Word64
 
 
 
@@ -159,7 +167,7 @@ eVersion vsn =
   fromVersion vsn $ \major minor patch ->
     if major < 255 && minor < 256 && patch < 256
     then E.u8 (fromIntegral major) <> E.u8 (fromIntegral minor) <> E.u8 (fromIntegral patch)
-    else E.u8 255 <> E.u16 major <> E.u16 minor <> E.u16 patch
+    else E.u8 255 <> E.u16 (fromIntegral major) <> E.u16 (fromIntegral minor) <> E.u16 (fromIntegral patch)
 
 
 
@@ -176,7 +184,7 @@ parser =
       return (toVersion major minor patch)
 
 
-numberParser :: P.Parser A.Position Word16
+numberParser :: P.Parser A.Position Word32
 numberParser =
   P.Parser $ \_ (P.State pos end indent cur) cok _ _ eerr ->
     if P.notLtAddr pos end then
@@ -193,7 +201,7 @@ numberParser =
       else if isDigit word then
 
         let
-          !(# total, newPos #) = chompWord16 (plusAddr# pos 1#) end (fromIntegral (W8# word - 0x30))
+          !(# total, newPos #) = chompWord32 (plusAddr# pos 1#) end (fromIntegral (W8# word - 0x30))
           !newState = P.State newPos end indent (P.slide cur (wordToWord64# (int2Word# (minusAddr# newPos pos))))
         in
         cok total newState
@@ -202,14 +210,14 @@ numberParser =
         eerr cur A.Position
 
 
-chompWord16 :: Addr# -> Addr# -> Word16 -> (# Word16, Addr# #)
-chompWord16 pos end total =
+chompWord32 :: Addr# -> Addr# -> Word32 -> (# Word32, Addr# #)
+chompWord32 pos end total =
   if P.notLtAddr pos end then
     (# total, pos #)
   else
     let !word = indexWord8OffAddr# pos 0# in
     if isDigit word then
-      chompWord16 (plusAddr# pos 1#) end (10 * total + fromIntegral (W8# word - 0x30))
+      chompWord32 (plusAddr# pos 1#) end (10 * total + fromIntegral (W8# word - 0x30))
     else
       (# total, pos #)
 
@@ -217,3 +225,4 @@ chompWord16 pos end total =
 isDigit :: Word8# -> Bool
 isDigit word =
   isTrue# (0x30#Word8 {-0-} `leWord8#` word) && isTrue# (word `leWord8#` 0x39#Word8 {-9-})
+
