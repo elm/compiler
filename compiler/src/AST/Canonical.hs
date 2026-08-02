@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ExtendedLiterals, MagicHash, OverloadedStrings #-}
 module AST.Canonical
   ( Expr, Expr_(..)
   , CaseBranch(..)
@@ -27,6 +27,12 @@ module AST.Canonical
   , Effects(..)
   , Port(..)
   , Manager(..)
+  --
+  , eAlias, dAlias
+  , eUnion, dUnion
+  , eType, dType
+  , eAnnotation, dAnnotation
+  , eCtorOpts, dCtorOpts
   )
   where
 
@@ -51,15 +57,20 @@ So it is clear why the data is kept around.
 
 
 import Control.Monad (liftM, liftM2, liftM3, liftM4, replicateM)
-import Data.Binary
 import qualified Data.List as List
+import qualified Data.List.Utils as List
 import qualified Data.Map as Map
 import Data.Name (Name)
+import GHC.Word (Word8, Word16)
+
+import qualified Bytes.Decode as D
+import qualified Bytes.Encode as E
 
 import qualified AST.Source as Src
 import qualified AST.Utils.Binop as Binop
 import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
+import qualified Data.Utf8 as Utf8
 import qualified Elm.Float as EF
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.String as ES
@@ -313,88 +324,116 @@ data Manager
 -- BINARY
 
 
-instance Binary Alias where
-  get = liftM2 Alias get get
-  put (Alias a b) = put a >> put b
+eAlias :: Alias -> E.Builder
+eAlias (Alias vs t) =
+  E.list64 Utf8.encode8 vs <> eType t
 
 
-instance Binary Union where
-  put (Union a b c d) = put a >> put b >> put c >> put d
-  get = liftM4 Union get get get get
+dAlias :: D.Decoder Alias
+dAlias =
+  liftM2 Alias (D.list64 Utf8.decode8) dType
 
 
-instance Binary Ctor where
-  get = liftM4 Ctor get get get get
-  put (Ctor a b c d) = put a >> put b >> put c >> put d
+eUnion :: Union -> E.Builder
+eUnion (Union vs cs n opts) =
+  E.list64 Utf8.encode8 vs <> E.list64 eCtor cs <> E.int n <> eCtorOpts opts
 
 
-instance Binary CtorOpts where
-  put opts =
-    case opts of
-      Normal -> putWord8 0
-      Enum   -> putWord8 1
-      Unbox  -> putWord8 2
-
-  get =
-    do  n <- getWord8
-        case n of
-          0 -> return Normal
-          1 -> return Enum
-          2 -> return Unbox
-          _ -> fail "binary encoding of CtorOpts was corrupted"
+dUnion :: D.Decoder Union
+dUnion =
+  liftM4 Union (D.list64 Utf8.decode8) (D.list64 dCtor) D.int dCtorOpts
 
 
-instance Binary Annotation where
-  get = liftM2 Forall get get
-  put (Forall a b) = put a >> put b
+eCtor :: Ctor -> E.Builder
+eCtor (Ctor n i a t) =
+  Utf8.encode8 n <> Index.eZeroBased i <> E.int a <> E.list64 eType t
 
 
-instance Binary Type where
-  put tipe =
-    case tipe of
-      TLambda a b        -> putWord8 0 >> put a >> put b
-      TVar a             -> putWord8 1 >> put a
-      TRecord a b        -> putWord8 2 >> put a >> put b
-      TUnit              -> putWord8 3
-      TTuple a b c       -> putWord8 4 >> put a >> put b >> put c
-      TAlias a b c d     -> putWord8 5 >> put a >> put b >> put c >> put d
-      TType home name ts ->
-        let potentialWord = length ts + 7 in
-        if potentialWord <= fromIntegral (maxBound :: Word8) then
-          do  putWord8 (fromIntegral potentialWord)
-              put home
-              put name
-              mapM_ put ts
-        else
-          putWord8 6 >> put home >> put name >> put ts
-
-  get =
-    do  word <- getWord8
-        case word of
-          0 -> liftM2 TLambda get get
-          1 -> liftM  TVar get
-          2 -> liftM2 TRecord get get
-          3 -> return TUnit
-          4 -> liftM3 TTuple get get get
-          5 -> liftM4 TAlias get get get get
-          6 -> liftM3 TType get get get
-          n -> liftM3 TType get get (replicateM (fromIntegral (n - 7)) get)
+dCtor :: D.Decoder Ctor
+dCtor =
+  liftM4 Ctor Utf8.decode8 Index.dZeroBased D.int (D.list64 dType)
 
 
-instance Binary AliasType where
-  put aliasType =
-    case aliasType of
-      Holey tipe  -> putWord8 0 >> put tipe
-      Filled tipe -> putWord8 1 >> put tipe
-
-  get =
-    do  n <- getWord8
-        case n of
-          0 -> liftM Holey get
-          1 -> liftM Filled get
-          _ -> fail "binary encoding of AliasType was corrupted"
+eCtorOpts :: CtorOpts -> E.Builder
+eCtorOpts opts =
+  case opts of
+    Normal -> E.u8# 0#Word8
+    Enum   -> E.u8# 1#Word8
+    Unbox  -> E.u8# 2#Word8
 
 
-instance Binary FieldType where
-  get = liftM2 FieldType get get
-  put (FieldType a b) = put a >> put b
+dCtorOpts :: D.Decoder CtorOpts
+dCtorOpts =
+  do  n <- D.u8
+      case n of
+        0 -> pure Normal
+        1 -> pure Enum
+        2 -> pure Unbox
+        _ -> D.expecting "CtorOpts"
+
+
+eAnnotation :: Annotation -> E.Builder
+eAnnotation (Forall vs t) =
+  E.dict64 Utf8.encode8 (\() -> mempty) vs <> eType t
+
+
+dAnnotation :: D.Decoder Annotation
+dAnnotation =
+  liftM2 Forall (D.dict64 Utf8.decode8 (pure ())) dType
+
+
+eType :: Type -> E.Builder
+eType tipe =
+  case tipe of
+    TLambda a b     -> E.u8# 0#Word8 <> eType a <> eType b
+    TVar a          -> E.u8# 1#Word8 <> Utf8.encode8 a
+    TRecord fs e    -> E.u8# 2#Word8 <> E.dict32 Utf8.encode8 eFieldType fs <> E.maybe Utf8.encode8 e
+    TUnit           -> E.u8# 3#Word8
+    TTuple a b c    -> E.u8# 4#Word8 <> eType a <> eType b <> E.maybe eType c
+    TAlias h n xs a -> E.u8# 5#Word8 <> ModuleName.eCanonical h <> Utf8.encode8 n <> E.list64 (\(x,t) -> Utf8.encode8 x <> eType t) xs <> eAliasType a
+    TType  h n xs   ->
+      let potentialWord = length xs + 7 in
+      if potentialWord <= fromIntegral (maxBound :: Word8)
+      then E.u8 (fromIntegral potentialWord) <> ModuleName.eCanonical h <> Utf8.encode8 n <> List.mmap eType xs
+      else E.u8# 6#Word8                     <> ModuleName.eCanonical h <> Utf8.encode8 n <> E.list64 eType xs
+
+
+dType :: D.Decoder Type
+dType =
+  do  word <- D.u8
+      case word of
+        0 -> liftM2 TLambda dType dType
+        1 -> liftM  TVar Utf8.decode8
+        2 -> liftM2 TRecord (D.dict32 Utf8.decode8 dFieldType) (D.maybe Utf8.decode8)
+        3 -> return TUnit
+        4 -> liftM3 TTuple dType dType (D.maybe dType)
+        5 -> liftM4 TAlias ModuleName.dCanonical Utf8.decode8 (D.list64 (liftM2 (,) Utf8.decode8 dType)) dAliasType
+        6 -> liftM3 TType ModuleName.dCanonical Utf8.decode8 (D.list64 dType)
+        n -> liftM3 TType ModuleName.dCanonical Utf8.decode8 (replicateM (fromIntegral (n - 7)) dType)
+
+
+eAliasType :: AliasType -> E.Builder
+eAliasType aliasType =
+  case aliasType of
+    Holey  tipe -> E.u8 0 <> eType tipe
+    Filled tipe -> E.u8 1 <> eType tipe
+
+
+dAliasType :: D.Decoder AliasType
+dAliasType =
+  do  n <- D.u8
+      case n of
+        0 -> liftM Holey dType
+        1 -> liftM Filled dType
+        _ -> D.expecting "AliasType"
+
+
+eFieldType :: FieldType -> E.Builder
+eFieldType (FieldType i t) =
+  E.u16 i <> eType t
+
+
+dFieldType :: D.Decoder FieldType
+dFieldType =
+  liftM2 FieldType D.u16 dType
+

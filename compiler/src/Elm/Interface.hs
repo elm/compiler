@@ -1,3 +1,4 @@
+{-# LANGUAGE ExtendedLiterals, MagicHash #-}
 module Elm.Interface
   ( Interface(..)
   , Union(..)
@@ -12,16 +13,21 @@ module Elm.Interface
   , privatize
   , extractUnion
   , extractAlias
+  --
+  , eInterface, dInterface
+  , eDependencyInterface, dDependencyInterface
   )
   where
 
 
 import Control.Monad (liftM, liftM3, liftM4, liftM5)
-import Data.Binary
 import Data.Map.Strict ((!))
 import qualified Data.Map.Strict as Map
 import qualified Data.Map.Merge.Strict as Map
 import qualified Data.Name as Name
+
+import qualified Bytes.Decode as D
+import qualified Bytes.Encode as E
 
 import qualified AST.Canonical as Can
 import qualified AST.Utils.Binop as Binop
@@ -196,58 +202,81 @@ privatize di =
 -- BINARY
 
 
-instance Binary Interface where
-  get = liftM5 Interface get get get get get
-  put (Interface a b c d e) = put a >> put b >> put c >> put d >> put e
+eInterface :: Interface -> E.Builder
+eInterface (Interface h vs us as bs) =
+  Pkg.eName h
+  <> E.dict64 Name.encode Can.eAnnotation vs
+  <> E.dict64 Name.encode eUnion us
+  <> E.dict64 Name.encode eAlias as
+  <> E.dict64 Name.encode eBinop bs
 
 
-instance Binary Union where
-  put union =
-    case union of
-      OpenUnion    u -> putWord8 0 >> put u
-      ClosedUnion  u -> putWord8 1 >> put u
-      PrivateUnion u -> putWord8 2 >> put u
-
-  get =
-    do  n <- getWord8
-        case n of
-          0 -> liftM OpenUnion get
-          1 -> liftM ClosedUnion get
-          2 -> liftM PrivateUnion get
-          _ -> fail "binary encoding of Union was corrupted"
+dInterface :: D.Decoder Interface
+dInterface =
+  liftM5 Interface
+    Pkg.dName
+    (D.dict64 Name.decode Can.dAnnotation)
+    (D.dict64 Name.decode dUnion)
+    (D.dict64 Name.decode dAlias)
+    (D.dict64 Name.decode dBinop)
 
 
-instance Binary Alias where
-  put union =
-    case union of
-      PublicAlias  a -> putWord8 0 >> put a
-      PrivateAlias a -> putWord8 1 >> put a
-
-  get =
-    do  n <- getWord8
-        case n of
-          0 -> liftM PublicAlias get
-          1 -> liftM PrivateAlias get
-          _ -> fail "binary encoding of Alias was corrupted"
+eUnion :: Union -> E.Builder
+eUnion union =
+  case union of
+    OpenUnion    u -> E.u8# 0#Word8 <> Can.eUnion u
+    ClosedUnion  u -> E.u8# 1#Word8 <> Can.eUnion u
+    PrivateUnion u -> E.u8# 2#Word8 <> Can.eUnion u
 
 
-instance Binary Binop where
-  get =
-    liftM4 Binop get get get get
+dUnion :: D.Decoder Union
+dUnion =
+  do  n <- D.u8
+      case n of
+        0 -> OpenUnion <$> Can.dUnion
+        1 -> ClosedUnion <$> Can.dUnion
+        2 -> PrivateUnion <$> Can.dUnion
+        _ -> D.expecting "Union"
 
-  put (Binop a b c d) =
-    put a >> put b >> put c >> put d
+
+eAlias :: Alias -> E.Builder
+eAlias alias =
+  case alias of
+    PublicAlias  a -> E.u8# 0#Word8 <> Can.eAlias a
+    PrivateAlias a -> E.u8# 1#Word8 <> Can.eAlias a
 
 
-instance Binary DependencyInterface where
-  put union =
-    case union of
-      Public  a     -> putWord8 0 >> put a
-      Private a b c -> putWord8 1 >> put a >> put b >> put c
+dAlias :: D.Decoder Alias
+dAlias =
+  do  n <- D.u8
+      case n of
+        0 -> PublicAlias  <$> Can.dAlias
+        1 -> PrivateAlias <$> Can.dAlias
+        _ -> D.expecting "Alias"
 
-  get =
-    do  n <- getWord8
-        case n of
-          0 -> liftM  Public get
-          1 -> liftM3 Private get get get
-          _ -> fail "binary encoding of DependencyInterface was corrupted"
+
+eBinop :: Binop -> E.Builder
+eBinop (Binop n t a p) =
+  Name.encode n <> Can.eAnnotation t <> Binop.eAssociativity a <> Binop.ePrecedence p
+
+
+dBinop :: D.Decoder Binop
+dBinop =
+  liftM4 Binop Name.decode Can.dAnnotation Binop.dAssociativity Binop.dPrecedence
+
+
+eDependencyInterface :: DependencyInterface -> E.Builder
+eDependencyInterface iface =
+  case iface of
+    Public  i     -> E.u8# 0#Word8 <> eInterface i
+    Private n u a -> E.u8# 1#Word8 <> Pkg.eName n <> E.dict64 Name.encode Can.eUnion u <> E.dict64 Name.encode Can.eAlias a
+
+
+dDependencyInterface :: D.Decoder DependencyInterface
+dDependencyInterface =
+  do  n <- D.u8
+      case n of
+        0 -> liftM  Public dInterface
+        1 -> liftM3 Private Pkg.dName (D.dict64 Name.decode Can.dUnion) (D.dict64 Name.decode Can.dAlias)
+        _ -> D.expecting "DependencyInterface"
+

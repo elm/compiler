@@ -1,10 +1,13 @@
 {-# OPTIONS_GHC -fno-warn-x-partial #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ExtendedLiterals, MagicHash, OverloadedStrings #-}
 module Optimize.DecisionTree
   ( DecisionTree(..)
   , compile
   , Path(..)
   , Test(..)
+  --
+  , eTest, dTest
+  , ePath, dPath
   )
   where
 
@@ -22,14 +25,17 @@ as SML/NJ to get nice trees.
 
 import Control.Arrow (second)
 import Control.Monad (liftM, liftM2, liftM5)
-import Data.Binary
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
 import qualified Data.Set as Set
 
+import qualified Bytes.Decode as D
+import qualified Bytes.Encode as E
+
 import qualified AST.Canonical as Can
 import qualified Data.Index as Index
+import qualified Data.Utf8 as Utf8
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.String as ES
 import qualified Reporting.Annotation as A
@@ -595,43 +601,51 @@ smallBranchingFactor branches path =
 -- BINARY
 
 
-instance Binary Test where
-  put test =
-    case test of
-      IsCtor a b c d e -> putWord8 0 >> put a >> put b >> put c >> put d >> put e
-      IsCons           -> putWord8 1
-      IsNil            -> putWord8 2
-      IsTuple          -> putWord8 3
-      IsChr a          -> putWord8 4 >> put a
-      IsStr a          -> putWord8 5 >> put a
-      IsInt a          -> putWord8 6 >> put a
-      IsBool a         -> putWord8 7 >> put a
-
-  get =
-    do  word <- getWord8
-        case word of
-          0 -> liftM5 IsCtor get get get get get
-          1 -> pure   IsCons
-          2 -> pure   IsNil
-          3 -> pure   IsTuple
-          4 -> liftM  IsChr get
-          5 -> liftM  IsStr get
-          6 -> liftM  IsInt get
-          7 -> liftM  IsBool get
-          _ -> fail "problem getting DecisionTree.Test binary"
+eTest :: Test -> E.Builder
+eTest test =
+  case test of
+    IsCtor h n i a o -> E.u8# 0#Word8 <> ModuleName.eCanonical h <> Utf8.encode8 n <> Index.eZeroBased i <> E.int a <> Can.eCtorOpts o
+    IsCons           -> E.u8# 1#Word8
+    IsNil            -> E.u8# 2#Word8
+    IsTuple          -> E.u8# 3#Word8
+    IsChr c          -> E.u8# 4#Word8 <> E.char c
+    IsStr s          -> E.u8# 5#Word8 <> ES.encode s
+    IsInt i          -> E.u8# 6#Word8 <> E.int i
+    IsBool b         -> E.u8# 7#Word8 <> E.bool b
 
 
-instance Binary Path where
-  put path =
-    case path of
-      Index a b -> putWord8 0 >> put a >> put b
-      Unbox a   -> putWord8 1 >> put a
-      Empty     -> putWord8 2
+dTest :: D.Decoder Test
+dTest =
+  do  tag <- D.u8
+      case tag of
+        0 -> liftM5 IsCtor ModuleName.dCanonical Utf8.decode8 Index.dZeroBased D.int Can.dCtorOpts
+        1 -> pure   IsCons
+        2 -> pure   IsNil
+        3 -> pure   IsTuple
+        4 -> liftM  IsChr D.char
+        5 -> liftM  IsStr ES.decode
+        6 -> liftM  IsInt D.int
+        7 -> liftM  IsBool D.bool
+        _ -> D.expecting "DecisionTree.Test"
 
-  get =
-    do  word <- getWord8
-        case word of
-          0 -> liftM2 Index get get
-          1 -> liftM Unbox get
-          2 -> pure Empty
-          _ -> fail "problem getting DecisionTree.Path binary"
+
+ePath :: Path -> E.Builder
+ePath path =
+  case path of
+    Index i p -> E.u8# 0#Word8 <> Index.eZeroBased i <> ePath p
+    Unbox   p -> E.u8# 1#Word8 <> ePath p
+    Empty     -> E.u8# 2#Word8
+
+
+dPath :: D.Decoder Path
+dPath =
+  do  tag <- D.u8
+      case tag of
+        0 -> liftM2 Index Index.dZeroBased dPath
+        1 -> liftM Unbox dPath
+        2 -> pure Empty
+        _ -> D.expecting "DecisionTree.Path"
+
+
+
+
