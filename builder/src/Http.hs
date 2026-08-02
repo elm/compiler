@@ -13,6 +13,7 @@ module Http
   , Sha
   , shaToChars
   , getArchive
+  , writePackage
   -- upload
   , upload
   , filePart
@@ -28,16 +29,21 @@ import Control.Exception (SomeException, handle)
 import qualified Data.Binary as Binary
 import qualified Data.Binary.Get as Binary
 import qualified Data.ByteString.Builder as B
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Digest.Pure.SHA as SHA
 import qualified Data.String as String
+import qualified Data.List as List
 import Network.HTTP (urlEncodeVars)
-import Network.HTTP.Client
+import Network.HTTP.Client hiding (path)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.HTTP.Types.Header (Header, hAccept, hAcceptEncoding, hUserAgent)
 import Network.HTTP.Types.Method (Method, methodGet, methodPost)
 import qualified Network.HTTP.Client as Multi (RequestBody(RequestBodyLBS))
 import qualified Network.HTTP.Client.MultipartFormData as Multi
+import qualified System.Directory as Dir
+import qualified System.FilePath as FP
+import System.FilePath ((</>))
 
 import qualified Json.Encode as Encode
 import qualified Elm.Version as V
@@ -203,6 +209,37 @@ readArchiveHelp body (AS len sha zip) =
 
     Binary.Done _ _ archive ->
       return $ Just ( SHA.completeSha1Incremental sha len, archive )
+
+
+
+-- WRITE PACKAGE
+
+
+writePackage :: FilePath -> Zip.Archive -> IO ()
+writePackage destination archive =
+  case Zip.zEntries archive of
+    [] ->
+      return ()
+
+    entry:entries ->
+      do  let root = length (Zip.eRelativePath entry)
+          mapM_ (writeEntry destination root) entries
+
+
+writeEntry :: FilePath -> Int -> Zip.Entry -> IO ()
+writeEntry destination root entry =
+  let
+    path = drop root (Zip.eRelativePath entry)
+  in
+  if List.isPrefixOf "src/" path && last path == '/'
+  then Dir.createDirectoryIfMissing True (destination </> path)
+  else
+    if List.isPrefixOf "src/" path && (FP.isExtensionOf "elm" path || List.isPrefixOf "src/Elm/Kernel/" path && FP.isExtensionOf "js" path)
+    || path == "LICENSE"
+    || path == "README.md"
+    || path == "elm.json"
+    then LBS.writeFile (destination </> path) (Zip.fromEntry entry)
+    else return ()
 
 
 
