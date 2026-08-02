@@ -17,12 +17,14 @@ module Elm.ModuleName
   , virtualDom
   , jsonDecode, jsonEncode
   , webgl, texture, vector2, vector3, vector4, matrix4
+  --
+  , eRaw, dRaw
+  , eCanonical, dCanonical
   )
   where
 
 
 import Control.Monad (liftM2)
-import Data.Binary (Binary(..))
 import qualified Data.Name as Name
 import qualified Data.Utf8 as Utf8
 import GHC.Exts (isTrue#)
@@ -30,10 +32,13 @@ import GHC.Prim
 import Prelude hiding (maybe)
 import qualified System.FilePath as FP
 
+import qualified Bytes.Decode as D
+import qualified Bytes.Encode as E
+
 import qualified AST.Prim.Variable as Var
 import qualified Elm.Package as Pkg
-import qualified Json.Decode as D
-import qualified Json.Encode as E
+import qualified Json.Decode as JD
+import qualified Json.Encode as JE
 import qualified Parse.Primitives as P
 import Parse.Primitives (Cursor)
 import qualified Reporting.Annotation as A
@@ -65,14 +70,14 @@ toHyphenPath name =
 -- JSON
 
 
-encode :: Raw -> E.Value
+encode :: Raw -> JE.Value
 encode =
-  E.name
+  JE.name
 
 
-decoder :: D.Decoder A.Position Raw
+decoder :: JD.Decoder A.Position Raw
 decoder =
-  D.customString parser A.Position
+  JD.customString parser A.Position
 
 
 
@@ -156,9 +161,28 @@ instance Ord Canonical where
       GT -> GT
 
 
-instance Binary Canonical where
-  put (Canonical a b) = put a >> put b
-  get = liftM2 Canonical get get
+
+-- BINARY FORMAT
+
+
+eRaw :: Raw -> E.Builder
+eRaw =
+  Utf8.encode8
+
+
+dRaw :: D.Decoder Raw
+dRaw =
+  Utf8.decode8
+
+
+eCanonical :: Canonical -> E.Builder
+eCanonical (Canonical p h) =
+  Pkg.eName p <> Utf8.encode8 h
+
+
+dCanonical :: D.Decoder Canonical
+dCanonical =
+  liftM2 Canonical Pkg.dName Utf8.decode8
 
 
 

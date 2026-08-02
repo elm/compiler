@@ -1,8 +1,14 @@
-{-# LANGUAGE BangPatterns, ExtendedLiterals, MagicHash, UnboxedTuples #-}
+{-# LANGUAGE BangPatterns, BinaryLiterals, ExtendedLiterals, MagicHash,
+TemplateHaskell, UnboxedTuples
+#-}
 module Elm.Version
-  ( Version(..)
+  ( Version
+  , toVersion
+  , fromVersion
+  --
   , one
   , max
+  --
   , compiler
   , bumpPatch
   , bumpMinor
@@ -13,21 +19,25 @@ module Elm.Version
   , encode
   --
   , parser
+  --
+  , eVersion, dVersion
   )
   where
 
 
 import Prelude hiding (max)
-import Control.Monad (liftM3)
-import Data.Binary (Binary, get, put, getWord8, putWord8)
 import qualified Data.Version as Version
 import GHC.Exts (isTrue#)
 import GHC.Prim
-import GHC.Word (Word8(..), Word16)
+import GHC.Word (Word8(..), Word16(..))
 import qualified Paths_elm
 
-import qualified Json.Decode as D
-import qualified Json.Encode as E
+import qualified Bytes.Decode as D
+import qualified Bytes.Encode as E
+import qualified Crash
+
+import qualified Json.Decode as JD
+import qualified Json.Encode as JE
 import qualified Parse.Primitives as P
 import qualified Reporting.Annotation as A
 
@@ -45,30 +55,41 @@ data Version =
     deriving (Eq, Ord)
 
 
+toVersion :: Word16 -> Word16 -> Word16 -> Version
+toVersion =
+  Version
+
+
+fromVersion :: Version -> (Word16 -> Word16 -> Word16 -> r) -> r
+fromVersion (Version x y z) cont =
+  cont x y z
+
+
+
+-- COMMON VERSIONS
+
+
 one :: Version
 one =
-  Version 1 0 0
+  toVersion 1 0 0
 
 
 max :: Version
 max =
-  Version maxBound 0 0
+  toVersion maxBound 0 0
+
+
+
+-- COMPILER VERSION
 
 
 compiler :: Version
 compiler =
   case map fromIntegral (Version.versionBranch Paths_elm.version) of
-    major : minor : patch : _ ->
-      Version major minor patch
-
-    [major, minor] ->
-      Version major minor 0
-
-    [major] ->
-      Version major 0 0
-
-    [] ->
-      error "could not detect version of elm-compiler you are using"
+    [x,y,z] -> toVersion x y z
+    [x,y]   -> toVersion x y 0
+    [x]     -> toVersion x 0 0
+    _       -> $(Crash.crash 'compiler) "could not detect compiler version from cabal file"
 
 
 
@@ -95,48 +116,50 @@ bumpMajor (Version major _minor _patch) =
 
 
 toChars :: Version -> [Char]
-toChars (Version major minor patch) =
-  show major ++ '.' : show minor ++ '.' : show patch
+toChars vsn =
+  fromVersion vsn $ \major minor patch ->
+    show major ++ '.' : show minor ++ '.' : show patch
 
 
 
 -- JSON
 
 
-decoder :: D.Decoder A.Position Version
+decoder :: JD.Decoder A.Position Version
 decoder =
-  D.customString parser A.Position
+  JD.customString parser A.Position
 
 
-encode :: Version -> E.Value
+encode :: Version -> JE.Value
 encode version =
-  E.chars (toChars version)
+  JE.chars (toChars version)
 
 
 
 -- BINARY
 
 
-instance Binary Version where
-  get =
-    do  word <- getWord8
-        if word == 255
-          then liftM3 Version get get get
-          else
-            do  minor <- getWord8
-                patch <- getWord8
-                return (Version (fromIntegral word) (fromIntegral minor) (fromIntegral patch))
+dVersion :: D.Decoder Version
+dVersion =
+  do  word <- D.u8
+      if word == 255
+        then
+          do  x <- D.u16
+              y <- D.u16
+              z <- D.u16
+              pure $ toVersion (fromIntegral x) (fromIntegral y) (fromIntegral z)
+        else
+          do  minor <- D.u8
+              patch <- D.u8
+              return (toVersion (fromIntegral word) (fromIntegral minor) (fromIntegral patch))
 
-  put (Version major minor patch) =
-    if major < 255 && minor < 256 && patch < 256 then
-      do  putWord8 (fromIntegral major)
-          putWord8 (fromIntegral minor)
-          putWord8 (fromIntegral patch)
-    else
-      do  putWord8 255
-          put major
-          put minor
-          put patch
+
+eVersion :: Version -> E.Builder
+eVersion vsn =
+  fromVersion vsn $ \major minor patch ->
+    if major < 255 && minor < 256 && patch < 256
+    then E.u8 (fromIntegral major) <> E.u8 (fromIntegral minor) <> E.u8 (fromIntegral patch)
+    else E.u8 255 <> E.u16 major <> E.u16 minor <> E.u16 patch
 
 
 
@@ -150,7 +173,7 @@ parser =
       minor <- numberParser
       P.word1 0x2E#Word8 {-.-} A.Position
       patch <- numberParser
-      return (Version major minor patch)
+      return (toVersion major minor patch)
 
 
 numberParser :: P.Parser A.Position Word16

@@ -20,6 +20,9 @@ module Elm.Package
   , suggestions
   , nearbyNames
   --
+  , dName, eName
+  , dCanonical, eCanonical
+  --
   , decoder
   , encode
   , keyDecoder
@@ -30,7 +33,6 @@ module Elm.Package
 
 
 import Control.Monad (liftM2)
-import Data.Binary (Binary, get, put)
 import qualified Data.Coerce as Coerce
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -40,9 +42,12 @@ import GHC.Exts (isTrue#)
 import GHC.Prim
 import System.FilePath ((</>))
 
+import qualified Bytes.Decode as D
+import qualified Bytes.Encode as E
+
 import qualified Elm.Version as V
-import qualified Json.Decode as D
-import qualified Json.Encode as E
+import qualified Json.Decode as JD
+import qualified Json.Encode as JE
 import qualified Json.String as Json
 import qualified Parse.Primitives as P
 import Parse.Primitives (Cursor)
@@ -273,37 +278,47 @@ instance Eq Canonical where
 -- BINARY
 
 
-instance Binary Name where -- PERF try storing as a Word16
-  get = liftM2 Name Utf8.getUnder256 Utf8.getUnder256
-  put (Name a b) = Utf8.putUnder256 a >> Utf8.putUnder256 b
+dName :: D.Decoder Name
+dName =
+  liftM2 Name Utf8.decode8 Utf8.decode8
 
 
-instance Binary Canonical where
-  get = liftM2 Canonical get get
-  put (Canonical a b) = put a >> put b
+eName :: Name -> E.Builder
+eName (Name a p) =
+  Utf8.encode8 a <> Utf8.encode8 p
+
+
+dCanonical :: D.Decoder Canonical
+dCanonical =
+  liftM2 Canonical dName V.dVersion
+
+
+eCanonical :: Canonical -> E.Builder
+eCanonical (Canonical n v) =
+  eName n <> V.eVersion v
 
 
 
 -- JSON
 
 
-decoder :: D.Decoder A.Position Name
+decoder :: JD.Decoder A.Position Name
 decoder =
-  D.customString parser A.Position
+  JD.customString parser A.Position
 
 
-encode :: Name -> E.Value
+encode :: Name -> JE.Value
 encode name =
-  E.chars (toChars name)
+  JE.chars (toChars name)
 
 
-keyDecoder :: (Cursor -> x) -> D.KeyDecoder x Name
+keyDecoder :: (Cursor -> x) -> JD.KeyDecoder x Name
 keyDecoder toError =
   let
     keyParser =
       P.specialize (\(A.Position c) _ -> toError c) parser
   in
-  D.KeyDecoder keyParser toError
+  JD.KeyDecoder keyParser toError
 
 
 

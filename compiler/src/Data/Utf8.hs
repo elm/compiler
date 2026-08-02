@@ -13,12 +13,6 @@ module Data.Utf8
   , split
   , join
   --
-  , getUnder256
-  , putUnder256
-  --
-  , getVeryLong
-  , putVeryLong
-  --
   , toChars
   , toBuilder
   , toEscapedBuilder
@@ -26,6 +20,10 @@ module Data.Utf8
   , fromAddr
   , fromSnippet
   , fromChars
+  --
+  , encode8, decode8
+  , encode16, decode16
+  , encode32, decode32
   --
   , MBA
   , newByteArray
@@ -38,22 +36,19 @@ module Data.Utf8
 
 
 import Prelude hiding (String, all, any, concat)
-import Data.Binary (Get, get, getWord8, Put, put, putWord8)
-import Data.Binary.Put (putBuilder)
-import Data.Binary.Get.Internal (readN)
 import Data.Bits ((.&.), shiftR)
-import qualified Data.ByteString.Internal as B
 import qualified Data.ByteString.Builder.Internal as B
 import qualified Data.Char as Char
 import qualified Data.List as List
-import Foreign.ForeignPtr (touchForeignPtr)
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr)
 import GHC.Exts (Int(I#), Ptr(Ptr), Char(C#), isTrue#)
 import GHC.IO
 import GHC.ST (ST(ST), runST)
 import GHC.Prim
 import GHC.Word (Word8(W8#))
+
+import qualified Bytes.Decode as D
+import qualified Bytes.Encode as E
 
 import qualified Parse.Primitives as P
 
@@ -511,50 +506,33 @@ fromSnippet (P.Snippet fpc pos end _) =
 
 
 
--- BINARY
+-- BINARY ENCODING
 
 
-putUnder256 :: Utf8 t -> Put
-putUnder256 bytes =
-  do  putWord8 (fromIntegral (size bytes))
-      putBuilder (toBuilder bytes)
+{-# INLINE encode8  #-}
+{-# INLINE encode16 #-}
+{-# INLINE encode32 #-}
+
+encode8  :: Utf8 t -> E.Builder
+encode16 :: Utf8 t -> E.Builder
+encode32 :: Utf8 t -> E.Builder
+
+encode8  s = E.u8#  (wordToWord8#  (int2Word# (size# s))) <> toBuilder s
+encode16 s = E.u16# (wordToWord16# (int2Word# (size# s))) <> toBuilder s
+encode32 s = E.u32# (wordToWord32# (int2Word# (size# s))) <> toBuilder s
 
 
-getUnder256 :: Get (Utf8 t)
-getUnder256 =
-  do  word <- getWord8
-      let !n = fromIntegral word
-      readN n (copyFromByteString n)
+{-# INLINE decode8  #-}
+{-# INLINE decode16 #-}
+{-# INLINE decode32 #-}
 
+decode8  :: D.Decoder (Utf8 t)
+decode16 :: D.Decoder (Utf8 t)
+decode32 :: D.Decoder (Utf8 t)
 
-putVeryLong :: Utf8 t -> Put
-putVeryLong bytes =
-  do  put (size bytes)
-      putBuilder (toBuilder bytes)
-
-
-getVeryLong :: Get (Utf8 t)
-getVeryLong =
-  do  n <- get
-      if n > 0
-        then readN n (copyFromByteString n)
-        else return empty
-
-
-
--- COPY FROM BYTESTRING
-
-
-{-# INLINE copyFromByteString #-}
-copyFromByteString :: Int -> B.ByteString -> Utf8 t
-copyFromByteString len (B.PS fptr offset _) =
-  unsafeDupablePerformIO
-  (
-    do  mba <- stToIO (newByteArray len)
-        stToIO (copyFromPtr (unsafeForeignPtrToPtr fptr `plusPtr` offset) mba 0 len)
-        touchForeignPtr fptr
-        stToIO (freeze mba)
-  )
+decode8  = D.bytes Utf8 . fromIntegral =<< D.u8
+decode16 = D.bytes Utf8 . fromIntegral =<< D.u16
+decode32 = D.bytes Utf8 . fromIntegral =<< D.u32
 
 
 

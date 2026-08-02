@@ -32,13 +32,15 @@ module Data.Name
   , utils, negate, true, false, value
   , node, program, _main, _Main, dollar, identity
   , replModule, replValueToPrint
+  --
+  , encode
+  , decode
   )
   where
 
 
 import Prelude hiding (length, maybe, negate)
 import Control.Exception (assert)
-import qualified Data.Binary as Binary
 import qualified Data.ByteString.Builder.Internal as B
 import qualified Data.Coerce as Coerce
 import qualified Data.List as List
@@ -48,6 +50,9 @@ import GHC.Exts (Int(I#), isTrue#)
 import GHC.ST (ST(ST), runST)
 import GHC.Prim
 import GHC.Word (Word8(W8#))
+
+import qualified Bytes.Decode as D
+import qualified Bytes.Encode as E
 
 import qualified Elm.String as ES
 
@@ -69,10 +74,6 @@ data ELM_NAME
 
 instance Chars.IsString (Utf8.Utf8 ELM_NAME) where
   fromString = Utf8.fromChars
-
-instance Binary.Binary (Utf8.Utf8 ELM_NAME) where
-  get = Utf8.getUnder256
-  put = Utf8.putUnder256
 
 
 
@@ -601,3 +602,19 @@ replModule = fromChars "Elm_Repl"
 {-# NOINLINE replValueToPrint #-}
 replValueToPrint :: Name
 replValueToPrint = fromChars "repl_input_value_"
+
+
+
+-- BINARY
+
+
+encode :: Name -> E.Builder
+encode =
+  Utf8.encode8
+
+
+decode :: D.Decoder Name
+decode =
+  Utf8.decode8
+
+
