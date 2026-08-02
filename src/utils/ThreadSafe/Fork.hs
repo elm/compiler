@@ -1,6 +1,7 @@
 module ThreadSafe.Fork
   ( SafeMVar
   , await
+  , cached
   --
   , fork_
   , fork
@@ -12,7 +13,7 @@ module ThreadSafe.Fork
 
 
 import Control.Concurrent (forkIO)
-import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, readMVar)
+import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar, readMVar)
 import Control.Exception (Exception(..), SomeException, throwIO)
 import qualified Data.Map as Map
 
@@ -33,6 +34,11 @@ await (SafeMVar mvar) =
       case result of
         Right a -> return a
         Left  x -> throwIO x
+
+
+cached :: a -> IO (SafeMVar a)
+cached a =
+  SafeMVar <$> newMVar (Right a)
 
 
 
