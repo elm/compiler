@@ -355,8 +355,8 @@ changeMagnitude (Changes added changed removed) =
 -- GET DOCS
 
 
-getDocs :: Stuff.PackageCache -> Http.Manager -> Pkg.Name -> V.Version -> IO (Either Exit.DocsProblem Docs.Documentation)
-getDocs cache manager name version =
+getDocs :: File.Writer Stuff.PACKAGES -> Stuff.PackageCache -> Http.Manager -> Pkg.Name -> V.Version -> IO (Either Exit.DocsProblem Docs.Documentation)
+getDocs writer cache manager name version =
   do  let home = Stuff.package cache name version
       let path = home </> "docs.json"
       exists <- File.exists path
@@ -378,7 +378,7 @@ getDocs cache manager name version =
                     case result of
                       Right docs ->
                         do  Dir.createDirectoryIfMissing True home
-                            File.writeUtf8 path body
+                            File.writeUtf8 writer path body
                             return $ Right docs
 
                       Left _ ->

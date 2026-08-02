@@ -8,22 +8,26 @@ module Deps.Registry
   , latest
   , getVersions
   , getVersions'
+  --
+  , eRegistry, dRegistry
   )
   where
 
 
 import Prelude hiding (read)
 import Control.Monad (liftM2)
-import Data.Binary (Binary, get, put)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
+
+import qualified Bytes.Decode as D
+import qualified Bytes.Encode as E
 
 import qualified Deps.Website as Website
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
 import qualified File
 import qualified Http
-import qualified Json.Decode as D
+import qualified Json.Decode as JD
 import qualified Parse.Primitives as P
 import qualified Reporting.Exit as Exit
 import qualified Stuff
@@ -53,21 +57,21 @@ data KnownVersions =
 
 read :: Stuff.PackageCache -> IO (Maybe Registry)
 read cache =
-  File.readBinary (Stuff.registry cache)
+  File.readBytes dRegistry (Stuff.registry cache)
 
 
 
 -- FETCH
 
 
-fetch :: Http.Manager -> Stuff.PackageCache -> IO (Either Exit.RegistryProblem Registry)
-fetch manager cache =
+fetch :: File.Writer Stuff.PACKAGES -> Http.Manager -> Stuff.PackageCache -> IO (Either Exit.RegistryProblem Registry)
+fetch writer manager cache =
   post manager "/all-packages" allPkgsDecoder $
     \versions ->
       do  let size = Map.foldr' addEntry 0 versions
           let registry = Registry size versions
           let path = Stuff.registry cache
-          File.writeBinary path registry
+          File.writeBytes writer path eRegistry registry
           return registry
 
 
@@ -76,30 +80,30 @@ addEntry (KnownVersions _ vs) count =
   count + 1 + length vs
 
 
-allPkgsDecoder :: D.Decoder () (Map.Map Pkg.Name KnownVersions)
+allPkgsDecoder :: JD.Decoder () (Map.Map Pkg.Name KnownVersions)
 allPkgsDecoder =
   let
     keyDecoder =
       Pkg.keyDecoder bail
 
     versionsDecoder =
-      D.list (D.mapError (\_ -> ()) V.decoder)
+      JD.list (JD.mapError (\_ -> ()) V.decoder)
 
     toKnownVersions versions =
       case List.sortBy (flip compare) versions of
         v:vs -> return (KnownVersions v vs)
-        []   -> D.failure ()
+        []   -> JD.failure ()
   in
-  D.dict keyDecoder (toKnownVersions =<< versionsDecoder)
+  JD.dict keyDecoder (toKnownVersions =<< versionsDecoder)
 
 
 
 -- UPDATE
 
 
-update :: Http.Manager -> Stuff.PackageCache -> Registry -> IO (Either Exit.RegistryProblem Registry)
-update manager cache oldRegistry@(Registry size packages) =
-  post manager ("/all-packages/since/" ++ show size) (D.list newPkgDecoder) $
+update :: File.Writer Stuff.PACKAGES -> Http.Manager -> Stuff.PackageCache -> Registry -> IO (Either Exit.RegistryProblem Registry)
+update writer manager cache oldRegistry@(Registry size packages) =
+  post manager ("/all-packages/since/" ++ show size) (JD.list newPkgDecoder) $
     \news ->
       case news of
         [] ->
@@ -111,7 +115,7 @@ update manager cache oldRegistry@(Registry size packages) =
             newPkgs = foldr addNew packages news
             newRegistry = Registry newSize newPkgs
           in
-          do  File.writeBinary (Stuff.registry cache) newRegistry
+          do  File.writeBytes writer (Stuff.registry cache) eRegistry newRegistry
               return newRegistry
 
 
@@ -133,9 +137,9 @@ addNew (name, version) versions =
 -- NEW PACKAGE DECODER
 
 
-newPkgDecoder :: D.Decoder () (Pkg.Name, V.Version)
+newPkgDecoder :: JD.Decoder () (Pkg.Name, V.Version)
 newPkgDecoder =
-  D.customString newPkgParser bail
+  JD.customString newPkgParser bail
 
 
 newPkgParser :: P.Parser () (Pkg.Name, V.Version)
@@ -155,15 +159,15 @@ bail _ =
 -- LATEST
 
 
-latest :: Http.Manager -> Stuff.PackageCache -> IO (Either Exit.RegistryProblem Registry)
-latest manager cache =
+latest :: File.Writer Stuff.PACKAGES -> Http.Manager -> Stuff.PackageCache -> IO (Either Exit.RegistryProblem Registry)
+latest writer manager cache =
   do  maybeOldRegistry <- read cache
       case maybeOldRegistry of
         Just oldRegistry ->
-          update manager cache oldRegistry
+          update writer manager cache oldRegistry
 
         Nothing ->
-          fetch manager cache
+          fetch writer manager cache
 
 
 
@@ -186,14 +190,14 @@ getVersions' name (Registry _ versions) =
 -- POST
 
 
-post :: Http.Manager -> String -> D.Decoder x a -> (a -> IO b) -> IO (Either Exit.RegistryProblem b)
+post :: Http.Manager -> String -> JD.Decoder x a -> (a -> IO b) -> IO (Either Exit.RegistryProblem b)
 post manager path decoder callback =
   let
     url = Website.route path []
   in
   Http.post manager url [] Exit.RP_Http $
     \body ->
-      do  result <- D.fromByteString decoder body
+      do  result <- JD.fromByteString decoder body
           case result of
             Right a -> Right <$> callback a
             Left _ -> return $ Left $ Exit.RP_Data url body
@@ -203,11 +207,22 @@ post manager path decoder callback =
 -- BINARY
 
 
-instance Binary Registry where
-  get = liftM2 Registry get get
-  put (Registry a b) = put a >> put b
+eRegistry :: Registry -> E.Builder
+eRegistry (Registry c vs) =
+  E.int c <> E.dict64 Pkg.eName eKnownVersions vs
 
 
-instance Binary KnownVersions where
-  get = liftM2 KnownVersions get get
-  put (KnownVersions a b) = put a >> put b
+dRegistry :: D.Decoder Registry
+dRegistry =
+  liftM2 Registry D.int (D.dict64 Pkg.dName dKnownVersions)
+
+
+eKnownVersions :: KnownVersions -> E.Builder
+eKnownVersions (KnownVersions n p) =
+  V.eVersion n <> E.list64 V.eVersion p
+
+
+dKnownVersions :: D.Decoder KnownVersions
+dKnownVersions =
+  liftM2 KnownVersions V.dVersion (D.list64 V.dVersion)
+

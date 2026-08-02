@@ -94,13 +94,13 @@ data Details =
 
 verify :: Stuff.PackageCache -> Connection -> Registry.Registry -> Map.Map Pkg.Name C.Constraint -> IO (Result (Map.Map Pkg.Name Details))
 verify cache connection registry constraints =
-  Stuff.withRegistryLock cache $
-  case try constraints of
-    Solver solver ->
-      solver (State cache connection registry Map.empty)
-        (\s a _ -> return $ Ok (Map.mapWithKey (addDeps s) a))
-        (\_     -> return $ noSolution connection)
-        (\e     -> return $ Err e)
+  Stuff.withRegistryLock cache $ \writer ->
+    case try writer constraints of
+      Solver solver ->
+        solver (State cache connection registry Map.empty)
+          (\s a _ -> return $ Ok (Map.mapWithKey (addDeps s) a))
+          (\_     -> return $ noSolution connection)
+          (\e     -> return $ Err e)
 
 
 addDeps :: State -> Pkg.Name -> V.Version -> Details
@@ -131,14 +131,14 @@ data AppSolution =
 
 addToApp :: Stuff.PackageCache -> Connection -> Registry.Registry -> Pkg.Name -> Outline.AppOutline -> IO (Result AppSolution)
 addToApp cache connection registry pkg outline@(Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
-  Stuff.withRegistryLock cache $
+  Stuff.withRegistryLock cache $ \writer ->
   let
     allIndirects = Map.union indirect testIndirect
     allDirects = Map.union direct testDirect
     allDeps = Map.union allDirects allIndirects
 
     attempt toConstraint deps =
-      try (Map.insert pkg C.anything (Map.map toConstraint deps))
+      try writer (Map.insert pkg C.anything (Map.map toConstraint deps))
   in
   case
     oneOf
@@ -190,9 +190,9 @@ getTransitive constraints solution unvisited visited =
 -- TRY
 
 
-try :: Map.Map Pkg.Name C.Constraint -> Solver (Map.Map Pkg.Name V.Version)
-try constraints =
-  exploreGoals (Goals constraints Map.empty)
+try :: File.Writer Stuff.PACKAGES -> Map.Map Pkg.Name C.Constraint -> Solver (Map.Map Pkg.Name V.Version)
+try writer constraints =
+  exploreGoals writer (Goals constraints Map.empty)
 
 
 
@@ -206,23 +206,23 @@ data Goals =
     }
 
 
-exploreGoals :: Goals -> Solver (Map.Map Pkg.Name V.Version)
-exploreGoals (Goals pending solved) =
+exploreGoals :: File.Writer Stuff.PACKAGES -> Goals -> Solver (Map.Map Pkg.Name V.Version)
+exploreGoals writer (Goals pending solved) =
   case Map.minViewWithKey pending of
     Nothing ->
       return solved
 
     Just ((name, constraint), otherPending) ->
       do  let goals1 = Goals otherPending solved
-          let addVsn = addVersion goals1 name
+          let addVsn = addVersion writer goals1 name
           (v,vs) <- getRelevantVersions name constraint
           goals2 <- oneOf (addVsn v) (map addVsn vs)
-          exploreGoals goals2
+          exploreGoals writer goals2
 
 
-addVersion :: Goals -> Pkg.Name -> V.Version -> Solver Goals
-addVersion (Goals pending solved) name version =
-  do  (Constraints elm deps) <- getConstraints name version
+addVersion :: File.Writer Stuff.PACKAGES -> Goals -> Pkg.Name -> V.Version -> Solver Goals
+addVersion writer (Goals pending solved) name version =
+  do  (Constraints elm deps) <- getConstraints writer name version
       if C.goodElm elm
         then
           do  newPending <- foldM (addConstraint solved) pending (Map.toList deps)
@@ -276,8 +276,8 @@ getRelevantVersions name constraint =
 -- GET CONSTRAINTS
 
 
-getConstraints :: Pkg.Name -> V.Version -> Solver Constraints
-getConstraints pkg vsn =
+getConstraints :: File.Writer Stuff.PACKAGES -> Pkg.Name -> V.Version -> Solver Constraints
+getConstraints writer pkg vsn =
   Solver $ \state@(State cache connection registry cDict) ok back err ->
     do  let key = (pkg, vsn)
         case Map.lookup key cDict of
@@ -325,7 +325,7 @@ getConstraints pkg vsn =
                                     case conResult of
                                       Right cs ->
                                         do  Dir.createDirectoryIfMissing True home
-                                            File.writeUtf8 path body
+                                            File.writeUtf8 writer path body
                                             ok (toNewState cs) cs back
 
                                       Left _ ->
@@ -356,13 +356,13 @@ initEnv =
   do  mvar  <- newEmptyMVar
       _     <- forkIO $ putMVar mvar =<< Http.getManager
       cache <- Stuff.getPackageCache
-      Stuff.withRegistryLock cache $
+      Stuff.withRegistryLock cache $ \writer ->
         do  maybeRegistry <- Registry.read cache
             manager       <- readMVar mvar
 
             case maybeRegistry of
               Nothing ->
-                do  eitherRegistry <- Registry.fetch manager cache
+                do  eitherRegistry <- Registry.fetch writer manager cache
                     case eitherRegistry of
                       Right latestRegistry ->
                         return $ Right $ Env cache manager (Online manager) latestRegistry
@@ -371,7 +371,7 @@ initEnv =
                         return $ Left $ problem
 
               Just cachedRegistry ->
-                do  eitherRegistry <- Registry.update manager cache cachedRegistry
+                do  eitherRegistry <- Registry.update writer manager cache cachedRegistry
                     case eitherRegistry of
                       Right latestRegistry ->
                         return $ Right $ Env cache manager (Online manager) latestRegistry

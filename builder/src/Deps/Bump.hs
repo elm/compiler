@@ -28,10 +28,14 @@ getPossibilities (Registry.KnownVersions latest previous) =
 
 
 sameMajor :: V.Version -> V.Version -> Bool
-sameMajor (V.Version major1 _ _) (V.Version major2 _ _) =
-  major1 == major2
+sameMajor v1 v2 =
+  V.fromVersion v1 $ \major1 _ _ ->
+  V.fromVersion v2 $ \major2 _ _ ->
+    major1 == major2
 
 
 sameMinor :: V.Version -> V.Version -> Bool
-sameMinor (V.Version major1 minor1 _) (V.Version major2 minor2 _) =
-  major1 == major2 && minor1 == minor2
+sameMinor v1 v2 =
+  V.fromVersion v1 $ \major1 minor1 _ ->
+  V.fromVersion v2 $ \major2 minor2 _ ->
+    major1 == major2 && minor1 == minor2
