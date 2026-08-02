@@ -20,7 +20,6 @@ import System.FilePath ((</>))
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
-import qualified BackgroundWriter as BW
 import qualified Elm.Details as Details
 import qualified Elm.Interface as I
 import qualified Elm.ModuleName as ModuleName
