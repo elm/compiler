@@ -44,6 +44,7 @@ import System.FilePath ((</>))
 
 import qualified Bytes.Decode as D
 import qualified Bytes.Encode as E
+import qualified ThreadSafe.Fork as Fork
 
 import qualified Elm.Version as V
 import qualified Json.Decode as JD
@@ -272,6 +273,10 @@ instance Eq Name where
 instance Eq Canonical where
   (==) (Canonical package1 version1) (Canonical package2 version2) =
     version1 == version2 && package1 == package2
+
+
+instance Fork.Context Name where
+  toContextChars = toChars
 
 
 

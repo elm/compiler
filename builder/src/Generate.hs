@@ -9,7 +9,7 @@ module Generate
 
 
 import Prelude hiding (cycle, print)
-import Control.Concurrent (MVar, forkIO, newEmptyMVar, newMVar, putMVar, readMVar)
+import Control.Concurrent (readMVar)
 import Control.Monad (liftM2)
 import qualified Data.ByteString.Builder as B
 import qualified Data.Map as Map
@@ -17,6 +17,8 @@ import qualified Data.Map.Utils as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Name as N
 import qualified Data.NonEmptyList as NE
+
+import qualified ThreadSafe.Fork as Fork
 
 import qualified AST.Optimized as Opt
 import qualified Build
@@ -122,8 +124,8 @@ lookupMain pkg locals root =
 
 data LoadingObjects =
   LoadingObjects
-    { _foreign_mvar :: MVar (Maybe Opt.GlobalGraph)
-    , _local_mvars :: Map.Map ModuleName.Raw (MVar (Maybe Opt.LocalGraph))
+    { _foreign_mvar :: Fork.SafeMVar (Maybe Opt.GlobalGraph)
+    , _local_mvars :: Map.Map ModuleName.Raw (Fork.SafeMVar (Maybe Opt.LocalGraph))
     }
 
 
@@ -135,17 +137,11 @@ loadObjects root details modules =
       return $ LoadingObjects mvar (Map.fromList mvars)
 
 
-loadObject :: FilePath -> Build.Module -> IO (ModuleName.Raw, MVar (Maybe Opt.LocalGraph))
+loadObject :: FilePath -> Build.Module -> IO (ModuleName.Raw, Fork.SafeMVar (Maybe Opt.LocalGraph))
 loadObject root modul =
   case modul of
-    Build.Fresh name _ graph ->
-      do  mvar <- newMVar (Just graph)
-          return (name, mvar)
-
-    Build.Cached name _ _ ->
-      do  mvar <- newEmptyMVar
-          _ <- forkIO $ putMVar mvar =<< File.readBytes Opt.dLocalGraph (Stuff.elmo root name)
-          return (name, mvar)
+    Build.Fresh  name _ graph -> (,) name <$> Fork.cached (Just graph)
+    Build.Cached name _ _     -> (,) name <$> Fork.fork name (File.readBytes Opt.dLocalGraph (Stuff.elmo root name))
 
 
 
@@ -162,8 +158,8 @@ data Objects =
 finalizeObjects :: LoadingObjects -> Task Objects
 finalizeObjects (LoadingObjects mvar mvars) =
   Task.eio id $
-  do  result  <- readMVar mvar
-      results <- traverse readMVar mvars
+  do  result  <- Fork.await mvar
+      results <- traverse Fork.await mvars
       case liftM2 Objects result (sequence results) of
         Just loaded -> return (Right loaded)
         Nothing     -> return (Left Exit.GenerateCannotLoadArtifacts)
@@ -183,30 +179,28 @@ loadTypes root ifaces modules =
   Task.eio id $
   do  mvars <- traverse (loadTypesHelp root) modules
       let !foreigns = Extract.mergeMany (Map.elems (Map.mapWithKey Extract.fromDependencyInterface ifaces))
-      results <- traverse readMVar mvars
+      results <- traverse Fork.await mvars
       case sequence results of
         Just ts -> return (Right (Extract.merge foreigns (Extract.mergeMany ts)))
         Nothing -> return (Left Exit.GenerateCannotLoadArtifacts)
 
 
-loadTypesHelp :: FilePath -> Build.Module -> IO (MVar (Maybe Extract.Types))
+loadTypesHelp :: FilePath -> Build.Module -> IO (Fork.SafeMVar (Maybe Extract.Types))
 loadTypesHelp root modul =
   case modul of
     Build.Fresh name iface _ ->
-      newMVar (Just (Extract.fromInterface name iface))
+      Fork.cached $ Just $ Extract.fromInterface name iface
 
     Build.Cached name _ ciMVar ->
       do  cachedInterface <- readMVar ciMVar
           case cachedInterface of
             Build.Unneeded ->
-              do  mvar <- newEmptyMVar
-                  _ <- forkIO $
-                    do  maybeIface <- File.readBytes I.dInterface (Stuff.elmi root name)
-                        putMVar mvar (Extract.fromInterface name <$> maybeIface)
-                  return mvar
+              Fork.fork name $
+                do  maybeIface <- File.readBytes I.dInterface (Stuff.elmi root name)
+                    return $ Extract.fromInterface name <$> maybeIface
 
             Build.Loaded iface ->
-              newMVar (Just (Extract.fromInterface name iface))
+              Fork.cached $ Just (Extract.fromInterface name iface)
 
             Build.Corrupted ->
-              newMVar Nothing
+              Fork.cached Nothing

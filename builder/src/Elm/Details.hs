@@ -15,8 +15,7 @@ module Elm.Details
   where
 
 
-import Control.Concurrent (forkIO)
-import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar, readMVar, takeMVar)
+import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, readMVar, takeMVar)
 import Control.Monad (liftM, liftM2, liftM3)
 import qualified Data.Either as Either
 import qualified Data.Map as Map
@@ -34,6 +33,7 @@ import System.FilePath ((</>), (<.>))
 
 import qualified Bytes.Decode as D
 import qualified Bytes.Encode as E
+import qualified ThreadSafe.Fork as Fork
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
@@ -126,18 +126,18 @@ type Interfaces =
 -- LOAD ARTIFACTS
 
 
-loadObjects :: FilePath -> Details -> IO (MVar (Maybe Opt.GlobalGraph))
+loadObjects :: FilePath -> Details -> IO (Fork.SafeMVar (Maybe Opt.GlobalGraph))
 loadObjects root (Details _ _ _ _ _ extras) =
   case extras of
-    ArtifactsFresh _ o -> newMVar (Just o)
-    ArtifactsCached    -> fork (File.readBytes Opt.dGlobalGraph (Stuff.objects root))
+    ArtifactsFresh _ o -> Fork.cached $ Just o
+    ArtifactsCached    -> Fork.fork_  $ File.readBytes Opt.dGlobalGraph (Stuff.objects root)
 
 
-loadInterfaces :: FilePath -> Details -> IO (MVar (Maybe Interfaces))
+loadInterfaces :: FilePath -> Details -> IO (Fork.SafeMVar (Maybe Interfaces))
 loadInterfaces root (Details _ _ _ _ _ extras) =
   case extras of
-    ArtifactsFresh i _ -> newMVar (Just i)
-    ArtifactsCached    -> fork (File.readBytes (D.dict64 ModuleName.dCanonical I.dDependencyInterface) (Stuff.interfaces root))
+    ArtifactsFresh i _ -> Fork.cached $ Just i
+    ArtifactsCached    -> Fork.fork_  $ File.readBytes (D.dict64 ModuleName.dCanonical I.dDependencyInterface) (Stuff.interfaces root)
 
 
 
@@ -207,14 +207,14 @@ data Env =
 
 initEnv :: Reporting.DKey -> FilePath -> IO (Either Exit.Details (Env, Outline.Outline))
 initEnv key root =
-  do  mvar <- fork Solver.initEnv
+  do  mvar <- Fork.fork_ Solver.initEnv
       eitherOutline <- Outline.read root
       case eitherOutline of
         Left problem ->
           return $ Left $ Exit.DetailsBadOutline problem
 
         Right outline ->
-          do  maybeEnv <- readMVar mvar
+          do  maybeEnv <- Fork.await mvar
               case maybeEnv of
                 Left problem ->
                   return $ Left $ Exit.DetailsCannotGetRegistry problem
@@ -298,17 +298,6 @@ allowEqualDups _ v1 v2 =
 
 
 
--- FORK
-
-
-fork :: IO a -> IO (MVar a)
-fork work =
-  do  mvar <- newEmptyMVar
-      _ <- forkIO $ putMVar mvar =<< work
-      return mvar
-
-
-
 -- VERIFY DEPENDENCIES
 
 
@@ -318,9 +307,9 @@ verifyDependencies writer env@(Env key root cache _ _ _) time outline solution d
   do  Reporting.report key (Reporting.DStart (Map.size solution))
       mvar <- newEmptyMVar
       mvars <- Stuff.withRegistryLock cache $ \pkg_writer ->
-        Map.traverseWithKey (\k v -> fork (verifyDep pkg_writer env mvar solution k v)) solution
+        Fork.forkWithKey (verifyDep pkg_writer env mvar solution) solution
       putMVar mvar mvars
-      deps <- traverse readMVar mvars
+      deps <- traverse Fork.await mvars
       case sequence deps of
         Left _ ->
           do  home <- Stuff.getElmHome
@@ -379,7 +368,7 @@ type Dep =
   Either (Maybe Exit.DetailsBadDep) Artifacts
 
 
-verifyDep :: File.Writer Stuff.PACKAGES -> Env -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Map.Map Pkg.Name Solver.Details -> Pkg.Name -> Solver.Details -> IO Dep
+verifyDep :: File.Writer Stuff.PACKAGES -> Env -> MVar (Map.Map Pkg.Name (Fork.SafeMVar Dep)) -> Map.Map Pkg.Name Solver.Details -> Pkg.Name -> Solver.Details -> IO Dep
 verifyDep writer (Env key _ cache manager _ _) depsMVar solution pkg details@(Solver.Details vsn directDeps) =
   do  let fingerprint = Map.intersectionWith (\(Solver.Details v _) _ -> v) solution directDeps
       exists <- Dir.doesDirectoryExist (Stuff.package cache pkg vsn </> "src")
@@ -427,7 +416,7 @@ type Fingerprint =
 -- BUILD
 
 
-build :: File.Writer Stuff.PACKAGES -> Reporting.DKey -> Stuff.PackageCache -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Pkg.Name -> Solver.Details -> Fingerprint -> Set.Set Fingerprint -> IO Dep
+build :: File.Writer Stuff.PACKAGES -> Reporting.DKey -> Stuff.PackageCache -> MVar (Map.Map Pkg.Name (Fork.SafeMVar Dep)) -> Pkg.Name -> Solver.Details -> Fingerprint -> Set.Set Fingerprint -> IO Dep
 build writer key cache depsMVar pkg (Solver.Details vsn _) f fs =
   do  eitherOutline <- Outline.read (Stuff.package cache pkg vsn)
       case eitherOutline of
@@ -441,7 +430,7 @@ build writer key cache depsMVar pkg (Solver.Details vsn _) f fs =
 
         Right (Outline.Pkg (Outline.PkgOutline _ _ _ _ exposed deps _ _)) ->
           do  allDeps <- readMVar depsMVar
-              directDeps <- traverse readMVar (Map.intersection allDeps deps)
+              directDeps <- traverse Fork.await (Map.intersection allDeps deps)
               case sequence directDeps of
                 Left _ ->
                   do  Reporting.report key Reporting.DBroken
@@ -453,10 +442,10 @@ build writer key cache depsMVar pkg (Solver.Details vsn _) f fs =
                       let exposedDict = Map.fromKeys (\_ -> ()) (Outline.flattenExposed exposed)
                       docsStatus <- getDocsStatus cache pkg vsn
                       mvar <- newEmptyMVar
-                      mvars <- Map.traverseWithKey (const . fork . crawlModule foreignDeps mvar pkg src docsStatus) exposedDict
+                      mvars <- Fork.forkWithKey (crawlModule foreignDeps mvar pkg src docsStatus) exposedDict
                       putMVar mvar mvars
-                      mapM_ readMVar mvars
-                      maybeStatuses <- traverse readMVar =<< readMVar mvar
+                      mapM_ Fork.await mvars
+                      maybeStatuses <- traverse Fork.await =<< readMVar mvar
                       case sequence maybeStatuses of
                         Nothing ->
                           do  Reporting.report key Reporting.DBroken
@@ -464,9 +453,9 @@ build writer key cache depsMVar pkg (Solver.Details vsn _) f fs =
 
                         Just statuses ->
                           do  rmvar <- newEmptyMVar
-                              rmvars <- traverse (fork . compile pkg rmvar) statuses
+                              rmvars <- Fork.forkWithKey (compile pkg rmvar) statuses
                               putMVar rmvar rmvars
-                              maybeResults <- traverse readMVar rmvars
+                              maybeResults <- traverse Fork.await rmvars
                               case sequence maybeResults of
                                 Nothing ->
                                   do  Reporting.report key Reporting.DBroken
@@ -559,7 +548,7 @@ gatherForeignInterfaces directArtifacts =
 
 
 type StatusDict =
-  Map.Map ModuleName.Raw (MVar (Maybe Status))
+  Map.Map ModuleName.Raw (Fork.SafeMVar (Maybe Status))
 
 
 data Status
@@ -569,8 +558,8 @@ data Status
   | SKernelForeign
 
 
-crawlModule :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> ModuleName.Raw -> IO (Maybe Status)
-crawlModule foreignDeps mvar pkg src docsStatus name =
+crawlModule :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> ModuleName.Raw -> () -> IO (Maybe Status)
+crawlModule foreignDeps mvar pkg src docsStatus name () =
   do  let path = src </> ModuleName.toFilePath name <.> "elm"
       exists <- File.exists path
       case Map.lookup name foreignDeps of
@@ -611,9 +600,9 @@ crawlImports foreignDeps mvar pkg src imports =
   do  statusDict <- takeMVar mvar
       let deps = Map.fromList (map (\i -> (Src.getImportName i, ())) imports)
       let news = Map.difference deps statusDict
-      mvars <- Map.traverseWithKey (const . fork . crawlModule foreignDeps mvar pkg src DocsNotNeeded) news
+      mvars <- Fork.forkWithKey (crawlModule foreignDeps mvar pkg src DocsNotNeeded) news
       putMVar mvar (Map.union mvars statusDict)
-      mapM_ readMVar mvars
+      mapM_ Fork.await mvars
       return deps
 
 
@@ -654,12 +643,12 @@ data Result
   | RKernelForeign
 
 
-compile :: Pkg.Name -> MVar (Map.Map ModuleName.Raw (MVar (Maybe Result))) -> Status -> IO (Maybe Result)
-compile pkg mvar status =
+compile :: Pkg.Name -> MVar (Map.Map ModuleName.Raw (Fork.SafeMVar (Maybe Result))) -> ModuleName.Raw -> Status -> IO (Maybe Result)
+compile pkg mvar _ status =
   case status of
     SLocal docsStatus deps modul ->
       do  resultsDict <- readMVar mvar
-          maybeResults <- traverse readMVar (Map.intersection resultsDict deps)
+          maybeResults <- traverse Fork.await (Map.intersection resultsDict deps)
           case sequence maybeResults of
             Nothing ->
               return Nothing

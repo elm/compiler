@@ -551,37 +551,37 @@ loadInterface root name ciMvar =
 -- CHECK PROJECT
 
 
-checkMidpoint :: MVar (Maybe Dependencies) -> Map.Map ModuleName.Raw Status -> IO (Either Exit.BuildProjectProblem Dependencies)
+checkMidpoint :: Fork.SafeMVar (Maybe Dependencies) -> Map.Map ModuleName.Raw Status -> IO (Either Exit.BuildProjectProblem Dependencies)
 checkMidpoint dmvar statuses =
   case checkForCycles statuses of
     Nothing ->
-      do  maybeForeigns <- readMVar dmvar
+      do  maybeForeigns <- Fork.await dmvar
           case maybeForeigns of
             Nothing -> return (Left Exit.BP_CannotLoadDependencies)
             Just fs -> return (Right fs)
 
     Just (NE.List name names) ->
-      do  _ <- readMVar dmvar
+      do  _ <- Fork.await dmvar
           return (Left (Exit.BP_Cycle name names))
 
 
-checkMidpointAndRoots :: MVar (Maybe Dependencies) -> Map.Map ModuleName.Raw Status -> NE.List RootStatus -> IO (Either Exit.BuildProjectProblem Dependencies)
+checkMidpointAndRoots :: Fork.SafeMVar (Maybe Dependencies) -> Map.Map ModuleName.Raw Status -> NE.List RootStatus -> IO (Either Exit.BuildProjectProblem Dependencies)
 checkMidpointAndRoots dmvar statuses sroots =
   case checkForCycles statuses of
     Nothing ->
       case checkUniqueRoots statuses sroots of
         Nothing ->
-          do  maybeForeigns <- readMVar dmvar
+          do  maybeForeigns <- Fork.await dmvar
               case maybeForeigns of
                 Nothing -> return (Left Exit.BP_CannotLoadDependencies)
                 Just fs -> return (Right fs)
 
         Just problem ->
-          do  _ <- readMVar dmvar
+          do  _ <- Fork.await dmvar
               return (Left problem)
 
     Just (NE.List name names) ->
-      do  _ <- readMVar dmvar
+      do  _ <- Fork.await dmvar
           return (Left (Exit.BP_Cycle name names))
 
 
