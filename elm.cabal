@@ -121,8 +121,6 @@ executable elm
         -- data structures
         Data.Bag
         Data.Index
-        Data.List.Utils
-        Data.Map.Utils
         Data.Name
         Data.NonEmptyList
         Data.OneOrMore
@@ -219,3 +217,8 @@ executable elm
         Crash
         Literals
         String
+        ThreadSafe.Fork
+
+        -- helpers
+        Data.List.Utils
+        Data.Map.Utils
