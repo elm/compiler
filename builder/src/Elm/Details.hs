@@ -1,4 +1,6 @@
-{-# LANGUAGE BangPatterns, ExtendedLiterals, MagicHash, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, ExtendedLiterals, MagicHash, OverloadedStrings,
+TemplateHaskell
+#-}
 module Elm.Details
   ( Details(..)
   , BuildID
@@ -33,6 +35,7 @@ import System.FilePath ((</>), (<.>))
 
 import qualified Bytes.Decode as D
 import qualified Bytes.Encode as E
+import qualified Crash
 import qualified ThreadSafe.Fork as Fork
 
 import qualified AST.Canonical as Can
@@ -496,7 +499,7 @@ addLocalGraph name status graph =
 gatherInterfaces :: Map.Map ModuleName.Raw () -> Map.Map ModuleName.Raw Result -> Map.Map ModuleName.Raw I.DependencyInterface
 gatherInterfaces exposed artifacts =
   let
-    onLeft  = Map.mapMissing (error "compiler bug manifesting in Elm.Details.gatherInterfaces")
+    onLeft  = Map.mapMissing (\_ -> $(Crash.crash 'gatherInterfaces) "compiler bug")
     onRight = Map.mapMaybeMissing     (\_    iface -> toLocalInterface I.private iface)
     onBoth  = Map.zipWithMaybeMatched (\_ () iface -> toLocalInterface I.public  iface)
   in

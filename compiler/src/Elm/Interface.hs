@@ -28,6 +28,7 @@ import qualified Data.Name as Name
 
 import qualified Bytes.Decode as D
 import qualified Bytes.Encode as E
+import qualified Crash
 
 import qualified AST.Canonical as Can
 import qualified AST.Utils.Binop as Binop
@@ -118,7 +119,7 @@ restrictUnions exports unions =
           case export of
             Can.ExportUnionOpen -> OpenUnion union
             Can.ExportUnionClosed -> ClosedUnion union
-            _ -> error "impossible exports discovered in restrictUnions"
+            _ -> $(Crash.crash 'restrictUnions) "impossible exports discovered in restrictUnions"
 
 
 restrictAliases :: Can.Exports -> Map.Map Name.Name Can.Alias -> Map.Map Name.Name Alias

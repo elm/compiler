@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 module Reporting.Doc
   ( P.Doc
   , (P.<+>), (<>)
@@ -50,6 +50,8 @@ import qualified System.Console.ANSI.Types as Ansi
 import qualified System.Info as Info
 import System.IO (Handle)
 import qualified Text.PrettyPrint.ANSI.Leijen as P
+
+import qualified Crash
 
 import qualified Data.Index as Index
 import qualified Elm.Package as Pkg
@@ -308,7 +310,7 @@ toJsonHelp :: Style -> [String] -> P.SimpleDoc -> [E.Value]
 toJsonHelp style revChunks simpleDoc =
   case simpleDoc of
     P.SFail ->
-      error $
+      $(Crash.crash 'toJsonHelp) $
         "according to the main implementation, @SFail@ can not\
         \ appear uncaught in a rendered @SimpleDoc@"
 

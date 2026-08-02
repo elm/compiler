@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns, EmptyDataDecls, ExtendedLiterals, MagicHash,
-OverloadedStrings, UnboxedTuples
+OverloadedStrings, TemplateHaskell, UnboxedTuples
 #-}
 module Elm.Kernel
   ( Content(..)
@@ -24,6 +24,7 @@ import GHC.Word (Word8(..))
 
 import qualified Bytes.Decode as D
 import qualified Bytes.Encode as E
+import qualified Crash
 
 import qualified AST.Source as Src
 import qualified Data.Utf8 as Utf8
@@ -156,7 +157,7 @@ chompChunks vs es fs fpc pos end cur lastPos revChunks =
       word ->
         do  let !newPos = skipUtf8 pos end word
             if eqAddr pos newPos
-              then error "kernel must be UTF8"
+              then $(Crash.crashIO 'chompChunks) "kernel must be UTF8"
               else chompChunks vs es fs fpc newPos end (slide cur 1#Word64) lastPos revChunks
 
 
@@ -259,7 +260,7 @@ addImport pkg foreigns vtable (Src.Import (A.At _ importName) maybeAlias exposin
   if Name.isKernel importName then
     case maybeAlias of
       Just _ ->
-        error ("cannot use `as` with kernel import of: " ++ Name.toChars importName)
+        $(Crash.crash 'addImport) ("cannot use `as` with kernel import of: " ++ Name.toChars importName)
 
       Nothing ->
         let
@@ -287,7 +288,7 @@ toPrefix home maybeAlias =
 
     Nothing ->
       if Name.hasDot home then
-        error ("kernel imports with dots need an alias: " ++ show (Name.toChars home))
+        $(Crash.crash 'toPrefix) ("kernel imports with dots need an alias: " ++ show (Name.toChars home))
       else
         home
 
@@ -296,7 +297,7 @@ toNames :: Src.Exposing -> [Name.Name]
 toNames exposing =
   case exposing of
     Src.Open ->
-      error "cannot have `exposing (..)` in kernel code."
+      $(Crash.crash 'toNames) "cannot have `exposing (..)` in kernel code."
 
     Src.Explicit exposedList ->
       map toName exposedList
@@ -312,10 +313,10 @@ toName exposed =
       name
 
     Src.Upper _ (Src.Public _) ->
-      error "cannot have Maybe(..) syntax in kernel code header"
+      $(Crash.crash 'toName) "cannot have Maybe(..) syntax in kernel code header"
 
     Src.Operator _ _ ->
-      error "cannot use binops in kernel code"
+      $(Crash.crash 'toName) "cannot use binops in kernel code"
 
 
 

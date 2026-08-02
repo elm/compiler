@@ -22,6 +22,7 @@ import qualified Data.Map.Utils as Map
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
 
+import qualified Crash
 import qualified ThreadSafe.Fork as Fork
 
 import qualified Deps.Registry as Registry
@@ -108,7 +109,7 @@ addDeps :: State -> Pkg.Name -> V.Version -> Details
 addDeps (State _ _ _ constraints) name vsn =
   case Map.lookup (name, vsn) constraints of
     Just (Constraints _ deps) -> Details vsn deps
-    Nothing                   -> error "compiler bug manifesting in Deps.Solver.addDeps"
+    Nothing                   -> $(Crash.crash 'addDeps) "compiler bug"
 
 
 noSolution :: Connection -> Result a

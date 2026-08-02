@@ -24,6 +24,8 @@ import qualified Data.Name as Name
 import qualified Data.Set as Set
 import qualified Data.Utf8 as Utf8
 
+import qualified Crash
+
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
 import qualified AST.Utils.Shader as Shader
@@ -813,7 +815,7 @@ generateIfTest mode root (path, test) =
         JS.Access value (JsName.fromLocal "b")
 
     DT.IsTuple ->
-      error "COMPILER BUG - there should never be tests on a tuple"
+      $(Crash.crash 'generateIfTest) "COMPILER BUG - there should never be tests on a tuple"
 
 
 
@@ -835,10 +837,10 @@ generateCaseValue mode test =
     DT.IsInt  i -> JS.Int i
     DT.IsChr  c -> JS.String (P.primBounded charUtf8 c)
     DT.IsStr  s -> JS.String (Utf8.toBuilder s)
-    DT.IsBool _ -> error "COMPILER BUG - there should never be three tests on a boolean"
-    DT.IsCons   -> error "COMPILER BUG - there should never be three tests on a list"
-    DT.IsNil    -> error "COMPILER BUG - there should never be three tests on a list"
-    DT.IsTuple  -> error "COMPILER BUG - there should never be three tests on a tuple"
+    DT.IsBool _ -> $(Crash.crash 'generateCaseValue) "COMPILER BUG - there should never be three tests on a boolean"
+    DT.IsCons   -> $(Crash.crash 'generateCaseValue) "COMPILER BUG - there should never be three tests on a list"
+    DT.IsNil    -> $(Crash.crash 'generateCaseValue) "COMPILER BUG - there should never be three tests on a list"
+    DT.IsTuple  -> $(Crash.crash 'generateCaseValue) "COMPILER BUG - there should never be three tests on a tuple"
 
 
 generateCaseTest :: Mode.Mode -> Name.Name -> DT.Path -> DT.Test -> JS.Expr
@@ -866,10 +868,10 @@ generateCaseTest mode root path exampleTest =
         Mode.Dev  _ -> JS.Call (JS.Access value (JsName.fromLocal "valueOf")) []
         Mode.Prod _ -> value
 
-    DT.IsBool _ -> error "COMPILER BUG - there should never be three tests on a list"
-    DT.IsCons   -> error "COMPILER BUG - there should never be three tests on a list"
-    DT.IsNil    -> error "COMPILER BUG - there should never be three tests on a list"
-    DT.IsTuple  -> error "COMPILER BUG - there should never be three tests on a list"
+    DT.IsBool _ -> $(Crash.crash 'generateCaseTest) "COMPILER BUG - there should never be three tests on a list"
+    DT.IsCons   -> $(Crash.crash 'generateCaseTest) "COMPILER BUG - there should never be three tests on a list"
+    DT.IsNil    -> $(Crash.crash 'generateCaseTest) "COMPILER BUG - there should never be three tests on a list"
+    DT.IsTuple  -> $(Crash.crash 'generateCaseTest) "COMPILER BUG - there should never be three tests on a list"
 
 
 

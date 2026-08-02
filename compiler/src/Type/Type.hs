@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 module Type.Type
   ( Constraint(..)
   , exists
@@ -34,6 +34,8 @@ import Data.Foldable (foldrM)
 import qualified Data.Map.Strict as Map
 import qualified Data.Name as Name
 import Data.Word (Word32)
+
+import qualified Crash
 
 import qualified AST.Canonical as Can
 import qualified AST.Utils.Type as Type
@@ -380,7 +382,7 @@ variableToCanType variable =
                 return (Can.TAlias home name canArgs (Can.Filled canType))
 
         Error ->
-            error "cannot handle Error types in variableToCanType"
+            $(Crash.crash 'variableToCanType) "cannot handle Error types in variableToCanType"
 
 
 termToCanType :: FlatType -> StateT NameState IO Can.Type
@@ -409,7 +411,7 @@ termToCanType term =
                     Can.TRecord canFields (Just name)
 
                 _ ->
-                    error "Used toAnnotation on a type that is not well-formed"
+                    $(Crash.crash 'termToCanType) "Used toAnnotation on a type that is not well-formed"
 
     Unit1 ->
       return Can.TUnit
@@ -537,7 +539,7 @@ termToErrorType term =
                     ET.Record errFields (ET.RigidOpen ext)
 
                 _ ->
-                    error "Used toErrorType on a type that is not well-formed"
+                    $(Crash.crash 'termToErrorType) "Used toErrorType on a type that is not well-formed"
 
     Unit1 ->
       return ET.Unit

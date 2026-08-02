@@ -11,6 +11,8 @@ import qualified Data.Map.Utils as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
 
+import qualified Crash
+
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
 import qualified Optimize.DecisionTree as DT
@@ -59,7 +61,7 @@ treeToDecider tree =
 
     -- zero options
     DT.Decision _ [] Nothing ->
-        error "compiler bug, somehow created an empty decision tree"
+        $(Crash.crash 'treeToDecider) "compiler bug, somehow created an empty decision tree"
 
     -- one option
     DT.Decision _ [(_, subTree)] Nothing ->

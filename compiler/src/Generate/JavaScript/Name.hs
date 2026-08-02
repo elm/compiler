@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 module Generate.JavaScript.Name
   ( Name
   , toBuilder
@@ -23,6 +23,8 @@ import qualified Data.Name as Name
 import qualified Data.Set as Set
 import qualified Data.Utf8 as Utf8
 import Data.Word (Word8)
+
+import qualified Crash
 
 import qualified Data.Index as Index
 import qualified Elm.ModuleName as ModuleName
@@ -221,7 +223,7 @@ toByte n
   | n == 52 = 95 {- _ -}
   | n == 53 = 36 {- $ -}
   | n < 64  = fromIntegral (48 + n - 54) {- digit -}
-  | True    = error $ "cannot convert int " ++ show n ++ " to ASCII"
+  | True    = $(Crash.crash 'toByte) $ "cannot convert int " ++ show n ++ " to ASCII"
 
 
 

@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-x-partial #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 module Nitpick.PatternMatches
   ( check
   , Error(..)
@@ -22,6 +22,8 @@ import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
 import qualified Data.NonEmptyList as NE
+
+import qualified Crash
 
 import qualified AST.Canonical as Can
 import qualified Data.Index as Index
@@ -565,12 +567,12 @@ specializeRowByCtor ctorName arity row =
       Just (replicate arity Anything ++ patterns)
 
     Literal _ : _ ->
-      error $
+      $(Crash.crash 'specializeRowByCtor) $
         "Compiler bug! After type checking, constructors and literals\
         \ should never align in pattern match exhaustiveness checks."
 
     [] ->
-      error "Compiler error! Empty matrices should not get specialized."
+      $(Crash.crash 'specializeRowByCtor) "Compiler error! Empty matrices should not get specialized."
 
 
 -- INVARIANT: (length row == N) ==> (length result == N-1)
@@ -587,12 +589,12 @@ specializeRowByLiteral literal row =
       Just patterns
 
     Ctor _ _ _ : _ ->
-      error $
+      $(Crash.crash 'specializeRowByLiteral) $
         "Compiler bug! After type checking, constructors and literals\
         \ should never align in pattern match exhaustiveness checks."
 
     [] ->
-      error "Compiler error! Empty matrices should not get specialized."
+      $(Crash.crash 'specializeRowByLiteral) "Compiler error! Empty matrices should not get specialized."
 
 
 -- INVARIANT: (length row == N) ==> (length result == N-1)

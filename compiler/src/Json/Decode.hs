@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind -fno-warn-name-shadowing #-}
 {-# LANGUAGE BangPatterns, ExtendedLiterals, MagicHash, OverloadedStrings,
-QuasiQuotes, Rank2Types, UnboxedTuples
+QuasiQuotes, Rank2Types, TemplateHaskell, UnboxedTuples
 #-}
 module Json.Decode
   ( fromByteString
@@ -38,6 +38,8 @@ import GHC.Exts (Int(..), isTrue#)
 import GHC.ForeignPtr (ForeignPtr(..))
 import GHC.Prim
 import GHC.Word (Word8(..))
+
+import qualified Crash
 
 import qualified Json.String as Json
 import qualified Parse.Keyword_TH as TH
@@ -377,7 +379,7 @@ oneOf decoders =
         kA ast ok err'
 
       [] ->
-        error "Ran into (Json.Decode.oneOf [])"
+        $(Crash.crashIO 'oneOf) "Ran into (Json.Decode.oneOf [])"
 
 
 oneOfHelp :: AST -> (a -> IO r) -> (Problem x -> IO r) -> [Decoder x a] -> Problem x -> [Problem x] -> IO r

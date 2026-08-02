@@ -31,6 +31,7 @@ import qualified System.Directory as Dir
 import qualified System.FilePath as FP
 import System.FilePath ((</>), (<.>))
 
+import qualified Crash
 import qualified ThreadSafe.Fork as Fork
 
 import qualified AST.Canonical as Can
@@ -404,8 +405,8 @@ checkModule writer env@(Env _ root projectType _ _ _ _) foreigns resultsMVar nam
 
     SForeign home ->
       case $(Map.require 'checkModule) (ModuleName.Canonical home name) foreigns (ModuleName.toChars . ModuleName._module) of
-        I.Public iface -> return (RForeign iface)
-        I.Private _ _ _ -> error $ "mistakenly seeing private interface for " ++ Pkg.toChars home ++ " " ++ ModuleName.toChars name
+        I.Public iface  -> return (RForeign iface)
+        I.Private _ _ _ -> $(Crash.crash 'checkModule) $ "mistakenly seeing private interface for " ++ Pkg.toChars home ++ " " ++ ModuleName.toChars name
 
     SKernel ->
       return RKernel
@@ -1204,7 +1205,7 @@ gatherProblemsOrMains results (NE.List rootResult rootResults) =
     (ROutsideOk n i o, (  [], ms)) -> Right (NE.List (Outside n i o) ms)
     (ROutsideOk _ _ _, (e:es, _ )) -> Left  (NE.List e es)
     (ROutsideErr e   , (  es, _ )) -> Left  (NE.List e es)
-    (ROutsideBlocked , (  [], _ )) -> error "seems like elm-stuff/ is corrupted"
+    (ROutsideBlocked , (  [], _ )) -> $(Crash.crash 'gatherProblemsOrMains) "seems like elm-stuff/ is corrupted"
     (ROutsideBlocked , (e:es, _ )) -> Left  (NE.List e es)
 
 
@@ -1214,9 +1215,9 @@ addInside name result modules =
     RNew  _ iface objs _ -> Fresh name iface objs : modules
     RSame _ iface objs _ -> Fresh name iface objs : modules
     RCached main _ mvar  -> Cached name main mvar : modules
-    RNotFound _          -> error (badInside name)
-    RProblem _           -> error (badInside name)
-    RBlocked             -> error (badInside name)
+    RNotFound _          -> $(Crash.crash 'addInside) (badInside name)
+    RProblem _           -> $(Crash.crash 'addInside) (badInside name)
+    RBlocked             -> $(Crash.crash 'addInside) (badInside name)
     RForeign _           -> modules
     RKernel              -> modules
 

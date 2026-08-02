@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 module Optimize.Port
   ( toEncoder
   , toFlagsDecoder
@@ -11,6 +11,8 @@ import Prelude hiding (maybe, null)
 import Control.Monad (foldM)
 import qualified Data.Map as Map
 import qualified Data.Name as Name
+
+import qualified Crash
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
@@ -31,10 +33,10 @@ toEncoder tipe =
       toEncoder (Type.dealias args alias)
 
     Can.TLambda _ _ ->
-      error "toEncoder: function"
+      $(Crash.crash 'toEncoder) "function"
 
     Can.TVar _ ->
-      error "toEncoder: type variable"
+      $(Crash.crash 'toEncoder) "type variable"
 
     Can.TUnit ->
       Opt.Function [Name.dollar] <$> encode "null"
@@ -57,10 +59,10 @@ toEncoder tipe =
           | name == Name.array -> encodeArray arg
 
         _ ->
-          error "toEncoder: bad custom type"
+          $(Crash.crash 'toEncoder) "bad custom type"
 
     Can.TRecord _ (Just _) ->
-      error "toEncoder: bad record"
+      $(Crash.crash 'toEncoder) "bad record"
 
     Can.TRecord fields Nothing ->
       let
@@ -156,10 +158,10 @@ toDecoder :: Can.Type -> Names.Tracker Opt.Expr
 toDecoder tipe =
   case tipe of
     Can.TLambda _ _ ->
-      error "functions should not be allowed through input ports"
+      $(Crash.crash 'toDecoder) "functions should not be allowed through input ports"
 
     Can.TVar _ ->
-      error "type variables should not be allowed through input ports"
+      $(Crash.crash 'toDecoder) "type variables should not be allowed through input ports"
 
     Can.TAlias _ _ args alias ->
       toDecoder (Type.dealias args alias)
@@ -185,10 +187,10 @@ toDecoder tipe =
           | name == Name.array -> decodeArray arg
 
         _ ->
-          error "toDecoder: bad type"
+          $(Crash.crash 'toDecoder) "bad type"
 
     Can.TRecord _ (Just _) ->
-      error "toDecoder: bad record"
+      $(Crash.crash 'toDecoder) "bad record"
 
     Can.TRecord fields Nothing ->
       decodeRecord fields

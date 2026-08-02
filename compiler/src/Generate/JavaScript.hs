@@ -16,6 +16,8 @@ import qualified Data.Name as Name
 import qualified Data.Set as Set
 import qualified Data.Utf8 as Utf8
 
+import qualified Crash
+
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
 import qualified Data.Index as Index
@@ -590,4 +592,4 @@ checkedMerge a b =
       main
 
     (Just _, Just _) ->
-      error "cannot have two modules with the same name"
+      $(Crash.crash 'checkedMerge) "cannot have two modules with the same name"

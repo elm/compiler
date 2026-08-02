@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Canonicalize.Module
   ( canonicalize
   )
@@ -7,6 +8,8 @@ module Canonicalize.Module
 import qualified Data.Graph as Graph
 import qualified Data.Map as Map
 import qualified Data.Name as Name
+
+import qualified Crash
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
@@ -106,7 +109,7 @@ detectBadCycles scc =
       Result.ok def
 
     Graph.CyclicSCC [] ->
-      error "The definition of Data.Graph.SCC should not allow empty CyclicSCC!"
+      $(Crash.crash 'detectBadCycles) "The definition of Data.Graph.SCC should not allow empty CyclicSCC!"
 
     Graph.CyclicSCC (def:defs) ->
       let

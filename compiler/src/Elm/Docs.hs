@@ -29,6 +29,8 @@ import qualified Data.OneOrMore as OneOrMore
 import GHC.Exts (isTrue#)
 import GHC.Prim
 
+import qualified Crash
+
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
 import qualified AST.Prim.Variable as Var
@@ -414,11 +416,11 @@ untilDocs pos end cur =
 getCharWidth :: Word8# -> Int#
 getCharWidth word
   | isTrue# (ltWord8# word 0x80#Word8) = 1#
-  | isTrue# (ltWord8# word 0xc0#Word8) = error "Need UTF-8 encoded input. Ran into unrecognized bits."
+  | isTrue# (ltWord8# word 0xc0#Word8) = $(Crash.crash 'getCharWidth) "Need UTF-8 encoded input. Ran into unrecognized bits."
   | isTrue# (ltWord8# word 0xe0#Word8) = 2#
   | isTrue# (ltWord8# word 0xf0#Word8) = 3#
   | isTrue# (ltWord8# word 0xf8#Word8) = 4#
-  | True                               = error "Need UTF-8 encoded input. Ran into unrecognized bits."
+  | True                               = $(Crash.crash 'getCharWidth) "Need UTF-8 encoded input. Ran into unrecognized bits."
 
 
 

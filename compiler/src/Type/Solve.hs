@@ -13,6 +13,8 @@ import qualified Data.NonEmptyList as NE
 import qualified Data.Vector as Vector
 import qualified Data.Vector.Mutable as MVector
 
+import qualified Crash
+
 import qualified AST.Canonical as Can
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
@@ -202,7 +204,7 @@ isGeneric var =
         then return ()
         else
           do  tipe <- Type.toErrorType var
-              error $
+              $(Crash.crashIO 'isGeneric) $
                 "You ran into a compiler bug. Here are some details for the developers:\n\n"
                 ++ "    " ++ show (ET.toDoc L.empty RT.None tipe) ++ " [rank = " ++ show rank ++ "]\n\n"
                 ++

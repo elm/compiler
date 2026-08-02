@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-x-partial #-}
-{-# LANGUAGE ExtendedLiterals, MagicHash, OverloadedStrings #-}
+{-# LANGUAGE ExtendedLiterals, MagicHash, OverloadedStrings, TemplateHaskell #-}
 module Optimize.DecisionTree
   ( DecisionTree(..)
   , compile
@@ -32,6 +32,7 @@ import qualified Data.Set as Set
 
 import qualified Bytes.Decode as D
 import qualified Bytes.Encode as E
+import qualified Crash
 
 import qualified AST.Canonical as Can
 import qualified Data.Index as Index
@@ -358,7 +359,7 @@ testAtPath selectedPath (Branch _ pathPatterns) =
             Nothing
 
         Can.PAlias _ _ ->
-            error "aliases should never reach 'testAtPath' function"
+            $(Crash.crash 'testAtPath) "aliases should never reach 'testAtPath' function"
 
 
 
@@ -523,7 +524,7 @@ needsTests (A.At _ pattern) =
     Can.PInt _            -> True
     Can.PBool _ _         -> True
     Can.PAlias _ _ ->
-        error "aliases should never reach 'isIrrelevantTo' function"
+        $(Crash.crash 'needsTests) "aliases should never reach 'isIrrelevantTo' function"
 
 
 
@@ -562,7 +563,7 @@ bests :: [(Path, Int)] -> [Path]
 bests allPaths =
   case allPaths of
     [] ->
-      error "Cannot choose the best of zero paths. This should never happen."
+      $(Crash.crash 'bests) "Cannot choose the best of zero paths. This should never happen."
 
     (headPath, headWeight) : weightedPaths ->
       let

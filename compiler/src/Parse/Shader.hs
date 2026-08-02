@@ -1,4 +1,6 @@
-{-# LANGUAGE BangPatterns, ExtendedLiterals, MagicHash, UnboxedTuples #-}
+{-# LANGUAGE BangPatterns, ExtendedLiterals, MagicHash, TemplateHaskell,
+UnboxedTuples
+#-}
 module Parse.Shader
   ( shader
   )
@@ -17,6 +19,8 @@ import qualified Language.GLSL.Parser as GLP
 import qualified Language.GLSL.Syntax as GLS
 import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Error as Parsec
+
+import qualified Crash
 
 import qualified AST.Source as Src
 import qualified AST.Utils.Shader as Shader
@@ -151,7 +155,7 @@ addInput (qual, tipe, name) glDecls =
     GLS.Attribute -> glDecls { Shader._attribute = Map.insert (Name.fromChars name) tipe (Shader._attribute glDecls) }
     GLS.Uniform   -> glDecls { Shader._uniform = Map.insert (Name.fromChars name) tipe (Shader._uniform glDecls) }
     GLS.Varying   -> glDecls { Shader._varying = Map.insert (Name.fromChars name) tipe (Shader._varying glDecls) }
-    _             -> error "Should never happen due to `extractInputs` function"
+    _             -> $(Crash.crash 'addInput) "Should never happen due to `extractInputs` function"
 
 
 extractInputs :: GLS.ExternalDeclaration -> [(GLS.StorageQualifier, Shader.Type, [Char])]

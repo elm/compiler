@@ -1,5 +1,7 @@
 {-# OPTIONS_GHC -Wall -fno-warn-name-shadowing #-}
-{-# LANGUAGE BangPatterns, EmptyDataDecls, ExtendedLiterals, MagicHash, UnboxedTuples #-}
+{-# LANGUAGE BangPatterns, EmptyDataDecls, ExtendedLiterals, MagicHash,
+TemplateHaskell, UnboxedTuples
+#-}
 module Json.String
   ( String
   , isEmpty
@@ -27,6 +29,8 @@ import GHC.Prim
 import GHC.Int (Int(..))
 import GHC.IO (IO(IO))
 import System.IO.Unsafe (unsafePerformIO)
+
+import qualified Crash
 
 import qualified Parse.Primitives as P
 
@@ -140,11 +144,11 @@ addSlice start end revChunks =
 getCharWidth :: Word8# -> Int#
 getCharWidth word
   | isTrue# (ltWord8# word 0x80#Word8) = 1#
-  | isTrue# (ltWord8# word 0xc0#Word8) = error "Need UTF-8 encoded input. Ran into unrecognized bits."
+  | isTrue# (ltWord8# word 0xc0#Word8) = $(Crash.crash 'getCharWidth) "Need UTF-8 encoded input. Ran into unrecognized bits."
   | isTrue# (ltWord8# word 0xe0#Word8) = 2#
   | isTrue# (ltWord8# word 0xf0#Word8) = 3#
   | isTrue# (ltWord8# word 0xf8#Word8) = 4#
-  | True                               = error "Need UTF-8 encoded input. Ran into unrecognized bits."
+  | True                               = $(Crash.crash 'getCharWidth) "Need UTF-8 encoded input. Ran into unrecognized bits."
 
 
 

@@ -11,6 +11,8 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Map.Utils as Map
 import qualified Data.Name as Name
 
+import qualified Crash
+
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
 import qualified Canonicalize.Environment as Env
@@ -86,7 +88,7 @@ isNormal (Src.Import (A.At _ name) maybeAlias _) =
   then
     case maybeAlias of
       Nothing -> False
-      Just _ -> error "kernel imports cannot use `as`"
+      Just _  -> $(Crash.crash 'isNormal) "kernel imports cannot use `as`"
   else
     True
 
