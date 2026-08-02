@@ -28,7 +28,6 @@ import qualified Cors
 import qualified AST.Source as Src
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
-import qualified BackgroundWriter as BW
 import qualified Build
 import qualified Compile
 import qualified Elm.Details as Details
