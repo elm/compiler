@@ -1,3 +1,4 @@
+{-# LANGUAGE EmptyDataDecls #-}
 module Stuff
   ( details
   , interfaces
@@ -7,7 +8,9 @@ module Stuff
   , elmo
   , temp
   , findRoot
+  , PROJECT
   , withRootLock
+  , PACKAGES
   , withRegistryLock
   , PackageCache
   , getPackageCache
@@ -24,6 +27,8 @@ import qualified System.Environment as Env
 import qualified System.FileLock as Lock
 import qualified System.FilePath as FP
 import System.FilePath ((</>), (<.>))
+
+import qualified File
 
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
@@ -116,19 +121,34 @@ findRootHelp dirs =
 
 
 
--- LOCKS
+
+-- LOCK
 
 
-withRootLock :: FilePath -> IO a -> IO a
-withRootLock root work =
-  do  let dir = stuff root
-      Dir.createDirectoryIfMissing True dir
-      Lock.withFileLock (dir </> "lock") Lock.Exclusive (\_ -> work)
+data PROJECT
 
 
-withRegistryLock :: PackageCache -> IO a -> IO a
-withRegistryLock (PackageCache dir) work =
-  Lock.withFileLock (dir </> "lock") Lock.Exclusive (\_ -> work)
+withRootLock :: FilePath -> (File.Writer t -> IO a) -> IO a
+withRootLock root callback =
+  File.withWriter $ \writer ->
+    Lock.withFileLock (root </> "lock") Lock.Exclusive (\_ -> callback writer)
+
+
+
+-- REGISTRY LOCK
+--
+-- PERF since many artifacts are guaranteed to be the same every time, maybe try
+-- to find a way to write temporary files and then move them into place. If two
+-- processes overwrite each other that should be okay.
+
+
+data PACKAGES
+
+
+withRegistryLock :: PackageCache -> (File.Writer PACKAGES -> IO a) -> IO a
+withRegistryLock (PackageCache dir) callback =
+  File.withWriter $ \writer ->
+    Lock.withFileLock (dir </> "lock") Lock.Exclusive (\_ -> callback writer)
 
 
 
@@ -176,3 +196,4 @@ getElmHome =
       case maybeCustomHome of
         Just customHome -> return customHome
         Nothing -> Dir.getAppUserDataDirectory "elm"
+
