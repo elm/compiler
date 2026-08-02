@@ -18,7 +18,6 @@ import qualified System.Directory as Dir
 import qualified System.FilePath as FP
 
 import qualified AST.Optimized as Opt
-import qualified BackgroundWriter as BW
 import qualified Build
 import qualified Elm.Details as Details
 import qualified Elm.ModuleName as ModuleName
@@ -75,17 +74,17 @@ run paths flags@(Flags _ _ _ report _) =
 
 runHelp :: FilePath -> [FilePath] -> Reporting.Style -> Flags -> IO (Either Exit.Make ())
 runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
-  BW.withScope $ \scope ->
-  Stuff.withRootLock root $ Task.run $
+  Stuff.withRootLock root $ \writer ->
+  Task.run $
   do  desiredMode <- getMode debug optimize
-      details <- Task.eio Exit.MakeBadDetails (Details.load style scope root)
+      details <- Task.eio Exit.MakeBadDetails (Details.load writer style root)
       case paths of
         [] ->
           do  exposed <- getExposed details
-              buildExposed style root details maybeDocs exposed
+              buildExposed writer style root details maybeDocs exposed
 
         p:ps ->
-          do  artifacts <- buildPaths style root details (NE.List p ps)
+          do  artifacts <- buildPaths writer style root details (NE.List p ps)
               case maybeOutput of
                 Nothing ->
                   case getMains artifacts of
@@ -94,11 +93,11 @@ runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
 
                     [name] ->
                       do  builder <- toBuilder root details desiredMode artifacts
-                          generate style "index.html" (Html.sandwich name builder) (NE.List name [])
+                          generate writer style "index.html" (Html.sandwich name builder) (NE.List name [])
 
                     name:names ->
                       do  builder <- toBuilder root details desiredMode artifacts
-                          generate style "elm.js" builder (NE.List name names)
+                          generate writer style "elm.js" builder (NE.List name names)
 
                 Just DevNull ->
                   return ()
@@ -107,7 +106,7 @@ runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
                   case getNoMains artifacts of
                     [] ->
                       do  builder <- toBuilder root details desiredMode artifacts
-                          generate style target builder (Build.getRootNames artifacts)
+                          generate writer style target builder (Build.getRootNames artifacts)
 
                     name:names ->
                       Task.throw (Exit.MakeNonMainFilesIntoJavaScript name names)
@@ -115,7 +114,7 @@ runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
                 Just (Html target) ->
                   do  name <- hasOneMain artifacts
                       builder <- toBuilder root details desiredMode artifacts
-                      generate style target (Html.sandwich name builder) (NE.List name [])
+                      generate writer style target (Html.sandwich name builder) (NE.List name [])
 
 
 
@@ -154,19 +153,19 @@ getExposed (Details.Details _ validOutline _ _ _ _) =
 -- BUILD PROJECTS
 
 
-buildExposed :: Reporting.Style -> FilePath -> Details.Details -> Maybe FilePath -> NE.List ModuleName.Raw -> Task ()
-buildExposed style root details maybeDocs exposed =
+buildExposed :: File.Writer Stuff.PROJECT -> Reporting.Style -> FilePath -> Details.Details -> Maybe FilePath -> NE.List ModuleName.Raw -> Task ()
+buildExposed writer style root details maybeDocs exposed =
   let
     docsGoal = maybe Build.IgnoreDocs Build.WriteDocs maybeDocs
   in
   Task.eio Exit.MakeCannotBuild $
-    Build.fromExposed style root details docsGoal exposed
+    Build.fromExposed writer style root details docsGoal exposed
 
 
-buildPaths :: Reporting.Style -> FilePath -> Details.Details -> NE.List FilePath -> Task Build.Artifacts
-buildPaths style root details paths =
+buildPaths :: File.Writer Stuff.PROJECT -> Reporting.Style -> FilePath -> Details.Details -> NE.List FilePath -> Task Build.Artifacts
+buildPaths writer style root details paths =
   Task.eio Exit.MakeCannotBuild $
-    Build.fromPaths style root details paths
+    Build.fromPaths writer style root details paths
 
 
 
@@ -240,11 +239,11 @@ getNoMain modules root =
 -- GENERATE
 
 
-generate :: Reporting.Style -> FilePath -> B.Builder -> NE.List ModuleName.Raw -> Task ()
-generate style target builder names =
+generate :: File.Writer Stuff.PROJECT -> Reporting.Style -> FilePath -> B.Builder -> NE.List ModuleName.Raw -> Task ()
+generate writer style target builder names =
   Task.io $
     do  Dir.createDirectoryIfMissing True (FP.takeDirectory target)
-        File.writeBuilder target builder
+        File.writeBuilder writer target builder
         Reporting.reportGenerate style names target
 
 

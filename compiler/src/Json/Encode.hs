@@ -134,14 +134,14 @@ escape chrs =
 -- WRITE TO FILE
 
 
-write :: FilePath -> Value -> IO ()
-write path value =
-  File.writeBuilder path (encode value <> "\n")
+write :: File.Writer t -> FilePath -> Value -> IO ()
+write writer path value =
+  File.writeBuilder writer path (encode value <> "\n")
 
 
-writeUgly :: FilePath -> Value -> IO ()
-writeUgly path value =
-  File.writeBuilder path (encodeUgly value)
+writeUgly :: File.Writer t -> FilePath -> Value -> IO ()
+writeUgly writer path value =
+  File.writeBuilder writer path (encodeUgly value)
 
 
 

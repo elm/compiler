@@ -17,7 +17,6 @@ import qualified System.Info as Info
 import qualified System.IO as IO
 import qualified System.Process as Process
 
-import qualified BackgroundWriter as BW
 import qualified Build
 import qualified Deps.Bump as Bump
 import qualified Deps.Diff as Diff
@@ -75,7 +74,7 @@ getEnv =
   do  root <- Task.mio Exit.PublishNoOutline $ Stuff.findRoot
       cache <- Task.io $ Stuff.getPackageCache
       manager <- Task.io $ Http.getManager
-      registry <- Task.eio Exit.PublishMustHaveLatestRegistry $ Registry.latest manager cache
+      registry <- Task.eio Exit.PublishMustHaveLatestRegistry $ Stuff.withRegistryLock cache $ \writer -> Registry.latest writer manager cache
       outline <- Task.eio Exit.PublishBadOutline $ Outline.read root
       return $ Env root cache manager registry outline
 
@@ -171,11 +170,11 @@ verifyLicense root =
 
 verifyBuild :: FilePath -> Task.Task Exit.Publish Docs.Documentation
 verifyBuild root =
-  reportBuildCheck $ BW.withScope $ \scope ->
+  reportBuildCheck $ Stuff.withRootLock root $ \writer ->
     Task.run $
     do  details@(Details.Details _ outline _ _ _ _) <-
           Task.eio Exit.PublishBadDetails $
-            Details.load Reporting.silent scope root
+            Details.load writer Reporting.silent root
 
         exposed <-
           case outline of
@@ -184,7 +183,7 @@ verifyBuild root =
             Details.ValidPkg _ (e:es) _ -> return (NE.List e es)
 
         Task.eio Exit.PublishBuildProblem $
-          Build.fromExposed Reporting.silent root details Build.KeepDocs exposed
+          Build.fromExposed writer Reporting.silent root details Build.KeepDocs exposed
 
 
 -- GET GIT
@@ -278,7 +277,7 @@ verifyZip (Env root _ manager _ _) pkg vsn =
               (Exit.PublishCannotDecodeZip url)
               (return . Right)
 
-        Task.io $ File.writePackage prepublishDir archive
+        Task.io $ Http.writePackage prepublishDir archive
 
         reportZipBuildCheck $
           Dir.withCurrentDirectory prepublishDir $
@@ -306,10 +305,10 @@ withPrepublishDir root callback =
 
 verifyZipBuild :: FilePath -> IO (Either Exit.Publish ())
 verifyZipBuild root =
-  BW.withScope $ \scope -> Task.run $
+  Stuff.withRootLock root $ \writer -> Task.run $
   do  details@(Details.Details _ outline _ _ _ _) <-
         Task.eio Exit.PublishZipBadDetails $
-          Details.load Reporting.silent scope root
+          Details.load writer Reporting.silent root
 
       exposed <-
         case outline of
@@ -318,7 +317,7 @@ verifyZipBuild root =
           Details.ValidPkg _ (e:es) _ -> return (NE.List e es)
 
       _ <- Task.eio Exit.PublishZipBuildProblem $
-        Build.fromExposed Reporting.silent root details Build.KeepDocs exposed
+        Build.fromExposed writer Reporting.silent root details Build.KeepDocs exposed
 
       return ()
 
@@ -355,7 +354,7 @@ verifyBump (Env _ cache manager _ _) pkg vsn newDocs knownVersions@(Registry.Kno
         Exit.PublishInvalidBump vsn latest
 
     Just (old, new, magnitude) ->
-      do  result <- Diff.getDocs cache manager pkg old
+      do  result <- Stuff.withRegistryLock cache $ \writer -> Diff.getDocs writer cache manager pkg old
           case result of
             Left dp ->
               return $ Left $ Exit.PublishCannotGetDocs old new dp

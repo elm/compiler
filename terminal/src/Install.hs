@@ -10,7 +10,6 @@ import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Map.Merge.Strict as Map
 
-import qualified BackgroundWriter as BW
 import qualified Deps.Solver as Solver
 import qualified Deps.Registry as Registry
 import qualified Elm.Constraint as C
@@ -125,15 +124,15 @@ attemptChanges root env oldOutline toChars changes =
 attemptChangesHelp :: FilePath -> Solver.Env -> Outline.Outline -> Outline.Outline -> D.Doc -> Task ()
 attemptChangesHelp root env oldOutline newOutline question =
   Task.eio Exit.InstallBadDetails $
-  BW.withScope $ \scope ->
+  Stuff.withRootLock root $ \writer ->
   do  approved <- Reporting.ask question
       if approved
         then
-          do  Outline.write root newOutline
-              result <- Details.verifyInstall scope root env newOutline
+          do  Outline.write writer root newOutline
+              result <- Details.verifyInstall writer root env newOutline
               case result of
                 Left exit ->
-                  do  Outline.write root oldOutline
+                  do  Outline.write writer root oldOutline
                       return (Left exit)
 
                 Right () ->

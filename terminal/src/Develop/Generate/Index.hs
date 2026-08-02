@@ -12,7 +12,6 @@ import qualified Data.Map as Map
 import qualified System.Directory as Dir
 import System.FilePath ((</>), splitDirectories, takeExtension)
 
-import qualified BackgroundWriter as BW
 import qualified Develop.Generate.Help as Help
 import qualified Elm.Details as Details
 import qualified Elm.Outline as Outline
@@ -167,8 +166,8 @@ getExactDeps maybeOutline =
                   return Map.empty
 
                 Just root ->
-                  BW.withScope $ \scope ->
-                  do  result <- Details.load Reporting.silent scope root
+                  Stuff.withRootLock root $ \writer ->
+                  do  result <- Details.load writer Reporting.silent root
                       case result of
                         Left _ ->
                           return Map.empty

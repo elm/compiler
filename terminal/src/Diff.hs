@@ -12,7 +12,8 @@ import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
 import qualified Data.NonEmptyList as NE
 
-import qualified BackgroundWriter as BW
+import qualified File
+
 import qualified Build
 import Deps.Diff (PackageChanges(..), ModuleChanges(..), Changes(..))
 import qualified Deps.Diff as DD
@@ -49,9 +50,8 @@ data Args
 run :: Args -> () -> IO ()
 run args () =
   Reporting.attempt Exit.diffToReport $
-    Task.run $
-      do  env <- getEnv
-          diff env args
+    withEnv $ \env ->
+      diff env args
 
 
 
@@ -61,19 +61,23 @@ run args () =
 data Env =
   Env
     { _maybeRoot :: Maybe FilePath
-    , _cache :: Stuff.PackageCache
-    , _manager :: Http.Manager
-    , _registry :: Registry.Registry
+    , _cache     :: Stuff.PackageCache
+    , _writer    :: File.Writer Stuff.PACKAGES
+    , _manager   :: Http.Manager
+    , _registry  :: Registry.Registry
     }
 
 
-getEnv :: Task Env
-getEnv =
-  do  maybeRoot <- Task.io $ Stuff.findRoot
-      cache     <- Task.io $ Stuff.getPackageCache
-      manager   <- Task.io $ Http.getManager
-      registry  <- Task.eio Exit.DiffMustHaveLatestRegistry $ Registry.latest manager cache
-      return (Env maybeRoot cache manager registry)
+withEnv :: (Env -> Task a) -> IO (Either Exit.Diff a)
+withEnv toTask =
+  do  maybeRoot <- Stuff.findRoot
+      cache     <- Stuff.getPackageCache
+      manager   <- Http.getManager
+      Stuff.withRegistryLock cache $ \writer ->
+        do  result <- Registry.latest writer manager cache
+            case result of
+              Right registry -> Task.run $ toTask $ Env maybeRoot cache writer manager registry
+              Left x         -> return $ Left $ Exit.DiffMustHaveLatestRegistry x
 
 
 
@@ -85,7 +89,7 @@ type Task a =
 
 
 diff :: Env -> Args -> Task ()
-diff env@(Env _ _ _ registry) args =
+diff env@(Env _ _ _ _ registry) args =
   case args of
     GlobalInquiry name v1 v2 ->
       case Registry.getVersions' name registry of
@@ -121,15 +125,15 @@ diff env@(Env _ _ _ registry) args =
 
 
 getDocs :: Env -> Pkg.Name -> Registry.KnownVersions -> V.Version -> Task Docs.Documentation
-getDocs (Env _ cache manager _) name (Registry.KnownVersions latest previous) version =
+getDocs (Env _ cache writer manager _) name (Registry.KnownVersions latest previous) version =
   if latest == version || elem version previous
-  then Task.eio (Exit.DiffDocsProblem version) $ DD.getDocs cache manager name version
+  then Task.eio (Exit.DiffDocsProblem version) $ DD.getDocs writer cache manager name version
   else Task.throw $ Exit.DiffUnknownVersion name version (latest:previous)
 
 
 getLatestDocs :: Env -> Pkg.Name -> Registry.KnownVersions -> Task Docs.Documentation
-getLatestDocs (Env _ cache manager _) name (Registry.KnownVersions latest _) =
-  Task.eio (Exit.DiffDocsProblem latest) $ DD.getDocs cache manager name latest
+getLatestDocs (Env _ cache writer manager _) name (Registry.KnownVersions latest _) =
+  Task.eio (Exit.DiffDocsProblem latest) $ DD.getDocs writer cache manager name latest
 
 
 
@@ -137,7 +141,7 @@ getLatestDocs (Env _ cache manager _) name (Registry.KnownVersions latest _) =
 
 
 readOutline :: Env -> Task (Pkg.Name, Registry.KnownVersions)
-readOutline (Env maybeRoot _ _ registry) =
+readOutline (Env maybeRoot _ _ _ registry) =
   case maybeRoot of
     Nothing ->
       Task.throw $ Exit.DiffNoOutline
@@ -164,16 +168,15 @@ readOutline (Env maybeRoot _ _ registry) =
 
 
 generateDocs :: Env -> Task Docs.Documentation
-generateDocs (Env maybeRoot _ _ _) =
+generateDocs (Env maybeRoot _ _ _ _) =
   case maybeRoot of
     Nothing ->
       Task.throw $ Exit.DiffNoOutline
 
     Just root ->
-      do  details <-
-            Task.eio Exit.DiffBadDetails $ BW.withScope $ \scope ->
-              Details.load Reporting.silent scope root
-
+      Task.eio id $ Stuff.withRootLock root $ \writer ->
+      Task.run $
+      do  details <- Task.eio Exit.DiffBadDetails $ Details.load writer Reporting.silent root
           case Details._outline details of
             Details.ValidApp _ ->
               Task.throw $ Exit.DiffApplication
@@ -185,7 +188,7 @@ generateDocs (Env maybeRoot _ _ _) =
 
                 e:es ->
                   Task.eio Exit.DiffBadBuild $
-                    Build.fromExposed Reporting.silent root details Build.KeepDocs (NE.List e es)
+                    Build.fromExposed writer Reporting.silent root details Build.KeepDocs (NE.List e es)
 
 
 

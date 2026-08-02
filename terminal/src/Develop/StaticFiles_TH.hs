@@ -15,13 +15,13 @@ import Language.Haskell.TH.Syntax (Q, Exp(..), Lit(..), Bytes(Bytes), runIO)
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
 
-import qualified BackgroundWriter as BW
 import qualified Build
 import qualified Elm.Details as Details
 import qualified Generate
 import qualified Reporting
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
+import qualified Stuff
 
 
 
@@ -31,12 +31,12 @@ import qualified Reporting.Task as Task
 buildReactorFrontEnd :: Q Exp -- BS.ByteString
 buildReactorFrontEnd =
   fmap bsToExp $ runIO $
-  BW.withScope $ \scope ->
   Dir.withCurrentDirectory "reactor" $
   do  root <- Dir.getCurrentDirectory
-      runTaskUnsafe $
-        do  details    <- Task.eio Exit.ReactorBadDetails $ Details.load Reporting.silent scope root
-            artifacts  <- Task.eio Exit.ReactorBadBuild $ Build.fromPaths Reporting.silent root details paths
+      Stuff.withRootLock root $ \writer ->
+        runTaskUnsafe $
+        do  details    <- Task.eio Exit.ReactorBadDetails $ Details.load writer Reporting.silent root
+            artifacts  <- Task.eio Exit.ReactorBadBuild $ Build.fromPaths writer Reporting.silent root details paths
             javascript <- Task.mapError Exit.ReactorBadGenerate $ Generate.prod root details artifacts
             return (LBS.toStrict (B.toLazyByteString javascript))
 

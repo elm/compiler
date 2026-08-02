@@ -37,8 +37,9 @@ import System.FilePath ((</>))
 import qualified System.IO as IO
 import qualified System.Process as Proc
 
+import qualified File
+
 import qualified AST.Source as Src
-import qualified BackgroundWriter as BW
 import qualified Build
 import qualified Elm.Constraint as C
 import qualified Elm.Details as Details
@@ -493,15 +494,15 @@ data Output
 attemptEval :: Env -> State -> State -> Output -> IO State
 attemptEval (Env root interpreter ansi) oldState newState output =
   do  result <-
-        BW.withScope $ \scope ->
-        Stuff.withRootLock root $ Task.run $
+        Stuff.withRootLock root $ \writer ->
+        Task.run $
         do  details <-
               Task.eio Exit.ReplBadDetails $
-                Details.load Reporting.silent scope root
+                Details.load writer Reporting.silent root
 
             artifacts <-
               Task.eio id $
-                Build.fromRepl root details (toByteString newState output)
+                Build.fromRepl writer root details (toByteString newState output)
 
             traverse (Task.mapError Exit.ReplBadGenerate . Generate.repl root details ansi artifacts) (toPrintName output)
 
@@ -613,16 +614,17 @@ getRoot =
           do  cache <- Stuff.getReplCache
               let root = cache </> "tmp"
               Dir.createDirectoryIfMissing True (root </> "src")
-              Outline.write root $ Outline.Pkg $
-                Outline.PkgOutline
-                  Pkg.dummyName
-                  Outline.defaultSummary
-                  Licenses.bsd3
-                  V.one
-                  (Outline.ExposedList [])
-                  defaultDeps
-                  Map.empty
-                  C.defaultElm
+              File.withWriter $ \writer ->
+                Outline.write writer root $ Outline.Pkg $
+                  Outline.PkgOutline
+                    Pkg.dummyName
+                    Outline.defaultSummary
+                    Licenses.bsd3
+                    V.one
+                    (Outline.ExposedList [])
+                    defaultDeps
+                    Map.empty
+                    C.defaultElm
 
               return root
 

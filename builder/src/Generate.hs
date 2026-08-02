@@ -143,7 +143,7 @@ loadObject root modul =
 
     Build.Cached name _ _ ->
       do  mvar <- newEmptyMVar
-          _ <- forkIO $ putMVar mvar =<< File.readBinary (Stuff.elmo root name)
+          _ <- forkIO $ putMVar mvar =<< File.readBytes Opt.dLocalGraph (Stuff.elmo root name)
           return (name, mvar)
 
 
@@ -200,7 +200,7 @@ loadTypesHelp root modul =
             Build.Unneeded ->
               do  mvar <- newEmptyMVar
                   _ <- forkIO $
-                    do  maybeIface <- File.readBinary (Stuff.elmi root name)
+                    do  maybeIface <- File.readBytes I.dInterface (Stuff.elmi root name)
                         putMVar mvar (Extract.fromInterface name <$> maybeIface)
                   return mvar
 

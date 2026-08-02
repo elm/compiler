@@ -134,8 +134,8 @@ forkWithKey func dict =
 -- FROM EXPOSED
 
 
-fromExposed :: Reporting.Style -> FilePath -> Details.Details -> DocsGoal docs -> NE.List ModuleName.Raw -> IO (Either Exit.BuildProblem docs)
-fromExposed style root details docsGoal exposed@(NE.List e es) =
+fromExposed :: File.Writer Stuff.PROJECT -> Reporting.Style -> FilePath -> Details.Details -> DocsGoal docs -> NE.List ModuleName.Raw -> IO (Either Exit.BuildProblem docs)
+fromExposed writer style root details docsGoal exposed@(NE.List e es) =
   Reporting.trackBuild style $ \key ->
   do  env <- makeEnv key root details
       dmvar <- Details.loadInterfaces root details
@@ -156,11 +156,11 @@ fromExposed style root details docsGoal exposed@(NE.List e es) =
 
         Right foreigns ->
           do  rmvar <- newEmptyMVar
-              resultMVars <- forkWithKey (checkModule env foreigns rmvar) statuses
+              resultMVars <- forkWithKey (checkModule writer env foreigns rmvar) statuses
               putMVar rmvar resultMVars
               results <- traverse readMVar resultMVars
-              writeDetails root details results
-              finalizeExposed root docsGoal exposed results
+              writeDetails writer root details results
+              finalizeExposed writer root docsGoal exposed results
 
 
 
@@ -185,8 +185,8 @@ type Dependencies =
   Map.Map ModuleName.Canonical I.DependencyInterface
 
 
-fromPaths :: Reporting.Style -> FilePath -> Details.Details -> NE.List FilePath -> IO (Either Exit.BuildProblem Artifacts)
-fromPaths style root details paths =
+fromPaths :: File.Writer Stuff.PROJECT -> Reporting.Style -> FilePath -> Details.Details -> NE.List FilePath -> IO (Either Exit.BuildProblem Artifacts)
+fromPaths writer style root details paths =
   Reporting.trackBuild style $ \key ->
   do  env <- makeEnv key root details
 
@@ -211,11 +211,11 @@ fromPaths style root details paths =
                 Right foreigns ->
                   do  -- compile
                       rmvar <- newEmptyMVar
-                      resultsMVars <- forkWithKey (checkModule env foreigns rmvar) statuses
+                      resultsMVars <- forkWithKey (checkModule writer env foreigns rmvar) statuses
                       putMVar rmvar resultsMVars
                       rrootMVars <- traverse (fork . checkRoot env resultsMVars) sroots
                       results <- traverse readMVar resultsMVars
-                      writeDetails root details results
+                      writeDetails writer root details results
                       toArtifacts env foreigns results <$> traverse readMVar rrootMVars
 
 
@@ -363,8 +363,8 @@ data CachedInterface
   | Corrupted
 
 
-checkModule :: Env -> Dependencies -> MVar ResultDict -> ModuleName.Raw -> Status -> IO Result
-checkModule env@(Env _ root projectType _ _ _ _) foreigns resultsMVar name status =
+checkModule :: File.Writer Stuff.PROJECT -> Env -> Dependencies -> MVar ResultDict -> ModuleName.Raw -> Status -> IO Result
+checkModule writer env@(Env _ root projectType _ _ _ _) foreigns resultsMVar name status =
   case status of
     SCached local@(Details.Local path time deps hasMain lastChange lastCompile) ->
       do  results <- readMVar resultsMVar
@@ -374,7 +374,7 @@ checkModule env@(Env _ root projectType _ _ _ _) foreigns resultsMVar name statu
               do  source <- File.readUtf8 path
                   result <- Parse.fromByteString projectType source
                   case result of
-                    Right modul -> compile env (DocsNeed False) local source ifaces modul
+                    Right modul -> compile writer env (DocsNeed False) local source ifaces modul
                     Left err ->
                       return $ RProblem $
                         Error.Module name path time source (Error.BadSyntax err)
@@ -402,13 +402,13 @@ checkModule env@(Env _ root projectType _ _ _ _) foreigns resultsMVar name statu
           depsStatus <- checkDeps root results deps lastCompile
           case depsStatus of
             DepsChange ifaces ->
-              compile env docsNeed local source ifaces modul
+              compile writer env docsNeed local source ifaces modul
 
             DepsSame same cached ->
               do  maybeLoaded <- loadInterfaces root same cached
                   case maybeLoaded of
                     Nothing     -> return RBlocked
-                    Just ifaces -> compile env docsNeed local source ifaces modul
+                    Just ifaces -> compile writer env docsNeed local source ifaces modul
 
             DepsBlock ->
               return RBlocked
@@ -558,7 +558,7 @@ loadInterface root (name, ciMvar) =
               return (Just (name, iface))
 
         Unneeded ->
-          do  maybeIface <- File.readBinary (Stuff.elmi root name)
+          do  maybeIface <- File.readBytes I.dInterface (Stuff.elmi root name)
               case maybeIface of
                 Nothing ->
                   do  putMVar ciMvar Corrupted
@@ -702,8 +702,8 @@ checkInside name p1 status =
 -- COMPILE MODULE
 
 
-compile :: Env -> DocsNeed -> Details.Local -> B.ByteString -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> IO Result
-compile (Env key root projectType _ buildID _ _) docsNeed (Details.Local path time deps main lastChange _) source ifaces modul =
+compile :: File.Writer Stuff.PROJECT -> Env -> DocsNeed -> Details.Local -> B.ByteString -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> IO Result
+compile writer (Env key root projectType _ buildID _ _) docsNeed (Details.Local path time deps main lastChange _) source ifaces modul =
   let
     pkg = projectTypeToPkg projectType
   in
@@ -719,8 +719,8 @@ compile (Env key root projectType _ buildID _ _) docsNeed (Details.Local path ti
               do  let name = Src.getName modul
                   let iface = I.fromModule pkg canonical annotations
                   let elmi = Stuff.elmi root name
-                  File.writeBinary (Stuff.elmo root name) objects
-                  maybeOldi <- File.readBinary elmi
+                  File.writeBytes writer (Stuff.elmo root name) Opt.eLocalGraph objects
+                  maybeOldi <- File.readBytes I.dInterface elmi
                   case maybeOldi of
                     Just oldi | oldi == iface ->
                       do  -- iface should be fully forced by equality check
@@ -730,7 +730,7 @@ compile (Env key root projectType _ buildID _ _) docsNeed (Details.Local path ti
 
                     _ ->
                       do  -- iface may be lazy still
-                          File.writeBinary elmi iface
+                          File.writeBytes writer elmi I.eInterface iface
                           Reporting.report key Reporting.BDone
                           let local = Details.Local path time deps main buildID buildID
                           return (RNew local iface objects docs)
@@ -751,9 +751,9 @@ projectTypeToPkg projectType =
 -- WRITE DETAILS
 
 
-writeDetails :: FilePath -> Details.Details -> Map.Map ModuleName.Raw Result -> IO ()
-writeDetails root (Details.Details time outline buildID locals foreigns extras) results =
-  File.writeBinary (Stuff.details root) $
+writeDetails :: File.Writer Stuff.PROJECT -> FilePath -> Details.Details -> Map.Map ModuleName.Raw Result -> IO ()
+writeDetails writer root (Details.Details time outline buildID locals foreigns extras) results =
+  File.writeBytes writer (Stuff.details root) Details.eDetails $
     Details.Details time outline buildID (Map.foldrWithKey addNewLocal locals results) foreigns extras
 
 
@@ -774,15 +774,15 @@ addNewLocal name result locals =
 -- FINALIZE EXPOSED
 
 
-finalizeExposed :: FilePath -> DocsGoal docs -> NE.List ModuleName.Raw -> Map.Map ModuleName.Raw Result -> IO (Either Exit.BuildProblem docs)
-finalizeExposed root docsGoal exposed results =
+finalizeExposed :: File.Writer Stuff.PROJECT -> FilePath -> DocsGoal docs -> NE.List ModuleName.Raw -> Map.Map ModuleName.Raw Result -> IO (Either Exit.BuildProblem docs)
+finalizeExposed writer root docsGoal exposed results =
   case foldr (addImportProblems results) [] (NE.toList exposed) of
     p:ps ->
       return $ Left $ Exit.BuildProjectProblem (Exit.BP_MissingExposed (NE.List p ps))
 
     [] ->
       case Map.foldr addErrors [] results of
-        []   -> Right <$> finalizeDocs docsGoal results
+        []   -> Right <$> finalizeDocs writer docsGoal results
         e:es -> return $ Left $ Exit.BuildBadModules root e es
 
 
@@ -845,14 +845,14 @@ makeDocs (DocsNeed isNeeded) modul =
     return $ Right Nothing
 
 
-finalizeDocs :: DocsGoal docs -> Map.Map ModuleName.Raw Result -> IO docs
-finalizeDocs goal results =
+finalizeDocs :: File.Writer Stuff.PROJECT -> DocsGoal docs -> Map.Map ModuleName.Raw Result -> IO docs
+finalizeDocs writer goal results =
   case goal of
     KeepDocs ->
       return $ Map.mapMaybe toDocs results
 
     WriteDocs path ->
-      E.writeUgly path $ Docs.encode $ Map.mapMaybe toDocs results
+      E.writeUgly writer path $ Docs.encode $ Map.mapMaybe toDocs results
 
     IgnoreDocs ->
       return ()
@@ -889,8 +889,8 @@ data ReplArtifacts =
     }
 
 
-fromRepl :: FilePath -> Details.Details -> B.ByteString -> IO (Either Exit.Repl ReplArtifacts)
-fromRepl root details source =
+fromRepl :: File.Writer Stuff.PROJECT -> FilePath -> Details.Details -> B.ByteString -> IO (Either Exit.Repl ReplArtifacts)
+fromRepl writer root details source =
   do  env@(Env _ _ projectType _ _ _ _) <- makeEnv Reporting.ignorer root details
       result <- Parse.fromByteString projectType source
       case result of
@@ -913,10 +913,10 @@ fromRepl root details source =
 
                 Right foreigns ->
                   do  rmvar <- newEmptyMVar
-                      resultMVars <- forkWithKey (checkModule env foreigns rmvar) statuses
+                      resultMVars <- forkWithKey (checkModule writer env foreigns rmvar) statuses
                       putMVar rmvar resultMVars
                       results <- traverse readMVar resultMVars
-                      writeDetails root details results
+                      writeDetails writer root details results
                       depsStatus <- checkDeps root resultMVars deps 0
                       finalizeReplArtifacts env source modul depsStatus resultMVars results
 

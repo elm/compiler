@@ -18,6 +18,7 @@ import qualified Elm.Version as V
 import qualified Reporting
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
+import qualified Stuff
 
 
 
@@ -88,9 +89,10 @@ init =
                     directs = Map.intersection solution defaults
                     indirects = Map.difference solution defaults
                   in
-                  do  Dir.createDirectoryIfMissing True "src"
-                      Outline.write "." $ Outline.App $
-                        Outline.AppOutline V.compiler (NE.List (Outline.RelativeSrcDir "src") []) directs indirects Map.empty Map.empty
+                  do  Stuff.withRootLock "." $ \writer ->
+                        do  Dir.createDirectoryIfMissing True "src"
+                            Outline.write writer "." $ Outline.App $
+                              Outline.AppOutline V.compiler (NE.List (Outline.RelativeSrcDir "src") []) directs indirects Map.empty Map.empty
                       putStrLn "Okay, I created it. Now read that link!"
                       return (Right ())
 
