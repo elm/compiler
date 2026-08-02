@@ -210,10 +210,14 @@ diffToReport diff =
         [ "Here are all the versions that HAVE been published:"
         , D.indent 4 $ D.dullyellow $ D.vcat $
             let
-              sameMajor v1 v2 = V._major v1 == V._major v2
-              mkRow vsns = D.hsep $ map D.fromVersion vsns
+              sameMajor v1 v2 =
+                V.fromVersion v1 $ \m1 _ _ ->
+                V.fromVersion v2 $ \m2 _ _ -> m1 == m2
+
+              mkRow vsns =
+                D.hsep $ map D.fromVersion vsns
             in
-              map mkRow $ List.groupBy sameMajor (List.sort realVersions)
+            map mkRow $ List.groupBy sameMajor (List.sort realVersions)
         , "Want one of those instead?"
         ]
 
