@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 module Optimize.Module
   ( optimize
   )
@@ -9,9 +9,9 @@ import Prelude hiding (cycle)
 import Control.Monad (foldM)
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Map.Utils as Map
 import qualified Data.Name as Name
 import qualified Data.Set as Set
-import Data.Map ((!))
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
@@ -233,7 +233,7 @@ addDef :: ModuleName.Canonical -> Annotations -> Can.Def -> Opt.LocalGraph -> Re
 addDef home annotations def graph =
   case def of
     Can.Def (A.At region name) args body ->
-      do  let (Can.Forall _ tipe) = annotations ! name
+      do  let (Can.Forall _ tipe) = $(Map.require 'addDef) name annotations Name.toChars
           Result.warn $ W.MissingTypeAnnotation region name tipe
           addDefHelp region annotations home name args body graph
 
@@ -247,7 +247,7 @@ addDefHelp region annotations home name args body graph@(Opt.LocalGraph _ nodes 
     Result.ok (addDefNode home name args body Set.empty graph)
   else
     let
-      (Can.Forall _ tipe) = annotations ! name
+      (Can.Forall _ tipe) = $(Map.require 'addDefHelp) name annotations Name.toChars
 
       addMain (deps, fields, main) =
         addDefNode home name args body deps $

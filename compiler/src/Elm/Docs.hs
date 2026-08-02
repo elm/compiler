@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns, ExtendedLiterals, MagicHash, MultiWayIf,
-OverloadedStrings, UnboxedTuples
+OverloadedStrings, TemplateHaskell, UnboxedTuples
 #-}
 module Elm.Docs
   ( Documentation
@@ -20,9 +20,9 @@ module Elm.Docs
 
 import qualified Data.Coerce as Coerce
 import qualified Data.List as List
-import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Map.Merge.Strict as Map
+import qualified Data.Map.Utils as Map
 import qualified Data.Name as Name
 import qualified Data.NonEmptyList as NE
 import qualified Data.OneOrMore as OneOrMore
@@ -510,26 +510,26 @@ checkExport info name (A.At region export) =
             m { _values = Map.insert name (Value comment tipe) (_values m) }
 
     Can.ExportBinop ->
-      do  let (Can.Binop_ assoc prec realName) = _iBinops info ! name
+      do  let (Can.Binop_ assoc prec realName) = $(Map.require 'checkExport) name (_iBinops info) Name.toChars
           tipe <- getType realName info
           comment <- getComment region realName info
           Result.ok $ \m ->
             m { _binops = Map.insert name (Binop comment tipe assoc prec) (_binops m) }
 
     Can.ExportAlias ->
-      do  let (Can.Alias tvars tipe) = _iAliases info ! name
+      do  let (Can.Alias tvars tipe) = $(Map.require 'checkExport) name (_iAliases info) Name.toChars
           comment <- getComment region name info
           Result.ok $ \m ->
             m { _aliases = Map.insert name (Alias comment tvars (Extract.fromType tipe)) (_aliases m) }
 
     Can.ExportUnionOpen ->
-      do  let (Can.Union tvars ctors _ _) = _iUnions info ! name
+      do  let (Can.Union tvars ctors _ _) = $(Map.require 'checkExport) name (_iUnions info) Name.toChars
           comment <- getComment region name info
           Result.ok $ \m ->
             m { _unions = Map.insert name (Union comment tvars (map dector ctors)) (_unions m) }
 
     Can.ExportUnionClosed ->
-      do  let (Can.Union tvars _ _ _) = _iUnions info ! name
+      do  let (Can.Union tvars _ _ _) = $(Map.require 'checkExport) name (_iUnions info) Name.toChars
           comment <- getComment region name info
           Result.ok $ \m ->
             m { _unions = Map.insert name (Union comment tvars []) (_unions m) }
@@ -553,7 +553,7 @@ getComment region name info =
 
 getType :: Name.Name -> Info -> Result.Result i w E.DefProblem Type.Type
 getType name info =
-  case _iValues info ! name of
+  case $(Map.require 'getType) name (_iValues info) Name.toChars of
     Left region ->
       Result.throw (E.NoAnnotation name region)
 

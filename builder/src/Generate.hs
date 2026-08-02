@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns, TemplateHaskell #-}
 module Generate
   ( debug
   , dev
@@ -12,8 +12,8 @@ import Prelude hiding (cycle, print)
 import Control.Concurrent (MVar, forkIO, newEmptyMVar, newMVar, putMVar, readMVar)
 import Control.Monad (liftM2)
 import qualified Data.ByteString.Builder as B
-import Data.Map ((!))
 import qualified Data.Map as Map
+import qualified Data.Map.Utils as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Name as N
 import qualified Data.NonEmptyList as NE
@@ -81,7 +81,8 @@ repl :: FilePath -> Details.Details -> Bool -> Build.ReplArtifacts -> N.Name -> 
 repl root details ansi (Build.ReplArtifacts home modules localizer annotations) name =
   do  objects <- finalizeObjects =<< loadObjects root details modules
       let graph = objectsToGlobalGraph objects
-      return $ JS.generateForRepl ansi localizer graph home name (annotations ! name)
+      return $ JS.generateForRepl ansi localizer graph home name $
+        $(Map.require 'repl) name annotations N.toChars
 
 
 

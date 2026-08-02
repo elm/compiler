@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 module Type.Solve
   ( run
   )
@@ -7,7 +7,7 @@ module Type.Solve
 
 import Control.Monad
 import qualified Data.Map.Strict as Map
-import Data.Map.Strict ((!))
+import qualified Data.Map.Utils as Map
 import qualified Data.Name as Name
 import qualified Data.NonEmptyList as NE
 import qualified Data.Vector as Vector
@@ -96,7 +96,7 @@ solve env rank pools state constraint =
                       Error.typeReplace expectation expectedType
 
     CLocal region name expectation ->
-      do  actual <- makeCopy rank pools (env ! name)
+      do  actual <- makeCopy rank pools $ $(Map.require 'solve) name env Name.toChars
           expected <- expectedToVariable rank pools expectation
           answer <- Unify.unify actual expected
           case answer of
@@ -455,7 +455,7 @@ typeToVar rank pools aliasDict tipe =
           register rank pools (Alias home name argVars aliasVar)
 
     PlaceHolder name ->
-      return (aliasDict ! name)
+      return $ $(Map.require 'typeToVar) name aliasDict Name.toChars
 
     RecordN fields ext ->
       do  fieldVars <- traverse go fields
@@ -526,7 +526,7 @@ srcTypeToVar rank pools flexVars srcType =
           register rank pools (Structure (Fun1 argVar resultVar))
 
     Can.TVar name ->
-      return (flexVars ! name)
+      return $ $(Map.require 'srcTypeToVar) name flexVars Name.toChars
 
     Can.TType home name args ->
       do  argVars <- traverse go args
@@ -537,7 +537,7 @@ srcTypeToVar rank pools flexVars srcType =
           extVar <-
             case maybeExt of
               Nothing -> register rank pools emptyRecord1
-              Just ext -> return (flexVars ! ext)
+              Just ext -> return $ $(Map.require 'srcTypeToVar) ext flexVars Name.toChars
           register rank pools (Structure (Record1 fieldVars extVar))
 
     Can.TUnit ->

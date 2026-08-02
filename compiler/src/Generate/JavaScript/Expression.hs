@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-x-partial #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 module Generate.JavaScript.Expression
   ( generate
   , generateCtor
@@ -18,8 +18,8 @@ import qualified Data.ByteString.Builder.Prim as P
 import qualified Data.Char as Char
 import qualified Data.IntMap as IntMap
 import qualified Data.List as List
-import Data.Map ((!))
 import qualified Data.Map as Map
+import qualified Data.Map.Utils as Map
 import qualified Data.Name as Name
 import qualified Data.Set as Set
 import qualified Data.Utf8 as Utf8
@@ -273,7 +273,7 @@ generateField :: Mode.Mode -> Name.Name -> JsName.Name
 generateField mode name =
   case mode of
     Mode.Dev _       -> JsName.fromLocal name
-    Mode.Prod fields -> fields ! name
+    Mode.Prod fields -> $(Map.require 'generateField) name fields Name.toChars
 
 
 

@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 module Install
   ( Args(..)
   , run
@@ -6,9 +6,9 @@ module Install
   where
 
 
-import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Map.Merge.Strict as Map
+import qualified Data.Map.Utils as Map
 
 import qualified Deps.Solver as Solver
 import qualified Deps.Registry as Registry
@@ -239,7 +239,7 @@ makePkgPlan (Solver.Env cache _ connection registry) pkg outline@(Outline.PkgOut
                 case result of
                   Solver.Ok solution ->
                     let
-                      (Solver.Details vsn _) = solution ! pkg
+                      (Solver.Details vsn _) = $(Map.require 'makePkgPlan) pkg solution Pkg.toChars
 
                       con = C.untilNextMajor vsn
                       new = Map.insert pkg con old

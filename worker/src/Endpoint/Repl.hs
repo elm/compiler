@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 module Endpoint.Repl
   ( endpoint
   )
@@ -12,7 +12,6 @@ import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Lazy as LBS
-import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Map.Utils as Map
 import qualified Data.Name as N
@@ -193,7 +192,7 @@ toJavaScript (modul, Compile.Artifacts canModule types locals, objects) maybeNam
     localizer = L.fromModule modul
     graph = Opt.addLocalGraph locals objects
     home = Can._name canModule
-    tipe = types ! maybe N.replValueToPrint id maybeName
+    tipe = $(Map.require 'toJavaScript) (maybe N.replValueToPrint id maybeName) types N.toChars
   in
   JS.generateForReplEndpoint localizer graph home maybeName tipe
 

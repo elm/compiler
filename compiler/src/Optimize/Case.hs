@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 module Optimize.Case
   ( optimize
   )
@@ -6,7 +7,7 @@ module Optimize.Case
 
 import Control.Arrow (second)
 import qualified Data.Map as Map
-import Data.Map ((!))
+import qualified Data.Map.Utils as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
 
@@ -123,12 +124,9 @@ countTargets decisionTree =
         Map.unionsWith (+) (map countTargets (fallback : map snd tests))
 
 
-createChoices
-    :: Map.Map Int Int
-    -> (Int, Opt.Expr)
-    -> ( (Int, Opt.Choice), Maybe (Int, Opt.Expr) )
+createChoices :: Map.Map Int Int -> (Int, Opt.Expr) -> ( (Int, Opt.Choice), Maybe (Int, Opt.Expr) )
 createChoices targetCounts (target, branch) =
-    if targetCounts ! target == 1 then
+    if $(Map.require 'createChoices) target targetCounts show == 1 then
         ( (target, Opt.Inline branch)
         , Nothing
         )
@@ -139,10 +137,7 @@ createChoices targetCounts (target, branch) =
         )
 
 
-insertChoices
-    :: Map.Map Int Opt.Choice
-    -> Opt.Decider Int
-    -> Opt.Decider Opt.Choice
+insertChoices :: Map.Map Int Opt.Choice -> Opt.Decider Int -> Opt.Decider Opt.Choice
 insertChoices choiceDict decider =
   let
     go =
@@ -150,7 +145,7 @@ insertChoices choiceDict decider =
   in
     case decider of
       Opt.Leaf target ->
-          Opt.Leaf (choiceDict ! target)
+          Opt.Leaf $ $(Map.require 'insertChoices) target choiceDict show
 
       Opt.Chain testChain success failure ->
           Opt.Chain testChain (go success) (go failure)

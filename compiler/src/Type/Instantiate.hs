@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 module Type.Instantiate
   ( FreeVars
   , fromSrcType
@@ -7,7 +7,7 @@ module Type.Instantiate
 
 
 import qualified Data.Map.Strict as Map
-import Data.Map.Strict ((!))
+import qualified Data.Map.Utils as Map
 import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
@@ -35,7 +35,7 @@ fromSrcType freeVars sourceType =
         <*> fromSrcType freeVars result
 
     Can.TVar name ->
-      return (freeVars ! name)
+      return $ $(Map.require 'fromSrcType) name freeVars Name.toChars
 
     Can.TType home name args ->
       AppN home name <$> traverse (fromSrcType freeVars) args
@@ -64,11 +64,8 @@ fromSrcType freeVars sourceType =
         <$> traverse (fromSrcFieldType freeVars) fields
         <*>
           case maybeExt of
-            Nothing ->
-              return EmptyRecordN
-
-            Just ext ->
-              return (freeVars ! ext)
+            Nothing  -> return EmptyRecordN
+            Just ext -> return $ $(Map.require 'fromSrcType) ext freeVars Name.toChars
 
 
 fromSrcFieldType :: Map.Map Name.Name Type -> Can.FieldType -> IO Type

@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings, Rank2Types #-}
+{-# LANGUAGE BangPatterns, OverloadedStrings, Rank2Types, TemplateHaskell #-}
 module Elm.Compiler.Type.Extract
   ( fromAnnotation
   , fromType
@@ -12,8 +12,8 @@ module Elm.Compiler.Type.Extract
   where
 
 
-import Data.Map ((!))
 import qualified Data.Map as Map
+import qualified Data.Map.Utils as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
 import qualified Data.Set as Set
@@ -172,7 +172,8 @@ extractTransitive types (Deps seenAliases seenUnions) (Deps nextAliases nextUnio
 extractAlias :: Types -> Opt.Global -> Extractor T.Alias
 extractAlias (Types dict) (Opt.Global home name) =
   let
-    (Can.Alias args aliasType) = _alias_info (dict ! home) ! name
+    types                      = $(Map.require 'extractAlias) home dict (ModuleName.toChars . ModuleName._module)
+    (Can.Alias args aliasType) = $(Map.require 'extractAlias) name (_alias_info types) Name.toChars
   in
   T.Alias (toPublicName home name) args <$> extract aliasType
 
@@ -184,7 +185,8 @@ extractUnion (Types dict) (Opt.Global home name) =
     else
       let
         pname = toPublicName home name
-        (Can.Union vars ctors _ _) = _union_info (dict ! home) ! name
+        types                      = $(Map.require 'extractUnion) home dict (ModuleName.toChars . ModuleName._module)
+        (Can.Union vars ctors _ _) = $(Map.require 'extractUnion) name (_union_info types) Name.toChars
       in
       T.Union pname vars <$> traverse extractCtor ctors
 

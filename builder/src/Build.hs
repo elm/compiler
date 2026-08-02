@@ -22,7 +22,6 @@ import qualified Data.Graph as Graph
 import qualified Data.List as List
 import qualified Data.Map.Utils as Map
 import qualified Data.Map.Strict as Map
-import Data.Map.Strict ((!))
 import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
 import qualified Data.NonEmptyList as NE
@@ -404,7 +403,7 @@ checkModule writer env@(Env _ root projectType _ _ _ _) foreigns resultsMVar nam
         Error.BadSyntax err
 
     SForeign home ->
-      case foreigns ! ModuleName.Canonical home name of
+      case $(Map.require 'checkModule) (ModuleName.Canonical home name) foreigns (ModuleName.toChars . ModuleName._module) of
         I.Public iface -> return (RForeign iface)
         I.Private _ _ _ -> error $ "mistakenly seeing private interface for " ++ Pkg.toChars home ++ " " ++ ModuleName.toChars name
 
@@ -503,7 +502,7 @@ toImportErrors (Env _ _ _ _ _ locals foreigns) results imports problems =
       Map.fromList (map (\(Src.Import (A.At region name) _ _) -> (name, region)) imports)
 
     toError (name, problem) =
-      Import.Error (regionDict ! name) name unimportedModules problem
+      Import.Error ($(Map.require 'toImportErrors) name regionDict ModuleName.toChars) name unimportedModules problem
   in
   fmap toError problems
 

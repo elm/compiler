@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, Rank2Types #-}
+{-# LANGUAGE OverloadedStrings, Rank2Types, TemplateHaskell #-}
 module Deps.Solver
   ( Solver
   , Result(..)
@@ -19,7 +19,7 @@ module Deps.Solver
 import Control.Monad (foldM)
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, readMVar)
 import qualified Data.Map as Map
-import Data.Map ((!))
+import qualified Data.Map.Utils as Map
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
 
@@ -178,12 +178,15 @@ getTransitive constraints solution unvisited visited =
       then getTransitive constraints solution infos visited
       else
         let
-          newDeps = _deps (constraints ! info)
+          newDeps = _deps ($(Map.require 'getTransitive) info constraints toChars)
           newUnvisited = Map.toList (Map.intersection solution (Map.difference newDeps visited))
           newVisited = Map.insert pkg vsn visited
         in
         getTransitive constraints solution infos $
           getTransitive constraints solution newUnvisited newVisited
+  where
+    toChars (pkg, vsn) =
+      Pkg.toChars pkg ++ "@" ++ V.toChars vsn
 
 
 

@@ -1,5 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, OverloadedStrings, TemplateHaskell #-}
 module Canonicalize.Environment.Foreign
   ( createInitialEnv
   )
@@ -9,7 +8,7 @@ module Canonicalize.Environment.Foreign
 import Control.Monad (foldM)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
-import Data.Map.Strict ((!))
+import qualified Data.Map.Utils as Map
 import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
@@ -99,7 +98,7 @@ isNormal (Src.Import (A.At _ name) maybeAlias _) =
 addImport :: Map.Map ModuleName.Raw I.Interface -> State -> Src.Import -> Result i w State
 addImport ifaces (State vs ts cs bs qvs qts qcs) (Src.Import (A.At _ name) maybeAlias exposing) =
   let
-    (I.Interface pkg defs unions aliases binops) = ifaces ! name
+    (I.Interface pkg defs unions aliases binops) = $(Map.require 'addImport) name ifaces ModuleName.toChars
     !prefix = maybe name id maybeAlias
     !home = ModuleName.Canonical pkg name
 

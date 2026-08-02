@@ -1,4 +1,4 @@
-{-# LANGUAGE ExtendedLiterals, MagicHash #-}
+{-# LANGUAGE ExtendedLiterals, MagicHash, TemplateHaskell #-}
 module Elm.Interface
   ( Interface(..)
   , Union(..)
@@ -21,9 +21,9 @@ module Elm.Interface
 
 
 import Control.Monad (liftM, liftM3, liftM4, liftM5)
-import Data.Map.Strict ((!))
 import qualified Data.Map.Strict as Map
 import qualified Data.Map.Merge.Strict as Map
+import qualified Data.Map.Utils as Map
 import qualified Data.Name as Name
 
 import qualified Bytes.Decode as D
@@ -100,7 +100,7 @@ restrict exports dict =
 
 toOp :: Map.Map Name.Name Can.Annotation -> Can.Binop -> Binop
 toOp types (Can.Binop_ associativity precedence name) =
-  Binop name (types ! name) associativity precedence
+  Binop name ($(Map.require 'toOp) name types Name.toChars) associativity precedence
 
 
 restrictUnions :: Can.Exports -> Map.Map Name.Name Can.Union -> Map.Map Name.Name Union

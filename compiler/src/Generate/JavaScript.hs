@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 module Generate.JavaScript
   ( generate
   , generateForRepl
@@ -10,8 +10,8 @@ module Generate.JavaScript
 import Prelude hiding (cycle, print)
 import qualified Data.ByteString.Builder as B
 import qualified Data.List as List
-import Data.Map ((!))
 import qualified Data.Map as Map
+import qualified Data.Map.Utils as Map
 import qualified Data.Name as Name
 import qualified Data.Set as Set
 import qualified Data.Utf8 as Utf8
@@ -21,6 +21,7 @@ import qualified AST.Optimized as Opt
 import qualified Data.Index as Index
 import qualified Elm.Kernel as K
 import qualified Elm.ModuleName as ModuleName
+import qualified Elm.Package as Pkg
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Expression as Expr
 import qualified Generate.JavaScript.Functions as Functions
@@ -187,8 +188,11 @@ addGlobalHelp mode graph global state =
   let
     addDeps deps someState =
       Set.foldl' (addGlobal mode graph) someState deps
+
+    globalToChars (Opt.Global (ModuleName.Canonical p h) n) =
+      ModuleName.toChars h ++ "." ++ Name.toChars n ++ " in " ++ Pkg.toChars p
   in
-  case graph ! global of
+  case $(Map.require 'addGlobalHelp) global graph globalToChars of
     Opt.Define expr deps ->
       addStmt (addDeps deps state) (
         var global (Expr.generate mode expr)
