@@ -20,6 +20,7 @@ executable elm
     build-depends:
         ansi-terminal,
         ansi-wl-pprint < 1,
+        array,
         base,
         binary,
         bytestring,
@@ -215,6 +216,7 @@ executable elm
         Bytes.Decode
         Bytes.Encode
         Crash
+        Graph
         Literals
         String
         ThreadSafe.Fork
