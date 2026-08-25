@@ -29,6 +29,7 @@ module Reporting.Exit
   where
 
 
+import Prelude hiding (cycle)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.UTF8 as BS_UTF8
 import qualified Data.List as List
@@ -40,6 +41,8 @@ import qualified Network.HTTP.Types.Header as HTTP
 import qualified Network.HTTP.Types.Status as HTTP
 import qualified System.FilePath as FP
 import System.FilePath ((</>), (<.>))
+
+import qualified Graph
 
 import qualified Elm.Constraint as C
 import qualified Elm.Magnitude as M
@@ -1771,7 +1774,7 @@ data BuildProjectProblem
   | BP_RootNameDuplicate ModuleName.Raw FilePath FilePath
   | BP_RootNameInvalid FilePath FilePath [String]
   | BP_CannotLoadDependencies
-  | BP_Cycle ModuleName.Raw [ModuleName.Raw]
+  | BP_Cycle (Graph.MinimalCycle ModuleName.Raw)
   | BP_MissingExposed (NE.List (ModuleName.Raw, Import.Problem))
 
 
@@ -1868,10 +1871,10 @@ toProjectProblemReport projectProblem =
     BP_CannotLoadDependencies ->
       corruptCacheReport
 
-    BP_Cycle name names ->
+    BP_Cycle cycle ->
       Help.report "IMPORT CYCLE" Nothing
         "Your module imports form a cycle:"
-        [ D.cycle 4 name names
+        [ D.cycle 4 cycle
         , D.reflow $
             "Learn more about why this is disallowed and how to break cycles here:"
             ++ D.makeLink "import-cycles"

@@ -12,12 +12,15 @@ module Reporting.Error.Canonicalize
   where
 
 
+import Prelude hiding (cycle)
 import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Name as Name
 import qualified Data.OneOrMore as OneOrMore
 import qualified Data.Set as Set
+
+import qualified Graph
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
@@ -68,9 +71,9 @@ data Error
   | PatternHasRecordCtor A.Region Name.Name
   | PortPayloadInvalid A.Region Name.Name Can.Type InvalidPayload
   | PortTypeInvalid A.Region Name.Name PortProblem
-  | RecursiveAlias A.Region Name.Name [Name.Name] Src.Type [Name.Name]
-  | RecursiveDecl A.Region Name.Name [Name.Name]
-  | RecursiveLet (A.Located Name.Name) [Name.Name]
+  | RecursiveAlias A.Region Name.Name [Name.Name] Src.Type (Graph.MinimalCycle Name.Name)
+  | RecursiveDecl A.Region Name.Name (Graph.MinimalCycle Name.Name)
+  | RecursiveLet (A.Located Name.Name) (Graph.MinimalCycle Name.Name)
   | Shadowing Name.Name A.Region A.Region
   | TupleLargerThanThree A.Region
   | TypeVarsUnboundInUnion A.Region Name.Name [Name.Name] (Name.Name, A.Region) [(Name.Name, A.Region)]
@@ -664,15 +667,15 @@ toReport source err =
     RecursiveAlias region name args tipe others ->
         aliasRecursionReport source region name args tipe others
 
-    RecursiveDecl region name names ->
+    RecursiveDecl region name cycle ->
       let
         makeTheory question details =
           D.fillSep $ map (D.dullyellow . D.fromChars) (words question) ++ map D.fromChars (words details)
       in
       Report.Report "CYCLIC DEFINITION" region [] $
         Code.toSnippet source region Nothing $
-          case names of
-            [] ->
+          if Graph.isSelfRecursive cycle
+          then
               (
                 D.reflow $
                   "The `" <> Name.toChars name <> "` value is defined directly in terms of itself, causing an infinite loop."
@@ -693,7 +696,7 @@ toReport source err =
                   ]
               )
 
-            _:_ ->
+          else
               (
                 D.reflow $
                   "The `" <> Name.toChars name <> "` definition is causing a very tricky infinite loop."
@@ -702,7 +705,7 @@ toReport source err =
                   [ D.reflow $
                       "The `" <> Name.toChars name
                       <> "` value depends on itself through the following chain of definitions:"
-                  , D.cycle 4 name names
+                  , D.cycle 4 cycle
                   , D.link "Hint"
                       "The root problem is often a typo in some variable name, but I recommend reading"
                       "bad-recursion"
@@ -710,11 +713,11 @@ toReport source err =
                   ]
               )
 
-    RecursiveLet (A.At region name) names ->
+    RecursiveLet (A.At region name) cycle ->
       Report.Report "CYCLIC VALUE" region [] $
         Code.toSnippet source region Nothing $
-          case names of
-            [] ->
+          if Graph.isSelfRecursive cycle
+          then
               let
                 makeTheory question details =
                   D.fillSep $ map (D.dullyellow . D.fromChars) (words question) ++ map D.fromChars (words details)
@@ -739,7 +742,7 @@ toReport source err =
                     ]
                 )
 
-            _ ->
+          else
                 (
                   D.reflow $
                     "I do not allow cyclic values in `let` expressions."
@@ -748,7 +751,7 @@ toReport source err =
                     [ D.reflow $
                         "The `" <> Name.toChars name
                         <> "` value depends on itself through the following chain of definitions:"
-                    , D.cycle 4 name names
+                    , D.cycle 4 cycle
                     , D.link "Hint"
                         "The root problem is often a typo in some variable name, but I recommend reading"
                         "bad-recursion"
@@ -1209,10 +1212,10 @@ _argMismatchReport source region kind name expected actual =
 -- BAD ALIAS RECURSION
 
 
-aliasRecursionReport :: Code.Source -> A.Region -> Name.Name -> [Name.Name] -> Src.Type -> [Name.Name] -> Report.Report
-aliasRecursionReport source region name args tipe others =
-  case others of
-    [] ->
+aliasRecursionReport :: Code.Source -> A.Region -> Name.Name -> [Name.Name] -> Src.Type -> Graph.MinimalCycle Name.Name -> Report.Report
+aliasRecursionReport source region name args tipe cycle =
+  if Graph.isSelfRecursive cycle
+  then
       Report.Report "ALIAS PROBLEM" region [] $
         Code.toSnippet source region Nothing
           (
@@ -1230,8 +1233,7 @@ aliasRecursionReport source region name args tipe others =
                   "for ideas on how to do better."
               ]
           )
-
-    _ ->
+  else
       Report.Report "ALIAS PROBLEM" region [] $
         Code.toSnippet source region Nothing
           (
@@ -1239,7 +1241,7 @@ aliasRecursionReport source region name args tipe others =
           ,
             D.stack
               [ "It is part of this cycle of type aliases:"
-              , D.cycle 4 name others
+              , D.cycle 4 cycle
               , D.reflow $
                   "You need to convert at least one of these type aliases into a `type`."
               , D.link "Note" "Read" "recursive-alias"

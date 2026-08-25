@@ -6,7 +6,10 @@ module Reporting.Error.Main
   where
 
 
+import Prelude hiding (cycle)
 import qualified Data.Name as Name
+
+import qualified Graph
 
 import qualified AST.Canonical as Can
 import qualified Reporting.Annotation as A
@@ -24,7 +27,7 @@ import qualified Reporting.Report as Report
 
 data Error
   = BadType A.Region Can.Type
-  | BadCycle A.Region Name.Name [Name.Name]
+  | BadCycle A.Region (Graph.MinimalCycle Name.Name)
   | BadFlags A.Region Can.Type E.InvalidPayload
 
 
@@ -50,7 +53,7 @@ toReport localizer source err =
               ]
           )
 
-    BadCycle region name names ->
+    BadCycle region cycle ->
       Report.Report "BAD MAIN" region [] $
         Code.toSnippet source region Nothing
           (
@@ -60,7 +63,7 @@ toReport localizer source err =
               [ D.reflow $
                   "It should be a boring value with no recursion. But\
                   \ instead it is involved in this cycle of definitions:"
-              , D.cycle 4 name names
+              , D.cycle 4 cycle
               ]
           )
 
