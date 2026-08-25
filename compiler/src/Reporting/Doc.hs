@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
+{-# LANGUAGE CPP, OverloadedStrings, TemplateHaskell #-}
 module Reporting.Doc
   ( P.Doc
   , (P.<+>), (<>)
@@ -47,11 +47,11 @@ import Prelude hiding (cycle)
 import qualified Data.List as List
 import qualified Data.Name as Name
 import qualified System.Console.ANSI.Types as Ansi
-import qualified System.Info as Info
 import System.IO (Handle)
 import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import qualified Crash
+import qualified Graph
 
 import qualified Data.Index as Index
 import qualified Elm.Package as Pkg
@@ -244,8 +244,8 @@ intToOrdinal number =
 
 
 
-cycle :: Int -> Name.Name -> [Name.Name] -> P.Doc
-cycle indent name names =
+cycle :: Int -> Graph.MinimalCycle Name.Name -> P.Doc
+cycle indent (Graph.MinimalCycle name names) =
   let
     toLn n = cycleLn <> P.dullyellow (fromName n)
   in
@@ -254,15 +254,17 @@ cycle indent name names =
 
 
 cycleTop, cycleLn, cycleMid, cycleEnd :: P.Doc
-cycleTop = if isWindows then "+-----+" else "┌─────┐"
-cycleLn  = if isWindows then "|    "   else "│    "
-cycleMid = if isWindows then "|     |" else "│     ↓"
-cycleEnd = if isWindows then "+-<---+" else "└─────┘"
-
-
-isWindows :: Bool
-isWindows =
-  Info.os == "mingw32"
+#if defined(mingw32_HOST_OS)
+cycleTop = "+-----+"
+cycleLn  = "|    "
+cycleMid = "|     |"
+cycleEnd = "+-<---+"
+#else
+cycleTop = "┌─────┐"
+cycleLn  = "│    "
+cycleMid = "│     ↓"
+cycleEnd = "└─────┘"
+#endif
 
 
 
@@ -311,8 +313,7 @@ toJsonHelp style revChunks simpleDoc =
   case simpleDoc of
     P.SFail ->
       $(Crash.crash 'toJsonHelp) $
-        "according to the main implementation, @SFail@ can not\
-        \ appear uncaught in a rendered @SimpleDoc@"
+        "according to the main implementation, @SFail@ can not appear uncaught in a rendered @SimpleDoc@"
 
     P.SEmpty ->
       [ encodeChunks style revChunks ]
