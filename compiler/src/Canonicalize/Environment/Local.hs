@@ -5,11 +5,13 @@ module Canonicalize.Environment.Local
   where
 
 
+import Prelude hiding (cycle)
 import Control.Monad (foldM)
-import qualified Data.Graph as Graph
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Name as Name
+
+import qualified Graph
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
@@ -121,37 +123,36 @@ addAliases :: [A.Located Src.Alias] -> Env.Env -> Result i w Env.Env
 addAliases aliases env =
   let
     nodes = map toNode aliases
-    sccs = Graph.stronglyConnComp nodes
+    sccs = Graph.toSCC nodes
   in
   foldM addAlias env sccs
 
 
-addAlias :: Env.Env -> Graph.SCC (A.Located Src.Alias) -> Result i w Env.Env
+addAlias :: Env.Env -> Graph.SCC Name.Name (A.Located Src.Alias) -> Result i w Env.Env
 addAlias env@(Env.Env home vs ts cs bs qvs qts qcs) scc =
   case scc of
-    Graph.AcyclicSCC alias@(A.At _ (Src.Alias (A.At _ name) _ tipe)) ->
+    Graph.Acyclic (Graph.Node _ alias@(A.At _ (Src.Alias (A.At _ name) _ tipe)) _) ->
       do  args <- checkAliasFreeVars alias
           ctype <- Type.canonicalize env tipe
           let one = Env.Specific home (Env.Alias (length args) home args ctype)
           let ts1 = Map.insert name one ts
           Result.ok $ Env.Env home vs ts1 cs bs qvs qts qcs
 
-    Graph.CyclicSCC [] ->
-      Result.ok env
-
-    Graph.CyclicSCC (alias@(A.At _ (Src.Alias (A.At region name1) _ tipe)) : others) ->
-      do  args <- checkAliasFreeVars alias
-          let toName (A.At _ (Src.Alias (A.At _ name) _ _)) = name
-          Result.throw (Error.RecursiveAlias region name1 args tipe (map toName others))
+    Graph.Cyclic aliases ->
+      Graph.withMinimalCycle selector aliases Graph._key $ \alias@(A.At _ (Src.Alias (A.At region name1) _ tipe)) cycle ->
+        do  args <- checkAliasFreeVars alias
+            Result.throw (Error.RecursiveAlias region name1 args tipe cycle)
+  where
+    selector = Graph.RootSelector $ \(Graph.Node k v _) _ -> (k, v)
 
 
 
 -- DETECT TYPE ALIAS CYCLES
 
 
-toNode :: A.Located Src.Alias -> (A.Located Src.Alias, Name.Name, [Name.Name])
+toNode :: A.Located Src.Alias -> Graph.Node Name.Name (A.Located Src.Alias)
 toNode alias@(A.At _ (Src.Alias (A.At _ name) _ tipe)) =
-  ( alias, name, getEdges [] tipe )
+  Graph.Node name alias (getEdges [] tipe)
 
 
 getEdges :: [Name.Name] -> Src.Type -> [Name.Name]

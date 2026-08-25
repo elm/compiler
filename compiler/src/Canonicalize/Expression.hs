@@ -11,10 +11,12 @@ module Canonicalize.Expression
 
 
 import Control.Monad (foldM)
-import qualified Data.Graph as Graph
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
+import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
+
+import qualified Graph
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
@@ -306,7 +308,7 @@ canonicalizeLet letRegion env defs body =
         verifyBindings W.Def bindings $
           do  nodes <- foldM (addDefNodes newEnv) [] defs
               cbody <- canonicalize newEnv body
-              detectCycles letRegion (Graph.stronglyConnComp nodes) cbody
+              detectCycles letRegion (Graph.toSCC nodes) cbody
 
 
 
@@ -376,7 +378,7 @@ addBindingsHelp bindings (A.At region pattern) =
 
 
 type Node =
-  (Binding, Name.Name, [Name.Name])
+  Graph.Node Name.Name Binding
 
 
 data Binding
@@ -402,7 +404,7 @@ addDefNodes env nodes (A.At _ def) =
                 verifyBindings W.Pattern argBindings (canonicalize newEnv body)
 
               let cdef = Can.Def aname args cbody
-              let node = ( Define cdef, name, Map.keys freeLocals )
+              let node = Graph.Node name (Define cdef) (Map.keys freeLocals)
               logLetLocals args freeLocals (node:nodes)
 
         Just tipe ->
@@ -418,7 +420,7 @@ addDefNodes env nodes (A.At _ def) =
                 verifyBindings W.Pattern argBindings (canonicalize newEnv body)
 
               let cdef = Can.TypedDef aname freeVars args cbody resultType
-              let node = ( Define cdef, name, Map.keys freeLocals )
+              let node = Graph.Node name (Define cdef) (Map.keys freeLocals)
               logLetLocals args freeLocals (node:nodes)
 
     Src.Destruct pattern body ->
@@ -437,7 +439,7 @@ addDefNodes env nodes (A.At _ def) =
                       let
                         names = getPatternNames [] pattern
                         name = Name.fromManyNames (map A.toValue names)
-                        node = ( Destruct cpattern cbody, name, Map.keys freeLocals )
+                        node = Graph.Node name (Destruct cpattern cbody) (Map.keys freeLocals)
                       in
                       good
                         (Map.unionWith combineUses fs freeLocals)
@@ -461,7 +463,7 @@ logLetLocals args letLocals value =
 
 addEdge :: [Name.Name] -> [Node] -> A.Located Name.Name -> [Node]
 addEdge edges nodes aname@(A.At _ name) =
-  (Edge aname, name, edges) : nodes
+  Graph.Node name (Edge aname) edges : nodes
 
 
 getPatternNames :: [A.Located Name.Name] -> Src.Pattern ->  [A.Located Name.Name]
@@ -516,7 +518,7 @@ gatherTypedArgs env name srcArgs tipe index revTypedArgs =
 -- DETECT CYCLES
 
 
-detectCycles :: A.Region -> [Graph.SCC Binding] -> Can.Expr -> Result i w Can.Expr
+detectCycles :: A.Region -> [Graph.SCC Name.Name Binding] -> Can.Expr -> Result i w Can.Expr
 detectCycles letRegion sccs body =
   case sccs of
     [] ->
@@ -524,7 +526,7 @@ detectCycles letRegion sccs body =
 
     scc : subSccs ->
       case scc of
-        Graph.AcyclicSCC binding ->
+        Graph.Acyclic (Graph.Node _ binding _) ->
           case binding of
             Define def ->
               A.At letRegion . Can.Let def <$> detectCycles letRegion subSccs body
@@ -535,64 +537,66 @@ detectCycles letRegion sccs body =
             Destruct pattern expr ->
               A.At letRegion . Can.LetDestruct pattern expr <$> detectCycles letRegion subSccs body
 
-        Graph.CyclicSCC bindings ->
+        Graph.Cyclic bindings ->
           A.At letRegion <$>
             (Can.LetRec
-              <$> checkCycle bindings []
+              <$> checkCycle bindings
               <*> detectCycles letRegion subSccs body
             )
 
 
-checkCycle :: [Binding] -> [Can.Def] -> Result i w [Can.Def]
-checkCycle bindings defs =
-  case bindings of
-    [] ->
-      Result.ok defs
-
-    binding : otherBindings ->
+checkCycle :: Graph.Component Name.Name Binding -> Result i w [Can.Def]
+checkCycle component =
+  Graph.withComponent component $ \b bs ->
+    add b bs []
+  where
+    add (Graph.Node _ binding _) bindings defs =
       case binding of
         Define def@(Can.Def name args _) ->
-          if null args then
-            Result.throw (Error.RecursiveLet name (toNames otherBindings defs))
-          else
-            checkCycle otherBindings (def:defs)
+          case args of
+            _:_ -> loop bindings (def:defs)
+            []  -> err name
 
         Define def@(Can.TypedDef name _ args _ _) ->
-          if null args then
-            Result.throw (Error.RecursiveLet name (toNames otherBindings defs))
-          else
-            checkCycle otherBindings (def:defs)
+          case args of
+            _:_ -> loop bindings (def:defs)
+            []  -> err name
 
         Edge name ->
-          Result.throw (Error.RecursiveLet name (toNames otherBindings defs))
+          err name
 
         Destruct _ _ ->
           -- a Destruct cannot appear in a cycle without any Edge values
           -- so we just keep going until we get to the edges
-          checkCycle otherBindings defs
+          loop bindings defs
+
+    loop bindings defs =
+      case bindings of
+        []   -> Result.ok defs
+        b:bs -> add b bs defs
+
+    err name =
+      Result.throw $ Error.RecursiveLet name $
+        Graph.withMinimalCycle selector component Graph._value $ \() (Graph.MinimalCycle _ others) ->
+          Graph.MinimalCycle (A.toValue name) (Maybe.mapMaybe toName others)
+
+    selector =
+      Graph.RootSelector $ \n _ -> ( Graph._key n, () )
 
 
-toNames :: [Binding] -> [Can.Def] -> [Name.Name]
-toNames bindings revDefs =
-  case bindings of
-    [] ->
-      reverse (map getDefName revDefs)
-
-    binding : otherBindings ->
-      case binding of
-        Define def         -> getDefName def : toNames otherBindings revDefs
-        Edge (A.At _ name) -> name : toNames otherBindings revDefs
-        Destruct _ _       -> toNames otherBindings revDefs
+toName :: Binding -> Maybe Name.Name
+toName binding =
+  case binding of
+    Define def         -> Just (getDefName def)
+    Edge (A.At _ name) -> Just name
+    Destruct _ _       -> Nothing
 
 
 getDefName :: Can.Def -> Name.Name
 getDefName def =
   case def of
-    Can.Def (A.At _ name) _ _ ->
-      name
-
-    Can.TypedDef (A.At _ name) _ _ _ _ ->
-      name
+    Can.Def      (A.At _ name) _ _     -> name
+    Can.TypedDef (A.At _ name) _ _ _ _ -> name
 
 
 

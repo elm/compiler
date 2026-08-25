@@ -13,6 +13,8 @@ import qualified Data.Map.Utils as Map
 import qualified Data.Name as Name
 import qualified Data.Set as Set
 
+import qualified Graph
+
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
 import qualified AST.Utils.Type as Type
@@ -197,7 +199,8 @@ addDecls home annotations decls graph =
           addDecls home annotations subDecls (addRecDefs home defs graph)
 
         Just region ->
-          Result.throw $ E.BadCycle region (defToName d) (map defToName ds)
+          Result.throw $ E.BadCycle region $
+            Graph.MinimalCycle (defToName d) (map defToName ds)
 
     Can.SaveTheEnvironment ->
       Result.ok graph

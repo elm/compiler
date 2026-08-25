@@ -5,11 +5,11 @@ module Canonicalize.Module
   where
 
 
-import qualified Data.Graph as Graph
+import Prelude hiding (cycle)
 import qualified Data.Map as Map
 import qualified Data.Name as Name
 
-import qualified Crash
+import qualified Graph
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
@@ -81,10 +81,10 @@ canonicalizeBinop (A.At _ (Src.Infix op associativity precedence func)) =
 canonicalizeValues :: Env.Env -> [A.Located Src.Value] -> Result i [W.Warning] Can.Decls
 canonicalizeValues env values =
   do  nodes <- traverse (toNodeOne env) values
-      detectCycles (Graph.stronglyConnComp nodes)
+      detectCycles (Graph.toSCC nodes)
 
 
-detectCycles :: [Graph.SCC NodeTwo] -> Result i w Can.Decls
+detectCycles :: [Graph.SCC Name.Name NodeTwo] -> Result i w Can.Decls
 detectCycles sccs =
   case sccs of
     [] ->
@@ -92,38 +92,33 @@ detectCycles sccs =
 
     scc : otherSccs ->
       case scc of
-        Graph.AcyclicSCC (def, _, _) ->
-          Can.Declare def <$> detectCycles otherSccs
+        Graph.Acyclic (Graph.Node _ def _) ->
+          Can.Declare (Graph._value def) <$> detectCycles otherSccs
 
-        Graph.CyclicSCC subNodes ->
-          do  defs <- traverse detectBadCycles (Graph.stronglyConnComp subNodes)
+        Graph.Cyclic component ->
+          do  defs <- traverse detectBadCycles $ Graph.toSCC $ map Graph._value $ Graph.withComponent component (:)
               case defs of
                 []   -> detectCycles otherSccs
                 d:ds -> Can.DeclareRec d ds <$> detectCycles otherSccs
 
 
-detectBadCycles :: Graph.SCC Can.Def -> Result i w Can.Def
+detectBadCycles :: Graph.SCC Name.Name Can.Def -> Result i w Can.Def
 detectBadCycles scc =
   case scc of
-    Graph.AcyclicSCC def ->
+    Graph.Acyclic (Graph.Node _ def _) ->
       Result.ok def
 
-    Graph.CyclicSCC [] ->
-      $(Crash.crash 'detectBadCycles) "The definition of Data.Graph.SCC should not allow empty CyclicSCC!"
+    Graph.Cyclic component ->
+      Graph.withMinimalCycle selector component Graph._key $ \(A.At r n) cycle ->
+        Result.throw $ Error.RecursiveDecl r n cycle
+  where
+    selector =
+      Graph.RootSelector $ \(Graph.Node key def _) _ -> (key, getName def)
 
-    Graph.CyclicSCC (def:defs) ->
-      let
-        (A.At region name) = extractDefName def
-        names = map (A.toValue . extractDefName) defs
-      in
-      Result.throw (Error.RecursiveDecl region name names)
-
-
-extractDefName :: Can.Def -> A.Located Name.Name
-extractDefName def =
-  case def of
-    Can.Def name _ _ -> name
-    Can.TypedDef name _ _ _ _ -> name
+    getName def =
+      case def of
+        Can.Def      n _ _     -> n
+        Can.TypedDef n _ _ _ _ -> n
 
 
 
@@ -134,14 +129,12 @@ extractDefName def =
 
 -- Phase one nodes track ALL dependencies.
 -- This allows us to find cyclic values for type inference.
-type NodeOne =
-  (NodeTwo, Name.Name, [Name.Name])
+type NodeOne = Graph.Node Name.Name NodeTwo
 
 
 -- Phase two nodes track DIRECT dependencies.
 -- This allows us to detect cycles that definitely do not terminate.
-type NodeTwo =
-  (Can.Def, Name.Name, [Name.Name])
+type NodeTwo = Graph.Node Name.Name Can.Def
 
 
 toNodeOne :: Env.Env -> A.Located Src.Value -> Result i [W.Warning] NodeOne
@@ -159,11 +152,7 @@ toNodeOne env (A.At _ (Src.Value aname@(A.At _ name) srcArgs body maybeType)) =
             Expr.verifyBindings W.Pattern argBindings (Expr.canonicalize newEnv body)
 
           let def = Can.Def aname args cbody
-          return
-            ( toNodeTwo name srcArgs def freeLocals
-            , name
-            , Map.keys freeLocals
-            )
+          return $ Graph.Node name (toNodeTwo name srcArgs def freeLocals) (Map.keys freeLocals)
 
     Just srcType ->
       do  (Can.Forall freeVars tipe) <- Type.toAnnotation env srcType
@@ -179,21 +168,15 @@ toNodeOne env (A.At _ (Src.Value aname@(A.At _ name) srcArgs body maybeType)) =
             Expr.verifyBindings W.Pattern argBindings (Expr.canonicalize newEnv body)
 
           let def = Can.TypedDef aname freeVars args cbody resultType
-          return
-            ( toNodeTwo name srcArgs def freeLocals
-            , name
-            , Map.keys freeLocals
-            )
+          return $ Graph.Node name (toNodeTwo name srcArgs def freeLocals) (Map.keys freeLocals)
 
 
 toNodeTwo :: Name.Name -> [arg] -> Can.Def -> Expr.FreeLocals -> NodeTwo
 toNodeTwo name args def freeLocals =
-  case args of
-    [] ->
-      (def, name, Map.foldrWithKey addDirects [] freeLocals)
-
-    _ ->
-      (def, name, [])
+  Graph.Node name def $
+    case args of
+      [] -> Map.foldrWithKey addDirects [] freeLocals
+      _  -> []
 
 
 addDirects :: Name.Name -> Expr.Uses -> [Name.Name] -> [Name.Name]

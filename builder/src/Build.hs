@@ -14,11 +14,11 @@ module Build
   where
 
 
+import Prelude hiding (cycle)
 import Control.Concurrent.MVar
 import Control.Monad (filterM)
 import qualified Data.ByteString as B
 import qualified Data.Char as Char
-import qualified Data.Graph as Graph
 import qualified Data.List as List
 import qualified Data.Map.Utils as Map
 import qualified Data.Map.Strict as Map
@@ -32,6 +32,7 @@ import qualified System.FilePath as FP
 import System.FilePath ((</>), (<.>))
 
 import qualified Crash
+import qualified Graph
 import qualified ThreadSafe.Fork as Fork
 
 import qualified AST.Canonical as Can
@@ -561,9 +562,9 @@ checkMidpoint dmvar statuses =
             Nothing -> return (Left Exit.BP_CannotLoadDependencies)
             Just fs -> return (Right fs)
 
-    Just (NE.List name names) ->
+    Just cycle ->
       do  _ <- Fork.await dmvar
-          return (Left (Exit.BP_Cycle name names))
+          return (Left (Exit.BP_Cycle cycle))
 
 
 checkMidpointAndRoots :: Fork.SafeMVar (Maybe Dependencies) -> Map.Map ModuleName.Raw Status -> NE.List RootStatus -> IO (Either Exit.BuildProjectProblem Dependencies)
@@ -581,25 +582,21 @@ checkMidpointAndRoots dmvar statuses sroots =
           do  _ <- Fork.await dmvar
               return (Left problem)
 
-    Just (NE.List name names) ->
+    Just cycle ->
       do  _ <- Fork.await dmvar
-          return (Left (Exit.BP_Cycle name names))
+          return (Left (Exit.BP_Cycle cycle))
 
 
 
 -- CHECK FOR CYCLES
 
 
-checkForCycles :: Map.Map ModuleName.Raw Status -> Maybe (NE.List ModuleName.Raw)
+checkForCycles :: Map.Map ModuleName.Raw Status -> Maybe (Graph.MinimalCycle ModuleName.Raw)
 checkForCycles modules =
-  let
-    !graph = Map.foldrWithKey addToGraph [] modules
-    !sccs = Graph.stronglyConnComp graph
-  in
-  checkForCyclesHelp sccs
+  checkForCyclesHelp $ Graph.toSCC $ Map.foldrWithKey addToGraph [] modules
 
 
-checkForCyclesHelp :: [Graph.SCC ModuleName.Raw] -> Maybe (NE.List ModuleName.Raw)
+checkForCyclesHelp :: [Graph.SCC ModuleName.Raw ()] -> Maybe (Graph.MinimalCycle ModuleName.Raw)
 checkForCyclesHelp sccs =
   case sccs of
     [] ->
@@ -607,18 +604,18 @@ checkForCyclesHelp sccs =
 
     scc:otherSccs ->
       case scc of
-        Graph.AcyclicSCC _     -> checkForCyclesHelp otherSccs
-        Graph.CyclicSCC []     -> checkForCyclesHelp otherSccs
-        Graph.CyclicSCC (m:ms) -> Just (NE.List m ms)
+        Graph.Acyclic _ -> checkForCyclesHelp otherSccs
+        Graph.Cyclic  c ->
+          Graph.withMinimalCycle selector c Graph._key $ \() cycle ->
+            Just cycle
+  where
+    selector = Graph.RootSelector $ \node _ -> (Graph._key node, ())
 
 
-type Node =
-  ( ModuleName.Raw, ModuleName.Raw, [ModuleName.Raw] )
-
-
-addToGraph :: ModuleName.Raw -> Status -> [Node] -> [Node]
+addToGraph :: ModuleName.Raw -> Status -> [Graph.Node ModuleName.Raw ()] -> [Graph.Node ModuleName.Raw ()]
 addToGraph name status graph =
-  let
+    Graph.Node name () dependencies : graph
+  where
     dependencies =
       case status of
         SCached  (Details.Local _ _ deps _ _ _)       -> deps
@@ -627,8 +624,6 @@ addToGraph name status graph =
         SBadSyntax _ _ _ _                            -> []
         SForeign _                                    -> []
         SKernel                                       -> []
-  in
-  (name, name, dependencies) : graph
 
 
 
