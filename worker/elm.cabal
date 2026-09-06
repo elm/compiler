@@ -153,10 +153,11 @@ executable worker
         Bytes
         Literals
 
+    -- The compatibility module is deprecated by design.
+    ghc-options: -Wno-error=deprecations
+
     Build-depends:
         aeson,
-        ansi-terminal >= 0.8,
-        ansi-wl-pprint >= 0.6.8 && < 1,
         base >=4.11 && <5,
         base64-bytestring,
         binary >= 0.8,
@@ -178,6 +179,9 @@ executable worker
         network >= 2.4,
         network-uri,
         parsec,
+        prettyprinter,
+        prettyprinter-ansi-terminal,
+        prettyprinter-compat-ansi-wl-pprint >= 1.1,
         process,
         random,
         scientific,
