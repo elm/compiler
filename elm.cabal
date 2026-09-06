@@ -17,9 +17,10 @@ executable elm
         -- add -eventlog for (elm make src/Main.elm +RTS -l; threadscope elm.eventlog)
         -- https://www.oreilly.com/library/view/parallel-and-concurrent/9781449335939/
 
+    -- The compatibility module is deprecated by design.
+    ghc-options: -Wno-error=deprecations
+
     build-depends:
-        ansi-terminal,
-        ansi-wl-pprint < 1,
         base,
         binary,
         bytestring,
@@ -38,12 +39,16 @@ executable elm
         mtl,
         network,
         parsec,
+        prettyprinter,
+        prettyprinter-ansi-terminal,
+        prettyprinter-compat-ansi-wl-pprint >= 1.1,
         process,
         scientific,
         SHA,
         snap-core,
         snap-server,
         template-haskell,
+        text,
         time,
         unordered-containers,
         utf8-string,

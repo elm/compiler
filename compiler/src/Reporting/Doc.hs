@@ -45,8 +45,11 @@ module Reporting.Doc
 
 import Prelude hiding (cycle)
 import qualified Data.List as List
+import Data.Maybe (isJust)
 import qualified Data.Name as Name
-import qualified System.Console.ANSI.Types as Ansi
+import qualified Data.Text as Text
+import qualified Prettyprinter as P (SimpleDocStream(..))
+import qualified Prettyprinter.Render.Terminal.Internal as Ansi
 import qualified System.Info as Info
 import System.IO (Handle)
 import qualified Text.PrettyPrint.ANSI.Leijen as P
@@ -269,20 +272,15 @@ isWindows =
 
 encode :: P.Doc -> E.Value
 encode doc =
-  E.array (toJsonHelp noStyle [] (P.renderPretty 1 80 doc))
+  E.array (toJsonHelp noStyle [] [] (P.renderPretty 1 80 doc))
 
 
-data Style =
-  Style
-    { _bold :: Bool
-    , _underline :: Bool
-    , _color :: Maybe Color
-    }
+type Style = Ansi.AnsiStyle
 
 
 noStyle :: Style
 noStyle =
-  Style False False Nothing
+  mempty
 
 
 data Color
@@ -304,8 +302,8 @@ data Color
   | WHITE
 
 
-toJsonHelp :: Style -> [String] -> P.SimpleDoc -> [E.Value]
-toJsonHelp style revChunks simpleDoc =
+toJsonHelp :: Style -> [Style] -> [String] -> P.SimpleDoc -> [E.Value]
+toJsonHelp style styles revChunks simpleDoc =
   case simpleDoc of
     P.SFail ->
       error $
@@ -316,63 +314,34 @@ toJsonHelp style revChunks simpleDoc =
       [ encodeChunks style revChunks ]
 
     P.SChar char rest ->
-      toJsonHelp style ([char] : revChunks) rest
+      toJsonHelp style styles ([char] : revChunks) rest
 
-    P.SText _ string rest ->
-      toJsonHelp style (string : revChunks) rest
+    P.SText _ text rest ->
+      toJsonHelp style styles (Text.unpack text : revChunks) rest
 
     P.SLine indent rest ->
-      toJsonHelp style (replicate indent ' ' : "\n" : revChunks) rest
+      toJsonHelp style styles (replicate indent ' ' : "\n" : revChunks) rest
 
-    P.SSGR sgrs rest ->
-      encodeChunks style revChunks : toJsonHelp (sgrToStyle sgrs style) [] rest
+    -- Annotations inherit the current style and restore it when popped.
+    P.SAnnPush annotation rest ->
+      encodeChunks style revChunks : toJsonHelp (annotation <> style) (style : styles) [] rest
 
+    P.SAnnPop rest ->
+      case styles of
+        outer : others ->
+          encodeChunks style revChunks : toJsonHelp outer others [] rest
 
-sgrToStyle :: [Ansi.SGR] -> Style -> Style
-sgrToStyle sgrs style@(Style bold underline color) =
-  case sgrs of
-    [] ->
-      style
-
-    sgr : rest ->
-      sgrToStyle rest $
-        case sgr of
-          Ansi.Reset                         -> noStyle
-          Ansi.SetConsoleIntensity i         -> Style (isBold i) underline color
-          Ansi.SetItalicized _               -> style
-          Ansi.SetUnderlining u              -> Style bold (isUnderline u) color
-          Ansi.SetBlinkSpeed _               -> style
-          Ansi.SetVisible _                  -> style
-          Ansi.SetSwapForegroundBackground _ -> style
-          Ansi.SetColor l i c                -> Style bold underline (toColor l i c)
-          Ansi.SetRGBColor _ _               -> style
-          Ansi.SetPaletteColor _ _           -> style
-          Ansi.SetDefaultColor _             -> style
+        [] ->
+          error "unbalanced annotation in rendered document"
 
 
-isBold :: Ansi.ConsoleIntensity -> Bool
-isBold intensity =
-  case intensity of
-    Ansi.BoldIntensity -> True
-    Ansi.FaintIntensity -> False
-    Ansi.NormalIntensity -> False
-
-
-isUnderline :: Ansi.Underlining -> Bool
-isUnderline underlining =
-  case underlining of
-    Ansi.SingleUnderline -> True
-    Ansi.DoubleUnderline -> False
-    Ansi.NoUnderline -> False
-
-
-toColor :: Ansi.ConsoleLayer -> Ansi.ColorIntensity -> Ansi.Color -> Maybe Color
-toColor layer intensity color =
-  case layer of
-    Ansi.Background ->
+toColor :: Maybe (Ansi.Intensity, Ansi.Color) -> Maybe Color
+toColor foreground =
+  case foreground of
+    Nothing ->
       Nothing
 
-    Ansi.Foreground ->
+    Just (intensity, color) ->
       let
         pick dull vivid =
           case intensity of
@@ -392,8 +361,11 @@ toColor layer intensity color =
 
 
 encodeChunks :: Style -> [String] -> E.Value
-encodeChunks (Style bold underline color) revChunks =
+encodeChunks style revChunks =
   let
+    bold = isJust (Ansi.ansiBold style)
+    underline = isJust (Ansi.ansiUnderlining style)
+    color = toColor (Ansi.ansiForeground style)
     chars = concat (reverse revChunks)
   in
   case color of
