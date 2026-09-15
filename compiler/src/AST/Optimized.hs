@@ -37,6 +37,7 @@ import qualified AST.Canonical as Can
 import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
 import qualified Elm.Float as EF
+import qualified Elm.Interface as I
 import qualified Elm.Kernel as K
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
@@ -438,7 +439,7 @@ eMain :: Main -> E.Builder
 eMain main =
   case main of
     Static      -> E.u8# 0#Word8
-    Dynamic t e -> E.u8# 1#Word8 <> Can.eType t <> eExpr e
+    Dynamic t e -> E.u8# 1#Word8 <> I.eType t <> eExpr e
 
 
 dMain :: D.Decoder Main
@@ -446,7 +447,7 @@ dMain =
     do  tag <- D.u8
         case tag of
           0 -> return Static
-          1 -> liftM2 Dynamic Can.dType dExpr
+          1 -> liftM2 Dynamic I.dType dExpr
           _ -> D.expecting "Main"
 
 

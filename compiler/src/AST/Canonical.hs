@@ -28,10 +28,6 @@ module AST.Canonical
   , Port(..)
   , Manager(..)
   --
-  , eAlias, dAlias
-  , eUnion, dUnion
-  , eType, dType
-  , eAnnotation, dAnnotation
   , eCtorOpts, dCtorOpts
   )
   where
@@ -56,12 +52,10 @@ So it is clear why the data is kept around.
 -}
 
 
-import Control.Monad (liftM, liftM2, liftM3, liftM4, replicateM)
 import qualified Data.List as List
-import qualified Data.List.Utils as List
 import qualified Data.Map as Map
 import Data.Name (Name)
-import GHC.Word (Word8, Word16)
+import GHC.Word (Word16)
 
 import qualified Bytes.Decode as D
 import qualified Bytes.Encode as E
@@ -70,7 +64,6 @@ import qualified AST.Source as Src
 import qualified AST.Utils.Binop as Binop
 import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
-import qualified Data.Utf8 as Utf8
 import qualified Elm.Float as EF
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.String as ES
@@ -324,36 +317,6 @@ data Manager
 -- BINARY
 
 
-eAlias :: Alias -> E.Builder
-eAlias (Alias vs t) =
-  E.list64 Utf8.encode8 vs <> eType t
-
-
-dAlias :: D.Decoder Alias
-dAlias =
-  liftM2 Alias (D.list64 Utf8.decode8) dType
-
-
-eUnion :: Union -> E.Builder
-eUnion (Union vs cs n opts) =
-  E.list64 Utf8.encode8 vs <> E.list64 eCtor cs <> E.int n <> eCtorOpts opts
-
-
-dUnion :: D.Decoder Union
-dUnion =
-  liftM4 Union (D.list64 Utf8.decode8) (D.list64 dCtor) D.int dCtorOpts
-
-
-eCtor :: Ctor -> E.Builder
-eCtor (Ctor n i a t) =
-  Utf8.encode8 n <> Index.eZeroBased i <> E.int a <> E.list64 eType t
-
-
-dCtor :: D.Decoder Ctor
-dCtor =
-  liftM4 Ctor Utf8.decode8 Index.dZeroBased D.int (D.list64 dType)
-
-
 eCtorOpts :: CtorOpts -> E.Builder
 eCtorOpts opts =
   case opts of
@@ -371,69 +334,4 @@ dCtorOpts =
         2 -> pure Unbox
         _ -> D.expecting "CtorOpts"
 
-
-eAnnotation :: Annotation -> E.Builder
-eAnnotation (Forall vs t) =
-  E.dict64 Utf8.encode8 (\() -> mempty) vs <> eType t
-
-
-dAnnotation :: D.Decoder Annotation
-dAnnotation =
-  liftM2 Forall (D.dict64 Utf8.decode8 (pure ())) dType
-
-
-eType :: Type -> E.Builder
-eType tipe =
-  case tipe of
-    TLambda a b     -> E.u8# 0#Word8 <> eType a <> eType b
-    TVar a          -> E.u8# 1#Word8 <> Utf8.encode8 a
-    TRecord fs e    -> E.u8# 2#Word8 <> E.dict32 Utf8.encode8 eFieldType fs <> E.maybe Utf8.encode8 e
-    TUnit           -> E.u8# 3#Word8
-    TTuple a b c    -> E.u8# 4#Word8 <> eType a <> eType b <> E.maybe eType c
-    TAlias h n xs a -> E.u8# 5#Word8 <> ModuleName.eCanonical h <> Utf8.encode8 n <> E.list64 (\(x,t) -> Utf8.encode8 x <> eType t) xs <> eAliasType a
-    TType  h n xs   ->
-      let potentialWord = length xs + 7 in
-      if potentialWord <= fromIntegral (maxBound :: Word8)
-      then E.u8 (fromIntegral potentialWord) <> ModuleName.eCanonical h <> Utf8.encode8 n <> List.mmap eType xs
-      else E.u8# 6#Word8                     <> ModuleName.eCanonical h <> Utf8.encode8 n <> E.list64 eType xs
-
-
-dType :: D.Decoder Type
-dType =
-  do  word <- D.u8
-      case word of
-        0 -> liftM2 TLambda dType dType
-        1 -> liftM  TVar Utf8.decode8
-        2 -> liftM2 TRecord (D.dict32 Utf8.decode8 dFieldType) (D.maybe Utf8.decode8)
-        3 -> return TUnit
-        4 -> liftM3 TTuple dType dType (D.maybe dType)
-        5 -> liftM4 TAlias ModuleName.dCanonical Utf8.decode8 (D.list64 (liftM2 (,) Utf8.decode8 dType)) dAliasType
-        6 -> liftM3 TType ModuleName.dCanonical Utf8.decode8 (D.list64 dType)
-        n -> liftM3 TType ModuleName.dCanonical Utf8.decode8 (replicateM (fromIntegral (n - 7)) dType)
-
-
-eAliasType :: AliasType -> E.Builder
-eAliasType aliasType =
-  case aliasType of
-    Holey  tipe -> E.u8 0 <> eType tipe
-    Filled tipe -> E.u8 1 <> eType tipe
-
-
-dAliasType :: D.Decoder AliasType
-dAliasType =
-  do  n <- D.u8
-      case n of
-        0 -> liftM Holey dType
-        1 -> liftM Filled dType
-        _ -> D.expecting "AliasType"
-
-
-eFieldType :: FieldType -> E.Builder
-eFieldType (FieldType i t) =
-  E.u16 i <> eType t
-
-
-dFieldType :: D.Decoder FieldType
-dFieldType =
-  liftM2 FieldType D.u16 dType
 

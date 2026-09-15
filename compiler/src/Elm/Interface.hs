@@ -16,15 +16,18 @@ module Elm.Interface
   --
   , eInterface, dInterface
   , eDependencyInterface, dDependencyInterface
+  , eType, dType
   )
   where
 
 
-import Control.Monad (liftM, liftM3, liftM4, liftM5)
+import Control.Monad (liftM, liftM2, liftM3, liftM4, liftM5, replicateM)
+import qualified Data.List.Utils as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Map.Merge.Strict as Map
 import qualified Data.Map.Utils as Map
 import qualified Data.Name as Name
+import Data.Word (Word8)
 
 import qualified Bytes.Decode as D
 import qualified Bytes.Encode as E
@@ -32,6 +35,9 @@ import qualified Crash
 
 import qualified AST.Canonical as Can
 import qualified AST.Utils.Binop as Binop
+import qualified Data.Index as Index
+import qualified Data.Utf8 as Utf8
+import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Reporting.Annotation as A
 
@@ -206,7 +212,7 @@ privatize di =
 eInterface :: Interface -> E.Builder
 eInterface (Interface h vs us as bs) =
   Pkg.eName h
-  <> E.dict64 Name.encode Can.eAnnotation vs
+  <> E.dict64 Name.encode eAnnotation vs
   <> E.dict64 Name.encode eUnion us
   <> E.dict64 Name.encode eAlias as
   <> E.dict64 Name.encode eBinop bs
@@ -216,7 +222,7 @@ dInterface :: D.Decoder Interface
 dInterface =
   liftM5 Interface
     Pkg.dName
-    (D.dict64 Name.decode Can.dAnnotation)
+    (D.dict64 Name.decode dAnnotation)
     (D.dict64 Name.decode dUnion)
     (D.dict64 Name.decode dAlias)
     (D.dict64 Name.decode dBinop)
@@ -225,52 +231,52 @@ dInterface =
 eUnion :: Union -> E.Builder
 eUnion union =
   case union of
-    OpenUnion    u -> E.u8# 0#Word8 <> Can.eUnion u
-    ClosedUnion  u -> E.u8# 1#Word8 <> Can.eUnion u
-    PrivateUnion u -> E.u8# 2#Word8 <> Can.eUnion u
+    OpenUnion    u -> E.u8# 0#Word8 <> eUnion_ u
+    ClosedUnion  u -> E.u8# 1#Word8 <> eUnion_ u
+    PrivateUnion u -> E.u8# 2#Word8 <> eUnion_ u
 
 
 dUnion :: D.Decoder Union
 dUnion =
   do  n <- D.u8
       case n of
-        0 -> OpenUnion <$> Can.dUnion
-        1 -> ClosedUnion <$> Can.dUnion
-        2 -> PrivateUnion <$> Can.dUnion
+        0 -> OpenUnion <$> dUnion_
+        1 -> ClosedUnion <$> dUnion_
+        2 -> PrivateUnion <$> dUnion_
         _ -> D.expecting "Union"
 
 
 eAlias :: Alias -> E.Builder
 eAlias alias =
   case alias of
-    PublicAlias  a -> E.u8# 0#Word8 <> Can.eAlias a
-    PrivateAlias a -> E.u8# 1#Word8 <> Can.eAlias a
+    PublicAlias  a -> E.u8# 0#Word8 <> eAlias_ a
+    PrivateAlias a -> E.u8# 1#Word8 <> eAlias_ a
 
 
 dAlias :: D.Decoder Alias
 dAlias =
   do  n <- D.u8
       case n of
-        0 -> PublicAlias  <$> Can.dAlias
-        1 -> PrivateAlias <$> Can.dAlias
+        0 -> PublicAlias  <$> dAlias_
+        1 -> PrivateAlias <$> dAlias_
         _ -> D.expecting "Alias"
 
 
 eBinop :: Binop -> E.Builder
 eBinop (Binop n t a p) =
-  Name.encode n <> Can.eAnnotation t <> Binop.eAssociativity a <> Binop.ePrecedence p
+  Name.encode n <> eAnnotation t <> Binop.eAssociativity a <> Binop.ePrecedence p
 
 
 dBinop :: D.Decoder Binop
 dBinop =
-  liftM4 Binop Name.decode Can.dAnnotation Binop.dAssociativity Binop.dPrecedence
+  liftM4 Binop Name.decode dAnnotation Binop.dAssociativity Binop.dPrecedence
 
 
 eDependencyInterface :: DependencyInterface -> E.Builder
 eDependencyInterface iface =
   case iface of
     Public  i     -> E.u8# 0#Word8 <> eInterface i
-    Private n u a -> E.u8# 1#Word8 <> Pkg.eName n <> E.dict64 Name.encode Can.eUnion u <> E.dict64 Name.encode Can.eAlias a
+    Private n u a -> E.u8# 1#Word8 <> Pkg.eName n <> E.dict64 Name.encode eUnion_ u <> E.dict64 Name.encode eAlias_ a
 
 
 dDependencyInterface :: D.Decoder DependencyInterface
@@ -278,6 +284,106 @@ dDependencyInterface =
   do  n <- D.u8
       case n of
         0 -> liftM  Public dInterface
-        1 -> liftM3 Private Pkg.dName (D.dict64 Name.decode Can.dUnion) (D.dict64 Name.decode Can.dAlias)
+        1 -> liftM3 Private Pkg.dName (D.dict64 Name.decode dUnion_) (D.dict64 Name.decode dAlias_)
         _ -> D.expecting "DependencyInterface"
+
+
+
+-- BINARY HELPERS
+
+
+eAlias_ :: Can.Alias -> E.Builder
+eAlias_ (Can.Alias vs t) =
+  E.list64 Utf8.encode8 vs <> eType t
+
+
+dAlias_ :: D.Decoder Can.Alias
+dAlias_ =
+  liftM2 Can.Alias (D.list64 Utf8.decode8) dType
+
+
+eUnion_ :: Can.Union -> E.Builder
+eUnion_ (Can.Union vs cs n opts) =
+  E.list64 Utf8.encode8 vs <> E.list64 eCtor cs <> E.int n <> Can.eCtorOpts opts
+
+
+dUnion_ :: D.Decoder Can.Union
+dUnion_ =
+  liftM4 Can.Union (D.list64 Utf8.decode8) (D.list64 dCtor) D.int Can.dCtorOpts
+
+
+eCtor :: Can.Ctor -> E.Builder
+eCtor (Can.Ctor n i a t) =
+  Utf8.encode8 n <> Index.eZeroBased i <> E.int a <> E.list64 eType t
+
+
+dCtor :: D.Decoder Can.Ctor
+dCtor =
+  liftM4 Can.Ctor Utf8.decode8 Index.dZeroBased D.int (D.list64 dType)
+
+
+eAnnotation :: Can.Annotation -> E.Builder
+eAnnotation (Can.Forall vs t) =
+  E.dict64 Utf8.encode8 (\() -> mempty) vs <> eType t
+
+
+dAnnotation :: D.Decoder Can.Annotation
+dAnnotation =
+  liftM2 Can.Forall (D.dict64 Utf8.decode8 (pure ())) dType
+
+
+eType :: Can.Type -> E.Builder
+eType tipe =
+  case tipe of
+    Can.TLambda a b     -> E.u8# 0#Word8 <> eType a <> eType b
+    Can.TVar a          -> E.u8# 1#Word8 <> Utf8.encode8 a
+    Can.TRecord fs e    -> E.u8# 2#Word8 <> E.dict32 Utf8.encode8 eFieldType fs <> E.maybe Utf8.encode8 e
+    Can.TUnit           -> E.u8# 3#Word8
+    Can.TTuple a b c    -> E.u8# 4#Word8 <> eType a <> eType b <> E.maybe eType c
+    Can.TAlias h n xs a -> E.u8# 5#Word8 <> ModuleName.eCanonical h <> Utf8.encode8 n <> E.list64 (\(x,t) -> Utf8.encode8 x <> eType t) xs <> eAliasType a
+    Can.TType  h n xs   ->
+      let potentialWord = length xs + 7 in
+      if potentialWord <= fromIntegral (maxBound :: Word8)
+      then E.u8 (fromIntegral potentialWord) <> ModuleName.eCanonical h <> Utf8.encode8 n <> List.mmap eType xs
+      else E.u8# 6#Word8                     <> ModuleName.eCanonical h <> Utf8.encode8 n <> E.list64 eType xs
+
+
+dType :: D.Decoder Can.Type
+dType =
+  do  word <- D.u8
+      case word of
+        0 -> liftM2 Can.TLambda dType dType
+        1 -> liftM  Can.TVar Utf8.decode8
+        2 -> liftM2 Can.TRecord (D.dict32 Utf8.decode8 dFieldType) (D.maybe Utf8.decode8)
+        3 -> return Can.TUnit
+        4 -> liftM3 Can.TTuple dType dType (D.maybe dType)
+        5 -> liftM4 Can.TAlias ModuleName.dCanonical Utf8.decode8 (D.list64 (liftM2 (,) Utf8.decode8 dType)) dAliasType
+        6 -> liftM3 Can.TType ModuleName.dCanonical Utf8.decode8 (D.list64 dType)
+        n -> liftM3 Can.TType ModuleName.dCanonical Utf8.decode8 (replicateM (fromIntegral (n - 7)) dType)
+
+
+eAliasType :: Can.AliasType -> E.Builder
+eAliasType aliasType =
+  case aliasType of
+    Can.Holey  tipe -> E.u8 0 <> eType tipe
+    Can.Filled tipe -> E.u8 1 <> eType tipe
+
+
+dAliasType :: D.Decoder Can.AliasType
+dAliasType =
+  do  n <- D.u8
+      case n of
+        0 -> liftM Can.Holey dType
+        1 -> liftM Can.Filled dType
+        _ -> D.expecting "AliasType"
+
+
+eFieldType :: Can.FieldType -> E.Builder
+eFieldType (Can.FieldType i t) =
+  E.u16 i <> eType t
+
+
+dFieldType :: D.Decoder Can.FieldType
+dFieldType =
+  liftM2 Can.FieldType D.u16 dType
 
