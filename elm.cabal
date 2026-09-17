@@ -136,8 +136,8 @@ executable elm
         AST.Canonical
         AST.Optimized
         AST.Source
+        AST.Prim.Operator
         AST.Prim.Variable
-        AST.Utils.Binop
         AST.Utils.Shader
         AST.Utils.Type
         Canonicalize.Effects

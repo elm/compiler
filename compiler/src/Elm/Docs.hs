@@ -9,8 +9,8 @@ module Elm.Docs
   , Alias(..)
   , Value(..)
   , Binop(..)
-  , Binop.Associativity(..)
-  , Binop.Precedence(..)
+  , Op.Associativity(..)
+  , Op.Precedence(..)
   , Error(..)
   , decoder
   , encode
@@ -33,8 +33,8 @@ import qualified Crash
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
+import qualified AST.Prim.Operator as Op
 import qualified AST.Prim.Variable as Var
-import qualified AST.Utils.Binop as Binop
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Compiler.Type.Extract as Extract
 import qualified Elm.ModuleName as ModuleName
@@ -75,7 +75,7 @@ type Comment = Json.String
 data Alias = Alias Comment [Name.Name] Type.Type
 data Union = Union Comment [Name.Name] [(Name.Name, [Type.Type])]
 data Value = Value Comment Type.Type
-data Binop = Binop Comment Type.Type Binop.Associativity Binop.Precedence
+data Binop = Binop Comment Type.Type Op.Associativity Op.Precedence
 
 
 
@@ -260,15 +260,15 @@ binop =
 -- ASSOCIATIVITY JSON
 
 
-encodeAssoc :: Binop.Associativity -> E.Value
+encodeAssoc :: Op.Associativity -> E.Value
 encodeAssoc assoc =
   case assoc of
-    Binop.Left  -> E.chars "left"
-    Binop.Non   -> E.chars "non"
-    Binop.Right -> E.chars "right"
+    Op.Left  -> E.chars "left"
+    Op.Non   -> E.chars "non"
+    Op.Right -> E.chars "right"
 
 
-assocDecoder :: D.Decoder Error Binop.Associativity
+assocDecoder :: D.Decoder Error Op.Associativity
 assocDecoder =
   let
     left  = Json.fromChars "left"
@@ -276,9 +276,9 @@ assocDecoder =
     right = Json.fromChars "right"
   in
   do  str <- D.string
-      if  | str == left  -> return Binop.Left
-          | str == non   -> return Binop.Non
-          | str == right -> return Binop.Right
+      if  | str == left  -> return Op.Left
+          | str == non   -> return Op.Non
+          | str == right -> return Op.Right
           | otherwise    -> D.failure BadAssociativity
 
 
@@ -286,14 +286,14 @@ assocDecoder =
 -- PRECEDENCE JSON
 
 
-encodePrec :: Binop.Precedence -> E.Value
-encodePrec (Binop.Precedence n) =
+encodePrec :: Op.Precedence -> E.Value
+encodePrec (Op.Precedence n) =
   E.int n
 
 
-precDecoder :: D.Decoder Error Binop.Precedence
+precDecoder :: D.Decoder Error Op.Precedence
 precDecoder =
-  Binop.Precedence <$> D.int
+  Op.Precedence <$> D.int
 
 
 

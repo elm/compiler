@@ -20,7 +20,7 @@ import qualified Graph
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
-import qualified AST.Utils.Binop as Binop
+import qualified AST.Prim.Operator as Op
 import qualified AST.Utils.Type as Type
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
@@ -277,10 +277,10 @@ toBinopStep makeBinop rootOp@(Env.Binop _ _ _ _ rootAssociativity rootPrecedence
       else
 
         case (rootAssociativity, associativity) of
-          (Binop.Left, Binop.Left) ->
+          (Op.Left, Op.Left) ->
             toBinopStep (\right -> toBinop op (makeBinop expr) right) op rest final
 
-          (Binop.Right, Binop.Right) ->
+          (Op.Right, Op.Right) ->
             toBinopStep (\right -> makeBinop (toBinop op expr right)) op rest final
 
           (_, _) ->

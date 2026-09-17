@@ -24,7 +24,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Name as Name
 import qualified Data.OneOrMore as OneOrMore
 
-import qualified AST.Utils.Binop as Binop
+import qualified AST.Prim.Operator as Op
 import qualified AST.Canonical as Can
 import qualified Data.Index as Index
 import qualified Elm.ModuleName as ModuleName
@@ -134,8 +134,8 @@ data Binop =
     , _op_home :: ModuleName.Canonical
     , _op_name :: Name.Name
     , _op_annotation :: Can.Annotation
-    , _op_associativity :: Binop.Associativity
-    , _op_precedence :: Binop.Precedence
+    , _op_associativity :: Op.Associativity
+    , _op_precedence :: Op.Precedence
     }
 
 

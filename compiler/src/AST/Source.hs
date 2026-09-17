@@ -26,7 +26,7 @@ module AST.Source
 import Data.Name (Name)
 import qualified Data.Name as Name
 
-import qualified AST.Utils.Binop as Binop
+import qualified AST.Prim.Operator as Op
 import qualified AST.Utils.Shader as Shader
 import qualified Elm.Float as EF
 import qualified Elm.String as ES
@@ -163,7 +163,7 @@ data Import =
 data Value = Value (A.Located Name) [Pattern] Expr (Maybe Type)
 data Union = Union (A.Located Name) [A.Located Name] [(A.Located Name, [Type])]
 data Alias = Alias (A.Located Name) [A.Located Name] Type
-data Infix = Infix Name Binop.Associativity Binop.Precedence Name
+data Infix = Infix Name Op.Associativity Op.Precedence Name
 data Port = Port (A.Located Name) Type
 
 

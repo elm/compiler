@@ -1,5 +1,5 @@
 {-# LANGUAGE ExtendedLiterals, MagicHash #-}
-module AST.Utils.Binop
+module AST.Prim.Operator
   ( Precedence(..)
   , Associativity(..)
   , ePrecedence, dPrecedence

@@ -61,7 +61,7 @@ import qualified Bytes.Decode as D
 import qualified Bytes.Encode as E
 
 import qualified AST.Source as Src
-import qualified AST.Utils.Binop as Binop
+import qualified AST.Prim.Operator as Op
 import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
 import qualified Elm.Float as EF
@@ -249,7 +249,7 @@ data Alias = Alias [Name] Type
   deriving (Eq)
 
 
-data Binop = Binop_ Binop.Associativity Binop.Precedence Name
+data Binop = Binop_ Op.Associativity Op.Precedence Name
   deriving (Eq)
 
 

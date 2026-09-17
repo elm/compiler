@@ -14,7 +14,7 @@ import GHC.Prim
 import GHC.Word (Word8(..))
 
 import qualified AST.Source as Src
-import qualified AST.Utils.Binop as Binop
+import qualified AST.Prim.Operator as Op
 import qualified Parse.Expression as Expr
 import qualified Parse.Pattern as Pattern
 import qualified Parse.Keyword as Keyword
@@ -248,9 +248,9 @@ infix_ =
       Space.chompAndCheckIndent _err err
       assoc <-
         oneOf err
-          [ Keyword.left_  err >> return Binop.Left
-          , Keyword.right_ err >> return Binop.Right
-          , Keyword.non_   err >> return Binop.Non
+          [ Keyword.left_  err >> return Op.Left
+          , Keyword.right_ err >> return Op.Right
+          , Keyword.non_   err >> return Op.Non
           ]
       Space.chompAndCheckIndent _err err
       prec <- precedence err
@@ -268,7 +268,7 @@ infix_ =
       return (A.at start end (Src.Infix op assoc prec name))
 
 
-precedence :: (Cursor -> x) -> Parser x Binop.Precedence
+precedence :: (Cursor -> x) -> Parser x Op.Precedence
 precedence toExpectation =
   P.Parser $ \_ (P.State pos end indent cur) cok _ _ eerr ->
     if P.notLtAddr pos end then
@@ -278,7 +278,7 @@ precedence toExpectation =
       let !word = indexWord8OffAddr# pos 0# in
       if isDecDigit word then
         cok
-          (Binop.Precedence (fromIntegral (W8# word - 0x30 {-0-})))
+          (Op.Precedence (fromIntegral (W8# word - 0x30 {-0-})))
           (P.State (plusAddr# pos 1#) end indent (P.slide cur 1#Word64))
 
       else

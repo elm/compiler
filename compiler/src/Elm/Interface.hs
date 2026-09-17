@@ -32,7 +32,7 @@ import qualified Bytes.Encode as E
 import qualified Crash
 
 import qualified AST.Canonical as Can
-import qualified AST.Utils.Binop as Binop
+import qualified AST.Prim.Operator as Op
 import qualified Data.Index as Index
 import qualified Data.Utf8 as Utf8
 import qualified Elm.ModuleName as ModuleName
@@ -72,8 +72,8 @@ data Binop =
   Binop
     { _op_name :: Name.Name
     , _op_annotation :: Can.Annotation
-    , _op_associativity :: Binop.Associativity
-    , _op_precedence :: Binop.Precedence
+    , _op_associativity :: Op.Associativity
+    , _op_precedence :: Op.Precedence
     }
   deriving (Eq)
 
@@ -262,12 +262,12 @@ dAlias =
 
 eBinop :: Binop -> E.Builder
 eBinop (Binop n t a p) =
-  Name.encode n <> eAnnotation t <> Binop.eAssociativity a <> Binop.ePrecedence p
+  Name.encode n <> eAnnotation t <> Op.eAssociativity a <> Op.ePrecedence p
 
 
 dBinop :: D.Decoder Binop
 dBinop =
-  liftM4 Binop Name.decode dAnnotation Binop.dAssociativity Binop.dPrecedence
+  liftM4 Binop Name.decode dAnnotation Op.dAssociativity Op.dPrecedence
 
 
 eDependencyInterface :: DependencyInterface -> E.Builder
