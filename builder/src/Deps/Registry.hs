@@ -209,20 +209,20 @@ post manager path decoder callback =
 
 eRegistry :: Registry -> E.Builder
 eRegistry (Registry c vs) =
-  E.int c <> E.dict64 Pkg.eName eKnownVersions vs
+  E.int c <> E.dict32 Pkg.eName eKnownVersions vs
 
 
 dRegistry :: D.Decoder Registry
 dRegistry =
-  liftM2 Registry D.int (D.dict64 Pkg.dName dKnownVersions)
+  liftM2 Registry D.int (D.dict32 Pkg.dName dKnownVersions)
 
 
 eKnownVersions :: KnownVersions -> E.Builder
 eKnownVersions (KnownVersions n p) =
-  V.eVersion n <> E.list64 V.eVersion p
+  V.eVersion n <> E.list32 V.eVersion p
 
 
 dKnownVersions :: D.Decoder KnownVersions
 dKnownVersions =
-  liftM2 KnownVersions V.dVersion (D.list64 V.dVersion)
+  liftM2 KnownVersions V.dVersion (D.list32 V.dVersion)
 

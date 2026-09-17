@@ -9,9 +9,9 @@ module Bytes.Decode
   , i8#, i16#, i32#, i64#
   , bool, char, chars64
   , maybe
-  , list8, list16, list32, list64
-  , dict8, dict16, dict32, dict64
-  , set8, set16, set32, set64
+  , list8, list16, list32
+  , dict8, dict16, dict32
+  , set8, set16, set32
   , array8, array16, array32
   , string8, string16, string32
   , words16LE, words32LE
@@ -257,12 +257,10 @@ maybe d =
 list8  :: Decoder a -> Decoder [a]
 list16 :: Decoder a -> Decoder [a]
 list32 :: Decoder a -> Decoder [a]
-list64 :: Decoder a -> Decoder [a]
 
 list8  d = list d . fromIntegral =<< u8
 list16 d = list d . fromIntegral =<< u16
 list32 d = list d . fromIntegral =<< u32
-list64 d = list d . fromIntegral =<< u64
 
 
 {-# INLINE list #-}
@@ -285,12 +283,10 @@ list decoder n =
 dict8  :: Decoder k -> Decoder v -> Decoder (Map.Map k v)
 dict16 :: Decoder k -> Decoder v -> Decoder (Map.Map k v)
 dict32 :: Decoder k -> Decoder v -> Decoder (Map.Map k v)
-dict64 :: Decoder k -> Decoder v -> Decoder (Map.Map k v)
 
 dict8  k v = dict k v . fromIntegral =<< u8
 dict16 k v = dict k v . fromIntegral =<< u16
 dict32 k v = dict k v . fromIntegral =<< u32
-dict64 k v = dict k v . fromIntegral =<< u64
 
 
 {-# INLINE dict #-}
@@ -314,12 +310,10 @@ dict dK dV n =
 set8  :: Decoder a -> Decoder (Set.Set a)
 set16 :: Decoder a -> Decoder (Set.Set a)
 set32 :: Decoder a -> Decoder (Set.Set a)
-set64 :: Decoder a -> Decoder (Set.Set a)
 
 set8  d = set d . fromIntegral =<< u8
 set16 d = set d . fromIntegral =<< u16
 set32 d = set d . fromIntegral =<< u32
-set64 d = set d . fromIntegral =<< u64
 
 
 {-# INLINE set #-}

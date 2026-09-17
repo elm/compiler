@@ -426,7 +426,7 @@ data DepsStatus
 
 checkDeps :: FilePath -> ResultDict -> [ModuleName.Raw] -> Details.BuildID -> IO DepsStatus
 checkDeps root results deps lastCompile =
-  checkDepsHelp root results deps [] [] [] [] False 0 lastCompile
+  checkDepsHelp root results deps [] [] [] [] False Details.zero lastCompile
 
 
 type Dep = (ModuleName.Raw, I.Interface)
@@ -891,7 +891,7 @@ fromRepl writer root details source =
                       putMVar rmvar resultMVars
                       results <- traverse Fork.await resultMVars
                       writeDetails writer root details results
-                      depsStatus <- checkDeps root resultMVars deps 0
+                      depsStatus <- checkDeps root resultMVars deps Details.zero
                       finalizeReplArtifacts env source modul depsStatus resultMVars results
 
 

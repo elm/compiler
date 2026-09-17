@@ -7,9 +7,9 @@ module Bytes.Encode
   , i8, i16, i32, i64, iX, int
   , bool, char, chars64
   , maybe
-  , list8, list16, list32, list64
-  , dict8, dict16, dict32, dict64
-  , set8, set16, set32, set64
+  , list8, list16, list32
+  , dict8, dict16, dict32
+  , set8, set16, set32
   , array8, array16, array32
   , string8, string16, string32
   , words16LE, words32LE
@@ -166,17 +166,14 @@ maybe e m =
 {-# INLINE list8  #-}
 {-# INLINE list16 #-}
 {-# INLINE list32 #-}
-{-# INLINE list64 #-}
 
 list8  :: (a -> B.Builder) -> [a] -> B.Builder
 list16 :: (a -> B.Builder) -> [a] -> B.Builder
 list32 :: (a -> B.Builder) -> [a] -> B.Builder
-list64 :: (a -> B.Builder) -> [a] -> B.Builder
 
 list8  e xs = u8  (fromIntegral (List.length xs)) <> mconcat (List.map e xs)
 list16 e xs = u16 (fromIntegral (List.length xs)) <> mconcat (List.map e xs)
 list32 e xs = u32 (fromIntegral (List.length xs)) <> mconcat (List.map e xs)
-list64 e xs = u64 (fromIntegral (List.length xs)) <> mconcat (List.map e xs)
 
 
 
@@ -186,17 +183,14 @@ list64 e xs = u64 (fromIntegral (List.length xs)) <> mconcat (List.map e xs)
 {-# INLINE dict8  #-}
 {-# INLINE dict16 #-}
 {-# INLINE dict32 #-}
-{-# INLINE dict64 #-}
 
 dict8  :: (k -> B.Builder) -> (v -> B.Builder) -> Map.Map k v -> B.Builder
 dict16 :: (k -> B.Builder) -> (v -> B.Builder) -> Map.Map k v -> B.Builder
 dict32 :: (k -> B.Builder) -> (v -> B.Builder) -> Map.Map k v -> B.Builder
-dict64 :: (k -> B.Builder) -> (v -> B.Builder) -> Map.Map k v -> B.Builder
 
 dict8  eK eV d = u8  (fromIntegral (Map.size d)) <> Map.foldrWithKey (\k v b -> eK k <> eV v <> b) mempty d
 dict16 eK eV d = u16 (fromIntegral (Map.size d)) <> Map.foldrWithKey (\k v b -> eK k <> eV v <> b) mempty d
 dict32 eK eV d = u32 (fromIntegral (Map.size d)) <> Map.foldrWithKey (\k v b -> eK k <> eV v <> b) mempty d
-dict64 eK eV d = u64 (fromIntegral (Map.size d)) <> Map.foldrWithKey (\k v b -> eK k <> eV v <> b) mempty d
 
 
 
@@ -206,17 +200,14 @@ dict64 eK eV d = u64 (fromIntegral (Map.size d)) <> Map.foldrWithKey (\k v b -> 
 {-# INLINE set8  #-}
 {-# INLINE set16 #-}
 {-# INLINE set32 #-}
-{-# INLINE set64 #-}
 
 set8  :: (a -> B.Builder) -> Set.Set a -> B.Builder
 set16 :: (a -> B.Builder) -> Set.Set a -> B.Builder
 set32 :: (a -> B.Builder) -> Set.Set a -> B.Builder
-set64 :: (a -> B.Builder) -> Set.Set a -> B.Builder
 
 set8  e s = u8  (fromIntegral (Set.size s)) <> Set.foldr (\x b -> e x <> b) mempty s
 set16 e s = u16 (fromIntegral (Set.size s)) <> Set.foldr (\x b -> e x <> b) mempty s
 set32 e s = u32 (fromIntegral (Set.size s)) <> Set.foldr (\x b -> e x <> b) mempty s
-set64 e s = u64 (fromIntegral (Set.size s)) <> Set.foldr (\x b -> e x <> b) mempty s
 
 
 

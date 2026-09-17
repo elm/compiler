@@ -4,7 +4,7 @@ module Data.NonEmptyList
   , toList
   , sortBy
   --
-  , eList64, dList64
+  , eList32, dList32
   )
   where
 
@@ -76,15 +76,15 @@ sortBy toRank (List x xs) =
 -- BINARY
 
 
-eList64 :: (a -> E.Builder) -> List a -> E.Builder
-eList64 enc (List x xs) =
-  enc x <> E.list64 enc xs
+eList32 :: (a -> E.Builder) -> List a -> E.Builder
+eList32 enc (List x xs) =
+  enc x <> E.list32 enc xs
 
 
-dList64 :: D.Decoder a -> D.Decoder (List a)
-dList64 dec =
+dList32 :: D.Decoder a -> D.Decoder (List a)
+dList32 dec =
   do  x  <- dec
-      xs <- D.list64 dec
+      xs <- D.list32 dec
       return $ List x xs
 
 

@@ -3,7 +3,7 @@ TemplateHaskell
 #-}
 module Elm.Details
   ( Details(..)
-  , BuildID
+  , BuildID, zero
   , ValidOutline(..)
   , Local(..)
   , Foreign(..)
@@ -19,6 +19,7 @@ module Elm.Details
 
 import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, readMVar, takeMVar)
 import Control.Monad (liftM, liftM2, liftM3)
+import Data.Coerce (coerce)
 import qualified Data.Either as Either
 import qualified Data.Map as Map
 import qualified Data.Map.Utils as Map
@@ -80,7 +81,13 @@ data Details =
     }
 
 
-type BuildID = Word64
+newtype BuildID = BuildID Word64
+  deriving (Eq, Ord)
+
+
+zero :: BuildID
+zero =
+  BuildID 0
 
 
 data ValidOutline
@@ -140,7 +147,7 @@ loadInterfaces :: FilePath -> Details -> IO (Fork.SafeMVar (Maybe Interfaces))
 loadInterfaces root (Details _ _ _ _ _ extras) =
   case extras of
     ArtifactsFresh i _ -> Fork.cached $ Just i
-    ArtifactsCached    -> Fork.fork_  $ File.readBytes (D.dict64 ModuleName.dCanonical I.dDependencyInterface) (Stuff.interfaces root)
+    ArtifactsCached    -> Fork.fork_  $ File.readBytes (D.dict32 ModuleName.dCanonical I.dDependencyInterface) (Stuff.interfaces root)
 
 
 
@@ -169,9 +176,9 @@ load writer style root =
         Nothing ->
           generate writer style root newTime
 
-        Just details@(Details oldTime _ buildID _ _ _) ->
+        Just details@(Details oldTime _ (BuildID n) _ _ _) ->
           if oldTime == newTime
-          then return (Right details { _buildID = buildID + 1 })
+          then return (Right details { _buildID = BuildID (n + 1) })
           else generate writer style root newTime
 
 
@@ -324,10 +331,10 @@ verifyDependencies writer env@(Env key root cache _ _ _) time outline solution d
             objs = Map.foldr addObjects Opt.empty artifacts
             ifaces = Map.foldrWithKey (addInterfaces directDeps) Map.empty artifacts
             foreigns = Map.map (OneOrMore.destruct Foreign) $ Map.foldrWithKey gatherForeigns Map.empty $ Map.intersection artifacts directDeps
-            details = Details time outline 0 Map.empty foreigns (ArtifactsFresh ifaces objs)
+            details = Details time outline zero Map.empty foreigns (ArtifactsFresh ifaces objs)
           in
           do  File.writeBytes_ writer (Stuff.objects    root) Opt.eGlobalGraph objs
-              File.writeBytes_ writer (Stuff.interfaces root) (E.dict64 ModuleName.eCanonical I.eDependencyInterface) ifaces
+              File.writeBytes_ writer (Stuff.interfaces root) (E.dict32 ModuleName.eCanonical I.eDependencyInterface) ifaces
               File.writeBytes_ writer (Stuff.details    root) eDetails details
               return (Right details)
 
@@ -780,80 +787,90 @@ eDetails :: Details -> E.Builder
 eDetails (Details t o i l f _) =
   File.eTime t
   <> eValidOutline o
-  <> E.u64 i
-  <> E.dict64 ModuleName.eRaw eLocal l
-  <> E.dict64 ModuleName.eRaw eForeign f
+  <> eBuildID i
+  <> E.dict32 ModuleName.eRaw eLocal l
+  <> E.dict32 ModuleName.eRaw eForeign f
 
 
 dDetails :: D.Decoder Details
 dDetails =
   do  t <- File.dTime
       o <- dValidOutline
-      i <- D.u64
-      l <- D.dict64 ModuleName.dRaw dLocal
-      f <- D.dict64 ModuleName.dRaw dForeign
+      i <- dBuildID
+      l <- D.dict32 ModuleName.dRaw dLocal
+      f <- D.dict32 ModuleName.dRaw dForeign
       return (Details t o i l f ArtifactsCached)
 
 
 eValidOutline :: ValidOutline -> E.Builder
 eValidOutline outline =
   case outline of
-    ValidApp s     -> E.u8# 0#Word8 <> NE.eList64 Outline.eSrcDir s
-    ValidPkg p m d -> E.u8# 1#Word8 <> Pkg.eName p <> E.list64 ModuleName.eRaw m <> E.dict64 Pkg.eName V.eVersion d
+    ValidApp s     -> E.u8# 0#Word8 <> NE.eList32 Outline.eSrcDir s
+    ValidPkg p m d -> E.u8# 1#Word8 <> Pkg.eName p <> E.list32 ModuleName.eRaw m <> E.dict32 Pkg.eName V.eVersion d
 
 
 dValidOutline :: D.Decoder ValidOutline
 dValidOutline =
   do  tag <- D.u8
       case tag of
-        0 -> liftM  ValidApp (NE.dList64 Outline.dSrcDir)
-        1 -> liftM3 ValidPkg Pkg.dName (D.list64 ModuleName.dRaw) (D.dict64 Pkg.dName V.dVersion)
+        0 -> liftM  ValidApp (NE.dList32 Outline.dSrcDir)
+        1 -> liftM3 ValidPkg Pkg.dName (D.list32 ModuleName.dRaw) (D.dict32 Pkg.dName V.dVersion)
         _ -> D.expecting "ValidOutline"
+
+
+eBuildID :: BuildID -> E.Builder
+eBuildID (BuildID n) =
+  E.u64 n
+
+
+dBuildID :: D.Decoder BuildID
+dBuildID =
+  coerce D.u64
 
 
 eLocal :: Local -> E.Builder
 eLocal (Local p t d m i j) =
-  E.chars64 p <> File.eTime t <> E.list64 ModuleName.eRaw d <> E.bool m <> E.u64 i <> E.u64 j
+  E.chars64 p <> File.eTime t <> E.list32 ModuleName.eRaw d <> E.bool m <> eBuildID i <> eBuildID j
 
 
 dLocal :: D.Decoder Local
 dLocal =
   do  p <- D.chars64
       t <- File.dTime
-      d <- D.list64 ModuleName.dRaw
+      d <- D.list32 ModuleName.dRaw
       m <- D.bool
-      i <- D.u64
-      j <- D.u64
+      i <- dBuildID
+      j <- dBuildID
       return (Local p t d m i j)
 
 
 eForeign :: Foreign -> E.Builder
 eForeign (Foreign p ps) =
-  Pkg.eName p <> E.list64 Pkg.eName ps
+  Pkg.eName p <> E.list32 Pkg.eName ps
 
 
 dForeign :: D.Decoder Foreign
 dForeign =
-  liftM2 Foreign Pkg.dName (D.list64 Pkg.dName)
+  liftM2 Foreign Pkg.dName (D.list32 Pkg.dName)
 
 
 eArtifacts :: Artifacts -> E.Builder
 eArtifacts (Artifacts i o) =
-  E.dict64 ModuleName.eRaw I.eDependencyInterface i <> Opt.eGlobalGraph o
+  E.dict32 ModuleName.eRaw I.eDependencyInterface i <> Opt.eGlobalGraph o
 
 
 dArtifacts :: D.Decoder Artifacts
 dArtifacts =
-  liftM2 Artifacts (D.dict64 ModuleName.dRaw I.dDependencyInterface) Opt.dGlobalGraph
+  liftM2 Artifacts (D.dict32 ModuleName.dRaw I.dDependencyInterface) Opt.dGlobalGraph
 
 
 eArtifactCache :: ArtifactCache -> E.Builder
 eArtifactCache (ArtifactCache f a) =
-  E.set64 (E.dict64 Pkg.eName V.eVersion) f <> eArtifacts a
+  E.set32 (E.dict32 Pkg.eName V.eVersion) f <> eArtifacts a
 
 
 dArtifactCache :: D.Decoder ArtifactCache
 dArtifactCache =
-  liftM2 ArtifactCache (D.set64 (D.dict64 Pkg.dName V.dVersion)) dArtifacts
+  liftM2 ArtifactCache (D.set32 (D.dict32 Pkg.dName V.dVersion)) dArtifacts
 
 
