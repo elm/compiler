@@ -1,25 +1,43 @@
-{-# LANGUAGE ExtendedLiterals, MagicHash #-}
+{-# LANGUAGE MagicHash, QuasiQuotes #-}
 module AST.Prim.Operator
-  ( Precedence(..)
+  ( Name
+  , toString
+  , fromString
+  , toChars
+  --
+  , Precedence(..)
   , Associativity(..)
-  , ePrecedence, dPrecedence
-  , eAssociativity, dAssociativity
+  --
+  , add, sub, mul, div
+  , eq, ne, lt, gt, le, ge
+  , and, or, app, apL, apR
+  , cons
+  --
+  , encode
+  , decode
   )
   where
 
 
-import Prelude hiding (Either(..))
-import Data.Coerce (coerce)
+import Prelude hiding (and, or, div)
+import qualified Data.String
+import GHC.Word (Word8)
 
 import qualified Bytes.Decode as D
 import qualified Bytes.Encode as E
+import String (ascii)
+import qualified String as S
 
 
 
 -- BINOP STUFF
 
 
-newtype Precedence = Precedence Int
+newtype Name =
+  Name S.String
+
+
+newtype Precedence = Precedence Word8
   deriving (Eq, Ord)
 
 
@@ -31,32 +49,73 @@ data Associativity
 
 
 
--- BINARY
+
+-- CONVERSIONS
 
 
-dPrecedence :: D.Decoder Precedence
-dPrecedence =
-  coerce D.int
+toString :: Name -> S.String
+toString (Name s) =
+  s
 
 
-ePrecedence :: Precedence -> E.Builder
-ePrecedence (Precedence n) =
-  E.int n
+fromString :: S.String -> Name
+fromString =
+  Name
 
 
-dAssociativity :: D.Decoder Associativity
-dAssociativity =
-  do  n <- D.u8
-      case n of
-        0 -> return Left
-        1 -> return Non
-        2 -> return Right
-        _ -> D.expecting "Associativity"
+toChars :: Name -> [Char]
+toChars (Name s) =
+  S.toChars s
 
 
-eAssociativity :: Associativity -> E.Builder
-eAssociativity assoc =
-  case assoc of
-    Left  -> E.u8# 0#Word8
-    Non   -> E.u8# 1#Word8
-    Right -> E.u8# 2#Word8
+
+-- OPERATORS
+
+
+add  :: Name; add  = Name [ascii|+|]
+sub  :: Name; sub  = Name [ascii|-|]
+mul  :: Name; mul  = Name [ascii|*|]
+div  :: Name; div  = Name [ascii|/|]
+eq   :: Name; eq   = Name [ascii|==|]
+ne   :: Name; ne   = Name [ascii|/=|]
+lt   :: Name; lt   = Name [ascii|<|]
+gt   :: Name; gt   = Name [ascii|>|]
+le   :: Name; le   = Name [ascii|<=|]
+ge   :: Name; ge   = Name [ascii|>=|]
+and  :: Name; and  = Name [ascii|&&|]
+or   :: Name; or   = Name [ascii||||]
+app  :: Name; app  = Name [ascii|++|]
+apL  :: Name; apL  = Name [ascii|<||]
+apR  :: Name; apR  = Name [ascii||>|]
+cons :: Name; cons = Name [ascii|::|]
+
+
+
+-- INSTANCES
+
+
+instance Eq Name where
+  (==) (Name ba1) (Name ba2) =
+    S.equal ba1 ba2
+
+instance Ord Name where
+  compare (Name ba1) (Name ba2) =
+    S.compareFast ba1 ba2
+
+instance Data.String.IsString Name where
+  fromString = Name . S.fromChars
+
+
+
+-- ENCODE/DECODE
+
+
+encode :: Name -> E.Builder
+encode (Name s) =
+  E.string8 s
+
+
+decode :: D.Decoder Name
+decode =
+  Name <$> D.string8
+

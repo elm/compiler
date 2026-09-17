@@ -288,12 +288,12 @@ assocDecoder =
 
 encodePrec :: Op.Precedence -> E.Value
 encodePrec (Op.Precedence n) =
-  E.int n
+  E.int (fromIntegral n)
 
 
 precDecoder :: D.Decoder Error Op.Precedence
 precDecoder =
-  Op.Precedence <$> D.int
+  Op.Precedence . fromIntegral <$> D.int
 
 
 

@@ -347,7 +347,7 @@ binopToDoc localizer name (Docs.Binop _ tipe associativity (Docs.Precedence n)) 
     "(" <> D.fromName name <> ")" <+> ":" <+> typeDoc localizer tipe <> D.black details
   where
     details =
-      "    (" <> D.fromName assoc <> "/" <> D.fromInt n <> ")"
+      "    (" <> D.fromName assoc <> "/" <> D.fromInt (fromIntegral n) <> ")"
 
     assoc =
       case associativity of

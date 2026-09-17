@@ -22,6 +22,7 @@ module Elm.Interface
 
 
 import Control.Monad (liftM, liftM2, liftM3, liftM4, liftM5)
+import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
 import qualified Data.Map.Merge.Strict as Map
 import qualified Data.Map.Utils as Map
@@ -262,12 +263,40 @@ dAlias =
 
 eBinop :: Binop -> E.Builder
 eBinop (Binop n t a p) =
-  Name.encode n <> eAnnotation t <> Op.eAssociativity a <> Op.ePrecedence p
+  Name.encode n <> eAnnotation t <> eAssociativity a <> ePrecedence p
 
 
 dBinop :: D.Decoder Binop
 dBinop =
-  liftM4 Binop Name.decode dAnnotation Op.dAssociativity Op.dPrecedence
+  liftM4 Binop Name.decode dAnnotation dAssociativity dPrecedence
+
+
+dPrecedence :: D.Decoder Op.Precedence
+dPrecedence =
+  coerce D.u8
+
+
+ePrecedence :: Op.Precedence -> E.Builder
+ePrecedence (Op.Precedence n) =
+  E.u8 n
+
+
+dAssociativity :: D.Decoder Op.Associativity
+dAssociativity =
+  do  n <- D.u8
+      case n of
+        0 -> return Op.Left
+        1 -> return Op.Non
+        2 -> return Op.Right
+        _ -> D.expecting "Associativity"
+
+
+eAssociativity :: Op.Associativity -> E.Builder
+eAssociativity assoc =
+  case assoc of
+    Op.Left  -> E.u8# 0#Word8
+    Op.Non   -> E.u8# 1#Word8
+    Op.Right -> E.u8# 2#Word8
 
 
 eDependencyInterface :: DependencyInterface -> E.Builder
