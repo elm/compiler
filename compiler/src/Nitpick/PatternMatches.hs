@@ -56,48 +56,20 @@ data Literal
 simplify :: Can.Pattern -> Pattern
 simplify (A.At _ pattern) =
   case pattern of
-    Can.PAnything ->
-      Anything
-
-    Can.PVar _ ->
-      Anything
-
-    Can.PRecord _ ->
-      Anything
-
-    Can.PUnit ->
-      Ctor unit unitName []
-
-    Can.PTuple a b Nothing ->
-      Ctor pair pairName [ simplify a, simplify b ]
-
-    Can.PTuple a b (Just c) ->
-      Ctor triple tripleName [ simplify a, simplify b, simplify c ]
-
-    Can.PCtor _ _ union name _ args ->
-      Ctor union name $
-        map (\(Can.PatternCtorArg _ _ arg) -> simplify arg) args
-
-    Can.PList entries ->
-      foldr cons nil entries
-
-    Can.PCons hd tl ->
-      cons hd (simplify tl)
-
-    Can.PAlias subPattern _ ->
-      simplify subPattern
-
-    Can.PInt int ->
-      Literal (Int int)
-
-    Can.PStr str ->
-      Literal (Str str)
-
-    Can.PChr chr ->
-      Literal (Chr chr)
-
-    Can.PBool union bool ->
-      Ctor union (if bool then Name.true else Name.false) []
+    Can.PAnything           -> Anything
+    Can.PVar _              -> Anything
+    Can.PRecord _           -> Anything
+    Can.PInt n              -> Literal (Int n)
+    Can.PStr s              -> Literal (Str s)
+    Can.PChr c              -> Literal (Chr c)
+    Can.PBool union bool    -> Ctor union (if bool then Name.true else Name.false) []
+    Can.PUnit               -> Ctor unit unitName []
+    Can.PTuple a b Nothing  -> Ctor pair pairName [ simplify a, simplify b ]
+    Can.PTuple a b (Just c) -> Ctor triple tripleName [ simplify a, simplify b, simplify c ]
+    Can.PList ps            -> foldr cons nil ps
+    Can.PCons p ps          -> cons p (simplify ps)
+    Can.PAlias p _          -> simplify p
+    Can.PCtor _ _ u n _ ps  -> Ctor u n $ map (\(Can.PatternCtorArg _ _ arg) -> simplify arg) ps
 
 
 cons :: Can.Pattern -> Pattern -> Pattern
@@ -119,8 +91,7 @@ nil =
 unit :: Can.Union
 unit =
   let
-    ctor =
-      Can.Ctor unitName Index.first 0 []
+    ctor = Can.Ctor unitName Index.first 0 []
   in
   Can.Union [] [ ctor ] 1 Can.Normal
 
@@ -129,8 +100,7 @@ unit =
 pair :: Can.Union
 pair =
   let
-    ctor =
-      Can.Ctor pairName Index.first 2 [Can.TVar "a", Can.TVar "b"]
+    ctor = Can.Ctor pairName Index.first 2 [Can.TVar "a", Can.TVar "b"]
   in
   Can.Union ["a","b"] [ ctor ] 1 Can.Normal
 
@@ -139,8 +109,7 @@ pair =
 triple :: Can.Union
 triple =
   let
-    ctor =
-      Can.Ctor tripleName Index.first 3 [Can.TVar "a", Can.TVar "b", Can.TVar "c"]
+    ctor = Can.Ctor tripleName Index.first 3 [Can.TVar "a", Can.TVar "b", Can.TVar "c"]
   in
   Can.Union ["a","b","c"] [ ctor ] 1 Can.Normal
 
@@ -161,29 +130,11 @@ list =
   Can.Union ["a"] [ nilCtor, consCtor ] 2 Can.Normal
 
 
-{-# NOINLINE unitName #-}
-unitName :: Name.Name
-unitName = "#0"
-
-
-{-# NOINLINE pairName #-}
-pairName :: Name.Name
-pairName = "#2"
-
-
-{-# NOINLINE tripleName #-}
-tripleName :: Name.Name
-tripleName = "#3"
-
-
-{-# NOINLINE consName #-}
-consName :: Name.Name
-consName = "::"
-
-
-{-# NOINLINE nilName #-}
-nilName :: Name.Name
-nilName = "[]"
+{-# NOINLINE unitName   #-}; unitName   :: Name.Name; unitName   = "#0"
+{-# NOINLINE pairName   #-}; pairName   :: Name.Name; pairName   = "#2"
+{-# NOINLINE tripleName #-}; tripleName :: Name.Name; tripleName = "#3"
+{-# NOINLINE consName   #-}; consName   :: Name.Name; consName   = "::"
+{-# NOINLINE nilName    #-}; nilName    :: Name.Name; nilName    = "[]"
 
 
 
@@ -208,11 +159,8 @@ data Context
 check :: Can.Module -> Either (NE.List Error) ()
 check (Can.Module _ _ _ decls _ _ _ _) =
   case checkDecls decls [] of
-    [] ->
-      Right ()
-
-    e:es ->
-      Left (NE.List e es)
+    []   -> Right ()
+    e:es -> Left (NE.List e es)
 
 
 
@@ -239,11 +187,8 @@ checkDecls decls errors =
 checkDef :: Can.Def -> [Error] -> [Error]
 checkDef def errors =
   case def of
-    Can.Def _ args body ->
-      foldr checkArg (checkExpr body errors) args
-
-    Can.TypedDef _ _ args body _ ->
-      foldr checkTypedArg (checkExpr body errors) args
+    Can.Def      _   xs e   -> foldr checkArg      (checkExpr e errors) xs
+    Can.TypedDef _ _ xs e _ -> foldr checkTypedArg (checkExpr e errors) xs
 
 
 checkArg :: Can.Pattern -> [Error] -> [Error]
@@ -263,98 +208,35 @@ checkTypedArg (pattern@(A.At region _), _) errors =
 checkExpr :: Can.Expr -> [Error] -> [Error]
 checkExpr (A.At region expression) errors =
   case expression of
-    Can.VarLocal _ ->
-      errors
-
-    Can.VarTopLevel _ _ ->
-      errors
-
-    Can.VarKernel _ _ ->
-      errors
-
-    Can.VarForeign _ _ _ ->
-      errors
-
-    Can.VarCtor _ _ _ _ _ ->
-      errors
-
-    Can.VarDebug _ _ _ ->
-      errors
-
-    Can.VarOperator _ _ _ _ ->
-      errors
-
-    Can.Chr _ ->
-      errors
-
-    Can.Str _ ->
-      errors
-
-    Can.Int _ ->
-      errors
-
-    Can.Float _ ->
-      errors
-
-    Can.List entries ->
-      foldr checkExpr errors entries
-
-    Can.Negate expr ->
-      checkExpr expr errors
-
-    Can.Binop _ _ _ _ left right ->
-      checkExpr left $
-        checkExpr right errors
-
-    Can.Lambda args body ->
-      foldr checkArg (checkExpr body errors) args
-
-    Can.Call func args ->
-      checkExpr func $ foldr checkExpr errors args
-
-    Can.If branches finally ->
-      foldr checkIfBranch (checkExpr finally errors) branches
-
-    Can.Let def body ->
-      checkDef def $ checkExpr body errors
-
-    Can.LetRec defs body ->
-      foldr checkDef (checkExpr body errors) defs
-
-    Can.LetDestruct pattern@(A.At reg _) expr body ->
-      checkPatterns reg BadDestruct [pattern] $
-        checkExpr expr $ checkExpr body errors
-
-    Can.Case expr branches ->
-      checkExpr expr $ checkCases region branches errors
-
-    Can.Accessor _ ->
-      errors
-
-    Can.Access record _ ->
-      checkExpr record errors
-
-    Can.Update _ record fields ->
-      checkExpr record $ Map.foldr checkField errors fields
-
-    Can.Record fields ->
-      Map.foldr checkExpr errors fields
-
-    Can.Unit ->
-      errors
-
-    Can.Tuple a b maybeC ->
-      checkExpr a $
-        checkExpr b $
-          case maybeC of
-            Nothing ->
-              errors
-
-            Just c ->
-              checkExpr c errors
-
-    Can.Shader _ _ ->
-      errors
+    Can.VarLocal _          -> errors
+    Can.VarTopLevel _ _     -> errors
+    Can.VarKernel _ _       -> errors
+    Can.VarForeign _ _ _    -> errors
+    Can.VarCtor _ _ _ _ _   -> errors
+    Can.VarDebug _ _ _      -> errors
+    Can.VarOperator _ _ _ _ -> errors
+    Can.Chr _               -> errors
+    Can.Str _               -> errors
+    Can.Int _               -> errors
+    Can.Float _             -> errors
+    Can.List es             -> foldr checkExpr errors es
+    Can.Negate e            -> checkExpr e errors
+    Can.Binop _ _ _ _ x y   -> checkExpr x $ checkExpr y errors
+    Can.Lambda xs e         -> foldr checkArg (checkExpr e errors) xs
+    Can.Call f xs           -> checkExpr f $ foldr checkExpr errors xs
+    Can.If bs f             -> foldr checkIfBranch (checkExpr f errors) bs
+    Can.Let d e             -> checkDef d $ checkExpr e errors
+    Can.LetRec ds e         -> foldr checkDef (checkExpr e errors) ds
+    Can.LetDestruct p e b   -> checkPatterns (A.toRegion p) BadDestruct [p] $ checkExpr e $ checkExpr b errors
+    Can.Case e bs           -> checkExpr e $ checkCases region bs errors
+    Can.Accessor _          -> errors
+    Can.Access e _          -> checkExpr e errors
+    Can.Update _ e fs       -> checkExpr e $ Map.foldr checkField errors fs
+    Can.Record fs           -> Map.foldr checkExpr errors fs
+    Can.Unit                -> errors
+    Can.Tuple a b Nothing   -> checkExpr a $ checkExpr b errors
+    Can.Tuple a b (Just c)  -> checkExpr a $ checkExpr b $ checkExpr c errors
+    Can.Shader _ _          -> errors
 
 
 
@@ -601,17 +483,10 @@ specializeRowByLiteral literal row =
 specializeRowByAnything :: [Pattern] -> Maybe [Pattern]
 specializeRowByAnything row =
   case row of
-    [] ->
-      Nothing
-
-    Ctor _ _ _ : _ ->
-      Nothing
-
-    Anything : patterns ->
-      Just patterns
-
-    Literal _ : _ ->
-      Nothing
+    []                  -> Nothing
+    Ctor _ _ _ : _      -> Nothing
+    Anything : patterns -> Just patterns
+    Literal _ : _       -> Nothing
 
 
 
@@ -648,8 +523,5 @@ collectCtors matrix =
 collectCtorsHelp :: Map.Map Name.Name Can.Union -> [Pattern] -> Map.Map Name.Name Can.Union
 collectCtorsHelp ctors row =
   case row of
-    Ctor union name _ : _ ->
-      Map.insert name union ctors
-
-    _ ->
-      ctors
+    Ctor union name _ : _ -> Map.insert name union ctors
+    _                     -> ctors
