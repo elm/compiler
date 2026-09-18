@@ -58,10 +58,9 @@ of this module though.
 compile :: [(Can.Pattern, Int)] -> DecisionTree
 compile rawBranches =
   let
-    format (pattern, index) =
-        Branch index [(Empty, pattern)]
+    format (pattern, index) = Branch index [(Empty, pattern)]
   in
-    toDecisionTree (map format rawBranches)
+  toDecisionTree (map format rawBranches)
 
 
 
@@ -111,64 +110,34 @@ data Branch =
 toDecisionTree :: [Branch] -> DecisionTree
 toDecisionTree rawBranches =
   let
-    branches =
-        map flattenPatterns rawBranches
+    branches = map flattenPatterns rawBranches
   in
   case checkForMatch branches of
-    Just goal ->
-        Match goal
-
+    Just goal -> Match goal
     Nothing ->
-        let
-          path =
-              pickPath branches
-
-          (edges, fallback) =
-              gatherEdges branches path
-
-          decisionEdges =
-              map (second toDecisionTree) edges
-        in
-          case (decisionEdges, fallback) of
-            ([(_tag, decisionTree)], []) ->
-                decisionTree
-
-            (_, []) ->
-                Decision path decisionEdges Nothing
-
-            ([], _ : _) ->
-                toDecisionTree fallback
-
-            (_, _) ->
-                Decision path decisionEdges (Just (toDecisionTree fallback))
+      let
+        path = pickPath branches
+        (edges, fallback) = gatherEdges branches path
+        decisionEdges = map (second toDecisionTree) edges
+      in
+      case (decisionEdges, fallback) of
+        ([(_,dt)], [] ) -> dt
+        (_       , [] ) -> Decision path decisionEdges Nothing
+        ([]      , _:_) -> toDecisionTree fallback
+        (_       , _  ) -> Decision path decisionEdges (Just (toDecisionTree fallback))
 
 
 isComplete :: [Test] -> Bool
 isComplete tests =
   case head tests of
-    IsCtor _ _ _ numAlts _ ->
-      numAlts == length tests
-
-    IsCons ->
-      length tests == 2
-
-    IsNil ->
-      length tests == 2
-
-    IsTuple ->
-      True
-
-    IsChr _ ->
-      False
-
-    IsStr _ ->
-      False
-
-    IsInt _ ->
-      False
-
-    IsBool _ ->
-      length tests == 2
+    IsCtor _ _ _ numAlts _ -> numAlts == length tests
+    IsCons                 -> length tests == 2
+    IsNil                  -> length tests == 2
+    IsTuple                -> True
+    IsChr _                -> False
+    IsStr _                -> False
+    IsInt _                -> False
+    IsBool _               -> length tests == 2
 
 
 
@@ -186,60 +155,38 @@ flattenPatterns (Branch goal pathPatterns) =
 flatten :: (Path, Can.Pattern) -> [(Path, Can.Pattern)] -> [(Path, Can.Pattern)]
 flatten pathPattern@(path, A.At region pattern) otherPathPatterns =
   case pattern of
-    Can.PVar _ ->
-      pathPattern : otherPathPatterns
-
-    Can.PAnything ->
-      pathPattern : otherPathPatterns
+    Can.PVar _    -> pathPattern : otherPathPatterns
+    Can.PAnything -> pathPattern : otherPathPatterns
+    Can.PChr _    -> pathPattern : otherPathPatterns
+    Can.PStr _    -> pathPattern : otherPathPatterns
+    Can.PInt _    -> pathPattern : otherPathPatterns
+    Can.PBool _ _ -> pathPattern : otherPathPatterns
+    Can.PRecord _ -> pathPattern : otherPathPatterns
+    Can.PList _   -> pathPattern : otherPathPatterns
+    Can.PCons _ _ -> pathPattern : otherPathPatterns
+    Can.PUnit     -> otherPathPatterns
 
     Can.PCtor _ _ (Can.Union _ _ numAlts _) _ _ ctorArgs ->
-      if numAlts == 1 then
+      if numAlts == 1
+      then
         case map dearg ctorArgs of
-          [arg] ->
-            flatten (Unbox path, arg) otherPathPatterns
-
-          args ->
-            foldr flatten otherPathPatterns (subPositions path args)
+          [arg] -> flatten (Unbox path, arg) otherPathPatterns
+          args  -> foldr flatten otherPathPatterns (subPositions path args)
       else
         pathPattern : otherPathPatterns
 
-    Can.PTuple a b maybeC ->
-      flatten (Index Index.first path, a) $
+    Can.PPair a b ->
+      flatten (Index Index.first  path, a) $
+      flatten (Index Index.second path, b) otherPathPatterns
+
+    Can.PTriple a b c ->
+      flatten (Index Index.first  path, a) $
       flatten (Index Index.second path, b) $
-        case maybeC of
-          Nothing ->
-            otherPathPatterns
-
-          Just c ->
-            flatten (Index Index.third path, c) otherPathPatterns
-
-    Can.PUnit ->
-      otherPathPatterns
+      flatten (Index Index.third  path, c) otherPathPatterns
 
     Can.PAlias realPattern alias ->
       flatten (path, realPattern) $
         (path, A.At region (Can.PVar alias)) : otherPathPatterns
-
-    Can.PRecord _ ->
-      pathPattern : otherPathPatterns
-
-    Can.PList _ ->
-      pathPattern : otherPathPatterns
-
-    Can.PCons _ _ ->
-      pathPattern : otherPathPatterns
-
-    Can.PChr _ ->
-      pathPattern : otherPathPatterns
-
-    Can.PStr _ ->
-      pathPattern : otherPathPatterns
-
-    Can.PInt _ ->
-      pathPattern : otherPathPatterns
-
-    Can.PBool _ _ ->
-      pathPattern : otherPathPatterns
 
 
 subPositions :: Path -> [Can.Pattern] -> [(Path, Can.Pattern)]
@@ -277,20 +224,14 @@ checkForMatch branches =
 
 gatherEdges :: [Branch] -> Path -> ([(Test, [Branch])], [Branch])
 gatherEdges branches path =
-  let
-    relevantTests =
-        testsAtPath path branches
-
-    allEdges =
-        map (edgesFor path branches) relevantTests
-
-    fallbacks =
-        if isComplete relevantTests then
-          []
-        else
-          filter (isIrrelevantTo path) branches
-  in
     ( allEdges, fallbacks )
+  where
+    relevantTests = testsAtPath path branches
+    allEdges = map (edgesFor path branches) relevantTests
+    fallbacks =
+      if isComplete relevantTests
+      then []
+      else filter (isIrrelevantTo path) branches
 
 
 
@@ -304,12 +245,12 @@ testsAtPath selectedPath branches =
       Maybe.mapMaybe (testAtPath selectedPath) branches
 
     skipVisited test curr@(uniqueTests, visitedTests) =
-        if Set.member test visitedTests then
-            curr
+        if Set.member test visitedTests
+        then curr
         else
-            ( test : uniqueTests
-            , Set.insert test visitedTests
-            )
+          ( test : uniqueTests
+          , Set.insert test visitedTests
+          )
   in
   fst (foldr skipVisited ([], Set.empty) allTests)
 
@@ -322,44 +263,21 @@ testAtPath selectedPath (Branch _ pathPatterns) =
 
     Just (A.At _ pattern) ->
       case pattern of
-        Can.PCtor home _ (Can.Union _ _ numAlts opts) name index _ ->
-            Just (IsCtor home name index numAlts opts)
+        Can.PCtor h _ (Can.Union _ _ numAlts opts) n i _ ->
+            Just (IsCtor h n i numAlts opts)
 
-        Can.PList ps ->
-            Just (case ps of { [] -> IsNil ; _ -> IsCons })
-
-        Can.PCons _ _ ->
-            Just IsCons
-
-        Can.PTuple _ _ _ ->
-            Just IsTuple
-
-        Can.PUnit ->
-            Just IsTuple
-
-        Can.PVar _ ->
-            Nothing
-
-        Can.PAnything ->
-            Nothing
-
-        Can.PInt int ->
-            Just (IsInt int)
-
-        Can.PStr str ->
-            Just (IsStr str)
-
-        Can.PChr chr ->
-            Just (IsChr chr)
-
-        Can.PBool _ bool ->
-            Just (IsBool bool)
-
-        Can.PRecord _ ->
-            Nothing
-
-        Can.PAlias _ _ ->
-            $(Crash.crash 'testAtPath) "aliases should never reach 'testAtPath' function"
+        Can.PList ps     -> Just (case ps of { [] -> IsNil ; _ -> IsCons })
+        Can.PCons _ _    -> Just IsCons
+        Can.PTuple _ _ _ -> Just IsTuple
+        Can.PUnit        -> Just IsTuple
+        Can.PVar _       -> Nothing
+        Can.PAnything    -> Nothing
+        Can.PInt n       -> Just (IsInt n)
+        Can.PStr s       -> Just (IsStr s)
+        Can.PChr c       -> Just (IsChr c)
+        Can.PBool _ b    -> Just (IsBool b)
+        Can.PRecord _    -> Nothing
+        Can.PAlias _ _   -> $(Crash.crash 'testAtPath) "aliases should never reach 'testAtPath' function"
 
 
 
@@ -376,95 +294,33 @@ edgesFor path branches test =
 toRelevantBranch :: Test -> Path -> Branch -> Maybe Branch
 toRelevantBranch test path branch@(Branch goal pathPatterns) =
   case extract path pathPatterns of
-    Found start (A.At region pattern) end ->
+    Found start (A.At r pattern) end ->
         case pattern of
           Can.PCtor _ _ (Can.Union _ _ numAlts _) name _ ctorArgs ->
               case test of
                 IsCtor _ testName _ _ _ | name == testName ->
                   Just $ Branch goal $
                     case map dearg ctorArgs of
-                      [arg] | numAlts == 1 ->
-                        start ++ [(Unbox path, arg)] ++ end
-
-                      args ->
-                        start ++ subPositions path args ++ end
+                      [arg] | numAlts == 1 -> start ++ [(Unbox path, arg)] ++ end
+                      args                 -> start ++ subPositions path args ++ end
 
                 _ ->
                   Nothing
 
-          Can.PList [] ->
-              case test of
-                IsNil ->
-                  Just (Branch goal (start ++ end))
-
-                _ ->
-                  Nothing
-
-          Can.PList (hd:tl) ->
-              case test of
-                IsCons ->
-                  let tl' = A.At region (Can.PList tl) in
-                  Just (Branch goal (start ++ subPositions path [ hd, tl' ] ++ end))
-
-                _ ->
-                  Nothing
-
-          Can.PCons hd tl ->
-              case test of
-                IsCons ->
-                  Just (Branch goal (start ++ subPositions path [hd,tl] ++ end))
-
-                _ ->
-                  Nothing
-
-          Can.PChr chr ->
-              case test of
-                IsChr testChr | chr == testChr ->
-                  Just (Branch goal (start ++ end))
-                _ ->
-                  Nothing
-
-          Can.PStr str ->
-              case test of
-                IsStr testStr | str == testStr ->
-                  Just (Branch goal (start ++ end))
-
-                _ ->
-                  Nothing
-
-          Can.PInt int ->
-              case test of
-                IsInt testInt | int == testInt ->
-                  Just (Branch goal (start ++ end))
-
-                _ ->
-                  Nothing
-
-          Can.PBool _ bool ->
-              case test of
-                IsBool testBool | bool == testBool ->
-                  Just (Branch goal (start ++ end))
-
-                _ ->
-                  Nothing
-
-          Can.PUnit ->
-              Just (Branch goal (start ++ end))
-
-          Can.PTuple a b maybeC ->
-              Just (Branch goal (start ++ subPositions path (a : b : Maybe.maybeToList maybeC) ++ end))
-
-          Can.PVar _ ->
-              Just branch
-
-          Can.PAnything ->
-              Just branch
-
-          Can.PRecord _ ->
-              Just branch
-
-          Can.PAlias _ _ ->
-              Just branch
+          Can.PList []      -> case test of { IsNil  -> Just (Branch goal (start                                                 ++ end)) ; _ -> Nothing }
+          Can.PList (p:ps)  -> case test of { IsCons -> Just (Branch goal (start ++ subPositions path [p, A.At r (Can.PList ps)] ++ end)) ; _ -> Nothing }
+          Can.PCons  p ps   -> case test of { IsCons -> Just (Branch goal (start ++ subPositions path [p, ps]                    ++ end)) ; _ -> Nothing }
+          Can.PChr c        -> case test of { IsChr  c' | c == c' -> Just (Branch goal (start ++ end)) ; _ -> Nothing }
+          Can.PStr s        -> case test of { IsStr  s' | s == s' -> Just (Branch goal (start ++ end)) ; _ -> Nothing }
+          Can.PInt n        -> case test of { IsInt  n' | n == n' -> Just (Branch goal (start ++ end)) ; _ -> Nothing }
+          Can.PBool _ b     -> case test of { IsBool b' | b == b' -> Just (Branch goal (start ++ end)) ; _ -> Nothing }
+          Can.PUnit         -> Just (Branch goal (start ++ end))
+          Can.PPair   a b   -> Just (Branch goal (start ++ subPositions path [a,b]   ++ end))
+          Can.PTriple a b c -> Just (Branch goal (start ++ subPositions path [a,b,c] ++ end))
+          Can.PVar _        -> Just branch
+          Can.PAnything     -> Just branch
+          Can.PRecord _     -> Just branch
+          Can.PAlias _ _    -> Just branch
 
     NotFound ->
         Just branch
@@ -482,16 +338,12 @@ extract selectedPath pathPatterns =
         NotFound
 
     first@(path, pattern) : rest ->
-        if path == selectedPath then
-            Found [] pattern rest
-
+        if path == selectedPath
+        then Found [] pattern rest
         else
-            case extract selectedPath rest of
-              NotFound ->
-                  NotFound
-
-              Found start foundPattern end ->
-                  Found (first : start) foundPattern end
+          case extract selectedPath rest of
+            Found start foundPattern end -> Found (first : start) foundPattern end
+            NotFound                     -> NotFound
 
 
 
@@ -501,11 +353,8 @@ extract selectedPath pathPatterns =
 isIrrelevantTo :: Path -> Branch -> Bool
 isIrrelevantTo selectedPath (Branch _ pathPatterns) =
   case List.lookup selectedPath pathPatterns of
-    Nothing ->
-        True
-
-    Just pattern ->
-        not (needsTests pattern)
+    Nothing -> True
+    Just p  -> not (needsTests p)
 
 
 needsTests :: Can.Pattern -> Bool
@@ -523,9 +372,7 @@ needsTests (A.At _ pattern) =
     Can.PStr _            -> True
     Can.PInt _            -> True
     Can.PBool _ _         -> True
-    Can.PAlias _ _ ->
-        $(Crash.crash 'needsTests) "aliases should never reach 'isIrrelevantTo' function"
-
+    Can.PAlias _ _        -> $(Crash.crash 'needsTests) "aliases should never reach 'isIrrelevantTo' function"
 
 
 
@@ -535,23 +382,18 @@ needsTests (A.At _ pattern) =
 pickPath :: [Branch] -> Path
 pickPath branches =
   let
-    allPaths =
-      Maybe.mapMaybe isChoicePath (concatMap _patterns branches)
+    allPaths = Maybe.mapMaybe isChoicePath (concatMap _patterns branches)
   in
-    case bests (addWeights (smallDefaults branches) allPaths) of
-      [path] ->
-          path
-
-      tiedPaths ->
-          head (bests (addWeights (smallBranchingFactor branches) tiedPaths))
+  case bests (addWeights (smallDefaults branches) allPaths) of
+    [path]    -> path
+    tiedPaths -> head (bests (addWeights (smallBranchingFactor branches) tiedPaths))
 
 
 isChoicePath :: (Path, Can.Pattern) -> Maybe Path
 isChoicePath (path, pattern) =
-  if needsTests pattern then
-      Just path
-  else
-      Nothing
+  if needsTests pattern
+  then Just path
+  else Nothing
 
 
 addWeights :: (Path -> Int) -> [Path] -> [(Path, Int)]
@@ -567,15 +409,10 @@ bests allPaths =
 
     (headPath, headWeight) : weightedPaths ->
       let
-        gatherMinimum acc@(minWeight, paths) (path, weight) =
-          if weight == minWeight then
-            (minWeight, path : paths)
-
-          else if weight < minWeight then
-            (weight, [path])
-
-          else
-            acc
+        gatherMinimum acc@(minWeight, paths) (path, weight)
+          | weight == minWeight = (minWeight, path : paths)
+          | weight <  minWeight = (weight, [path])
+          | otherwise           = acc
       in
         snd (List.foldl' gatherMinimum (headWeight, [headPath]) weightedPaths)
 
@@ -591,11 +428,9 @@ smallDefaults branches path =
 
 smallBranchingFactor :: [Branch] -> Path -> Int
 smallBranchingFactor branches path =
-  let
-    (edges, fallback) =
-      gatherEdges branches path
-  in
     length edges + (if null fallback then 0 else 1)
+  where
+    (edges, fallback) = gatherEdges branches path
 
 
 
@@ -646,7 +481,4 @@ dPath =
         1 -> liftM Unbox dPath
         2 -> pure Empty
         _ -> D.expecting "DecisionTree.Path"
-
-
-
 
