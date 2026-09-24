@@ -121,9 +121,10 @@ executable elm
 
         -- data structures
         Data.Bag
+        Data.Dups
         Data.Index
-        Data.Name
         Data.NonEmptyList
+        Data.NonEmptyMap
         Data.OneOrMore
         Data.Utf8
 
@@ -136,7 +137,11 @@ executable elm
         AST.Canonical
         AST.Optimized
         AST.Source
+        AST.Prim.Module
+        AST.Prim.Name
         AST.Prim.Operator
+        AST.Prim.TypeName
+        AST.Prim.TypeVar
         AST.Prim.Variable
         AST.Utils.Shader
         AST.Utils.Type
