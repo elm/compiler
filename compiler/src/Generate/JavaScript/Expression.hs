@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-x-partial #-}
-{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings, QuasiQuotes, TemplateHaskell #-}
 module Generate.JavaScript.Expression
   ( generate
   , generateCtor
@@ -13,6 +13,7 @@ module Generate.JavaScript.Expression
   where
 
 
+import Prelude hiding (and, or, not, negate, truncate)
 import Data.ByteString.Builder.Prim ((>$<), (>*<))
 import qualified Data.ByteString.Builder.Prim as P
 import qualified Data.Char as Char
@@ -20,7 +21,6 @@ import qualified Data.IntMap as IntMap
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Map.Utils as Map
-import qualified Data.Name as Name
 import qualified Data.Set as Set
 import qualified Data.Utf8 as Utf8
 
@@ -28,6 +28,8 @@ import qualified Crash
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
+import qualified AST.Prim.Module as Module
+import qualified AST.Prim.Name as N
 import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
 import qualified Elm.Compiler.Type as Type
@@ -80,7 +82,7 @@ generate mode expression =
       JsExpr $ JS.Ref $
         case mode of
           Mode.Dev  _ -> JsName.fromGlobal home name
-          Mode.Prod _ -> JsName.fromGlobal ModuleName.basics Name.identity
+          Mode.Prod _ -> JsName.fromGlobal ModuleName.basics N.identity
 
     Opt.VarCycle h n     -> JsExpr $ JS.Call (JS.Ref (JsName.fromCycle h n)) []
     Opt.VarDebug n h r u -> JsExpr $ generateDebug n h r u
@@ -89,12 +91,12 @@ generate mode expression =
     Opt.List entries ->
       case entries of
         [] ->
-          JsExpr $ JS.Ref (JsName.fromKernel Name.list "Nil")
+          JsExpr $ JS.Ref (JsName.fromKernel Module.kernel_list [N.ascii|Nil|])
 
         _ ->
           JsExpr $
             JS.Call
-              (JS.Ref (JsName.fromKernel Name.list "fromArray"))
+              (JS.Ref (JsName.fromKernel Module.kernel_list N.fromArray))
               [ JS.Array $ map (generateJsExpr mode) entries
               ]
 
@@ -129,7 +131,7 @@ generate mode expression =
 
     Opt.Update record fields ->
       JsExpr $
-        JS.Call (JS.Ref (JsName.fromKernel Name.utils "update"))
+        JS.Call (JS.Ref (JsName.fromKernel Module.kernel_utils N.update))
           [ generateJsExpr mode record
           , generateRecord mode fields
           ]
@@ -139,20 +141,20 @@ generate mode expression =
 
     Opt.Unit ->
       case mode of
-        Mode.Dev  _ -> JsExpr $ JS.Ref (JsName.fromKernel Name.utils "Tuple0")
+        Mode.Dev  _ -> JsExpr $ JS.Ref (JsName.fromKernel Module.kernel_utils [N.ascii|Tuple0|])
         Mode.Prod _ -> JsExpr $ JS.Int 0
 
     Opt.Tuple a b maybeC ->
       JsExpr $
         case maybeC of
           Nothing ->
-            JS.Call (JS.Ref (JsName.fromKernel Name.utils "Tuple2"))
+            JS.Call (JS.Ref (JsName.fromKernel Module.kernel_utils [N.ascii|Tuple2|]))
               [ generateJsExpr mode a
               , generateJsExpr mode b
               ]
 
           Just c ->
-            JS.Call (JS.Ref (JsName.fromKernel Name.utils "Tuple3"))
+            JS.Call (JS.Ref (JsName.fromKernel Module.kernel_utils [N.ascii|Tuple3|]))
               [ generateJsExpr mode a
               , generateJsExpr mode b
               , generateJsExpr mode c
@@ -169,9 +171,9 @@ generate mode expression =
           JS.Object (map toTranlation (Set.toList fields))
       in
       JsExpr $ JS.Object $
-        [ ( JsName.fromLocal "src", JS.String (Shader.toJsStringBuilder src) )
-        , ( JsName.fromLocal "attributes", toTranslationObject attributes )
-        , ( JsName.fromLocal "uniforms", toTranslationObject uniforms )
+        [ ( JsName.fromLocal [N.ascii|src|], JS.String (Shader.toJsStringBuilder src) )
+        , ( JsName.fromLocal [N.ascii|attributes|], toTranslationObject attributes )
+        , ( JsName.fromLocal [N.ascii|uniforms|], toTranslationObject uniforms )
         ]
 
 
@@ -228,7 +230,7 @@ codeToStmt code =
 {-# NOINLINE toChar #-}
 toChar :: JS.Expr
 toChar =
-  JS.Ref (JsName.fromKernel Name.utils "chr")
+  JS.Ref (JsName.fromKernel Module.kernel_utils [N.ascii|chr|])
 
 
 
@@ -243,26 +245,30 @@ generateCtor mode (Opt.Global home name) index arity =
 
     ctorTag =
       case mode of
-        Mode.Dev  _ -> JS.String (Name.toBuilder name)
+        Mode.Dev  _ -> JS.String (N.toBuilder name)
         Mode.Prod _ -> JS.Int (ctorToInt home name index)
   in
   generateFunction argNames $ JsExpr $ JS.Object $
     (JsName.dollar, ctorTag) : map (\n -> (n, JS.Ref n)) argNames
 
 
-ctorToInt :: ModuleName.Canonical -> Name.Name -> Index.ZeroBased -> Int
+ctorToInt :: ModuleName.Canonical -> N.Name -> Index.ZeroBased -> Int
 ctorToInt home name index =
-  if home == ModuleName.dict && name == "RBNode_elm_builtin" || name == "RBEmpty_elm_builtin" then
+  if home == ModuleName.dict && (name == rbNode || name == rbEmpty) then
     0 - Index.toHuman index
   else
     Index.toMachine index
+
+
+{-# NOINLINE rbNode  #-}; rbNode  :: N.Name; rbNode  = [N.ascii|RBNode_elm_builtin|]
+{-# NOINLINE rbEmpty #-}; rbEmpty :: N.Name; rbEmpty = [N.ascii|RBEmpty_elm_builtin|]
 
 
 
 -- RECORDS
 
 
-generateRecord :: Mode.Mode -> Map.Map Name.Name Opt.Expr -> JS.Expr
+generateRecord :: Mode.Mode -> Map.Map N.Name Opt.Expr -> JS.Expr
 generateRecord mode fields =
   let
     toPair (field, value) =
@@ -271,11 +277,11 @@ generateRecord mode fields =
   JS.Object (map toPair (Map.toList fields))
 
 
-generateField :: Mode.Mode -> Name.Name -> JsName.Name
+generateField :: Mode.Mode -> N.Name -> JsName.Name
 generateField mode name =
   case mode of
     Mode.Dev _       -> JsName.fromLocal name
-    Mode.Prod fields -> $(Map.require 'generateField) name fields Name.toChars
+    Mode.Prod fields -> $(Map.require 'generateField) name fields N.toChars
 
 
 
@@ -283,21 +289,21 @@ generateField mode name =
 -- DEBUG
 
 
-generateDebug :: Name.Name -> ModuleName.Canonical -> A.Region -> Maybe Name.Name -> JS.Expr
+generateDebug :: N.Name -> ModuleName.Canonical -> A.Region -> Maybe N.Name -> JS.Expr
 generateDebug name (ModuleName.Canonical _ home) region unhandledValueName =
-  if name /= "todo" then
+  if name /= N.todo then
     JS.Ref (JsName.fromGlobal ModuleName.debug name)
   else
     case unhandledValueName of
       Nothing ->
-        JS.Call (JS.Ref (JsName.fromKernel Name.debug "todo")) $
-          [ JS.String (Name.toBuilder home)
+        JS.Call (JS.Ref (JsName.fromKernel Module.kernel_debug N.todo)) $
+          [ JS.String (Module.toBuilder home)
           , regionToJsExpr region
           ]
 
       Just valueName ->
-        JS.Call (JS.Ref (JsName.fromKernel Name.debug "todoCase")) $
-          [ JS.String (Name.toBuilder home)
+        JS.Call (JS.Ref (JsName.fromKernel Module.kernel_debug [N.ascii|todoCase|])) $
+          [ JS.String (Module.toBuilder home)
           , regionToJsExpr region
           , JS.Ref (JsName.fromLocal valueName)
           ]
@@ -306,8 +312,8 @@ generateDebug name (ModuleName.Canonical _ home) region unhandledValueName =
 regionToJsExpr :: A.Region -> JS.Expr
 regionToJsExpr (A.Region start end) =
   JS.Object
-    [ "start" ===> JS.Object [ "line" ===> JS.Int sr, "column" ===> JS.Int sc ]
-    , "end"   ===> JS.Object [ "line" ===> JS.Int er, "column" ===> JS.Int ec ]
+    [ [N.ascii|start|] ===> JS.Object [ [N.ascii|line|] ===> JS.Int sr, [N.ascii|column|] ===> JS.Int sc ]
+    , [N.ascii|end|]   ===> JS.Object [ [N.ascii|line|] ===> JS.Int er, [N.ascii|column|] ===> JS.Int ec ]
     ]
   where
     (===>) n v = (JsName.fromLocal n, v)
@@ -374,7 +380,7 @@ generateCallHelp mode func args =
     (map (generateJsExpr mode) args)
 
 
-generateGlobalCall :: ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
+generateGlobalCall :: ModuleName.Canonical -> N.Name -> [JS.Expr] -> JS.Expr
 generateGlobalCall home name args =
   generateNormalCall (JS.Ref (JsName.fromGlobal home name)) args
 
@@ -398,101 +404,132 @@ callHelpers =
 
 
 generateCoreCall :: Mode.Mode -> Opt.Global -> [Opt.Expr] -> JS.Expr
-generateCoreCall mode (Opt.Global home@(ModuleName.Canonical _ moduleName) name) args
-  | moduleName == Name.basics  = generateBasicsCall mode home name args
-  | moduleName == Name.bitwise = generateBitwiseCall home name (map (generateJsExpr mode) args)
-  | moduleName == Name.tuple   = generateTupleCall   home name (map (generateJsExpr mode) args)
-  | moduleName == Name.jsArray = generateJsArrayCall home name (map (generateJsExpr mode) args)
-  | otherwise                  = generateGlobalCall  home name (map (generateJsExpr mode) args)
+generateCoreCall mode (Opt.Global home@(ModuleName.Canonical _ h) name) args
+  | h == Module.basics  = generateBasicsCall mode home name args
+  | h == Module.bitwise = generateBitwiseCall home name (map (generateJsExpr mode) args)
+  | h == Module.tuple   = generateTupleCall   home name (map (generateJsExpr mode) args)
+  | h == Module.jsArray = generateJsArrayCall home name (map (generateJsExpr mode) args)
+  | otherwise           = generateGlobalCall  home name (map (generateJsExpr mode) args)
 
 
-generateTupleCall :: ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
+generateTupleCall :: ModuleName.Canonical -> N.Name -> [JS.Expr] -> JS.Expr
 generateTupleCall home name args =
   case args of
-    [value] ->
-      case name of
-        "first"  -> JS.Access value (JsName.fromLocal "a")
-        "second" -> JS.Access value (JsName.fromLocal "b")
-        _        -> generateGlobalCall home name args
+    [value]
+      | name == N.first  -> JS.Access value (JsName.fromLocal N.a)
+      | name == N.second -> JS.Access value (JsName.fromLocal N.b)
+      | otherwise        -> generateGlobalCall home name args
 
     _ ->
       generateGlobalCall home name args
 
 
-generateJsArrayCall :: ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
+generateJsArrayCall :: ModuleName.Canonical -> N.Name -> [JS.Expr] -> JS.Expr
 generateJsArrayCall home name args =
   case args of
-    [entry]        | name == "singleton" -> JS.Array [entry]
-    [index, array] | name == "unsafeGet" -> JS.Index array index
-    _                                    -> generateGlobalCall home name args
+    [entry]        | name == [N.ascii|singleton|] -> JS.Array [entry]
+    [index, array] | name == [N.ascii|unsafeGet|] -> JS.Index array index
+    _                                             -> generateGlobalCall home name args
 
 
-generateBitwiseCall :: ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
-generateBitwiseCall home name args =
+generateBitwiseCall :: ModuleName.Canonical -> N.Name -> [JS.Expr] -> JS.Expr
+generateBitwiseCall h n args =
   case args of
-    [arg] ->
-      case name of
-        "complement" -> JS.Prefix JS.PrefixComplement arg
-        _            -> generateGlobalCall home name args
+    [arg]
+      | n == complement -> JS.Prefix JS.PrefixComplement arg
+      | otherwise       -> generateGlobalCall h n args
 
-    [left,right] ->
-      case name of
-        "and"            -> JS.Infix JS.OpBitwiseAnd left right
-        "or"             -> JS.Infix JS.OpBitwiseOr  left right
-        "xor"            -> JS.Infix JS.OpBitwiseXor left right
-        "shiftLeftBy"    -> JS.Infix JS.OpLShift     right left
-        "shiftRightBy"   -> JS.Infix JS.OpSpRShift   right left
-        "shiftRightZfBy" -> JS.Infix JS.OpZfRShift   right left
-        _                -> generateGlobalCall home name args
+    [left,right]
+      | n == and            -> JS.Infix JS.OpBitwiseAnd left right
+      | n == or             -> JS.Infix JS.OpBitwiseOr  left right
+      | n == xor            -> JS.Infix JS.OpBitwiseXor left right
+      | n == shiftLeftBy    -> JS.Infix JS.OpLShift     right left
+      | n == shiftRightBy   -> JS.Infix JS.OpSpRShift   right left
+      | n == shiftRightZfBy -> JS.Infix JS.OpZfRShift   right left
+      | otherwise           -> generateGlobalCall h n args
 
     _ ->
-      generateGlobalCall home name args
+      generateGlobalCall h n args
 
 
-generateBasicsCall :: Mode.Mode -> ModuleName.Canonical -> Name.Name -> [Opt.Expr] -> JS.Expr
-generateBasicsCall mode home name args =
+{-# NOINLINE complement     #-}; complement     :: N.Name; complement     = [N.ascii|complement|]
+{-# NOINLINE shiftLeftBy    #-}; shiftLeftBy    :: N.Name; shiftLeftBy    = [N.ascii|shiftLeftBy|]
+{-# NOINLINE shiftRightBy   #-}; shiftRightBy   :: N.Name; shiftRightBy   = [N.ascii|shiftRightBy|]
+{-# NOINLINE shiftRightZfBy #-}; shiftRightZfBy :: N.Name; shiftRightZfBy = [N.ascii|shiftRightZfBy|]
+
+
+generateBasicsCall :: Mode.Mode -> ModuleName.Canonical -> N.Name -> [Opt.Expr] -> JS.Expr
+generateBasicsCall mode h n args =
   case args of
     [elmArg] ->
-      let arg = generateJsExpr mode elmArg in
-      case name of
-        "not"      -> JS.Prefix JS.PrefixNot arg
-        "negate"   -> JS.Prefix JS.PrefixNegate arg
-        "toFloat"  -> arg
-        "truncate" -> JS.Infix JS.OpBitwiseOr arg (JS.Int 0)
-        _          -> generateGlobalCall home name [arg]
+      case generateJsExpr mode elmArg of
+        arg
+          | n == not      -> JS.Prefix JS.PrefixNot arg
+          | n == negate   -> JS.Prefix JS.PrefixNegate arg
+          | n == toFloat  -> arg
+          | n == truncate -> JS.Infix JS.OpBitwiseOr arg (JS.Int 0)
+          | otherwise     -> generateGlobalCall h n [arg]
 
-    [elmLeft, elmRight] ->
-      case name of
-        -- NOTE: removed "composeL" and "composeR" because of this issue:
-        -- https://github.com/elm/compiler/issues/1722
-        "append"   -> append mode elmLeft elmRight
-        "apL"      -> generateJsExpr mode $ apply elmLeft elmRight
-        "apR"      -> generateJsExpr mode $ apply elmRight elmLeft
-        _ ->
+    [elmLeft, elmRight]
+      -- NOTE: removed "composeL" and "composeR" because of this issue:
+      -- https://github.com/elm/compiler/issues/1722
+      | n == append -> genAppend mode elmLeft elmRight
+      | n == apL    -> generateJsExpr mode $ apply elmLeft elmRight
+      | n == apR    -> generateJsExpr mode $ apply elmRight elmLeft
+      | otherwise   ->
           let
-            left = generateJsExpr mode elmLeft
+            left  = generateJsExpr mode elmLeft
             right = generateJsExpr mode elmRight
           in
-          case name of
-            "add"  -> JS.Infix JS.OpAdd left right
-            "sub"  -> JS.Infix JS.OpSub left right
-            "mul"  -> JS.Infix JS.OpMul left right
-            "fdiv" -> JS.Infix JS.OpDiv left right
-            "idiv" -> JS.Infix JS.OpBitwiseOr (JS.Infix JS.OpDiv left right) (JS.Int 0)
-            "eq"   -> equal left right
-            "neq"  -> notEqual left right
-            "lt"   -> cmp JS.OpLt JS.OpLt   0  left right
-            "gt"   -> cmp JS.OpGt JS.OpGt   0  left right
-            "le"   -> cmp JS.OpLe JS.OpLt   1  left right
-            "ge"   -> cmp JS.OpGe JS.OpGt (-1) left right
-            "or"   -> JS.Infix JS.OpOr  left right
-            "and"  -> JS.Infix JS.OpAnd left right
-            "xor"  -> JS.Infix JS.OpNe  left right
-            "remainderBy" -> JS.Infix JS.OpMod right left
-            _      -> generateGlobalCall home name [left, right]
+          case () of
+            ()
+              | n == add         -> JS.Infix JS.OpAdd left right
+              | n == sub         -> JS.Infix JS.OpSub left right
+              | n == mul         -> JS.Infix JS.OpMul left right
+              | n == fdiv        -> JS.Infix JS.OpDiv left right
+              | n == idiv        -> JS.Infix JS.OpBitwiseOr (JS.Infix JS.OpDiv left right) (JS.Int 0)
+              | n == eq          -> equal left right
+              | n == neq         -> notEqual left right
+              | n == lt          -> comp JS.OpLt JS.OpLt   0  left right
+              | n == gt          -> comp JS.OpGt JS.OpGt   0  left right
+              | n == le          -> comp JS.OpLe JS.OpLt   1  left right
+              | n == ge          -> comp JS.OpGe JS.OpGt (-1) left right
+              | n == or          -> JS.Infix JS.OpOr  left right
+              | n == and         -> JS.Infix JS.OpAnd left right
+              | n == xor         -> JS.Infix JS.OpNe  left right
+              | n == remainderBy -> JS.Infix JS.OpMod right left
+              | otherwise        -> generateGlobalCall h n [left, right]
 
     _ ->
-      generateGlobalCall home name (map (generateJsExpr mode) args)
+      generateGlobalCall h n (map (generateJsExpr mode) args)
+
+
+{-# NOINLINE not         #-}; not         :: N.Name; not         = [N.ascii|not|]
+{-# NOINLINE negate      #-}; negate      :: N.Name; negate      = [N.ascii|negate|]
+{-# NOINLINE toFloat     #-}; toFloat     :: N.Name; toFloat     = [N.ascii|toFloat|]
+{-# NOINLINE truncate    #-}; truncate    :: N.Name; truncate    = [N.ascii|truncate|]
+{-# NOINLINE append      #-}; append      :: N.Name; append      = [N.ascii|append|]
+{-# NOINLINE apL         #-}; apL         :: N.Name; apL         = [N.ascii|apL|]
+{-# NOINLINE apR         #-}; apR         :: N.Name; apR         = [N.ascii|apR|]
+{-# NOINLINE add         #-}; add         :: N.Name; add         = [N.ascii|add|]
+{-# NOINLINE sub         #-}; sub         :: N.Name; sub         = [N.ascii|sub|]
+{-# NOINLINE mul         #-}; mul         :: N.Name; mul         = [N.ascii|mul|]
+{-# NOINLINE fdiv        #-}; fdiv        :: N.Name; fdiv        = [N.ascii|fdiv|]
+{-# NOINLINE idiv        #-}; idiv        :: N.Name; idiv        = [N.ascii|idiv|]
+{-# NOINLINE eq          #-}; eq          :: N.Name; eq          = [N.ascii|eq|]
+{-# NOINLINE neq         #-}; neq         :: N.Name; neq         = [N.ascii|neq|]
+{-# NOINLINE lt          #-}; lt          :: N.Name; lt          = [N.ascii|lt|]
+{-# NOINLINE gt          #-}; gt          :: N.Name; gt          = [N.ascii|gt|]
+{-# NOINLINE le          #-}; le          :: N.Name; le          = [N.ascii|le|]
+{-# NOINLINE ge          #-}; ge          :: N.Name; ge          = [N.ascii|ge|]
+{-# NOINLINE or          #-}; or          :: N.Name; or          = [N.ascii|or|]
+{-# NOINLINE and         #-}; and         :: N.Name; and         = [N.ascii|and|]
+{-# NOINLINE xor         #-}; xor         :: N.Name; xor         = [N.ascii|xor|]
+{-# NOINLINE remainderBy #-}; remainderBy :: N.Name; remainderBy = [N.ascii|remainderBy|]
+
+{-# NOINLINE cmp      #-}; cmp      :: N.Name; cmp      = [N.ascii|cmp|]
+{-# NOINLINE ap       #-}; ap       :: N.Name; ap       = [N.ascii|ap|]
+{-# NOINLINE valueOf  #-}; valueOf  :: N.Name; valueOf  = [N.ascii|valueOf|]
 
 
 equal :: JS.Expr -> JS.Expr -> JS.Expr
@@ -500,7 +537,7 @@ equal left right =
   if isLiteral left || isLiteral right then
     strictEq left right
   else
-    JS.Call (JS.Ref (JsName.fromKernel Name.utils "eq")) [left, right]
+    JS.Call (JS.Ref (JsName.fromKernel Module.kernel_utils eq)) [left, right]
 
 
 notEqual :: JS.Expr -> JS.Expr -> JS.Expr
@@ -509,17 +546,19 @@ notEqual left right =
     strictNEq left right
   else
     JS.Prefix JS.PrefixNot $
-      JS.Call (JS.Ref (JsName.fromKernel Name.utils "eq")) [left, right]
+      JS.Call (JS.Ref (JsName.fromKernel Module.kernel_utils eq)) [left, right]
 
 
-cmp :: JS.InfixOp -> JS.InfixOp -> Int -> JS.Expr -> JS.Expr -> JS.Expr
-cmp idealOp backupOp backupInt left right =
+comp :: JS.InfixOp -> JS.InfixOp -> Int -> JS.Expr -> JS.Expr -> JS.Expr
+comp idealOp backupOp backupInt left right =
   if isLiteral left || isLiteral right then
     JS.Infix idealOp left right
   else
     JS.Infix backupOp
-      (JS.Call (JS.Ref (JsName.fromKernel Name.utils "cmp")) [left, right])
+      (JS.Call (JS.Ref (JsName.fromKernel Module.kernel_utils cmp)) [left, right])
       (JS.Int backupInt)
+
+
 
 
 isLiteral :: JS.Expr -> Bool
@@ -540,25 +579,24 @@ apply func value =
     _                  -> Opt.Call func [value]
 
 
-append :: Mode.Mode -> Opt.Expr -> Opt.Expr -> JS.Expr
-append mode left right =
-  let seqs = generateJsExpr mode left : toSeqs mode right in
-  if any isStringLiteral seqs then
-    foldr1 (JS.Infix JS.OpAdd) seqs
-  else
-    foldr1 jsAppend seqs
+genAppend :: Mode.Mode -> Opt.Expr -> Opt.Expr -> JS.Expr
+genAppend mode left right =
+  if any isStringLiteral seqs
+    then foldr1 (JS.Infix JS.OpAdd) seqs
+    else foldr1 utils_ap seqs
+  where
+    seqs =
+      generateJsExpr mode left : toSeqs mode right
 
-
-jsAppend :: JS.Expr -> JS.Expr -> JS.Expr
-jsAppend a b =
-  JS.Call (JS.Ref (JsName.fromKernel Name.utils "ap")) [a, b]
+    utils_ap a b =
+      JS.Call (JS.Ref (JsName.fromKernel Module.kernel_utils ap)) [a, b]
 
 
 toSeqs :: Mode.Mode -> Opt.Expr -> [JS.Expr]
 toSeqs mode expr =
   case expr of
-    Opt.Call (Opt.VarGlobal (Opt.Global home "append")) [left, right]
-      | home == ModuleName.basics ->
+    Opt.Call (Opt.VarGlobal (Opt.Global h n)) [left, right]
+      | h == ModuleName.basics && n == append ->
           generateJsExpr mode left : toSeqs mode right
 
     _ ->
@@ -606,7 +644,7 @@ strictNEq left right =
 
 -- TODO check if JS minifiers collapse unnecessary temporary variables
 --
-generateTailCall :: Mode.Mode -> Name.Name -> [(Name.Name, Opt.Expr)] -> [JS.Stmt]
+generateTailCall :: Mode.Mode -> N.Name -> [(N.Name, Opt.Expr)] -> [JS.Stmt]
 generateTailCall mode name args =
   let
     toTempVars (argName, arg) =
@@ -635,7 +673,7 @@ generateDef mode def =
       JS.Var (JsName.fromLocal name) (codeToExpr (generateTailDef mode name argNames body))
 
 
-generateTailDef :: Mode.Mode -> Name.Name -> [Name.Name] -> Opt.Expr -> Code
+generateTailDef :: Mode.Mode -> N.Name -> [N.Name] -> Opt.Expr -> Code
 generateTailDef mode name argNames body =
   generateFunction (map JsName.fromLocal argNames) $ JsBlock $
     [ JS.Labelled (JsName.fromLocal name) $
@@ -729,12 +767,12 @@ crushIfsHelp visitedBranches unvisitedBranches final =
 -- CASE EXPRESSIONS
 
 
-generateCase :: Mode.Mode -> Name.Name -> Name.Name -> Opt.Decider Opt.Choice -> [(Int, Opt.Expr)] -> [JS.Stmt]
+generateCase :: Mode.Mode -> N.Name -> N.Name -> Opt.Decider Opt.Choice -> [(Int, Opt.Expr)] -> [JS.Stmt]
 generateCase mode label root decider jumps =
   foldr (goto mode label) (generateDecider mode label root decider) jumps
 
 
-goto :: Mode.Mode -> Name.Name -> (Int, Opt.Expr) -> [JS.Stmt] -> [JS.Stmt]
+goto :: Mode.Mode -> N.Name -> (Int, Opt.Expr) -> [JS.Stmt] -> [JS.Stmt]
 goto mode label (index, branch) stmts =
   let
     labeledDeciderStmt =
@@ -745,7 +783,7 @@ goto mode label (index, branch) stmts =
   labeledDeciderStmt : codeToStmtList (generate mode branch)
 
 
-generateDecider :: Mode.Mode -> Name.Name -> Name.Name -> Opt.Decider Opt.Choice -> [JS.Stmt]
+generateDecider :: Mode.Mode -> N.Name -> N.Name -> Opt.Decider Opt.Choice -> [JS.Stmt]
 generateDecider mode label root decisionTree =
   case decisionTree of
     Opt.Leaf (Opt.Inline branch) ->
@@ -772,7 +810,7 @@ generateDecider mode label root decisionTree =
       ]
 
 
-generateIfTest :: Mode.Mode -> Name.Name -> (DT.Path, DT.Test) -> JS.Expr
+generateIfTest :: Mode.Mode -> N.Name -> (DT.Path, DT.Test) -> JS.Expr
 generateIfTest mode root (path, test) =
   let
     value = pathToJsExpr mode root path
@@ -791,7 +829,7 @@ generateIfTest mode root (path, test) =
       in
       strictEq tag $
         case mode of
-          Mode.Dev _ -> JS.String (Name.toBuilder name)
+          Mode.Dev _ -> JS.String (N.toBuilder name)
           Mode.Prod _ -> JS.Int (ctorToInt home name index)
 
     DT.IsBool True  -> value
@@ -801,25 +839,25 @@ generateIfTest mode root (path, test) =
     DT.IsChr char ->
       strictEq (JS.String (P.primBounded charUtf8 char)) $
         case mode of
-          Mode.Dev _ -> JS.Call (JS.Access value (JsName.fromLocal "valueOf")) []
+          Mode.Dev _ -> JS.Call (JS.Access value (JsName.fromLocal valueOf)) []
           Mode.Prod _ -> value
 
     DT.IsStr string ->
       strictEq value (JS.String (Utf8.toBuilder string))
 
     DT.IsCons ->
-      JS.Access value (JsName.fromLocal "b")
+      JS.Access value (JsName.fromLocal N.b)
 
     DT.IsNil ->
       JS.Prefix JS.PrefixNot $
-        JS.Access value (JsName.fromLocal "b")
+        JS.Access value (JsName.fromLocal N.b)
 
     DT.IsTuple ->
       $(Crash.crash 'generateIfTest) "COMPILER BUG - there should never be tests on a tuple"
 
 
 
-generateCaseBranch :: Mode.Mode -> Name.Name -> Name.Name -> (DT.Test, Opt.Decider Opt.Choice) -> JS.Case
+generateCaseBranch :: Mode.Mode -> N.Name -> N.Name -> (DT.Test, Opt.Decider Opt.Choice) -> JS.Case
 generateCaseBranch mode label root (test, subTree) =
   JS.Case
     (generateCaseValue mode test)
@@ -831,7 +869,7 @@ generateCaseValue mode test =
   case test of
     DT.IsCtor home name index _ _ ->
       case mode of
-        Mode.Dev  _ -> JS.String (Name.toBuilder name)
+        Mode.Dev  _ -> JS.String (N.toBuilder name)
         Mode.Prod _ -> JS.Int (ctorToInt home name index)
 
     DT.IsInt  i -> JS.Int i
@@ -843,29 +881,26 @@ generateCaseValue mode test =
     DT.IsTuple  -> $(Crash.crash 'generateCaseValue) "COMPILER BUG - there should never be three tests on a tuple"
 
 
-generateCaseTest :: Mode.Mode -> Name.Name -> DT.Path -> DT.Test -> JS.Expr
+generateCaseTest :: Mode.Mode -> N.Name -> DT.Path -> DT.Test -> JS.Expr
 generateCaseTest mode root path exampleTest =
   let
     value = pathToJsExpr mode root path
   in
   case exampleTest of
-    DT.IsCtor home name _ _ opts ->
-      if name == Name.bool && home == ModuleName.basics then
-        value
-      else
-        case mode of
-          Mode.Dev  _ -> JS.Access value JsName.dollar
-          Mode.Prod _ ->
-            case opts of
-              Can.Normal -> JS.Access value JsName.dollar
-              Can.Enum   -> value
-              Can.Unbox  -> value
+    DT.IsCtor _ _ _ _ opts ->
+      case mode of
+        Mode.Dev  _ -> JS.Access value JsName.dollar
+        Mode.Prod _ ->
+          case opts of
+            Can.Normal -> JS.Access value JsName.dollar
+            Can.Enum   -> value
+            Can.Unbox  -> value
 
     DT.IsInt _ -> value
     DT.IsStr _ -> value
     DT.IsChr _ ->
       case mode of
-        Mode.Dev  _ -> JS.Call (JS.Access value (JsName.fromLocal "valueOf")) []
+        Mode.Dev  _ -> JS.Call (JS.Access value (JsName.fromLocal valueOf)) []
         Mode.Prod _ -> value
 
     DT.IsBool _ -> $(Crash.crash 'generateCaseTest) "COMPILER BUG - there should never be three tests on a list"
@@ -878,7 +913,7 @@ generateCaseTest mode root path exampleTest =
 -- PATTERN PATHS
 
 
-pathToJsExpr :: Mode.Mode -> Name.Name -> DT.Path -> JS.Expr
+pathToJsExpr :: Mode.Mode -> N.Name -> DT.Path -> JS.Expr
 pathToJsExpr mode root path =
   case path of
     DT.Index i p ->
@@ -933,13 +968,13 @@ generateMain :: Mode.Mode -> ModuleName.Canonical -> Opt.Main -> JS.Expr
 generateMain mode home main =
   case main of
     Opt.Static ->
-      JS.Ref (JsName.fromKernel Name.virtualDom "init")
-        # JS.Ref (JsName.fromGlobal home "main")
+      JS.Ref (JsName.fromKernel Module.kernel_vdom [N.ascii|init|])
+        # JS.Ref (JsName.fromGlobal home N.main)
         # JS.Int 0
         # JS.Int 0
 
     Opt.Dynamic msgType decoder ->
-      JS.Ref (JsName.fromGlobal home "main")
+      JS.Ref (JsName.fromGlobal home N.main)
         # generateJsExpr mode decoder
         # toDebugMetadata mode msgType
 

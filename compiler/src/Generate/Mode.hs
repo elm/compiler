@@ -10,9 +10,9 @@ module Generate.Mode
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
-import qualified Data.Name as Name
 
 import qualified AST.Optimized as Opt
+import qualified AST.Prim.Name as N
 import qualified Elm.Compiler.Type.Extract as Extract
 import qualified Generate.JavaScript.Name as JsName
 
@@ -38,7 +38,7 @@ isDebug mode =
 
 
 type ShortFieldNames =
-  Map.Map Name.Name JsName.Name
+  Map.Map N.Name JsName.Name
 
 
 shortenFieldNames :: Opt.GlobalGraph -> ShortFieldNames
@@ -47,17 +47,17 @@ shortenFieldNames (Opt.GlobalGraph _ frequencies) =
     Map.foldrWithKey addToBuckets Map.empty frequencies
 
 
-addToBuckets :: Name.Name -> Int -> Map.Map Int [Name.Name] -> Map.Map Int [Name.Name]
+addToBuckets :: N.Name -> Int -> Map.Map Int [N.Name] -> Map.Map Int [N.Name]
 addToBuckets field frequency buckets =
   Map.insertWith (++) frequency [field] buckets
 
 
-addToShortNames :: [Name.Name] -> ShortFieldNames -> ShortFieldNames
+addToShortNames :: [N.Name] -> ShortFieldNames -> ShortFieldNames
 addToShortNames fields shortNames =
   List.foldl' addField shortNames fields
 
 
-addField :: ShortFieldNames -> Name.Name -> ShortFieldNames
+addField :: ShortFieldNames -> N.Name -> ShortFieldNames
 addField shortNames field =
   let rename = JsName.fromInt (Map.size shortNames) in
   Map.insert field rename shortNames

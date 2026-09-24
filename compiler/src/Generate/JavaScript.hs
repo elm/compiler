@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
+{-# LANGUAGE ExtendedLiterals, OverloadedStrings, QuasiQuotes, TemplateHaskell #-}
 module Generate.JavaScript
   ( generate
   , generateForRepl
@@ -12,14 +12,15 @@ import qualified Data.ByteString.Builder as B
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Map.Utils as Map
-import qualified Data.Name as Name
 import qualified Data.Set as Set
-import qualified Data.Utf8 as Utf8
 
 import qualified Crash
+import qualified String as S
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
+import qualified AST.Prim.Module as Module
+import qualified AST.Prim.Name as N
 import qualified Data.Index as Index
 import qualified Elm.Kernel as K
 import qualified Elm.ModuleName as ModuleName
@@ -57,7 +58,7 @@ generate mode (Opt.GlobalGraph graph _) mains =
 
 addMain :: Mode.Mode -> Graph -> ModuleName.Canonical -> Opt.Main -> State -> State
 addMain mode graph home _ state =
-  addGlobal mode graph state (Opt.Global home "main")
+  addGlobal mode graph state (Opt.Global home N.main)
 
 
 perfNote :: Mode.Mode -> B.Builder
@@ -81,11 +82,11 @@ perfNote mode =
 -- GENERATE FOR REPL
 
 
-generateForRepl :: Bool -> L.Localizer -> Opt.GlobalGraph -> ModuleName.Canonical -> Name.Name -> Can.Annotation -> B.Builder
+generateForRepl :: Bool -> L.Localizer -> Opt.GlobalGraph -> ModuleName.Canonical -> N.Name -> Can.Annotation -> B.Builder
 generateForRepl ansi localizer (Opt.GlobalGraph graph _) home name (Can.Forall _ tipe) =
   let
     mode = Mode.Dev Nothing
-    debugState = addGlobal mode graph emptyState (Opt.Global ModuleName.debug "toString")
+    debugState = addGlobal mode graph emptyState (Opt.Global ModuleName.debug [N.ascii|toString|])
     evalState = addGlobal mode graph debugState (Opt.Global home name)
   in
   "process.on('uncaughtException', function(err) { process.stderr.write(err.toString() + '\\n'); process.exit(1); });"
@@ -94,11 +95,11 @@ generateForRepl ansi localizer (Opt.GlobalGraph graph _) home name (Can.Forall _
   <> print ansi localizer home name tipe
 
 
-print :: Bool -> L.Localizer -> ModuleName.Canonical -> Name.Name -> Can.Type -> B.Builder
+print :: Bool -> L.Localizer -> ModuleName.Canonical -> N.Name -> Can.Type -> B.Builder
 print ansi localizer home name tipe =
   let
     value = JsName.toBuilder (JsName.fromGlobal home name)
-    toString = JsName.toBuilder (JsName.fromKernel Name.debug "toAnsiString")
+    toString = JsName.toBuilder (JsName.fromKernel Module.kernel_debug [N.ascii|toAnsiString|])
     tipeDoc = RT.canToDoc localizer RT.None tipe
     bool = if ansi then "true" else "false"
   in
@@ -116,12 +117,12 @@ print ansi localizer home name tipe =
 -- GENERATE FOR REPL ENDPOINT
 
 
-generateForReplEndpoint :: L.Localizer -> Opt.GlobalGraph -> ModuleName.Canonical -> Maybe Name.Name -> Can.Annotation -> B.Builder
+generateForReplEndpoint :: L.Localizer -> Opt.GlobalGraph -> ModuleName.Canonical -> Maybe N.Name -> Can.Annotation -> B.Builder
 generateForReplEndpoint localizer (Opt.GlobalGraph graph _) home maybeName (Can.Forall _ tipe) =
   let
-    name = maybe Name.replValueToPrint id maybeName
+    name = maybe N.replValueToPrint id maybeName
     mode = Mode.Dev Nothing
-    debugState = addGlobal mode graph emptyState (Opt.Global ModuleName.debug "toString")
+    debugState = addGlobal mode graph emptyState (Opt.Global ModuleName.debug [N.ascii|toString|])
     evalState = addGlobal mode graph debugState (Opt.Global home name)
   in
   Functions.functions
@@ -129,14 +130,14 @@ generateForReplEndpoint localizer (Opt.GlobalGraph graph _) home maybeName (Can.
   <> postMessage localizer home maybeName tipe
 
 
-postMessage :: L.Localizer -> ModuleName.Canonical -> Maybe Name.Name -> Can.Type -> B.Builder
+postMessage :: L.Localizer -> ModuleName.Canonical -> Maybe N.Name -> Can.Type -> B.Builder
 postMessage localizer home maybeName tipe =
   let
-    name = maybe Name.replValueToPrint id maybeName
+    name = maybe N.replValueToPrint id maybeName
     value = JsName.toBuilder (JsName.fromGlobal home name)
-    toString = JsName.toBuilder (JsName.fromKernel Name.debug "toAnsiString")
+    toString = JsName.toBuilder (JsName.fromKernel Module.kernel_debug [N.ascii|toAnsiString|])
     tipeDoc = RT.canToDoc localizer RT.None tipe
-    toName n = "\"" <> Name.toBuilder n <> "\""
+    toName n = "\"" <> N.toBuilder n <> "\""
   in
   "self.postMessage({\n\
   \  name: " <> maybe "null" toName maybeName <> ",\n\
@@ -192,7 +193,7 @@ addGlobalHelp mode graph global state =
       Set.foldl' (addGlobal mode graph) someState deps
 
     globalToChars (Opt.Global (ModuleName.Canonical p h) n) =
-      ModuleName.toChars h ++ "." ++ Name.toChars n ++ " in " ++ Pkg.toChars p
+      Module.toChars h ++ "." ++ N.toChars n ++ " in " ++ Pkg.toChars p
   in
   case $(Map.require 'addGlobalHelp) global graph globalToChars of
     Opt.Define expr deps ->
@@ -240,12 +241,12 @@ addGlobalHelp mode graph global state =
 
     Opt.PortIncoming decoder deps ->
       addStmt (addDeps deps state) (
-        generatePort mode global "incomingPort" decoder
+        generatePort mode global [N.ascii|incomingPort|] decoder
       )
 
     Opt.PortOutgoing encoder deps ->
       addStmt (addDeps deps state) (
-        generatePort mode global "outgoingPort" encoder
+        generatePort mode global [N.ascii|outgoingPort|] encoder
       )
 
 
@@ -271,14 +272,14 @@ var (Opt.Global home name) code =
 
 isDebugger :: Opt.Global -> Bool
 isDebugger (Opt.Global (ModuleName.Canonical _ home) _) =
-  home == Name.debugger
+  Module.toString home == Module.kernelToString Module.kernel_debugger
 
 
 
 -- GENERATE CYCLES
 
 
-generateCycle :: Mode.Mode -> Opt.Global -> [Name.Name] -> [(Name.Name, Opt.Expr)] -> [Opt.Def] -> JS.Stmt
+generateCycle :: Mode.Mode -> Opt.Global -> [N.Name] -> [(N.Name, Opt.Expr)] -> [Opt.Def] -> JS.Stmt
 generateCycle mode (Opt.Global home _) names values functions =
   JS.Block
     [ JS.Block $ map (generateCycleFunc mode home) functions
@@ -294,7 +295,7 @@ generateCycle mode (Opt.Global home _) names values functions =
 
               Mode.Dev _ ->
                 JS.Try (JS.Block realBlock) JsName.dollar $ JS.Throw $ JS.String $
-                  "Some top-level definitions from `" <> Name.toBuilder (ModuleName._module home) <> "` are causing infinite recursion:\\n"
+                  "Some top-level definitions from `" <> Module.toBuilder (ModuleName._module home) <> "` are causing infinite recursion:\\n"
                   <> drawCycle names
                   <> "\\n\\nThese errors are very tricky, so read "
                   <> B.stringUtf8 (D.makeNakedLink "bad-recursion")
@@ -312,13 +313,13 @@ generateCycleFunc mode home def =
       JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generateTailDef mode name args expr))
 
 
-generateSafeCycle :: Mode.Mode -> ModuleName.Canonical -> (Name.Name, Opt.Expr) -> JS.Stmt
+generateSafeCycle :: Mode.Mode -> ModuleName.Canonical -> (N.Name, Opt.Expr) -> JS.Stmt
 generateSafeCycle mode home (name, expr) =
   JS.FunctionStmt (JsName.fromCycle home name) [] $
     Expr.codeToStmtList (Expr.generate mode expr)
 
 
-generateRealCycle :: ModuleName.Canonical -> (Name.Name, expr) -> JS.Stmt
+generateRealCycle :: ModuleName.Canonical -> (N.Name, expr) -> JS.Stmt
 generateRealCycle home (name, _) =
   let
     safeName = JsName.fromCycle home name
@@ -331,11 +332,11 @@ generateRealCycle home (name, _) =
     ]
 
 
-drawCycle :: [Name.Name] -> B.Builder
+drawCycle :: [N.Name] -> B.Builder
 drawCycle names =
   let
     topLine       = "\\n  ┌─────┐"
-    nameLine name = "\\n  │    " <> Name.toBuilder name
+    nameLine name = "\\n  │    " <> N.toBuilder name
     midLine       = "\\n  │     ↓"
     bottomLine    = "\\n  └─────┘"
   in
@@ -416,24 +417,24 @@ generateBox mode global@(Opt.Global home name) =
         Expr.codeToExpr (Expr.generateCtor mode global Index.first 1)
 
       Mode.Prod _ ->
-        JS.Ref (JsName.fromGlobal ModuleName.basics Name.identity)
+        JS.Ref (JsName.fromGlobal ModuleName.basics N.identity)
 
 
 {-# NOINLINE identity #-}
 identity :: Opt.Global
 identity =
-  Opt.Global ModuleName.basics Name.identity
+  Opt.Global ModuleName.basics N.identity
 
 
 
 -- GENERATE PORTS
 
 
-generatePort :: Mode.Mode -> Opt.Global -> Name.Name -> Opt.Expr -> JS.Stmt
+generatePort :: Mode.Mode -> Opt.Global -> N.Name -> Opt.Expr -> JS.Stmt
 generatePort mode (Opt.Global home name) makePort converter =
   JS.Var (JsName.fromGlobal home name) $
-    JS.Call (JS.Ref (JsName.fromKernel Name.platform makePort))
-      [ JS.String (Name.toBuilder name)
+    JS.Call (JS.Ref (JsName.fromKernel Module.kernel_platform makePort))
+      [ JS.String (N.toBuilder name)
       , Expr.codeToExpr (Expr.generate mode converter)
       ]
 
@@ -447,31 +448,31 @@ generateManager mode graph (Opt.Global home@(ModuleName.Canonical _ moduleName) 
   let
     managerLVar =
       JS.LBracket
-        (JS.Ref (JsName.fromKernel Name.platform "effectManagers"))
-        (JS.String (Name.toBuilder moduleName))
+        (JS.Ref (JsName.fromKernel Module.kernel_platform [N.ascii|effectManagers|]))
+        (JS.String (Module.toBuilder moduleName))
 
     (deps, args, stmts) =
       generateManagerHelp home effectsType
 
     createManager =
       JS.ExprStmt $ JS.Assign managerLVar $
-        JS.Call (JS.Ref (JsName.fromKernel Name.platform "createManager")) args
+        JS.Call (JS.Ref (JsName.fromKernel Module.kernel_platform [N.ascii|createManager|])) args
   in
   addStmt (List.foldl' (addGlobal mode graph) state deps) $
     JS.Block (createManager : stmts)
 
 
-generateLeaf :: ModuleName.Canonical -> Name.Name -> JS.Stmt
+generateLeaf :: ModuleName.Canonical -> N.Name -> JS.Stmt
 generateLeaf home@(ModuleName.Canonical _ moduleName) name =
   JS.Var (JsName.fromGlobal home name) $
-    JS.Call leaf [ JS.String (Name.toBuilder moduleName) ]
+    JS.Call leaf [ JS.String (Module.toBuilder moduleName) ]
 
 
 
 {-# NOINLINE leaf #-}
 leaf :: JS.Expr
 leaf =
-  JS.Ref (JsName.fromKernel Name.platform "leaf")
+  JS.Ref (JsName.fromKernel Module.kernel_platform [N.ascii|leaf|])
 
 
 generateManagerHelp :: ModuleName.Canonical -> Opt.EffectsType -> ([Opt.Global], [JS.Expr], [JS.Stmt])
@@ -482,22 +483,22 @@ generateManagerHelp home effectsType =
   in
   case effectsType of
     Opt.Cmd ->
-      ( [ dep "init", dep "onEffects", dep "onSelfMsg", dep "cmdMap" ]
-      , [ ref "init", ref "onEffects", ref "onSelfMsg", ref "cmdMap" ]
-      , [ generateLeaf home "command" ]
+      ( [ dep [N.ascii|init|], dep [N.ascii|onEffects|], dep [N.ascii|onSelfMsg|], dep [N.ascii|cmdMap|] ]
+      , [ ref [N.ascii|init|], ref [N.ascii|onEffects|], ref [N.ascii|onSelfMsg|], ref [N.ascii|cmdMap|] ]
+      , [ generateLeaf home [N.ascii|command|] ]
       )
 
     Opt.Sub ->
-      ( [ dep "init", dep "onEffects", dep "onSelfMsg", dep "subMap" ]
-      , [ ref "init", ref "onEffects", ref "onSelfMsg", JS.Int 0, ref "subMap" ]
-      , [ generateLeaf home "subscription" ]
+      ( [ dep [N.ascii|init|], dep [N.ascii|onEffects|], dep [N.ascii|onSelfMsg|], dep [N.ascii|subMap|] ]
+      , [ ref [N.ascii|init|], ref [N.ascii|onEffects|], ref [N.ascii|onSelfMsg|], JS.Int 0, ref [N.ascii|subMap|] ]
+      , [ generateLeaf home [N.ascii|subscription|] ]
       )
 
     Opt.Fx ->
-      ( [ dep "init", dep "onEffects", dep "onSelfMsg", dep "cmdMap", dep "subMap" ]
-      , [ ref "init", ref "onEffects", ref "onSelfMsg", ref "cmdMap", ref "subMap" ]
-      , [ generateLeaf home "command"
-        , generateLeaf home "subscription"
+      ( [ dep [N.ascii|init|], dep [N.ascii|onEffects|], dep [N.ascii|onSelfMsg|], dep [N.ascii|cmdMap|], dep [N.ascii|subMap|] ]
+      , [ ref [N.ascii|init|], ref [N.ascii|onEffects|], ref [N.ascii|onSelfMsg|], ref [N.ascii|cmdMap|], ref [N.ascii|subMap|] ]
+      , [ generateLeaf home [N.ascii|command|]
+        , generateLeaf home [N.ascii|subscription|]
         ]
       )
 
@@ -509,7 +510,7 @@ generateManagerHelp home effectsType =
 toMainExports :: Mode.Mode -> Mains -> B.Builder
 toMainExports mode mains =
   let
-    export = JsName.fromKernel Name.platform "export"
+    export = JsName.fromKernel Module.kernel_platform [N.ascii|export|]
     exports = generateExports mode (Map.foldrWithKey addToTrie emptyTrie mains)
   in
   JsName.toBuilder export <> "(" <> exports <> ");"
@@ -534,14 +535,14 @@ generateExports mode (Trie maybeMain subs) =
 
       (name, subTrie) : otherSubTries ->
         starter "," <>
-        "'" <> Utf8.toBuilder name <> "':"
+        "'" <> S.toBuilder name <> "':"
         <> generateExports mode subTrie
         <> List.foldl' (addSubTrie mode) "}" otherSubTries
 
 
-addSubTrie :: Mode.Mode -> B.Builder -> (Name.Name, Trie) -> B.Builder
+addSubTrie :: Mode.Mode -> B.Builder -> (S.String, Trie) -> B.Builder
 addSubTrie mode end (name, trie) =
-  ",'" <> Utf8.toBuilder name <> "':" <> generateExports mode trie <> end
+  ",'" <> S.toBuilder name <> "':" <> generateExports mode trie <> end
 
 
 
@@ -551,7 +552,7 @@ addSubTrie mode end (name, trie) =
 data Trie =
   Trie
     { _main :: Maybe (ModuleName.Canonical, Opt.Main)
-    , _subs :: Map.Map Name.Name Trie
+    , _subs :: Map.Map S.String Trie
     }
 
 
@@ -561,18 +562,15 @@ emptyTrie =
 
 
 addToTrie :: ModuleName.Canonical -> Opt.Main -> Trie -> Trie
-addToTrie home@(ModuleName.Canonical _ moduleName) main trie =
-  merge trie $ segmentsToTrie home (Name.splitDots moduleName) main
+addToTrie home@(ModuleName.Canonical _ h) main trie =
+  merge trie $ segmentsToTrie home (S.split 0x2E#Word8 {-.-} (Module.toString h)) main
 
 
-segmentsToTrie :: ModuleName.Canonical -> [Name.Name] -> Opt.Main -> Trie
+segmentsToTrie :: ModuleName.Canonical -> [S.String] -> Opt.Main -> Trie
 segmentsToTrie home segments main =
   case segments of
-    [] ->
-      Trie (Just (home, main)) Map.empty
-
-    segment : otherSegments ->
-      Trie Nothing (Map.singleton segment (segmentsToTrie home otherSegments main))
+    []       -> Trie (Just (home, main)) Map.empty
+    seg:segs -> Trie Nothing (Map.singleton seg (segmentsToTrie home segs main))
 
 
 merge :: Trie -> Trie -> Trie
@@ -585,11 +583,7 @@ merge (Trie main1 subs1) (Trie main2 subs2) =
 checkedMerge :: Maybe a -> Maybe a -> Maybe a
 checkedMerge a b =
   case (a, b) of
-    (Nothing, main) ->
-      main
+    (Nothing, main)  -> main
+    (main, Nothing)  -> main
+    (Just _, Just _) -> $(Crash.crash 'checkedMerge) "cannot have two modules with the same name"
 
-    (main, Nothing) ->
-      main
-
-    (Just _, Just _) ->
-      $(Crash.crash 'checkedMerge) "cannot have two modules with the same name"

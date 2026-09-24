@@ -1,4 +1,6 @@
-{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
+{-# LANGUAGE BangPatterns, ExtendedLiterals, MagicHash, OverloadedStrings,
+QuasiQuotes, TemplateHaskell, UnboxedTuples
+#-}
 module Generate.JavaScript.Name
   ( Name
   , toBuilder
@@ -18,14 +20,19 @@ module Generate.JavaScript.Name
 
 
 import qualified Data.ByteString.Builder as B
+import qualified Data.List as List
 import qualified Data.Map as Map
-import qualified Data.Name as Name
 import qualified Data.Set as Set
-import qualified Data.Utf8 as Utf8
-import Data.Word (Word8)
+import GHC.Int (Int(..))
+import GHC.Prim
+import GHC.ST (ST(ST), runST)
+import GHC.Word (Word8(..))
 
 import qualified Crash
+import qualified String as S
 
+import qualified AST.Prim.Module as Module
+import qualified AST.Prim.Name as N
 import qualified Data.Index as Index
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
@@ -50,41 +57,37 @@ fromIndex index =
 
 fromInt :: Int -> Name
 fromInt n =
-  Name (Name.toBuilder (intToAscii n))
+  Name (N.toBuilder (intToAscii n))
 
 
-fromLocal :: Name.Name -> Name
+fromLocal :: N.Name -> Name
 fromLocal name =
   if Set.member name reservedNames then
-    Name ("_" <> Name.toBuilder name)
+    Name ("_" <> N.toBuilder name)
   else
-    Name (Name.toBuilder name)
+    Name (N.toBuilder name)
 
 
-fromGlobal :: ModuleName.Canonical -> Name.Name -> Name
+fromGlobal :: ModuleName.Canonical -> N.Name -> Name
 fromGlobal home name =
-  Name $ homeToBuilder home <> usd <> Name.toBuilder name
+  Name $ homeToBuilder home <> usd <> N.toBuilder name
 
 
-fromCycle :: ModuleName.Canonical -> Name.Name -> Name
+fromCycle :: ModuleName.Canonical -> N.Name -> Name
 fromCycle home name =
-  Name $ homeToBuilder home <> "$cyclic$" <> Name.toBuilder name
+  Name $ homeToBuilder home <> "$cyclic$" <> N.toBuilder name
 
 
-fromKernel :: Name.Name -> Name.Name -> Name
+fromKernel :: Module.Kernel -> N.Name -> Name
 fromKernel home name =
-  Name ("_" <> Name.toBuilder home <> "_" <> Name.toBuilder name)
+  Name ("_" <> Module.kernelToBuilder home <> "_" <> N.toBuilder name)
 
 
 {-# INLINE homeToBuilder #-}
 homeToBuilder :: ModuleName.Canonical -> B.Builder
-homeToBuilder (ModuleName.Canonical (Pkg.Name author project) home) =
-  usd <>
-  Utf8.toEscapedBuilder 0x2D {- - -} 0x5F {- _ -} author
-  <> usd <>
-  Utf8.toEscapedBuilder 0x2D {- - -} 0x5F {- _ -} project
-  <> usd <>
-  Utf8.toEscapedBuilder 0x2E {- . -} 0x24 {- $ -} home
+homeToBuilder (ModuleName.Canonical pkg home) =
+  usd <> Pkg.toJavaScriptBuilder pkg <>
+  usd <> S.toEscapedBuilder 0x2E#Word8 {-.-} 0x24#Word8 {-$-} (Module.toString home)
 
 
 
@@ -101,14 +104,14 @@ makeA n =
   Name ("A" <> B.intDec n)
 
 
-makeLabel :: Name.Name -> Int -> Name
+makeLabel :: N.Name -> Int -> Name
 makeLabel name index =
-  Name (Name.toBuilder name <> usd <> B.intDec index)
+  Name (N.toBuilder name <> usd <> B.intDec index)
 
 
-makeTemp :: Name.Name -> Name
+makeTemp :: N.Name -> Name
 makeTemp name =
-  Name ("$temp$" <> Name.toBuilder name)
+  Name ("$temp$" <> N.toBuilder name)
 
 
 dollar :: Name
@@ -118,7 +121,7 @@ dollar =
 
 usd :: B.Builder
 usd =
-  Name.toBuilder Name.dollar
+  B.word8 0x24 {-$-}
 
 
 
@@ -126,32 +129,32 @@ usd =
 
 
 {-# NOINLINE reservedNames #-}
-reservedNames :: Set.Set Name.Name
+reservedNames :: Set.Set N.Name
 reservedNames =
   Set.union jsReservedWords elmReservedWords
 
 
-jsReservedWords :: Set.Set Name.Name
+jsReservedWords :: Set.Set N.Name
 jsReservedWords =
   Set.fromList
-    [ "do", "if", "in"
-    , "NaN", "int", "for", "new", "try", "var", "let"
-    , "null", "true", "eval", "byte", "char", "goto", "long", "case", "else", "this", "void", "with", "enum"
-    , "false", "final", "float", "short", "break", "catch", "throw", "while", "class", "const", "super", "yield"
-    , "double", "native", "throws", "delete", "return", "switch", "typeof", "export", "import", "public", "static"
-    , "boolean", "default", "finally", "extends", "package", "private"
-    , "Infinity", "abstract", "volatile", "function", "continue", "debugger", "function"
-    , "undefined", "arguments", "transient", "interface", "protected"
-    , "instanceof", "implements"
-    , "synchronized"
+    [ [N.ascii|do|], [N.ascii|if|], [N.ascii|in|]
+    , [N.ascii|NaN|], [N.ascii|int|], [N.ascii|for|], [N.ascii|new|], [N.ascii|try|], [N.ascii|var|], [N.ascii|let|]
+    , [N.ascii|null|], [N.ascii|true|], [N.ascii|eval|], [N.ascii|byte|], [N.ascii|char|], [N.ascii|goto|], [N.ascii|long|], [N.ascii|case|], [N.ascii|else|], [N.ascii|this|], [N.ascii|void|], [N.ascii|with|], [N.ascii|enum|]
+    , [N.ascii|false|], [N.ascii|final|], [N.ascii|float|], [N.ascii|short|], [N.ascii|break|], [N.ascii|catch|], [N.ascii|throw|], [N.ascii|while|], [N.ascii|class|], [N.ascii|const|], [N.ascii|super|], [N.ascii|yield|]
+    , [N.ascii|double|], [N.ascii|native|], [N.ascii|throws|], [N.ascii|delete|], [N.ascii|return|], [N.ascii|switch|], [N.ascii|typeof|], [N.ascii|export|], [N.ascii|import|], [N.ascii|public|], [N.ascii|static|]
+    , [N.ascii|boolean|], [N.ascii|default|], [N.ascii|finally|], [N.ascii|extends|], [N.ascii|package|], [N.ascii|private|]
+    , [N.ascii|Infinity|], [N.ascii|abstract|], [N.ascii|volatile|], [N.ascii|function|], [N.ascii|continue|], [N.ascii|debugger|], [N.ascii|function|]
+    , [N.ascii|undefined|], [N.ascii|arguments|], [N.ascii|transient|], [N.ascii|interface|], [N.ascii|protected|]
+    , [N.ascii|instanceof|], [N.ascii|implements|]
+    , [N.ascii|synchronized|]
     ]
 
 
-elmReservedWords :: Set.Set Name.Name
+elmReservedWords :: Set.Set N.Name
 elmReservedWords =
   Set.fromList
-    [ "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9"
-    , "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9"
+    [ [N.ascii|F2|], [N.ascii|F3|], [N.ascii|F4|], [N.ascii|F5|], [N.ascii|F6|], [N.ascii|F7|], [N.ascii|F8|], [N.ascii|F9|]
+    , [N.ascii|A2|], [N.ascii|A3|], [N.ascii|A4|], [N.ascii|A5|], [N.ascii|A6|], [N.ascii|A7|], [N.ascii|A8|], [N.ascii|A9|]
     ]
 
 
@@ -159,16 +162,16 @@ elmReservedWords =
 -- INT TO ASCII
 
 
-intToAscii :: Int -> Name.Name
+intToAscii :: Int -> N.Name
 intToAscii n =
   if n < 53 then -- skip $ as a standalone name
-    Name.fromWords [toByte n]
+    packName [toByte n]
 
   else
     intToAsciiHelp 2 (numStartBytes * numInnerBytes) allBadFields (n - 53)
 
 
-intToAsciiHelp :: Int -> Int -> [BadFields] -> Int -> Name.Name
+intToAsciiHelp :: Int -> Int -> [BadFields] -> Int -> N.Name
 intToAsciiHelp width blockSize badFields n =
   case badFields of
     [] ->
@@ -186,14 +189,33 @@ intToAsciiHelp width blockSize badFields n =
         intToAsciiHelp (width + 1) (blockSize * numInnerBytes) biggerBadFields (n - availableSize)
 
 
+packName :: [Word8] -> N.Name
+packName words0 =
+  runST $ ST $ \s0 ->
+    case newByteArray# len          s0 of { (# s1, mba #) ->
+    case loop mba 0# words0         s1 of {    s2         ->
+    case unsafeFreezeByteArray# mba s2 of { (# s3, ba  #) ->
+      (# s3, N.fromString (S.String ba) #)
+    }}}
+  where
+    !(I# len) = List.length words0
+
+    loop mba i list s0 =
+      case list of
+        []         -> s0
+        W8# w : ws ->
+          case writeWord8Array# mba i w s0 of
+            s1 -> loop mba (i +# 1#) ws s1
+
+
 
 -- UNSAFE INT TO ASCII
 
 
-unsafeIntToAscii :: Int -> [Word8] -> Int -> Name.Name
+unsafeIntToAscii :: Int -> [Word8] -> Int -> N.Name
 unsafeIntToAscii width bytes n =
   if width <= 1 then
-    Name.fromWords (toByte n : bytes)
+    packName (toByte n : bytes)
   else
     let
       (quotient, remainder) =
@@ -235,22 +257,22 @@ newtype BadFields =
 
 
 type Renamings =
-  Map.Map Name.Name Name.Name
+  Map.Map N.Name N.Name
 
 
 allBadFields :: [BadFields]
 allBadFields =
   let
     add keyword dict =
-      Map.alter (Just . addRenaming keyword) (Utf8.size keyword) dict
+      Map.alter (Just . addRenaming keyword) (N.size keyword) dict
   in
     Map.elems $ Set.foldr add Map.empty jsReservedWords
 
 
-addRenaming :: Name.Name -> Maybe BadFields -> BadFields
+addRenaming :: N.Name -> Maybe BadFields -> BadFields
 addRenaming keyword maybeBadFields =
   let
-    width = Utf8.size keyword
+    width = N.size keyword
     maxName = numStartBytes * numInnerBytes ^ (width - 1) - 1
   in
   case maybeBadFields of

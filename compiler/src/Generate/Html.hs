@@ -7,18 +7,19 @@ module Generate.Html
 
 
 import qualified Data.ByteString.Builder as B
-import qualified Data.Name as Name
 
 import Literals (b)
+
+import qualified AST.Prim.Module as Module
 
 
 
 -- SANDWICH
 
 
-sandwich :: Name.Name -> B.Builder -> B.Builder
+sandwich :: Module.Name -> B.Builder -> B.Builder
 sandwich moduleName javascript =
-  let name = Name.toBuilder moduleName in
+  let name = Module.toBuilder moduleName in
   [b|<!DOCTYPE HTML>
 <html>
 <head>
