@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
 module Develop
   ( Flags(..)
   , run
@@ -19,6 +19,9 @@ import Snap.Core hiding (path)
 import Snap.Http.Server
 import Snap.Util.FileServe
 
+import qualified String as S
+
+import qualified AST.Prim.Module as Module
 import qualified Build
 import qualified Elm.Details as Details
 import qualified Develop.Generate.Help as Help
@@ -81,7 +84,7 @@ error404 :: Snap ()
 error404 =
   do  modifyResponse $ setResponseStatus 404 "Not Found"
       modifyResponse $ setContentType "text/html;charset=utf-8"
-      writeBuilder $ Help.makePageHtml "NotFound" Nothing
+      writeBuilder $ Help.makePageHtml (Module.fromString [S.ascii|NotFound|]) Nothing
 
 
 
@@ -143,7 +146,7 @@ serveElm path =
           writeBuilder builder
 
         Left exit ->
-          writeBuilder $ Help.makePageHtml "Errors" $ Just $
+          writeBuilder $ Help.makePageHtml (Module.fromString [S.ascii|Errors|]) $ Just $
             Exit.toJson $ Exit.reactorToReport exit
 
 

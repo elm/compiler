@@ -8,17 +8,18 @@ module Develop.Generate.Help
 
 
 import qualified Data.ByteString.Builder as B
-import qualified Data.Name as Name
 
 import qualified Json.Encode as Encode
 import Literals (b)
+
+import qualified AST.Prim.Module as Module
 
 
 
 -- PAGES
 
 
-makePageHtml :: Name.Name -> Maybe Encode.Value -> B.Builder
+makePageHtml :: Module.Name -> Maybe Encode.Value -> B.Builder
 makePageHtml moduleName maybeFlags =
   [b|<!DOCTYPE HTML>
 <html>
@@ -29,7 +30,7 @@ makePageHtml moduleName maybeFlags =
 </head>
 <body>
 <script>
-Elm.|] <> Name.toBuilder moduleName <> [b|.init({ flags: |] <> maybe "undefined" Encode.encode maybeFlags <> [b| });
+Elm.|] <> Module.toBuilder moduleName <> [b|.init({ flags: |] <> maybe "undefined" Encode.encode maybeFlags <> [b| });
 </script>
 </body>
 </html>

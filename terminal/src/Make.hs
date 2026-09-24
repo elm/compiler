@@ -18,9 +18,9 @@ import qualified System.Directory as Dir
 import qualified System.FilePath as FP
 
 import qualified AST.Optimized as Opt
+import qualified AST.Prim.Module as Module
 import qualified Build
 import qualified Elm.Details as Details
-import qualified Elm.ModuleName as ModuleName
 import qualified File
 import qualified Generate
 import qualified Generate.Html as Html
@@ -137,7 +137,7 @@ getMode debug optimize =
     (False, True ) -> return Prod
 
 
-getExposed :: Details.Details -> Task (NE.List ModuleName.Raw)
+getExposed :: Details.Details -> Task (NE.List Module.Name)
 getExposed (Details.Details _ validOutline _ _ _ _) =
   case validOutline of
     Details.ValidApp _ ->
@@ -153,7 +153,7 @@ getExposed (Details.Details _ validOutline _ _ _ _) =
 -- BUILD PROJECTS
 
 
-buildExposed :: File.Writer Stuff.PROJECT -> Reporting.Style -> FilePath -> Details.Details -> Maybe FilePath -> NE.List ModuleName.Raw -> Task ()
+buildExposed :: File.Writer Stuff.PROJECT -> Reporting.Style -> FilePath -> Details.Details -> Maybe FilePath -> NE.List Module.Name -> Task ()
 buildExposed writer style root details maybeDocs exposed =
   let
     docsGoal = maybe Build.IgnoreDocs Build.WriteDocs maybeDocs
@@ -172,12 +172,12 @@ buildPaths writer style root details paths =
 -- GET MAINS
 
 
-getMains :: Build.Artifacts -> [ModuleName.Raw]
+getMains :: Build.Artifacts -> [Module.Name]
 getMains (Build.Artifacts _ _ roots modules) =
   Maybe.mapMaybe (getMain modules) (NE.toList roots)
 
 
-getMain :: [Build.Module] -> Build.Root -> Maybe ModuleName.Raw
+getMain :: [Build.Module] -> Build.Root -> Maybe Module.Name
 getMain modules root =
   case root of
     Build.Inside name ->
@@ -191,7 +191,7 @@ getMain modules root =
         Nothing -> Nothing
 
 
-isMain :: ModuleName.Raw -> Build.Module -> Bool
+isMain :: Module.Name -> Build.Module -> Bool
 isMain targetName modul =
   case modul of
     Build.Fresh name _ (Opt.LocalGraph maybeMain _ _) ->
@@ -205,7 +205,7 @@ isMain targetName modul =
 -- HAS ONE MAIN
 
 
-hasOneMain :: Build.Artifacts -> Task ModuleName.Raw
+hasOneMain :: Build.Artifacts -> Task Module.Name
 hasOneMain (Build.Artifacts _ _ roots modules) =
   case roots of
     NE.List root [] -> Task.mio Exit.MakeNoMain (return $ getMain modules root)
@@ -216,12 +216,12 @@ hasOneMain (Build.Artifacts _ _ roots modules) =
 -- GET MAINLESS
 
 
-getNoMains :: Build.Artifacts -> [ModuleName.Raw]
+getNoMains :: Build.Artifacts -> [Module.Name]
 getNoMains (Build.Artifacts _ _ roots modules) =
   Maybe.mapMaybe (getNoMain modules) (NE.toList roots)
 
 
-getNoMain :: [Build.Module] -> Build.Root -> Maybe ModuleName.Raw
+getNoMain :: [Build.Module] -> Build.Root -> Maybe Module.Name
 getNoMain modules root =
   case root of
     Build.Inside name ->
@@ -239,7 +239,7 @@ getNoMain modules root =
 -- GENERATE
 
 
-generate :: File.Writer Stuff.PROJECT -> Reporting.Style -> FilePath -> B.Builder -> NE.List ModuleName.Raw -> Task ()
+generate :: File.Writer Stuff.PROJECT -> Reporting.Style -> FilePath -> B.Builder -> NE.List Module.Name -> Task ()
 generate writer style target builder names =
   Task.io $
     do  Dir.createDirectoryIfMissing True (FP.takeDirectory target)

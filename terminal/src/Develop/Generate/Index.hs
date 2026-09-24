@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
 module Develop.Generate.Index
   ( generate
   )
@@ -12,6 +12,9 @@ import qualified Data.Map as Map
 import qualified System.Directory as Dir
 import System.FilePath ((</>), splitDirectories, takeExtension)
 
+import qualified String as S
+
+import qualified AST.Prim.Module as Module
 import qualified Develop.Generate.Help as Help
 import qualified Elm.Details as Details
 import qualified Elm.Outline as Outline
@@ -30,7 +33,7 @@ import qualified Stuff
 generate :: FilePath -> IO B.Builder
 generate pwd =
   do  flags <- getFlags pwd
-      return $ Help.makePageHtml "Index" (Just (encode flags))
+      return $ Help.makePageHtml (Module.fromString [S.ascii|Index|]) (Just (encode flags))
 
 
 

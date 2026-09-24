@@ -244,7 +244,7 @@ toTagUrl pkg vsn =
 commitHashDecoder :: D.Decoder e String
 commitHashDecoder =
   Utf8.toChars <$>
-    D.field "object" (D.field "sha" D.string)
+    D.field "object" (D.field "sha" D.jsonString)
 
 
 
