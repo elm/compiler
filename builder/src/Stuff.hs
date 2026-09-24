@@ -30,7 +30,7 @@ import System.FilePath ((</>), (<.>))
 
 import qualified File
 
-import qualified Elm.ModuleName as ModuleName
+import qualified AST.Prim.Module as Module
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
 
@@ -73,19 +73,19 @@ compilerVersion =
 -- ELMI and ELMO
 
 
-elmi :: FilePath -> ModuleName.Raw -> FilePath
+elmi :: FilePath -> Module.Name -> FilePath
 elmi root name =
   toArtifactPath root name "elmi"
 
 
-elmo :: FilePath -> ModuleName.Raw -> FilePath
+elmo :: FilePath -> Module.Name -> FilePath
 elmo root name =
   toArtifactPath root name "elmo"
 
 
-toArtifactPath :: FilePath -> ModuleName.Raw -> String -> FilePath
+toArtifactPath :: FilePath -> Module.Name -> String -> FilePath
 toArtifactPath root name ext =
-  stuff root </> ModuleName.toHyphenPath name <.> ext
+  stuff root </> Module.toDashPath name <.> ext
 
 
 

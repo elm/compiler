@@ -25,7 +25,6 @@ import qualified Data.Map as Map
 import qualified Data.Map.Utils as Map
 import qualified Data.Map.Merge.Strict as Map
 import qualified Data.Maybe as Maybe
-import qualified Data.Name as Name
 import qualified Data.NonEmptyList as NE
 import qualified Data.OneOrMore as OneOrMore
 import qualified Data.Set as Set
@@ -42,6 +41,7 @@ import qualified ThreadSafe.Fork as Fork
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
 import qualified AST.Optimized as Opt
+import qualified AST.Prim.Module as Module
 import qualified Compile
 import qualified Deps.Registry as Registry
 import qualified Deps.Solver as Solver
@@ -75,8 +75,8 @@ data Details =
     { _outlineTime :: File.Time
     , _outline :: ValidOutline
     , _buildID :: BuildID
-    , _locals :: Map.Map ModuleName.Raw Local
-    , _foreigns :: Map.Map ModuleName.Raw Foreign
+    , _locals :: Map.Map Module.Name Local
+    , _foreigns :: Map.Map Module.Name Foreign
     , _extras :: Extras
     }
 
@@ -92,7 +92,7 @@ zero =
 
 data ValidOutline
   = ValidApp (NE.List Outline.SrcDir)
-  | ValidPkg Pkg.Name [ModuleName.Raw] (Map.Map Pkg.Name V.Version {- for docs in reactor -})
+  | ValidPkg Pkg.Name [Module.Name] (Map.Map Pkg.Name V.Version {- for docs in reactor -})
 
 
 -- NOTE: we need two ways to detect if a file must be recompiled:
@@ -112,7 +112,7 @@ data Local =
   Local
     { _path :: FilePath
     , _time :: File.Time
-    , _deps :: [ModuleName.Raw]
+    , _deps :: [Module.Name]
     , _main :: Bool
     , _lastChange :: BuildID
     , _lastCompile :: BuildID
@@ -352,7 +352,7 @@ addInterfaces directDeps pkg (Artifacts ifaces _) dependencyInterfaces =
       else Map.map I.privatize ifaces
 
 
-gatherForeigns :: Pkg.Name -> Artifacts -> Map.Map ModuleName.Raw (OneOrMore.OneOrMore Pkg.Name) -> Map.Map ModuleName.Raw (OneOrMore.OneOrMore Pkg.Name)
+gatherForeigns :: Pkg.Name -> Artifacts -> Map.Map Module.Name (OneOrMore.OneOrMore Pkg.Name) -> Map.Map Module.Name (OneOrMore.OneOrMore Pkg.Name)
 gatherForeigns pkg (Artifacts ifaces _) foreigns =
   let
     isPublic di =
@@ -369,7 +369,7 @@ gatherForeigns pkg (Artifacts ifaces _) foreigns =
 
 data Artifacts =
   Artifacts
-    { _ifaces :: Map.Map ModuleName.Raw I.DependencyInterface
+    { _ifaces :: Map.Map Module.Name I.DependencyInterface
     , _objects :: Opt.GlobalGraph
     }
 
@@ -489,21 +489,21 @@ build writer key cache depsMVar pkg (Solver.Details vsn _) f fs =
 -- GATHER
 
 
-gatherObjects :: Map.Map ModuleName.Raw Result -> Opt.GlobalGraph
+gatherObjects :: Map.Map Module.Name Result -> Opt.GlobalGraph
 gatherObjects results =
   Map.foldrWithKey addLocalGraph Opt.empty results
 
 
-addLocalGraph :: ModuleName.Raw -> Result -> Opt.GlobalGraph -> Opt.GlobalGraph
+addLocalGraph :: Module.Name -> Result -> Opt.GlobalGraph -> Opt.GlobalGraph
 addLocalGraph name status graph =
   case status of
     RLocal _ objs _ -> Opt.addLocalGraph objs graph
     RForeign _      -> graph
-    RKernelLocal cs -> Opt.addKernel (Name.getKernel name) cs graph
+    RKernelLocal cs -> Opt.addKernel (Module.getKernel name) cs graph
     RKernelForeign  -> graph
 
 
-gatherInterfaces :: Map.Map ModuleName.Raw () -> Map.Map ModuleName.Raw Result -> Map.Map ModuleName.Raw I.DependencyInterface
+gatherInterfaces :: Map.Map Module.Name () -> Map.Map Module.Name Result -> Map.Map Module.Name I.DependencyInterface
 gatherInterfaces exposed artifacts =
   let
     onLeft  = Map.mapMissing (\_ -> $(Crash.crash 'gatherInterfaces) "compiler bug")
@@ -531,7 +531,7 @@ data ForeignInterface
   | ForeignSpecific I.Interface
 
 
-gatherForeignInterfaces :: Map.Map Pkg.Name Artifacts -> Map.Map ModuleName.Raw ForeignInterface
+gatherForeignInterfaces :: Map.Map Pkg.Name Artifacts -> Map.Map Module.Name ForeignInterface
 gatherForeignInterfaces directArtifacts =
     Map.map (OneOrMore.destruct finalize) $
       Map.foldrWithKey gather Map.empty directArtifacts
@@ -542,7 +542,7 @@ gatherForeignInterfaces directArtifacts =
         [] -> ForeignSpecific i
         _:_ -> ForeignAmbiguous
 
-    gather :: Pkg.Name -> Artifacts -> Map.Map ModuleName.Raw (OneOrMore.OneOrMore I.Interface) -> Map.Map ModuleName.Raw (OneOrMore.OneOrMore I.Interface)
+    gather :: Pkg.Name -> Artifacts -> Map.Map Module.Name (OneOrMore.OneOrMore I.Interface) -> Map.Map Module.Name (OneOrMore.OneOrMore I.Interface)
     gather _ (Artifacts ifaces _) buckets =
       Map.unionWith OneOrMore.more buckets (Map.mapMaybe isPublic ifaces)
 
@@ -558,19 +558,19 @@ gatherForeignInterfaces directArtifacts =
 
 
 type StatusDict =
-  Map.Map ModuleName.Raw (Fork.SafeMVar (Maybe Status))
+  Map.Map Module.Name (Fork.SafeMVar (Maybe Status))
 
 
 data Status
-  = SLocal DocsStatus (Map.Map ModuleName.Raw ()) Src.Module
+  = SLocal DocsStatus (Map.Map Module.Name ()) Src.Module
   | SForeign I.Interface
   | SKernelLocal [Kernel.Chunk]
   | SKernelForeign
 
 
-crawlModule :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> ModuleName.Raw -> () -> IO (Maybe Status)
+crawlModule :: Map.Map Module.Name ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> Module.Name -> () -> IO (Maybe Status)
 crawlModule foreignDeps mvar pkg src docsStatus name () =
-  do  let path = src </> ModuleName.toFilePath name <.> "elm"
+  do  let path = src </> Module.toFilePath name <.> "elm"
       exists <- File.exists path
       case Map.lookup name foreignDeps of
         Just ForeignAmbiguous ->
@@ -585,14 +585,14 @@ crawlModule foreignDeps mvar pkg src docsStatus name () =
           if exists then
             crawlFile foreignDeps mvar pkg src docsStatus name path
 
-          else if Pkg.isKernel pkg && Name.isKernel name then
+          else if Pkg.isKernel pkg && Module.isKernel name then
             crawlKernel foreignDeps mvar pkg src name
 
           else
             return Nothing
 
 
-crawlFile :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> ModuleName.Raw -> FilePath -> IO (Maybe Status)
+crawlFile :: Map.Map Module.Name ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> Module.Name -> FilePath -> IO (Maybe Status)
 crawlFile foreignDeps mvar pkg src docsStatus expectedName path =
   do  bytes <- File.readUtf8 path
       result <- Parse.fromByteString (Parse.Package pkg) bytes
@@ -605,7 +605,7 @@ crawlFile foreignDeps mvar pkg src docsStatus expectedName path =
           return Nothing
 
 
-crawlImports :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> [Src.Import] -> IO (Map.Map ModuleName.Raw ())
+crawlImports :: Map.Map Module.Name ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> [Src.Import] -> IO (Map.Map Module.Name ())
 crawlImports foreignDeps mvar pkg src imports =
   do  statusDict <- takeMVar mvar
       let deps = Map.fromList (map (\i -> (Src.getImportName i, ())) imports)
@@ -616,9 +616,9 @@ crawlImports foreignDeps mvar pkg src imports =
       return deps
 
 
-crawlKernel :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> ModuleName.Raw -> IO (Maybe Status)
+crawlKernel :: Map.Map Module.Name ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> Module.Name -> IO (Maybe Status)
 crawlKernel foreignDeps mvar pkg src name =
-  do  let path = src </> ModuleName.toFilePath name <.> "js"
+  do  let path = src </> Module.toFilePath name <.> "js"
       exists <- File.exists path
       if exists
         then
@@ -653,7 +653,7 @@ data Result
   | RKernelForeign
 
 
-compile :: Pkg.Name -> MVar (Map.Map ModuleName.Raw (Fork.SafeMVar (Maybe Result))) -> ModuleName.Raw -> Status -> IO (Maybe Result)
+compile :: Pkg.Name -> MVar (Map.Map Module.Name (Fork.SafeMVar (Maybe Result))) -> Module.Name -> Status -> IO (Maybe Result)
 compile pkg mvar _ status =
   case status of
     SLocal docsStatus deps modul ->
@@ -722,7 +722,7 @@ makeDocs status modul =
       return Nothing
 
 
-writeDocs :: File.Writer Stuff.PACKAGES -> Stuff.PackageCache -> Pkg.Name -> V.Version -> DocsStatus -> Map.Map ModuleName.Raw Result -> IO ()
+writeDocs :: File.Writer Stuff.PACKAGES -> Stuff.PackageCache -> Pkg.Name -> V.Version -> DocsStatus -> Map.Map Module.Name Result -> IO ()
 writeDocs writer cache pkg vsn status results =
   case status of
     DocsNeeded ->
@@ -774,8 +774,8 @@ downloadPackage cache manager pkg vsn =
 
 endpointDecoder :: JD.Decoder e (String, String)
 endpointDecoder =
-  do  url <- JD.field "url" JD.string
-      hash <- JD.field "hash" JD.string
+  do  url <- JD.field "url" JD.jsonString
+      hash <- JD.field "hash" JD.jsonString
       return (Utf8.toChars url, Utf8.toChars hash)
 
 
@@ -788,8 +788,8 @@ eDetails (Details t o i l f _) =
   File.eTime t
   <> eValidOutline o
   <> eBuildID i
-  <> E.dict32 ModuleName.eRaw eLocal l
-  <> E.dict32 ModuleName.eRaw eForeign f
+  <> E.dict32 Module.eName eLocal l
+  <> E.dict32 Module.eName eForeign f
 
 
 dDetails :: D.Decoder Details
@@ -797,8 +797,8 @@ dDetails =
   do  t <- File.dTime
       o <- dValidOutline
       i <- dBuildID
-      l <- D.dict32 ModuleName.dRaw dLocal
-      f <- D.dict32 ModuleName.dRaw dForeign
+      l <- D.dict32 Module.dName dLocal
+      f <- D.dict32 Module.dName dForeign
       return (Details t o i l f ArtifactsCached)
 
 
@@ -806,7 +806,7 @@ eValidOutline :: ValidOutline -> E.Builder
 eValidOutline outline =
   case outline of
     ValidApp s     -> E.u8# 0#Word8 <> NE.eList32 Outline.eSrcDir s
-    ValidPkg p m d -> E.u8# 1#Word8 <> Pkg.eName p <> E.list32 ModuleName.eRaw m <> E.dict32 Pkg.eName V.eVersion d
+    ValidPkg p m d -> E.u8# 1#Word8 <> Pkg.eName p <> E.list32 Module.eName m <> E.dict32 Pkg.eName V.eVersion d
 
 
 dValidOutline :: D.Decoder ValidOutline
@@ -814,7 +814,7 @@ dValidOutline =
   do  tag <- D.u8
       case tag of
         0 -> liftM  ValidApp (NE.dList32 Outline.dSrcDir)
-        1 -> liftM3 ValidPkg Pkg.dName (D.list32 ModuleName.dRaw) (D.dict32 Pkg.dName V.dVersion)
+        1 -> liftM3 ValidPkg Pkg.dName (D.list32 Module.dName) (D.dict32 Pkg.dName V.dVersion)
         _ -> D.expecting "ValidOutline"
 
 
@@ -830,14 +830,14 @@ dBuildID =
 
 eLocal :: Local -> E.Builder
 eLocal (Local p t d m i j) =
-  E.chars64 p <> File.eTime t <> E.list32 ModuleName.eRaw d <> E.bool m <> eBuildID i <> eBuildID j
+  E.chars64 p <> File.eTime t <> E.list32 Module.eName d <> E.bool m <> eBuildID i <> eBuildID j
 
 
 dLocal :: D.Decoder Local
 dLocal =
   do  p <- D.chars64
       t <- File.dTime
-      d <- D.list32 ModuleName.dRaw
+      d <- D.list32 Module.dName
       m <- D.bool
       i <- dBuildID
       j <- dBuildID
@@ -856,12 +856,12 @@ dForeign =
 
 eArtifacts :: Artifacts -> E.Builder
 eArtifacts (Artifacts i o) =
-  E.dict32 ModuleName.eRaw I.eDependencyInterface i <> Opt.eGlobalGraph o
+  E.dict32 Module.eName I.eDependencyInterface i <> Opt.eGlobalGraph o
 
 
 dArtifacts :: D.Decoder Artifacts
 dArtifacts =
-  liftM2 Artifacts (D.dict32 ModuleName.dRaw I.dDependencyInterface) Opt.dGlobalGraph
+  liftM2 Artifacts (D.dict32 Module.dName I.dDependencyInterface) Opt.dGlobalGraph
 
 
 eArtifactCache :: ArtifactCache -> E.Builder

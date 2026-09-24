@@ -1,4 +1,4 @@
-{-# LANGUAGE ExtendedLiterals, MagicHash, MultiWayIf, OverloadedStrings #-}
+{-# LANGUAGE ExtendedLiterals, MagicHash, MultiWayIf, OverloadedStrings, QuasiQuotes #-}
 module Elm.Outline
   ( Outline(..)
   , AppOutline(..)
@@ -30,10 +30,11 @@ import System.FilePath ((</>))
 
 import qualified Bytes.Decode as D
 import qualified Bytes.Encode as E
+import qualified String as S
 
+import qualified AST.Prim.Module as Module
 import qualified Elm.Constraint as Con
 import qualified Elm.Licenses as Licenses
-import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
 import qualified File
@@ -79,8 +80,8 @@ data PkgOutline =
 
 
 data Exposed
-  = ExposedList [ModuleName.Raw]
-  | ExposedDict [(Json.String, [ModuleName.Raw])]
+  = ExposedList [Module.Name]
+  | ExposedDict [(Json.String, [Module.Name])]
 
 
 data SrcDir
@@ -101,7 +102,7 @@ defaultSummary =
 -- HELPERS
 
 
-flattenExposed :: Exposed -> [ModuleName.Raw]
+flattenExposed :: Exposed -> [Module.Name]
 flattenExposed exposed =
   case exposed of
     ExposedList names ->
@@ -146,9 +147,9 @@ encode outline =
 
     Pkg (PkgOutline name summary license version exposed deps tests elm) ->
       JE.object
-        [ "type" ==> JE.string (Json.fromChars "package")
+        [ "type" ==> JE.string [S.ascii|package|]
         , "name" ==> Pkg.encode name
-        , "summary" ==> JE.string summary
+        , "summary" ==> JE.jsonString summary
         , "license" ==> Licenses.encode license
         , "version" ==> V.encode version
         , "exposed-modules" ==> encodeExposed exposed
@@ -162,15 +163,10 @@ encodeExposed :: Exposed -> JE.Value
 encodeExposed exposed =
   case exposed of
     ExposedList modules ->
-      JE.list encodeModule modules
+      JE.list Module.jsonEncodeName modules
 
     ExposedDict chunks ->
-      JE.object (map (fmap (JE.list encodeModule)) chunks)
-
-
-encodeModule :: ModuleName.Raw -> JE.Value
-encodeModule name =
-  JE.name name
+      JE.object (map (fmap (JE.list Module.jsonEncodeName)) chunks)
 
 
 encodeDeps :: (a -> JE.Value) -> Map.Map Pkg.Name a -> JE.Value
@@ -281,7 +277,7 @@ decoder =
     application = Json.fromChars "application"
     package     = Json.fromChars "package"
   in
-  do  tipe <- JD.field "type" JD.string
+  do  tipe <- JD.field "type" JD.jsonString
       if  | tipe == application -> App <$> appDecoder
           | tipe == package     -> Pkg <$> pkgDecoder
           | otherwise           -> JD.failure Exit.OP_BadType
@@ -344,7 +340,7 @@ depsDecoder valueDecoder =
 
 dirsDecoder :: Decoder (NE.List SrcDir)
 dirsDecoder =
-  fmap (toSrcDir . Json.toChars) <$> JD.nonEmptyList JD.string Exit.OP_NoSrcDirs
+  fmap (toSrcDir . Json.toChars) <$> JD.nonEmptyList JD.jsonString Exit.OP_NoSrcDirs
 
 
 toSrcDir :: FilePath -> SrcDir
@@ -366,9 +362,9 @@ exposedDecoder =
     ]
 
 
-moduleDecoder :: Decoder ModuleName.Raw
+moduleDecoder :: Decoder Module.Name
 moduleDecoder =
-  JD.mapError Exit.OP_BadModuleName ModuleName.decoder
+  Module.jsonDecodeName Exit.OP_BadModuleName
 
 
 headerKeyDecoder :: JD.KeyDecoder Exit.OutlineProblem Json.String
