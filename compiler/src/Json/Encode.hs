@@ -8,7 +8,7 @@ module Json.Encode
   , array
   , object
   , string
-  , name
+  , jsonString
   , chars
   , bool
   , int
@@ -27,11 +27,11 @@ import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Builder as B
 import qualified Data.Map as Map
 import qualified Data.Scientific as Sci
-import qualified Data.Name as Name
 import qualified Data.Utf8 as Utf8
 
 import qualified File
 import qualified Json.String as Json
+import qualified String as S
 
 
 
@@ -58,14 +58,14 @@ object =
   Object
 
 
-string :: Json.String -> Value
+string :: S.String -> Value
 string str =
+  String (B.char7 '"' <> S.toBuilder str <> B.char7 '"')
+
+
+jsonString :: Json.String -> Value
+jsonString str =
   String (B.char7 '"' <> Json.toBuilder str <> B.char7 '"')
-
-
-name :: Name.Name -> Value
-name nm =
-  String (B.char7 '"' <> Name.toBuilder nm <> B.char7 '"')
 
 
 bool :: Bool -> Value

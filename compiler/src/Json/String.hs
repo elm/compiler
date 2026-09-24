@@ -7,7 +7,7 @@ module Json.String
   , isEmpty
   --
   , fromAddr
-  , fromName
+  , fromStringUnsafe
   , fromChars
   , fromSnippet
   , fromComment
@@ -20,8 +20,6 @@ module Json.String
 
 import Prelude hiding (String)
 import qualified Data.ByteString.Builder as B
-import qualified Data.Coerce as Coerce
-import qualified Data.Name as Name
 import qualified Data.Utf8 as Utf8
 import GHC.Exts (isTrue#)
 import GHC.ForeignPtr (ForeignPtrContents)
@@ -31,6 +29,7 @@ import GHC.IO (IO(IO))
 import System.IO.Unsafe (unsafePerformIO)
 
 import qualified Crash
+import qualified String as S
 
 import qualified Parse.Primitives as P
 
@@ -73,9 +72,9 @@ fromSnippet =
   Utf8.fromSnippet
 
 
-fromName :: Name.Name -> String
-fromName =
-  Coerce.coerce
+fromStringUnsafe :: S.String -> String
+fromStringUnsafe (S.String ba) =
+  Utf8.Utf8 ba
 
 
 

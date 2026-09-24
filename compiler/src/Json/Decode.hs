@@ -5,7 +5,7 @@ QuasiQuotes, Rank2Types, TemplateHaskell, UnboxedTuples
 module Json.Decode
   ( fromByteString
   , Decoder
-  , string
+  , jsonString
   , customString
   , bool
   , int
@@ -148,8 +148,8 @@ instance Monad (Decoder x) where
 -- STRINGS
 
 
-string :: Decoder x Json.String
-string =
+jsonString :: Decoder x Json.String
+jsonString =
   Decoder $ \(A.At region ast) ok err ->
     case ast of
       String snippet ->
