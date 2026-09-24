@@ -35,7 +35,7 @@ import qualified System.Exit as Exit
 import qualified System.Info as Info
 import System.IO (hFlush, hPutStr, hPutStrLn, stderr, stdout)
 
-import qualified Elm.ModuleName as ModuleName
+import qualified AST.Prim.Module as Module
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
 import qualified Json.Encode as Encode
@@ -378,7 +378,7 @@ toFinalMessage done result =
 -- GENERATE
 
 
-reportGenerate :: Style -> NE.List ModuleName.Raw -> FilePath -> IO ()
+reportGenerate :: Style -> NE.List Module.Name -> FilePath -> IO ()
 reportGenerate style names output =
   case style of
     Silent ->
@@ -389,7 +389,7 @@ reportGenerate style names output =
 
     Terminal mvar ->
       do  readMVar mvar
-          let cnames = fmap ModuleName.toChars names
+          let cnames = fmap Module.toChars names
           putStrLn ('\n' : toGenDiagram cnames output)
 
 

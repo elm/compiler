@@ -34,7 +34,6 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.UTF8 as BS_UTF8
 import qualified Data.List as List
 import qualified Data.Map as Map
-import qualified Data.Name as N
 import qualified Data.NonEmptyList as NE
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Types.Header as HTTP
@@ -44,9 +43,9 @@ import System.FilePath ((</>), (<.>))
 
 import qualified Graph
 
+import qualified AST.Prim.Module as Module
 import qualified Elm.Constraint as C
 import qualified Elm.Magnitude as M
-import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
 import qualified File
@@ -1599,7 +1598,7 @@ data Make
   | MakePkgNeedsExposing
   | MakeMultipleFilesIntoHtml
   | MakeNoMain
-  | MakeNonMainFilesIntoJavaScript ModuleName.Raw [ModuleName.Raw]
+  | MakeNonMainFilesIntoJavaScript Module.Name [Module.Name]
   | MakeCannotBuild BuildProblem
   | MakeBadGenerate Generate
 
@@ -1705,7 +1704,7 @@ makeToReport make =
           Help.report "NO MAIN" Nothing
             (
               "When producing a JS file, I require that the given file has a `main` value. That\
-              \ way Elm." ++ ModuleName.toChars m ++ ".init() is definitely defined in the\
+              \ way Elm." ++ Module.toChars m ++ ".init() is definitely defined in the\
               \ resulting file!"
             )
             [ D.reflow $
@@ -1729,10 +1728,10 @@ makeToReport make =
           Help.report "NO MAIN" Nothing
             (
               "When producing a JS file, I require that given files all have `main` values.\
-              \ That way functions like Elm." ++ ModuleName.toChars m ++ ".init() are\
+              \ That way functions like Elm." ++ Module.toChars m ++ ".init() are\
               \ definitely defined in the resulting file. I am missing `main` values in:"
             )
-            [ D.indent 4 $ D.red $ D.vcat $ map D.fromName (m:ms)
+            [ D.indent 4 $ D.red $ D.vcat $ map D.fromModule (m:ms)
             , D.reflow $
                 "Try adding a `main` value to them? Or if you just want to verify that these\
                 \ modules compile, switch to --output=/dev/null to skip the code gen phase\
@@ -1771,11 +1770,11 @@ data BuildProjectProblem
   | BP_WithBadExtension FilePath
   | BP_WithAmbiguousSrcDir FilePath FilePath FilePath
   | BP_MainPathDuplicate FilePath FilePath
-  | BP_RootNameDuplicate ModuleName.Raw FilePath FilePath
+  | BP_RootNameDuplicate Module.Name FilePath FilePath
   | BP_RootNameInvalid FilePath FilePath [String]
   | BP_CannotLoadDependencies
-  | BP_Cycle (Graph.MinimalCycle ModuleName.Raw)
-  | BP_MissingExposed (NE.List (ModuleName.Raw, Import.Problem))
+  | BP_Cycle (Graph.MinimalCycle Module.Name)
+  | BP_MissingExposed (NE.List (Module.Name, Import.Problem))
 
 
 toBuildProblemReport :: BuildProblem -> Help.Report
@@ -1844,7 +1843,7 @@ toProjectProblemReport projectProblem =
         "These two files are causing a module name clash:"
         [ D.indent 4 $ D.red $ D.vcat $ map D.fromChars [ outsidePath, otherPath ]
         , D.reflow $
-            "They both say `module " ++ ModuleName.toChars name ++ " exposing (..)` up\
+            "They both say `module " ++ Module.toChars name ++ " exposing (..)` up\
             \ at the top, but they cannot have the same name!"
         , D.reflow $
             "Try changing to a different module name in one of them!"
@@ -1874,7 +1873,7 @@ toProjectProblemReport projectProblem =
     BP_Cycle cycle ->
       Help.report "IMPORT CYCLE" Nothing
         "Your module imports form a cycle:"
-        [ D.cycle 4 cycle
+        [ D.cycle cycle D.fromModule
         , D.reflow $
             "Learn more about why this is disallowed and how to break cycles here:"
             ++ D.makeLink "import-cycles"
@@ -1885,7 +1884,7 @@ toProjectProblemReport projectProblem =
         Import.NotFound ->
           Help.report "MISSING MODULE" (Just "elm.json")
             "The  \"exposed-modules\" of your elm.json lists the following module:"
-            [ D.indent 4 $ D.red $ D.fromName name
+            [ D.indent 4 $ D.red $ D.fromModule name
             , D.reflow $
                 "But I cannot find it in your src/ directory. Is there a typo? Was it renamed?"
             ]
@@ -1893,7 +1892,7 @@ toProjectProblemReport projectProblem =
         Import.Ambiguous _ _ pkg _ ->
           Help.report "AMBIGUOUS MODULE NAME" (Just "elm.json")
             "The  \"exposed-modules\" of your elm.json lists the following module:"
-            [ D.indent 4 $ D.red $ D.fromName name
+            [ D.indent 4 $ D.red $ D.fromModule name
             , D.reflow $
                 "But a module from " ++ Pkg.toChars pkg ++ " already uses that name. Try\
                 \ choosing a different name for your local file."
@@ -1902,7 +1901,7 @@ toProjectProblemReport projectProblem =
         Import.AmbiguousLocal path1 path2 paths ->
           Help.report "AMBIGUOUS MODULE NAME" (Just "elm.json")
             "The  \"exposed-modules\" of your elm.json lists the following module:"
-            [ D.indent 4 $ D.red $ D.fromName name
+            [ D.indent 4 $ D.red $ D.fromModule name
             , D.reflow $
                 "But I found multiple files with that name:"
             , D.dullyellow $ D.indent 4 $ D.vcat $
@@ -1914,7 +1913,7 @@ toProjectProblemReport projectProblem =
         Import.AmbiguousForeign _ _ _ ->
           Help.report "MISSING MODULE" (Just "elm.json")
             "The  \"exposed-modules\" of your elm.json lists the following module:"
-            [ D.indent 4 $ D.red $ D.fromName name
+            [ D.indent 4 $ D.red $ D.fromModule name
             , D.reflow $
                 "But I cannot find it in your src/ directory. Is there a typo? Was it renamed?"
             , D.toSimpleNote $
@@ -1956,7 +1955,7 @@ toModuleNameConventionTable srcDir names =
 
 data Generate
   = GenerateCannotLoadArtifacts
-  | GenerateCannotOptimizeDebugValues ModuleName.Raw [ModuleName.Raw]
+  | GenerateCannotOptimizeDebugValues Module.Name [Module.Name]
 
 
 toGenerateReport :: Generate -> Help.Report
@@ -1968,7 +1967,7 @@ toGenerateReport problem =
     GenerateCannotOptimizeDebugValues m ms ->
       Help.report "DEBUG REMNANTS" Nothing
         "There are uses of the `Debug` module in the following modules:"
-        [ D.indent 4 $ D.red $ D.vcat $ map (D.fromChars . ModuleName.toChars) (m:ms)
+        [ D.indent 4 $ D.red $ D.vcat $ map D.fromModule (m:ms)
         , D.reflow "But the --optimize flag only works if all `Debug` functions are removed!"
         , D.toSimpleNote $
             "The issue is that --optimize strips out info needed by `Debug` functions.\
@@ -2057,7 +2056,7 @@ replToReport problem =
       toDetailsReport details
 
     ReplBadInput source err ->
-      Help.compilerReport "/" (Error.Module N.replModule "REPL" File.zeroTime source err) []
+      Help.compilerReport "/" (Error.Module Module.repl "REPL" File.zeroTime source err) []
 
     ReplBadLocalDeps root e es ->
       Help.compilerReport root e es
