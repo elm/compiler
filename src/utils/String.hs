@@ -19,7 +19,9 @@ module String
   , fromFinal
   , fromAddr
   , fromChars
-  , append
+  --
+  , join
+  , split
   --
   , writeChars
   , getWidths
@@ -294,24 +296,65 @@ fromChars chars0 =
 
 
 
--- APPEND
+-- JOIN
 
 
-{-# INLINE append #-}
-append :: String -> String -> String
-append (String ba1) (String ba2) =
-  runST (ST (\s0 ->
-    let
-      !len1 = sizeofByteArray# ba1
-      !len2 = sizeofByteArray# ba2
-    in
-    case newByteArray# (len1 +# len2)        s0 of { (# s1, mba #) ->
-    case copyByteArray# ba1 0# mba 0#   len1 s1 of {    s2         ->
-    case copyByteArray# ba2 0# mba len1 len2 s2 of {    s3         ->
-    case unsafeFreezeByteArray# mba          s3 of { (# s4, ba  #) ->
-      (# s4, String ba #)
-    }}}}
-  ))
+{-# INLINE join #-}
+join :: String -> Word8# -> String -> String
+join (String ba1) w (String ba2) =
+  runST $ ST $ \s0 ->
+    case newByteArray# (len1 +# 1# +# len2)          s0 of { (# s1, mba #) ->
+    case copyByteArray# ba1 0# mba 0# len1           s1 of {    s2         ->
+    case writeWord8Array# mba len1 w                 s2 of {    s3         ->
+    case copyByteArray# ba2 0# mba (len1 +# 1#) len2 s3 of {    s4         ->
+    case unsafeFreezeByteArray# mba                  s4 of { (# s5, ba  #) ->
+      (# s5, String ba #)
+    }}}}}
+  where
+    !len1 = sizeofByteArray# ba1
+    !len2 = sizeofByteArray# ba2
+
+
+
+-- SPLIT
+
+
+split :: Word8# -> String -> [String]
+split sep (String ba) =
+    go 0# (findDividers sep ba 0# len [])
+  where
+    !len = sizeofByteArray# ba
+
+    go start offsets =
+      case offsets of
+        []        -> [ unsafeSlice ba start len ]
+        I# o : os -> unsafeSlice ba start o : go (o +# 1#) os
+
+
+findDividers :: Word8# -> ByteArray# -> Int# -> Int# -> [Int] -> [Int]
+findDividers sep ba i len revOffsets =
+  if isTrue# (i <# len) then
+    findDividers sep ba (i +# 1#) len $
+      if isTrue# (eqWord8# sep (indexWord8Array# ba i))
+      then I# i : revOffsets
+      else revOffsets
+  else
+    reverse revOffsets
+
+
+unsafeSlice :: ByteArray# -> Int# -> Int# -> String
+unsafeSlice ba start end =
+  if isTrue# (start ==# end)
+  then empty
+  else
+    runST $ ST $ \s0 ->
+      case newByteArray# len                  s0 of { (# s1, mba #) ->
+      case copyByteArray# ba start mba 0# len s1 of {    s2         ->
+      case unsafeFreezeByteArray# mba         s2 of { (# s3, str #) ->
+        (# s3, String str #)
+      }}}
+  where
+    !len = end -# start
 
 
 
