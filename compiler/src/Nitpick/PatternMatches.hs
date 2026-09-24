@@ -20,12 +20,14 @@ http://moscova.inria.fr/~maranget/papers/warn/warn.pdf
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
-import qualified Data.Name as Name
 import qualified Data.NonEmptyList as NE
 
 import qualified Crash
 
 import qualified AST.Canonical as Can
+import qualified AST.Prim.Name as N
+import qualified AST.Prim.TypeName as T
+import qualified AST.Prim.TypeVar as T
 import qualified Data.Index as Index
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.String as ES
@@ -39,7 +41,7 @@ import qualified Reporting.Annotation as A
 data Pattern
   = Anything
   | Literal Literal
-  | Ctor Can.Union Name.Name [Pattern]
+  | Ctor Can.Union N.Name [Pattern]
 
 
 data Literal
@@ -56,31 +58,33 @@ data Literal
 simplify :: Can.Pattern -> Pattern
 simplify (A.At _ pattern) =
   case pattern of
-    Can.PAnything           -> Anything
-    Can.PVar _              -> Anything
-    Can.PRecord _           -> Anything
-    Can.PInt n              -> Literal (Int n)
-    Can.PStr s              -> Literal (Str s)
-    Can.PChr c              -> Literal (Chr c)
-    Can.PBool union bool    -> Ctor union (if bool then Name.true else Name.false) []
-    Can.PUnit               -> Ctor unit unitName []
-    Can.PTuple a b Nothing  -> Ctor pair pairName [ simplify a, simplify b ]
-    Can.PTuple a b (Just c) -> Ctor triple tripleName [ simplify a, simplify b, simplify c ]
-    Can.PList ps            -> foldr cons nil ps
-    Can.PCons p ps          -> cons p (simplify ps)
-    Can.PAlias p _          -> simplify p
-    Can.PCtor _ _ u n _ ps  -> Ctor u n $ map (\(Can.PatternCtorArg _ _ arg) -> simplify arg) ps
+    Can.PAnything          -> Anything
+    Can.PVar _             -> Anything
+    Can.PRecord _          -> Anything
+    Can.PInt n             -> Literal (Int n)
+    Can.PStr s             -> Literal (Str s)
+    Can.PChr c             -> Literal (Chr c)
+    Can.PBool u b          -> Ctor u (if b then N.true else N.false) []
+    Can.PUnit              -> Ctor unit N.unit []
+    Can.PList ps           -> foldr cons nil ps
+    Can.PCons p ps         -> cons p (simplify ps)
+    Can.PAlias p _         -> simplify p
+    Can.PCtor _ _ u n _ ps -> Ctor u n $ map (\(Can.PatternCtorArg _ _ arg) -> simplify arg) ps
+    Can.PTuple a b mc      ->
+      case mc of
+        Nothing -> Ctor pair   N.pair   [ simplify a, simplify b ]
+        Just c  -> Ctor triple N.triple [ simplify a, simplify b, simplify c ]
 
 
 cons :: Can.Pattern -> Pattern -> Pattern
 cons hd tl =
-  Ctor list consName [ simplify hd, tl ]
+  Ctor list N.cons [ simplify hd, tl ]
 
 
 {-# NOINLINE nil #-}
 nil :: Pattern
 nil =
-  Ctor list nilName []
+  Ctor list N.nil []
 
 
 
@@ -91,7 +95,7 @@ nil =
 unit :: Can.Union
 unit =
   let
-    ctor = Can.Ctor unitName Index.first 0 []
+    ctor = Can.Ctor N.unit Index.first 0 []
   in
   Can.Union [] [ ctor ] 1 Can.Normal
 
@@ -99,19 +103,18 @@ unit =
 {-# NOINLINE pair #-}
 pair :: Can.Union
 pair =
-  let
-    ctor = Can.Ctor pairName Index.first 2 [Can.TVar "a", Can.TVar "b"]
-  in
-  Can.Union ["a","b"] [ ctor ] 1 Can.Normal
+    Can.Union [T.a,T.b] [ ctor ] 1 Can.Normal
+  where
+    ctor = Can.Ctor N.pair Index.first 2 [Can.TVar T.a, Can.TVar T.b]
 
 
 {-# NOINLINE triple #-}
 triple :: Can.Union
 triple =
   let
-    ctor = Can.Ctor tripleName Index.first 3 [Can.TVar "a", Can.TVar "b", Can.TVar "c"]
+    ctor = Can.Ctor N.triple Index.first 3 [Can.TVar T.a, Can.TVar T.b, Can.TVar T.c]
   in
-  Can.Union ["a","b","c"] [ ctor ] 1 Can.Normal
+  Can.Union [T.a,T.b,T.c] [ ctor ] 1 Can.Normal
 
 
 {-# NOINLINE list #-}
@@ -119,22 +122,15 @@ list :: Can.Union
 list =
   let
     nilCtor =
-      Can.Ctor nilName Index.first 0 []
+      Can.Ctor N.nil Index.first 0 []
 
     consCtor =
-      Can.Ctor consName Index.second 2
-        [ Can.TVar "a"
-        , Can.TType ModuleName.list Name.list [Can.TVar "a"]
+      Can.Ctor N.cons Index.second 2
+        [ Can.TVar T.a
+        , Can.TType ModuleName.list T.list [Can.TVar T.a]
         ]
   in
-  Can.Union ["a"] [ nilCtor, consCtor ] 2 Can.Normal
-
-
-{-# NOINLINE unitName   #-}; unitName   :: Name.Name; unitName   = "#0"
-{-# NOINLINE pairName   #-}; pairName   :: Name.Name; pairName   = "#2"
-{-# NOINLINE tripleName #-}; tripleName :: Name.Name; tripleName = "#3"
-{-# NOINLINE consName   #-}; consName   :: Name.Name; consName   = "::"
-{-# NOINLINE nilName    #-}; nilName    :: Name.Name; nilName    = "[]"
+  Can.Union [T.a] [ nilCtor, consCtor ] 2 Can.Normal
 
 
 
@@ -342,7 +338,7 @@ isExhaustive matrix n =
           concatMap isAltExhaustive altList
 
 
-isMissing :: Can.Union -> Map.Map Name.Name a -> Can.Ctor -> Maybe Pattern
+isMissing :: Can.Union -> Map.Map N.Name a -> Can.Ctor -> Maybe Pattern
 isMissing union ctors (Can.Ctor name _ arity _) =
   if Map.member name ctors then
     Nothing
@@ -350,7 +346,7 @@ isMissing union ctors (Can.Ctor name _ arity _) =
     Just (Ctor union name (replicate arity Anything))
 
 
-recoverCtor :: Can.Union -> Name.Name -> Int -> [Pattern] -> [Pattern]
+recoverCtor :: Can.Union -> N.Name -> Int -> [Pattern] -> [Pattern]
 recoverCtor union name arity patterns =
   let
     (args, rest) =
@@ -436,7 +432,7 @@ isUseful matrix vector =
 
 
 -- INVARIANT: (length row == N) ==> (length result == arity + N - 1)
-specializeRowByCtor :: Name.Name -> Int -> [Pattern] -> Maybe [Pattern]
+specializeRowByCtor :: N.Name -> Int -> [Pattern] -> Maybe [Pattern]
 specializeRowByCtor ctorName arity row =
   case row of
     Ctor _ name args : patterns ->
@@ -515,12 +511,12 @@ isComplete matrix =
 -- COLLECT CTORS
 
 
-collectCtors :: [[Pattern]] -> Map.Map Name.Name Can.Union
+collectCtors :: [[Pattern]] -> Map.Map N.Name Can.Union
 collectCtors matrix =
   List.foldl' collectCtorsHelp Map.empty matrix
 
 
-collectCtorsHelp :: Map.Map Name.Name Can.Union -> [Pattern] -> Map.Map Name.Name Can.Union
+collectCtorsHelp :: Map.Map N.Name Can.Union -> [Pattern] -> Map.Map N.Name Can.Union
 collectCtorsHelp ctors row =
   case row of
     Ctor union name _ : _ -> Map.insert name union ctors
