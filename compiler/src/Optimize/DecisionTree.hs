@@ -27,7 +27,6 @@ import Control.Arrow (second)
 import Control.Monad (liftM, liftM2, liftM5)
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
-import qualified Data.Name as Name
 import qualified Data.Set as Set
 
 import qualified Bytes.Decode as D
@@ -35,8 +34,8 @@ import qualified Bytes.Encode as E
 import qualified Crash
 
 import qualified AST.Canonical as Can
+import qualified AST.Prim.Name as N
 import qualified Data.Index as Index
-import qualified Data.Utf8 as Utf8
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.String as ES
 import qualified Reporting.Annotation as A
@@ -78,7 +77,7 @@ data DecisionTree
 
 
 data Test
-  = IsCtor ModuleName.Canonical Name.Name Index.ZeroBased Int Can.CtorOpts
+  = IsCtor ModuleName.Canonical N.Name Index.ZeroBased Int Can.CtorOpts
   | IsCons
   | IsNil
   | IsTuple
@@ -175,14 +174,12 @@ flatten pathPattern@(path, A.At region pattern) otherPathPatterns =
       else
         pathPattern : otherPathPatterns
 
-    Can.PPair a b ->
-      flatten (Index Index.first  path, a) $
-      flatten (Index Index.second path, b) otherPathPatterns
-
-    Can.PTriple a b c ->
+    Can.PTuple a b mc ->
       flatten (Index Index.first  path, a) $
       flatten (Index Index.second path, b) $
-      flatten (Index Index.third  path, c) otherPathPatterns
+        case mc of
+          Nothing -> otherPathPatterns
+          Just c  -> flatten (Index Index.third path, c) otherPathPatterns
 
     Can.PAlias realPattern alias ->
       flatten (path, realPattern) $
@@ -315,8 +312,7 @@ toRelevantBranch test path branch@(Branch goal pathPatterns) =
           Can.PInt n        -> case test of { IsInt  n' | n == n' -> Just (Branch goal (start ++ end)) ; _ -> Nothing }
           Can.PBool _ b     -> case test of { IsBool b' | b == b' -> Just (Branch goal (start ++ end)) ; _ -> Nothing }
           Can.PUnit         -> Just (Branch goal (start ++ end))
-          Can.PPair   a b   -> Just (Branch goal (start ++ subPositions path [a,b]   ++ end))
-          Can.PTriple a b c -> Just (Branch goal (start ++ subPositions path [a,b,c] ++ end))
+          Can.PTuple a b mc -> Just (Branch goal (start ++ subPositions path (a : b : Maybe.maybeToList mc) ++ end))
           Can.PVar _        -> Just branch
           Can.PAnything     -> Just branch
           Can.PRecord _     -> Just branch
@@ -440,7 +436,7 @@ smallBranchingFactor branches path =
 eTest :: Test -> E.Builder
 eTest test =
   case test of
-    IsCtor h n i a o -> E.u8# 0#Word8 <> ModuleName.eCanonical h <> Utf8.encode8 n <> Index.eZeroBased i <> E.int a <> Can.eCtorOpts o
+    IsCtor h n i a o -> E.u8# 0#Word8 <> ModuleName.eCanonical h <> N.encode n <> Index.eZeroBased i <> E.int a <> Can.eCtorOpts o
     IsCons           -> E.u8# 1#Word8
     IsNil            -> E.u8# 2#Word8
     IsTuple          -> E.u8# 3#Word8
@@ -454,7 +450,7 @@ dTest :: D.Decoder Test
 dTest =
   do  tag <- D.u8
       case tag of
-        0 -> liftM5 IsCtor ModuleName.dCanonical Utf8.decode8 Index.dZeroBased D.int Can.dCtorOpts
+        0 -> liftM5 IsCtor ModuleName.dCanonical N.decode Index.dZeroBased D.int Can.dCtorOpts
         1 -> pure   IsCons
         2 -> pure   IsNil
         3 -> pure   IsTuple

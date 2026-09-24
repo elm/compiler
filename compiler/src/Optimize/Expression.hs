@@ -10,11 +10,12 @@ module Optimize.Expression
 import Prelude hiding (cycle)
 import Control.Monad (foldM)
 import qualified Data.Map as Map
-import qualified Data.Name as Name
 import qualified Data.Set as Set
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
+import qualified AST.Prim.Module as Module
+import qualified AST.Prim.Name as N
 import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
 import qualified Elm.ModuleName as ModuleName
@@ -28,7 +29,7 @@ import qualified Reporting.Annotation as A
 
 
 type Cycle =
-  Set.Set Name.Name
+  Set.Set N.Name
 
 
 optimize :: Cycle -> Can.Expr -> Names.Tracker Opt.Expr
@@ -59,7 +60,7 @@ optimize cycle (A.At region expression) =
       Names.registerGlobal home name
 
     Can.Chr chr ->
-      Names.registerKernel Name.utils (Opt.Chr chr)
+      Names.registerKernel Module.kernel_utils (Opt.Chr chr)
 
     Can.Str str ->
       pure (Opt.Str str)
@@ -71,11 +72,11 @@ optimize cycle (A.At region expression) =
       pure (Opt.Float float)
 
     Can.List entries ->
-      Names.registerKernel Name.list Opt.List
+      Names.registerKernel Module.kernel_list Opt.List
         <*> traverse (optimize cycle) entries
 
     Can.Negate expr ->
-      do  func <- Names.registerGlobal ModuleName.basics Name.negate
+      do  func <- Names.registerGlobal ModuleName.basics N.negate
           arg <- optimize cycle expr
           pure $ Opt.Call func [arg]
 
@@ -161,10 +162,10 @@ optimize cycle (A.At region expression) =
         <*> traverse (optimize cycle) fields
 
     Can.Unit ->
-      Names.registerKernel Name.utils Opt.Unit
+      Names.registerKernel Module.kernel_utils Opt.Unit
 
     Can.Tuple a b maybeC ->
-      Names.registerKernel Name.utils Opt.Tuple
+      Names.registerKernel Module.kernel_utils Opt.Tuple
         <*> optimize cycle a
         <*> optimize cycle b
         <*> traverse (optimize cycle) maybeC
@@ -196,7 +197,7 @@ optimizeDef cycle def body =
       optimizeDefHelp cycle name (map fst typedArgs) expr body
 
 
-optimizeDefHelp :: Cycle -> Name.Name -> [Can.Pattern] -> Can.Expr -> Opt.Expr -> Names.Tracker Opt.Expr
+optimizeDefHelp :: Cycle -> N.Name -> [Can.Pattern] -> Can.Expr -> Opt.Expr -> Names.Tracker Opt.Expr
 optimizeDefHelp cycle name args expr body =
   do  oexpr <- optimize cycle expr
       case args of
@@ -213,18 +214,18 @@ optimizeDefHelp cycle name args expr body =
 -- DESTRUCTURING
 
 
-destructArgs :: [Can.Pattern] -> Names.Tracker ([Name.Name], [Opt.Destructor])
+destructArgs :: [Can.Pattern] -> Names.Tracker ([N.Name], [Opt.Destructor])
 destructArgs args =
   do  (argNames, destructorLists) <- unzip <$> traverse destruct args
       return (argNames, concat destructorLists)
 
 
-destructCase :: Name.Name -> Can.Pattern -> Names.Tracker [Opt.Destructor]
+destructCase :: N.Name -> Can.Pattern -> Names.Tracker [Opt.Destructor]
 destructCase rootName pattern =
   reverse <$> destructHelp (Opt.Root rootName) pattern []
 
 
-destruct :: Can.Pattern -> Names.Tracker (Name.Name, [Opt.Destructor])
+destruct :: Can.Pattern -> Names.Tracker (N.Name, [Opt.Destructor])
 destruct pattern@(A.At _ ptrn) =
   case ptrn of
     Can.PVar name ->
@@ -352,14 +353,14 @@ optimizePotentialTailCallDef cycle def =
       optimizePotentialTailCall cycle name (map fst typedArgs) expr
 
 
-optimizePotentialTailCall :: Cycle -> Name.Name -> [Can.Pattern] -> Can.Expr -> Names.Tracker Opt.Def
+optimizePotentialTailCall :: Cycle -> N.Name -> [Can.Pattern] -> Can.Expr -> Names.Tracker Opt.Def
 optimizePotentialTailCall cycle name args expr =
   do  (argNames, destructors) <- destructArgs args
       toTailDef name argNames destructors <$>
         optimizeTail cycle name argNames expr
 
 
-optimizeTail :: Cycle -> Name.Name -> [Name.Name] -> Can.Expr -> Names.Tracker Opt.Expr
+optimizeTail :: Cycle -> N.Name -> [N.Name] -> Can.Expr -> Names.Tracker Opt.Expr
 optimizeTail cycle rootName argNames locExpr@(A.At _ expression) =
   case expression of
     Can.Call func args ->
@@ -441,7 +442,7 @@ optimizeTail cycle rootName argNames locExpr@(A.At _ expression) =
 -- DETECT TAIL CALLS
 
 
-toTailDef :: Name.Name -> [Name.Name] -> [Opt.Destructor] -> Opt.Expr -> Opt.Def
+toTailDef :: N.Name -> [N.Name] -> [Opt.Destructor] -> Opt.Expr -> Opt.Def
 toTailDef name argNames destructors body =
   if hasTailCall body then
     Opt.TailDef name argNames (foldr Opt.Destruct body destructors)

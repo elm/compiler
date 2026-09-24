@@ -9,12 +9,12 @@ import Control.Arrow (second)
 import qualified Data.Map as Map
 import qualified Data.Map.Utils as Map
 import qualified Data.Maybe as Maybe
-import qualified Data.Name as Name
 
 import qualified Crash
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
+import qualified AST.Prim.Name as N
 import qualified Optimize.DecisionTree as DT
 
 
@@ -22,7 +22,7 @@ import qualified Optimize.DecisionTree as DT
 -- OPTIMIZE A CASE EXPRESSION
 
 
-optimize :: Name.Name -> Name.Name -> [(Can.Pattern, Opt.Expr)] -> Opt.Expr
+optimize :: N.Name -> N.Name -> [(Can.Pattern, Opt.Expr)] -> Opt.Expr
 optimize temp root optBranches =
   let
     (patterns, indexedBranches) =
