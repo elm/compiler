@@ -1,6 +1,6 @@
 {
   "name": "elm",
-  "version": "0.19.2-0",
+  "version": "0.19.3-0",
   "description": "Installer for Elm: just downloads the binary into node_modules",
   "license": "BSD-3-Clause",
   "repository": {
@@ -38,10 +38,10 @@
     "elm": "bin/elm"
   },
   "optionalDependencies": {
-    "@elm_binaries/darwin_arm64": "0.19.2-0",
-    "@elm_binaries/darwin_x64": "0.19.2-0",
-    "@elm_binaries/linux_arm64": "0.19.2-0",
-    "@elm_binaries/linux_x64": "0.19.2-0",
-    "@elm_binaries/win32_x64": "0.19.2-0"
+    "@elm_binaries/darwin_arm64": "0.19.3-0",
+    "@elm_binaries/darwin_x64": "0.19.3-0",
+    "@elm_binaries/linux_arm64": "0.19.3-0",
+    "@elm_binaries/linux_x64": "0.19.3-0",
+    "@elm_binaries/win32_x64": "0.19.3-0"
   }
 }

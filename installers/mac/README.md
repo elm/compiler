@@ -1,6 +1,6 @@
 # Install Instructions
 
-The easiest way to install is to to use [the Mac installer](https://github.com/elm/compiler/releases/download/0.19.2/installer-for-mac.pkg)!
+The easiest way to install is to to use [the Mac installer](https://github.com/elm/compiler/releases/download/0.19.3/installer-for-mac.pkg)!
 
 But it is also possible to install by running the following commands in your terminal:
 
@@ -9,7 +9,7 @@ But it is also possible to install by running the following commands in your ter
 #
 cd ~/Desktop/
 
-# Download the 0.19.2 binary for Linux.
+# Download the 0.19.3 binary for Linux.
 #
 # +-----------+----------------------+
 # | FLAG      | MEANING              |
@@ -18,7 +18,7 @@ cd ~/Desktop/
 # | -o elm.gz | name the file elm.gz |
 # +-----------+----------------------+
 #
-curl -L -o elm.gz https://github.com/elm/compiler/releases/download/0.19.2/elm-0.19.2-mac-arm.gz
+curl -L -o elm.gz https://github.com/elm/compiler/releases/download/0.19.3/elm-0.19.3-mac-arm.gz
 
 # There should now be a file named `elm.gz` on your Desktop.
 #

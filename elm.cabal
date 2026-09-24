@@ -2,7 +2,7 @@ cabal-version: 3.6
 build-type: Simple
 
 name: elm
-version: 0.19.2
+version: 0.19.3
 
 homepage: https://elm-lang.org
 author: Evan Czaplicki
