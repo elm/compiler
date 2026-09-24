@@ -7,11 +7,11 @@ module Parse.Pattern
 
 
 import qualified Data.List as List
-import qualified Data.Name as Name
 import qualified Data.Utf8 as Utf8
 import GHC.Prim
 
 import qualified AST.Source as Src
+import qualified AST.Prim.Name as N
 import qualified AST.Prim.Variable as Var
 import qualified Parse.Keyword as Keyword
 import qualified Parse.Number as Number
@@ -46,10 +46,10 @@ termHelp start =
       do  wildcard
           addEnd start Src.PAnything
     ,
-      do  name <- Var.lower E.PStart
+      do  name <- Var.lower N.fromAddr E.PStart
           addEnd start (Src.PVar name)
     ,
-      do  upper <- Var.foreignUpper E.PStart
+      do  upper <- Var.foreignUpper N.fromAddr E.PStart
           end <- getPosition
           let region = A.region start end
           return $ A.At region $
@@ -98,7 +98,7 @@ wildcard =
               cok () newState
 
         _ ->
-          do  name <- Utf8.fromAddr pos badPos
+          do  name <- N.fromAddr pos badPos
               cerr cur (E.PWildcardNotVar name badOffset)
 
 
@@ -128,7 +128,7 @@ record start =
   inContext E.PRecord (word1 0x7B#Word8 {- { -} E.PStart) $
     do  Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentOpen
         oneOf E.PRecordOpen
-          [ do  name <- addLocation (Var.lower E.PRecordField)
+          [ do  name <- addLocation (Var.lower N.fromAddr E.PRecordField)
                 Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentEnd
                 recordHelp start [name]
           , do  word1 0x7D#Word8 {-}-} E.PRecordEnd
@@ -136,12 +136,12 @@ record start =
           ]
 
 
-recordHelp :: A.Position -> [A.Located Name.Name] -> Parser E.PRecord Src.Pattern
+recordHelp :: A.Position -> [A.Located N.Name] -> Parser E.PRecord Src.Pattern
 recordHelp start names =
   oneOf E.PRecordEnd
     [ do  word1 0x2C#Word8 {-,-} E.PRecordEnd
           Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentField
-          name <- addLocation (Var.lower E.PRecordField)
+          name <- addLocation (Var.lower N.fromAddr E.PRecordField)
           Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentEnd
           recordHelp start (name:names)
     , do  word1 0x7D#Word8 {-}-} E.PRecordEnd
@@ -237,7 +237,7 @@ exprHelp start revPatterns (pattern, end) =
           Keyword.as_ E.PStart
           Space.chompAndCheckIndent E.PSpace E.PIndentAlias
           nameStart <- getPosition
-          name <- Var.lower E.PAlias
+          name <- Var.lower N.fromAddr E.PAlias
           newEnd <- getPosition
           Space.chomp E.PSpace
           let alias = A.at nameStart newEnd name
@@ -265,7 +265,7 @@ exprPart =
   oneOf E.PStart
     [
       do  start <- getPosition
-          upper <- Var.foreignUpper E.PStart
+          upper <- Var.foreignUpper N.fromAddr E.PStart
           end <- getPosition
           exprPartArgs (A.region start end) upper start []
     ,
@@ -275,7 +275,7 @@ exprPart =
     ]
 
 
-exprPartArgs :: A.Region -> Var.Upper -> A.Position -> [Src.Pattern] -> Space.Parser E.Pattern Src.Pattern
+exprPartArgs :: A.Region -> Var.Upper N.Name -> A.Position -> [Src.Pattern] -> Space.Parser E.Pattern Src.Pattern
 exprPartArgs region upper start revArgs =
   do  end <- getPosition
       Space.chomp E.PSpace

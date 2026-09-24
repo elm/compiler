@@ -10,7 +10,6 @@ module Parse.Shader
 import qualified Data.ByteString.Internal as BS
 import qualified Data.ByteString.UTF8 as BS_UTF8
 import qualified Data.Map as Map
-import qualified Data.Name as Name
 import GHC.ForeignPtr (ForeignPtr(..))
 import GHC.Int (Int(..))
 import GHC.Prim
@@ -21,8 +20,10 @@ import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Error as Parsec
 
 import qualified Crash
+import qualified String as S
 
 import qualified AST.Source as Src
+import qualified AST.Prim.Name as N
 import qualified AST.Utils.Shader as Shader
 import Parse.Primitives (Parser, Cursor)
 import qualified Parse.Primitives as P
@@ -152,9 +153,9 @@ emptyTypes =
 addInput :: (GLS.StorageQualifier, Shader.Type, [Char]) -> Shader.Types -> Shader.Types
 addInput (qual, tipe, name) glDecls =
   case qual of
-    GLS.Attribute -> glDecls { Shader._attribute = Map.insert (Name.fromChars name) tipe (Shader._attribute glDecls) }
-    GLS.Uniform   -> glDecls { Shader._uniform = Map.insert (Name.fromChars name) tipe (Shader._uniform glDecls) }
-    GLS.Varying   -> glDecls { Shader._varying = Map.insert (Name.fromChars name) tipe (Shader._varying glDecls) }
+    GLS.Attribute -> glDecls { Shader._attribute = Map.insert (N.fromString (S.fromChars name)) tipe (Shader._attribute glDecls) }
+    GLS.Uniform   -> glDecls { Shader._uniform   = Map.insert (N.fromString (S.fromChars name)) tipe (Shader._uniform   glDecls) }
+    GLS.Varying   -> glDecls { Shader._varying   = Map.insert (N.fromString (S.fromChars name)) tipe (Shader._varying   glDecls) }
     _             -> $(Crash.crash 'addInput) "Should never happen due to `extractInputs` function"
 
 

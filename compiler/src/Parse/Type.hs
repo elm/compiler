@@ -7,9 +7,12 @@ module Parse.Type
   where
 
 
-import qualified Data.Name as Name
+import qualified String as S
 
 import qualified AST.Source as Src
+import qualified AST.Prim.Name as N
+import qualified AST.Prim.TypeName as T
+import qualified AST.Prim.TypeVar as T
 import Parse.Primitives (Parser, addLocation, addEnd, getPosition, inContext, specialize, oneOf, oneOfWithFallback, word1, word2)
 import qualified Parse.Space as Space
 import qualified Parse.Variable as Var
@@ -27,7 +30,7 @@ term =
       oneOf E.TStart
         [
           -- types with no arguments (Int, Float, etc.)
-          do  upper <- Var.foreignUpper E.TStart
+          do  upper <- Var.foreignUpper T.nameFromAddr E.TStart
               end <- getPosition
               let region = A.region start end
               return $ A.At region $
@@ -39,7 +42,7 @@ term =
                     Src.TTypeQual region home name []
         ,
           -- type variables
-          do  var <- Var.lower E.TStart
+          do  var <- Var.lower T.varFromAddr E.TStart
               addEnd start (Src.TVar var)
         ,
           -- tuples
@@ -58,20 +61,20 @@ term =
             do  Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentOpen
                 oneOf E.TRecordOpen
                   [ do  word1 0x7D#Word8 {-}-} E.TRecordEnd
-                        addEnd start (Src.TRecord [] Nothing)
-                  , do  name <- addLocation (Var.lower E.TRecordField)
+                        addEnd start $ Src.TRecord [] Nothing
+                  , do  str <- addLocation (Var.lower S.fromAddr E.TRecordField)
                         Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentColon
                         oneOf E.TRecordColon
                           [ do  word1 0x7C#Word8 {-|-} E.TRecordColon
                                 Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentField
                                 field <- chompField
                                 fields <- chompRecordEnd [field]
-                                addEnd start (Src.TRecord fields (Just name))
+                                addEnd start (Src.TRecord fields (Just (fmap T.varFromString str)))
                           , do  word1 0x3A#Word8 {-:-} E.TRecordColon
                                 Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentType
                                 (tipe, end) <- specialize E.TRecordType expression
                                 Space.checkIndent end E.TRecordIndentEnd
-                                fields <- chompRecordEnd [(name, tipe)]
+                                fields <- chompRecordEnd [(fmap N.fromString str, tipe)]
                                 addEnd start (Src.TRecord fields Nothing)
                           ]
                   ]
@@ -110,7 +113,7 @@ expression =
 
 app :: A.Position -> Space.Parser E.Type Src.Type
 app start =
-  do  upper <- Var.foreignUpper E.TStart
+  do  upper <- Var.foreignUpper T.nameFromAddr E.TStart
       upperEnd <- getPosition
       Space.chomp E.TSpace
       (args, end) <- chompArgs [] upperEnd
@@ -165,7 +168,7 @@ chompTupleEnd start firstType revTypes =
 -- RECORD
 
 
-type Field = ( A.Located Name.Name, Src.Type )
+type Field = ( A.Located N.Name, Src.Type )
 
 
 chompRecordEnd :: [Field] -> Parser E.TRecord [Field]
@@ -182,7 +185,7 @@ chompRecordEnd fields =
 
 chompField :: Parser E.TRecord Field
 chompField =
-  do  name <- addLocation (Var.lower E.TRecordField)
+  do  name <- addLocation (Var.lower N.fromAddr E.TRecordField)
       Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentColon
       word1 0x3A#Word8 {-:-} E.TRecordColon
       Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentType
@@ -195,9 +198,9 @@ chompField =
 -- VARIANT
 
 
-variant :: Space.Parser E.CustomType (A.Located Name.Name, [Src.Type])
+variant :: Space.Parser E.CustomType (A.Located N.Name, [Src.Type])
 variant =
-  do  name@(A.At (A.Region _ nameEnd) _) <- addLocation (Var.upper E.CT_Variant)
+  do  name@(A.At (A.Region _ nameEnd) _) <- addLocation (Var.upper N.fromAddr E.CT_Variant)
       Space.chomp E.CT_Space
       (args, end) <- specialize E.CT_VariantArg (chompArgs [] (A.Position nameEnd))
       return ( (name, args), end )

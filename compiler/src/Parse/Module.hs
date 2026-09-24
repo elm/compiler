@@ -10,9 +10,11 @@ module Parse.Module
 
 
 import qualified Data.ByteString as BS
-import qualified Data.Name as Name
 
 import qualified AST.Source as Src
+import qualified AST.Prim.Module as Module
+import qualified AST.Prim.Name as N
+import qualified AST.Prim.TypeName as T
 import qualified Elm.Compiler.Imports as Imports
 import qualified Elm.Package as Pkg
 import qualified Parse.Declaration as Decl
@@ -157,34 +159,26 @@ categorizeDecls values unions aliases ports decls =
 
 
 toDocs :: Either A.Region Src.Comment -> [Decl.Decl] -> Src.Docs
-toDocs comment decls =
+toDocs comment decls0 =
   case comment of
-    Right overview ->
-      Src.YesDocs overview (getComments decls [])
+    Right overview -> go overview decls0 [] []
+    Left region    -> Src.NoDocs region
+  where
+    go overview decls vs ts =
+      case decls of
+        [] -> Src.YesDocs overview vs ts
 
-    Left region ->
-      Src.NoDocs region
+        d:ds ->
+          case d of
+            Decl.Port  c (       (Src.Port  n _    )) -> go overview ds (cons c n vs) ts
+            Decl.Value c (A.At _ (Src.Value n _ _ _)) -> go overview ds (cons c n vs) ts
+            Decl.Union c (A.At _ (Src.Union n _ _  )) -> go overview ds vs (cons c n ts)
+            Decl.Alias c (A.At _ (Src.Alias n _ _  )) -> go overview ds vs (cons c n ts)
 
-
-getComments :: [Decl.Decl] -> [(Name.Name,Src.Comment)] -> [(Name.Name,Src.Comment)]
-getComments decls comments =
-  case decls of
-    [] ->
-      comments
-
-    decl:otherDecls ->
-      case decl of
-        Decl.Value c (A.At _ (Src.Value n _ _ _)) -> getComments otherDecls (addComment c n comments)
-        Decl.Union c (A.At _ (Src.Union n _ _  )) -> getComments otherDecls (addComment c n comments)
-        Decl.Alias c (A.At _ (Src.Alias n _ _  )) -> getComments otherDecls (addComment c n comments)
-        Decl.Port  c         (Src.Port  n _    )  -> getComments otherDecls (addComment c n comments)
-
-
-addComment :: Maybe Src.Comment -> A.Located Name.Name -> [(Name.Name,Src.Comment)] -> [(Name.Name,Src.Comment)]
-addComment maybeComment (A.At _ name) comments =
-  case maybeComment of
-    Just comment -> (name, comment) : comments
-    Nothing      -> comments
+    cons maybeComment (A.At _ n) comments =
+      case maybeComment of
+        Just c  -> (n,c) : comments
+        Nothing -> comments
 
 
 
@@ -242,7 +236,7 @@ chompModuleDocCommentSpace =
 
 
 data Header =
-  Header (A.Located Name.Name) Effects (A.Located Src.Exposing) (Either A.Region Src.Comment)
+  Header (A.Located Module.Name) Effects (A.Located Src.Exposing) (Either A.Region Src.Comment)
 
 
 data Effects
@@ -344,22 +338,22 @@ chompManager =
         ]
 
 
-chompCommand :: Parser E.Module (A.Located Name.Name)
+chompCommand :: Parser E.Module (A.Located T.Name)
 chompCommand =
   do  Keyword.command_ E.Effect
       spaces_em
       word1 0x3D#Word8 {-=-} E.Effect
       spaces_em
-      addLocation (Var.upper E.Effect)
+      addLocation (Var.upper T.nameFromAddr E.Effect)
 
 
-chompSubscription :: Parser E.Module (A.Located Name.Name)
+chompSubscription :: Parser E.Module (A.Located T.Name)
 chompSubscription =
   do  Keyword.subscription_ E.Effect
       spaces_em
       word1 0x3D#Word8 {-=-} E.Effect
       spaces_em
-      addLocation (Var.upper E.Effect)
+      addLocation (Var.upper T.nameFromAddr E.Effect)
 
 
 spaces_em :: Parser E.Module ()
@@ -397,11 +391,11 @@ chompImport =
         ]
 
 
-chompAs :: A.Located Name.Name -> Parser E.Module Src.Import
+chompAs :: A.Located Module.Name -> Parser E.Module Src.Import
 chompAs name =
   do  Keyword.as_ E.ImportAs
       Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentAlias
-      alias <- Var.upper E.ImportAlias
+      alias <- Var.upper Module.prefixFromAddr E.ImportAlias
       end <- getPosition
       Space.chomp E.ModuleSpace
       oneOf E.ImportEnd
@@ -412,7 +406,7 @@ chompAs name =
         ]
 
 
-chompExposing :: A.Located Name.Name -> Maybe Name.Name -> Parser E.Module Src.Import
+chompExposing :: A.Located Module.Name -> Maybe Module.Prefix -> Parser E.Module Src.Import
 chompExposing name maybeAlias =
   do  Keyword.exposing_ E.ImportExposing
       Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentExposingList
@@ -457,7 +451,7 @@ chompExposed :: Parser E.Exposing Src.Exposed
 chompExposed =
   do  start <- getPosition
       oneOf E.ExposingValue
-        [ do  name <- Var.lower E.ExposingValue
+        [ do  name <- Var.lower N.fromAddr E.ExposingValue
               end <- getPosition
               return $ Src.Lower $ A.at start end name
         , do  word1 0x28#Word8 {-(-} E.ExposingValue
@@ -465,7 +459,7 @@ chompExposed =
               word1 0x29#Word8 {-)-} E.ExposingOperatorRightParen
               end <- getPosition
               return $ Src.Operator (A.region start end) op
-        , do  name <- Var.upper E.ExposingValue
+        , do  name <- Var.upper T.nameFromAddr E.ExposingValue
               end <- getPosition
               Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
               Src.Upper (A.at start end name) <$> privacy

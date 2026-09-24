@@ -10,10 +10,10 @@ module Parse.Symbol
 
 import qualified Data.Char as Char
 import qualified Data.IntSet as IntSet
-import qualified Data.Name as Name
 import GHC.Exts (isTrue#)
 import GHC.Prim
 
+import qualified AST.Prim.Operator as Op
 import Parse.Primitives (Parser, Cursor, ltAddr, eqIndex, slide)
 import qualified Parse.Primitives as P
 
@@ -30,7 +30,7 @@ data BadOperator
   | BadHasType
 
 
-operator :: (Cursor -> x) -> (BadOperator -> Cursor -> x) -> Parser x Name.Name
+operator :: (Cursor -> x) -> (BadOperator -> Cursor -> x) -> Parser x Op.Name
 operator toExpectation toError =
   P.Parser $ \_ (P.State pos end indent cur) cok _ cerr eerr ->
     if ltAddr pos end
@@ -52,7 +52,7 @@ operator toExpectation toError =
               0x3A#Word8 {-:-} -> cerr cur (toError BadHasType)
               _ ->
                 do  let !newState = P.State newPos end indent (slide cur 1#Word64)
-                    op <- Name.fromAddr pos newPos
+                    op <- Op.fromAddr pos newPos
                     cok op newState
 
           2#
@@ -60,7 +60,7 @@ operator toExpectation toError =
 
           width ->
             do  let !newState = P.State newPos end indent (slide cur (wordToWord64# (int2Word# width)))
-                op <- Name.fromAddr pos newPos
+                op <- Op.fromAddr pos newPos
                 cok op newState
       else
         eerr cur toExpectation

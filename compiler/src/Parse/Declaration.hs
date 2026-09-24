@@ -8,13 +8,15 @@ module Parse.Declaration
   where
 
 
-import qualified Data.Name as Name
 import GHC.Exts (isTrue#)
 import GHC.Prim
 import GHC.Word (Word8(..))
 
 import qualified AST.Source as Src
+import qualified AST.Prim.Name as N
 import qualified AST.Prim.Operator as Op
+import qualified AST.Prim.TypeName as T
+import qualified AST.Prim.TypeVar as T
 import qualified Parse.Expression as Expr
 import qualified Parse.Pattern as Pattern
 import qualified Parse.Keyword as Keyword
@@ -73,7 +75,7 @@ chompDocComment =
 {-# INLINE valueDecl #-}
 valueDecl :: Maybe Src.Comment -> A.Position -> Space.Parser E.Decl Decl
 valueDecl maybeDocs start =
-  do  name <- Var.lower E.DeclStart
+  do  name <- Var.lower N.fromAddr E.DeclStart
       end <- getPosition
       specialize (E.DeclDef name) $
         do  Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
@@ -91,7 +93,7 @@ valueDecl maybeDocs start =
               ]
 
 
-chompDefArgsAndBody :: Maybe Src.Comment -> A.Position -> A.Located Name.Name -> Maybe Src.Type -> [Src.Pattern] -> Space.Parser E.DeclDef Decl
+chompDefArgsAndBody :: Maybe Src.Comment -> A.Position -> A.Located N.Name -> Maybe Src.Type -> [Src.Pattern] -> Space.Parser E.DeclDef Decl
 chompDefArgsAndBody maybeDocs start name tipe revArgs =
   oneOf E.DeclDefEquals
     [ do  arg <- specialize E.DeclDefArg Pattern.term
@@ -106,10 +108,10 @@ chompDefArgsAndBody maybeDocs start name tipe revArgs =
     ]
 
 
-chompMatchingName :: Name.Name -> Parser E.DeclDef (A.Located Name.Name)
+chompMatchingName :: N.Name -> Parser E.DeclDef (A.Located N.Name)
 chompMatchingName expectedName =
   let
-    (P.Parser k) = Var.lower E.DeclDefNameRepeat
+    (P.Parser k) = Var.lower N.fromAddr E.DeclDefNameRepeat
   in
   P.Parser $ \fpc state@(P.State _ _ _ start) cok eok cerr eerr ->
     let
@@ -157,17 +159,17 @@ typeDecl maybeDocs start =
 -- TYPE ALIASES
 
 
-chompAliasNameToEquals :: Parser E.TypeAlias (A.Located Name.Name, [A.Located Name.Name])
+chompAliasNameToEquals :: Parser E.TypeAlias (A.Located T.Name, [A.Located T.Var])
 chompAliasNameToEquals =
-  do  name <- addLocation (Var.upper E.AliasName)
+  do  name <- addLocation (Var.upper T.nameFromAddr E.AliasName)
       Space.chompAndCheckIndent E.AliasSpace E.AliasIndentEquals
       chompAliasNameToEqualsHelp name []
 
 
-chompAliasNameToEqualsHelp :: A.Located Name.Name -> [A.Located Name.Name] -> Parser E.TypeAlias (A.Located Name.Name, [A.Located Name.Name])
+chompAliasNameToEqualsHelp :: A.Located T.Name -> [A.Located T.Var] -> Parser E.TypeAlias (A.Located T.Name, [A.Located T.Var])
 chompAliasNameToEqualsHelp name args =
   oneOf E.AliasEquals
-    [ do  arg <- addLocation (Var.lower E.AliasEquals)
+    [ do  arg <- addLocation (Var.lower T.varFromAddr E.AliasEquals)
           Space.chompAndCheckIndent E.AliasSpace E.AliasIndentEquals
           chompAliasNameToEqualsHelp name (arg:args)
     , do  word1 0x3D#Word8 {-=-} E.AliasEquals
@@ -180,17 +182,17 @@ chompAliasNameToEqualsHelp name args =
 -- CUSTOM TYPES
 
 
-chompCustomNameToEquals :: Parser E.CustomType (A.Located Name.Name, [A.Located Name.Name])
+chompCustomNameToEquals :: Parser E.CustomType (A.Located T.Name, [A.Located T.Var])
 chompCustomNameToEquals =
-  do  name <- addLocation (Var.upper E.CT_Name)
+  do  name <- addLocation (Var.upper T.nameFromAddr E.CT_Name)
       Space.chompAndCheckIndent E.CT_Space E.CT_IndentEquals
       chompCustomNameToEqualsHelp name []
 
 
-chompCustomNameToEqualsHelp :: A.Located Name.Name -> [A.Located Name.Name] -> Parser E.CustomType (A.Located Name.Name, [A.Located Name.Name])
+chompCustomNameToEqualsHelp :: A.Located T.Name -> [A.Located T.Var] -> Parser E.CustomType (A.Located T.Name, [A.Located T.Var])
 chompCustomNameToEqualsHelp name args =
   oneOf E.CT_Equals
-    [ do  arg <- addLocation (Var.lower E.CT_Equals)
+    [ do  arg <- addLocation (Var.lower T.varFromAddr E.CT_Equals)
           Space.chompAndCheckIndent E.CT_Space E.CT_IndentEquals
           chompCustomNameToEqualsHelp name (arg:args)
     , do  word1 0x3D#Word8 {-=-} E.CT_Equals
@@ -199,7 +201,7 @@ chompCustomNameToEqualsHelp name args =
     ]
 
 
-chompVariants :: [(A.Located Name.Name, [Src.Type])] -> A.Position -> Space.Parser E.CustomType [(A.Located Name.Name, [Src.Type])]
+chompVariants :: [(A.Located N.Name, [Src.Type])] -> A.Position -> Space.Parser E.CustomType [(A.Located N.Name, [Src.Type])]
 chompVariants variants end =
   oneOfWithFallback
     [ do  Space.checkIndent end E.CT_IndentBar
@@ -220,7 +222,7 @@ portDecl :: Maybe Src.Comment -> Space.Parser E.Decl Decl
 portDecl maybeDocs =
   inContext E.Port (Keyword.port_ E.DeclStart) $
     do  Space.chompAndCheckIndent E.PortSpace E.PortIndentName
-        name <- addLocation (Var.lower E.PortName)
+        name <- addLocation (Var.lower N.fromAddr E.PortName)
         Space.chompAndCheckIndent E.PortSpace E.PortIndentColon
         word1 0x3A#Word8 {-:-} E.PortColon
         Space.chompAndCheckIndent E.PortSpace E.PortIndentType
@@ -261,7 +263,7 @@ infix_ =
       Space.chompAndCheckIndent _err err
       word1 0x3D#Word8 {-=-} err
       Space.chompAndCheckIndent _err err
-      name <- Var.lower err
+      name <- Var.lower N.fromAddr err
       end <- getPosition
       Space.chomp _err
       Space.checkFreshLine err

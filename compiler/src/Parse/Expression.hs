@@ -1,14 +1,16 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
-{-# LANGUAGE ExtendedLiterals, OverloadedStrings #-}
+{-# LANGUAGE ExtendedLiterals, OverloadedStrings, UnliftedDatatypes #-}
 module Parse.Expression
   ( expression
   )
   where
 
 
-import qualified Data.Name as Name
+import GHC.Base (UnliftedType)
 
 import qualified AST.Source as Src
+import qualified AST.Prim.Name as N
+import qualified AST.Prim.Operator as Op
 import qualified Parse.Keyword as Keyword
 import qualified Parse.Number as Number
 import qualified Parse.Pattern as Pattern
@@ -68,7 +70,7 @@ number start =
 accessor :: A.Position -> Parser E.Expr Src.Expr
 accessor start =
   do  word1 0x2E#Word8 {-.-} E.Dot
-      field <- Var.lower E.Access
+      field <- Var.lower N.fromAddr E.Access
       addEnd start (Src.Accessor field)
 
 
@@ -83,7 +85,7 @@ accessible start expr =
   oneOfWithFallback
     [ do  word1 0x2E#Word8 {-.-} E.Dot
           pos <- getPosition
-          field <- Var.lower E.Access
+          field <- Var.lower N.fromAddr E.Access
           end <- getPosition
           accessible start $
             A.at start end (Src.Access expr (A.at pos end field))
@@ -140,7 +142,7 @@ tuple start@(A.Position startCur) =
             oneOf E.TupleIndentExpr1
               [
                 do  op <- Symbol.operator E.TupleIndentExpr1 E.TupleOperatorReserved
-                    if op == "-"
+                    if op == Op.sub
                       then
                         oneOf E.TupleOperatorClose
                           [
@@ -200,7 +202,7 @@ record start =
         oneOf E.RecordOpen
           [ do  word1 0x7D#Word8 {-}-} E.RecordOpen
                 addEnd start (Src.Record [])
-          , do  starter <- addLocation (Var.lower E.RecordField)
+          , do  starter <- addLocation (Var.lower N.fromAddr E.RecordField)
                 Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
                 oneOf E.RecordEquals
                   [ do  word1 0x7C#Word8 {-|-} E.RecordEquals
@@ -218,7 +220,7 @@ record start =
           ]
 
 
-type Field = ( A.Located Name.Name, Src.Expr )
+type Field = ( A.Located N.Name, Src.Expr )
 
 
 chompFields :: [Field] -> Parser E.Record [Field]
@@ -235,7 +237,7 @@ chompFields fields =
 
 chompField :: Parser E.Record Field
 chompField =
-  do  key <- addLocation (Var.lower E.RecordField)
+  do  key <- addLocation (Var.lower N.fromAddr E.RecordField)
       Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
       word1 0x3D#Word8 {-=-} E.RecordEquals
       Space.chompAndCheckIndent E.RecordSpace E.RecordIndentExpr
@@ -263,9 +265,10 @@ expression =
         ]
 
 
+type State :: UnliftedType
 data State =
   State
-    { _ops  :: ![(Src.Expr, A.Located Name.Name)]
+    { _ops  :: ![(Src.Expr, A.Located Op.Name)]
     , _expr :: !Src.Expr
     , _args :: ![Src.Expr]
     , _end  :: !A.Position
@@ -287,7 +290,7 @@ chompExprEnd start (State ops expr args end) =
           op@(A.At (A.Region opStart opEnd) opName) <- addLocation (Symbol.operator E.Start E.OperatorReserved)
           Space.chompAndCheckIndent E.Space (E.IndentOperatorRight opName)
           newStart <- getPosition
-          if "-" == opName && end /= A.Position opStart && A.Position opEnd == newStart
+          if Op.sub == opName && end /= A.Position opStart && A.Position opEnd == newStart
             then
               -- negative terms
               do  negatedExpr <- term
@@ -508,7 +511,7 @@ chompLetDef =
 
 definition :: Space.Parser E.Let (A.Located Src.Def)
 definition =
-  do  aname@(A.At (A.Region s _) name) <- addLocation (Var.lower E.LetDefName)
+  do  aname@(A.At (A.Region s _) name) <- addLocation (Var.lower N.fromAddr E.LetDefName)
       let start = A.Position s
       specialize (E.LetDef name) $
         do  Space.chompAndCheckIndent E.DefSpace E.DefIndentEquals
@@ -526,7 +529,7 @@ definition =
               ]
 
 
-chompDefArgsAndBody :: A.Position -> A.Located Name.Name -> Maybe Src.Type -> [Src.Pattern] -> Space.Parser E.Def (A.Located Src.Def)
+chompDefArgsAndBody :: A.Position -> A.Located N.Name -> Maybe Src.Type -> [Src.Pattern] -> Space.Parser E.Def (A.Located Src.Def)
 chompDefArgsAndBody start name tipe revArgs =
   oneOf E.DefEquals
     [ do  arg <- specialize E.DefArg Pattern.term
@@ -542,10 +545,10 @@ chompDefArgsAndBody start name tipe revArgs =
     ]
 
 
-chompMatchingName :: Name.Name -> Parser E.Def (A.Located Name.Name)
+chompMatchingName :: N.Name -> Parser E.Def (A.Located N.Name)
 chompMatchingName expectedName =
   let
-    (P.Parser k) = Var.lower E.DefNameRepeat
+    (P.Parser k) = Var.lower N.fromAddr E.DefNameRepeat
   in
   P.Parser $ \fpc state@(P.State _ _ _ startCur) cok eok cerr eerr ->
     let
