@@ -4,6 +4,7 @@ module AST.Prim.Operator
   , toString
   , fromString
   , toChars
+  , fromAddr
   --
   , Precedence(..)
   , Associativity(..)
@@ -21,6 +22,7 @@ module AST.Prim.Operator
 
 import Prelude hiding (and, or, div)
 import qualified Data.String
+import GHC.Prim
 import GHC.Word (Word8)
 
 import qualified Bytes.Decode as D
@@ -66,6 +68,12 @@ fromString =
 toChars :: Name -> [Char]
 toChars (Name s) =
   S.toChars s
+
+
+{-# INLINE fromAddr #-}
+fromAddr :: Addr# -> Addr# -> IO Name
+fromAddr pos end =
+  Name <$> S.fromAddr pos end
 
 
 
