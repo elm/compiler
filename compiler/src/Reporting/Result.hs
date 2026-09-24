@@ -5,6 +5,7 @@ module Reporting.Result
   , ok
   , warn
   , throw
+  , throws
   , mapError
   )
   where
@@ -56,6 +57,12 @@ throw :: e -> Result i w e a
 throw e =
   Result $ \i w bad _ ->
     bad i w (OneOrMore.one e)
+
+
+throws :: OneOrMore.OneOrMore e -> Result i w e a
+throws xs =
+  Result $ \i w bad _ ->
+    bad i w xs
 
 
 mapError :: (e -> e') -> Result i w e a -> Result i w e' a

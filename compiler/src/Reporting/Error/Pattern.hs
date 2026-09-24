@@ -9,6 +9,7 @@ import qualified Data.Char as Char
 import qualified Data.List as List
 import Numeric (showHex)
 
+import qualified AST.Prim.Name as N
 import qualified Elm.String as ES
 import qualified Nitpick.PatternMatches as P
 import qualified Reporting.Doc as D
@@ -121,15 +122,15 @@ patternToDoc context pattern =
         P.Str str -> "\"" <> D.fromChars (ES.toChars str) <> "\""
         P.Int int -> D.fromInt int
 
-    NonList (P.Ctor _ "#0" []) ->
+    NonList (P.Ctor _ n []) | n == N.unit ->
       "()"
 
-    NonList (P.Ctor _ "#2" [a,b]) ->
+    NonList (P.Ctor _ n [a,b]) | n == N.pair ->
       "( " <> patternToDoc Unambiguous a <>
       ", " <> patternToDoc Unambiguous b <>
       " )"
 
-    NonList (P.Ctor _ "#3" [a,b,c]) ->
+    NonList (P.Ctor _ n [a,b,c]) | n == N.triple ->
       "( " <> patternToDoc Unambiguous a <>
       ", " <> patternToDoc Unambiguous b <>
       ", " <> patternToDoc Unambiguous c <>
@@ -175,19 +176,12 @@ data Structure
 delist :: P.Pattern -> [P.Pattern] -> Structure
 delist pattern revEntries =
   case pattern of
-    P.Ctor _ "[]" [] ->
-      FiniteList revEntries
-
-    P.Ctor _ "::" [hd,tl] ->
-      delist tl (hd:revEntries)
-
+    P.Ctor _ n []      | n == N.nil  -> FiniteList revEntries
+    P.Ctor _ n [hd,tl] | n == N.cons -> delist tl (hd:revEntries)
     _ ->
       case revEntries of
-        [] ->
-          NonList pattern
-
-        _ ->
-          Conses (reverse revEntries) pattern
+        [] -> NonList pattern
+        _  -> Conses (reverse revEntries) pattern
 
 
 charToChars :: Char -> String

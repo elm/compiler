@@ -11,10 +11,11 @@ module Reporting.Render.Type.Localizer
 
 
 import qualified Data.Map as Map
-import qualified Data.Name as Name
 import qualified Data.Set as Set
 
 import qualified AST.Source as Src
+import qualified AST.Prim.Module as Module
+import qualified AST.Prim.TypeName as T
 import qualified Elm.ModuleName as ModuleName
 import qualified Reporting.Doc as D
 import qualified Reporting.Annotation as A
@@ -25,19 +26,19 @@ import qualified Reporting.Annotation as A
 
 
 newtype Localizer =
-  Localizer (Map.Map Name.Name Import)
+  Localizer (Map.Map Module.Name Import)
 
 
 data Import =
   Import
-    { _alias :: Maybe Name.Name
+    { _alias :: Maybe Module.Prefix
     , _exposing :: Exposing
     }
 
 
 data Exposing
   = All
-  | Only (Set.Set Name.Name)
+  | Only (Set.Set T.Name)
 
 
 empty :: Localizer
@@ -49,36 +50,37 @@ empty =
 -- LOCALIZE
 
 
-toDoc :: Localizer -> ModuleName.Canonical -> Name.Name -> D.Doc
+toDoc :: Localizer -> ModuleName.Canonical -> T.Name -> D.Doc
 toDoc localizer home name =
   D.fromChars (toChars localizer home name)
 
 
-toChars :: Localizer -> ModuleName.Canonical -> Name.Name -> String
+toChars :: Localizer -> ModuleName.Canonical -> T.Name -> String
 toChars (Localizer localizer) moduleName@(ModuleName.Canonical _ home) name =
   case Map.lookup home localizer of
     Nothing ->
-      Name.toChars home <> "." <> Name.toChars name
+      Module.toChars home <> "." <> T.nameToChars name
 
     Just (Import alias exposing) ->
       case exposing of
         All ->
-          Name.toChars name
+          T.nameToChars name
 
         Only set ->
           if Set.member name set then
-            Name.toChars name
-          else if name == Name.list && moduleName == ModuleName.list then
+            T.nameToChars name
+          else if name == T.list && moduleName == ModuleName.list then
             "List"
           else
-            Name.toChars (maybe home id alias) <> "." <> Name.toChars name
-
+            case alias of
+              Nothing -> Module.toChars home <> "." <> T.nameToChars name
+              Just h  -> Module.prefixToChars h <> "." <> T.nameToChars name
 
 
 -- FROM NAMES
 
 
-fromNames :: Map.Map Name.Name a -> Localizer
+fromNames :: Map.Map Module.Name a -> Localizer
 fromNames names =
   Localizer $ Map.map (\_ -> Import Nothing All) names
 
@@ -93,7 +95,7 @@ fromModule modul@(Src.Module _ _ _ imports _ _ _ _ _) =
     (Src.getName modul, Import Nothing All) : map toPair imports
 
 
-toPair :: Src.Import -> (Name.Name, Import)
+toPair :: Src.Import -> (Module.Name, Import)
 toPair (Src.Import (A.At _ name) alias exposing) =
   ( name
   , Import alias (toExposing exposing)
@@ -110,7 +112,7 @@ toExposing exposing =
       Only (foldr addType Set.empty exposedList)
 
 
-addType :: Src.Exposed -> Set.Set Name.Name -> Set.Set Name.Name
+addType :: Src.Exposed -> Set.Set T.Name -> Set.Set T.Name
 addType exposed types =
   case exposed of
     Src.Lower _               -> types

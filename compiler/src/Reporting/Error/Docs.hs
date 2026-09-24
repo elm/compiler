@@ -9,9 +9,11 @@ module Reporting.Error.Docs
   where
 
 
-import qualified Data.Name as Name
 import qualified Data.NonEmptyList as NE
 
+import qualified AST.Prim.Name as N
+import qualified AST.Prim.Operator as Op
+import qualified AST.Prim.TypeName as T
 import Parse.Primitives (Cursor)
 import Parse.Symbol (BadOperator(..))
 import qualified Reporting.Annotation as A
@@ -40,14 +42,22 @@ data SyntaxProblem
 
 
 data NameProblem
-  = NameDuplicate Name.Name A.Region A.Region
-  | NameOnlyInDocs Name.Name A.Region
-  | NameOnlyInExports Name.Name A.Region
+  = NameDuplicate_Type T.Name A.Region A.Region
+  | NameDuplicate_Var N.Name A.Region A.Region
+  | NameDuplicate_Op Op.Name A.Region A.Region
+  | NameOnlyInDocs_Type T.Name A.Region
+  | NameOnlyInDocs_Var N.Name A.Region
+  | NameOnlyInDocs_Op Op.Name A.Region
+  | NameOnlyInExports_Type T.Name A.Region
+  | NameOnlyInExports_Var N.Name A.Region
+  | NameOnlyInExports_Op Op.Name A.Region
 
 
 data DefProblem
-  = NoComment Name.Name A.Region
-  | NoAnnotation Name.Name A.Region
+  = NoComment_Type T.Name A.Region
+  | NoComment_Var N.Name A.Region
+  | NoAnnotation_Var N.Name A.Region
+  | NoAnnotation_Op Op.Name A.Region
 
 
 
@@ -157,19 +167,29 @@ toRegion cur =
 toNameProblemReport :: Code.Source -> NameProblem -> Report.Report
 toNameProblemReport source problem =
   case problem of
-    NameDuplicate name r1 r2 ->
+    NameDuplicate_Type n r1 r2 -> nameDuplicate n r1 r2 T.nameToChars
+    NameDuplicate_Var  n r1 r2 -> nameDuplicate n r1 r2 N.toChars
+    NameDuplicate_Op   n r1 r2 -> nameDuplicate n r1 r2 Op.toChars
+    NameOnlyInDocs_Type    n r -> nameOnlyInDocs n r T.nameToChars
+    NameOnlyInDocs_Var     n r -> nameOnlyInDocs n r N.toChars
+    NameOnlyInDocs_Op      n r -> nameOnlyInDocs n r Op.toChars
+    NameOnlyInExports_Type n r -> nameOnlyInExports n r T.nameToChars
+    NameOnlyInExports_Var  n r -> nameOnlyInExports n r N.toChars
+    NameOnlyInExports_Op   n r -> nameOnlyInExports n r Op.toChars
+  where
+    nameDuplicate name r1 r2 toChars =
       Report.Report "DUPLICATE DOCS" r2 [] $
         Code.toPair source r1 r2
           (
             D.reflow $
-              "There can only be one `" <> Name.toChars name
+              "There can only be one `" <> toChars name
               <> "` in your module documentation, but it is listed twice:"
           ,
             "Remove one of them!"
           )
           (
             D.reflow $
-              "There can only be one `" <> Name.toChars name
+              "There can only be one `" <> toChars name
               <> "` in your module documentation, but I see two. One here:"
           ,
             "And another one over here:"
@@ -177,30 +197,30 @@ toNameProblemReport source problem =
             "Remove one of them!"
           )
 
-    NameOnlyInDocs name region ->
+    nameOnlyInDocs name region toChars =
       Report.Report "DOCS MISTAKE" region [] $
         Code.toSnippet source region Nothing
           (
             D.reflow $
-              "I do not see `" <> Name.toChars name
+              "I do not see `" <> toChars name
               <> "` in the `exposing` list, but it is in your module documentation:"
           ,
             D.reflow $
               "Does it need to be added to the `exposing` list as well? Or maybe you removed `"
-              <> Name.toChars name <> "` and forgot to delete it here?"
+              <> toChars name <> "` and forgot to delete it here?"
           )
 
-    NameOnlyInExports name region ->
+    nameOnlyInExports name region toChars =
       Report.Report "DOCS MISTAKE" region [] $
         Code.toSnippet source region Nothing
           (
             D.reflow $
-              "I do not see `" <> Name.toChars name
+              "I do not see `" <> toChars name
               <> "` in your module documentation, but it is in your `exposing` list:"
           ,
             D.stack
               [ D.reflow $
-                  "Add a line like `@docs " <> Name.toChars name
+                  "Add a line like `@docs " <> toChars name
                   <> "` to your module documentation!"
               , D.link "Note" "See" "docs" "for more guidance on writing high quality docs."
               ]
@@ -214,12 +234,17 @@ toNameProblemReport source problem =
 toDefProblemReport :: Code.Source -> DefProblem -> Report.Report
 toDefProblemReport source problem =
   case problem of
-    NoComment name region ->
+    NoComment_Type   n r -> noComment    n r T.nameToChars
+    NoComment_Var    n r -> noComment    n r N.toChars
+    NoAnnotation_Var n r -> noAnnotation n r N.toChars
+    NoAnnotation_Op  n r -> noAnnotation n r Op.toChars
+  where
+    noComment name region toChars =
       Report.Report "NO DOCS" region [] $
         Code.toSnippet source region Nothing
           (
             D.reflow $
-              "The `" <> Name.toChars name <> "` definition does not have a documentation comment."
+              "The `" <> toChars name <> "` definition does not have a documentation comment."
           ,
             D.stack
               [ D.reflow $
@@ -228,12 +253,12 @@ toDefProblemReport source problem =
               ]
           )
 
-    NoAnnotation name region ->
+    noAnnotation name region toChars =
       Report.Report "NO TYPE ANNOTATION" region [] $
         Code.toSnippet source region Nothing
           (
             D.reflow $
-              "The `" <> Name.toChars name <> "` definition does not have a type annotation."
+              "The `" <> toChars name <> "` definition does not have a type annotation."
           ,
             D.stack
               [ D.reflow $
@@ -243,3 +268,4 @@ toDefProblemReport source problem =
               , D.link "Note" "Read" "docs" "for more advice on writing great docs. There are a couple important tricks!"
               ]
           )
+

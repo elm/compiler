@@ -10,7 +10,7 @@ module Reporting.Error.Import
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-import qualified Elm.ModuleName as ModuleName
+import qualified AST.Prim.Module as Module
 import qualified Elm.Package as Pkg
 import qualified Reporting.Doc as D
 import qualified Reporting.Render.Code as Code
@@ -26,8 +26,8 @@ import qualified Reporting.Annotation as A
 data Error =
   Error
     { _region :: A.Region
-    , _import :: ModuleName.Raw
-    , _unimported :: Set.Set ModuleName.Raw
+    , _import :: Module.Name
+    , _unimported :: Set.Set Module.Name
     , _problem :: Problem
     }
 
@@ -51,7 +51,7 @@ toReport source (Error region name unimportedModules problem) =
         Code.toSnippet source region Nothing
           (
             D.reflow $
-              "You are trying to import a `" ++ ModuleName.toChars name ++ "` module:"
+              "You are trying to import a `" ++ Module.toChars name ++ "` module:"
           ,
             D.stack
               [
@@ -60,7 +60,7 @@ toReport source (Error region name unimportedModules problem) =
                   \ but I cannot find it! Maybe it is a typo for one of these names?"
               ,
                 D.dullyellow $ D.indent 4 $ D.vcat $
-                  map D.fromName (toSuggestions name unimportedModules)
+                  map D.fromModule (toSuggestions name unimportedModules)
               ,
                 case Map.lookup name Pkg.suggestions of
                   Nothing ->
@@ -71,7 +71,7 @@ toReport source (Error region name unimportedModules problem) =
                   Just dependency ->
                     D.toFancyHint
                       ["Maybe","you","want","the"
-                      ,"`" <> D.fromName name <> "`"
+                      ,"`" <> D.fromModule name <> "`"
                       ,"module","defined","in","the"
                       ,D.fromChars (Pkg.toChars dependency)
                       ,"package?","Running"
@@ -86,7 +86,7 @@ toReport source (Error region name unimportedModules problem) =
         Code.toSnippet source region Nothing
           (
             D.reflow $
-              "You are trying to import a `" ++ ModuleName.toChars name ++ "` module:"
+              "You are trying to import a `" ++ Module.toChars name ++ "` module:"
           ,
             D.stack
               [
@@ -108,7 +108,7 @@ toReport source (Error region name unimportedModules problem) =
         Code.toSnippet source region Nothing
           (
             D.reflow $
-              "You are trying to import a `" ++ ModuleName.toChars name ++ "` module:"
+              "You are trying to import a `" ++ Module.toChars name ++ "` module:"
           ,
             D.stack
               [
@@ -128,7 +128,7 @@ toReport source (Error region name unimportedModules problem) =
         Code.toSnippet source region Nothing
           (
             D.reflow $
-              "You are trying to import a `" ++ ModuleName.toChars name ++ "` module:"
+              "You are trying to import a `" ++ Module.toChars name ++ "` module:"
           ,
             D.stack
               [
@@ -156,7 +156,7 @@ toReport source (Error region name unimportedModules problem) =
 
 
 
-toSuggestions :: ModuleName.Raw -> Set.Set ModuleName.Raw -> [ModuleName.Raw]
+toSuggestions :: Module.Name -> Set.Set Module.Name -> [Module.Name]
 toSuggestions name unimportedModules =
   take 4 $
-    Suggest.sort (ModuleName.toChars name) ModuleName.toChars (Set.toList unimportedModules)
+    Suggest.sort (Module.toChars name) Module.toChars (Set.toList unimportedModules)

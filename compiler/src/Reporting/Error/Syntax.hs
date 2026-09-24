@@ -46,12 +46,13 @@ module Reporting.Error.Syntax
 
 import Prelude hiding (Char, String)
 import qualified Data.Char as Char
-import qualified Data.Name as Name
 import GHC.Prim
 import GHC.Word (Word32(..), Word64(..))
 import Numeric (showHex)
 
-import qualified Elm.ModuleName as ModuleName
+import qualified AST.Prim.Module as Module
+import qualified AST.Prim.Name as N
+import qualified AST.Prim.Operator as Op
 import Parse.Primitives (Cursor, Indent, slide, isLineStart, distanceToIndent)
 import Parse.Symbol (BadOperator(..))
 import qualified Reporting.Annotation as A
@@ -65,11 +66,11 @@ import qualified Reporting.Render.Code as Code
 
 
 data Error
-  = ModuleNameUnspecified ModuleName.Raw
-  | ModuleNameMismatch ModuleName.Raw (A.Located ModuleName.Raw)
+  = ModuleNameUnspecified Module.Name
+  | ModuleNameMismatch Module.Name (A.Located Module.Name)
   | UnexpectedPort A.Region
   | NoPorts A.Region
-  | NoPortsInPackage (A.Located Name.Name)
+  | NoPortsInPackage (A.Located N.Name)
   | NoPortModulesInPackage A.Region
   | NoEffectsOutsideKernel A.Region
   | ParseError Module
@@ -136,7 +137,7 @@ data Decl
   --
   | Port Port Cursor
   | DeclType DeclType Cursor
-  | DeclDef Name.Name DeclDef Cursor
+  | DeclDef N.Name DeclDef Cursor
   --
   | DeclFreshLineAfterDocComment Cursor
 
@@ -148,7 +149,7 @@ data DeclDef
   | DeclDefArg Pattern Cursor
   | DeclDefBody Expr Cursor
   | DeclDefNameRepeat Cursor
-  | DeclDefNameMatch Name.Name Cursor
+  | DeclDefNameMatch N.Name Cursor
   --
   | DeclDefIndentType Cursor
   | DeclDefIndentEquals Cursor
@@ -217,7 +218,7 @@ data Expr
   --
   | Dot Cursor
   | Access Cursor
-  | OperatorRight Name.Name Cursor
+  | OperatorRight Op.Name Cursor
   | OperatorReserved BadOperator Cursor
   --
   | Start Cursor
@@ -228,7 +229,7 @@ data Expr
   | ShaderEndless Cursor
   | ShaderNotUtf8 Cursor
   | ShaderProblem [Char.Char] Cursor
-  | IndentOperatorRight Name.Name Cursor
+  | IndentOperatorRight Op.Name Cursor
 
 
 data Record
@@ -318,7 +319,7 @@ data Let
   | LetIn Cursor
   | LetDefAlignment Indent Cursor
   | LetDefName Cursor
-  | LetDef Name.Name Def Cursor
+  | LetDef N.Name Def Cursor
   | LetDestruct Destruct Cursor
   | LetBody Expr Cursor
   | LetIndentDef Cursor
@@ -330,7 +331,7 @@ data Def
   = DefSpace Space Cursor
   | DefType Type Cursor
   | DefNameRepeat Cursor
-  | DefNameMatch Name.Name Cursor
+  | DefNameMatch N.Name Cursor
   | DefArg Pattern Cursor
   | DefEquals Cursor
   | DefBody Expr Cursor
@@ -364,7 +365,7 @@ data Pattern
   | PNumber Number Cursor
   | PFloat Word64# Cursor
   | PAlias Cursor
-  | PWildcardNotVar Name.Name Word64# Cursor
+  | PWildcardNotVar N.Name Word64# Cursor
   | PSpace Space Cursor
   --
   | PIndentStart Cursor
@@ -504,7 +505,7 @@ toReport source err =
           [ D.reflow $
               "I need the module name to be declared at the top of this file, like this:"
           , D.indent 4 $ D.fillSep $
-              [ D.cyan "module", D.fromName name, D.cyan "exposing", "(..)" ]
+              [ D.cyan "module", D.fromModule name, D.cyan "exposing", "(..)" ]
           , D.reflow $
               "Try adding that as the first line of your file!"
           , D.toSimpleNote $
@@ -517,7 +518,7 @@ toReport source err =
           ]
 
     ModuleNameMismatch expectedName (A.At region actualName) ->
-      Report.Report "MODULE NAME MISMATCH" region [ModuleName.toChars expectedName] $
+      Report.Report "MODULE NAME MISMATCH" region [Module.toChars expectedName] $
         Code.toSnippet source region Nothing
           (
             "It looks like this module name is out of sync:"
@@ -525,10 +526,10 @@ toReport source err =
             D.stack
               [ D.reflow $
                   "I need it to match the file path, so I was expecting to see `"
-                  ++ ModuleName.toChars expectedName
+                  ++ Module.toChars expectedName
                   ++ "` here. Make the following change, and you should be all set!"
               , D.indent 4 $
-                  D.dullyellow (D.fromName actualName) <> " -> " <> D.green (D.fromName expectedName)
+                  D.dullyellow (D.fromModule actualName) <> " -> " <> D.green (D.fromModule expectedName)
               , D.toSimpleNote $
                   "I require that module names correspond to file paths. This makes it much\
                   \ easier to explore unfamiliar codebases! So if you want to keep the current\
@@ -2192,7 +2193,7 @@ customTypeNote =
 -- DECL DEF
 
 
-toDeclDefReport :: Code.Source -> Name.Name -> DeclDef -> Cursor -> Report.Report
+toDeclDefReport :: Code.Source -> N.Name -> DeclDef -> Cursor -> Report.Report
 toDeclDefReport source name declDef startCur =
   case declDef of
     DeclDefSpace space cur ->
@@ -2255,7 +2256,7 @@ toDeclDefReport source name declDef startCur =
                       , "  " <> D.dullyellow "\"Hello \"" <> " ++ name ++ " <> D.dullyellow "\"!\""
                       ]
                   , D.reflow $
-                      "Try to use that format with your `" ++ Name.toChars name ++ "` definition!"
+                      "Try to use that format with your `" ++ N.toChars name ++ "` definition!"
                   ]
               )
 
@@ -2280,7 +2281,7 @@ toDeclDefReport source name declDef startCur =
                       , "  " <> D.dullyellow "\"Hello \"" <> " ++ name ++ " <> D.dullyellow "\"!\""
                       ]
                   , D.reflow $
-                      "Try to use that format with your `" ++ Name.toChars name ++ "` definition!"
+                      "Try to use that format with your `" ++ N.toChars name ++ "` definition!"
                   ]
               )
 
@@ -2293,7 +2294,7 @@ toDeclDefReport source name declDef startCur =
             Code.toSnippet source surroundings (Just region)
               (
                 D.reflow $
-                  "I got stuck while parsing the `" ++ Name.toChars name ++ "` definition:"
+                  "I got stuck while parsing the `" ++ N.toChars name ++ "` definition:"
               ,
                 D.stack
                   [ D.reflow $
@@ -2327,7 +2328,7 @@ toDeclDefReport source name declDef startCur =
         Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I just saw the type annotation for `" ++ Name.toChars name
+              "I just saw the type annotation for `" ++ N.toChars name
               ++ "` so I was expecting to see its definition here:"
           ,
             D.stack
@@ -2347,7 +2348,7 @@ toDeclDefReport source name declDef startCur =
         Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I just saw a type annotation for `" ++ Name.toChars name ++ "`, but it is followed by a definition for `" ++ Name.toChars defName ++ "`:"
+              "I just saw a type annotation for `" ++ N.toChars name ++ "`, but it is followed by a definition for `" ++ N.toChars defName ++ "`:"
           ,
             D.stack
               [ D.reflow $
@@ -2366,7 +2367,7 @@ toDeclDefReport source name declDef startCur =
         Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I got stuck while parsing the `" ++ Name.toChars name ++ "` type annotation:"
+              "I got stuck while parsing the `" ++ N.toChars name ++ "` type annotation:"
           ,
             D.stack
               [ D.reflow $
@@ -2384,7 +2385,7 @@ toDeclDefReport source name declDef startCur =
         Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I got stuck while parsing the `" ++ Name.toChars name ++ "` definition:"
+              "I got stuck while parsing the `" ++ N.toChars name ++ "` definition:"
           ,
             D.stack
               [ D.reflow $
@@ -2402,7 +2403,7 @@ toDeclDefReport source name declDef startCur =
         Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I got stuck while parsing the `" ++ Name.toChars name ++ "` definition:"
+              "I got stuck while parsing the `" ++ N.toChars name ++ "` definition:"
           ,
             D.stack
               [ D.reflow $
@@ -2436,7 +2437,7 @@ declDefNote =
 
 data Context
   = InNode Node Cursor Context
-  | InDef Name.Name Cursor
+  | InDef N.Name Cursor
   | InDestruct Cursor
 
 
@@ -2453,7 +2454,7 @@ data Node
   deriving (Eq)
 
 
-getDefName :: Context -> Maybe Name.Name
+getDefName :: Context -> Maybe N.Name
 getDefName context =
   case context of
     InDestruct _ -> Nothing
@@ -2541,7 +2542,7 @@ toExprReport source context expr startCur =
         Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
-                "I just saw a " ++ Name.toChars op ++ " "
+                "I just saw a " ++ Op.toChars op ++ " "
                 ++ (if isMath then "sign" else "operator")
                 ++ ", so I am getting stuck here:"
           ,
@@ -2549,7 +2550,7 @@ toExprReport source context expr startCur =
               D.fillSep
                 ["I","was","expecting","to","see","an","expression","next."
                 ,"Something","like",D.dullyellow "42","or",D.dullyellow "1000"
-                ,"that","makes","sense","with","a",D.fromName op,"sign."
+                ,"that","makes","sense","with","a",D.fromOp op,"sign."
                 ]
             else if op == "&&" || op == "||" then
               D.fillSep
@@ -2576,7 +2577,7 @@ toExprReport source context expr startCur =
         !(# contextCur, aThing #) =
           case context of
             InDestruct c       -> (# c, "a definition" #)
-            InDef name c       -> (# c, "the `" ++ Name.toChars name ++ "` definition" #)
+            InDef name c       -> (# c, "the `" ++ N.toChars name ++ "` definition" #)
             InNode NRecord c _ -> (# c, "a record" #)
             InNode NParens c _ -> (# c, "some parentheses" #)
             InNode NList   c _ -> (# c, "a list" #)
@@ -2675,7 +2676,7 @@ toExprReport source context expr startCur =
         Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I was expecting to see an expression after this " ++ Name.toChars op ++ " operator:"
+              "I was expecting to see an expression after this " ++ Op.toChars op ++ " operator:"
           ,
             D.stack
               [
@@ -2689,7 +2690,7 @@ toExprReport source context expr startCur =
                 D.toSimpleNote $
                   "I may be getting confused by your indentation? The easiest way to make sure\
                   \ this is not an indentation problem is to put the expression on the right of\
-                  \ the " ++ Name.toChars op ++ " operator on the same line."
+                  \ the " ++ Op.toChars op ++ " operator on the same line."
               ]
           )
 
@@ -3128,7 +3129,7 @@ toOperatorReport source context operator cur =
 
                       Just name ->
                         "I may be getting confused by your indentation. I think I am still parsing the `"
-                        ++ Name.toChars name ++ "` definition. Is this supposed to be part of a definition\
+                        ++ N.toChars name ++ "` definition. Is this supposed to be part of a definition\
                         \ after that? If so, the problem may be a bit before the equals sign. I need all\
                         \ definitions to be indented exactly the same amount, so the problem may be that\
                         \ this new definition has too many spaces in front of it."
@@ -3161,11 +3162,11 @@ toOperatorReport source context operator cur =
                       ]
                   , D.toSimpleNote $
                       "The single colon is reserved for type annotations and record types, but I think\
-                      \ I am parsing the definition of `" ++ Name.toChars name ++ "` right now."
+                      \ I am parsing the definition of `" ++ N.toChars name ++ "` right now."
                   ,
                     D.toSimpleNote $
                       "I may be getting confused by your indentation. Is this supposed to be part of\
-                      \ a type annotation AFTER the `" ++ Name.toChars name ++ "` definition? If so,\
+                      \ a type annotation AFTER the `" ++ N.toChars name ++ "` definition? If so,\
                       \ the problem may be a bit before the \"has type\" symbol. I need all definitions to\
                       \ be exactly aligned (with exactly the same indentation) so the problem may be that\
                       \ this new definition is indented a bit too much."
@@ -3312,7 +3313,7 @@ toUnfinishLetReport source cur startCur message =
       )
 
 
-toLetDefReport :: Code.Source -> Name.Name -> Def -> Cursor -> Report.Report
+toLetDefReport :: Code.Source -> N.Name -> Def -> Cursor -> Report.Report
 toLetDefReport source name def startCur =
   case def of
     DefSpace space cur ->
@@ -3330,7 +3331,7 @@ toLetDefReport source name def startCur =
         Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I just saw the type annotation for `" ++ Name.toChars name
+              "I just saw the type annotation for `" ++ N.toChars name
               ++ "` so I was expecting to see its definition here:"
           ,
             D.stack
@@ -3350,7 +3351,7 @@ toLetDefReport source name def startCur =
         Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I just saw a type annotation for `" ++ Name.toChars name ++ "`, but it is followed by a definition for `" ++ Name.toChars defName ++ "`:"
+              "I just saw a type annotation for `" ++ N.toChars name ++ "`, but it is followed by a definition for `" ++ N.toChars defName ++ "`:"
           ,
             D.stack
               [ D.reflow $
@@ -3420,7 +3421,7 @@ toLetDefReport source name def startCur =
                       , "  " <> D.dullyellow "\"Hello \"" <> " ++ name ++ " <> D.dullyellow "\"!\""
                       ]
                   , D.reflow $
-                      "Try to use that format with your `" ++ Name.toChars name ++ "` definition!"
+                      "Try to use that format with your `" ++ N.toChars name ++ "` definition!"
                   ]
               )
 
@@ -3445,7 +3446,7 @@ toLetDefReport source name def startCur =
                       , "  " <> D.dullyellow "\"Hello \"" <> " ++ name ++ " <> D.dullyellow "\"!\""
                       ]
                   , D.reflow $
-                      "Try to use that format with your `" ++ Name.toChars name ++ "` definition!"
+                      "Try to use that format with your `" ++ N.toChars name ++ "` definition!"
                   ]
               )
 
@@ -3458,7 +3459,7 @@ toLetDefReport source name def startCur =
             Code.toSnippet source surroundings (Just region)
               (
                 D.reflow $
-                  "I got stuck while parsing the `" ++ Name.toChars name ++ "` definition:"
+                  "I got stuck while parsing the `" ++ N.toChars name ++ "` definition:"
               ,
                 D.stack
                   [ D.reflow $
@@ -3486,7 +3487,7 @@ toLetDefReport source name def startCur =
         Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I got stuck while parsing the `" ++ Name.toChars name ++ "` definition:"
+              "I got stuck while parsing the `" ++ N.toChars name ++ "` definition:"
           ,
             D.stack
               [ D.reflow $
@@ -3504,7 +3505,7 @@ toLetDefReport source name def startCur =
         Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I got stuck while parsing the `" ++ Name.toChars name ++ "` type annotation:"
+              "I got stuck while parsing the `" ++ N.toChars name ++ "` type annotation:"
           ,
             D.stack
               [ D.reflow $
@@ -3522,7 +3523,7 @@ toLetDefReport source name def startCur =
         Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I got stuck while parsing the `" ++ Name.toChars name ++ "` definition:"
+              "I got stuck while parsing the `" ++ N.toChars name ++ "` definition:"
           ,
             D.stack
               [ D.reflow $
@@ -3541,7 +3542,7 @@ toLetDefReport source name def startCur =
         Code.toSnippet source surroundings (Just region)
           (
             D.reflow $
-              "I got stuck while parsing the `" ++ Name.toChars name ++ "` definition:"
+              "I got stuck while parsing the `" ++ N.toChars name ++ "` definition:"
           ,
             D.reflow $
               "I just saw a type annotation indented " ++ show (W32# indent) ++ " spaces, so I was\
@@ -4919,7 +4920,7 @@ toPatternReport source context pattern startCur =
       let
         region = toWiderRegion cur width
         examples =
-          case dropWhile (=='_') (Name.toChars name) of
+          case dropWhile (=='_') (N.toChars name) of
             [] -> [D.dullyellow "x","or",D.dullyellow "age"]
             c:cs -> [D.dullyellow (D.fromChars (Char.toLower c : cs))]
       in
@@ -5355,7 +5356,7 @@ toPListReport source context list startCur =
 
 
 data TContext
-  = TC_Annotation Name.Name
+  = TC_Annotation N.Name
   | TC_CustomType
   | TC_TypeAlias
   | TC_Port
@@ -5396,16 +5397,16 @@ toTypeReport source context tipe startCur =
             thing =
               case context of
                 TC_Annotation _ -> "type annotation"
-                TC_CustomType -> "custom type"
-                TC_TypeAlias -> "type alias"
-                TC_Port -> "port"
+                TC_CustomType   -> "custom type"
+                TC_TypeAlias    -> "type alias"
+                TC_Port         -> "port"
 
             something =
               case context of
-                TC_Annotation name -> "the `" ++ Name.toChars name ++ "` type annotation"
-                TC_CustomType -> "a custom type"
-                TC_TypeAlias -> "a type alias"
-                TC_Port -> "a port"
+                TC_Annotation n -> "the `" ++ N.toChars n ++ "` type annotation"
+                TC_CustomType   -> "a custom type"
+                TC_TypeAlias    -> "a type alias"
+                TC_Port         -> "a port"
           in
           Report.Report ("PROBLEM IN " ++ map Char.toUpper thing) region [] $
             Code.toSnippet source surroundings (Just region)

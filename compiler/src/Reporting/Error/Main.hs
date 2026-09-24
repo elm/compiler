@@ -7,11 +7,13 @@ module Reporting.Error.Main
 
 
 import Prelude hiding (cycle)
-import qualified Data.Name as Name
 
 import qualified Graph
 
 import qualified AST.Canonical as Can
+import qualified AST.Prim.Name as N
+import qualified AST.Prim.TypeName as T
+import qualified AST.Prim.TypeVar as T
 import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
 import qualified Reporting.Error.Canonicalize as E
@@ -27,7 +29,7 @@ import qualified Reporting.Report as Report
 
 data Error
   = BadType A.Region Can.Type
-  | BadCycle A.Region (Graph.MinimalCycle Name.Name)
+  | BadCycle A.Region (Graph.MinimalCycle N.Name)
   | BadFlags A.Region Can.Type E.InvalidPayload
 
 
@@ -63,7 +65,7 @@ toReport localizer source err =
               [ D.reflow $
                   "It should be a boring value with no recursion. But\
                   \ instead it is involved in this cycle of definitions:"
-              , D.cycle 4 cycle
+              , D.cycle cycle D.fromName
               ]
           )
 
@@ -103,14 +105,14 @@ toReport localizer source err =
               "an unspecified type"
             ,
               D.reflow $
-                "But type variables like `" ++ Name.toChars name ++ "` cannot be given as flags.\
+                "But type variables like `" ++ T.varToChars name ++ "` cannot be given as flags.\
                 \ I need to know exactly what type of data I am getting, so I can guarantee that\
                 \ unexpected data cannot sneak in and crash the Elm program."
             )
 
           E.UnsupportedType name ->
             (
-              "a `" ++ Name.toChars name ++ "` value"
+              "a `" ++ T.nameToChars name ++ "` value"
             ,
               D.stack
                 [ D.reflow $ "I cannot handle that. The types that CAN be in flags include:"

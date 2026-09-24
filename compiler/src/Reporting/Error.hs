@@ -13,7 +13,7 @@ import qualified Data.NonEmptyList as NE
 import qualified Data.OneOrMore as OneOrMore
 import qualified System.FilePath as FP
 
-import qualified Elm.ModuleName as ModuleName
+import qualified AST.Prim.Module as Module
 import qualified File
 import qualified Json.Encode as E
 import Json.Encode ((==>))
@@ -37,7 +37,7 @@ import qualified Reporting.Report as Report
 
 data Module =
   Module
-    { _name :: ModuleName.Raw
+    { _name :: Module.Name
     , _absolutePath :: FilePath
     , _modificationTime :: File.Time
     , _source :: B.ByteString
@@ -117,8 +117,8 @@ toDocHelp root module1 modules =
 toSeparator :: Module -> Module -> D.Doc
 toSeparator beforeModule afterModule =
   let
-    before = ModuleName.toChars (_name beforeModule) ++ "  ↑    "
-    after  = "    ↓  " ++  ModuleName.toChars (_name afterModule)
+    before = Module.toChars (_name beforeModule) ++ "  ↑    "
+    after  = "    ↓  " ++  Module.toChars (_name afterModule)
   in
     D.dullred $ D.vcat $
       [ D.indent (80 - length before) (D.fromChars before)
@@ -179,7 +179,7 @@ toJson (Module name path _ source err) =
   in
   E.object
     [ "path" ==> E.chars path
-    , "name" ==> E.name name
+    , "name" ==> E.string (Module.toString name)
     , "problems" ==> E.array (map reportToJson (NE.toList reports))
     ]
 

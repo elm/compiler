@@ -9,6 +9,11 @@ module Reporting.Doc
   --
   , fromChars
   , fromName
+  , fromType
+  , fromVar
+  , fromModule
+  , fromPrefix
+  , fromOp
   , fromVersion
   , fromPackage
   , fromInt
@@ -45,7 +50,6 @@ module Reporting.Doc
 
 import Prelude hiding (cycle)
 import qualified Data.List as List
-import qualified Data.Name as Name
 import qualified System.Console.ANSI.Types as Ansi
 import System.IO (Handle)
 import qualified Text.PrettyPrint.ANSI.Leijen as P
@@ -53,6 +57,11 @@ import qualified Text.PrettyPrint.ANSI.Leijen as P
 import qualified Crash
 import qualified Graph
 
+import qualified AST.Prim.Module as Module
+import qualified AST.Prim.Name as N
+import qualified AST.Prim.Operator as Op
+import qualified AST.Prim.TypeName as T
+import qualified AST.Prim.TypeVar as T
 import qualified Data.Index as Index
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
@@ -65,29 +74,16 @@ import qualified Json.String as Json
 -- FROM
 
 
-fromChars :: String -> P.Doc
-fromChars =
-  P.text
-
-
-fromName :: Name.Name -> P.Doc
-fromName name =
-  P.text (Name.toChars name)
-
-
-fromVersion :: V.Version -> P.Doc
-fromVersion vsn =
-  P.text (V.toChars vsn)
-
-
-fromPackage :: Pkg.Name -> P.Doc
-fromPackage pkg =
-  P.text (Pkg.toChars pkg)
-
-
-fromInt :: Int -> P.Doc
-fromInt n =
-  P.text (show n)
+fromChars   :: String        -> P.Doc; fromChars     = P.text
+fromName    :: N.Name        -> P.Doc; fromName    n = P.text (N.toChars n)
+fromType    :: T.Name        -> P.Doc; fromType    t = P.text (T.nameToChars t)
+fromVar     :: T.Var         -> P.Doc; fromVar     v = P.text (T.varToChars v)
+fromModule  :: Module.Name   -> P.Doc; fromModule  h = P.text (Module.toChars h)
+fromPrefix  :: Module.Prefix -> P.Doc; fromPrefix  p = P.text (Module.prefixToChars p)
+fromOp      :: Op.Name       -> P.Doc; fromOp      o = P.text (Op.toChars o)
+fromVersion :: V.Version     -> P.Doc; fromVersion v = P.text (V.toChars v)
+fromPackage :: Pkg.Name      -> P.Doc; fromPackage p = P.text (Pkg.toChars p)
+fromInt     :: Int           -> P.Doc; fromInt     n = P.text (show n)
 
 
 
@@ -244,12 +240,12 @@ intToOrdinal number =
 
 
 
-cycle :: Int -> Graph.MinimalCycle Name.Name -> P.Doc
-cycle indent (Graph.MinimalCycle name names) =
+cycle :: Graph.MinimalCycle name -> (name -> P.Doc) -> P.Doc
+cycle (Graph.MinimalCycle name names) toDoc =
   let
-    toLn n = cycleLn <> P.dullyellow (fromName n)
+    toLn n = cycleLn <> P.dullyellow (toDoc n)
   in
-  P.indent indent $ P.vcat $
+  P.indent 4 $ P.vcat $
     cycleTop : List.intersperse cycleMid (toLn name : map toLn names) ++ [ cycleEnd ]
 
 
@@ -414,7 +410,7 @@ encodeChunks (Style bold underline color) revChunks =
 
 encodeColor :: Color -> E.Value
 encodeColor color =
-  E.string $ Json.fromChars $
+  E.jsonString $ Json.fromChars $
     case color of
       Red -> "red"
       RED -> "RED"
