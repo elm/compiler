@@ -14,9 +14,10 @@ module Elm.Compiler.Type
   where
 
 
-import qualified Data.Name as Name
-
 import qualified AST.Source as Src
+import qualified AST.Prim.Name as N
+import qualified AST.Prim.TypeName as T
+import qualified AST.Prim.TypeVar as T
 import qualified Json.Decode as D
 import qualified Json.Encode as E
 import Json.Encode ((==>))
@@ -31,13 +32,15 @@ import qualified Reporting.Render.Type.Localizer as L
 
 
 -- TYPES
+--
+-- Types that can be encoded as JSON.
 
 
 data Type
   = Lambda Type Type
-  | Var Name.Name
-  | Type Name.Name [Type]
-  | Record [(Name.Name, Type)] (Maybe Name.Name)
+  | Var T.Var
+  | Type T.Name [Type]
+  | Record [(N.Name, Type)] (Maybe T.Var)
   | Unit
   | Tuple Type Type [Type]
 
@@ -50,8 +53,8 @@ data DebugMetadata =
     }
 
 
-data Alias = Alias Name.Name [Name.Name] Type
-data Union = Union Name.Name [Name.Name] [(Name.Name, [Type])]
+data Alias = Alias T.Name [T.Var] Type
+data Union = Union T.Name [T.Var] [(N.Name, [Type])]
 
 
 
@@ -69,7 +72,7 @@ toDoc localizer context tipe =
       RT.lambda context a b cs
 
     Var name ->
-      D.fromName name
+      D.fromVar name
 
     Unit ->
       "()"
@@ -83,16 +86,16 @@ toDoc localizer context tipe =
     Type name args ->
       RT.apply
         context
-        (D.fromName name)
+        (D.fromType name)
         (map (toDoc localizer RT.App) args)
 
     Record fields ext ->
       RT.record
         (map (entryToDoc localizer) fields)
-        (fmap D.fromName ext)
+        (fmap D.fromVar ext)
 
 
-entryToDoc :: L.Localizer -> (Name.Name, Type) -> (D.Doc, D.Doc)
+entryToDoc :: L.Localizer -> (N.Name, Type) -> (D.Doc, D.Doc)
 entryToDoc localizer (field, fieldType) =
   ( D.fromName field, toDoc localizer RT.None fieldType )
 
@@ -171,9 +174,9 @@ encodeMetadata (DebugMetadata msg aliases unions) =
 
 toTypeAliasField :: Alias -> ( Json.String, E.Value )
 toTypeAliasField (Alias name args tipe) =
-  ( Json.fromName name
+  ( Json.fromStringUnsafe (T.nameToString name)
   , E.object
-      [ "args" ==> E.list E.name args
+      [ "args" ==> E.list (E.string . T.varToString) args
       , "type" ==> encode tipe
       ]
   )
@@ -181,14 +184,14 @@ toTypeAliasField (Alias name args tipe) =
 
 toCustomTypeField :: Union -> ( Json.String, E.Value )
 toCustomTypeField (Union name args constructors) =
-  ( Json.fromName name
+  ( Json.fromStringUnsafe (T.nameToString name)
   , E.object
-      [ "args" ==> E.list E.name args
+      [ "args" ==> E.list (E.string . T.varToString) args
       , "tags" ==> E.object (map toVariantObject constructors)
       ]
   )
 
 
-toVariantObject :: (Name.Name, [Type]) -> ( Json.String, E.Value )
+toVariantObject :: (N.Name, [Type]) -> ( Json.String, E.Value )
 toVariantObject (name, args) =
-  ( Json.fromName name, E.list encode args )
+  ( Json.fromStringUnsafe (N.toString name), E.list encode args )

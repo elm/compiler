@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings, Rank2Types, TemplateHaskell #-}
+{-# LANGUAGE BangPatterns, ExtendedLiterals, MagicHash, Rank2Types, TemplateHaskell #-}
 module Elm.Compiler.Type.Extract
   ( fromAnnotation
   , fromType
@@ -15,11 +15,15 @@ module Elm.Compiler.Type.Extract
 import qualified Data.Map as Map
 import qualified Data.Map.Utils as Map
 import qualified Data.Maybe as Maybe
-import qualified Data.Name as Name
 import qualified Data.Set as Set
 
+import qualified String as S
+
 import qualified AST.Canonical as Can
-import qualified AST.Optimized as Opt
+import qualified AST.Prim.Module as Module
+import qualified AST.Prim.Name as N
+import qualified AST.Prim.TypeName as T
+import qualified AST.Prim.TypeVar as T (a)
 import qualified AST.Utils.Type as Type
 import qualified Elm.Compiler.Type as T
 import qualified Elm.Interface as I
@@ -52,7 +56,7 @@ extract astType =
       pure (T.Var x)
 
     Can.TType home name args ->
-      addUnion (Opt.Global home name) (T.Type (toPublicName home name))
+      addUnion (Seen home name) (T.Type (toPublicName home name))
         <*> traverse extract args
 
     Can.TRecord fields ext ->
@@ -69,15 +73,16 @@ extract astType =
         <*> traverse extract (Maybe.maybeToList maybeC)
 
     Can.TAlias home name args aliasType ->
-      do  addAlias (Opt.Global home name) ()
+      do  addAlias (Seen home name) ()
           _ <- extract (Type.dealias args aliasType)
           T.Type (toPublicName home name)
             <$> traverse (extract . snd) args
 
 
-toPublicName :: ModuleName.Canonical -> Name.Name -> Name.Name
+toPublicName :: ModuleName.Canonical -> T.Name -> T.Name
 toPublicName (ModuleName.Canonical _ home) name =
-  Name.sepBy 0x2E {- . -} home name
+  T.nameFromString $
+    S.join (Module.toString home) 0x2E#Word8 {-.-} (T.nameToString name)
 
 
 
@@ -86,15 +91,15 @@ toPublicName (ModuleName.Canonical _ home) name =
 
 newtype Types =
   Types (Map.Map ModuleName.Canonical Types_)
-  -- PERF profile Opt.Global representation
+  -- PERF profile Seen representation
   -- current representation needs less allocation
   -- but maybe the lookup is much worse
 
 
 data Types_ =
   Types_
-    { _union_info :: Map.Map Name.Name Can.Union
-    , _alias_info :: Map.Map Name.Name Can.Alias
+    { _union_info :: Map.Map T.Name Can.Union
+    , _alias_info :: Map.Map T.Name Can.Alias
     }
 
 
@@ -110,7 +115,7 @@ merge (Types types1) (Types types2) =
   Types (Map.union types1 types2)
 
 
-fromInterface :: ModuleName.Raw -> I.Interface -> Types
+fromInterface :: Module.Name -> I.Interface -> Types
 fromInterface name (I.Interface pkg _ unions aliases _) =
   Types $ Map.singleton (ModuleName.Canonical pkg name) $
     Types_ (Map.map I.extractUnion unions) (Map.map I.extractAlias aliases)
@@ -169,29 +174,29 @@ extractTransitive types (Deps seenAliases seenUnions) (Deps nextAliases nextUnio
         mappend result remainingResult
 
 
-extractAlias :: Types -> Opt.Global -> Extractor T.Alias
-extractAlias (Types dict) (Opt.Global home name) =
+extractAlias :: Types -> Seen -> Extractor T.Alias
+extractAlias (Types dict) (Seen home name) =
   let
-    types                      = $(Map.require 'extractAlias) home dict (ModuleName.toChars . ModuleName._module)
-    (Can.Alias args aliasType) = $(Map.require 'extractAlias) name (_alias_info types) Name.toChars
+    types                      = $(Map.require 'extractAlias) home dict (Module.toChars . ModuleName._module)
+    (Can.Alias args aliasType) = $(Map.require 'extractAlias) name (_alias_info types) T.nameToChars
   in
   T.Alias (toPublicName home name) args <$> extract aliasType
 
 
-extractUnion :: Types -> Opt.Global -> Extractor T.Union
-extractUnion (Types dict) (Opt.Global home name) =
-  if name == Name.list && home == ModuleName.list
-    then return $ T.Union (toPublicName home name) ["a"] []
+extractUnion :: Types -> Seen -> Extractor T.Union
+extractUnion (Types dict) (Seen home name) =
+  if name == T.list && home == ModuleName.list
+    then return $ T.Union (toPublicName home name) [T.a] []
     else
       let
         pname = toPublicName home name
-        types                      = $(Map.require 'extractUnion) home dict (ModuleName.toChars . ModuleName._module)
-        (Can.Union vars ctors _ _) = $(Map.require 'extractUnion) name (_union_info types) Name.toChars
+        types                      = $(Map.require 'extractUnion) home dict (Module.toChars . ModuleName._module)
+        (Can.Union vars ctors _ _) = $(Map.require 'extractUnion) name (_union_info types) T.nameToChars
       in
       T.Union pname vars <$> traverse extractCtor ctors
 
 
-extractCtor :: Can.Ctor -> Extractor (Name.Name, [T.Type])
+extractCtor :: Can.Ctor -> Extractor (N.Name, [T.Type])
 extractCtor (Can.Ctor ctor _ _ args) =
   (,) ctor <$> traverse extract args
 
@@ -202,9 +207,13 @@ extractCtor (Can.Ctor ctor _ _ args) =
 
 data Deps =
   Deps
-    { _aliases :: Set.Set Opt.Global
-    , _unions :: Set.Set Opt.Global
+    { _aliases :: Set.Set Seen
+    , _unions :: Set.Set Seen
     }
+
+
+data Seen = Seen ModuleName.Canonical T.Name
+  deriving (Eq, Ord)
 
 
 {-# NOINLINE noDeps #-}
@@ -220,9 +229,9 @@ noDeps =
 newtype Extractor a =
   Extractor (
     forall result.
-      Set.Set Opt.Global
-      -> Set.Set Opt.Global
-      -> (Set.Set Opt.Global -> Set.Set Opt.Global -> a -> result)
+      Set.Set Seen
+      -> Set.Set Seen
+      -> (Set.Set Seen -> Set.Set Seen -> a -> result)
       -> result
   )
 
@@ -233,13 +242,13 @@ run (Extractor k) =
     ( Deps aliases unions, value )
 
 
-addAlias :: Opt.Global -> a -> Extractor a
+addAlias :: Seen -> a -> Extractor a
 addAlias alias value =
   Extractor $ \aliases unions ok ->
     ok (Set.insert alias aliases) unions value
 
 
-addUnion :: Opt.Global -> a -> Extractor a
+addUnion :: Seen -> a -> Extractor a
 addUnion union value =
   Extractor $ \aliases unions ok ->
     ok aliases (Set.insert union unions) value

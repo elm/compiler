@@ -6,6 +6,7 @@ module Elm.String
   ( String
   , toChars
   , toBuilder
+  , fromName
   , Chunk(..)
   , fromChunks
   --
@@ -28,6 +29,9 @@ import GHC.Word (Word8(..))
 
 import qualified Bytes.Decode as D
 import qualified Bytes.Encode as E
+import qualified String as S
+
+import qualified AST.Prim.Name as N
 
 
 
@@ -54,6 +58,18 @@ toChars =
 toBuilder :: String -> B.Builder
 toBuilder =
   Utf8.toBuilder
+
+
+
+
+-- FROM NAME
+
+
+fromName :: N.Name -> String
+fromName name =
+    Utf8.Utf8 ba
+  where
+    !(S.String ba) = N.toString name
 
 
 

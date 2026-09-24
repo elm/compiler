@@ -5,10 +5,10 @@ module Elm.Compiler.Imports
   where
 
 
-import qualified Data.Name as Name
-
 import qualified AST.Source as Src
-import qualified Elm.ModuleName as ModuleName
+import qualified AST.Prim.Module as Module
+import qualified AST.Prim.Operator as Op
+import qualified AST.Prim.TypeName as T
 import qualified Reporting.Annotation as A
 
 
@@ -18,22 +18,22 @@ import qualified Reporting.Annotation as A
 
 defaults :: [Src.Import]
 defaults =
-  [ import_ ModuleName.basics Nothing Src.Open
-  , import_ ModuleName.debug Nothing closed
-  , import_ ModuleName.list Nothing (operator "::")
-  , import_ ModuleName.maybe Nothing (typeOpen Name.maybe)
-  , import_ ModuleName.result Nothing (typeOpen Name.result)
-  , import_ ModuleName.string Nothing (typeClosed Name.string)
-  , import_ ModuleName.char Nothing (typeClosed Name.char)
-  , import_ ModuleName.tuple Nothing closed
-  , import_ ModuleName.platform Nothing (typeClosed Name.program)
-  , import_ ModuleName.cmd (Just Name.cmd) (typeClosed Name.cmd)
-  , import_ ModuleName.sub (Just Name.sub) (typeClosed Name.sub)
+  [ import_ Module.basics        Nothing                 Src.Open
+  , import_ Module.debug         Nothing                 closed
+  , import_ Module.list          Nothing                 (operator Op.cons)
+  , import_ Module.maybe         Nothing                 (typeOpen T.maybe)
+  , import_ Module.result        Nothing                 (typeOpen T.result)
+  , import_ Module.string        Nothing                 (typeClosed T.string)
+  , import_ Module.char          Nothing                 (typeClosed T.char)
+  , import_ Module.tuple         Nothing                 closed
+  , import_ Module.platform      Nothing                 (typeClosed T.program)
+  , import_ Module.platform_cmd (Just Module.prefix_cmd) (typeClosed T.cmd)
+  , import_ Module.platform_sub (Just Module.prefix_sub) (typeClosed T.sub)
   ]
 
 
-import_ :: ModuleName.Canonical -> Maybe Name.Name -> Src.Exposing -> Src.Import
-import_ (ModuleName.Canonical _ name) maybeAlias exposing =
+import_ :: Module.Name -> Maybe Module.Prefix -> Src.Exposing -> Src.Import
+import_ name maybeAlias exposing =
   Src.Import (A.At A.zero name) maybeAlias exposing
 
 
@@ -46,16 +46,16 @@ closed =
   Src.Explicit []
 
 
-typeOpen :: Name.Name -> Src.Exposing
+typeOpen :: T.Name -> Src.Exposing
 typeOpen name =
   Src.Explicit [ Src.Upper (A.At A.zero name) (Src.Public A.zero) ]
 
 
-typeClosed :: Name.Name -> Src.Exposing
+typeClosed :: T.Name -> Src.Exposing
 typeClosed name =
   Src.Explicit [ Src.Upper (A.At A.zero name) Src.Private ]
 
 
-operator :: Name.Name -> Src.Exposing
+operator :: Op.Name -> Src.Exposing
 operator op =
   Src.Explicit [ Src.Operator A.zero op ]

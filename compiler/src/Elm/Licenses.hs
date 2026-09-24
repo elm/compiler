@@ -32,12 +32,12 @@ bsd3 =
 
 encode :: License -> E.Value
 encode (License code) =
-  E.string code
+  E.jsonString code
 
 
 decoder :: (Json.String -> [Json.String] -> e) -> D.Decoder e License
 decoder toError =
-  do  str <- D.string
+  do  str <- D.jsonString
       case check str of
         Right license ->
           return license
