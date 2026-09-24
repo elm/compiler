@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
 module Canonicalize.Environment.Local
   ( add
   )
@@ -9,12 +9,14 @@ import Prelude hiding (cycle)
 import Control.Monad (foldM)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
-import qualified Data.Name as Name
 
 import qualified Graph
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
+import qualified AST.Prim.Name as N
+import qualified AST.Prim.TypeName as T
+import qualified AST.Prim.TypeVar as T
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
 import qualified Canonicalize.Type as Type
@@ -33,8 +35,8 @@ type Result i w a =
   Result.Result i w Error.Error a
 
 
-type Unions = Map.Map Name.Name Can.Union
-type Aliases = Map.Map Name.Name Can.Alias
+type Unions = Map.Map T.Name Can.Union
+type Aliases = Map.Map T.Name Can.Alias
 
 
 add :: Src.Module -> Env.Env -> Result i w (Env.Env, Unions, Aliases)
@@ -54,7 +56,7 @@ addVars module_ (Env.Env home vs ts cs bs qvs qts qcs) =
       Result.ok $ Env.Env home vs2 ts cs bs qvs qts qcs
 
 
-collectVars :: Src.Module -> Result i w (Map.Map Name.Name Env.Var)
+collectVars :: Src.Module -> Result i w (Map.Map N.Name Env.Var)
 collectVars (Src.Module _ _ _ _ values _ _ _ effects) =
   let
     addDecl dict (A.At _ (Src.Value (A.At region name) _ _ _)) =
@@ -64,7 +66,7 @@ collectVars (Src.Module _ _ _ _ values _ _ _ effects) =
     List.foldl' addDecl (toEffectDups effects) values
 
 
-toEffectDups :: Src.Effects -> Dups.Dict Env.Var
+toEffectDups :: Src.Effects -> Dups.Dict N.Name Env.Var
 toEffectDups effects =
   case effects of
     Src.NoEffects ->
@@ -80,15 +82,15 @@ toEffectDups effects =
     Src.Manager _ manager ->
       case manager of
         Src.Cmd (A.At region _) ->
-          Dups.one "command" region (Env.TopLevel region)
+          Dups.one [N.ascii|command|] region (Env.TopLevel region)
 
         Src.Sub (A.At region _) ->
-          Dups.one "subscription" region (Env.TopLevel region)
+          Dups.one [N.ascii|subscription|] region (Env.TopLevel region)
 
         Src.Fx (A.At regionCmd _) (A.At regionSub _) ->
           Dups.union
-            (Dups.one "command" regionCmd (Env.TopLevel regionCmd))
-            (Dups.one "subscription" regionSub (Env.TopLevel regionSub))
+            (Dups.one [N.ascii|command|] regionCmd (Env.TopLevel regionCmd))
+            (Dups.one [N.ascii|subscription|] regionSub (Env.TopLevel regionSub))
 
 
 
@@ -108,7 +110,7 @@ addTypes (Src.Module _ _ _ _ _ unions aliases _ _) (Env.Env home vs ts cs bs qvs
       addAliases aliases (Env.Env home vs ts1 cs bs qvs qts qcs)
 
 
-addUnion :: ModuleName.Canonical -> Env.Exposed Env.Type -> A.Located Src.Union -> Result i w (Env.Exposed Env.Type)
+addUnion :: ModuleName.Canonical -> Env.Exposed T.Name Env.Type -> A.Located Src.Union -> Result i w (Env.Exposed T.Name Env.Type)
 addUnion home types union@(A.At _ (Src.Union (A.At _ name) _ _)) =
   do  arity <- checkUnionFreeVars union
       let one = Env.Specific home (Env.Union arity home)
@@ -128,7 +130,7 @@ addAliases aliases env =
   foldM addAlias env sccs
 
 
-addAlias :: Env.Env -> Graph.SCC Name.Name (A.Located Src.Alias) -> Result i w Env.Env
+addAlias :: Env.Env -> Graph.SCC T.Name (A.Located Src.Alias) -> Result i w Env.Env
 addAlias env@(Env.Env home vs ts cs bs qvs qts qcs) scc =
   case scc of
     Graph.Acyclic (Graph.Node _ alias@(A.At _ (Src.Alias (A.At _ name) _ tipe)) _) ->
@@ -150,34 +152,21 @@ addAlias env@(Env.Env home vs ts cs bs qvs qts qcs) scc =
 -- DETECT TYPE ALIAS CYCLES
 
 
-toNode :: A.Located Src.Alias -> Graph.Node Name.Name (A.Located Src.Alias)
+toNode :: A.Located Src.Alias -> Graph.Node T.Name (A.Located Src.Alias)
 toNode alias@(A.At _ (Src.Alias (A.At _ name) _ tipe)) =
   Graph.Node name alias (getEdges [] tipe)
 
 
-getEdges :: [Name.Name] -> Src.Type -> [Name.Name]
+getEdges :: [T.Name] -> Src.Type -> [T.Name]
 getEdges edges (A.At _ tipe) =
   case tipe of
-    Src.TLambda arg result ->
-      getEdges (getEdges edges arg) result
-
-    Src.TVar _ ->
-      edges
-
-    Src.TType _ name args ->
-      List.foldl' getEdges (name:edges) args
-
-    Src.TTypeQual _ _ _ args ->
-      List.foldl' getEdges edges args
-
-    Src.TRecord fields _ ->
-      List.foldl' (\es (_,t) -> getEdges es t) edges fields
-
-    Src.TUnit ->
-      edges
-
-    Src.TTuple a b cs ->
-      List.foldl' getEdges (getEdges (getEdges edges a) b) cs
+    Src.TLambda a b        -> getEdges (getEdges edges a) b
+    Src.TVar _             -> edges
+    Src.TType     _   n xs -> List.foldl' getEdges (n:edges) xs
+    Src.TTypeQual _ _ _ xs -> List.foldl' getEdges edges xs
+    Src.TRecord fs _       -> List.foldl' (\es (_,t) -> getEdges es t) edges fs
+    Src.TUnit              -> edges
+    Src.TTuple a b cs      -> List.foldl' getEdges (getEdges (getEdges edges a) b) cs
 
 
 
@@ -204,7 +193,7 @@ checkUnionFreeVars (A.At unionRegion (Src.Union (A.At _ name) args ctors)) =
             Error.TypeVarsUnboundInUnion unionRegion name (map A.toValue args) unbound unbounds
 
 
-checkAliasFreeVars :: A.Located Src.Alias -> Result i w [Name.Name]
+checkAliasFreeVars :: A.Located Src.Alias -> Result i w [T.Var]
 checkAliasFreeVars (A.At aliasRegion (Src.Alias (A.At _ name) args tipe)) =
   let
     addArg (A.At region arg) dict =
@@ -223,38 +212,21 @@ checkAliasFreeVars (A.At aliasRegion (Src.Alias (A.At _ name) args tipe)) =
               (Map.toList (Map.difference freeVars boundVars))
 
 
-addFreeVars :: Map.Map Name.Name A.Region -> Src.Type -> Map.Map Name.Name A.Region
+addFreeVars :: Map.Map T.Var A.Region -> Src.Type -> Map.Map T.Var A.Region
 addFreeVars freeVars (A.At region tipe) =
   case tipe of
-    Src.TLambda arg result ->
-      addFreeVars (addFreeVars freeVars arg) result
-
-    Src.TVar name ->
-      Map.insert name region freeVars
-
-    Src.TType _ _ args ->
-      List.foldl' addFreeVars freeVars args
-
-    Src.TTypeQual _ _ _ args ->
-      List.foldl' addFreeVars freeVars args
-
-    Src.TRecord fields maybeExt ->
-      let
-        extFreeVars =
-          case maybeExt of
-            Nothing ->
-              freeVars
-
-            Just (A.At extRegion ext) ->
-              Map.insert ext extRegion freeVars
-      in
-      List.foldl' (\fvs (_,t) -> addFreeVars fvs t) extFreeVars fields
-
-    Src.TUnit ->
-      freeVars
-
-    Src.TTuple a b cs ->
-      List.foldl' addFreeVars (addFreeVars (addFreeVars freeVars a) b) cs
+    Src.TLambda a b        -> addFreeVars (addFreeVars freeVars a) b
+    Src.TVar x             -> Map.insert x region freeVars
+    Src.TType     _   _ xs -> List.foldl' addFreeVars freeVars xs
+    Src.TTypeQual _ _ _ xs -> List.foldl' addFreeVars freeVars xs
+    Src.TRecord fs e       -> List.foldl' (\fvs (_,t) -> addFreeVars fvs t) (addExt e freeVars) fs
+    Src.TUnit              -> freeVars
+    Src.TTuple a b cs      -> List.foldl' addFreeVars (addFreeVars (addFreeVars freeVars a) b) cs
+  where
+    addExt ext fvs =
+      case ext of
+        Nothing         -> fvs
+        Just (A.At r x) -> Map.insert x r fvs
 
 
 
@@ -281,14 +253,14 @@ addCtors (Src.Module _ _ _ _ _ unions aliases _ _) env@(Env.Env home vs ts cs bs
         )
 
 
-type CtorDups = Dups.Dict (Env.Info Env.Ctor)
+type CtorDups = Dups.Dict N.Name (Env.Info Env.Ctor)
 
 
 
 -- CANONICALIZE ALIAS
 
 
-canonicalizeAlias :: Env.Env -> A.Located Src.Alias -> Result i w ( (Name.Name, Can.Alias), CtorDups )
+canonicalizeAlias :: Env.Env -> A.Located Src.Alias -> Result i w ( (T.Name, Can.Alias), CtorDups )
 canonicalizeAlias env@(Env.Env home _ _ _ _ _ _ _) (A.At _ (Src.Alias (A.At region name) args tipe)) =
   do  let vars = map A.toValue args
       ctipe <- Type.canonicalize env tipe
@@ -297,13 +269,13 @@ canonicalizeAlias env@(Env.Env home _ _ _ _ _ _ _) (A.At _ (Src.Alias (A.At regi
         ,
           case ctipe of
             Can.TRecord fields Nothing ->
-              Dups.one name region (Env.Specific home (toRecordCtor home name vars fields))
+              Dups.one (T.nameToName name) region (Env.Specific home (toRecordCtor home name vars fields))
 
             _ ->
               Dups.none
         )
 
-toRecordCtor :: ModuleName.Canonical -> Name.Name -> [Name.Name] -> Map.Map Name.Name Can.FieldType -> Env.Ctor
+toRecordCtor :: ModuleName.Canonical -> T.Name -> [T.Var] -> Map.Map N.Name Can.FieldType -> Env.Ctor
 toRecordCtor home name vars fields =
   let
     avars = map (\var -> (var, Can.TVar var)) vars
@@ -320,7 +292,7 @@ toRecordCtor home name vars fields =
 -- CANONICALIZE UNION
 
 
-canonicalizeUnion :: Env.Env -> A.Located Src.Union -> Result i w ( (Name.Name, Can.Union), CtorDups )
+canonicalizeUnion :: Env.Env -> A.Located Src.Union -> Result i w ( (T.Name, Can.Union), CtorDups )
 canonicalizeUnion env@(Env.Env home _ _ _ _ _ _ _) (A.At _ (Src.Union (A.At _ name) avars ctors)) =
   do  cctors <- Index.indexedTraverse (canonicalizeCtor env) ctors
       let vars = map A.toValue avars
@@ -332,14 +304,14 @@ canonicalizeUnion env@(Env.Env home _ _ _ _ _ _ _) (A.At _ (Src.Union (A.At _ na
         )
 
 
-canonicalizeCtor :: Env.Env -> Index.ZeroBased -> (A.Located Name.Name, [Src.Type]) -> Result i w (A.Located Can.Ctor)
+canonicalizeCtor :: Env.Env -> Index.ZeroBased -> (A.Located N.Name, [Src.Type]) -> Result i w (A.Located Can.Ctor)
 canonicalizeCtor env index (A.At region ctor, tipes) =
   do  ctipes <- traverse (Type.canonicalize env) tipes
       Result.ok $ A.At region $
         Can.Ctor ctor index (length ctipes) ctipes
 
 
-toOpts :: [(A.Located Name.Name, [Src.Type])] -> Can.CtorOpts
+toOpts :: [(A.Located N.Name, [Src.Type])] -> Can.CtorOpts
 toOpts ctors =
   case ctors of
     [ (_,[_]) ] ->
@@ -349,7 +321,7 @@ toOpts ctors =
       if all (null . snd) ctors then Can.Enum else Can.Normal
 
 
-toCtor :: ModuleName.Canonical -> Name.Name -> Can.Union -> A.Located Can.Ctor -> CtorDups
+toCtor :: ModuleName.Canonical -> T.Name -> Can.Union -> A.Located Can.Ctor -> CtorDups
 toCtor home typeName union (A.At region (Can.Ctor name index _ args)) =
   Dups.one name region $ Env.Specific home $
     Env.Ctor home typeName union index args

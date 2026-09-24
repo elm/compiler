@@ -9,12 +9,15 @@ import Control.Monad (foldM)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Map.Utils as Map
-import qualified Data.Name as Name
 
 import qualified Crash
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
+import qualified AST.Prim.Module as Module
+import qualified AST.Prim.Name as N
+import qualified AST.Prim.Operator as Op
+import qualified AST.Prim.TypeName as T
 import qualified Canonicalize.Environment as Env
 import qualified Elm.Interface as I
 import qualified Elm.ModuleName as ModuleName
@@ -32,7 +35,7 @@ type Result i w a =
   Result.Result i w Error.Error a
 
 
-createInitialEnv :: ModuleName.Canonical -> Map.Map ModuleName.Raw I.Interface -> [Src.Import] -> Result i w Env.Env
+createInitialEnv :: ModuleName.Canonical -> Map.Map Module.Name I.Interface -> [Src.Import] -> Result i w Env.Env
 createInitialEnv home ifaces imports =
   do  (State vs ts cs bs qvs qts qcs) <- foldM (addImport ifaces) emptyState (toSafeImports home imports)
       Result.ok (Env.Env home (Map.map infoToVar vs) ts cs bs qvs qts qcs)
@@ -51,13 +54,13 @@ infoToVar info =
 
 data State =
   State
-    { _vars :: Env.Exposed Can.Annotation
-    , _types :: Env.Exposed Env.Type
-    , _ctors :: Env.Exposed Env.Ctor
-    , _binops :: Env.Exposed Env.Binop
-    , _q_vars :: Env.Qualified Can.Annotation
-    , _q_types :: Env.Qualified Env.Type
-    , _q_ctors :: Env.Qualified Env.Ctor
+    { _vars :: Env.Exposed N.Name Can.Annotation
+    , _types :: Env.Exposed T.Name Env.Type
+    , _ctors :: Env.Exposed N.Name Env.Ctor
+    , _binops :: Env.Exposed Op.Name Env.Binop
+    , _q_vars :: Env.Qualified N.Name Can.Annotation
+    , _q_types :: Env.Qualified T.Name Env.Type
+    , _q_ctors :: Env.Qualified N.Name Env.Ctor
     }
 
 
@@ -66,9 +69,9 @@ emptyState =
   State Map.empty emptyTypes Map.empty Map.empty Map.empty Map.empty Map.empty
 
 
-emptyTypes :: Env.Exposed Env.Type
+emptyTypes :: Env.Exposed T.Name Env.Type
 emptyTypes =
-  Map.singleton "List" (Env.Specific ModuleName.list (Env.Union 1 ModuleName.list))
+  Map.singleton T.list (Env.Specific ModuleName.list (Env.Union 1 ModuleName.list))
 
 
 
@@ -84,7 +87,7 @@ toSafeImports (ModuleName.Canonical pkg _) imports =
 
 isNormal :: Src.Import -> Bool
 isNormal (Src.Import (A.At _ name) maybeAlias _) =
-  if Name.isKernel name
+  if Module.isKernel name
   then
     case maybeAlias of
       Nothing -> False
@@ -97,11 +100,11 @@ isNormal (Src.Import (A.At _ name) maybeAlias _) =
 -- ADD IMPORTS
 
 
-addImport :: Map.Map ModuleName.Raw I.Interface -> State -> Src.Import -> Result i w State
+addImport :: Map.Map Module.Name I.Interface -> State -> Src.Import -> Result i w State
 addImport ifaces (State vs ts cs bs qvs qts qcs) (Src.Import (A.At _ name) maybeAlias exposing) =
   let
-    (I.Interface pkg defs unions aliases binops) = $(Map.require 'addImport) name ifaces ModuleName.toChars
-    !prefix = maybe name id maybeAlias
+    (I.Interface pkg defs unions aliases binops) = $(Map.require 'addImport) name ifaces Module.toChars
+    !prefix = case maybeAlias of { Just p -> p ; Nothing -> Module.toPrefix name }
     !home = ModuleName.Canonical pkg name
 
     !rawTypeInfo =
@@ -134,12 +137,12 @@ addImport ifaces (State vs ts cs bs qvs qts qcs) (Src.Import (A.At _ name) maybe
         exposedList
 
 
-addExposed :: Env.Exposed a -> Env.Exposed a -> Env.Exposed a
+addExposed :: (Ord k) => Env.Exposed k a -> Env.Exposed k a -> Env.Exposed k a
 addExposed =
   Map.unionWith Env.mergeInfo
 
 
-addQualified :: Name.Name -> Env.Exposed a -> Env.Qualified a -> Env.Qualified a
+addQualified :: (Ord k) => Module.Prefix -> Env.Exposed k a -> Env.Qualified k a -> Env.Qualified k a
 addQualified prefix exposed qualified =
   Map.insertWith addExposed prefix exposed qualified
 
@@ -148,12 +151,12 @@ addQualified prefix exposed qualified =
 -- UNION
 
 
-unionToType :: ModuleName.Canonical -> Name.Name -> I.Union -> Maybe (Env.Type, Env.Exposed Env.Ctor)
+unionToType :: ModuleName.Canonical -> T.Name -> I.Union -> Maybe (Env.Type, Env.Exposed N.Name Env.Ctor)
 unionToType home name union =
   unionToTypeHelp home name <$> I.toPublicUnion union
 
 
-unionToTypeHelp :: ModuleName.Canonical -> Name.Name -> Can.Union -> (Env.Type, Env.Exposed Env.Ctor)
+unionToTypeHelp :: ModuleName.Canonical -> T.Name -> Can.Union -> (Env.Type, Env.Exposed N.Name Env.Ctor)
 unionToTypeHelp home name union@(Can.Union vars ctors _ _) =
   let
     addCtor dict (Can.Ctor ctor index _ args) =
@@ -168,12 +171,12 @@ unionToTypeHelp home name union@(Can.Union vars ctors _ _) =
 -- ALIAS
 
 
-aliasToType :: ModuleName.Canonical -> Name.Name -> I.Alias -> Maybe (Env.Type, Env.Exposed Env.Ctor)
+aliasToType :: ModuleName.Canonical -> T.Name -> I.Alias -> Maybe (Env.Type, Env.Exposed N.Name Env.Ctor)
 aliasToType home name alias =
   aliasToTypeHelp home name <$> I.toPublicAlias alias
 
 
-aliasToTypeHelp :: ModuleName.Canonical -> Name.Name -> Can.Alias -> (Env.Type, Env.Exposed Env.Ctor)
+aliasToTypeHelp :: ModuleName.Canonical -> T.Name -> Can.Alias -> (Env.Type, Env.Exposed N.Name Env.Ctor)
 aliasToTypeHelp home name (Can.Alias vars tipe) =
   (
     Env.Alias (length vars) home vars tipe
@@ -188,7 +191,7 @@ aliasToTypeHelp home name (Can.Alias vars tipe) =
               (Can.TAlias home name avars (Can.Filled tipe))
               (Can.fieldsToList fields)
         in
-        Map.singleton name (Env.Specific home (Env.RecordCtor home vars alias))
+        Map.singleton (T.nameToName name) (Env.Specific home (Env.RecordCtor home vars alias))
 
       _ ->
         Map.empty
@@ -199,7 +202,7 @@ aliasToTypeHelp home name (Can.Alias vars tipe) =
 -- BINOP
 
 
-binopToBinop :: ModuleName.Canonical -> Name.Name -> I.Binop -> Env.Info Env.Binop
+binopToBinop :: ModuleName.Canonical -> Op.Name -> I.Binop -> Env.Info Env.Binop
 binopToBinop home op (I.Binop name annotation associativity precedence) =
   Env.Specific home (Env.Binop op home name annotation associativity precedence)
 
@@ -210,9 +213,9 @@ binopToBinop home op (I.Binop name annotation associativity precedence) =
 
 addExposedValue
   :: ModuleName.Canonical
-  -> Env.Exposed Can.Annotation
-  -> Map.Map Name.Name (Env.Type, Env.Exposed Env.Ctor)
-  -> Map.Map Name.Name I.Binop
+  -> Env.Exposed N.Name Can.Annotation
+  -> Map.Map T.Name (Env.Type, Env.Exposed N.Name Env.Ctor)
+  -> Map.Map Op.Name I.Binop
   -> State
   -> Src.Exposed
   -> Result i w State
@@ -224,7 +227,7 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) exposed =
           Result.ok (State (Map.insertWith Env.mergeInfo name info vs) ts cs bs qvs qts qcs)
 
         Nothing ->
-          Result.throw (Error.ImportExposingNotFound region home name (Map.keys vars))
+          Result.throw (Error.ImportExposedValueNotFound region home name (Map.keys vars))
 
     Src.Upper (A.At region name) privacy ->
       case privacy of
@@ -246,12 +249,12 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) exposed =
                   Result.ok (State vs ts2 cs2 bs qvs qts qcs)
 
             Nothing ->
-              case checkForCtorMistake name types of
+              case checkForCtorMistake (T.nameToName name) types of
                 tipe:_ ->
-                  Result.throw $ Error.ImportCtorByName region name tipe
+                  Result.throw $ Error.ImportCtorByName region (T.nameToName name) tipe
 
                 [] ->
-                  Result.throw $ Error.ImportExposingNotFound region home name (Map.keys types)
+                  Result.throw $ Error.ImportExposedTypeNotFound region home name (Map.keys types)
 
         Src.Public dotDotRegion ->
           case Map.lookup name types of
@@ -268,7 +271,7 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) exposed =
                   Result.throw (Error.ImportOpenAlias dotDotRegion name)
 
             Nothing ->
-              Result.throw (Error.ImportExposingNotFound region home name (Map.keys types))
+              Result.throw (Error.ImportExposedTypeNotFound region home name (Map.keys types))
 
     Src.Operator region op ->
       case Map.lookup op binops of
@@ -279,10 +282,10 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) exposed =
           Result.ok (State vs ts cs bs2 qvs qts qcs)
 
         Nothing ->
-          Result.throw (Error.ImportExposingNotFound region home op (Map.keys binops))
+          Result.throw (Error.ImportExposedBinopNotFound region home op (Map.keys binops))
 
 
-checkForCtorMistake :: Name.Name -> Map.Map Name.Name (Env.Type, Env.Exposed Env.Ctor) -> [Name.Name]
+checkForCtorMistake :: N.Name -> Map.Map T.Name (Env.Type, Env.Exposed N.Name Env.Ctor) -> [T.Name]
 checkForCtorMistake givenName types =
     Map.foldr addMatches [] types
   where
@@ -294,11 +297,6 @@ checkForCtorMistake givenName types =
       then matches
       else
         case info of
-          Env.Specific _ (Env.Ctor _ tipeName _ _ _) ->
-            tipeName : matches
-
-          Env.Specific _ (Env.RecordCtor _ _ _) ->
-            matches
-
-          Env.Ambiguous _ _ ->
-            matches
+          Env.Specific _ (Env.Ctor _ tipeName _ _ _) -> tipeName : matches
+          Env.Specific _ (Env.RecordCtor _ _ _)      -> matches
+          Env.Ambiguous _ _                          -> matches

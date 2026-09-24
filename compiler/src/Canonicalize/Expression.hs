@@ -1,11 +1,12 @@
 {-# OPTIONS_GHC -fno-warn-x-partial #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, ExtendedLiterals, MagicHash, QuasiQuotes, UnboxedTuples #-}
 module Canonicalize.Expression
   ( canonicalize
   , FreeLocals
   , Uses(..)
   , verifyBindings
   , gatherTypedArgs
+  , fromManyNames
   )
   where
 
@@ -14,12 +15,16 @@ import Control.Monad (foldM)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Maybe as Maybe
-import qualified Data.Name as Name
+import GHC.Prim
+import GHC.ST (ST(ST), runST)
 
 import qualified Graph
+import qualified String as S
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
+import qualified AST.Prim.Module as Module
+import qualified AST.Prim.Name as N
 import qualified AST.Prim.Operator as Op
 import qualified AST.Utils.Type as Type
 import qualified Canonicalize.Environment as Env
@@ -44,7 +49,7 @@ type Result i w a =
 
 
 type FreeLocals =
-  Map.Map Name.Name Uses
+  Map.Map N.Name Uses
 
 
 data Uses =
@@ -213,7 +218,7 @@ canonicalizeCaseBranch env (pattern, expr) =
 -- CANONICALIZE BINOPS
 
 
-canonicalizeBinops :: A.Region -> Env.Env -> [(Src.Expr, A.Located Name.Name)] -> Src.Expr -> Result FreeLocals [W.Warning] Can.Expr
+canonicalizeBinops :: A.Region -> Env.Env -> [(Src.Expr, A.Located Op.Name)] -> Src.Expr -> Result FreeLocals [W.Warning] Can.Expr
 canonicalizeBinops overallRegion env ops final =
   let
     canonicalizeHelp (expr, A.At region op) =
@@ -315,7 +320,7 @@ canonicalizeLet letRegion env defs body =
 -- ADD BINDINGS
 
 
-addBindings :: Dups.Dict A.Region -> A.Located Src.Def -> Dups.Dict A.Region
+addBindings :: Dups.Dict N.Name A.Region -> A.Located Src.Def -> Dups.Dict N.Name A.Region
 addBindings bindings (A.At _ def) =
   case def of
     Src.Define (A.At region name) _ _ _ ->
@@ -325,7 +330,7 @@ addBindings bindings (A.At _ def) =
       addBindingsHelp bindings pattern
 
 
-addBindingsHelp :: Dups.Dict A.Region -> Src.Pattern -> Dups.Dict A.Region
+addBindingsHelp :: Dups.Dict N.Name A.Region -> Src.Pattern -> Dups.Dict N.Name A.Region
 addBindingsHelp bindings (A.At region pattern) =
   case pattern of
     Src.PAnything ->
@@ -378,12 +383,12 @@ addBindingsHelp bindings (A.At region pattern) =
 
 
 type Node =
-  Graph.Node Name.Name Binding
+  Graph.Node N.Name Binding
 
 
 data Binding
   = Define Can.Def
-  | Edge (A.Located Name.Name)
+  | Edge (A.Located N.Name)
   | Destruct Can.Pattern Can.Expr
 
 
@@ -438,7 +443,7 @@ addDefNodes env nodes (A.At _ def) =
                   (\freeLocals warnings cbody ->
                       let
                         names = getPatternNames [] pattern
-                        name = Name.fromManyNames (map A.toValue names)
+                        name = fromManyNames (map A.toValue names)
                         node = Graph.Node name (Destruct cpattern cbody) (Map.keys freeLocals)
                       in
                       good
@@ -461,12 +466,12 @@ logLetLocals args letLocals value =
       value
 
 
-addEdge :: [Name.Name] -> [Node] -> A.Located Name.Name -> [Node]
+addEdge :: [N.Name] -> [Node] -> A.Located N.Name -> [Node]
 addEdge edges nodes aname@(A.At _ name) =
   Graph.Node name (Edge aname) edges : nodes
 
 
-getPatternNames :: [A.Located Name.Name] -> Src.Pattern ->  [A.Located Name.Name]
+getPatternNames :: [A.Located N.Name] -> Src.Pattern ->  [A.Located N.Name]
 getPatternNames names (A.At region pattern) =
   case pattern of
     Src.PAnything            -> names
@@ -485,12 +490,55 @@ getPatternNames names (A.At region pattern) =
 
 
 
+-- FROM MANY NAMES
+--
+-- Creating a unique name by combining all the subnames can create names
+-- longer than 256 bytes relatively easily. So instead, the first given name
+-- (e.g. foo) is prefixed chars that are valid in JS but not Elm (e.g. _M$foo)
+--
+-- This should be a unique name since 0.19 disallows shadowing. It would not
+-- be possible for multiple top-level cycles to include values with the same
+-- name, so the important thing is to make the cycle name distinct from the
+-- normal name. Same logic for destructuring patterns like (x,y)
+
+
+fromManyNames :: [N.Name] -> N.Name
+fromManyNames names =
+  case names of
+    [] ->
+      blank
+      -- NOTE: this case is needed for (let _ = Debug.log "x" x in ...)
+      -- but maybe unused patterns should be stripped out instead
+
+    name : _ ->
+      let
+        !(S.String ba) = N.toString name
+        len = sizeofByteArray# ba
+      in
+      runST $ ST $ \s0 ->
+        case newByteArray# (3# +# len)                s0 of { (# s1, mba #) ->
+        case writeWord8Array# mba 0# 0x5F#Word8 {-_-} s1 of {    s2         ->
+        case writeWord8Array# mba 1# 0x4D#Word8 {-M-} s2 of {    s3         ->
+        case writeWord8Array# mba 2# 0x24#Word8 {-$-} s3 of {    s4         ->
+        case copyByteArray# ba 0# mba 3# len          s4 of {    s5         ->
+        case unsafeFreezeByteArray# mba               s5 of { (# s6, ba' #) ->
+          (# s6, N.fromString (S.String ba') #)
+        }}}}}}
+
+
+{-# NOINLINE blank #-}
+blank :: N.Name
+blank =
+  [N.ascii|_M$|]
+
+
+
 -- GATHER TYPED ARGS
 
 
 gatherTypedArgs
   :: Env.Env
-  -> Name.Name
+  -> N.Name
   -> [Src.Pattern]
   -> Can.Type
   -> Index.ZeroBased
@@ -518,7 +566,7 @@ gatherTypedArgs env name srcArgs tipe index revTypedArgs =
 -- DETECT CYCLES
 
 
-detectCycles :: A.Region -> [Graph.SCC Name.Name Binding] -> Can.Expr -> Result i w Can.Expr
+detectCycles :: A.Region -> [Graph.SCC N.Name Binding] -> Can.Expr -> Result i w Can.Expr
 detectCycles letRegion sccs body =
   case sccs of
     [] ->
@@ -545,7 +593,7 @@ detectCycles letRegion sccs body =
             )
 
 
-checkCycle :: Graph.Component Name.Name Binding -> Result i w [Can.Def]
+checkCycle :: Graph.Component N.Name Binding -> Result i w [Can.Def]
 checkCycle component =
   Graph.withComponent component $ \b bs ->
     add b bs []
@@ -584,7 +632,7 @@ checkCycle component =
       Graph.RootSelector $ \n _ -> ( Graph._key n, () )
 
 
-toName :: Binding -> Maybe Name.Name
+toName :: Binding -> Maybe N.Name
 toName binding =
   case binding of
     Define def         -> Just (getDefName def)
@@ -592,7 +640,7 @@ toName binding =
     Destruct _ _       -> Nothing
 
 
-getDefName :: Can.Def -> Name.Name
+getDefName :: Can.Def -> N.Name
 getDefName def =
   case def of
     Can.Def      (A.At _ name) _ _     -> name
@@ -603,7 +651,7 @@ getDefName def =
 -- LOG VARIABLE USES
 
 
-logVar :: Name.Name -> a -> Result FreeLocals w a
+logVar :: N.Name -> a -> Result FreeLocals w a
 logVar name value =
   Result.Result $ \freeLocals warnings _ good ->
     good (Map.insertWith combineUses name oneDirectUse freeLocals) warnings value
@@ -658,7 +706,7 @@ verifyBindings context bindings (Result.Result k) =
       )
 
 
-addUnusedWarning :: W.Context -> [W.Warning] -> Name.Name -> A.Region -> [W.Warning]
+addUnusedWarning :: W.Context -> [W.Warning] -> N.Name -> A.Region -> [W.Warning]
 addUnusedWarning context warnings name region =
   W.UnusedVariable region context name : warnings
 
@@ -688,7 +736,7 @@ delayedUsage (Result.Result k) =
 -- FIND VARIABLE
 
 
-findVar :: A.Region -> Env.Env -> Name.Name -> Result FreeLocals w Can.Expr_
+findVar :: A.Region -> Env.Env -> N.Name -> Result FreeLocals w Can.Expr_
 findVar region (Env.Env localHome vs _ _ _ qvs _ _) name =
   case Map.lookup name vs of
     Just var ->
@@ -713,7 +761,7 @@ findVar region (Env.Env localHome vs _ _ _ qvs _ _) name =
       Result.throw (Error.NotFoundVar region Nothing name (toPossibleNames vs qvs))
 
 
-findVarQual :: A.Region -> Env.Env -> Name.Name -> Name.Name -> Result FreeLocals w Can.Expr_
+findVarQual :: A.Region -> Env.Env -> Module.Prefix -> N.Name -> Result FreeLocals w Can.Expr_
 findVarQual region (Env.Env localHome vs _ _ _ qvs _ _) prefix name =
   case Map.lookup prefix qvs of
     Just qualified ->
@@ -732,13 +780,13 @@ findVarQual region (Env.Env localHome vs _ _ _ qvs _ _) prefix name =
           Result.throw (Error.NotFoundVar region (Just prefix) name (toPossibleNames vs qvs))
 
     Nothing ->
-      if Name.isKernel prefix && Pkg.isKernel (ModuleName._package localHome) then
-        Result.ok $ Can.VarKernel (Name.getKernel prefix) name
-      else
-        Result.throw (Error.NotFoundVar region (Just prefix) name (toPossibleNames vs qvs))
+      let prefixName = Module.fromString (Module.prefixToString prefix) in
+      if Module.isKernel prefixName && Pkg.isKernel (ModuleName._package localHome)
+      then Result.ok $ Can.VarKernel (Module.getKernel prefixName) name
+      else Result.throw $ Error.NotFoundVar region (Just prefix) name (toPossibleNames vs qvs)
 
 
-toPossibleNames :: Map.Map Name.Name Env.Var -> Env.Qualified Can.Annotation -> Error.PossibleNames
+toPossibleNames :: Map.Map N.Name Env.Var -> Env.Qualified N.Name Can.Annotation -> Error.PossibleNames N.Name
 toPossibleNames exposed qualified =
   Error.PossibleNames (Map.keysSet exposed) (Map.map Map.keysSet qualified)
 
@@ -747,7 +795,7 @@ toPossibleNames exposed qualified =
 -- FIND CTOR
 
 
-toVarCtor :: Name.Name -> Env.Ctor -> Can.Expr_
+toVarCtor :: N.Name -> Env.Ctor -> Can.Expr_
 toVarCtor name ctor =
   case ctor of
     Env.Ctor home typeName (Can.Union vars _ _ opts) index args ->

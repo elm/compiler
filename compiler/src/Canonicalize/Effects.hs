@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
 module Canonicalize.Effects
   ( canonicalize
   , checkPayload
@@ -7,10 +7,11 @@ module Canonicalize.Effects
 
 import qualified Data.Foldable as F
 import qualified Data.Map as Map
-import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
+import qualified AST.Prim.Name as N
+import qualified AST.Prim.TypeName as T
 import qualified AST.Utils.Type as Type
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Type as Type
@@ -35,7 +36,7 @@ type Result i w a =
 canonicalize
   :: Env.Env
   -> [A.Located Src.Value]
-  -> Map.Map Name.Name union
+  -> Map.Map T.Name union
   -> Src.Effects
   -> Result i w Can.Effects
 canonicalize env values unions effects =
@@ -50,39 +51,39 @@ canonicalize env values unions effects =
     Src.Manager region manager ->
       let dict = Map.fromList (map toNameRegion values) in
       Can.Manager
-        <$> verifyManager region dict "init"
-        <*> verifyManager region dict "onEffects"
-        <*> verifyManager region dict "onSelfMsg"
+        <$> verifyManager region dict [N.ascii|init|]
+        <*> verifyManager region dict [N.ascii|onEffects|]
+        <*> verifyManager region dict [N.ascii|onSelfMsg|]
         <*>
           case manager of
             Src.Cmd cmdType ->
               Can.Cmd
                 <$> verifyEffectType cmdType unions
-                <*  verifyManager region dict "cmdMap"
+                <*  verifyManager region dict [N.ascii|cmdMap|]
 
             Src.Sub subType ->
               Can.Sub
                 <$> verifyEffectType subType unions
-                <*  verifyManager region dict "subMap"
+                <*  verifyManager region dict [N.ascii|subMap|]
 
             Src.Fx cmdType subType ->
               Can.Fx
                 <$> verifyEffectType cmdType unions
                 <*> verifyEffectType subType unions
-                <*  verifyManager region dict "cmdMap"
-                <*  verifyManager region dict "subMap"
+                <*  verifyManager region dict [N.ascii|cmdMap|]
+                <*  verifyManager region dict [N.ascii|subMap|]
 
 
 
 -- CANONICALIZE PORT
 
 
-canonicalizePort :: Env.Env -> Src.Port -> Result i w (Name.Name, Can.Port)
+canonicalizePort :: Env.Env -> Src.Port -> Result i w (N.Name, Can.Port)
 canonicalizePort env (Src.Port (A.At region portName) tipe) =
   do  (Can.Forall freeVars ctipe) <- Type.toAnnotation env tipe
       case reverse (Type.delambda (Type.deepDealias ctipe)) of
         Can.TType home name [msg] : revArgs
-           | home == ModuleName.cmd && name == Name.cmd ->
+           | home == ModuleName.platform_cmd && name == T.cmd ->
                 case revArgs of
                   [] ->
                     Result.throw (Error.PortTypeInvalid region portName Error.CmdNoArg)
@@ -103,7 +104,7 @@ canonicalizePort env (Src.Port (A.At region portName) tipe) =
                   _ ->
                     Result.throw (Error.PortTypeInvalid region portName (Error.CmdExtraArgs (length revArgs)))
 
-            | home == ModuleName.sub && name == Name.sub ->
+            | home == ModuleName.platform_sub && name == T.sub ->
                 case revArgs of
                   [Can.TLambda incomingType (Can.TVar msg1)] ->
                     case msg of
@@ -129,7 +130,7 @@ canonicalizePort env (Src.Port (A.At region portName) tipe) =
 -- VERIFY MANAGER
 
 
-verifyEffectType :: A.Located Name.Name -> Map.Map Name.Name a -> Result i w Name.Name
+verifyEffectType :: A.Located T.Name -> Map.Map T.Name a -> Result i w T.Name
 verifyEffectType (A.At region name) unions =
   if Map.member name unions then
     Result.ok name
@@ -137,12 +138,12 @@ verifyEffectType (A.At region name) unions =
     Result.throw (Error.EffectNotFound region name)
 
 
-toNameRegion :: A.Located Src.Value -> (Name.Name, A.Region)
+toNameRegion :: A.Located Src.Value -> (N.Name, A.Region)
 toNameRegion (A.At _ (Src.Value (A.At region name) _ _ _)) =
   (name, region)
 
 
-verifyManager :: A.Region -> Map.Map Name.Name A.Region -> Name.Name -> Result i w A.Region
+verifyManager :: A.Region -> Map.Map N.Name A.Region -> N.Name -> Result i w A.Region
 verifyManager tagRegion values name =
   case Map.lookup name values of
     Just region ->
@@ -208,43 +209,43 @@ checkFieldPayload (Can.FieldType _ tipe) =
   checkPayload tipe
 
 
-isIntFloatBool :: ModuleName.Canonical -> Name.Name -> Bool
+isIntFloatBool :: ModuleName.Canonical -> T.Name -> Bool
 isIntFloatBool home name =
   home == ModuleName.basics
   &&
-  (name == Name.int || name == Name.float || name == Name.bool)
+  (name == T.int || name == T.float || name == T.bool)
 
 
-isString :: ModuleName.Canonical -> Name.Name -> Bool
+isString :: ModuleName.Canonical -> T.Name -> Bool
 isString home name =
   home == ModuleName.string
   &&
-  name == Name.string
+  name == T.string
 
 
-isJson :: ModuleName.Canonical -> Name.Name -> Bool
+isJson :: ModuleName.Canonical -> T.Name -> Bool
 isJson home name =
   home == ModuleName.jsonEncode
   &&
-  name == Name.value
+  name == T.value
 
 
-isList :: ModuleName.Canonical -> Name.Name -> Bool
+isList :: ModuleName.Canonical -> T.Name -> Bool
 isList home name =
   home == ModuleName.list
   &&
-  name == Name.list
+  name == T.list
 
 
-isMaybe :: ModuleName.Canonical -> Name.Name -> Bool
+isMaybe :: ModuleName.Canonical -> T.Name -> Bool
 isMaybe home name =
   home == ModuleName.maybe
   &&
-  name == Name.maybe
+  name == T.maybe
 
 
-isArray :: ModuleName.Canonical -> Name.Name -> Bool
+isArray :: ModuleName.Canonical -> T.Name -> Bool
 isArray home name =
   home == ModuleName.array
   &&
-  name == Name.array
+  name == T.array
