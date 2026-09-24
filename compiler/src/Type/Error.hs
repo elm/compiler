@@ -19,9 +19,10 @@ module Type.Error
 
 
 import qualified Data.Map as Map
-import qualified Data.Maybe as Maybe
-import qualified Data.Name as Name
 
+import qualified AST.Prim.Name as N
+import qualified AST.Prim.TypeName as T
+import qualified AST.Prim.TypeVar as T
 import qualified Data.Bag as Bag
 import qualified Elm.ModuleName as ModuleName
 import qualified Reporting.Doc as D
@@ -37,15 +38,16 @@ data Type
   = Lambda Type Type [Type]
   | Infinite
   | Error
-  | FlexVar Name.Name
-  | FlexSuper Super Name.Name
-  | RigidVar Name.Name
-  | RigidSuper Super Name.Name
-  | Type ModuleName.Canonical Name.Name [Type]
-  | Record (Map.Map Name.Name Type) Extension
+  | FlexVar T.Var
+  | FlexSuper Super T.Var
+  | RigidVar T.Var
+  | RigidSuper Super T.Var
+  | Type ModuleName.Canonical T.Name [Type]
+  | Record (Map.Map N.Name Type) Extension
   | Unit
-  | Tuple Type Type (Maybe Type)
-  | Alias ModuleName.Canonical Name.Name [(Name.Name, Type)] Type
+  | Pair Type Type
+  | Triple Type Type Type
+  | Alias ModuleName.Canonical T.Name [(T.Var, Type)] Type
 
 
 data Super
@@ -58,8 +60,8 @@ data Super
 
 data Extension
   = Closed
-  | FlexOpen Name.Name
-  | RigidOpen Name.Name
+  | FlexOpen T.Var
+  | RigidOpen T.Var
 
 
 iteratedDealias :: Type -> Type
@@ -85,28 +87,17 @@ toDoc localizer ctx tipe =
         (toDoc localizer RT.Func b)
         (map (toDoc localizer RT.Func) cs)
 
-    Infinite ->
-      "∞"
+    Infinite       -> "∞"
+    Error          -> "?"
+    FlexVar x      -> D.fromVar x
+    FlexSuper _ x  -> D.fromVar x
+    RigidVar x     -> D.fromVar x
+    RigidSuper _ x -> D.fromVar x
 
-    Error ->
-      "?"
-
-    FlexVar name ->
-      D.fromName name
-
-    FlexSuper _ name ->
-      D.fromName name
-
-    RigidVar name ->
-      D.fromName name
-
-    RigidSuper _ name ->
-      D.fromName name
-
-    Type home name args ->
+    Type h n xs ->
       RT.apply ctx
-        (L.toDoc localizer home name)
-        (map (toDoc localizer RT.App) args)
+        (L.toDoc localizer h n)
+        (map (toDoc localizer RT.App) xs)
 
     Record fields ext ->
       RT.record (fieldsToDocs localizer fields) (extToDoc ext)
@@ -114,29 +105,35 @@ toDoc localizer ctx tipe =
     Unit ->
       "()"
 
-    Tuple a b maybeC ->
+    Pair a b ->
       RT.tuple
         (toDoc localizer RT.None a)
         (toDoc localizer RT.None b)
-        (map (toDoc localizer RT.None) (Maybe.maybeToList maybeC))
+        []
+
+    Triple a b c ->
+      RT.tuple
+        (toDoc localizer RT.None a)
+        (toDoc localizer RT.None b)
+        [toDoc localizer RT.None c]
 
     Alias home name args _ ->
       aliasToDoc localizer ctx home name args
 
 
-aliasToDoc :: L.Localizer -> RT.Context -> ModuleName.Canonical -> Name.Name -> [(Name.Name, Type)] -> D.Doc
+aliasToDoc :: L.Localizer -> RT.Context -> ModuleName.Canonical -> T.Name -> [(T.Var, Type)] -> D.Doc
 aliasToDoc localizer ctx home name args =
   RT.apply ctx
     (L.toDoc localizer home name)
     (map (toDoc localizer RT.App . snd) args)
 
 
-fieldsToDocs :: L.Localizer -> Map.Map Name.Name Type -> [(D.Doc, D.Doc)]
+fieldsToDocs :: L.Localizer -> Map.Map N.Name Type -> [(D.Doc, D.Doc)]
 fieldsToDocs localizer fields =
   Map.foldrWithKey (addField localizer) [] fields
 
 
-addField :: L.Localizer -> Name.Name -> Type -> [(D.Doc, D.Doc)] -> [(D.Doc, D.Doc)]
+addField :: L.Localizer -> N.Name -> Type -> [(D.Doc, D.Doc)] -> [(D.Doc, D.Doc)]
 addField localizer fieldName fieldType docs =
   let
     f = D.fromName fieldName
@@ -148,9 +145,9 @@ addField localizer fieldName fieldType docs =
 extToDoc :: Extension -> Maybe D.Doc
 extToDoc ext =
   case ext of
-    Closed -> Nothing
-    FlexOpen x -> Just (D.fromName x)
-    RigidOpen x -> Just (D.fromName x)
+    Closed      -> Nothing
+    FlexOpen  x -> Just (D.fromVar x)
+    RigidOpen x -> Just (D.fromVar x)
 
 
 
@@ -175,11 +172,11 @@ data Problem
   | AnythingToBool
   | AnythingFromMaybe
   | ArityMismatch Int Int
-  | BadFlexSuper Direction Super Name.Name Type
-  | BadRigidVar Name.Name Type
-  | BadRigidSuper Super Name.Name Type
-  | FieldTypo Name.Name [Name.Name]
-  | FieldsMissing [Name.Name]
+  | BadFlexSuper Direction Super T.Var Type
+  | BadRigidVar T.Var Type
+  | BadRigidSuper Super T.Var Type
+  | FieldTypo N.Name [N.Name]
+  | FieldsMissing [N.Name]
 
 
 data Direction = Have | Need
@@ -258,13 +255,13 @@ toDiff localizer ctx tipe1 tipe2 =
           (D.dullyellow (RT.lambda ctx (f x) (f y) (map f zs)))
           (Bag.one (ArityMismatch (2 + length cs) (2 + length zs)))
 
-    (Tuple a b Nothing, Tuple x y Nothing) ->
+    (Pair a b, Pair x y) ->
       RT.tuple
         <$> toDiff localizer RT.None a x
         <*> toDiff localizer RT.None b y
         <*> pure []
 
-    (Tuple a b (Just c), Tuple x y (Just z)) ->
+    (Triple a b c, Triple x y z) ->
       RT.tuple
         <$> toDiff localizer RT.None a x
         <*> toDiff localizer RT.None b y
@@ -399,39 +396,39 @@ isSimilar (Diff _ _ status) =
 -- IS TYPE?
 
 
-isBool :: ModuleName.Canonical -> Name.Name -> Bool
+isBool :: ModuleName.Canonical -> T.Name -> Bool
 isBool home name =
-  home == ModuleName.basics && name == Name.bool
+  home == ModuleName.basics && name == T.bool
 
 
-isInt :: ModuleName.Canonical -> Name.Name -> Bool
+isInt :: ModuleName.Canonical -> T.Name -> Bool
 isInt home name =
-  home == ModuleName.basics && name == Name.int
+  home == ModuleName.basics && name == T.int
 
 
-isFloat :: ModuleName.Canonical -> Name.Name -> Bool
+isFloat :: ModuleName.Canonical -> T.Name -> Bool
 isFloat home name =
-  home == ModuleName.basics && name == Name.float
+  home == ModuleName.basics && name == T.float
 
 
-isString :: ModuleName.Canonical -> Name.Name -> Bool
+isString :: ModuleName.Canonical -> T.Name -> Bool
 isString home name =
-  home == ModuleName.string && name == Name.string
+  home == ModuleName.string && name == T.string
 
 
-isChar :: ModuleName.Canonical -> Name.Name -> Bool
+isChar :: ModuleName.Canonical -> T.Name -> Bool
 isChar home name =
-  home == ModuleName.char && name == Name.char
+  home == ModuleName.char && name == T.char
 
 
-isMaybe :: ModuleName.Canonical -> Name.Name -> Bool
+isMaybe :: ModuleName.Canonical -> T.Name -> Bool
 isMaybe home name =
-  home == ModuleName.maybe && name == Name.maybe
+  home == ModuleName.maybe && name == T.maybe
 
 
-isList :: ModuleName.Canonical -> Name.Name -> Bool
+isList :: ModuleName.Canonical -> T.Name -> Bool
 isList home name =
-  home == ModuleName.list && name == Name.list
+  home == ModuleName.list && name == T.list
 
 
 
@@ -448,10 +445,17 @@ isSuper super tipe =
         Appendable -> isString h n || isList h n
         CompAppend -> isString h n || isList h n && isSuper Comparable (head args)
 
-    Tuple a b maybeC ->
+    Pair a b ->
       case super of
         Number     -> False
-        Comparable -> isSuper super a && isSuper super b && maybe True (isSuper super) maybeC
+        Comparable -> isSuper super a && isSuper super b
+        Appendable -> False
+        CompAppend -> False
+
+    Triple a b c ->
+      case super of
+        Number     -> False
+        Comparable -> isSuper super a && isSuper super b && isSuper super c
         Appendable -> False
         CompAppend -> False
 
@@ -463,10 +467,10 @@ isSuper super tipe =
 -- NAME CLASH
 
 
-nameClashToDoc :: RT.Context -> L.Localizer -> ModuleName.Canonical -> Name.Name -> [Type] -> D.Doc
+nameClashToDoc :: RT.Context -> L.Localizer -> ModuleName.Canonical -> T.Name -> [Type] -> D.Doc
 nameClashToDoc ctx localizer (ModuleName.Canonical _ home) name args =
   RT.apply ctx
-    (D.yellow (D.fromName home) <> D.dullyellow ("." <> D.fromName name))
+    (D.yellow (D.fromModule home) <> D.dullyellow ("." <> D.fromType name))
     (map (toDoc localizer RT.App) args)
 
 
@@ -488,7 +492,7 @@ diffAliasedRecord localizer t1 t2 =
 -- RECORD DIFFS
 
 
-diffRecord :: L.Localizer -> Map.Map Name.Name Type -> Extension -> Map.Map Name.Name Type -> Extension -> Diff D.Doc
+diffRecord :: L.Localizer -> Map.Map N.Name Type -> Extension -> Map.Map N.Name Type -> Extension -> Diff D.Doc
 diffRecord localizer fields1 ext1 fields2 ext2 =
   let
     toUnknownDocs field tipe =

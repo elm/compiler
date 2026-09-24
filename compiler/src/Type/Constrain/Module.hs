@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
 module Type.Constrain.Module
   ( constrain
   )
@@ -6,9 +6,10 @@ module Type.Constrain.Module
 
 
 import qualified Data.Map.Strict as Map
-import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
+import qualified AST.Prim.Name as N
+import qualified AST.Prim.TypeName as T
 import qualified Elm.ModuleName as ModuleName
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as E
@@ -67,7 +68,7 @@ constrainDecls decls finalConstraint =
 -- PORT HELPERS
 
 
-letPort :: Name.Name -> Can.Port -> IO Constraint -> IO Constraint
+letPort :: N.Name -> Can.Port -> IO Constraint -> IO Constraint
 letPort name port_ makeConstraint =
   case port_ of
     Can.Incoming freeVars _ srcType ->
@@ -87,21 +88,21 @@ letPort name port_ makeConstraint =
 -- EFFECT MANAGER HELPERS
 
 
-letCmd :: ModuleName.Canonical -> Name.Name -> Constraint -> IO Constraint
+letCmd :: ModuleName.Canonical -> T.Name -> Constraint -> IO Constraint
 letCmd home tipe constraint =
   do  msgVar <- mkFlexVar
       let msg = VarN msgVar
-      let cmdType = FunN (AppN home tipe [msg]) (AppN ModuleName.cmd Name.cmd [msg])
-      let header = Map.singleton "command" (A.At A.zero cmdType)
+      let cmdType = FunN (AppN home tipe [msg]) (AppN ModuleName.platform_cmd T.cmd [msg])
+      let header = Map.singleton [N.ascii|command|] (A.At A.zero cmdType)
       return $ CLet [msgVar] [] header CTrue constraint
 
 
-letSub :: ModuleName.Canonical -> Name.Name -> Constraint -> IO Constraint
+letSub :: ModuleName.Canonical -> T.Name -> Constraint -> IO Constraint
 letSub home tipe constraint =
   do  msgVar <- mkFlexVar
       let msg = VarN msgVar
-      let subType = FunN (AppN home tipe [msg]) (AppN ModuleName.sub Name.sub [msg])
-      let header = Map.singleton "subscription" (A.At A.zero subType)
+      let subType = FunN (AppN home tipe [msg]) (AppN ModuleName.platform_sub T.sub [msg])
+      let header = Map.singleton [N.ascii|subscription|] (A.At A.zero subType)
       return $ CLet [msgVar] [] header CTrue constraint
 
 
@@ -132,9 +133,9 @@ constrainEffects home r0 r1 r2 manager =
 
       let effectCons =
             CAnd
-              [ CLocal r0 "init" (E.NoExpectation (task state0))
-              , CLocal r1 "onEffects" (E.NoExpectation onEffects)
-              , CLocal r2 "onSelfMsg" (E.NoExpectation onSelfMsg)
+              [ CLocal r0 [N.ascii|init|] (E.NoExpectation (task state0))
+              , CLocal r1 [N.ascii|onEffects|] (E.NoExpectation onEffects)
+              , CLocal r2 [N.ascii|onSelfMsg|] (E.NoExpectation onSelfMsg)
               , CEqual r1 E.Effects state0 (E.NoExpectation state1)
               , CEqual r2 E.Effects state0 (E.NoExpectation state2)
               , CEqual r2 E.Effects self1 (E.NoExpectation self2)
@@ -143,32 +144,32 @@ constrainEffects home r0 r1 r2 manager =
       CLet [] [s0,s1,s2,m1,m2,sm1,sm2] Map.empty effectCons <$>
         case manager of
           Can.Cmd cmd ->
-            checkMap "cmdMap" home cmd CSaveTheEnvironment
+            checkMap [N.ascii|cmdMap|] home cmd CSaveTheEnvironment
 
           Can.Sub sub ->
-            checkMap "subMap" home sub CSaveTheEnvironment
+            checkMap [N.ascii|subMap|] home sub CSaveTheEnvironment
 
           Can.Fx cmd sub ->
-            checkMap "cmdMap" home cmd =<<
-              checkMap "subMap" home sub CSaveTheEnvironment
+            checkMap [N.ascii|cmdMap|] home cmd =<<
+            checkMap [N.ascii|subMap|] home sub CSaveTheEnvironment
 
 
-effectList :: ModuleName.Canonical -> Name.Name -> Type -> Type
+effectList :: ModuleName.Canonical -> T.Name -> Type -> Type
 effectList home name msg =
-  AppN ModuleName.list Name.list [AppN home name [msg]]
+  AppN ModuleName.list T.list [AppN home name [msg]]
 
 
 task :: Type -> Type
 task answer =
-  AppN ModuleName.platform Name.task [ never, answer ]
+  AppN ModuleName.platform T.task [ never, answer ]
 
 
 router :: Type -> Type -> Type
 router msg self =
-  AppN ModuleName.platform Name.router [ msg, self ]
+  AppN ModuleName.platform T.router [ msg, self ]
 
 
-checkMap :: Name.Name -> ModuleName.Canonical -> Name.Name -> Constraint -> IO Constraint
+checkMap :: N.Name -> ModuleName.Canonical -> T.Name -> Constraint -> IO Constraint
 checkMap name home tipe constraint =
   do  a <- mkFlexVar
       b <- mkFlexVar
@@ -177,6 +178,6 @@ checkMap name home tipe constraint =
       return $ CLet [a,b] [] Map.empty mapCon constraint
 
 
-toMapType :: ModuleName.Canonical -> Name.Name -> Type -> Type -> Type
+toMapType :: ModuleName.Canonical -> T.Name -> Type -> Type -> Type
 toMapType home tipe a b =
   (a ==> b) ==> AppN home tipe [a] ==> AppN home tipe [b]

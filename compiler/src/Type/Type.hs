@@ -32,12 +32,15 @@ import Control.Monad.State.Strict (StateT, liftIO)
 import qualified Control.Monad.State.Strict as State
 import Data.Foldable (foldrM)
 import qualified Data.Map.Strict as Map
-import qualified Data.Name as Name
 import Data.Word (Word32)
 
 import qualified Crash
 
 import qualified AST.Canonical as Can
+import qualified AST.Prim.Name as N
+import qualified AST.Prim.Operator as Op
+import qualified AST.Prim.TypeName as T
+import qualified AST.Prim.TypeVar as T
 import qualified AST.Utils.Type as Type
 import qualified Elm.ModuleName as ModuleName
 import qualified Reporting.Annotation as A
@@ -54,14 +57,15 @@ data Constraint
   = CTrue
   | CSaveTheEnvironment
   | CEqual A.Region E.Category Type (E.Expected Type)
-  | CLocal A.Region Name.Name (E.Expected Type)
-  | CForeign A.Region Name.Name Can.Annotation (E.Expected Type)
+  | CLocal A.Region N.Name (E.Expected Type)
+  | CForeign A.Region N.Name Can.Annotation (E.Expected Type)
+  | COperator A.Region Op.Name Can.Annotation (E.Expected Type)
   | CPattern A.Region E.PCategory Type (E.PExpected Type)
   | CAnd [Constraint]
   | CLet
       { _rigidVars :: [Variable]
       , _flexVars :: [Variable]
-      , _header :: Map.Map Name.Name (A.Located Type)
+      , _header :: Map.Map N.Name (A.Located Type)
       , _headerCon :: Constraint
       , _bodyCon :: Constraint
       }
@@ -74,6 +78,8 @@ exists flexVars constraint =
 
 
 -- TYPE PRIMITIVES
+--
+-- TODO is PlaceHolder really unused now?
 
 
 type Variable =
@@ -81,22 +87,22 @@ type Variable =
 
 
 data FlatType
-    = App1 ModuleName.Canonical Name.Name [Variable]
+    = App1 ModuleName.Canonical T.Name [Variable]
     | Fun1 Variable Variable
     | EmptyRecord1
-    | Record1 (Map.Map Name.Name Variable) Variable
+    | Record1 (Map.Map N.Name Variable) Variable
     | Unit1
     | Tuple1 Variable Variable (Maybe Variable)
 
 
 data Type
-    = PlaceHolder Name.Name
-    | AliasN ModuleName.Canonical Name.Name [(Name.Name, Type)] Type
+    = PlaceHolder T.Var
+    | AliasN ModuleName.Canonical T.Name [(T.Var, Type)] Type
     | VarN Variable
-    | AppN ModuleName.Canonical Name.Name [Type]
+    | AppN ModuleName.Canonical T.Name [Type]
     | FunN Type Type
     | EmptyRecordN
-    | RecordN (Map.Map Name.Name Type) Type
+    | RecordN (Map.Map N.Name Type) Type
     | UnitN
     | TupleN Type Type (Maybe Type)
 
@@ -115,12 +121,12 @@ data Descriptor =
 
 
 data Content
-    = FlexVar (Maybe Name.Name)
-    | FlexSuper SuperType (Maybe Name.Name)
-    | RigidVar Name.Name
-    | RigidSuper SuperType Name.Name
+    = FlexVar (Maybe T.Var)
+    | FlexSuper SuperType (Maybe T.Var)
+    | RigidVar T.Var
+    | RigidSuper SuperType T.Var
     | Structure FlatType
-    | Alias ModuleName.Canonical Name.Name [(Name.Name,Variable)] Variable
+    | Alias ModuleName.Canonical T.Name [(T.Var,Variable)] Variable
     | Error
 
 
@@ -197,63 +203,23 @@ infixr 9 ==>
 -- PRIMITIVE TYPES
 
 
-{-# NOINLINE int #-}
-int :: Type
-int = AppN ModuleName.basics "Int" []
-
-
-{-# NOINLINE float #-}
-float :: Type
-float = AppN ModuleName.basics "Float" []
-
-
-{-# NOINLINE char #-}
-char :: Type
-char = AppN ModuleName.char "Char" []
-
-
-{-# NOINLINE string #-}
-string :: Type
-string = AppN ModuleName.string "String" []
-
-
-{-# NOINLINE bool #-}
-bool :: Type
-bool = AppN ModuleName.basics "Bool" []
-
-
-{-# NOINLINE never #-}
-never :: Type
-never = AppN ModuleName.basics "Never" []
+{-# NOINLINE int    #-}; int    :: Type; int    = AppN ModuleName.basics T.int    []
+{-# NOINLINE float  #-}; float  :: Type; float  = AppN ModuleName.basics T.float  []
+{-# NOINLINE char   #-}; char   :: Type; char   = AppN ModuleName.char   T.char   []
+{-# NOINLINE string #-}; string :: Type; string = AppN ModuleName.string T.string []
+{-# NOINLINE bool   #-}; bool   :: Type; bool   = AppN ModuleName.basics T.bool   []
+{-# NOINLINE never  #-}; never  :: Type; never  = AppN ModuleName.basics T.never  []
 
 
 
 -- WEBGL TYPES
 
 
-{-# NOINLINE vec2 #-}
-vec2 :: Type
-vec2 = AppN ModuleName.vector2 "Vec2" []
-
-
-{-# NOINLINE vec3 #-}
-vec3 :: Type
-vec3 = AppN ModuleName.vector3 "Vec3" []
-
-
-{-# NOINLINE vec4 #-}
-vec4 :: Type
-vec4 = AppN ModuleName.vector4 "Vec4" []
-
-
-{-# NOINLINE mat4 #-}
-mat4 :: Type
-mat4 = AppN ModuleName.matrix4 "Mat4" []
-
-
-{-# NOINLINE texture #-}
-texture :: Type
-texture = AppN ModuleName.texture "Texture" []
+{-# NOINLINE vec2    #-}; vec2    :: Type; vec2    = AppN ModuleName.vector2 T.vec2    []
+{-# NOINLINE vec3    #-}; vec3    :: Type; vec3    = AppN ModuleName.vector3 T.vec3    []
+{-# NOINLINE vec4    #-}; vec4    :: Type; vec4    = AppN ModuleName.vector4 T.vec4    []
+{-# NOINLINE mat4    #-}; mat4    :: Type; mat4    = AppN ModuleName.matrix4 T.mat4    []
+{-# NOINLINE texture #-}; texture :: Type; texture = AppN ModuleName.texture T.texture []
 
 
 
@@ -301,34 +267,26 @@ unnamedFlexSuper super =
 -- MAKE NAMED VARIABLES
 
 
-nameToFlex :: Name.Name -> IO Variable
+nameToFlex :: T.Var -> IO Variable
 nameToFlex name =
   UF.fresh $ makeDescriptor $
     maybe FlexVar FlexSuper (toSuper name) (Just name)
 
 
-nameToRigid :: Name.Name -> IO Variable
+nameToRigid :: T.Var -> IO Variable
 nameToRigid name =
   UF.fresh $ makeDescriptor $
     maybe RigidVar RigidSuper (toSuper name) name
 
 
-toSuper :: Name.Name -> Maybe SuperType
-toSuper name =
-  if Name.isNumberType name then
-      Just Number
-
-  else if Name.isComparableType name then
-      Just Comparable
-
-  else if Name.isAppendableType name then
-      Just Appendable
-
-  else if Name.isCompappendType name then
-      Just CompAppend
-
-  else
-      Nothing
+toSuper :: T.Var -> Maybe SuperType
+toSuper (T.Var _ c) =
+  case c of
+    T.Any        -> Nothing
+    T.Comparable -> Just Comparable
+    T.Appendable -> Just Appendable
+    T.CompAppend -> Just CompAppend
+    T.Number     -> Just Number
 
 
 
@@ -545,10 +503,9 @@ termToErrorType term =
       return ET.Unit
 
     Tuple1 a b maybeC ->
-      ET.Tuple
-        <$> variableToErrorType a
-        <*> variableToErrorType b
-        <*> traverse variableToErrorType maybeC
+      case maybeC of
+        Nothing -> ET.Pair   <$> variableToErrorType a <*> variableToErrorType b
+        Just c  -> ET.Triple <$> variableToErrorType a <*> variableToErrorType b <*> variableToErrorType c
 
 
 
@@ -557,7 +514,7 @@ termToErrorType term =
 
 data NameState =
   NameState
-    { _taken :: Map.Map Name.Name ()
+    { _taken :: Map.Map T.Var ()
     , _normals :: Int
     , _numbers :: Int
     , _comparables :: Int
@@ -566,7 +523,7 @@ data NameState =
     }
 
 
-makeNameState :: Map.Map Name.Name Variable -> NameState
+makeNameState :: Map.Map T.Var Variable -> NameState
 makeNameState taken =
   NameState (Map.map (const ()) taken) 0 0 0 0 0
 
@@ -575,7 +532,7 @@ makeNameState taken =
 -- FRESH VAR NAMES
 
 
-getFreshVarName :: (Monad m) => StateT NameState m Name.Name
+getFreshVarName :: (Monad m) => StateT NameState m T.Var
 getFreshVarName =
   do  index <- State.gets _normals
       taken <- State.gets _taken
@@ -584,11 +541,10 @@ getFreshVarName =
       return name
 
 
-getFreshVarNameHelp :: Int -> Map.Map Name.Name () -> (Name.Name, Int, Map.Map Name.Name ())
+getFreshVarNameHelp :: Int -> Map.Map T.Var () -> (T.Var, Int, Map.Map T.Var ())
 getFreshVarNameHelp index taken =
   let
-    name =
-      Name.fromTypeVariableScheme index
+    name = T.genAny index
   in
   if Map.member name taken then
     getFreshVarNameHelp (index + 1) taken
@@ -600,39 +556,31 @@ getFreshVarNameHelp index taken =
 -- FRESH SUPER NAMES
 
 
-getFreshSuperName :: (Monad m) => SuperType -> StateT NameState m Name.Name
+getFreshSuperName :: (Monad m) => SuperType -> StateT NameState m T.Var
 getFreshSuperName super =
   case super of
-    Number ->
-      getFreshSuper "number" _numbers (\index state -> state { _numbers = index })
-
-    Comparable ->
-      getFreshSuper "comparable" _comparables (\index state -> state { _comparables = index })
-
-    Appendable ->
-      getFreshSuper "appendable" _appendables (\index state -> state { _appendables = index })
-
-    CompAppend ->
-      getFreshSuper "compappend" _compAppends (\index state -> state { _compAppends = index })
+    Number     -> getFreshSuper T.genNumber     _numbers     (\i s -> s { _numbers     = i })
+    Comparable -> getFreshSuper T.genComparable _comparables (\i s -> s { _comparables = i })
+    Appendable -> getFreshSuper T.genAppendable _appendables (\i s -> s { _appendables = i })
+    CompAppend -> getFreshSuper T.genCompAppend _compAppends (\i s -> s { _compAppends = i })
 
 
-getFreshSuper :: (Monad m) => Name.Name -> (NameState -> Int) -> (Int -> NameState -> NameState) -> StateT NameState m Name.Name
-getFreshSuper prefix getter setter =
+getFreshSuper :: (Monad m) => (Int -> T.Var) -> (NameState -> Int) -> (Int -> NameState -> NameState) -> StateT NameState m T.Var
+getFreshSuper gen getter setter =
   do  index <- State.gets getter
       taken <- State.gets _taken
-      let (name, newIndex, newTaken) = getFreshSuperHelp prefix index taken
+      let (name, newIndex, newTaken) = getFreshSuperHelp gen index taken
       State.modify (\state -> setter newIndex state { _taken = newTaken })
       return name
 
 
-getFreshSuperHelp :: Name.Name -> Int -> Map.Map Name.Name () -> (Name.Name, Int, Map.Map Name.Name ())
-getFreshSuperHelp prefix index taken =
+getFreshSuperHelp :: (Int -> T.Var) -> Int -> Map.Map T.Var () -> (T.Var, Int, Map.Map T.Var ())
+getFreshSuperHelp gen index taken =
   let
-    name =
-      Name.fromTypeVariable prefix index
+    name = gen index
   in
     if Map.member name taken then
-      getFreshSuperHelp prefix (index + 1) taken
+      getFreshSuperHelp gen (index + 1) taken
 
     else
       ( name, index + 1, Map.insert name () taken )
@@ -642,7 +590,7 @@ getFreshSuperHelp prefix index taken =
 -- GET ALL VARIABLE NAMES
 
 
-getVarNames :: Variable -> Map.Map Name.Name Variable -> IO (Map.Map Name.Name Variable)
+getVarNames :: Variable -> Map.Map T.Var Variable -> IO (Map.Map T.Var Variable)
 getVarNames var takenNames =
   do  (Descriptor content rank mark copy) <- UF.get var
       if mark == getVarNamesMark
@@ -655,19 +603,13 @@ getVarNames var takenNames =
 
               FlexVar maybeName ->
                 case maybeName of
-                  Nothing ->
-                    return takenNames
-
-                  Just name ->
-                    addName 0 name var (FlexVar . Just) takenNames
+                  Nothing   -> return takenNames
+                  Just name -> addName 0 name var (FlexVar . Just) takenNames
 
               FlexSuper super maybeName ->
                 case maybeName of
-                  Nothing ->
-                    return takenNames
-
-                  Just name ->
-                    addName 0 name var (FlexSuper super . Just) takenNames
+                  Nothing   -> return takenNames
+                  Just name -> addName 0 name var (FlexSuper super . Just) takenNames
 
               RigidVar name ->
                 addName 0 name var RigidVar takenNames
@@ -680,38 +622,24 @@ getVarNames var takenNames =
 
               Structure flatType ->
                 case flatType of
-                  App1 _ _ args ->
-                    foldrM getVarNames takenNames args
-
-                  Fun1 arg body ->
-                    getVarNames arg =<< getVarNames body takenNames
-
-                  EmptyRecord1 ->
-                    return takenNames
-
-                  Record1 fields extension ->
-                    getVarNames extension =<<
-                      foldrM getVarNames takenNames (Map.elems fields)
-
-                  Unit1 ->
-                    return takenNames
-
-                  Tuple1 a b Nothing ->
-                    getVarNames a =<< getVarNames b takenNames
-
-                  Tuple1 a b (Just c) ->
-                    getVarNames a =<< getVarNames b =<< getVarNames c takenNames
+                  App1 _ _ xs         -> foldrM getVarNames takenNames xs
+                  Fun1 x e            -> getVarNames x =<< getVarNames e takenNames
+                  EmptyRecord1        -> return takenNames
+                  Record1 fs x        -> getVarNames x =<< foldrM getVarNames takenNames (Map.elems fs)
+                  Unit1               -> return takenNames
+                  Tuple1 a b Nothing  -> getVarNames a =<< getVarNames b takenNames
+                  Tuple1 a b (Just c) -> getVarNames a =<< getVarNames b =<< getVarNames c takenNames
 
 
 
 -- REGISTER NAME / RENAME DUPLICATES
 
 
-addName :: Int -> Name.Name -> Variable -> (Name.Name -> Content) -> Map.Map Name.Name Variable -> IO (Map.Map Name.Name Variable)
-addName index givenName var makeContent takenNames =
+addName :: Int -> T.Var -> Variable -> (T.Var -> Content) -> Map.Map T.Var Variable -> IO (Map.Map T.Var Variable)
+addName index givenName@(T.Var v c) var makeContent takenNames =
   let
     indexedName =
-      Name.fromTypeVariable givenName index
+      T.Var (T.genIndexed v index) c
   in
     case Map.lookup indexedName takenNames of
       Nothing ->
@@ -725,3 +653,4 @@ addName index givenName var makeContent takenNames =
             if same
               then return takenNames
               else addName (index + 1) givenName var makeContent takenNames
+

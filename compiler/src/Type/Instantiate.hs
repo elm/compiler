@@ -8,9 +8,9 @@ module Type.Instantiate
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Map.Utils as Map
-import qualified Data.Name as Name
 
 import qualified AST.Canonical as Can
+import qualified AST.Prim.TypeVar as T
 import Type.Type
 
 
@@ -19,14 +19,14 @@ import Type.Type
 
 
 type FreeVars =
-  Map.Map Name.Name Type
+  Map.Map T.Var Type
 
 
 
 -- FROM SOURCE TYPE
 
 
-fromSrcType :: Map.Map Name.Name Type -> Can.Type -> IO Type
+fromSrcType :: Map.Map T.Var Type -> Can.Type -> IO Type
 fromSrcType freeVars sourceType =
   case sourceType of
     Can.TLambda arg result ->
@@ -35,7 +35,7 @@ fromSrcType freeVars sourceType =
         <*> fromSrcType freeVars result
 
     Can.TVar name ->
-      return $ $(Map.require 'fromSrcType) name freeVars Name.toChars
+      return $ $(Map.require 'fromSrcType) name freeVars T.varToChars
 
     Can.TType home name args ->
       AppN home name <$> traverse (fromSrcType freeVars) args
@@ -65,9 +65,9 @@ fromSrcType freeVars sourceType =
         <*>
           case maybeExt of
             Nothing  -> return EmptyRecordN
-            Just ext -> return $ $(Map.require 'fromSrcType) ext freeVars Name.toChars
+            Just ext -> return $ $(Map.require 'fromSrcType) ext freeVars T.varToChars
 
 
-fromSrcFieldType :: Map.Map Name.Name Type -> Can.FieldType -> IO Type
+fromSrcFieldType :: Map.Map T.Var Type -> Can.FieldType -> IO Type
 fromSrcFieldType freeVars (Can.FieldType _ tipe) =
   fromSrcType freeVars tipe
