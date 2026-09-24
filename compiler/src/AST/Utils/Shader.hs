@@ -15,10 +15,11 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.UTF8 as BS_UTF8
 import qualified Data.Map as Map
-import qualified Data.Name as Name
 
 import qualified Bytes.Decode as D
 import qualified Bytes.Encode as E
+
+import qualified AST.Prim.Name as N
 
 
 
@@ -35,9 +36,9 @@ newtype Source =
 
 data Types =
   Types
-    { _attribute :: Map.Map Name.Name Type
-    , _uniform :: Map.Map Name.Name Type
-    , _varying :: Map.Map Name.Name Type
+    { _attribute :: Map.Map N.Name Type
+    , _uniform :: Map.Map N.Name Type
+    , _varying :: Map.Map N.Name Type
     }
 
 

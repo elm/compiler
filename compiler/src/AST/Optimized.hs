@@ -26,14 +26,14 @@ module AST.Optimized
 
 import Control.Monad (liftM, liftM2, liftM3, liftM4)
 import qualified Data.Map as Map
-import qualified Data.Name as Name
-import Data.Name (Name)
 import qualified Data.Set as Set
 
 import qualified Bytes.Decode as D
 import qualified Bytes.Encode as E
 
 import qualified AST.Canonical as Can
+import qualified AST.Prim.Module as Module
+import qualified AST.Prim.Name as N
 import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
 import qualified Elm.Float as EF
@@ -56,31 +56,31 @@ data Expr
   | Str ES.String
   | Int Int
   | Float EF.Float
-  | VarLocal Name
+  | VarLocal N.Name
   | VarGlobal Global
   | VarEnum Global Index.ZeroBased
   | VarBox Global
-  | VarCycle ModuleName.Canonical Name
-  | VarDebug Name ModuleName.Canonical A.Region (Maybe Name)
-  | VarKernel Name Name
+  | VarCycle ModuleName.Canonical N.Name
+  | VarDebug N.Name ModuleName.Canonical A.Region (Maybe N.Name)
+  | VarKernel Module.Kernel N.Name
   | List [Expr]
-  | Function [Name] Expr
+  | Function [N.Name] Expr
   | Call Expr [Expr]
-  | TailCall Name [(Name, Expr)]
+  | TailCall N.Name [(N.Name, Expr)]
   | If [(Expr, Expr)] Expr
   | Let Def Expr
   | Destruct Destructor Expr
-  | Case Name Name (Decider Choice) [(Int, Expr)]
-  | Accessor Name
-  | Access Expr Name
-  | Update Expr (Map.Map Name Expr)
-  | Record (Map.Map Name Expr)
+  | Case N.Name N.Name (Decider Choice) [(Int, Expr)]
+  | Accessor N.Name
+  | Access Expr N.Name
+  | Update Expr (Map.Map N.Name Expr)
+  | Record (Map.Map N.Name Expr)
   | Unit
   | Tuple Expr Expr (Maybe Expr)
-  | Shader Shader.Source (Set.Set Name) (Set.Set Name)
+  | Shader Shader.Source (Set.Set N.Name) (Set.Set N.Name)
 
 
-data Global = Global ModuleName.Canonical Name
+data Global = Global ModuleName.Canonical N.Name
 
 
 
@@ -88,19 +88,19 @@ data Global = Global ModuleName.Canonical Name
 
 
 data Def
-  = Def Name Expr
-  | TailDef Name [Name] Expr
+  = Def N.Name Expr
+  | TailDef N.Name [N.Name] Expr
 
 
 data Destructor =
-  Destructor Name Path
+  Destructor N.Name Path
 
 
 data Path
   = Index Index.ZeroBased Path
-  | Field Name Path
+  | Field N.Name Path
   | Unbox Path
-  | Root Name
+  | Root N.Name
 
 
 
@@ -134,7 +134,7 @@ data Choice
 data GlobalGraph =
   GlobalGraph
     { _g_nodes :: Map.Map Global Node
-    , _g_fields :: Map.Map Name Int
+    , _g_fields :: Map.Map N.Name Int
     }
 
 
@@ -142,7 +142,7 @@ data LocalGraph =
   LocalGraph
     { _l_main :: Maybe Main
     , _l_nodes :: Map.Map Global Node  -- PERF profile switching Global to Name
-    , _l_fields :: Map.Map Name Int
+    , _l_fields :: Map.Map N.Name Int
     }
 
 
@@ -156,12 +156,12 @@ data Main
 
 data Node
   = Define Expr (Set.Set Global)
-  | DefineTailFunc [Name] Expr (Set.Set Global)
+  | DefineTailFunc [N.Name] Expr (Set.Set Global)
   | Ctor Index.ZeroBased Int
   | Enum Index.ZeroBased
   | Box
   | Link Global
-  | Cycle [Name] [(Name, Expr)] [Def] (Set.Set Global)
+  | Cycle [N.Name] [(N.Name, Expr)] [Def] (Set.Set Global)
   | Manager EffectsType
   | Kernel [K.Chunk] (Set.Set Global)
   | PortIncoming Expr (Set.Set Global)
@@ -197,10 +197,10 @@ addLocalGraph (LocalGraph _ nodes1 fields1) (GlobalGraph nodes2 fields2) =
     }
 
 
-addKernel :: Name.Name -> [K.Chunk] -> GlobalGraph -> GlobalGraph
-addKernel shortName chunks (GlobalGraph nodes fields) =
+addKernel :: Module.Kernel -> [K.Chunk] -> GlobalGraph -> GlobalGraph
+addKernel kname chunks (GlobalGraph nodes fields) =
   let
-    global = toKernelGlobal shortName
+    global = toKernelGlobal kname
     node = Kernel chunks (foldr addKernelDep Set.empty chunks)
   in
   GlobalGraph
@@ -212,19 +212,21 @@ addKernel shortName chunks (GlobalGraph nodes fields) =
 addKernelDep :: K.Chunk -> Set.Set Global -> Set.Set Global
 addKernelDep chunk deps =
   case chunk of
-    K.JS _              -> deps
-    K.ElmVar home name  -> Set.insert (Global home name) deps
-    K.JsVar shortName _ -> Set.insert (toKernelGlobal shortName) deps
-    K.ElmField _        -> deps
-    K.JsField _         -> deps
-    K.JsEnum _          -> deps
-    K.Debug             -> deps
-    K.Prod              -> deps
+    K.JS _       -> deps
+    K.ElmVar h n -> Set.insert (Global h n) deps
+    K.JsVar  k _ -> Set.insert (toKernelGlobal k) deps
+    K.ElmField _ -> deps
+    K.JsField _  -> deps
+    K.JsEnum _   -> deps
+    K.Debug      -> deps
+    K.Prod       -> deps
 
 
-toKernelGlobal :: Name.Name -> Global
-toKernelGlobal shortName =
-  Global (ModuleName.Canonical Pkg.kernel shortName) Name.dollar
+toKernelGlobal :: Module.Kernel -> Global
+toKernelGlobal kname =
+    Global (ModuleName.Canonical Pkg.kernel name) N.unit
+  where
+    name = Module.fromString (Module.kernelToString kname)
 
 
 
@@ -250,12 +252,12 @@ instance Ord Global where
 
 eGlobal :: Global -> E.Builder
 eGlobal (Global h n) =
-  ModuleName.eCanonical h <> Name.encode n
+  ModuleName.eCanonical h <> N.encode n
 
 
 dGlobal :: D.Decoder Global
 dGlobal =
-  liftM2 Global ModuleName.dCanonical Name.decode
+  liftM2 Global ModuleName.dCanonical N.decode
 
 
 eExpr :: Expr -> E.Builder
@@ -266,28 +268,28 @@ eExpr expr =
     Str s            -> E.u8#  2#Word8 <> ES.encode s
     Int i            -> E.u8#  3#Word8 <> E.int i
     Float f          -> E.u8#  4#Word8 <> EF.encode f
-    VarLocal x       -> E.u8#  5#Word8 <> Name.encode x
+    VarLocal x       -> E.u8#  5#Word8 <> N.encode x
     VarGlobal g      -> E.u8#  6#Word8 <> eGlobal g
     VarEnum g i      -> E.u8#  7#Word8 <> eGlobal g <> Index.eZeroBased i
     VarBox g         -> E.u8#  8#Word8 <> eGlobal g
-    VarCycle h n     -> E.u8#  9#Word8 <> ModuleName.eCanonical h <> Name.encode n
-    VarDebug n h r m -> E.u8# 10#Word8 <> Name.encode n <> ModuleName.eCanonical h <> A.eRegion r <> E.maybe Name.encode m
-    VarKernel h n    -> E.u8# 11#Word8 <> Name.encode h <> Name.encode n
+    VarCycle h n     -> E.u8#  9#Word8 <> ModuleName.eCanonical h <> N.encode n
+    VarDebug n h r m -> E.u8# 10#Word8 <> N.encode n <> ModuleName.eCanonical h <> A.eRegion r <> E.maybe N.encode m
+    VarKernel h n    -> E.u8# 11#Word8 <> Module.eKernel h <> N.encode n
     List es          -> E.u8# 12#Word8 <> E.list32 eExpr es
-    Function xs b    -> E.u8# 13#Word8 <> E.list32 Name.encode xs <> eExpr b
+    Function xs b    -> E.u8# 13#Word8 <> E.list32 N.encode xs <> eExpr b
     Call f xs        -> E.u8# 14#Word8 <> eExpr f <> E.list32 eExpr xs
-    TailCall f xs    -> E.u8# 15#Word8 <> Name.encode f <> E.list32 (\(x,e) -> Name.encode x <> eExpr e) xs
+    TailCall f xs    -> E.u8# 15#Word8 <> N.encode f <> E.list32 (\(x,e) -> N.encode x <> eExpr e) xs
     If bs f          -> E.u8# 16#Word8 <> E.list32 (\(c,b) -> eExpr c <> eExpr b) bs <> eExpr f
     Let d e          -> E.u8# 17#Word8 <> eDef d <> eExpr e
     Destruct d e     -> E.u8# 18#Word8 <> eDestructor d <> eExpr e
-    Case a b c d     -> E.u8# 19#Word8 <> Name.encode a <> Name.encode b <> eDecider eChoice c <> E.list32 (\(i,e) -> E.int i <> eExpr e) d
-    Accessor f       -> E.u8# 20#Word8 <> Name.encode f
-    Access e f       -> E.u8# 21#Word8 <> eExpr e <> Name.encode f
-    Update e fs      -> E.u8# 22#Word8 <> eExpr e <> E.dict32 Name.encode eExpr fs
-    Record fs        -> E.u8# 23#Word8 <> E.dict32 Name.encode eExpr fs
+    Case a b c d     -> E.u8# 19#Word8 <> N.encode a <> N.encode b <> eDecider eChoice c <> E.list32 (\(i,e) -> E.int i <> eExpr e) d
+    Accessor f       -> E.u8# 20#Word8 <> N.encode f
+    Access e f       -> E.u8# 21#Word8 <> eExpr e <> N.encode f
+    Update e fs      -> E.u8# 22#Word8 <> eExpr e <> E.dict32 N.encode eExpr fs
+    Record fs        -> E.u8# 23#Word8 <> E.dict32 N.encode eExpr fs
     Unit             -> E.u8# 24#Word8
     Tuple a b c      -> E.u8# 25#Word8 <> eExpr a <> eExpr b <> E.maybe eExpr c
-    Shader s a u     -> E.u8# 26#Word8 <> Shader.eSource s <> E.set32 Name.encode a <> E.set32 Name.encode u
+    Shader s a u     -> E.u8# 26#Word8 <> Shader.eSource s <> E.set32 N.encode a <> E.set32 N.encode u
 
 
 dExpr :: D.Decoder Expr
@@ -299,65 +301,65 @@ dExpr =
         2  -> liftM  Str ES.decode
         3  -> liftM  Int D.int
         4  -> liftM  Float EF.decode
-        5  -> liftM  VarLocal Name.decode
+        5  -> liftM  VarLocal N.decode
         6  -> liftM  VarGlobal dGlobal
         7  -> liftM2 VarEnum dGlobal Index.dZeroBased
         8  -> liftM  VarBox dGlobal
-        9  -> liftM2 VarCycle ModuleName.dCanonical Name.decode
-        10 -> liftM4 VarDebug Name.decode ModuleName.dCanonical A.dRegion (D.maybe Name.decode)
-        11 -> liftM2 VarKernel Name.decode Name.decode
+        9  -> liftM2 VarCycle ModuleName.dCanonical N.decode
+        10 -> liftM4 VarDebug N.decode ModuleName.dCanonical A.dRegion (D.maybe N.decode)
+        11 -> liftM2 VarKernel Module.dKernel N.decode
         12 -> liftM  List (D.list32 dExpr)
-        13 -> liftM2 Function (D.list32 Name.decode) dExpr
+        13 -> liftM2 Function (D.list32 N.decode) dExpr
         14 -> liftM2 Call dExpr (D.list32 dExpr)
-        15 -> liftM2 TailCall Name.decode (D.list32 (liftM2 (,) Name.decode dExpr))
+        15 -> liftM2 TailCall N.decode (D.list32 (liftM2 (,) N.decode dExpr))
         16 -> liftM2 If (D.list32 (liftM2 (,) dExpr dExpr)) dExpr
         17 -> liftM2 Let dDef dExpr
         18 -> liftM2 Destruct dDestructor dExpr
-        19 -> liftM4 Case Name.decode Name.decode (dDecider dChoice) (D.list32 (liftM2 (,) D.int dExpr))
-        20 -> liftM  Accessor Name.decode
-        21 -> liftM2 Access dExpr Name.decode
-        22 -> liftM2 Update dExpr (D.dict32 Name.decode dExpr)
-        23 -> liftM  Record (D.dict32 Name.decode dExpr)
+        19 -> liftM4 Case N.decode N.decode (dDecider dChoice) (D.list32 (liftM2 (,) D.int dExpr))
+        20 -> liftM  Accessor N.decode
+        21 -> liftM2 Access dExpr N.decode
+        22 -> liftM2 Update dExpr (D.dict32 N.decode dExpr)
+        23 -> liftM  Record (D.dict32 N.decode dExpr)
         24 -> pure   Unit
         25 -> liftM3 Tuple dExpr dExpr (D.maybe dExpr)
-        26 -> liftM3 Shader Shader.dSource (D.set32 Name.decode) (D.set32 Name.decode)
+        26 -> liftM3 Shader Shader.dSource (D.set32 N.decode) (D.set32 N.decode)
         _  -> D.expecting "Expr"
 
 
 eDef :: Def -> E.Builder
 eDef def =
   case def of
-    Def     n    e -> E.u8# 0#Word8 <> Name.encode n <> eExpr e
-    TailDef n xs e -> E.u8# 1#Word8 <> Name.encode n <> E.list32 Name.encode xs <> eExpr e
+    Def     n    e -> E.u8# 0#Word8 <> N.encode n <> eExpr e
+    TailDef n xs e -> E.u8# 1#Word8 <> N.encode n <> E.list32 N.encode xs <> eExpr e
 
 
 dDef :: D.Decoder Def
 dDef =
   do  tag <- D.u8
       case tag of
-        0 -> liftM2 Def Name.decode dExpr
-        1 -> liftM3 TailDef Name.decode (D.list32 Name.decode) dExpr
+        0 -> liftM2 Def N.decode dExpr
+        1 -> liftM3 TailDef N.decode (D.list32 N.decode) dExpr
         _ -> D.expecting "Def"
 
 
 
 eDestructor :: Destructor -> E.Builder
 eDestructor (Destructor n p) =
-  Name.encode n <> ePath p
+  N.encode n <> ePath p
 
 
 dDestructor :: D.Decoder Destructor
 dDestructor =
-  liftM2 Destructor Name.decode dPath
+  liftM2 Destructor N.decode dPath
 
 
 ePath :: Path -> E.Builder
 ePath path =
   case path of
     Index i p -> E.u8# 0#Word8 <> Index.eZeroBased i <> ePath p
-    Field f p -> E.u8# 1#Word8 <> Name.encode f <> ePath p
+    Field f p -> E.u8# 1#Word8 <> N.encode f <> ePath p
     Unbox p   -> E.u8# 2#Word8 <> ePath p
-    Root n    -> E.u8# 3#Word8 <> Name.encode n
+    Root n    -> E.u8# 3#Word8 <> N.encode n
 
 
 dPath :: D.Decoder Path
@@ -365,9 +367,9 @@ dPath =
   do  tag <- D.u8
       case tag of
         0 -> liftM2 Index Index.dZeroBased dPath
-        1 -> liftM2 Field Name.decode dPath
+        1 -> liftM2 Field N.decode dPath
         2 -> liftM  Unbox dPath
-        3 -> liftM  Root Name.decode
+        3 -> liftM  Root N.decode
         _ -> D.expecting "Path"
 
 
@@ -417,22 +419,22 @@ dChoice =
 
 eGlobalGraph :: GlobalGraph -> E.Builder
 eGlobalGraph (GlobalGraph n f) =
-  E.dict32 eGlobal eNode n <> E.dict32 Name.encode E.int f
+  E.dict32 eGlobal eNode n <> E.dict32 N.encode E.int f
 
 
 dGlobalGraph :: D.Decoder GlobalGraph
 dGlobalGraph =
-  liftM2 GlobalGraph (D.dict32 dGlobal dNode) (D.dict32 Name.decode D.int)
+  liftM2 GlobalGraph (D.dict32 dGlobal dNode) (D.dict32 N.decode D.int)
 
 
 eLocalGraph :: LocalGraph -> E.Builder
 eLocalGraph (LocalGraph m n f) =
-  E.maybe eMain m <> E.dict32 eGlobal eNode n <> E.dict32 Name.encode E.int f
+  E.maybe eMain m <> E.dict32 eGlobal eNode n <> E.dict32 N.encode E.int f
 
 
 dLocalGraph :: D.Decoder LocalGraph
 dLocalGraph =
-  liftM3 LocalGraph (D.maybe dMain) (D.dict32 dGlobal dNode) (D.dict32 Name.decode D.int)
+  liftM3 LocalGraph (D.maybe dMain) (D.dict32 dGlobal dNode) (D.dict32 N.decode D.int)
 
 
 eMain :: Main -> E.Builder
@@ -455,12 +457,12 @@ eNode :: Node -> E.Builder
 eNode node =
     case node of
       Define e d            -> E.u8#  0#Word8 <> eExpr e <> E.set32 eGlobal d
-      DefineTailFunc xs e d -> E.u8#  1#Word8 <> E.list32 Name.encode xs <> eExpr e <> E.set32 eGlobal d
+      DefineTailFunc xs e d -> E.u8#  1#Word8 <> E.list32 N.encode xs <> eExpr e <> E.set32 eGlobal d
       Ctor i a              -> E.u8#  2#Word8 <> Index.eZeroBased i <> E.int a
       Enum i                -> E.u8#  3#Word8 <> Index.eZeroBased i
       Box                   -> E.u8#  4#Word8
       Link g                -> E.u8#  5#Word8 <> eGlobal g
-      Cycle n v f d         -> E.u8#  6#Word8 <> E.list32 Name.encode n <> E.list32 (\(x,e) -> Name.encode x <> eExpr e) v <> E.list32 eDef f <> E.set32 eGlobal d
+      Cycle n v f d         -> E.u8#  6#Word8 <> E.list32 N.encode n <> E.list32 (\(x,e) -> N.encode x <> eExpr e) v <> E.list32 eDef f <> E.set32 eGlobal d
       Manager t             -> E.u8#  7#Word8 <> eEffectsType t
       Kernel cs d           -> E.u8#  8#Word8 <> E.list32 K.eChunk cs <> E.set32 eGlobal d
       PortIncoming e d      -> E.u8#  9#Word8 <> eExpr e <> E.set32 eGlobal d
@@ -472,12 +474,12 @@ dNode =
   do  tag <- D.u8
       case tag of
         0  -> liftM2 Define dExpr (D.set32 dGlobal)
-        1  -> liftM3 DefineTailFunc (D.list32 Name.decode) dExpr (D.set32 dGlobal)
+        1  -> liftM3 DefineTailFunc (D.list32 N.decode) dExpr (D.set32 dGlobal)
         2  -> liftM2 Ctor Index.dZeroBased D.int
         3  -> liftM  Enum Index.dZeroBased
         4  -> return Box
         5  -> liftM  Link dGlobal
-        6  -> liftM4 Cycle (D.list32 Name.decode) (D.list32 (liftM2 (,) Name.decode dExpr)) (D.list32 dDef) (D.set32 dGlobal)
+        6  -> liftM4 Cycle (D.list32 N.decode) (D.list32 (liftM2 (,) N.decode dExpr)) (D.list32 dDef) (D.set32 dGlobal)
         7  -> liftM  Manager dEffectsType
         8  -> liftM2 Kernel (D.list32 K.dChunk) (D.set32 dGlobal)
         9  -> liftM2 PortIncoming dExpr (D.set32 dGlobal)
