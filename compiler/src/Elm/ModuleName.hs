@@ -1,137 +1,28 @@
-{-# LANGUAGE BangPatterns, ExtendedLiterals, MagicHash, OverloadedStrings, UnboxedTuples #-}
+{-# LANGUAGE BangPatterns #-}
 module Elm.ModuleName
-  ( Raw
-  , toChars
-  , toFilePath
-  , toHyphenPath
-  --
-  , encode
-  , decoder
-  , parser
-  --
-  , Canonical(..)
+  ( Canonical(..)
   , basics, char, string
   , maybe, result, list, array, dict, tuple
-  , platform, cmd, sub
+  , platform, platform_cmd, platform_sub
   , debug
   , virtualDom
   , jsonDecode, jsonEncode
   , webgl, texture, vector2, vector3, vector4, matrix4
   --
-  , eRaw, dRaw
   , eCanonical, dCanonical
   )
   where
 
 
-import Control.Monad (liftM2)
-import qualified Data.Name as Name
-import qualified Data.Utf8 as Utf8
-import GHC.Exts (isTrue#)
-import GHC.Prim
 import Prelude hiding (maybe)
-import qualified System.FilePath as FP
+import Control.Monad (liftM2)
 
 import qualified Bytes.Decode as D
 import qualified Bytes.Encode as E
 import qualified ThreadSafe.Fork as Fork
 
-import qualified AST.Prim.Variable as Var
+import qualified AST.Prim.Module as Module
 import qualified Elm.Package as Pkg
-import qualified Json.Decode as JD
-import qualified Json.Encode as JE
-import qualified Parse.Primitives as P
-import Parse.Primitives (Cursor)
-import qualified Reporting.Annotation as A
-
-
-
--- RAW
-
-
-type Raw = Name.Name
-
-
-toChars :: Raw -> String
-toChars =
-  Name.toChars
-
-
-toFilePath :: Raw -> FilePath
-toFilePath name =
-  map (\c -> if c == '.' then FP.pathSeparator else c) (Name.toChars name)
-
-
-toHyphenPath :: Raw -> FilePath
-toHyphenPath name =
-  map (\c -> if c == '.' then '-' else c) (Name.toChars name)
-
-
-
--- JSON
-
-
-encode :: Raw -> JE.Value
-encode =
-  JE.name
-
-
-decoder :: JD.Decoder A.Position Raw
-decoder =
-  JD.customString parser A.Position
-
-
-
--- PARSER
-
-
-parser :: P.Parser A.Position Raw
-parser =
-  P.Parser $ \_ (P.State pos end indent cur) cok _ cerr eerr ->
-    let
-      !(# isGood, newPos, newCur #) = chompStart pos end cur
-    in
-    if isGood && isTrue# (minusAddr# newPos pos <# 256#) then
-      do  let !newState = P.State newPos end indent newCur
-          name <- Utf8.fromAddr pos newPos
-          cok name newState
-
-    else if P.eqAddr pos newPos then
-      eerr newCur A.Position
-
-    else
-      cerr newCur A.Position
-
-
-chompStart :: Addr# -> Addr# -> Cursor -> (# Bool, Addr#, Cursor #)
-chompStart pos end cur =
-  if P.notLtAddr pos end
-  then (# False, pos, cur #)
-  else
-    let
-      !newPos = Var.chompUpper pos end (indexWord8OffAddr# pos 0#)
-    in
-    if P.eqAddr pos newPos then
-      (# False, pos, cur #)
-    else
-      chompInner newPos end (P.slide cur 1#Word64)
-
-
-chompInner :: Addr# -> Addr# -> Cursor -> (# Bool, Addr#, Cursor #)
-chompInner pos end cur =
-  if P.notLtAddr pos end then
-    (# True, pos, cur #)
-  else
-    let
-      !word = indexWord8OffAddr# pos 0#
-      !newPos = Var.chompInner pos end word
-    in
-    if P.eqAddr pos newPos then
-      case word of
-        0x2E#Word8 {-.-} -> chompStart (plusAddr# pos 1#) end (P.slide cur 1#Word64)
-        _                -> (# True, pos, cur #)
-    else
-      chompInner newPos end (P.slide cur 1#Word64)
 
 
 
@@ -141,7 +32,7 @@ chompInner pos end cur =
 data Canonical =
   Canonical
     { _package :: !Pkg.Name
-    , _module :: !Name.Name
+    , _module :: !Module.Name
     }
 
 
@@ -164,154 +55,66 @@ instance Ord Canonical where
 
 instance Fork.Context Canonical where
   toContextChars (Canonical pkg home) =
-    Name.toChars home ++ " in " ++ Pkg.toChars pkg
+    Module.toChars home ++ " in " ++ Pkg.toChars pkg
 
 
 
 -- BINARY FORMAT
 
 
-eRaw :: Raw -> E.Builder
-eRaw =
-  Utf8.encode8
-
-
-dRaw :: D.Decoder Raw
-dRaw =
-  Utf8.decode8
-
-
 eCanonical :: Canonical -> E.Builder
 eCanonical (Canonical p h) =
-  Pkg.eName p <> Utf8.encode8 h
+  Pkg.eName p <> Module.eName h
 
 
 dCanonical :: D.Decoder Canonical
 dCanonical =
-  liftM2 Canonical Pkg.dName Utf8.decode8
+  liftM2 Canonical Pkg.dName Module.dName
 
 
 
 -- CORE
 
 
-{-# NOINLINE basics #-}
-basics :: Canonical
-basics = Canonical Pkg.core Name.basics
-
-
-{-# NOINLINE char #-}
-char :: Canonical
-char = Canonical Pkg.core Name.char
-
-
-{-# NOINLINE string #-}
-string :: Canonical
-string = Canonical Pkg.core Name.string
-
-
-{-# NOINLINE maybe #-}
-maybe :: Canonical
-maybe = Canonical Pkg.core Name.maybe
-
-
-{-# NOINLINE result #-}
-result :: Canonical
-result = Canonical Pkg.core Name.result
-
-
-{-# NOINLINE list #-}
-list :: Canonical
-list = Canonical Pkg.core Name.list
-
-
-{-# NOINLINE array #-}
-array :: Canonical
-array = Canonical Pkg.core Name.array
-
-
-{-# NOINLINE dict #-}
-dict :: Canonical
-dict = Canonical Pkg.core Name.dict
-
-
-{-# NOINLINE tuple #-}
-tuple :: Canonical
-tuple = Canonical Pkg.core Name.tuple
-
-
-{-# NOINLINE platform #-}
-platform :: Canonical
-platform = Canonical Pkg.core Name.platform
-
-
-{-# NOINLINE cmd #-}
-cmd :: Canonical
-cmd = Canonical Pkg.core "Platform.Cmd"
-
-
-{-# NOINLINE sub #-}
-sub :: Canonical
-sub = Canonical Pkg.core "Platform.Sub"
-
-
-{-# NOINLINE debug #-}
-debug :: Canonical
-debug = Canonical Pkg.core Name.debug
+{-# NOINLINE basics       #-}; basics       :: Canonical; basics       = Canonical Pkg.core Module.basics
+{-# NOINLINE char         #-}; char         :: Canonical; char         = Canonical Pkg.core Module.char
+{-# NOINLINE string       #-}; string       :: Canonical; string       = Canonical Pkg.core Module.string
+{-# NOINLINE maybe        #-}; maybe        :: Canonical; maybe        = Canonical Pkg.core Module.maybe
+{-# NOINLINE result       #-}; result       :: Canonical; result       = Canonical Pkg.core Module.result
+{-# NOINLINE list         #-}; list         :: Canonical; list         = Canonical Pkg.core Module.list
+{-# NOINLINE array        #-}; array        :: Canonical; array        = Canonical Pkg.core Module.array
+{-# NOINLINE dict         #-}; dict         :: Canonical; dict         = Canonical Pkg.core Module.dict
+{-# NOINLINE tuple        #-}; tuple        :: Canonical; tuple        = Canonical Pkg.core Module.tuple
+{-# NOINLINE platform     #-}; platform     :: Canonical; platform     = Canonical Pkg.core Module.platform
+{-# NOINLINE platform_cmd #-}; platform_cmd :: Canonical; platform_cmd = Canonical Pkg.core Module.platform_cmd
+{-# NOINLINE platform_sub #-}; platform_sub :: Canonical; platform_sub = Canonical Pkg.core Module.platform_sub
+{-# NOINLINE debug        #-}; debug        :: Canonical; debug        = Canonical Pkg.core Module.debug
 
 
 
 -- HTML
 
 
-{-# NOINLINE virtualDom #-}
-virtualDom :: Canonical
-virtualDom = Canonical Pkg.virtualDom Name.virtualDom
+{-# NOINLINE virtualDom #-}; virtualDom :: Canonical; virtualDom = Canonical Pkg.virtualDom Module.virtualDom
 
 
 
 -- JSON
 
 
-{-# NOINLINE jsonDecode #-}
-jsonDecode :: Canonical
-jsonDecode = Canonical Pkg.json "Json.Decode"
-
-
-{-# NOINLINE jsonEncode #-}
-jsonEncode :: Canonical
-jsonEncode = Canonical Pkg.json "Json.Encode"
+{-# NOINLINE jsonDecode #-}; jsonDecode :: Canonical; jsonDecode = Canonical Pkg.json Module.json_decode
+{-# NOINLINE jsonEncode #-}; jsonEncode :: Canonical; jsonEncode = Canonical Pkg.json Module.json_encode
 
 
 
 -- WEBGL
 
 
-{-# NOINLINE webgl #-}
-webgl :: Canonical
-webgl = Canonical Pkg.webgl "WebGL"
+{-# NOINLINE webgl   #-}; webgl   :: Canonical; webgl   = Canonical Pkg.webgl         Module.webgl
+{-# NOINLINE texture #-}; texture :: Canonical; texture = Canonical Pkg.webgl         Module.webgl_texture
+{-# NOINLINE vector2 #-}; vector2 :: Canonical; vector2 = Canonical Pkg.linearAlgebra Module.math_vector2
+{-# NOINLINE vector3 #-}; vector3 :: Canonical; vector3 = Canonical Pkg.linearAlgebra Module.math_vector3
+{-# NOINLINE vector4 #-}; vector4 :: Canonical; vector4 = Canonical Pkg.linearAlgebra Module.math_vector4
+{-# NOINLINE matrix4 #-}; matrix4 :: Canonical; matrix4 = Canonical Pkg.linearAlgebra Module.math_matrix4
 
 
-{-# NOINLINE texture #-}
-texture :: Canonical
-texture = Canonical Pkg.webgl "WebGL.Texture"
-
-
-{-# NOINLINE vector2 #-}
-vector2 :: Canonical
-vector2 = Canonical Pkg.linearAlgebra "Math.Vector2"
-
-
-{-# NOINLINE vector3 #-}
-vector3 :: Canonical
-vector3 = Canonical Pkg.linearAlgebra "Math.Vector3"
-
-
-{-# NOINLINE vector4 #-}
-vector4 :: Canonical
-vector4 = Canonical Pkg.linearAlgebra "Math.Vector4"
-
-
-{-# NOINLINE matrix4 #-}
-matrix4 :: Canonical
-matrix4 = Canonical Pkg.linearAlgebra "Math.Matrix4"
