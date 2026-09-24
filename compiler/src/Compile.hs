@@ -7,14 +7,14 @@ module Compile
 
 
 import qualified Data.Map as Map
-import qualified Data.Name as Name
 
 import qualified AST.Source as Src
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
+import qualified AST.Prim.Module as Module
+import qualified AST.Prim.Name as N
 import qualified Canonicalize.Module as Canonicalize
 import qualified Elm.Interface as I
-import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Nitpick.PatternMatches as PatternMatches
 import qualified Optimize.Module as Optimize
@@ -34,12 +34,12 @@ import System.IO.Unsafe (unsafePerformIO)
 data Artifacts =
   Artifacts
     { _modul :: Can.Module
-    , _types :: Map.Map Name.Name Can.Annotation
+    , _types :: Map.Map N.Name Can.Annotation
     , _graph :: Opt.LocalGraph
     }
 
 
-compile :: Pkg.Name -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> Either E.Error Artifacts
+compile :: Pkg.Name -> Map.Map Module.Name I.Interface -> Src.Module -> Either E.Error Artifacts
 compile pkg ifaces modul =
   do  canonical   <- canonicalize pkg ifaces modul
       annotations <- typeCheck modul canonical
@@ -52,7 +52,7 @@ compile pkg ifaces modul =
 -- PHASES
 
 
-canonicalize :: Pkg.Name -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> Either E.Error Can.Module
+canonicalize :: Pkg.Name -> Map.Map Module.Name I.Interface -> Src.Module -> Either E.Error Can.Module
 canonicalize pkg ifaces modul =
   case snd $ R.run $ Canonicalize.canonicalize pkg ifaces modul of
     Right canonical ->
@@ -62,7 +62,7 @@ canonicalize pkg ifaces modul =
       Left $ E.BadNames errors
 
 
-typeCheck :: Src.Module -> Can.Module -> Either E.Error (Map.Map Name.Name Can.Annotation)
+typeCheck :: Src.Module -> Can.Module -> Either E.Error (Map.Map N.Name Can.Annotation)
 typeCheck modul canonical =
   case unsafePerformIO (Type.run =<< Type.constrain canonical) of
     Right annotations ->
@@ -82,7 +82,7 @@ nitpick canonical =
       Left (E.BadPatterns errors)
 
 
-optimize :: Src.Module -> Map.Map Name.Name Can.Annotation -> Can.Module -> Either E.Error Opt.LocalGraph
+optimize :: Src.Module -> Map.Map N.Name Can.Annotation -> Can.Module -> Either E.Error Opt.LocalGraph
 optimize modul annotations canonical =
   case snd $ R.run $ Optimize.optimize annotations canonical of
     Right localGraph ->

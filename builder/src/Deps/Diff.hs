@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ExtendedLiterals #-}
 module Deps.Diff
   ( diff
   , PackageChanges(..)
@@ -16,16 +16,21 @@ import Control.Monad (zipWithM)
 import Data.Function (on)
 import qualified Data.List as List
 import qualified Data.Map as Map
-import qualified Data.Name as Name
 import qualified Data.Set as Set
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
 
+import qualified String as S
+
+import qualified AST.Prim.Module as Module
+import qualified AST.Prim.Name as N
+import qualified AST.Prim.Operator as Op
+import qualified AST.Prim.TypeName as T
+import qualified AST.Prim.TypeVar as T
 import qualified Deps.Website as Website
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Docs as Docs
 import qualified Elm.Magnitude as M
-import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
 import qualified File
@@ -41,18 +46,18 @@ import qualified Stuff
 
 data PackageChanges =
   PackageChanges
-    { _modules_added :: [ModuleName.Raw]
-    , _modules_changed :: Map.Map ModuleName.Raw ModuleChanges
-    , _modules_removed :: [ModuleName.Raw]
+    { _modules_added :: [Module.Name]
+    , _modules_changed :: Map.Map Module.Name ModuleChanges
+    , _modules_removed :: [Module.Name]
     }
 
 
 data ModuleChanges =
   ModuleChanges
-    { _unions :: Changes Name.Name Docs.Union
-    , _aliases :: Changes Name.Name Docs.Alias
-    , _values :: Changes Name.Name Docs.Value
-    , _binops :: Changes Name.Name Docs.Binop
+    { _unions :: Changes T.Name Docs.Union
+    , _aliases :: Changes T.Name Docs.Alias
+    , _values :: Changes N.Name Docs.Value
+    , _binops :: Changes Op.Name Docs.Binop
     }
 
 
@@ -152,7 +157,7 @@ isEquivalentBinop (Docs.Binop c1 t1 a1 p1) (Docs.Binop c2 t2 a2 p2) =
 -- DIFF TYPES
 
 
-diffType :: Type.Type -> Type.Type -> Maybe [(Name.Name,Name.Name)]
+diffType :: Type.Type -> Type.Type -> Maybe [(T.Var,T.Var)]
 diffType oldType newType =
   case (oldType, newType) of
     (Type.Var oldName, Type.Var newName) ->
@@ -200,11 +205,10 @@ diffType oldType newType =
 
 
 -- handle very old docs that do not use qualified names
-isSameName :: Name.Name -> Name.Name -> Bool
+isSameName :: T.Name -> T.Name -> Bool
 isSameName oldFullName newFullName =
   let
-    dedot name =
-      reverse (Name.splitDots name)
+    dedot n = reverse $ S.split 0x2E#Word8 {-.-} $ T.nameToString n
   in
     case ( dedot oldFullName, dedot newFullName ) of
       (oldName:[], newName:_) ->
@@ -217,7 +221,7 @@ isSameName oldFullName newFullName =
         oldFullName == newFullName
 
 
-diffFields :: [(Name.Name, Type.Type)] -> [(Name.Name, Type.Type)] -> Maybe [(Name.Name,Name.Name)]
+diffFields :: [(N.Name, Type.Type)] -> [(N.Name, Type.Type)] -> Maybe [(T.Var,T.Var)]
 diffFields oldRawFields newRawFields =
   let
     sort = List.sortBy (compare `on` fst)
@@ -238,7 +242,7 @@ diffFields oldRawFields newRawFields =
 -- TYPE VARIABLES
 
 
-isEquivalentRenaming :: [(Name.Name,Name.Name)] -> Bool
+isEquivalentRenaming :: [(T.Var,T.Var)] -> Bool
 isEquivalentRenaming varPairs =
   let
     renamings =
@@ -271,35 +275,14 @@ isEquivalentRenaming varPairs =
         allUnique (map snd verifiedRenamings)
 
 
-compatibleVars :: (Name.Name, Name.Name) -> Bool
-compatibleVars (old, new) =
-  case (categorizeVar old, categorizeVar new) of
-    (CompAppend, CompAppend) -> True
-    (Comparable, Comparable) -> True
-    (Appendable, Appendable) -> True
-    (Number    , Number    ) -> True
-    (Number    , Comparable) -> True
-
-    (_, Var) -> True
-
-    (_, _) -> False
-
-
-data TypeVarCategory
-  = CompAppend
-  | Comparable
-  | Appendable
-  | Number
-  | Var
-
-
-categorizeVar :: Name.Name -> TypeVarCategory
-categorizeVar name
-  | Name.isCompappendType name = CompAppend
-  | Name.isComparableType name = Comparable
-  | Name.isAppendableType name = Appendable
-  | Name.isNumberType     name = Number
-  | otherwise                  = Var
+compatibleVars :: (T.Var, T.Var) -> Bool
+compatibleVars (T.Var _ old, T.Var _ new) =
+  case old of
+    T.Any        -> case new of { T.Any -> True ; T.Comparable -> False ; T.Appendable -> False ; T.CompAppend -> False ; T.Number -> False }
+    T.CompAppend -> case new of { T.Any -> True ; T.Comparable -> False ; T.Appendable -> False ; T.CompAppend -> True  ; T.Number -> False }
+    T.Comparable -> case new of { T.Any -> True ; T.Comparable -> True  ; T.Appendable -> False ; T.CompAppend -> False ; T.Number -> False }
+    T.Appendable -> case new of { T.Any -> True ; T.Comparable -> False ; T.Appendable -> True  ; T.CompAppend -> False ; T.Number -> False }
+    T.Number     -> case new of { T.Any -> True ; T.Comparable -> True  ; T.Appendable -> False ; T.CompAppend -> False ; T.Number -> True  }
 
 
 

@@ -15,12 +15,13 @@ import qualified Data.ByteString.Builder as B
 import qualified Data.Map as Map
 import qualified Data.Map.Utils as Map
 import qualified Data.Maybe as Maybe
-import qualified Data.Name as N
 import qualified Data.NonEmptyList as NE
 
 import qualified ThreadSafe.Fork as Fork
 
 import qualified AST.Optimized as Opt
+import qualified AST.Prim.Module as Module
+import qualified AST.Prim.Name as N
 import qualified Build
 import qualified Elm.Compiler.Type.Extract as Extract
 import qualified Elm.Details as Details
@@ -107,7 +108,7 @@ gatherMains pkg (Objects _ locals) roots =
   Map.fromList $ Maybe.mapMaybe (lookupMain pkg locals) (NE.toList roots)
 
 
-lookupMain :: Pkg.Name -> Map.Map ModuleName.Raw Opt.LocalGraph -> Build.Root -> Maybe (ModuleName.Canonical, Opt.Main)
+lookupMain :: Pkg.Name -> Map.Map Module.Name Opt.LocalGraph -> Build.Root -> Maybe (ModuleName.Canonical, Opt.Main)
 lookupMain pkg locals root =
   let
     toPair name (Opt.LocalGraph maybeMain _ _) =
@@ -125,7 +126,7 @@ lookupMain pkg locals root =
 data LoadingObjects =
   LoadingObjects
     { _foreign_mvar :: Fork.SafeMVar (Maybe Opt.GlobalGraph)
-    , _local_mvars :: Map.Map ModuleName.Raw (Fork.SafeMVar (Maybe Opt.LocalGraph))
+    , _local_mvars :: Map.Map Module.Name (Fork.SafeMVar (Maybe Opt.LocalGraph))
     }
 
 
@@ -137,7 +138,7 @@ loadObjects root details modules =
       return $ LoadingObjects mvar (Map.fromList mvars)
 
 
-loadObject :: FilePath -> Build.Module -> IO (ModuleName.Raw, Fork.SafeMVar (Maybe Opt.LocalGraph))
+loadObject :: FilePath -> Build.Module -> IO (Module.Name, Fork.SafeMVar (Maybe Opt.LocalGraph))
 loadObject root modul =
   case modul of
     Build.Fresh  name _ graph -> (,) name <$> Fork.cached (Just graph)
@@ -151,7 +152,7 @@ loadObject root modul =
 data Objects =
   Objects
     { _foreign :: Opt.GlobalGraph
-    , _locals :: Map.Map ModuleName.Raw Opt.LocalGraph
+    , _locals :: Map.Map Module.Name Opt.LocalGraph
     }
 
 
