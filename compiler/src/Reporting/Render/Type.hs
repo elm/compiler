@@ -13,8 +13,6 @@ module Reporting.Render.Type
   where
 
 
-import qualified Data.Maybe as Maybe
-
 import qualified AST.Source as Src
 import qualified AST.Canonical as Can
 import qualified AST.Prim.Name as N
@@ -224,11 +222,17 @@ canToDoc localizer context tipe =
     Can.TUnit ->
       "()"
 
-    Can.TTuple a b mc ->
+    Can.TPair a b ->
       tuple
         (canToDoc localizer None a)
         (canToDoc localizer None b)
-        (map (canToDoc localizer None) (Maybe.maybeToList mc))
+        []
+
+    Can.TTriple a b c ->
+      tuple
+        (canToDoc localizer None a)
+        (canToDoc localizer None b)
+        [canToDoc localizer None c]
 
     Can.TAlias home name args _ ->
       apply context

@@ -178,30 +178,13 @@ checkPayload tipe =
         _ ->
           Left (tipe, Error.UnsupportedType name)
 
-    Can.TUnit ->
-        Right ()
-
-    Can.TTuple a b maybeC ->
-        do  checkPayload a
-            checkPayload b
-            case maybeC of
-              Nothing ->
-                Right ()
-
-              Just c ->
-                checkPayload c
-
-    Can.TVar name ->
-        Left (tipe, Error.TypeVariable name)
-
-    Can.TLambda _ _ ->
-        Left (tipe, Error.Function)
-
-    Can.TRecord _ (Just _) ->
-        Left (tipe, Error.ExtendedRecord)
-
-    Can.TRecord fields Nothing ->
-        F.traverse_ checkFieldPayload fields
+    Can.TUnit                  -> Right ()
+    Can.TPair   a b            -> checkPayload a *> checkPayload b
+    Can.TTriple a b c          -> checkPayload a *> checkPayload b *> checkPayload c
+    Can.TVar x                 -> Left (tipe, Error.TypeVariable x)
+    Can.TLambda _ _            -> Left (tipe, Error.Function)
+    Can.TRecord _ (Just _)     -> Left (tipe, Error.ExtendedRecord)
+    Can.TRecord fields Nothing -> F.traverse_ checkFieldPayload fields
 
 
 checkFieldPayload :: Can.FieldType -> Either (Can.Type, Error.InvalidPayload) ()

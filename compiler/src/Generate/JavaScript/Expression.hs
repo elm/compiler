@@ -144,21 +144,20 @@ generate mode expression =
         Mode.Dev  _ -> JsExpr $ JS.Ref (JsName.fromKernel Module.kernel_utils [N.ascii|Tuple0|])
         Mode.Prod _ -> JsExpr $ JS.Int 0
 
-    Opt.Tuple a b maybeC ->
+    Opt.Pair a b ->
       JsExpr $
-        case maybeC of
-          Nothing ->
-            JS.Call (JS.Ref (JsName.fromKernel Module.kernel_utils [N.ascii|Tuple2|]))
-              [ generateJsExpr mode a
-              , generateJsExpr mode b
-              ]
+        JS.Call (JS.Ref (JsName.fromKernel Module.kernel_utils [N.ascii|Tuple2|]))
+          [ generateJsExpr mode a
+          , generateJsExpr mode b
+          ]
 
-          Just c ->
-            JS.Call (JS.Ref (JsName.fromKernel Module.kernel_utils [N.ascii|Tuple3|]))
-              [ generateJsExpr mode a
-              , generateJsExpr mode b
-              , generateJsExpr mode c
-              ]
+    Opt.Triple a b c ->
+      JsExpr $
+        JS.Call (JS.Ref (JsName.fromKernel Module.kernel_utils [N.ascii|Tuple3|]))
+          [ generateJsExpr mode a
+          , generateJsExpr mode b
+          , generateJsExpr mode c
+          ]
 
     Opt.Shader src attributes uniforms ->
       let

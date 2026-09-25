@@ -159,30 +159,13 @@ canonicalize env (A.At region expression) =
       Result.ok Can.Unit
 
     Src.Tuple a b cs ->
-      Can.Tuple
-        <$> canonicalize env a
-        <*> canonicalize env b
-        <*> canonicalizeTupleExtras region env cs
+      case cs of
+        []  -> Can.Pair   <$> canonicalize env a <*> canonicalize env b
+        [c] -> Can.Triple <$> canonicalize env a <*> canonicalize env b <*> canonicalize env c
+        _   -> Result.throw (Error.TupleLargerThanThree region)
 
     Src.Shader src tipe ->
-        Result.ok (Can.Shader src tipe)
-
-
-
--- CANONICALIZE TUPLE EXTRAS
-
-
-canonicalizeTupleExtras :: A.Region -> Env.Env -> [Src.Expr] -> Result FreeLocals [W.Warning] (Maybe Can.Expr)
-canonicalizeTupleExtras region env extras =
-  case extras of
-    [] ->
-      Result.ok Nothing
-
-    [three] ->
-      Just <$> canonicalize env three
-
-    _ ->
-      Result.throw (Error.TupleLargerThanThree region)
+      Result.ok (Can.Shader src tipe)
 
 
 

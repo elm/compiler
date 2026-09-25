@@ -164,11 +164,16 @@ optimize cycle (A.At region expression) =
     Can.Unit ->
       Names.registerKernel Module.kernel_utils Opt.Unit
 
-    Can.Tuple a b maybeC ->
-      Names.registerKernel Module.kernel_utils Opt.Tuple
+    Can.Pair a b ->
+      Names.registerKernel Module.kernel_utils Opt.Pair
         <*> optimize cycle a
         <*> optimize cycle b
-        <*> traverse (optimize cycle) maybeC
+
+    Can.Triple a b c ->
+      Names.registerKernel Module.kernel_utils Opt.Triple
+        <*> optimize cycle a
+        <*> optimize cycle b
+        <*> optimize cycle c
 
     Can.Shader src (Shader.Types attributes uniforms _varyings) ->
       pure (Opt.Shader src (Map.keysSet attributes) (Map.keysSet uniforms))
@@ -264,10 +269,10 @@ destructHelp path (A.At region pattern) revDs =
     Can.PUnit ->
       pure revDs
 
-    Can.PTuple a b Nothing ->
+    Can.PPair a b ->
       destructTwo path a b revDs
 
-    Can.PTuple a b (Just c) ->
+    Can.PTriple a b c ->
       case path of
         Opt.Root _ ->
           destructHelp (Opt.Index Index.third path) c =<<

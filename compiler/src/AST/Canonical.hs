@@ -109,7 +109,8 @@ data Expr_
   | Update N.Name Expr (Map.Map N.Name FieldUpdate)
   | Record (Map.Map N.Name Expr)
   | Unit
-  | Tuple Expr Expr (Maybe Expr)
+  | Pair Expr Expr
+  | Triple Expr Expr Expr
   | Shader Shader.Source Shader.Types
 
 
@@ -154,7 +155,8 @@ data Pattern_
   | PRecord [N.Name]
   | PAlias Pattern N.Name
   | PUnit
-  | PTuple Pattern Pattern (Maybe Pattern)
+  | PPair Pattern Pattern
+  | PTriple Pattern Pattern Pattern
   | PList [Pattern]
   | PCons Pattern Pattern
   | PBool Union Bool
@@ -200,7 +202,8 @@ data Type
   | TType ModuleName.Canonical T.Name [Type]
   | TRecord (Map.Map N.Name FieldType) (Maybe T.Var)
   | TUnit
-  | TTuple Type Type (Maybe Type)
+  | TPair Type Type
+  | TTriple Type Type Type
   | TAlias ModuleName.Canonical T.Name [(T.Var, Type)] AliasType
   deriving (Eq)
 

@@ -76,7 +76,8 @@ data Expr
   | Update Expr (Map.Map N.Name Expr)
   | Record (Map.Map N.Name Expr)
   | Unit
-  | Tuple Expr Expr (Maybe Expr)
+  | Pair Expr Expr
+  | Triple Expr Expr Expr
   | Shader Shader.Source (Set.Set N.Name) (Set.Set N.Name)
 
 
@@ -288,8 +289,9 @@ eExpr expr =
     Update e fs      -> E.u8# 22#Word8 <> eExpr e <> E.dict32 N.encode eExpr fs
     Record fs        -> E.u8# 23#Word8 <> E.dict32 N.encode eExpr fs
     Unit             -> E.u8# 24#Word8
-    Tuple a b c      -> E.u8# 25#Word8 <> eExpr a <> eExpr b <> E.maybe eExpr c
-    Shader s a u     -> E.u8# 26#Word8 <> Shader.eSource s <> E.set32 N.encode a <> E.set32 N.encode u
+    Pair   a b       -> E.u8# 25#Word8 <> eExpr a <> eExpr b
+    Triple a b c     -> E.u8# 26#Word8 <> eExpr a <> eExpr b <> eExpr c
+    Shader s a u     -> E.u8# 27#Word8 <> Shader.eSource s <> E.set32 N.encode a <> E.set32 N.encode u
 
 
 dExpr :: D.Decoder Expr
@@ -321,8 +323,9 @@ dExpr =
         22 -> liftM2 Update dExpr (D.dict32 N.decode dExpr)
         23 -> liftM  Record (D.dict32 N.decode dExpr)
         24 -> pure   Unit
-        25 -> liftM3 Tuple dExpr dExpr (D.maybe dExpr)
-        26 -> liftM3 Shader Shader.dSource (D.set32 N.decode) (D.set32 N.decode)
+        25 -> liftM2 Pair dExpr dExpr
+        26 -> liftM3 Triple dExpr dExpr dExpr
+        27 -> liftM3 Shader Shader.dSource (D.set32 N.decode) (D.set32 N.decode)
         _  -> D.expecting "Expr"
 
 

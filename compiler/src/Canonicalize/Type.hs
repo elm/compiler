@@ -70,19 +70,10 @@ canonicalize env (A.At typeRegion tipe) =
         Result.ok Can.TUnit
 
     Src.TTuple a b cs ->
-        Can.TTuple
-          <$> canonicalize env a
-          <*> canonicalize env b
-          <*>
-            case cs of
-              [] ->
-                Result.ok Nothing
-
-              [c] ->
-                Just <$> canonicalize env c
-
-              _ ->
-                Result.throw $ Error.TupleLargerThanThree typeRegion
+      case cs of
+        []  -> Can.TPair   <$> canonicalize env a <*> canonicalize env b
+        [c] -> Can.TTriple <$> canonicalize env a <*> canonicalize env b <*> canonicalize env c
+        _   -> Result.throw $ Error.TupleLargerThanThree typeRegion
 
 
 canonicalizeFields :: Env.Env -> [(A.Located N.Name, Src.Type)] -> [(A.Located N.Name, Result i w Can.FieldType)]
@@ -146,13 +137,11 @@ addFreeVars freeVars tipe =
     Can.TUnit ->
       freeVars
 
-    Can.TTuple a b maybeC ->
-      case maybeC of
-        Nothing ->
-          addFreeVars (addFreeVars freeVars a) b
+    Can.TPair a b ->
+      addFreeVars (addFreeVars freeVars a) b
 
-        Just c ->
-          addFreeVars (addFreeVars (addFreeVars freeVars a) b) c
+    Can.TTriple a b c ->
+      addFreeVars (addFreeVars (addFreeVars freeVars a) b) c
 
     Can.TAlias _ _ args _ ->
       List.foldl' (\fvs (_,arg) -> addFreeVars fvs arg) freeVars args

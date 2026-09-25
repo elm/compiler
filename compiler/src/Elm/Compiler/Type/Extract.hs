@@ -14,7 +14,6 @@ module Elm.Compiler.Type.Extract
 
 import qualified Data.Map as Map
 import qualified Data.Map.Utils as Map
-import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 
 import qualified String as S
@@ -66,11 +65,11 @@ extract astType =
     Can.TUnit ->
       pure T.Unit
 
-    Can.TTuple a b maybeC ->
-      T.Tuple
-        <$> extract a
-        <*> extract b
-        <*> traverse extract (Maybe.maybeToList maybeC)
+    Can.TPair a b ->
+      T.Tuple <$> extract a <*> extract b <*> pure []
+
+    Can.TTriple a b c ->
+      T.Tuple <$> extract a <*> extract b <*> fmap (:[]) (extract c)
 
     Can.TAlias home name args aliasType ->
       do  addAlias (Seen home name) ()

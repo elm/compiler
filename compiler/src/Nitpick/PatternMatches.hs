@@ -70,10 +70,8 @@ simplify (A.At _ pattern) =
     Can.PCons p ps         -> cons p (simplify ps)
     Can.PAlias p _         -> simplify p
     Can.PCtor _ _ u n _ ps -> Ctor u n $ map (\(Can.PatternCtorArg _ _ arg) -> simplify arg) ps
-    Can.PTuple a b mc      ->
-      case mc of
-        Nothing -> Ctor pair   N.pair   [ simplify a, simplify b ]
-        Just c  -> Ctor triple N.triple [ simplify a, simplify b, simplify c ]
+    Can.PPair   a b        -> Ctor pair   N.pair   [ simplify a, simplify b ]
+    Can.PTriple a b c      -> Ctor triple N.triple [ simplify a, simplify b, simplify c ]
 
 
 cons :: Can.Pattern -> Pattern -> Pattern
@@ -230,8 +228,8 @@ checkExpr (A.At region expression) errors =
     Can.Update _ e fs       -> checkExpr e $ Map.foldr checkField errors fs
     Can.Record fs           -> Map.foldr checkExpr errors fs
     Can.Unit                -> errors
-    Can.Tuple a b Nothing   -> checkExpr a $ checkExpr b errors
-    Can.Tuple a b (Just c)  -> checkExpr a $ checkExpr b $ checkExpr c errors
+    Can.Pair   a b          -> checkExpr a $ checkExpr b errors
+    Can.Triple a b c        -> checkExpr a $ checkExpr b $ checkExpr c errors
     Can.Shader _ _          -> errors
 
 

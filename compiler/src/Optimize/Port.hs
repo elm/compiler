@@ -43,8 +43,11 @@ toEncoder tipe =
     Can.TUnit ->
       Opt.Function [dollar] <$> encode [N.ascii|null|]
 
-    Can.TTuple a b c ->
-      encodeTuple a b c
+    Can.TPair a b ->
+      encodePair a b
+
+    Can.TTriple a b c ->
+      encodeTriple a b c
 
     Can.TType _ name args ->
       case args of
@@ -71,7 +74,7 @@ toEncoder tipe =
         encodeField (name, Can.FieldType _ fieldType) =
           do  encoder <- toEncoder fieldType
               let value = Opt.Call encoder [Opt.Access (Opt.VarLocal dollar) name]
-              return $ Opt.Tuple (Opt.Str (ES.fromName name)) value Nothing
+              return $ Opt.Pair (Opt.Str (ES.fromName name)) value
       in
       do  object <- encode [N.ascii|object|]
           keyValuePairs <- traverse encodeField (Map.toList fields)
@@ -106,8 +109,8 @@ encodeArray tipe =
       return $ Opt.Call array [ encoder ]
 
 
-encodeTuple :: Can.Type -> Can.Type -> Maybe Can.Type -> Names.Tracker Opt.Expr
-encodeTuple a b maybeC =
+encodePair :: Can.Type -> Can.Type -> Names.Tracker Opt.Expr
+encodePair a b =
   let
     let_ arg index body =
       Opt.Destruct (Opt.Destructor arg (Opt.Index index (Opt.Root dollar))) body
@@ -118,23 +121,34 @@ encodeTuple a b maybeC =
   in
   do  list <- encode [N.ascii|list|]
       identity <- Names.registerGlobal ModuleName.basics N.identity
-      arg1 <- encodeArg [N.ascii|a|] a
-      arg2 <- encodeArg [N.ascii|b|] b
+      arg1 <- encodeArg N.a a
+      arg2 <- encodeArg N.b b
+      return $ Opt.Function [dollar] $
+        let_ N.a Index.first $
+        let_ N.b Index.second $
+          Opt.Call list [ identity, Opt.List [ arg1, arg2 ] ]
 
-      case maybeC of
-        Nothing ->
-          return $ Opt.Function [dollar] $
-            let_ [N.ascii|a|] Index.first $
-            let_ [N.ascii|b|] Index.second $
-              Opt.Call list [ identity, Opt.List [ arg1, arg2 ] ]
 
-        Just c ->
-          do  arg3 <- encodeArg [N.ascii|c|] c
-              return $ Opt.Function [dollar] $
-                let_ [N.ascii|a|] Index.first $
-                let_ [N.ascii|b|] Index.second $
-                let_ [N.ascii|c|] Index.third $
-                  Opt.Call list [ identity, Opt.List [ arg1, arg2, arg3 ] ]
+encodeTriple :: Can.Type -> Can.Type -> Can.Type -> Names.Tracker Opt.Expr
+encodeTriple a b c =
+  let
+    let_ arg index body =
+      Opt.Destruct (Opt.Destructor arg (Opt.Index index (Opt.Root dollar))) body
+
+    encodeArg arg tipe =
+      do  encoder <- toEncoder tipe
+          return $ Opt.Call encoder [ Opt.VarLocal arg ]
+  in
+  do  list <- encode [N.ascii|list|]
+      identity <- Names.registerGlobal ModuleName.basics N.identity
+      arg1 <- encodeArg N.a a
+      arg2 <- encodeArg N.b b
+      arg3 <- encodeArg N.c c
+      return $ Opt.Function [dollar] $
+        let_ N.a Index.first $
+        let_ N.b Index.second $
+        let_ N.c Index.third $
+          Opt.Call list [ identity, Opt.List [ arg1, arg2, arg3 ] ]
 
 
 dollar :: N.Name
@@ -173,10 +187,13 @@ toDecoder tipe =
       toDecoder (Type.dealias args alias)
 
     Can.TUnit ->
-      decodeTuple0
+      decodeUnit
 
-    Can.TTuple a b c ->
-      decodeTuple a b c
+    Can.TPair a b ->
+      decodePair a b
+
+    Can.TTriple a b c ->
+      decodeTriple a b c
 
     Can.TType _ name args ->
       case args of
@@ -251,26 +268,25 @@ decodeArray tipe =
 -- DECODE TUPLES
 
 
-decodeTuple0 :: Names.Tracker Opt.Expr
-decodeTuple0 =
+decodeUnit :: Names.Tracker Opt.Expr
+decodeUnit =
   do  null <- decode [N.ascii|null|]
       return (Opt.Call null [ Opt.Unit ])
 
 
-decodeTuple :: Can.Type -> Can.Type -> Maybe Can.Type -> Names.Tracker Opt.Expr
-decodeTuple a b maybeC =
+decodePair :: Can.Type -> Can.Type -> Names.Tracker Opt.Expr
+decodePair a b =
   do  succeed <- decode [N.ascii|succeed|]
-      case maybeC of
-        Nothing ->
-          let tuple = Opt.Tuple (toLocal 0) (toLocal 1) Nothing in
-          indexAndThen 0 a =<<
-            indexAndThen 1 b (Opt.Call succeed [tuple])
+      indexAndThen 0 a =<<
+        indexAndThen 1 b (Opt.Call succeed [Opt.Pair (toLocal 0) (toLocal 1)])
 
-        Just c ->
-          let tuple = Opt.Tuple (toLocal 0) (toLocal 1) (Just (toLocal 2)) in
-          indexAndThen 0 a =<<
-            indexAndThen 1 b =<<
-              indexAndThen 2 c (Opt.Call succeed [tuple])
+
+decodeTriple :: Can.Type -> Can.Type -> Can.Type -> Names.Tracker Opt.Expr
+decodeTriple a b c =
+  do  succeed <- decode [N.ascii|succeed|]
+      indexAndThen 0 a =<<
+        indexAndThen 1 b =<<
+          indexAndThen 2 c (Opt.Call succeed [Opt.Triple (toLocal 0) (toLocal 1) (toLocal 2)])
 
 
 toLocal :: Int -> Opt.Expr

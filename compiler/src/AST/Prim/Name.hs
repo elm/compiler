@@ -11,7 +11,7 @@ module AST.Prim.Name
   --
   , ascii
   --
-  , true, false, a, b
+  , true, false, a, b, c
   , first, second, unit, pair, triple
   , update
   , cons, nil, fromArray
@@ -111,6 +111,7 @@ true      :: Name; true      = Name [S.ascii|True|]
 false     :: Name; false     = Name [S.ascii|False|]
 a         :: Name; a         = Name [S.ascii|a|]
 b         :: Name; b         = Name [S.ascii|b|]
+c         :: Name; c         = Name [S.ascii|c|]
 first     :: Name; first     = Name [S.ascii|first|]
 second    :: Name; second    = Name [S.ascii|second|]
 unit      :: Name; unit      = Name [S.ascii|#0|]

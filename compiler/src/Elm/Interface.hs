@@ -376,9 +376,10 @@ eType tipe =
     Can.TVar x          -> E.u8# 1#Word8 <> T.eVar x
     Can.TRecord fs e    -> E.u8# 2#Word8 <> E.dict32 N.encode eFieldType fs <> E.maybe T.eVar e
     Can.TUnit           -> E.u8# 3#Word8
-    Can.TTuple a b c    -> E.u8# 4#Word8 <> eType a <> eType b <> E.maybe eType c
-    Can.TAlias h n xs a -> E.u8# 5#Word8 <> ModuleName.eCanonical h <> T.encode n <> E.list8 (\(x,t) -> T.eVar x <> eType t) xs <> eAliasType a
-    Can.TType  h n xs   -> E.u8# 6#Word8 <> ModuleName.eCanonical h <> T.encode n <> E.list8 eType xs
+    Can.TPair   a b     -> E.u8# 4#Word8 <> eType a <> eType b
+    Can.TTriple a b c   -> E.u8# 5#Word8 <> eType a <> eType b <> eType c
+    Can.TAlias h n xs a -> E.u8# 6#Word8 <> ModuleName.eCanonical h <> T.encode n <> E.list8 (\(x,t) -> T.eVar x <> eType t) xs <> eAliasType a
+    Can.TType  h n xs   -> E.u8# 7#Word8 <> ModuleName.eCanonical h <> T.encode n <> E.list8 eType xs
 
 
 dType :: D.Decoder Can.Type
@@ -389,9 +390,10 @@ dType =
         1 -> liftM  Can.TVar T.dVar
         2 -> liftM2 Can.TRecord (D.dict32 N.decode dFieldType) (D.maybe T.dVar)
         3 -> return Can.TUnit
-        4 -> liftM3 Can.TTuple dType dType (D.maybe dType)
-        5 -> liftM4 Can.TAlias ModuleName.dCanonical T.decode (D.list8 (liftM2 (,) T.dVar dType)) dAliasType
-        6 -> liftM3 Can.TType ModuleName.dCanonical T.decode (D.list8 dType)
+        4 -> liftM2 Can.TPair dType dType
+        5 -> liftM3 Can.TTriple dType dType dType
+        6 -> liftM4 Can.TAlias ModuleName.dCanonical T.decode (D.list8 (liftM2 (,) T.dVar dType)) dAliasType
+        7 -> liftM3 Can.TType ModuleName.dCanonical T.decode (D.list8 dType)
         _ -> D.expecting "Type"
 
 

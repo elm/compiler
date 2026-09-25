@@ -58,8 +58,11 @@ add (A.At region pattern) expectation state =
           let unitCon = CPattern region E.PUnit UnitN expectation
           return $ State headers vars (unitCon:revCons)
 
-    Can.PTuple a b maybeC ->
-      addTuple region a b maybeC expectation state
+    Can.PPair a b ->
+      addPair region a b expectation state
+
+    Can.PTriple a b c ->
+      addTriple region a b c expectation state
 
     Can.PCtor home typeName (Can.Union typeVars _ _ _) ctorName _ args ->
       addCtor region home typeName typeVars ctorName args expectation state
@@ -171,35 +174,39 @@ addEntry listRegion tipe state (index, pattern) =
 -- CONSTRAIN TUPLE
 
 
-addTuple :: A.Region -> Can.Pattern -> Can.Pattern -> Maybe Can.Pattern -> E.PExpected Type -> State -> IO State
-addTuple region a b maybeC expectation state =
+addPair :: A.Region -> Can.Pattern -> Can.Pattern -> E.PExpected Type -> State -> IO State
+addPair region a b expectation state =
   do  aVar <- mkFlexVar
       bVar <- mkFlexVar
       let aType = VarN aVar
       let bType = VarN bVar
 
-      case maybeC of
-        Nothing ->
-          do  (State headers vars revCons) <-
-                simpleAdd b bType =<<
-                  simpleAdd a aType state
+      (State headers vars revCons) <-
+        simpleAdd b bType =<<
+        simpleAdd a aType state
 
-              let tupleCon = CPattern region E.PTuple (TupleN aType bType Nothing) expectation
+      let tupleCon = CPattern region E.PTuple (PairN aType bType) expectation
 
-              return $ State headers (aVar:bVar:vars) (tupleCon:revCons)
+      return $ State headers (aVar:bVar:vars) (tupleCon:revCons)
 
-        Just c ->
-          do  cVar <- mkFlexVar
-              let cType = VarN cVar
 
-              (State headers vars revCons) <-
-                simpleAdd c cType =<<
-                  simpleAdd b bType =<<
-                    simpleAdd a aType state
+addTriple :: A.Region -> Can.Pattern -> Can.Pattern -> Can.Pattern -> E.PExpected Type -> State -> IO State
+addTriple region a b c expectation state =
+  do  aVar <- mkFlexVar
+      bVar <- mkFlexVar
+      cVar <- mkFlexVar
+      let aType = VarN aVar
+      let bType = VarN bVar
+      let cType = VarN cVar
 
-              let tupleCon = CPattern region E.PTuple (TupleN aType bType (Just cType)) expectation
+      (State headers vars revCons) <-
+        simpleAdd c cType =<<
+        simpleAdd b bType =<<
+        simpleAdd a aType state
 
-              return $ State headers (aVar:bVar:cVar:vars) (tupleCon:revCons)
+      let tupleCon = CPattern region E.PTuple (TripleN aType bType cType) expectation
+
+      return $ State headers (aVar:bVar:cVar:vars) (tupleCon:revCons)
 
 
 simpleAdd :: Can.Pattern -> Type -> State -> IO State

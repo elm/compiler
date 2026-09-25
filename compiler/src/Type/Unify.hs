@@ -396,25 +396,28 @@ unifyFlexSuperStructure context super flatType =
                 unifyComparableRecursive variable
                 merge context (Structure flatType)
 
-    Tuple1 a b maybeC ->
+    Pair1 a b ->
       case super of
-        Number ->
-            mismatch
-
-        Appendable ->
-            mismatch
-
+        Number     -> mismatch
+        Appendable -> mismatch
+        CompAppend -> mismatch
         Comparable ->
             do  comparableOccursCheck context
                 unifyComparableRecursive a
                 unifyComparableRecursive b
-                case maybeC of
-                  Nothing -> return ()
-                  Just c  -> unifyComparableRecursive c
                 merge context (Structure flatType)
 
-        CompAppend ->
-            mismatch
+    Triple1 a b c ->
+      case super of
+        Number     -> mismatch
+        Appendable -> mismatch
+        CompAppend -> mismatch
+        Comparable ->
+            do  comparableOccursCheck context
+                unifyComparableRecursive a
+                unifyComparableRecursive b
+                unifyComparableRecursive c
+                merge context (Structure flatType)
 
     _ ->
       mismatch
@@ -559,12 +562,12 @@ unifyStructure context flatType content otherContent =
                       Unify k ->
                         k vars ok err
 
-          (Tuple1 a b Nothing, Tuple1 x y Nothing) ->
+          (Pair1 a b, Pair1 x y) ->
               do  subUnify a x
                   subUnify b y
                   merge context otherContent
 
-          (Tuple1 a b (Just c), Tuple1 x y (Just z)) ->
+          (Triple1 a b c, Triple1 x y z) ->
               do  subUnify a x
                   subUnify b y
                   subUnify c z

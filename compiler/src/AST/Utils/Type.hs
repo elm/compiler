@@ -52,7 +52,8 @@ dealiasHelp typeTable =
         TAlias h n xs t -> TAlias h n (map (fmap go) xs) t
         TType  h n xs   -> TType  h n (map go xs)
         TUnit           -> TUnit
-        TTuple  a b mc  -> TTuple (go a) (go b) (fmap go mc)
+        TPair   a b     -> TPair (go a) (go b)
+        TTriple a b c   -> TTriple (go a) (go b) (go c)
 
 
 dealiasField :: Map.Map T.Var Type -> FieldType -> FieldType
@@ -73,7 +74,8 @@ deepDealias tipe =
     TAlias _ _ xs t -> deepDealias (dealias xs t)
     TType h n xs    -> TType h n (map deepDealias xs)
     TUnit           -> TUnit
-    TTuple a b mc   -> TTuple (deepDealias a) (deepDealias b) (fmap deepDealias mc)
+    TPair   a b     -> TPair (deepDealias a) (deepDealias b)
+    TTriple a b c   -> TTriple (deepDealias a) (deepDealias b) (deepDealias c)
 
 
 deepDealiasField :: FieldType -> FieldType

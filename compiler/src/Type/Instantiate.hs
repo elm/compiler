@@ -50,11 +50,16 @@ fromSrcType freeVars sourceType =
               Can.Holey realType ->
                 fromSrcType (Map.fromList targs) realType
 
-    Can.TTuple a b maybeC ->
-      TupleN
+    Can.TPair a b ->
+      PairN
         <$> fromSrcType freeVars a
         <*> fromSrcType freeVars b
-        <*> traverse (fromSrcType freeVars) maybeC
+
+    Can.TTriple a b c ->
+      TripleN
+        <$> fromSrcType freeVars a
+        <*> fromSrcType freeVars b
+        <*> fromSrcType freeVars c
 
     Can.TUnit ->
       return UnitN

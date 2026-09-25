@@ -92,7 +92,8 @@ data FlatType
     | EmptyRecord1
     | Record1 (Map.Map N.Name Variable) Variable
     | Unit1
-    | Tuple1 Variable Variable (Maybe Variable)
+    | Pair1 Variable Variable
+    | Triple1 Variable Variable Variable
 
 
 data Type
@@ -104,7 +105,8 @@ data Type
     | EmptyRecordN
     | RecordN (Map.Map N.Name Type) Type
     | UnitN
-    | TupleN Type Type (Maybe Type)
+    | PairN Type Type
+    | TripleN Type Type Type
 
 
 
@@ -374,11 +376,16 @@ termToCanType term =
     Unit1 ->
       return Can.TUnit
 
-    Tuple1 a b maybeC ->
-      Can.TTuple
+    Pair1 a b ->
+      Can.TPair
         <$> variableToCanType a
         <*> variableToCanType b
-        <*> traverse variableToCanType maybeC
+
+    Triple1 a b c ->
+      Can.TTriple
+        <$> variableToCanType a
+        <*> variableToCanType b
+        <*> variableToCanType c
 
 
 fieldToCanType :: Variable -> StateT NameState IO Can.FieldType
@@ -499,13 +506,9 @@ termToErrorType term =
                 _ ->
                     $(Crash.crash 'termToErrorType) "Used toErrorType on a type that is not well-formed"
 
-    Unit1 ->
-      return ET.Unit
-
-    Tuple1 a b maybeC ->
-      case maybeC of
-        Nothing -> ET.Pair   <$> variableToErrorType a <*> variableToErrorType b
-        Just c  -> ET.Triple <$> variableToErrorType a <*> variableToErrorType b <*> variableToErrorType c
+    Unit1         -> return ET.Unit
+    Pair1   a b   -> ET.Pair   <$> variableToErrorType a <*> variableToErrorType b
+    Triple1 a b c -> ET.Triple <$> variableToErrorType a <*> variableToErrorType b <*> variableToErrorType c
 
 
 
@@ -622,13 +625,13 @@ getVarNames var takenNames =
 
               Structure flatType ->
                 case flatType of
-                  App1 _ _ xs         -> foldrM getVarNames takenNames xs
-                  Fun1 x e            -> getVarNames x =<< getVarNames e takenNames
-                  EmptyRecord1        -> return takenNames
-                  Record1 fs x        -> getVarNames x =<< foldrM getVarNames takenNames (Map.elems fs)
-                  Unit1               -> return takenNames
-                  Tuple1 a b Nothing  -> getVarNames a =<< getVarNames b takenNames
-                  Tuple1 a b (Just c) -> getVarNames a =<< getVarNames b =<< getVarNames c takenNames
+                  App1 _ _ xs   -> foldrM getVarNames takenNames xs
+                  Fun1 x e      -> getVarNames x =<< getVarNames e takenNames
+                  EmptyRecord1  -> return takenNames
+                  Record1 fs x  -> getVarNames x =<< foldrM getVarNames takenNames (Map.elems fs)
+                  Unit1         -> return takenNames
+                  Pair1   a b   -> getVarNames a =<< getVarNames b takenNames
+                  Triple1 a b c -> getVarNames a =<< getVarNames b =<< getVarNames c takenNames
 
 
 

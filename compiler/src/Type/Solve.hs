@@ -405,15 +405,16 @@ adjustRankContent youngMark visitMark groupRank content =
               -- THEORY: a unit never needs to get generalized
               return outermostRank
 
-          Tuple1 a b maybeC ->
+          Pair1 a b ->
               do  ma <- go a
                   mb <- go b
-                  case maybeC of
-                    Nothing ->
-                      return (max ma mb)
+                  return $ max ma mb
 
-                    Just c ->
-                      max (max ma mb) <$> go c
+          Triple1 a b c ->
+              do  ma <- go a
+                  mb <- go b
+                  mc <- go c
+                  return $ max (max ma mb) mc
 
       Alias _ _ args _ ->
           -- THEORY: anything in the realVar would be outermostRank
@@ -486,11 +487,16 @@ typeToVar rank pools aliasDict tipe =
     UnitN ->
       register rank pools unit1
 
-    TupleN a b c ->
+    PairN a b ->
       do  aVar <- go a
           bVar <- go b
-          cVar <- traverse go c
-          register rank pools (Structure (Tuple1 aVar bVar cVar))
+          register rank pools (Structure (Pair1 aVar bVar))
+
+    TripleN a b c ->
+      do  aVar <- go a
+          bVar <- go b
+          cVar <- go c
+          register rank pools (Structure (Triple1 aVar bVar cVar))
 
 
 register :: Int -> Pools -> Content -> IO Variable
@@ -562,11 +568,16 @@ srcTypeToVar rank pools flexVars srcType =
     Can.TUnit ->
       register rank pools unit1
 
-    Can.TTuple a b c ->
+    Can.TPair a b ->
       do  aVar <- go a
           bVar <- go b
-          cVar <- traverse go c
-          register rank pools (Structure (Tuple1 aVar bVar cVar))
+          register rank pools (Structure (Pair1 aVar bVar))
+
+    Can.TTriple a b c ->
+      do  aVar <- go a
+          bVar <- go b
+          cVar <- go c
+          register rank pools (Structure (Triple1 aVar bVar cVar))
 
     Can.TAlias home name args aliasType ->
       do  argVars <- traverse (traverse go) args
@@ -704,12 +715,14 @@ restoreContent content =
         Unit1 ->
           return ()
 
-        Tuple1 a b maybeC ->
+        Pair1 a b ->
           do  restore a
               restore b
-              case maybeC of
-                Nothing -> return ()
-                Just c  -> restore c
+
+        Triple1 a b c ->
+          do  restore a
+              restore b
+              restore c
 
     Alias _ _ args var ->
       do  mapM_ (traverse restore) args
@@ -741,5 +754,8 @@ traverseFlatType f flatType =
     Unit1 ->
         pure Unit1
 
-    Tuple1 a b cs ->
-        liftM3 Tuple1 (f a) (f b) (traverse f cs)
+    Pair1 a b ->
+        liftM2 Pair1 (f a) (f b)
+
+    Triple1 a b c ->
+        liftM3 Triple1 (f a) (f b) (f c)

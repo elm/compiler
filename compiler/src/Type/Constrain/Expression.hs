@@ -147,8 +147,11 @@ constrain rtv (A.At region expression) expected =
     Can.Unit ->
       return $ CEqual region Unit UnitN expected
 
-    Can.Tuple a b maybeC ->
-      constrainTuple rtv region a b maybeC expected
+    Can.Pair a b ->
+      constrainPair rtv region a b expected
+
+    Can.Triple a b c ->
+      constrainTriple rtv region a b c expected
 
     Can.Shader _src types ->
       constrainShader region types expected
@@ -436,8 +439,8 @@ constrainUpdateField rtv region field (Can.FieldUpdate _ expr) =
 -- CONSTRAIN TUPLE
 
 
-constrainTuple :: RTV -> A.Region -> Can.Expr -> Can.Expr -> Maybe Can.Expr -> Expected Type -> IO Constraint
-constrainTuple rtv region a b maybeC expected =
+constrainPair :: RTV -> A.Region -> Can.Expr -> Can.Expr -> Expected Type -> IO Constraint
+constrainPair rtv region a b expected =
   do  aVar <- mkFlexVar
       bVar <- mkFlexVar
       let aType = VarN aVar
@@ -446,22 +449,29 @@ constrainTuple rtv region a b maybeC expected =
       aCon <- constrain rtv a (NoExpectation aType)
       bCon <- constrain rtv b (NoExpectation bType)
 
-      case maybeC of
-        Nothing ->
-          do  let tupleType = TupleN aType bType Nothing
-              let tupleCon = CEqual region Tuple tupleType expected
-              return $ exists [ aVar, bVar ] $ CAnd [ aCon, bCon, tupleCon ]
+      let tupleType = PairN aType bType
+      let tupleCon = CEqual region Tuple tupleType expected
 
-        Just c ->
-          do  cVar <- mkFlexVar
-              let cType = VarN cVar
+      return $ exists [ aVar, bVar ] $ CAnd [ aCon, bCon, tupleCon ]
 
-              cCon <- constrain rtv c (NoExpectation cType)
 
-              let tupleType = TupleN aType bType (Just cType)
-              let tupleCon = CEqual region Tuple tupleType expected
+constrainTriple :: RTV -> A.Region -> Can.Expr -> Can.Expr -> Can.Expr -> Expected Type -> IO Constraint
+constrainTriple rtv region a b c expected =
+  do  aVar <- mkFlexVar
+      bVar <- mkFlexVar
+      cVar <- mkFlexVar
+      let aType = VarN aVar
+      let bType = VarN bVar
+      let cType = VarN cVar
 
-              return $ exists [ aVar, bVar, cVar ] $ CAnd [ aCon, bCon, cCon, tupleCon ]
+      aCon <- constrain rtv a (NoExpectation aType)
+      bCon <- constrain rtv b (NoExpectation bType)
+      cCon <- constrain rtv c (NoExpectation cType)
+
+      let tupleType = TripleN aType bType cType
+      let tupleCon = CEqual region Tuple tupleType expected
+
+      return $ exists [ aVar, bVar, cVar ] $ CAnd [ aCon, bCon, cCon, tupleCon ]
 
 
 

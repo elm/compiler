@@ -61,16 +61,14 @@ occursHelp seen var foundCycle =
                 Unit1 ->
                     return foundCycle
 
-                Tuple1 a b maybeC ->
-                    case maybeC of
-                      Nothing ->
-                        occursHelp newSeen a =<<
-                          occursHelp newSeen b foundCycle
+                Pair1 a b ->
+                    occursHelp newSeen a =<<
+                    occursHelp newSeen b foundCycle
 
-                      Just c ->
-                        occursHelp newSeen a =<<
-                          occursHelp newSeen b =<<
-                            occursHelp newSeen c foundCycle
+                Triple1 a b c ->
+                    occursHelp newSeen a =<<
+                    occursHelp newSeen b =<<
+                    occursHelp newSeen c foundCycle
 
           Alias _ _ args _ ->
               foldrM (occursHelp (var:seen)) foundCycle (map snd args)

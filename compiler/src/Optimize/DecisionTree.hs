@@ -174,12 +174,14 @@ flatten pathPattern@(path, A.At region pattern) otherPathPatterns =
       else
         pathPattern : otherPathPatterns
 
-    Can.PTuple a b mc ->
+    Can.PPair a b ->
+      flatten (Index Index.first  path, a) $
+      flatten (Index Index.second path, b) otherPathPatterns
+
+    Can.PTriple a b c ->
       flatten (Index Index.first  path, a) $
       flatten (Index Index.second path, b) $
-        case mc of
-          Nothing -> otherPathPatterns
-          Just c  -> flatten (Index Index.third path, c) otherPathPatterns
+      flatten (Index Index.third  path, c) otherPathPatterns
 
     Can.PAlias realPattern alias ->
       flatten (path, realPattern) $
@@ -263,18 +265,19 @@ testAtPath selectedPath (Branch _ pathPatterns) =
         Can.PCtor h _ (Can.Union _ _ numAlts opts) n i _ ->
             Just (IsCtor h n i numAlts opts)
 
-        Can.PList ps     -> Just (case ps of { [] -> IsNil ; _ -> IsCons })
-        Can.PCons _ _    -> Just IsCons
-        Can.PTuple _ _ _ -> Just IsTuple
-        Can.PUnit        -> Just IsTuple
-        Can.PVar _       -> Nothing
-        Can.PAnything    -> Nothing
-        Can.PInt n       -> Just (IsInt n)
-        Can.PStr s       -> Just (IsStr s)
-        Can.PChr c       -> Just (IsChr c)
-        Can.PBool _ b    -> Just (IsBool b)
-        Can.PRecord _    -> Nothing
-        Can.PAlias _ _   -> $(Crash.crash 'testAtPath) "aliases should never reach 'testAtPath' function"
+        Can.PList ps      -> Just (case ps of { [] -> IsNil ; _ -> IsCons })
+        Can.PCons _ _     -> Just IsCons
+        Can.PPair   _ _   -> Just IsTuple
+        Can.PTriple _ _ _ -> Just IsTuple
+        Can.PUnit         -> Just IsTuple
+        Can.PVar _        -> Nothing
+        Can.PAnything     -> Nothing
+        Can.PInt n        -> Just (IsInt n)
+        Can.PStr s        -> Just (IsStr s)
+        Can.PChr c        -> Just (IsChr c)
+        Can.PBool _ b     -> Just (IsBool b)
+        Can.PRecord _     -> Nothing
+        Can.PAlias _ _    -> $(Crash.crash 'testAtPath) "aliases should never reach 'testAtPath' function"
 
 
 
@@ -312,7 +315,8 @@ toRelevantBranch test path branch@(Branch goal pathPatterns) =
           Can.PInt n        -> case test of { IsInt  n' | n == n' -> Just (Branch goal (start ++ end)) ; _ -> Nothing }
           Can.PBool _ b     -> case test of { IsBool b' | b == b' -> Just (Branch goal (start ++ end)) ; _ -> Nothing }
           Can.PUnit         -> Just (Branch goal (start ++ end))
-          Can.PTuple a b mc -> Just (Branch goal (start ++ subPositions path (a : b : Maybe.maybeToList mc) ++ end))
+          Can.PPair   a b   -> Just (Branch goal (start ++ subPositions path [a,b]   ++ end))
+          Can.PTriple a b c -> Just (Branch goal (start ++ subPositions path [a,b,c] ++ end))
           Can.PVar _        -> Just branch
           Can.PAnything     -> Just branch
           Can.PRecord _     -> Just branch
@@ -363,7 +367,8 @@ needsTests (A.At _ pattern) =
     Can.PList _           -> True
     Can.PCons _ _         -> True
     Can.PUnit             -> True
-    Can.PTuple _ _ _      -> True
+    Can.PPair   _ _       -> True
+    Can.PTriple _ _ _     -> True
     Can.PChr _            -> True
     Can.PStr _            -> True
     Can.PInt _            -> True

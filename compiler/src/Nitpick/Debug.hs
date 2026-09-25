@@ -62,7 +62,8 @@ hasDebug expression =
     Opt.Update r fs      -> hasDebug r || any hasDebug fs
     Opt.Record fs        -> any hasDebug fs
     Opt.Unit             -> False
-    Opt.Tuple a b c      -> hasDebug a || hasDebug b || maybe False hasDebug c
+    Opt.Pair   a b       -> hasDebug a || hasDebug b
+    Opt.Triple a b c     -> hasDebug a || hasDebug b || hasDebug c
     Opt.Shader _ _ _     -> False
 
 

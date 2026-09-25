@@ -80,10 +80,10 @@ canonicalize env (A.At region pattern) =
       Result.ok Can.PUnit
 
     Src.PTuple a b cs ->
-      Can.PTuple
-        <$> canonicalize env a
-        <*> canonicalize env b
-        <*> canonicalizeTuple region env cs
+      case cs of
+        []  -> Can.PPair   <$> canonicalize env a <*> canonicalize env b
+        [c] -> Can.PTriple <$> canonicalize env a <*> canonicalize env b <*> canonicalize env c
+        _   -> Result.throw $ Error.TupleLargerThanThree region
 
     Src.PCtor nameRegion name patterns ->
       canonicalizeCtor env region name patterns =<< Env.findCtor nameRegion env name
@@ -134,19 +134,6 @@ canonicalizeCtor env region name patterns ctor =
 
     Env.RecordCtor _ _ _ ->
       Result.throw (Error.PatternHasRecordCtor region name)
-
-
-canonicalizeTuple :: A.Region -> Env.Env -> [Src.Pattern] -> Result DupsDict w (Maybe Can.Pattern)
-canonicalizeTuple tupleRegion env extras =
-  case extras of
-    [] ->
-      Result.ok Nothing
-
-    [three] ->
-      Just <$> canonicalize env three
-
-    _ ->
-      Result.throw $ Error.TupleLargerThanThree tupleRegion
 
 
 canonicalizeList :: Env.Env -> [Src.Pattern] -> Result DupsDict w [Can.Pattern]
