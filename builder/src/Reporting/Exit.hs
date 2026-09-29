@@ -61,6 +61,7 @@ import qualified Reporting.Error.Json as Json
 import qualified Reporting.Exit.Help as Help
 import qualified Reporting.Error as Error
 import qualified Reporting.Render.Code as Code
+import qualified Root as R
 
 
 
@@ -744,7 +745,7 @@ data Install
   = InstallNoOutline
   | InstallBadOutline Outline
   | InstallBadRegistry RegistryProblem
-  | InstallNoArgs FilePath
+  | InstallNoArgs R.ElmHome
   | InstallNoOnlineAppSolution Pkg.Name
   | InstallNoOfflineAppSolution Pkg.Name
   | InstallNoOnlinePkgSolution Pkg.Name
@@ -772,7 +773,7 @@ installToReport exit =
       toRegistryProblemReport "PROBLEM LOADING PACKAGE LIST" problem $
         "I need the list of published packages to figure out how to install things"
 
-    InstallNoArgs elmHome ->
+    InstallNoArgs (R.ElmHome elmHome) ->
       Help.report "INSTALL WHAT?" Nothing
         "I am expecting commands like:"
         [ D.green $ D.indent 4 $ D.vcat $
@@ -1271,7 +1272,7 @@ data Details
   | DetailsHandEditedDependencies
   | DetailsBadOutline Outline
   | DetailsCannotGetRegistry RegistryProblem
-  | DetailsBadDeps FilePath [DetailsBadDep]
+  | DetailsBadDeps R.ElmHome [DetailsBadDep]
 
 
 data DetailsBadDep
@@ -1354,13 +1355,13 @@ toDetailsReport details =
       toRegistryProblemReport "PROBLEM LOADING PACKAGE LIST" problem $
         "I need the list of published packages to verify your dependencies"
 
-    DetailsBadDeps cacheDir deps ->
+    DetailsBadDeps (R.ElmHome elmHome) deps ->
       case List.sortOn toBadDepRank deps of
         [] ->
           Help.report "PROBLEM BUILDING DEPENDENCIES" Nothing
             "I am not sure what is going wrong though."
             [ D.reflow $
-                "I would try deleting the " ++ cacheDir ++ " and elm-stuff/ directories, then\
+                "I would try deleting the " ++ elmHome ++ " and elm-stuff/ directories, then\
                 \ trying to build again. That will work if some cached files got corrupted\
                 \ somehow."
             , D.reflow $
@@ -1761,7 +1762,7 @@ makeToReport make =
 
 
 data BuildProblem
-  = BuildBadModules FilePath Error.Module [Error.Module]
+  = BuildBadModules R.Root Error.Module [Error.Module]
   | BuildProjectProblem BuildProjectProblem
 
 
@@ -2041,8 +2042,8 @@ reactorToReport problem =
 
 data Repl
   = ReplBadDetails Details
-  | ReplBadInput BS.ByteString Error.Error
-  | ReplBadLocalDeps FilePath Error.Module [Error.Module]
+  | ReplBadInput R.Root BS.ByteString Error.Error
+  | ReplBadLocalDeps R.Root Error.Module [Error.Module]
   | ReplProjectProblem BuildProjectProblem
   | ReplBadGenerate Generate
   | ReplBadCache
@@ -2055,8 +2056,8 @@ replToReport problem =
     ReplBadDetails details ->
       toDetailsReport details
 
-    ReplBadInput source err ->
-      Help.compilerReport "/" (Error.Module Module.repl "REPL" File.zeroTime source err) []
+    ReplBadInput root source err ->
+      Help.compilerReport root (Error.Module Module.repl "REPL" File.zeroTime source err) []
 
     ReplBadLocalDeps root e es ->
       Help.compilerReport root e es

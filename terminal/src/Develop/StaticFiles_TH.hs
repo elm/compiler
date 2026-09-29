@@ -21,7 +21,7 @@ import qualified Generate
 import qualified Reporting
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
-import qualified Stuff
+import qualified Root as R
 
 
 
@@ -32,12 +32,12 @@ buildReactorFrontEnd :: Q Exp -- BS.ByteString
 buildReactorFrontEnd =
   fmap bsToExp $ runIO $
   Dir.withCurrentDirectory "reactor" $
-  do  root <- Dir.getCurrentDirectory
-      Stuff.withRootLock root $ \writer ->
+  do  root <- R.pwd
+      R.withRootLock root $ \writer stuff ->
         runTaskUnsafe $
-        do  details    <- Task.eio Exit.ReactorBadDetails $ Details.load writer Reporting.silent root
-            artifacts  <- Task.eio Exit.ReactorBadBuild $ Build.fromPaths writer Reporting.silent root details paths
-            javascript <- Task.mapError Exit.ReactorBadGenerate $ Generate.prod root details artifacts
+        do  details    <- Task.eio Exit.ReactorBadDetails $ Details.load writer Reporting.silent root stuff
+            artifacts  <- Task.eio Exit.ReactorBadBuild $ Build.fromPaths writer Reporting.silent root stuff details paths
+            javascript <- Task.mapError Exit.ReactorBadGenerate $ Generate.prod stuff details artifacts
             return (LBS.toStrict (B.toLazyByteString javascript))
 
 

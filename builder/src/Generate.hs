@@ -34,7 +34,7 @@ import qualified Generate.Mode as Mode
 import qualified Nitpick.Debug as Nitpick
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
-import qualified Stuff
+import qualified Root as R
 
 
 -- NOTE: This is used by Make, Repl, and Reactor right now. But it may be
@@ -50,10 +50,10 @@ type Task a =
   Task.Task Exit.Generate a
 
 
-debug :: FilePath -> Details.Details -> Build.Artifacts -> Task B.Builder
-debug root details (Build.Artifacts pkg ifaces roots modules) =
-  do  loading <- loadObjects root details modules
-      types   <- loadTypes root ifaces modules
+debug :: R.Stuff -> Details.Details -> Build.Artifacts -> Task B.Builder
+debug stuff details (Build.Artifacts pkg ifaces roots modules) =
+  do  loading <- loadObjects stuff details modules
+      types   <- loadTypes stuff ifaces modules
       objects <- finalizeObjects loading
       let mode = Mode.Dev (Just types)
       let graph = objectsToGlobalGraph objects
@@ -61,18 +61,18 @@ debug root details (Build.Artifacts pkg ifaces roots modules) =
       return $ JS.generate mode graph mains
 
 
-dev :: FilePath -> Details.Details -> Build.Artifacts -> Task B.Builder
-dev root details (Build.Artifacts pkg _ roots modules) =
-  do  objects <- finalizeObjects =<< loadObjects root details modules
+dev :: R.Stuff -> Details.Details -> Build.Artifacts -> Task B.Builder
+dev stuff details (Build.Artifacts pkg _ roots modules) =
+  do  objects <- finalizeObjects =<< loadObjects stuff details modules
       let mode = Mode.Dev Nothing
       let graph = objectsToGlobalGraph objects
       let mains = gatherMains pkg objects roots
       return $ JS.generate mode graph mains
 
 
-prod :: FilePath -> Details.Details -> Build.Artifacts -> Task B.Builder
-prod root details (Build.Artifacts pkg _ roots modules) =
-  do  objects <- finalizeObjects =<< loadObjects root details modules
+prod :: R.Stuff -> Details.Details -> Build.Artifacts -> Task B.Builder
+prod stuff details (Build.Artifacts pkg _ roots modules) =
+  do  objects <- finalizeObjects =<< loadObjects stuff details modules
       checkForDebugUses objects
       let graph = objectsToGlobalGraph objects
       let mode = Mode.Prod (Mode.shortenFieldNames graph)
@@ -80,9 +80,9 @@ prod root details (Build.Artifacts pkg _ roots modules) =
       return $ JS.generate mode graph mains
 
 
-repl :: FilePath -> Details.Details -> Bool -> Build.ReplArtifacts -> N.Name -> Task B.Builder
-repl root details ansi (Build.ReplArtifacts home modules localizer annotations) name =
-  do  objects <- finalizeObjects =<< loadObjects root details modules
+repl :: R.Stuff -> Details.Details -> Bool -> Build.ReplArtifacts -> N.Name -> Task B.Builder
+repl stuff details ansi (Build.ReplArtifacts home modules localizer annotations) name =
+  do  objects <- finalizeObjects =<< loadObjects stuff details modules
       let graph = objectsToGlobalGraph objects
       return $ JS.generateForRepl ansi localizer graph home name $
         $(Map.require 'repl) name annotations N.toChars
@@ -130,19 +130,19 @@ data LoadingObjects =
     }
 
 
-loadObjects :: FilePath -> Details.Details -> [Build.Module] -> Task LoadingObjects
-loadObjects root details modules =
+loadObjects :: R.Stuff -> Details.Details -> [Build.Module] -> Task LoadingObjects
+loadObjects stuff details modules =
   Task.io $
-  do  mvar <- Details.loadObjects root details
-      mvars <- traverse (loadObject root) modules
+  do  mvar <- Details.loadObjects stuff details
+      mvars <- traverse (loadObject stuff) modules
       return $ LoadingObjects mvar (Map.fromList mvars)
 
 
-loadObject :: FilePath -> Build.Module -> IO (Module.Name, Fork.SafeMVar (Maybe Opt.LocalGraph))
-loadObject root modul =
+loadObject :: R.Stuff -> Build.Module -> IO (Module.Name, Fork.SafeMVar (Maybe Opt.LocalGraph))
+loadObject stuff modul =
   case modul of
     Build.Fresh  name _ graph -> (,) name <$> Fork.cached (Just graph)
-    Build.Cached name _ _     -> (,) name <$> Fork.fork name (File.readBytes Opt.dLocalGraph (Stuff.elmo root name))
+    Build.Cached name _ _     -> (,) name <$> Fork.fork name (File.readBytes Opt.dLocalGraph (R.elmo stuff name))
 
 
 
@@ -175,10 +175,10 @@ objectsToGlobalGraph (Objects globals locals) =
 -- LOAD TYPES
 
 
-loadTypes :: FilePath -> Map.Map ModuleName.Canonical I.DependencyInterface -> [Build.Module] -> Task Extract.Types
-loadTypes root ifaces modules =
+loadTypes :: R.Stuff -> Map.Map ModuleName.Canonical I.DependencyInterface -> [Build.Module] -> Task Extract.Types
+loadTypes stuff ifaces modules =
   Task.eio id $
-  do  mvars <- traverse (loadTypesHelp root) modules
+  do  mvars <- traverse (loadTypesHelp stuff) modules
       let !foreigns = Extract.mergeMany (Map.elems (Map.mapWithKey Extract.fromDependencyInterface ifaces))
       results <- traverse Fork.await mvars
       case sequence results of
@@ -186,8 +186,8 @@ loadTypes root ifaces modules =
         Nothing -> return (Left Exit.GenerateCannotLoadArtifacts)
 
 
-loadTypesHelp :: FilePath -> Build.Module -> IO (Fork.SafeMVar (Maybe Extract.Types))
-loadTypesHelp root modul =
+loadTypesHelp :: R.Stuff -> Build.Module -> IO (Fork.SafeMVar (Maybe Extract.Types))
+loadTypesHelp stuff modul =
   case modul of
     Build.Fresh name iface _ ->
       Fork.cached $ Just $ Extract.fromInterface name iface
@@ -197,7 +197,7 @@ loadTypesHelp root modul =
           case cachedInterface of
             Build.Unneeded ->
               Fork.fork name $
-                do  maybeIface <- File.readBytes I.dInterface (Stuff.elmi root name)
+                do  maybeIface <- File.readBytes I.dInterface (R.elmi stuff name)
                     return $ Extract.fromInterface name <$> maybeIface
 
             Build.Loaded iface ->

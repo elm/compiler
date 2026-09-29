@@ -23,7 +23,7 @@ import qualified Elm.Version as V
 import qualified Json.Encode as E
 import Json.Encode ((==>))
 import qualified Reporting
-import qualified Stuff
+import qualified Root as R
 
 
 
@@ -132,7 +132,7 @@ toFile pwd path =
 
 getOutline :: IO (Maybe Outline.Outline)
 getOutline =
-  do  maybeRoot <- Stuff.findRoot
+  do  maybeRoot <- R.findRoot
       case maybeRoot of
         Nothing ->
           return Nothing
@@ -163,14 +163,14 @@ getExactDeps maybeOutline =
           return Map.empty
 
         Outline.Pkg _ ->
-          do  maybeRoot <- Stuff.findRoot
+          do  maybeRoot <- R.findRoot
               case maybeRoot of
                 Nothing ->
                   return Map.empty
 
                 Just root ->
-                  Stuff.withRootLock root $ \writer ->
-                  do  result <- Details.load writer Reporting.silent root
+                  R.withRootLock root $ \writer stuff ->
+                  do  result <- Details.load writer Reporting.silent root stuff
                       case result of
                         Left _ ->
                           return Map.empty

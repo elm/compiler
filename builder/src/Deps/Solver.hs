@@ -35,7 +35,7 @@ import qualified File
 import qualified Http
 import qualified Json.Decode as D
 import qualified Reporting.Exit as Exit
-import qualified Stuff
+import qualified Root as R
 
 
 
@@ -56,7 +56,7 @@ newtype Solver a =
 
 data State =
   State
-    { _cache :: Stuff.PackageCache
+    { _cache :: R.PackageCache
     , _connection :: Connection
     , _registry :: Registry.Registry
     , _constraints :: Map.Map (Pkg.Name, V.Version) Constraints
@@ -94,9 +94,9 @@ data Details =
   Details V.Version (Map.Map Pkg.Name C.Constraint)
 
 
-verify :: Stuff.PackageCache -> Connection -> Registry.Registry -> Map.Map Pkg.Name C.Constraint -> IO (Result (Map.Map Pkg.Name Details))
+verify :: R.PackageCache -> Connection -> Registry.Registry -> Map.Map Pkg.Name C.Constraint -> IO (Result (Map.Map Pkg.Name Details))
 verify cache connection registry constraints =
-  Stuff.withRegistryLock cache $ \writer ->
+  R.withRegistryLock cache $ \writer ->
     case try writer constraints of
       Solver solver ->
         solver (State cache connection registry Map.empty)
@@ -131,9 +131,9 @@ data AppSolution =
     }
 
 
-addToApp :: Stuff.PackageCache -> Connection -> Registry.Registry -> Pkg.Name -> Outline.AppOutline -> IO (Result AppSolution)
+addToApp :: R.PackageCache -> Connection -> Registry.Registry -> Pkg.Name -> Outline.AppOutline -> IO (Result AppSolution)
 addToApp cache connection registry pkg outline@(Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
-  Stuff.withRegistryLock cache $ \writer ->
+  R.withRegistryLock cache $ \writer ->
   let
     allIndirects = Map.union indirect testIndirect
     allDirects = Map.union direct testDirect
@@ -195,7 +195,7 @@ getTransitive constraints solution unvisited visited =
 -- TRY
 
 
-try :: File.Writer Stuff.PACKAGES -> Map.Map Pkg.Name C.Constraint -> Solver (Map.Map Pkg.Name V.Version)
+try :: File.Writer R.PACKAGES -> Map.Map Pkg.Name C.Constraint -> Solver (Map.Map Pkg.Name V.Version)
 try writer constraints =
   exploreGoals writer (Goals constraints Map.empty)
 
@@ -211,7 +211,7 @@ data Goals =
     }
 
 
-exploreGoals :: File.Writer Stuff.PACKAGES -> Goals -> Solver (Map.Map Pkg.Name V.Version)
+exploreGoals :: File.Writer R.PACKAGES -> Goals -> Solver (Map.Map Pkg.Name V.Version)
 exploreGoals writer (Goals pending solved) =
   case Map.minViewWithKey pending of
     Nothing ->
@@ -225,7 +225,7 @@ exploreGoals writer (Goals pending solved) =
           exploreGoals writer goals2
 
 
-addVersion :: File.Writer Stuff.PACKAGES -> Goals -> Pkg.Name -> V.Version -> Solver Goals
+addVersion :: File.Writer R.PACKAGES -> Goals -> Pkg.Name -> V.Version -> Solver Goals
 addVersion writer (Goals pending solved) name version =
   do  (Constraints elm deps) <- getConstraints writer name version
       if C.goodElm elm
@@ -281,7 +281,7 @@ getRelevantVersions name constraint =
 -- GET CONSTRAINTS
 
 
-getConstraints :: File.Writer Stuff.PACKAGES -> Pkg.Name -> V.Version -> Solver Constraints
+getConstraints :: File.Writer R.PACKAGES -> Pkg.Name -> V.Version -> Solver Constraints
 getConstraints writer pkg vsn =
   Solver $ \state@(State cache connection registry cDict) ok back err ->
     do  let key = (pkg, vsn)
@@ -291,7 +291,7 @@ getConstraints writer pkg vsn =
 
           Nothing ->
             do  let toNewState cs = State cache connection registry (Map.insert key cs cDict)
-                let home = Stuff.package cache pkg vsn
+                let home = R.package cache pkg vsn
                 let path = home </> "elm.json"
                 outlineExists <- File.exists path
                 if outlineExists
@@ -305,7 +305,7 @@ getConstraints writer pkg vsn =
                                 ok (toNewState cs) cs back
 
                               Offline ->
-                                do  srcExists <- Dir.doesDirectoryExist (Stuff.package cache pkg vsn </> "src")
+                                do  srcExists <- Dir.doesDirectoryExist (R.package cache pkg vsn </> "src")
                                     if srcExists
                                       then ok (toNewState cs) cs back
                                       else back state
@@ -353,14 +353,14 @@ constraintsDecoder =
 
 
 data Env =
-  Env Stuff.PackageCache Http.Manager Connection Registry.Registry
+  Env R.PackageCache Http.Manager Connection Registry.Registry
 
 
 initEnv :: IO (Either Exit.RegistryProblem Env)
 initEnv =
   do  mvar  <- Fork.fork_ Http.getManager
-      cache <- Stuff.getPackageCache
-      Stuff.withRegistryLock cache $ \writer ->
+      cache <- R.getPackageCache
+      R.withRegistryLock cache $ \writer ->
         do  maybeRegistry <- Registry.read cache
             manager       <- Fork.await mvar
 

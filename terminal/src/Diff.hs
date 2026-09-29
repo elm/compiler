@@ -36,7 +36,7 @@ import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Help as Help
 import qualified Reporting.Render.Type.Localizer as L
 import qualified Reporting.Task as Task
-import qualified Stuff
+import qualified Root as R
 
 
 
@@ -63,9 +63,9 @@ run args () =
 
 data Env =
   Env
-    { _maybeRoot :: Maybe FilePath
-    , _cache     :: Stuff.PackageCache
-    , _writer    :: File.Writer Stuff.PACKAGES
+    { _maybeRoot :: Maybe R.Root
+    , _cache     :: R.PackageCache
+    , _writer    :: File.Writer R.PACKAGES
     , _manager   :: Http.Manager
     , _registry  :: Registry.Registry
     }
@@ -73,10 +73,10 @@ data Env =
 
 withEnv :: (Env -> Task a) -> IO (Either Exit.Diff a)
 withEnv toTask =
-  do  maybeRoot <- Stuff.findRoot
-      cache     <- Stuff.getPackageCache
+  do  maybeRoot <- R.findRoot
+      cache     <- R.getPackageCache
       manager   <- Http.getManager
-      Stuff.withRegistryLock cache $ \writer ->
+      R.withRegistryLock cache $ \writer ->
         do  result <- Registry.latest writer manager cache
             case result of
               Right registry -> Task.run $ toTask $ Env maybeRoot cache writer manager registry
@@ -177,9 +177,9 @@ generateDocs (Env maybeRoot _ _ _ _) =
       Task.throw $ Exit.DiffNoOutline
 
     Just root ->
-      Task.eio id $ Stuff.withRootLock root $ \writer ->
+      Task.eio id $ R.withRootLock root $ \writer stuff ->
       Task.run $
-      do  details <- Task.eio Exit.DiffBadDetails $ Details.load writer Reporting.silent root
+      do  details <- Task.eio Exit.DiffBadDetails $ Details.load writer Reporting.silent root stuff
           case Details._outline details of
             Details.ValidApp _ ->
               Task.throw $ Exit.DiffApplication
@@ -191,7 +191,7 @@ generateDocs (Env maybeRoot _ _ _ _) =
 
                 e:es ->
                   Task.eio Exit.DiffBadBuild $
-                    Build.fromExposed writer Reporting.silent root details Build.KeepDocs (NE.List e es)
+                    Build.fromExposed writer Reporting.silent root stuff details Build.KeepDocs (NE.List e es)
 
 
 

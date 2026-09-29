@@ -30,7 +30,7 @@ import qualified Http
 import qualified Json.Decode as JD
 import qualified Parse.Primitives as P
 import qualified Reporting.Exit as Exit
-import qualified Stuff
+import qualified Root as R
 
 
 
@@ -55,22 +55,22 @@ data KnownVersions =
 -- READ
 
 
-read :: Stuff.PackageCache -> IO (Maybe Registry)
+read :: R.PackageCache -> IO (Maybe Registry)
 read cache =
-  File.readBytes dRegistry (Stuff.registry cache)
+  File.readBytes dRegistry (R.registry cache)
 
 
 
 -- FETCH
 
 
-fetch :: File.Writer Stuff.PACKAGES -> Http.Manager -> Stuff.PackageCache -> IO (Either Exit.RegistryProblem Registry)
+fetch :: File.Writer R.PACKAGES -> Http.Manager -> R.PackageCache -> IO (Either Exit.RegistryProblem Registry)
 fetch writer manager cache =
   post manager "/all-packages" allPkgsDecoder $
     \versions ->
       do  let size = Map.foldr' addEntry 0 versions
           let registry = Registry size versions
-          let path = Stuff.registry cache
+          let path = R.registry cache
           File.writeBytes writer path eRegistry registry
           return registry
 
@@ -101,7 +101,7 @@ allPkgsDecoder =
 -- UPDATE
 
 
-update :: File.Writer Stuff.PACKAGES -> Http.Manager -> Stuff.PackageCache -> Registry -> IO (Either Exit.RegistryProblem Registry)
+update :: File.Writer R.PACKAGES -> Http.Manager -> R.PackageCache -> Registry -> IO (Either Exit.RegistryProblem Registry)
 update writer manager cache oldRegistry@(Registry size packages) =
   post manager ("/all-packages/since/" ++ show size) (JD.list newPkgDecoder) $
     \news ->
@@ -115,7 +115,7 @@ update writer manager cache oldRegistry@(Registry size packages) =
             newPkgs = foldr addNew packages news
             newRegistry = Registry newSize newPkgs
           in
-          do  File.writeBytes writer (Stuff.registry cache) eRegistry newRegistry
+          do  File.writeBytes writer (R.registry cache) eRegistry newRegistry
               return newRegistry
 
 
@@ -159,7 +159,7 @@ bail _ =
 -- LATEST
 
 
-latest :: File.Writer Stuff.PACKAGES -> Http.Manager -> Stuff.PackageCache -> IO (Either Exit.RegistryProblem Registry)
+latest :: File.Writer R.PACKAGES -> Http.Manager -> R.PackageCache -> IO (Either Exit.RegistryProblem Registry)
 latest writer manager cache =
   do  maybeOldRegistry <- read cache
       case maybeOldRegistry of

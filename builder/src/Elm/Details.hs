@@ -63,7 +63,7 @@ import qualified Reporting
 import qualified Reporting.Annotation as A
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
-import qualified Stuff
+import qualified Root as R
 
 
 
@@ -91,7 +91,7 @@ zero =
 
 
 data ValidOutline
-  = ValidApp (NE.List Outline.SrcDir)
+  = ValidApp (NE.List R.Path)
   | ValidPkg Pkg.Name [Module.Name] (Map.Map Pkg.Name V.Version {- for docs in reactor -})
 
 
@@ -136,29 +136,29 @@ type Interfaces =
 -- LOAD ARTIFACTS
 
 
-loadObjects :: FilePath -> Details -> IO (Fork.SafeMVar (Maybe Opt.GlobalGraph))
-loadObjects root (Details _ _ _ _ _ extras) =
+loadObjects :: R.Stuff -> Details -> IO (Fork.SafeMVar (Maybe Opt.GlobalGraph))
+loadObjects stuff (Details _ _ _ _ _ extras) =
   case extras of
     ArtifactsFresh _ o -> Fork.cached $ Just o
-    ArtifactsCached    -> Fork.fork_  $ File.readBytes Opt.dGlobalGraph (Stuff.objects root)
+    ArtifactsCached    -> Fork.fork_  $ File.readBytes Opt.dGlobalGraph (R.objects stuff)
 
 
-loadInterfaces :: FilePath -> Details -> IO (Fork.SafeMVar (Maybe Interfaces))
-loadInterfaces root (Details _ _ _ _ _ extras) =
+loadInterfaces :: R.Stuff -> Details -> IO (Fork.SafeMVar (Maybe Interfaces))
+loadInterfaces stuff (Details _ _ _ _ _ extras) =
   case extras of
     ArtifactsFresh i _ -> Fork.cached $ Just i
-    ArtifactsCached    -> Fork.fork_  $ File.readBytes (D.dict32 ModuleName.dCanonical I.dDependencyInterface) (Stuff.interfaces root)
+    ArtifactsCached    -> Fork.fork_  $ File.readBytes (D.dict32 ModuleName.dCanonical I.dDependencyInterface) (R.interfaces stuff)
 
 
 
 -- VERIFY INSTALL -- used by Install
 
 
-verifyInstall :: File.Writer Stuff.PROJECT -> FilePath -> Solver.Env -> Outline.Outline -> IO (Either Exit.Details ())
-verifyInstall writer root (Solver.Env cache manager connection registry) outline =
-  do  time <- File.getTime (root </> "elm.json")
+verifyInstall :: File.Writer R.PROJECT -> R.Root -> R.Stuff -> Solver.Env -> Outline.Outline -> IO (Either Exit.Details ())
+verifyInstall writer root stuff (Solver.Env cache manager connection registry) outline =
+  do  time <- File.getTime (R.elm_json root)
       let key = Reporting.ignorer
-      let env = Env key root cache manager connection registry
+      let env = Env key stuff cache manager connection registry
       case outline of
         Outline.Pkg pkg -> Task.run (verifyPkg writer env time pkg >> return ())
         Outline.App app -> Task.run (verifyApp writer env time app >> return ())
@@ -168,28 +168,28 @@ verifyInstall writer root (Solver.Env cache manager connection registry) outline
 -- LOAD -- used by Make, Repl, Reactor
 
 
-load :: File.Writer Stuff.PROJECT -> Reporting.Style -> FilePath -> IO (Either Exit.Details Details)
-load writer style root =
-  do  newTime <- File.getTime (root </> "elm.json")
-      maybeDetails <- File.readBytes dDetails (Stuff.details root)
+load :: File.Writer R.PROJECT -> Reporting.Style -> R.Root -> R.Stuff -> IO (Either Exit.Details Details)
+load writer style root stuff =
+  do  newTime <- File.getTime (R.elm_json root)
+      maybeDetails <- File.readBytes dDetails (R.details stuff)
       case maybeDetails of
         Nothing ->
-          generate writer style root newTime
+          generate writer style root stuff newTime
 
         Just details@(Details oldTime _ (BuildID n) _ _ _) ->
           if oldTime == newTime
           then return (Right details { _buildID = BuildID (n + 1) })
-          else generate writer style root newTime
+          else generate writer style root stuff newTime
 
 
 
 -- GENERATE
 
 
-generate :: File.Writer Stuff.PROJECT -> Reporting.Style -> FilePath -> File.Time -> IO (Either Exit.Details Details)
-generate writer style root time =
+generate :: File.Writer R.PROJECT -> Reporting.Style -> R.Root -> R.Stuff -> File.Time -> IO (Either Exit.Details Details)
+generate writer style root stuff time =
   Reporting.trackDetails style $ \key ->
-    do  result <- initEnv key root
+    do  result <- initEnv key root stuff
         case result of
           Left exit ->
             return (Left exit)
@@ -207,16 +207,16 @@ generate writer style root time =
 data Env =
   Env
     { _key :: Reporting.DKey
-    , _root :: FilePath
-    , _cache :: Stuff.PackageCache
+    , _stuff :: R.Stuff
+    , _cache :: R.PackageCache
     , _manager :: Http.Manager
     , _connection :: Solver.Connection
     , _registry :: Registry.Registry
     }
 
 
-initEnv :: Reporting.DKey -> FilePath -> IO (Either Exit.Details (Env, Outline.Outline))
-initEnv key root =
+initEnv :: Reporting.DKey -> R.Root -> R.Stuff -> IO (Either Exit.Details (Env, Outline.Outline))
+initEnv key root stuff =
   do  mvar <- Fork.fork_ Solver.initEnv
       eitherOutline <- Outline.read root
       case eitherOutline of
@@ -230,7 +230,7 @@ initEnv key root =
                   return $ Left $ Exit.DetailsCannotGetRegistry problem
 
                 Right (Solver.Env cache manager connection registry) ->
-                  return $ Right (Env key root cache manager connection registry, outline)
+                  return $ Right (Env key stuff cache manager connection registry, outline)
 
 
 
@@ -240,7 +240,7 @@ initEnv key root =
 type Task a = Task.Task Exit.Details a
 
 
-verifyPkg :: File.Writer Stuff.PROJECT -> Env -> File.Time -> Outline.PkgOutline -> Task Details
+verifyPkg :: File.Writer R.PROJECT -> Env -> File.Time -> Outline.PkgOutline -> Task Details
 verifyPkg writer env time (Outline.PkgOutline pkg _ _ _ exposed direct testDirect elm) =
   if Con.goodElm elm
   then
@@ -252,7 +252,7 @@ verifyPkg writer env time (Outline.PkgOutline pkg _ _ _ exposed direct testDirec
     Task.throw $ Exit.DetailsBadElmInPkg elm
 
 
-verifyApp :: File.Writer Stuff.PROJECT -> Env -> File.Time -> Outline.AppOutline -> Task Details
+verifyApp :: File.Writer R.PROJECT -> Env -> File.Time -> Outline.AppOutline -> Task Details
 verifyApp writer env time outline@(Outline.AppOutline elmVersion srcDirs direct _ _ _) =
   if elmVersion == V.compiler
   then
@@ -311,18 +311,18 @@ allowEqualDups _ v1 v2 =
 -- VERIFY DEPENDENCIES
 
 
-verifyDependencies :: File.Writer Stuff.PROJECT -> Env -> File.Time -> ValidOutline -> Map.Map Pkg.Name Solver.Details -> Map.Map Pkg.Name a -> Task Details
-verifyDependencies writer env@(Env key root cache _ _ _) time outline solution directDeps =
+verifyDependencies :: File.Writer R.PROJECT -> Env -> File.Time -> ValidOutline -> Map.Map Pkg.Name Solver.Details -> Map.Map Pkg.Name a -> Task Details
+verifyDependencies writer env@(Env key stuff cache _ _ _) time outline solution directDeps =
   Task.eio id $
   do  Reporting.report key (Reporting.DStart (Map.size solution))
       mvar <- newEmptyMVar
-      mvars <- Stuff.withRegistryLock cache $ \pkg_writer ->
+      mvars <- R.withRegistryLock cache $ \pkg_writer ->
         Fork.forkWithKey (verifyDep pkg_writer env mvar solution) solution
       putMVar mvar mvars
       deps <- traverse Fork.await mvars
       case sequence deps of
         Left _ ->
-          do  home <- Stuff.getElmHome
+          do  home <- R.getElmHome
               return $ Left $ Exit.DetailsBadDeps home $
                 Maybe.catMaybes $ Either.lefts $ Map.elems deps
 
@@ -333,9 +333,9 @@ verifyDependencies writer env@(Env key root cache _ _ _) time outline solution d
             foreigns = Map.map (OneOrMore.destruct Foreign) $ Map.foldrWithKey gatherForeigns Map.empty $ Map.intersection artifacts directDeps
             details = Details time outline zero Map.empty foreigns (ArtifactsFresh ifaces objs)
           in
-          do  File.writeBytes_ writer (Stuff.objects    root) Opt.eGlobalGraph objs
-              File.writeBytes_ writer (Stuff.interfaces root) (E.dict32 ModuleName.eCanonical I.eDependencyInterface) ifaces
-              File.writeBytes_ writer (Stuff.details    root) eDetails details
+          do  File.writeBytes_ writer (R.objects    stuff) Opt.eGlobalGraph objs
+              File.writeBytes_ writer (R.interfaces stuff) (E.dict32 ModuleName.eCanonical I.eDependencyInterface) ifaces
+              File.writeBytes_ writer (R.details    stuff) eDetails details
               return (Right details)
 
 
@@ -378,14 +378,14 @@ type Dep =
   Either (Maybe Exit.DetailsBadDep) Artifacts
 
 
-verifyDep :: File.Writer Stuff.PACKAGES -> Env -> MVar (Map.Map Pkg.Name (Fork.SafeMVar Dep)) -> Map.Map Pkg.Name Solver.Details -> Pkg.Name -> Solver.Details -> IO Dep
+verifyDep :: File.Writer R.PACKAGES -> Env -> MVar (Map.Map Pkg.Name (Fork.SafeMVar Dep)) -> Map.Map Pkg.Name Solver.Details -> Pkg.Name -> Solver.Details -> IO Dep
 verifyDep writer (Env key _ cache manager _ _) depsMVar solution pkg details@(Solver.Details vsn directDeps) =
   do  let fingerprint = Map.intersectionWith (\(Solver.Details v _) _ -> v) solution directDeps
-      exists <- Dir.doesDirectoryExist (Stuff.package cache pkg vsn </> "src")
+      exists <- Dir.doesDirectoryExist (R.package cache pkg vsn </> "src")
       if exists
         then
           do  Reporting.report key Reporting.DCached
-              maybeCache <- File.readBytes dArtifactCache (Stuff.package cache pkg vsn </> "artifacts.dat")
+              maybeCache <- File.readBytes dArtifactCache (R.package cache pkg vsn </> "artifacts.dat")
               case maybeCache of
                 Nothing ->
                   build writer key cache depsMVar pkg details fingerprint Set.empty
@@ -426,9 +426,9 @@ type Fingerprint =
 -- BUILD
 
 
-build :: File.Writer Stuff.PACKAGES -> Reporting.DKey -> Stuff.PackageCache -> MVar (Map.Map Pkg.Name (Fork.SafeMVar Dep)) -> Pkg.Name -> Solver.Details -> Fingerprint -> Set.Set Fingerprint -> IO Dep
+build :: File.Writer R.PACKAGES -> Reporting.DKey -> R.PackageCache -> MVar (Map.Map Pkg.Name (Fork.SafeMVar Dep)) -> Pkg.Name -> Solver.Details -> Fingerprint -> Set.Set Fingerprint -> IO Dep
 build writer key cache depsMVar pkg (Solver.Details vsn _) f fs =
-  do  eitherOutline <- Outline.read (Stuff.package cache pkg vsn)
+  do  eitherOutline <- Outline.read (R.packageRoot cache pkg vsn)
       case eitherOutline of
         Left _ ->
           do  Reporting.report key Reporting.DBroken
@@ -447,7 +447,7 @@ build writer key cache depsMVar pkg (Solver.Details vsn _) f fs =
                       return $ Left $ Nothing
 
                 Right directArtifacts ->
-                  do  let src = Stuff.package cache pkg vsn </> "src"
+                  do  let src = R.package cache pkg vsn </> "src"
                       let foreignDeps = gatherForeignInterfaces directArtifacts
                       let exposedDict = Map.fromKeys (\_ -> ()) (Outline.flattenExposed exposed)
                       docsStatus <- getDocsStatus cache pkg vsn
@@ -473,7 +473,7 @@ build writer key cache depsMVar pkg (Solver.Details vsn _) f fs =
 
                                 Just results ->
                                   let
-                                    path = Stuff.package cache pkg vsn </> "artifacts.dat"
+                                    path = R.package cache pkg vsn </> "artifacts.dat"
                                     ifaces = gatherInterfaces exposedDict results
                                     objects = gatherObjects results
                                     artifacts = Artifacts ifaces objects
@@ -701,9 +701,9 @@ data DocsStatus
   | DocsNotNeeded
 
 
-getDocsStatus :: Stuff.PackageCache -> Pkg.Name -> V.Version -> IO DocsStatus
+getDocsStatus :: R.PackageCache -> Pkg.Name -> V.Version -> IO DocsStatus
 getDocsStatus cache pkg vsn =
-  do  exists <- File.exists (Stuff.package cache pkg vsn </> "docs.json")
+  do  exists <- File.exists (R.package cache pkg vsn </> "docs.json")
       if exists
         then return DocsNotNeeded
         else return DocsNeeded
@@ -722,11 +722,11 @@ makeDocs status modul =
       return Nothing
 
 
-writeDocs :: File.Writer Stuff.PACKAGES -> Stuff.PackageCache -> Pkg.Name -> V.Version -> DocsStatus -> Map.Map Module.Name Result -> IO ()
+writeDocs :: File.Writer R.PACKAGES -> R.PackageCache -> Pkg.Name -> V.Version -> DocsStatus -> Map.Map Module.Name Result -> IO ()
 writeDocs writer cache pkg vsn status results =
   case status of
     DocsNeeded ->
-      JE.writeUgly writer (Stuff.package cache pkg vsn </> "docs.json") $
+      JE.writeUgly writer (R.package cache pkg vsn </> "docs.json") $
         Docs.encode $ Map.mapMaybe toDocs results
 
     DocsNotNeeded ->
@@ -746,7 +746,7 @@ toDocs result =
 -- DOWNLOAD PACKAGE
 
 
-downloadPackage :: Stuff.PackageCache -> Http.Manager -> Pkg.Name -> V.Version -> IO (Either Exit.PackageProblem ())
+downloadPackage :: R.PackageCache -> Http.Manager -> Pkg.Name -> V.Version -> IO (Either Exit.PackageProblem ())
 downloadPackage cache manager pkg vsn =
   let
     url = Website.metadata pkg vsn "endpoint.json"
@@ -768,7 +768,7 @@ downloadPackage cache manager pkg vsn =
                   Http.getArchive manager endpoint Exit.PP_BadArchiveRequest (Exit.PP_BadArchiveContent endpoint) $
                     \(sha, archive) ->
                       if expectedHash == Http.shaToChars sha
-                      then Right <$> Http.writePackage (Stuff.package cache pkg vsn) archive
+                      then Right <$> Http.writePackage (R.package cache pkg vsn) archive
                       else return $ Left $ Exit.PP_BadArchiveHash endpoint expectedHash (Http.shaToChars sha)
 
 
@@ -805,7 +805,7 @@ dDetails =
 eValidOutline :: ValidOutline -> E.Builder
 eValidOutline outline =
   case outline of
-    ValidApp s     -> E.u8# 0#Word8 <> NE.eList32 Outline.eSrcDir s
+    ValidApp s     -> E.u8# 0#Word8 <> NE.eList32 Outline.ePath s
     ValidPkg p m d -> E.u8# 1#Word8 <> Pkg.eName p <> E.list32 Module.eName m <> E.dict32 Pkg.eName V.eVersion d
 
 
@@ -813,7 +813,7 @@ dValidOutline :: D.Decoder ValidOutline
 dValidOutline =
   do  tag <- D.u8
       case tag of
-        0 -> liftM  ValidApp (NE.dList32 Outline.dSrcDir)
+        0 -> liftM  ValidApp (NE.dList32 Outline.dPath)
         1 -> liftM3 ValidPkg Pkg.dName (D.list32 Module.dName) (D.dict32 Pkg.dName V.dVersion)
         _ -> D.expecting "ValidOutline"
 

@@ -68,7 +68,7 @@ import qualified Reporting.Exit as Exit
 import qualified Reporting.Render.Code as Code
 import qualified Reporting.Report as Report
 import qualified Reporting.Task as Task
-import qualified Stuff
+import qualified Root as R
 
 
 
@@ -118,7 +118,7 @@ printWelcomeMessage =
 
 data Env =
   Env
-    { _root :: FilePath
+    { _root :: R.Root
     , _interpreter :: FilePath
     , _ansi :: Bool
     }
@@ -496,17 +496,17 @@ data Output
 attemptEval :: Env -> State -> State -> Output -> IO State
 attemptEval (Env root interpreter ansi) oldState newState output =
   do  result <-
-        Stuff.withRootLock root $ \writer ->
+        R.withRootLock root $ \writer stuff ->
         Task.run $
         do  details <-
               Task.eio Exit.ReplBadDetails $
-                Details.load writer Reporting.silent root
+                Details.load writer Reporting.silent root stuff
 
             artifacts <-
               Task.eio id $
-                Build.fromRepl writer root details (toByteString newState output)
+                Build.fromRepl writer root stuff details (toByteString newState output)
 
-            traverse (Task.mapError Exit.ReplBadGenerate . Generate.repl root details ansi artifacts) (toPrintName output)
+            traverse (Task.mapError Exit.ReplBadGenerate . Generate.repl stuff details ansi artifacts) (toPrintName output)
 
       case result of
         Left exit ->
@@ -605,17 +605,16 @@ genericHelpMessage =
 -- GET ROOT
 
 
-getRoot :: IO FilePath
+getRoot :: IO R.Root
 getRoot =
-  do  maybeRoot <- Stuff.findRoot
+  do  maybeRoot <- R.findRoot
       case maybeRoot of
         Just root ->
           return root
 
         Nothing ->
-          do  cache <- Stuff.getReplCache
-              let root = cache </> "tmp"
-              Dir.createDirectoryIfMissing True (root </> "src")
+          do  root <- R.getReplTmpRoot
+              Dir.createDirectoryIfMissing True (R.src root)
               File.withWriter $ \writer ->
                 Outline.write writer root $ Outline.Pkg $
                   Outline.PkgOutline
@@ -683,7 +682,7 @@ exeNotFound name =
 
 initSettings :: IO (Repl.Settings M)
 initSettings =
-  do  cache <- Stuff.getReplCache
+  do  cache <- R.getReplCache
       return $
         Repl.Settings
           { Repl.historyFile = Just (cache </> "history")

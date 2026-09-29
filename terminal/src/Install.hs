@@ -22,7 +22,7 @@ import Reporting.Doc ((<+>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
-import qualified Stuff
+import qualified Root as R
 
 
 
@@ -37,7 +37,7 @@ data Args
 run :: Args -> () -> IO ()
 run args () =
   Reporting.attempt Exit.installToReport $
-    do  maybeRoot <- Stuff.findRoot
+    do  maybeRoot <- R.findRoot
         case maybeRoot of
           Nothing ->
             return (Left Exit.InstallNoOutline)
@@ -45,7 +45,7 @@ run args () =
           Just root ->
             case args of
               NoArgs ->
-                do  elmHome <- Stuff.getElmHome
+                do  elmHome <- R.getElmHome
                     return (Left (Exit.InstallNoArgs elmHome))
 
               Install pkg ->
@@ -76,7 +76,7 @@ data Changes vsn
 type Task = Task.Task Exit.Install
 
 
-attemptChanges :: FilePath -> Solver.Env -> Outline.Outline -> (a -> String) -> Changes a -> Task ()
+attemptChanges :: R.Root -> Solver.Env -> Outline.Outline -> (a -> String) -> Changes a -> Task ()
 attemptChanges root env oldOutline toChars changes =
   case changes of
     AlreadyInstalled ->
@@ -121,15 +121,15 @@ attemptChanges root env oldOutline toChars changes =
         ]
 
 
-attemptChangesHelp :: FilePath -> Solver.Env -> Outline.Outline -> Outline.Outline -> D.Doc -> Task ()
+attemptChangesHelp :: R.Root -> Solver.Env -> Outline.Outline -> Outline.Outline -> D.Doc -> Task ()
 attemptChangesHelp root env oldOutline newOutline question =
   Task.eio Exit.InstallBadDetails $
-  Stuff.withRootLock root $ \writer ->
+  R.withRootLock root $ \writer stuff ->
   do  approved <- Reporting.ask question
       if approved
         then
           do  Outline.write writer root newOutline
-              result <- Details.verifyInstall writer root env newOutline
+              result <- Details.verifyInstall writer root stuff env newOutline
               case result of
                 Left exit ->
                   do  Outline.write writer root oldOutline

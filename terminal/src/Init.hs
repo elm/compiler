@@ -10,6 +10,8 @@ import qualified Data.Map as Map
 import qualified Data.NonEmptyList as NE
 import qualified System.Directory as Dir
 
+import qualified File
+
 import qualified Deps.Solver as Solver
 import qualified Elm.Constraint as Con
 import qualified Elm.Outline as Outline
@@ -18,7 +20,7 @@ import qualified Elm.Version as V
 import qualified Reporting
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
-import qualified Stuff
+import qualified Root as R
 
 
 
@@ -89,10 +91,11 @@ init =
                     directs = Map.intersection solution defaults
                     indirects = Map.difference solution defaults
                   in
-                  do  Stuff.withRootLock "." $ \writer ->
-                        do  Dir.createDirectoryIfMissing True "src"
-                            Outline.write writer "." $ Outline.App $
-                              Outline.AppOutline V.compiler (NE.List (Outline.RelativeSrcDir "src") []) directs indirects Map.empty Map.empty
+                  do  File.withWriter $ \writer ->
+                        do  root <- R.pwd
+                            Dir.createDirectoryIfMissing True (R.src root)
+                            Outline.write writer root $ Outline.App $
+                              Outline.AppOutline V.compiler (NE.List (R.Relative "src") []) directs indirects Map.empty Map.empty
                       putStrLn "Okay, I created it. Now read that link!"
                       return (Right ())
 

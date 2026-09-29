@@ -4,7 +4,6 @@ module Elm.Outline
   , AppOutline(..)
   , PkgOutline(..)
   , Exposed(..)
-  , SrcDir(..)
   , read
   , write
   , encode
@@ -12,7 +11,7 @@ module Elm.Outline
   , defaultSummary
   , flattenExposed
   --
-  , eSrcDir, dSrcDir
+  , ePath, dPath
   )
   where
 
@@ -26,7 +25,6 @@ import GHC.Exts (isTrue#)
 import GHC.Prim
 import qualified System.Directory as Dir
 import qualified System.FilePath as FP
-import System.FilePath ((</>))
 
 import qualified Bytes.Decode as D
 import qualified Bytes.Encode as E
@@ -44,6 +42,7 @@ import Json.Encode ((==>))
 import qualified Json.String as Json
 import qualified Parse.Primitives as P
 import qualified Reporting.Exit as Exit
+import qualified Root as R
 
 
 
@@ -58,7 +57,7 @@ data Outline
 data AppOutline =
   AppOutline
     { _app_elm_version :: V.Version
-    , _app_source_dirs :: NE.List SrcDir
+    , _app_source_dirs :: NE.List R.Path
     , _app_deps_direct :: Map.Map Pkg.Name V.Version
     , _app_deps_indirect :: Map.Map Pkg.Name V.Version
     , _app_test_direct :: Map.Map Pkg.Name V.Version
@@ -82,11 +81,6 @@ data PkgOutline =
 data Exposed
   = ExposedList [Module.Name]
   | ExposedDict [(Json.String, [Module.Name])]
-
-
-data SrcDir
-  = AbsoluteSrcDir FilePath
-  | RelativeSrcDir FilePath
 
 
 
@@ -116,9 +110,9 @@ flattenExposed exposed =
 -- WRITE
 
 
-write :: File.Writer t -> FilePath -> Outline -> IO ()
+write :: File.Writer t -> R.Root -> Outline -> IO ()
 write writer root outline =
-  JE.write writer (root </> "elm.json") (encode outline)
+  JE.write writer (R.elm_json root) (encode outline)
 
 
 
@@ -131,7 +125,7 @@ encode outline =
     App (AppOutline elm srcDirs depsDirect depsTrans testDirect testTrans) ->
       JE.object
         [ "type" ==> JE.chars "application"
-        , "source-directories" ==> JE.list encodeSrcDir (NE.toList srcDirs)
+        , "source-directories" ==> JE.list encodePath (NE.toList srcDirs)
         , "elm-version" ==> V.encode elm
         , "dependencies" ==>
             JE.object
@@ -174,20 +168,20 @@ encodeDeps encodeValue deps =
   JE.dict Pkg.toJsonString encodeValue deps
 
 
-encodeSrcDir :: SrcDir -> JE.Value
-encodeSrcDir srcDir =
-  case srcDir of
-    AbsoluteSrcDir dir -> JE.chars dir
-    RelativeSrcDir dir -> JE.chars dir
+encodePath :: R.Path -> JE.Value
+encodePath path =
+  case path of
+    R.Absolute dir -> JE.chars dir
+    R.Relative dir -> JE.chars dir
 
 
 
 -- PARSE AND VERIFY
 
 
-read :: FilePath -> IO (Either Exit.Outline Outline)
+read :: R.Root -> IO (Either Exit.Outline Outline)
 read root =
-  do  bytes <- File.readUtf8 (root </> "elm.json")
+  do  bytes <- File.readUtf8 (R.elm_json root)
       result <- JD.fromByteString decoder bytes
       case result of
         Left x ->
@@ -210,7 +204,7 @@ read root =
 
               | otherwise ->
                   do  badDirs <- filterM (isSrcDirMissing root) (NE.toList srcDirs)
-                      case map toGiven badDirs of
+                      case map R.toOriginalPath badDirs of
                         d:ds ->
                           return $ Left (Exit.OutlineHasMissingSrcDirs d ds)
 
@@ -224,36 +218,22 @@ read root =
                                   return $ Left (Exit.OutlineHasDuplicateSrcDirs canonicalDir dir1 dir2)
 
 
-isSrcDirMissing :: FilePath -> SrcDir -> IO Bool
+isSrcDirMissing :: R.Root -> R.Path -> IO Bool
 isSrcDirMissing root srcDir =
-  not <$> Dir.doesDirectoryExist (toAbsolute root srcDir)
+  not <$> Dir.doesDirectoryExist (R.toAbsolutePath root srcDir)
 
 
-toGiven :: SrcDir -> FilePath
-toGiven srcDir =
-  case srcDir of
-    AbsoluteSrcDir dir -> dir
-    RelativeSrcDir dir -> dir
-
-
-toAbsolute :: FilePath -> SrcDir -> FilePath
-toAbsolute root srcDir =
-  case srcDir of
-    AbsoluteSrcDir dir -> dir
-    RelativeSrcDir dir -> root </> dir
-
-
-detectDuplicates :: FilePath -> [SrcDir] -> IO (Maybe (FilePath, (FilePath, FilePath)))
+detectDuplicates :: R.Root -> [R.Path] -> IO (Maybe (FilePath, (FilePath, FilePath)))
 detectDuplicates root srcDirs =
   do  pairs <- traverse (toPair root) srcDirs
       return $ Map.lookupMin $ Map.mapMaybe isDup $
         Map.fromListWith OneOrMore.more pairs
 
 
-toPair :: FilePath -> SrcDir -> IO (FilePath, OneOrMore.OneOrMore FilePath)
+toPair :: R.Root -> R.Path -> IO (FilePath, OneOrMore.OneOrMore FilePath)
 toPair root srcDir =
-  do  key <- Dir.canonicalizePath (toAbsolute root srcDir)
-      return (key, OneOrMore.one (toGiven srcDir))
+  do  key <- Dir.canonicalizePath (R.toAbsolutePath root srcDir)
+      return (key, OneOrMore.one (R.toOriginalPath srcDir))
 
 
 isDup :: OneOrMore.OneOrMore FilePath -> Maybe (FilePath, FilePath)
@@ -338,16 +318,16 @@ depsDecoder valueDecoder =
   JD.dict (Pkg.keyDecoder Exit.OP_BadDependencyName) valueDecoder
 
 
-dirsDecoder :: Decoder (NE.List SrcDir)
+dirsDecoder :: Decoder (NE.List R.Path)
 dirsDecoder =
   fmap (toSrcDir . Json.toChars) <$> JD.nonEmptyList JD.jsonString Exit.OP_NoSrcDirs
 
 
-toSrcDir :: FilePath -> SrcDir
+toSrcDir :: FilePath -> R.Path
 toSrcDir path =
   if FP.isRelative path
-  then RelativeSrcDir path
-  else AbsoluteSrcDir path
+  then R.Relative path
+  else R.Absolute path
 
 
 
@@ -397,17 +377,17 @@ boundParser bound tooLong =
 -- BINARY
 
 
-eSrcDir :: SrcDir -> E.Builder
-eSrcDir srcDir =
+ePath :: R.Path -> E.Builder
+ePath srcDir =
   case srcDir of
-    AbsoluteSrcDir d -> E.u8# 0#Word8 <> E.chars64 d
-    RelativeSrcDir d -> E.u8# 1#Word8 <> E.chars64 d
+    R.Absolute d -> E.u8# 0#Word8 <> E.chars64 d
+    R.Relative d -> E.u8# 1#Word8 <> E.chars64 d
 
 
-dSrcDir :: D.Decoder SrcDir
-dSrcDir =
+dPath :: D.Decoder R.Path
+dPath =
   do  tag <- D.u8
       case tag of
-        0 -> AbsoluteSrcDir <$> D.chars64
-        1 -> RelativeSrcDir <$> D.chars64
-        _ -> D.expecting "SrcDir"
+        0 -> R.Absolute <$> D.chars64
+        1 -> R.Relative <$> D.chars64
+        _ -> D.expecting "R.Path"

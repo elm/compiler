@@ -22,6 +22,7 @@ import Json.Encode ((==>))
 import Reporting.Doc ((<+>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Error as Error
+import qualified Root as R
 
 
 
@@ -29,7 +30,7 @@ import qualified Reporting.Error as Error
 
 
 data Report
-  = CompilerReport FilePath Error.Module [Error.Module]
+  = CompilerReport R.Root Error.Module [Error.Module]
   | Report
       { _title :: String
       , _path :: Maybe FilePath
@@ -52,7 +53,7 @@ jsonReport =
   Report
 
 
-compilerReport :: FilePath -> Error.Module -> [Error.Module] -> Report
+compilerReport :: R.Root -> Error.Module -> [Error.Module] -> Report
 compilerReport =
   CompilerReport
 

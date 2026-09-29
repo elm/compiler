@@ -11,7 +11,6 @@ module Reporting.Error
 import qualified Data.ByteString as B
 import qualified Data.NonEmptyList as NE
 import qualified Data.OneOrMore as OneOrMore
-import qualified System.FilePath as FP
 
 import qualified AST.Prim.Module as Module
 import qualified File
@@ -29,6 +28,7 @@ import qualified Reporting.Error.Type as Type
 import qualified Reporting.Render.Code as Code
 import qualified Reporting.Render.Type.Localizer as L
 import qualified Reporting.Report as Report
+import qualified Root as R
 
 
 
@@ -92,7 +92,7 @@ toReports source err =
 -- TO DOC
 
 
-toDoc :: FilePath -> Module -> [Module] -> D.Doc
+toDoc :: R.Root -> Module -> [Module] -> D.Doc
 toDoc root err errs =
   let
     (NE.List m ms) = NE.sortBy _modificationTime (NE.List err errs)
@@ -100,7 +100,7 @@ toDoc root err errs =
   D.vcat (toDocHelp root m ms)
 
 
-toDocHelp :: FilePath -> Module -> [Module] -> [D.Doc]
+toDocHelp :: R.Root -> Module -> [Module] -> [D.Doc]
 toDocHelp root module1 modules =
   case modules of
     [] ->
@@ -133,14 +133,14 @@ toSeparator beforeModule afterModule =
 -- MODULE TO DOC
 
 
-moduleToDoc :: FilePath -> Module -> D.Doc
+moduleToDoc :: R.Root -> Module -> D.Doc
 moduleToDoc root (Module _ absolutePath _ source err) =
   let
     reports =
       toReports (Code.toSource source) err
 
     relativePath =
-      FP.makeRelative root absolutePath
+      R.toRelativePath root absolutePath
   in
   D.vcat $ map (reportToDoc relativePath) (NE.toList reports)
 

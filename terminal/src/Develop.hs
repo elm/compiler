@@ -32,7 +32,7 @@ import qualified Generate
 import qualified Reporting
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
-import qualified Stuff
+import qualified Root as R
 
 
 
@@ -152,16 +152,17 @@ serveElm path =
 
 compile :: FilePath -> IO (Either Exit.Reactor B.Builder)
 compile path =
-  do  maybeRoot <- Stuff.findRoot
+  do  maybeRoot <- R.findRoot
       case maybeRoot of
         Nothing ->
           return $ Left $ Exit.ReactorNoOutline
 
         Just root ->
-          Stuff.withRootLock root $ \writer -> Task.run $
-            do  details <- Task.eio Exit.ReactorBadDetails $ Details.load writer Reporting.silent root
-                artifacts <- Task.eio Exit.ReactorBadBuild $ Build.fromPaths writer Reporting.silent root details (NE.List path [])
-                javascript <- Task.mapError Exit.ReactorBadGenerate $ Generate.dev root details artifacts
+          R.withRootLock root $ \writer stuff ->
+          Task.run $
+            do  details <- Task.eio Exit.ReactorBadDetails $ Details.load writer Reporting.silent root stuff
+                artifacts <- Task.eio Exit.ReactorBadBuild $ Build.fromPaths writer Reporting.silent root stuff details (NE.List path [])
+                javascript <- Task.mapError Exit.ReactorBadGenerate $ Generate.dev stuff details artifacts
                 let (NE.List name _) = Build.getRootNames artifacts
                 return $ Html.sandwich name javascript
 

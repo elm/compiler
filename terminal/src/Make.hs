@@ -27,7 +27,7 @@ import qualified Generate.Html as Html
 import qualified Reporting
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
-import qualified Stuff
+import qualified Root as R
 import Terminal (Parser(..))
 
 
@@ -65,26 +65,26 @@ type Task a = Task.Task Exit.Make a
 run :: [FilePath] -> Flags -> IO ()
 run paths flags@(Flags _ _ _ report _) =
   do  style <- getStyle report
-      maybeRoot <- Stuff.findRoot
+      maybeRoot <- R.findRoot
       Reporting.attemptWithStyle style Exit.makeToReport $
         case maybeRoot of
           Just root -> runHelp root paths style flags
           Nothing   -> return $ Left $ Exit.MakeNoOutline
 
 
-runHelp :: FilePath -> [FilePath] -> Reporting.Style -> Flags -> IO (Either Exit.Make ())
+runHelp :: R.Root -> [FilePath] -> Reporting.Style -> Flags -> IO (Either Exit.Make ())
 runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
-  Stuff.withRootLock root $ \writer ->
+  R.withRootLock root $ \writer stuff ->
   Task.run $
   do  desiredMode <- getMode debug optimize
-      details <- Task.eio Exit.MakeBadDetails (Details.load writer style root)
+      details <- Task.eio Exit.MakeBadDetails (Details.load writer style root stuff)
       case paths of
         [] ->
           do  exposed <- getExposed details
-              buildExposed writer style root details maybeDocs exposed
+              buildExposed writer style root stuff details maybeDocs exposed
 
         p:ps ->
-          do  artifacts <- buildPaths writer style root details (NE.List p ps)
+          do  artifacts <- buildPaths writer style root stuff details (NE.List p ps)
               case maybeOutput of
                 Nothing ->
                   case getMains artifacts of
@@ -92,11 +92,11 @@ runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
                       return ()
 
                     [name] ->
-                      do  builder <- toBuilder root details desiredMode artifacts
+                      do  builder <- toBuilder stuff details desiredMode artifacts
                           generate writer style "index.html" (Html.sandwich name builder) (NE.List name [])
 
                     name:names ->
-                      do  builder <- toBuilder root details desiredMode artifacts
+                      do  builder <- toBuilder stuff details desiredMode artifacts
                           generate writer style "elm.js" builder (NE.List name names)
 
                 Just DevNull ->
@@ -105,7 +105,7 @@ runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
                 Just (JS target) ->
                   case getNoMains artifacts of
                     [] ->
-                      do  builder <- toBuilder root details desiredMode artifacts
+                      do  builder <- toBuilder stuff details desiredMode artifacts
                           generate writer style target builder (Build.getRootNames artifacts)
 
                     name:names ->
@@ -113,7 +113,7 @@ runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
 
                 Just (Html target) ->
                   do  name <- hasOneMain artifacts
-                      builder <- toBuilder root details desiredMode artifacts
+                      builder <- toBuilder stuff details desiredMode artifacts
                       generate writer style target (Html.sandwich name builder) (NE.List name [])
 
 
@@ -153,19 +153,19 @@ getExposed (Details.Details _ validOutline _ _ _ _) =
 -- BUILD PROJECTS
 
 
-buildExposed :: File.Writer Stuff.PROJECT -> Reporting.Style -> FilePath -> Details.Details -> Maybe FilePath -> NE.List Module.Name -> Task ()
-buildExposed writer style root details maybeDocs exposed =
+buildExposed :: File.Writer R.PROJECT -> Reporting.Style -> R.Root -> R.Stuff -> Details.Details -> Maybe FilePath -> NE.List Module.Name -> Task ()
+buildExposed writer style root stuff details maybeDocs exposed =
   let
     docsGoal = maybe Build.IgnoreDocs Build.WriteDocs maybeDocs
   in
   Task.eio Exit.MakeCannotBuild $
-    Build.fromExposed writer style root details docsGoal exposed
+    Build.fromExposed writer style root stuff details docsGoal exposed
 
 
-buildPaths :: File.Writer Stuff.PROJECT -> Reporting.Style -> FilePath -> Details.Details -> NE.List FilePath -> Task Build.Artifacts
-buildPaths writer style root details paths =
+buildPaths :: File.Writer R.PROJECT -> Reporting.Style -> R.Root -> R.Stuff -> Details.Details -> NE.List FilePath -> Task Build.Artifacts
+buildPaths writer style root stuff details paths =
   Task.eio Exit.MakeCannotBuild $
-    Build.fromPaths writer style root details paths
+    Build.fromPaths writer style root stuff details paths
 
 
 
@@ -239,7 +239,7 @@ getNoMain modules root =
 -- GENERATE
 
 
-generate :: File.Writer Stuff.PROJECT -> Reporting.Style -> FilePath -> B.Builder -> NE.List Module.Name -> Task ()
+generate :: File.Writer R.PROJECT -> Reporting.Style -> FilePath -> B.Builder -> NE.List Module.Name -> Task ()
 generate writer style target builder names =
   Task.io $
     do  Dir.createDirectoryIfMissing True (FP.takeDirectory target)
@@ -254,13 +254,13 @@ generate writer style target builder names =
 data DesiredMode = Debug | Dev | Prod
 
 
-toBuilder :: FilePath -> Details.Details -> DesiredMode -> Build.Artifacts -> Task B.Builder
-toBuilder root details desiredMode artifacts =
+toBuilder :: R.Stuff -> Details.Details -> DesiredMode -> Build.Artifacts -> Task B.Builder
+toBuilder stuff details desiredMode artifacts =
   Task.mapError Exit.MakeBadGenerate $
     case desiredMode of
-      Debug -> Generate.debug root details artifacts
-      Dev   -> Generate.dev   root details artifacts
-      Prod  -> Generate.prod  root details artifacts
+      Debug -> Generate.debug stuff details artifacts
+      Dev   -> Generate.dev   stuff details artifacts
+      Prod  -> Generate.prod  stuff details artifacts
 
 
 

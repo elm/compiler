@@ -37,7 +37,7 @@ import qualified File
 import qualified Http
 import qualified Json.Decode as D
 import qualified Reporting.Exit as Exit
-import qualified Stuff
+import qualified Root as R
 
 
 
@@ -338,9 +338,9 @@ changeMagnitude (Changes added changed removed) =
 -- GET DOCS
 
 
-getDocs :: File.Writer Stuff.PACKAGES -> Stuff.PackageCache -> Http.Manager -> Pkg.Name -> V.Version -> IO (Either Exit.DocsProblem Docs.Documentation)
+getDocs :: File.Writer R.PACKAGES -> R.PackageCache -> Http.Manager -> Pkg.Name -> V.Version -> IO (Either Exit.DocsProblem Docs.Documentation)
 getDocs writer cache manager name version =
-  do  let home = Stuff.package cache name version
+  do  let home = R.package cache name version
       let path = home </> "docs.json"
       exists <- File.exists path
       if exists

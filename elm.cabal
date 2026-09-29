@@ -98,7 +98,7 @@ executable elm
         Reporting.Exit
         Reporting.Exit.Help
         Reporting.Task
-        Stuff
+        Root
 
         -- Elm things
         Elm.Outline

@@ -12,7 +12,6 @@ import qualified Data.NonEmptyList as NE
 import qualified Data.Utf8 as Utf8
 import qualified System.Directory as Dir
 import qualified System.Exit as Exit
-import System.FilePath ((</>))
 import qualified System.Info as Info
 import qualified System.IO as IO
 import qualified System.Process as Process
@@ -38,7 +37,7 @@ import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Help as Help
 import qualified Reporting.Task as Task
-import qualified Stuff
+import qualified Root as R
 
 
 
@@ -61,8 +60,8 @@ run () () =
 
 data Env =
   Env
-    { _root :: FilePath
-    , _cache :: Stuff.PackageCache
+    { _root :: R.Root
+    , _cache :: R.PackageCache
     , _manager :: Http.Manager
     , _registry :: Registry.Registry
     , _outline :: Outline.Outline
@@ -71,10 +70,10 @@ data Env =
 
 getEnv :: Task.Task Exit.Publish Env
 getEnv =
-  do  root <- Task.mio Exit.PublishNoOutline $ Stuff.findRoot
-      cache <- Task.io $ Stuff.getPackageCache
+  do  root <- Task.mio Exit.PublishNoOutline $ R.findRoot
+      cache <- Task.io $ R.getPackageCache
       manager <- Task.io $ Http.getManager
-      registry <- Task.eio Exit.PublishMustHaveLatestRegistry $ Stuff.withRegistryLock cache $ \writer -> Registry.latest writer manager cache
+      registry <- Task.eio Exit.PublishMustHaveLatestRegistry $ R.withRegistryLock cache $ \writer -> Registry.latest writer manager cache
       outline <- Task.eio Exit.PublishBadOutline $ Outline.read root
       return $ Env root cache manager registry outline
 
@@ -134,10 +133,10 @@ noExposed exposed =
 -- VERIFY README
 
 
-verifyReadme :: FilePath -> Task.Task Exit.Publish ()
+verifyReadme :: R.Root -> Task.Task Exit.Publish ()
 verifyReadme root =
   reportReadmeCheck $
-  do  let readmePath = root </> "README.md"
+  do  let readmePath = R.readme root
       exists <- File.exists readmePath
       case exists of
         False ->
@@ -154,11 +153,10 @@ verifyReadme root =
 -- VERIFY LICENSE
 
 
-verifyLicense :: FilePath -> Task.Task Exit.Publish ()
+verifyLicense :: R.Root -> Task.Task Exit.Publish ()
 verifyLicense root =
   reportLicenseCheck $
-  do  let licensePath = root </> "LICENSE"
-      exists <- File.exists licensePath
+  do  exists <- File.exists (R.license root)
       if exists
         then return (Right ())
         else return (Left Exit.PublishNoLicense)
@@ -168,13 +166,13 @@ verifyLicense root =
 -- VERIFY BUILD
 
 
-verifyBuild :: FilePath -> Task.Task Exit.Publish Docs.Documentation
+verifyBuild :: R.Root -> Task.Task Exit.Publish Docs.Documentation
 verifyBuild root =
-  reportBuildCheck $ Stuff.withRootLock root $ \writer ->
+  reportBuildCheck $ R.withRootLock root $ \writer stuff ->
     Task.run $
     do  details@(Details.Details _ outline _ _ _ _) <-
           Task.eio Exit.PublishBadDetails $
-            Details.load writer Reporting.silent root
+            Details.load writer Reporting.silent root stuff
 
         exposed <-
           case outline of
@@ -183,7 +181,7 @@ verifyBuild root =
             Details.ValidPkg _ (e:es) _ -> return (NE.List e es)
 
         Task.eio Exit.PublishBuildProblem $
-          Build.fromExposed writer Reporting.silent root details Build.KeepDocs exposed
+          Build.fromExposed writer Reporting.silent root stuff details Build.KeepDocs exposed
 
 
 -- GET GIT
@@ -267,7 +265,7 @@ verifyNoChanges git commitHash vsn =
 
 verifyZip :: Env -> Pkg.Name -> V.Version -> Task.Task Exit.Publish Http.Sha
 verifyZip (Env root _ manager _ _) pkg vsn =
-  withPrepublishDir root $ \prepublishDir ->
+  withPrepublishDir root $ \prepublishRoot prepublishDir ->
     do  let url = toZipUrl pkg vsn
 
         (sha, archive) <-
@@ -281,7 +279,7 @@ verifyZip (Env root _ manager _ _) pkg vsn =
 
         reportZipBuildCheck $
           Dir.withCurrentDirectory prepublishDir $
-            verifyZipBuild prepublishDir
+            verifyZipBuild prepublishRoot
 
         return sha
 
@@ -291,24 +289,25 @@ toZipUrl pkg vsn =
   "https://github.com/" ++ Pkg.toUrl pkg ++ "/zipball/" ++ V.toChars vsn ++ "/"
 
 
-withPrepublishDir :: FilePath -> (FilePath -> Task.Task x a) -> Task.Task x a
-withPrepublishDir root callback =
+withPrepublishDir :: R.Root -> (R.Root -> FilePath -> Task.Task x a) -> Task.Task x a
+withPrepublishDir oldRoot callback =
   let
-    dir = Stuff.prepublishDir root
+    (newRoot, dir) = R.prepublishDir oldRoot
   in
   Task.eio id $
     bracket_
       (Dir.createDirectoryIfMissing True dir)
       (Dir.removeDirectoryRecursive dir)
-      (Task.run (callback dir))
+      (Task.run (callback newRoot dir))
 
 
-verifyZipBuild :: FilePath -> IO (Either Exit.Publish ())
+verifyZipBuild :: R.Root -> IO (Either Exit.Publish ())
 verifyZipBuild root =
-  Stuff.withRootLock root $ \writer -> Task.run $
+  R.withRootLock root $ \writer stuff ->
+  Task.run $
   do  details@(Details.Details _ outline _ _ _ _) <-
         Task.eio Exit.PublishZipBadDetails $
-          Details.load writer Reporting.silent root
+          Details.load writer Reporting.silent root stuff
 
       exposed <-
         case outline of
@@ -317,7 +316,7 @@ verifyZipBuild root =
           Details.ValidPkg _ (e:es) _ -> return (NE.List e es)
 
       _ <- Task.eio Exit.PublishZipBuildProblem $
-        Build.fromExposed writer Reporting.silent root details Build.KeepDocs exposed
+        Build.fromExposed writer Reporting.silent root stuff details Build.KeepDocs exposed
 
       return ()
 
@@ -354,7 +353,7 @@ verifyBump (Env _ cache manager _ _) pkg vsn newDocs knownVersions@(Registry.Kno
         Exit.PublishInvalidBump vsn latest
 
     Just (old, new, magnitude) ->
-      do  result <- Stuff.withRegistryLock cache $ \writer -> Diff.getDocs writer cache manager pkg old
+      do  result <- R.withRegistryLock cache $ \writer -> Diff.getDocs writer cache manager pkg old
           case result of
             Left dp ->
               return $ Left $ Exit.PublishCannotGetDocs old new dp
