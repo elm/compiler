@@ -23,8 +23,8 @@ WORKDIR /elm
 ARG GHCUP_INSTALL_BASE_PREFIX=/elm
 ARG PATH="${PATH}:/elm/.ghcup/bin"
 RUN curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 BOOTSTRAP_HASKELL_MINIMAL=1 sh
-RUN ghcup install ghc --set 9.8.4
-RUN ghcup install cabal --set 3.12.1.0
+RUN ghcup install ghc --set 9.10.3
+RUN ghcup install cabal --set 3.16.1.0
 
 RUN cabal update
 
