@@ -57,6 +57,9 @@ viewError error =
         , style "white-space" "pre-wrap"
         , style "background-color" "black"
         , style "padding" "2em"
+        , style "box-sizing" "border-box"
+        , style "width" "100%"
+        , style "overflow" "scroll"
         ]
         (viewErrorHelp error)
     ]
