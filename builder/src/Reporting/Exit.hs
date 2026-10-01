@@ -1876,7 +1876,7 @@ toProjectProblemReport projectProblem =
         "Your module imports form a cycle:"
         [ D.cycle cycle D.fromModule
         , D.reflow $
-            "Learn more about why this is disallowed and how to break cycles here:"
+            "Learn more about why this is disallowed and how to break cycles here: "
             ++ D.makeLink "import-cycles"
         ]
 
