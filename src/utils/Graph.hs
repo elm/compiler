@@ -259,16 +259,15 @@ dequeue (Queue front back) =
 
 find :: (Eq k) => k -> Array.Array Int (Node k v) -> Int
 find key vertices =
-    loop zero
+    loop lo
   where
-    (zero, len) = Array.bounds vertices
+    (lo, hi) = Array.bounds vertices
 
     loop i =
-      if i < len
+      if i <= hi
       then
         if _key (vertices ! i) == key
         then i
         else loop (i + 1)
       else
         $(Crash.crash 'withMinimalCycle) "bug in RootSelector when calculating minimal cycle"
-
