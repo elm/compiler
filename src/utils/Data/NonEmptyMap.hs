@@ -328,36 +328,36 @@ unsafeOverlapWithA    = Crash.crashable 'unsafeOverlapWithA_
 unsafeOverlapWithKeyA = Crash.crashable 'unsafeOverlapWithKeyA_
 
 
-unsafeOverlapWith_ :: (Ord k) => Crash.Module -> Crash.Name -> Crash.Line -> (a -> b -> c) -> Map k a -> Map k b -> Map k c
-unsafeOverlapWith_ modul name line func (Map dict1) (Map dict2) =
+unsafeOverlapWith_ :: (Ord k) => Crash.Name -> Crash.Line -> (a -> b -> c) -> Map k a -> Map k b -> Map k c
+unsafeOverlapWith_ name line func (Map dict1) (Map dict2) =
     Map (loop dict1 dict2)
   where
     loop Map.Tip Map.Tip = Map.Tip
-    loop Map.Tip _       = Crash.crash_ modul name line "unsafeOverlapWith"
+    loop Map.Tip _       = Crash.crash_ name line "unsafeOverlapWith"
     loop (Map.Bin n k v l r) t2 =
       case Map.splitLookup k t2 of
         (l2, mv2, r2) ->
           case mv2 of
-            Nothing -> Crash.crash_ modul name line "unsafeOverlapWith"
+            Nothing -> Crash.crash_ name line "unsafeOverlapWith"
             Just v2 -> Map.Bin n k (func v v2) (loop l l2) (loop r r2)
 
 
-unsafeOverlapWithA_ :: (Applicative f, Ord k) => Crash.Module -> Crash.Name -> Crash.Line -> (a -> b -> f c) -> Map k a -> Map k b -> f (Map k c)
-unsafeOverlapWithA_ modul name line func =
-  unsafeOverlapWithKeyA_ modul name line (\_ a b -> func a b)
+unsafeOverlapWithA_ :: (Applicative f, Ord k) => Crash.Name -> Crash.Line -> (a -> b -> f c) -> Map k a -> Map k b -> f (Map k c)
+unsafeOverlapWithA_ name line func =
+  unsafeOverlapWithKeyA_ name line (\_ a b -> func a b)
 
 
-unsafeOverlapWithKeyA_ :: (Applicative f, Ord k) => Crash.Module -> Crash.Name -> Crash.Line -> (k -> a -> b -> f c) -> Map k a -> Map k b -> f (Map k c)
-unsafeOverlapWithKeyA_ modul name line func (Map dict1) (Map dict2) =
+unsafeOverlapWithKeyA_ :: (Applicative f, Ord k) => Crash.Name -> Crash.Line -> (k -> a -> b -> f c) -> Map k a -> Map k b -> f (Map k c)
+unsafeOverlapWithKeyA_ name line func (Map dict1) (Map dict2) =
     Map <$> loop dict1 dict2
   where
     loop Map.Tip Map.Tip = pure Map.Tip
-    loop Map.Tip _       = Crash.crash_ modul name line "unsafeOverlapWithKeyA"
+    loop Map.Tip _       = Crash.crash_ name line "unsafeOverlapWithKeyA"
     loop (Map.Bin n k v l r) t2 =
       case Map.splitLookup k t2 of
         (l2, mv2, r2) ->
           case mv2 of
-            Nothing -> Crash.crash_ modul name line "unsafeOverlapWithKeyA"
+            Nothing -> Crash.crash_ name line "unsafeOverlapWithKeyA"
             Just v2 -> liftA3 (Map.Bin n k) (func k v v2) (loop l l2) (loop r r2)
 
 

@@ -7,7 +7,6 @@ module Crash
   , crashIO
   , blank
   --
-  , Module
   , Name
   , Line
   , crashable
@@ -55,7 +54,6 @@ crash name =
         VarE 'E.throw `AppE`
         (
           ConE 'Crash
-            `AppE` moduleE loc
             `AppE` nameE name
             `AppE` lineE loc
             `AppE` VarE msg
@@ -70,7 +68,6 @@ crashIO name =
         VarE 'E.throwIO `AppE`
         (
           ConE 'Crash
-            `AppE` moduleE loc
             `AppE` nameE name
             `AppE` lineE loc
             `AppE` VarE msg
@@ -84,7 +81,6 @@ blank name =
         VarE 'E.throw `AppE`
         (
           ConE 'Crash
-            `AppE` moduleE loc
             `AppE` nameE name
             `AppE` lineE loc
             `AppE` LitE (StringL "blank")
@@ -96,14 +92,13 @@ crashable func name =
   do  loc <- TH.qLocation
       pure $
         VarE func
-          `AppE` moduleE loc
           `AppE` nameE name
           `AppE` lineE loc
 
 
-crash_ :: Module -> Name -> Line -> String -> a
-crash_ modul name line msg =
-  E.throw $ Crash modul name line msg
+crash_ :: Name -> Line -> String -> a
+crash_ name line msg =
+  E.throw $ Crash name line msg
 
 
 
@@ -112,25 +107,20 @@ crash_ modul name line msg =
 
 data Crash =
   Crash
-    { _module  :: Module
-    , _name    :: Name
+    { _name    :: Name
     , _line    :: Line
     , _message :: String
     }
-  deriving (Show)
 
 
 instance E.Exception Crash
+instance Show Crash where
+  show (Crash (Name name) (Line line) msg) =
+    msg ++ "\n\n" ++ name ++ " (line " ++ show line ++ ")"
 
 
-newtype Module = Module String deriving (Show)
-newtype Name   = Name   String deriving (Show)
-newtype Line   = Line   Int    deriving (Show)
-
-
-moduleE :: TH.Loc -> Exp
-moduleE loc =
-  ConE 'Module `AppE` LitE (StringL (TH.loc_module loc))
+newtype Name = Name String
+newtype Line = Line Int
 
 
 nameE :: TH.Name -> Exp

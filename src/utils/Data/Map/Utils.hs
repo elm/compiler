@@ -145,14 +145,14 @@ require =
 
 
 {-# INLINABLE require_ #-}
-require_ :: (Ord k) => Crash.Module -> Crash.Name -> Crash.Line -> k -> Map.Map k a -> (k -> [Char]) -> a
-require_ modul name line key dict keyToChars =
+require_ :: (Ord k) => Crash.Name -> Crash.Line -> k -> Map.Map k a -> (k -> [Char]) -> a
+require_ name line key dict keyToChars =
     go dict
   where
     go d =
       case d of
         Tip ->
-          Crash.crash_ modul name line $
+          Crash.crash_ name line $
             "unable to find \"" ++ keyToChars key ++ "\""
 
         Bin _ k v l r ->
