@@ -40,8 +40,6 @@ usr_binaries=/usr/local/bin
 
 DEVELOPER_NAME="NAME"
 TEAM_ID="TEAM"
-EMAIL="EMAIL"
-PASSWORD="PASSWORD"
 
 
 cp $BINARY $pkg_binaries/elm
@@ -94,9 +92,7 @@ rm -rf $pkg_root
 # https://developer.apple.com/documentation/security/resolving-common-notarization-issues
 
 xcrun notarytool submit \
-    --apple-id $EMAIL \
-    --team-id $TEAM_ID \
-    --password $PASSWORD \
+    --keychain-profile "notary.elm-lang.org" \
     --wait \
     installer-for-mac.pkg
 
