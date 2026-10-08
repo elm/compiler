@@ -212,10 +212,9 @@ withMinimalCycle (RootSelector selector) (Component node nodes) extract cont =
       case readWord32Array# backEdges i s0 of
         (# s1, w #) ->
           case word2Int# (word32ToWord# w) of
-            j ->
-              if isTrue# (j ==# root#)
-              then (# s1, (root, I# i : path) #)
-              else toPath backEdges j (I# i : path) s1
+            j | isTrue# (eqWord32# w 0xFFFFFFFF#Word32) -> (# s1, (root, path) #)
+              | isTrue# (j ==# root#)                   -> (# s1, (root, I# i : path) #)
+              | otherwise                               -> toPath backEdges j (I# i : path) s1
 
 
 data Queue =
