@@ -242,11 +242,10 @@ intToOrdinal number =
 
 cycle :: Graph.MinimalCycle name -> (name -> P.Doc) -> P.Doc
 cycle (Graph.MinimalCycle name names) toDoc =
-  let
-    toLn n = cycleLn <> P.dullyellow (toDoc n)
-  in
   P.indent 4 $ P.vcat $
-    cycleTop : List.intersperse cycleMid (toLn name : map toLn names) ++ [ cycleEnd ]
+    cycleTop : List.concatMap toLn (name:names) ++ [ cycleEnd ]
+  where
+    toLn n = [ cycleMid, cycleLn <> P.dullyellow (toDoc n) ]
 
 
 cycleTop, cycleLn, cycleMid, cycleEnd :: P.Doc
