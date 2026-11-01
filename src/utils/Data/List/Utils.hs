@@ -16,6 +16,7 @@ module Data.List.Utils
   , indexedMap1
   , indexedTraverse1
   , traverse1
+  , foldr1
   , reverse1
   , snoc1
   , init1
@@ -33,7 +34,7 @@ module Data.List.Utils
   where
 
 
-import Prelude hiding (foldl)
+import Prelude hiding (foldl, foldr1)
 import qualified Data.List as List
 import GHC.Prim
 
@@ -156,6 +157,15 @@ traverse1 func x xs =
   (,)
     <$> func x
     <*> traverse func xs
+
+
+
+-- FOLDR1
+
+
+foldr1 :: (a -> s -> s) -> s -> a -> [a] -> s
+foldr1 f s x xs =
+  f x (List.foldr f s xs)
 
 
 
