@@ -1,24 +1,34 @@
 module AST.Source
-  ( Expr, Expr_(..), VarType(..)
+  ( Expr, Expr_(..)
+  , VarType(..), Branch(..)
   , Def(..)
   , Pattern, Pattern_(..)
   , Type, Type_(..)
+  --
   , Module(..)
-  , getName
-  , getImportName
   , Import(..)
+  , Decls(..)
+  , Decl(..)
   , Value(..)
-  , Union(..)
   , Alias(..)
-  , Infix(..)
+  , Union(..)
+  , Variant(..)
   , Port(..)
-  , Effects(..)
+  , Infix(..)
+  --
+  , Header(..)
+  , Style(..)
   , Manager(..)
+  --
   , Docs(..)
   , Comment(..)
+  --
   , Exposing(..)
   , Exposed(..)
   , Privacy(..)
+  --
+  , getName
+  , getImportName
   )
   where
 
@@ -26,9 +36,9 @@ module AST.Source
 import qualified AST.Prim.Module as Module
 import qualified AST.Prim.Name as N
 import qualified AST.Prim.Operator as Op
+import qualified AST.Prim.Shader as Shader
 import qualified AST.Prim.TypeName as T
 import qualified AST.Prim.TypeVar as T
-import qualified AST.Utils.Shader as Shader
 import qualified Elm.Float as EF
 import qualified Elm.String as ES
 import qualified Parse.Primitives as P
@@ -53,21 +63,26 @@ data Expr_
   | Op Op.Name
   | Negate Expr
   | Binops [(Expr, A.Located Op.Name)] Expr
-  | Lambda [Pattern] Expr
-  | Call Expr [Expr]
+  | Lambda Pattern [Pattern] Expr
+  | Call Expr Expr [Expr]
   | If [(Expr, Expr)] Expr
   | Let [A.Located Def] Expr
-  | Case Expr [(Pattern, Expr)]
-  | Accessor N.Name
+  | Case Expr Branch [Branch]
+  | Empty
+  | Record (A.Located N.Name, Expr) [(A.Located N.Name, Expr)]
+  | Update (A.Located N.Name) (A.Located N.Name, Expr) [(A.Located N.Name, Expr)]
   | Access Expr (A.Located N.Name)
-  | Update (A.Located N.Name) [(A.Located N.Name, Expr)]
-  | Record [(A.Located N.Name, Expr)]
+  | Accessor N.Name
   | Unit
   | Tuple Expr Expr [Expr]
   | Shader Shader.Source Shader.Types
 
 
 data VarType = LowVar | CapVar
+
+
+data Branch =
+  Branch Pattern Expr
 
 
 
@@ -111,13 +126,15 @@ type Type =
 
 
 data Type_
-  = TLambda Type Type
+  = TLambda Type Type [Type]
   | TVar T.Var
   | TType A.Region T.Name [Type]
   | TTypeQual A.Region Module.Prefix T.Name [Type]
-  | TRecord [(A.Located N.Name, Type)] (Maybe (A.Located T.Var))
   | TUnit
   | TTuple Type Type [Type]
+  | TEmpty
+  | TRecord (A.Located N.Name, Type) [(A.Located N.Name, Type)]
+  | TExtRec (A.Located N.Name, Type) [(A.Located N.Name, Type)] (A.Located T.Var)
 
 
 
@@ -126,28 +143,12 @@ data Type_
 
 data Module =
   Module
-    { _name    :: Maybe (A.Located Module.Name)
-    , _exports :: A.Located Exposing
+    { _header  :: Header
     , _docs    :: Docs
     , _imports :: [Import]
-    , _values  :: [A.Located Value]
-    , _unions  :: [A.Located Union]
-    , _aliases :: [A.Located Alias]
-    , _binops  :: [A.Located Infix]
-    , _effects :: Effects
+    , _decls   :: Decls
+    , _infixes :: [A.Located Infix]
     }
-
-
-getName :: Module -> Module.Name
-getName (Module maybeName _ _ _ _ _ _ _ _) =
-  case maybeName of
-    Just (A.At _ name) -> name
-    Nothing            -> Module.main
-
-
-getImportName :: Import -> Module.Name
-getImportName (Import (A.At _ name) _ _) =
-  name
 
 
 data Import =
@@ -158,23 +159,50 @@ data Import =
     }
 
 
+data Decls
+  = NoDecls A.Region
+  | RevDecls Decl [Decl]
+
+
+data Decl
+  = Value_ (Maybe Comment) (A.Located Value)
+  | Union_ (Maybe Comment) (A.Located Union)
+  | Alias_ (Maybe Comment) (A.Located Alias)
+  | Port_  (Maybe Comment) (A.Located Port)
+
+
 data Value = Value (A.Located N.Name) [Pattern] Expr (Maybe Type)
-data Union = Union (A.Located T.Name) [A.Located T.Var] [(A.Located N.Name, [Type])]
 data Alias = Alias (A.Located T.Name) [A.Located T.Var] Type
-data Infix = Infix Op.Name Op.Associativity Op.Precedence N.Name
-data Port  = Port (A.Located N.Name) Type
+data Union = Union (A.Located T.Name) [A.Located T.Var] Variant [Variant]
+data Variant = Variant (A.Located N.Name) [Type]
+data Port = Port (A.Located N.Name) Type
+
+data Infix = Infix (A.Located Op.Name) Op.Associativity Op.Precedence N.Name
 
 
-data Effects
-  = NoEffects
-  | Ports [Port]
-  | Manager A.Region Manager
+
+-- HEADER
+
+
+data Header
+  = YesHeader Style (A.Located Module.Name) (A.Located Exposing)
+  | NoHeader A.Region
+
+
+data Style
+  = Normal A.Region
+  | Ports A.Region
+  | Effect A.Region Manager
 
 
 data Manager
   = Cmd (A.Located T.Name)
   | Sub (A.Located T.Name)
   | Fx  (A.Located T.Name) (A.Located T.Name)
+
+
+
+-- DOCS
 
 
 data Docs
@@ -204,3 +232,19 @@ data Exposed
 data Privacy
   = Public A.Region
   | Private
+
+
+
+-- HELPERS
+
+
+getName :: Header -> Module.Name
+getName header =
+  case header of
+    YesHeader _ (A.At _ name) _ -> name
+    NoHeader  _                 -> Module.main
+
+
+getImportName :: Import -> Module.Name
+getImportName (Import (A.At _ name) _ _) =
+  name
