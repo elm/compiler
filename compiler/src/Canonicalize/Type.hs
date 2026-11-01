@@ -1,152 +1,198 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE Rank2Types #-}
 module Canonicalize.Type
-  ( toAnnotation
-  , canonicalize
+  ( canonicalize
   )
   where
 
 
+import qualified Data.Dups as Dups
 import qualified Data.List as List
-import qualified Data.Map as Map
+import qualified Data.OneOrMore as OOM
+
+import qualified Array as A
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
+import qualified AST.Prim.Fields as F
 import qualified AST.Prim.Name as N
+import qualified AST.Prim.TypeIndex as T
 import qualified AST.Prim.TypeName as T
 import qualified AST.Prim.TypeVar as T
 import qualified Canonicalize.Environment as Env
-import qualified Canonicalize.Environment.Dups as Dups
+import qualified Elm.ModuleName as ModuleName
 import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Result as Result
+import qualified Reporting.Error.Canonicalize as E
 
 
 
--- RESULT
+-- CANONICALIZE ANNOTATION
 
 
-type Result i w a =
-  Result.Result i w Error.Error a
-
-
-
--- TO ANNOTATION
-
-
-toAnnotation :: Env.Env -> Src.Type -> Result i w Can.Annotation
-toAnnotation env srcType =
-  do  tipe <- canonicalize env srcType
-      Result.ok $ Can.Forall (addFreeVars Map.empty tipe) tipe
+canonicalize :: Env.Env -> Src.Type -> (Can.Annotation -> a) -> (OOM.OneOrMore E.Problem -> a) -> a
+canonicalize env srcType ok err =
+  case canType env srcType of
+    Result k ->
+      k T.empty ok' err
+  where
+    ok' vars tipe =
+      ok $ Can.Forall (T.toArray vars) tipe
 
 
 
 -- CANONICALIZE TYPES
 
 
-canonicalize :: Env.Env -> Src.Type -> Result i w Can.Type
-canonicalize env (A.At typeRegion tipe) =
-  case tipe of
-    Src.TVar x ->
-        Result.ok (Can.TVar x)
+canType :: Env.Env -> Src.Type -> Result Can.Type
+canType env =
+    go
+  where
+    go (A.At region tipe) =
+      A.At region <$>
+      case tipe of
+        Src.TVar x             -> canVar x
+        Src.TType     r   n xs -> Env.withType     env r   n (canUnion env region r n xs) (canAlias env region r n xs) throw
+        Src.TTypeQual r h n xs -> Env.withTypeQual env r h n (canUnion env region r n xs) (canAlias env region r n xs) throw
+        Src.TLambda x y ys     -> Can.TLambda <$> go x <*> go y <*> traverse go ys
+        Src.TUnit              -> return Can.TUnit
+        Src.TTuple a b cs      -> goTuple region a b cs
+        Src.TEmpty             -> return Can.TEmpty
+        Src.TRecord f fs       -> Can.TRecord <$> canFields env f fs
+        Src.TExtRec f fs e     -> Can.TExtRec <$> canFields env f fs <*> canExt e
 
-    Src.TType region name args ->
-        canonicalizeType env typeRegion name args =<<
-          Env.findType region env name
-
-    Src.TTypeQual region home name args ->
-        canonicalizeType env typeRegion name args =<<
-          Env.findTypeQual region env home name
-
-    Src.TLambda a b ->
-        Can.TLambda
-          <$> canonicalize env a
-          <*> canonicalize env b
-
-    Src.TRecord fields ext ->
-        do  cfields <- sequenceA =<< Dups.checkFields (canonicalizeFields env fields)
-            return $ Can.TRecord cfields (fmap A.toValue ext)
-
-    Src.TUnit ->
-        Result.ok Can.TUnit
-
-    Src.TTuple a b cs ->
+    goTuple r a b cs =
       case cs of
-        []  -> Can.TPair   <$> canonicalize env a <*> canonicalize env b
-        [c] -> Can.TTriple <$> canonicalize env a <*> canonicalize env b <*> canonicalize env c
-        _   -> Result.throw $ Error.TupleLargerThanThree typeRegion
-
-
-canonicalizeFields :: Env.Env -> [(A.Located N.Name, Src.Type)] -> [(A.Located N.Name, Result i w Can.FieldType)]
-canonicalizeFields env fields =
-  let
-    len = fromIntegral (length fields)
-    canonicalizeField index (name, srcType) =
-      (name, Can.FieldType index <$> canonicalize env srcType)
-  in
-  zipWith canonicalizeField [0..len] fields
+        []  -> Can.TPair   <$> go a <*> go b
+        [c] -> Can.TTriple <$> go a <*> go b <*> go c
+        _   -> throw $ E.TupleLargerThanThree r
 
 
 
--- CANONICALIZE TYPE
+-- CANONICALIZE VAR
 
 
-canonicalizeType :: Env.Env -> A.Region -> T.Name -> [Src.Type] -> Env.Type -> Result i w Can.Type
-canonicalizeType env region name args info =
-  do  cargs <- traverse (canonicalize env) args
-      case info of
-        Env.Alias arity home argNames aliasedType ->
-          checkArity arity region name args $
-            Can.TAlias home name (zip argNames cargs) (Can.Holey aliasedType)
-
-        Env.Union arity home ->
-          checkArity arity region name args $
-            Can.TType home name cargs
-
-
-checkArity :: Int -> A.Region -> T.Name -> [A.Located arg] -> answer -> Result i w answer
-checkArity expected region name args answer =
-  let actual = length args in
-  if expected == actual then
-    Result.ok answer
-  else
-    Result.throw (Error.BadArity_Type region name expected actual)
+canVar :: T.Var -> Result Can.Type_
+canVar var =
+  Result $ \vars ok _ ->
+    case T.register var vars of
+      (i,vs) ->
+        ok vs (Can.TVar i)
 
 
 
--- ADD FREE VARS
+-- CANONICALIZE UNION
 
 
-addFreeVars :: Map.Map T.Var () -> Can.Type -> Map.Map T.Var ()
-addFreeVars freeVars tipe =
-  case tipe of
-    Can.TLambda arg result ->
-      addFreeVars (addFreeVars freeVars result) arg
-
-    Can.TVar var ->
-      Map.insert var () freeVars
-
-    Can.TType _ _ args ->
-      List.foldl' addFreeVars freeVars args
-
-    Can.TRecord fields Nothing ->
-      Map.foldl addFieldFreeVars freeVars fields
-
-    Can.TRecord fields (Just ext) ->
-      Map.foldl addFieldFreeVars (Map.insert ext () freeVars) fields
-
-    Can.TUnit ->
-      freeVars
-
-    Can.TPair a b ->
-      addFreeVars (addFreeVars freeVars a) b
-
-    Can.TTriple a b c ->
-      addFreeVars (addFreeVars (addFreeVars freeVars a) b) c
-
-    Can.TAlias _ _ args _ ->
-      List.foldl' (\fvs (_,arg) -> addFreeVars fvs arg) freeVars args
+canUnion :: Env.Env -> A.Region -> A.Region -> T.Name -> [Src.Type] -> ModuleName.Canonical -> Env.UnionInfo -> Result Can.Type_
+canUnion env region nameRegion name srcArgs home (Env.UnionInfo mask (Env.Arity expectedArity)) =
+  do  args <- A.fromList <$> traverse (canType env) srcArgs
+      let actualArity = A.size args
+      if expectedArity == actualArity
+        then return $ Can.TType nameRegion home name mask args
+        else throw $ E.BadArity_Type region name expectedArity actualArity
 
 
-addFieldFreeVars :: Map.Map T.Var () -> Can.FieldType -> Map.Map T.Var ()
-addFieldFreeVars freeVars (Can.FieldType _ tipe) =
-  addFreeVars freeVars tipe
+
+-- CANONICALIZE ALIAS
+
+
+canAlias :: Env.Env -> A.Region -> A.Region -> T.Name -> [Src.Type] -> ModuleName.Canonical -> Env.AliasInfo -> Result Can.Type_
+canAlias env region nameRegion name srcArgs home (Env.AliasInfo mask (Env.Arity expectedArity) aliasedType) =
+  do  args <- A.fromList <$> traverse (canType env) srcArgs
+      let actualArity = A.size args
+      if expectedArity == actualArity
+        then return $ Can.TAlias nameRegion home name mask args aliasedType
+        else throw $ E.BadArity_Type region name expectedArity actualArity
+
+
+
+-- CANONICALIZE RECORD
+
+
+type SrcField =
+  (A.Located N.Name, Src.Type)
+
+
+canFields :: Env.Env -> SrcField -> [SrcField] -> Result (F.Fields Can.Type)
+canFields env f fs =
+  case Dups.detect1 (\_ _ t -> t) E.DuplicateField $ List.foldl' add (one f) fs of
+    Dups.Detector k ->
+      k (F.fromOrdered (canType env)) throws
+  where
+    one   (A.At r n, t) = Dups.one1    n r (F.Ordered 0 t)
+    add d (A.At r n, t) = Dups.insert1 n r (F.Ordered (fromIntegral (Dups.size1 d)) t) d
+
+
+canExt :: A.Located T.Var -> Result (A.Located T.Index)
+canExt (A.At r ext) =
+  Result $ \vars ok _ ->
+    case T.register ext vars of
+      (i,vs) ->
+        ok vs (A.At r i)
+
+
+
+-- RESULT
+
+
+newtype Result a =
+  Result (forall r. Vars -> (Vars -> a -> r) -> (OOM.OneOrMore E.Problem -> r) -> r)
+
+
+type Vars =
+  T.Registry T.Var
+
+
+throw :: E.Problem -> Result a
+throw x =
+  Result $ \_ _ err ->
+    err (OOM.one x)
+
+
+throws :: OOM.OneOrMore E.Problem -> Result a
+throws xs =
+  Result $ \_ _ err ->
+    err xs
+
+
+instance Functor Result where
+  {-# INLINE fmap #-}
+  fmap func (Result k) =
+    Result $ \vars ok err ->
+      let
+        okF vs arg = ok vs (func arg)
+      in
+      k vars okF err
+
+
+instance Applicative Result where
+  {-# INLINE pure #-}
+  pure a =
+    Result $ \vars ok _ ->
+      ok vars a
+
+  {-# INLINE (<*>) #-}
+  (<*>) (Result kF) (Result kA) =
+    Result $ \vars ok err ->
+      let
+        okF vs func =
+          let
+            okA v arg = ok v (func arg)
+          in
+          kA vs okA err
+
+        errF xs =
+          kA vars (\_ _ -> err xs) (err . OOM.more xs)
+      in
+      kF vars okF errF
+
+
+instance Monad Result where
+  {-# INLINE (>>=) #-}
+  (>>=) (Result kA) callback =
+    Result $ \vars ok err ->
+      let
+        okA vs a =
+          case callback a of
+            Result kB -> kB vs ok err
+      in
+      kA vars okA err
