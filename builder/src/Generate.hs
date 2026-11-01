@@ -84,7 +84,7 @@ repl :: R.Stuff -> Details.Details -> Bool -> Build.ReplArtifacts -> N.Name -> T
 repl stuff details ansi (Build.ReplArtifacts home modules localizer annotations) name =
   do  objects <- finalizeObjects =<< loadObjects stuff details modules
       let graph = objectsToGlobalGraph objects
-      return $ JS.generateForRepl ansi localizer graph home name $
+      return $ JS.genForRepl ansi localizer graph home name $
         $(Map.require 'repl) name annotations N.toChars
 
 

@@ -1,8 +1,8 @@
 {-# LANGUAGE ExtendedLiterals, OverloadedStrings, QuasiQuotes, TemplateHaskell #-}
 module Generate.JavaScript
   ( generate
-  , generateForRepl
-  , generateForReplEndpoint
+  , genForRepl
+  , genForReplEndpoint
   )
   where
 
@@ -17,11 +17,11 @@ import qualified Data.Set as Set
 import qualified Crash
 import qualified String as S
 
-import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
 import qualified AST.Prim.Module as Module
 import qualified AST.Prim.Name as N
-import qualified Data.Index as Index
+import qualified AST.Prim.Tag as Tag
+import qualified Elm.Interface as I
 import qualified Elm.Kernel as K
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
@@ -32,7 +32,6 @@ import qualified Generate.JavaScript.Name as JsName
 import qualified Generate.Mode as Mode
 import qualified Reporting.Doc as D
 import qualified Reporting.Render.Type as RT
-import qualified Reporting.Render.Type.Localizer as L
 
 
 
@@ -82,8 +81,8 @@ perfNote mode =
 -- GENERATE FOR REPL
 
 
-generateForRepl :: Bool -> L.Localizer -> Opt.GlobalGraph -> ModuleName.Canonical -> N.Name -> Can.Annotation -> B.Builder
-generateForRepl ansi localizer (Opt.GlobalGraph graph _) home name (Can.Forall _ tipe) =
+genForRepl :: Bool -> RT.Localizer -> Opt.GlobalGraph -> ModuleName.Canonical -> N.Name -> I.Annotation -> B.Builder
+genForRepl ansi localizer (Opt.GlobalGraph graph _) home name tipe =
   let
     mode = Mode.Dev Nothing
     debugState = addGlobal mode graph emptyState (Opt.Global ModuleName.debug [N.ascii|toString|])
@@ -95,12 +94,12 @@ generateForRepl ansi localizer (Opt.GlobalGraph graph _) home name (Can.Forall _
   <> print ansi localizer home name tipe
 
 
-print :: Bool -> L.Localizer -> ModuleName.Canonical -> N.Name -> Can.Type -> B.Builder
+print :: Bool -> RT.Localizer -> ModuleName.Canonical -> N.Name -> I.Annotation -> B.Builder
 print ansi localizer home name tipe =
   let
     value = JsName.toBuilder (JsName.fromGlobal home name)
     toString = JsName.toBuilder (JsName.fromKernel Module.kernel_debug [N.ascii|toAnsiString|])
-    tipeDoc = RT.canToDoc localizer RT.None tipe
+    tipeDoc = RT.iToDoc localizer RT.None tipe
     bool = if ansi then "true" else "false"
   in
   "var _value = " <> toString <> "(" <> bool <> ", " <> value <> ");\n\
@@ -117,8 +116,8 @@ print ansi localizer home name tipe =
 -- GENERATE FOR REPL ENDPOINT
 
 
-generateForReplEndpoint :: L.Localizer -> Opt.GlobalGraph -> ModuleName.Canonical -> Maybe N.Name -> Can.Annotation -> B.Builder
-generateForReplEndpoint localizer (Opt.GlobalGraph graph _) home maybeName (Can.Forall _ tipe) =
+genForReplEndpoint :: RT.Localizer -> Opt.GlobalGraph -> ModuleName.Canonical -> Maybe N.Name -> I.Annotation -> B.Builder
+genForReplEndpoint localizer (Opt.GlobalGraph graph _) home maybeName tipe =
   let
     name = maybe N.replValueToPrint id maybeName
     mode = Mode.Dev Nothing
@@ -130,13 +129,13 @@ generateForReplEndpoint localizer (Opt.GlobalGraph graph _) home maybeName (Can.
   <> postMessage localizer home maybeName tipe
 
 
-postMessage :: L.Localizer -> ModuleName.Canonical -> Maybe N.Name -> Can.Type -> B.Builder
+postMessage :: RT.Localizer -> ModuleName.Canonical -> Maybe N.Name -> I.Annotation -> B.Builder
 postMessage localizer home maybeName tipe =
   let
     name = maybe N.replValueToPrint id maybeName
     value = JsName.toBuilder (JsName.fromGlobal home name)
     toString = JsName.toBuilder (JsName.fromKernel Module.kernel_debug [N.ascii|toAnsiString|])
-    tipeDoc = RT.canToDoc localizer RT.None tipe
+    tipeDoc = RT.iToDoc localizer RT.None tipe
     toName n = "\"" <> N.toBuilder n <> "\""
   in
   "self.postMessage({\n\
@@ -197,57 +196,45 @@ addGlobalHelp mode graph global state =
   in
   case $(Map.require 'addGlobalHelp) global graph globalToChars of
     Opt.Define expr deps ->
-      addStmt (addDeps deps state) (
+      addStmt (addDeps deps state) $
         var global (Expr.generate mode expr)
-      )
 
-    Opt.DefineTailFunc argNames body deps ->
-      addStmt (addDeps deps state) (
+    Opt.DefineTailFunc x xs body deps ->
+      addStmt (addDeps deps state) $
         let (Opt.Global _ name) = global in
-        var global (Expr.generateTailDef mode name argNames body)
-      )
+        var global (Expr.genTailDef mode name x xs body)
 
-    Opt.Ctor index arity ->
-      addStmt state (
-        var global (Expr.generateCtor mode global index arity)
-      )
+    Opt.Variant t a -> addStmt state $ var global $ Expr.genVariant mode global t a
+    Opt.Enum    t   -> addStmt state $ var global $ Expr.genEnum    mode global t
+    Opt.Vector    a -> addStmt state $ var global $ Expr.genVector  mode global   a
+    Opt.Void        -> addStmt state $ var global $ Expr.genVoid    mode global
+
+    Opt.Box ->
+      addStmt (addGlobal mode graph state identity) $
+        genBox mode global
 
     Opt.Link linkedGlobal ->
       addGlobal mode graph state linkedGlobal
 
-    Opt.Cycle names values functions deps ->
-      addStmt (addDeps deps state) (
-        generateCycle mode global names values functions
-      )
+    Opt.Cycle n ns values functions deps ->
+      addStmt (addDeps deps state) $
+        genCycle mode global n ns values functions
 
     Opt.Manager effectsType ->
-      generateManager mode graph global effectsType state
+      genManager mode graph global effectsType state
 
     Opt.Kernel chunks deps ->
-      if isDebugger global && not (Mode.isDebug mode) then
-        state
-      else
-        addKernel (addDeps deps state) (generateKernel mode chunks)
-
-    Opt.Enum index ->
-      addStmt state (
-        generateEnum mode global index
-      )
-
-    Opt.Box ->
-      addStmt (addGlobal mode graph state identity) (
-        generateBox mode global
-      )
+      if isDebugger global && not (Mode.isDebug mode)
+      then state
+      else addKernel (addDeps deps state) (genKernel mode chunks)
 
     Opt.PortIncoming decoder deps ->
-      addStmt (addDeps deps state) (
-        generatePort mode global [N.ascii|incomingPort|] decoder
-      )
+      addStmt (addDeps deps state) $
+        genPort mode global [N.ascii|incomingPort|] decoder
 
     Opt.PortOutgoing encoder deps ->
-      addStmt (addDeps deps state) (
-        generatePort mode global [N.ascii|outgoingPort|] encoder
-      )
+      addStmt (addDeps deps state) $
+        genPort mode global [N.ascii|outgoingPort|] encoder
 
 
 addStmt :: State -> JS.Stmt -> State
@@ -279,12 +266,12 @@ isDebugger (Opt.Global (ModuleName.Canonical _ home) _) =
 -- GENERATE CYCLES
 
 
-generateCycle :: Mode.Mode -> Opt.Global -> [N.Name] -> [(N.Name, Opt.Expr)] -> [Opt.Def] -> JS.Stmt
-generateCycle mode (Opt.Global home _) names values functions =
+genCycle :: Mode.Mode -> Opt.Global -> N.Name -> [N.Name] -> [(N.Name, Opt.Expr)] -> [Opt.Def] -> JS.Stmt
+genCycle mode (Opt.Global home _) n ns values functions =
   JS.Block
-    [ JS.Block $ map (generateCycleFunc mode home) functions
-    , JS.Block $ map (generateSafeCycle mode home) values
-    , case map (generateRealCycle home) values of
+    [ JS.Block $ map (genCycleFunc mode home) functions
+    , JS.Block $ map (genSafeCycle mode home) values
+    , case map (genRealCycle home) values of
         [] ->
           JS.EmptyStmt
 
@@ -296,31 +283,31 @@ generateCycle mode (Opt.Global home _) names values functions =
               Mode.Dev _ ->
                 JS.Try (JS.Block realBlock) JsName.dollar $ JS.Throw $ JS.String $
                   "Some top-level definitions from `" <> Module.toBuilder (ModuleName._module home) <> "` are causing infinite recursion:\\n"
-                  <> drawCycle names
+                  <> drawCycle n ns
                   <> "\\n\\nThese errors are very tricky, so read "
                   <> B.stringUtf8 (D.makeNakedLink "bad-recursion")
                   <> " to learn how to fix it!"
     ]
 
 
-generateCycleFunc :: Mode.Mode -> ModuleName.Canonical -> Opt.Def -> JS.Stmt
-generateCycleFunc mode home def =
+genCycleFunc :: Mode.Mode -> ModuleName.Canonical -> Opt.Def -> JS.Stmt
+genCycleFunc mode home def =
   case def of
     Opt.Def name expr ->
       JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generate mode expr))
 
-    Opt.TailDef name args expr ->
-      JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generateTailDef mode name args expr))
+    Opt.TailDef name x xs expr ->
+      JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.genTailDef mode name x xs expr))
 
 
-generateSafeCycle :: Mode.Mode -> ModuleName.Canonical -> (N.Name, Opt.Expr) -> JS.Stmt
-generateSafeCycle mode home (name, expr) =
+genSafeCycle :: Mode.Mode -> ModuleName.Canonical -> (N.Name, Opt.Expr) -> JS.Stmt
+genSafeCycle mode home (name, expr) =
   JS.FunctionStmt (JsName.fromCycle home name) [] $
     Expr.codeToStmtList (Expr.generate mode expr)
 
 
-generateRealCycle :: ModuleName.Canonical -> (N.Name, expr) -> JS.Stmt
-generateRealCycle home (name, _) =
+genRealCycle :: ModuleName.Canonical -> (N.Name, expr) -> JS.Stmt
+genRealCycle home (name, _) =
   let
     safeName = JsName.fromCycle home name
     realName = JsName.fromGlobal home name
@@ -332,23 +319,23 @@ generateRealCycle home (name, _) =
     ]
 
 
-drawCycle :: [N.Name] -> B.Builder
-drawCycle names =
+drawCycle :: N.Name -> [N.Name] -> B.Builder
+drawCycle n ns =
   let
     topLine       = "\\n  ┌─────┐"
     nameLine name = "\\n  │    " <> N.toBuilder name
     midLine       = "\\n  │     ↓"
     bottomLine    = "\\n  └─────┘"
   in
-  mconcat (topLine : List.intersperse midLine (map nameLine names) ++ [ bottomLine ])
+  mconcat (topLine : List.intersperse midLine (map nameLine (n:ns)) ++ [ bottomLine ])
 
 
 
 -- GENERATE KERNEL
 
 
-generateKernel :: Mode.Mode -> [K.Chunk] -> B.Builder
-generateKernel mode chunks =
+genKernel :: Mode.Mode -> [K.Chunk] -> B.Builder
+genKernel mode chunks =
   List.foldr (addChunk mode) mempty chunks
 
 
@@ -365,7 +352,7 @@ addChunk mode chunk builder =
       JsName.toBuilder (JsName.fromKernel home name) <> builder
 
     K.ElmField name ->
-      JsName.toBuilder (Expr.generateField mode name) <> builder
+      JsName.toBuilder (Expr.genField mode name) <> builder
 
     K.JsField int ->
       JsName.toBuilder (JsName.fromInt int) <> builder
@@ -391,33 +378,15 @@ addChunk mode chunk builder =
 
 
 
--- GENERATE ENUM
-
-
-generateEnum :: Mode.Mode -> Opt.Global -> Index.ZeroBased -> JS.Stmt
-generateEnum mode global@(Opt.Global home name) index =
-  JS.Var (JsName.fromGlobal home name) $
-    case mode of
-      Mode.Dev _ ->
-        Expr.codeToExpr (Expr.generateCtor mode global index 0)
-
-      Mode.Prod _ ->
-        JS.Int (Index.toMachine index)
-
-
-
 -- GENERATE BOX
 
 
-generateBox :: Mode.Mode -> Opt.Global -> JS.Stmt
-generateBox mode global@(Opt.Global home name) =
+genBox :: Mode.Mode -> Opt.Global -> JS.Stmt
+genBox mode global@(Opt.Global home name) =
   JS.Var (JsName.fromGlobal home name) $
     case mode of
-      Mode.Dev _ ->
-        Expr.codeToExpr (Expr.generateCtor mode global Index.first 1)
-
-      Mode.Prod _ ->
-        JS.Ref (JsName.fromGlobal ModuleName.basics N.identity)
+      Mode.Dev  _ -> Expr.codeToExpr (Expr.genVariant mode global Tag.zero 1)
+      Mode.Prod _ -> JS.Ref (JsName.fromGlobal ModuleName.basics N.identity)
 
 
 {-# NOINLINE identity #-}
@@ -430,8 +399,8 @@ identity =
 -- GENERATE PORTS
 
 
-generatePort :: Mode.Mode -> Opt.Global -> N.Name -> Opt.Expr -> JS.Stmt
-generatePort mode (Opt.Global home name) makePort converter =
+genPort :: Mode.Mode -> Opt.Global -> N.Name -> Opt.Expr -> JS.Stmt
+genPort mode (Opt.Global home name) makePort converter =
   JS.Var (JsName.fromGlobal home name) $
     JS.Call (JS.Ref (JsName.fromKernel Module.kernel_platform makePort))
       [ JS.String (N.toBuilder name)
@@ -443,8 +412,8 @@ generatePort mode (Opt.Global home name) makePort converter =
 -- GENERATE MANAGER
 
 
-generateManager :: Mode.Mode -> Graph -> Opt.Global -> Opt.EffectsType -> State -> State
-generateManager mode graph (Opt.Global home@(ModuleName.Canonical _ moduleName) _) effectsType state =
+genManager :: Mode.Mode -> Graph -> Opt.Global -> Opt.EffectsType -> State -> State
+genManager mode graph (Opt.Global home@(ModuleName.Canonical _ moduleName) _) effectsType state =
   let
     managerLVar =
       JS.LBracket
@@ -452,7 +421,7 @@ generateManager mode graph (Opt.Global home@(ModuleName.Canonical _ moduleName) 
         (JS.String (Module.toBuilder moduleName))
 
     (deps, args, stmts) =
-      generateManagerHelp home effectsType
+      genManagerHelp home effectsType
 
     createManager =
       JS.ExprStmt $ JS.Assign managerLVar $
@@ -462,8 +431,8 @@ generateManager mode graph (Opt.Global home@(ModuleName.Canonical _ moduleName) 
     JS.Block (createManager : stmts)
 
 
-generateLeaf :: ModuleName.Canonical -> N.Name -> JS.Stmt
-generateLeaf home@(ModuleName.Canonical _ moduleName) name =
+genLeaf :: ModuleName.Canonical -> N.Name -> JS.Stmt
+genLeaf home@(ModuleName.Canonical _ moduleName) name =
   JS.Var (JsName.fromGlobal home name) $
     JS.Call leaf [ JS.String (Module.toBuilder moduleName) ]
 
@@ -475,8 +444,8 @@ leaf =
   JS.Ref (JsName.fromKernel Module.kernel_platform [N.ascii|leaf|])
 
 
-generateManagerHelp :: ModuleName.Canonical -> Opt.EffectsType -> ([Opt.Global], [JS.Expr], [JS.Stmt])
-generateManagerHelp home effectsType =
+genManagerHelp :: ModuleName.Canonical -> Opt.EffectsType -> ([Opt.Global], [JS.Expr], [JS.Stmt])
+genManagerHelp home effectsType =
   let
     dep name = Opt.Global home name
     ref name = JS.Ref (JsName.fromGlobal home name)
@@ -485,20 +454,20 @@ generateManagerHelp home effectsType =
     Opt.Cmd ->
       ( [ dep [N.ascii|init|], dep [N.ascii|onEffects|], dep [N.ascii|onSelfMsg|], dep [N.ascii|cmdMap|] ]
       , [ ref [N.ascii|init|], ref [N.ascii|onEffects|], ref [N.ascii|onSelfMsg|], ref [N.ascii|cmdMap|] ]
-      , [ generateLeaf home [N.ascii|command|] ]
+      , [ genLeaf home [N.ascii|command|] ]
       )
 
     Opt.Sub ->
       ( [ dep [N.ascii|init|], dep [N.ascii|onEffects|], dep [N.ascii|onSelfMsg|], dep [N.ascii|subMap|] ]
       , [ ref [N.ascii|init|], ref [N.ascii|onEffects|], ref [N.ascii|onSelfMsg|], JS.Int 0, ref [N.ascii|subMap|] ]
-      , [ generateLeaf home [N.ascii|subscription|] ]
+      , [ genLeaf home [N.ascii|subscription|] ]
       )
 
     Opt.Fx ->
       ( [ dep [N.ascii|init|], dep [N.ascii|onEffects|], dep [N.ascii|onSelfMsg|], dep [N.ascii|cmdMap|], dep [N.ascii|subMap|] ]
       , [ ref [N.ascii|init|], ref [N.ascii|onEffects|], ref [N.ascii|onSelfMsg|], ref [N.ascii|cmdMap|], ref [N.ascii|subMap|] ]
-      , [ generateLeaf home [N.ascii|command|]
-        , generateLeaf home [N.ascii|subscription|]
+      , [ genLeaf home [N.ascii|command|]
+        , genLeaf home [N.ascii|subscription|]
         ]
       )
 
@@ -511,13 +480,13 @@ toMainExports :: Mode.Mode -> Mains -> B.Builder
 toMainExports mode mains =
   let
     export = JsName.fromKernel Module.kernel_platform [N.ascii|export|]
-    exports = generateExports mode (Map.foldrWithKey addToTrie emptyTrie mains)
+    exports = genExports mode (Map.foldrWithKey addToTrie emptyTrie mains)
   in
   JsName.toBuilder export <> "(" <> exports <> ");"
 
 
-generateExports :: Mode.Mode -> Trie -> B.Builder
-generateExports mode (Trie maybeMain subs) =
+genExports :: Mode.Mode -> Trie -> B.Builder
+genExports mode (Trie maybeMain subs) =
   let
     starter end =
       case maybeMain of
@@ -526,7 +495,7 @@ generateExports mode (Trie maybeMain subs) =
 
         Just (home, main) ->
           "{'init':"
-          <> JS.exprToBuilder (Expr.generateMain mode home main)
+          <> JS.exprToBuilder (Expr.genMain mode home main)
           <> end
     in
     case Map.toList subs of
@@ -536,13 +505,13 @@ generateExports mode (Trie maybeMain subs) =
       (name, subTrie) : otherSubTries ->
         starter "," <>
         "'" <> S.toBuilder name <> "':"
-        <> generateExports mode subTrie
+        <> genExports mode subTrie
         <> List.foldl' (addSubTrie mode) "}" otherSubTries
 
 
 addSubTrie :: Mode.Mode -> B.Builder -> (S.String, Trie) -> B.Builder
 addSubTrie mode end (name, trie) =
-  ",'" <> S.toBuilder name <> "':" <> generateExports mode trie <> end
+  ",'" <> S.toBuilder name <> "':" <> genExports mode trie <> end
 
 
 
