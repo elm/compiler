@@ -1,5 +1,5 @@
 {-# LANGUAGE EmptyDataDecls #-}
-module AST.Utils.Shader
+module AST.Prim.Shader
   ( Source
   , Types(..)
   , Type(..)
