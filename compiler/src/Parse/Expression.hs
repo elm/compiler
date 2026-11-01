@@ -6,6 +6,7 @@ module Parse.Expression
   where
 
 
+import qualified Data.List.Utils as List
 import GHC.Base (UnliftedType)
 
 import qualified AST.Source as Src
@@ -201,21 +202,22 @@ record start =
     do  Space.chompAndCheckIndent E.RecordSpace E.RecordIndentOpen
         oneOf E.RecordOpen
           [ do  word1 0x7D#Word8 {-}-} E.RecordOpen
-                addEnd start (Src.Record [])
+                addEnd start Src.Empty
           , do  starter <- addLocation (Var.lower N.fromAddr E.RecordField)
                 Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
                 oneOf E.RecordEquals
                   [ do  word1 0x7C#Word8 {-|-} E.RecordEquals
                         Space.chompAndCheckIndent E.RecordSpace E.RecordIndentField
-                        firstField <- chompField
-                        fields <- chompFields [firstField]
-                        addEnd start (Src.Update starter fields)
+                        field  <- chompField
+                        fields <- chompFields []
+                        addEnd start (Src.Update starter field fields)
                   , do  word1 0x3D#Word8 {-=-} E.RecordEquals
                         Space.chompAndCheckIndent E.RecordSpace E.RecordIndentExpr
                         (value, end) <- specialize E.RecordExpr expression
                         Space.checkIndent end E.RecordIndentEnd
-                        fields <- chompFields [(starter, value)]
-                        addEnd start (Src.Record fields)
+                        let field = (starter, value)
+                        fields <- chompFields []
+                        addEnd start (Src.Record field fields)
                   ]
           ]
 
@@ -353,8 +355,11 @@ toCall func revArgs =
     [] ->
       func
 
-    lastArg : _ ->
-      A.merge func lastArg (Src.Call func (reverse revArgs))
+    lastArg : otherArgs ->
+      let
+        (x,xs) = List.reverse1 lastArg otherArgs
+      in
+      A.merge func lastArg (Src.Call func x xs)
 
 
 
@@ -400,10 +405,10 @@ function start =
     do  Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArg
         arg <- specialize E.FuncArg Pattern.term
         Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArrow
-        revArgs <- chompArgs [arg]
+        revArgs <- chompArgs []
         Space.chompAndCheckIndent E.FuncSpace E.FuncIndentBody
         (body, end) <- specialize E.FuncBody expression
-        let funcExpr = Src.Lambda (reverse revArgs) body
+        let funcExpr = Src.Lambda arg (reverse revArgs) body
         return (A.at start end funcExpr, end)
 
 
@@ -431,25 +436,25 @@ case_ start =
         Keyword.of_ E.CaseOf
         Space.chompAndCheckIndent E.CaseSpace E.CaseIndentPattern
         withIndent $
-          do  (firstBranch, firstEnd) <- chompBranch
-              (branches, end) <- chompCaseEnd [firstBranch] firstEnd
+          do  (branch, firstEnd) <- chompBranch
+              (branches, end) <- chompCaseEnd [] firstEnd
               return
-                ( A.at start end (Src.Case expr branches)
+                ( A.at start end (Src.Case expr branch branches)
                 , end
                 )
 
 
-chompBranch :: Space.Parser E.Case (Src.Pattern, Src.Expr)
+chompBranch :: Space.Parser E.Case Src.Branch
 chompBranch =
   do  (pattern, patternEnd) <- specialize E.CasePattern Pattern.expression
       Space.checkIndent patternEnd E.CaseIndentArrow
       word2 0x2D#Word8 0x3E#Word8 {-->-} E.CaseArrow
       Space.chompAndCheckIndent E.CaseSpace E.CaseIndentBranch
       (branchExpr, end) <- specialize E.CaseBranch expression
-      return ( (pattern, branchExpr), end )
+      return ( Src.Branch pattern branchExpr, end )
 
 
-chompCaseEnd :: [(Src.Pattern, Src.Expr)] -> A.Position -> Space.Parser E.Case [(Src.Pattern, Src.Expr)]
+chompCaseEnd :: [Src.Branch] -> A.Position -> Space.Parser E.Case [Src.Branch]
 chompCaseEnd branches end =
   oneOfWithFallback
     [ do  Space.checkAligned E.CasePatternAlignment

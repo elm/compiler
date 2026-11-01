@@ -24,7 +24,7 @@ import qualified String as S
 
 import qualified AST.Source as Src
 import qualified AST.Prim.Name as N
-import qualified AST.Utils.Shader as Shader
+import qualified AST.Prim.Shader as Shader
 import Parse.Primitives (Parser, Cursor)
 import qualified Parse.Primitives as P
 import qualified Reporting.Annotation as A

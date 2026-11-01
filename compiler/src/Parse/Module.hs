@@ -1,8 +1,6 @@
-{-# LANGUAGE ExtendedLiterals, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, ExtendedLiterals, MagicHash #-}
 module Parse.Module
   ( fromByteString
-  , ProjectType(..)
-  , isKernel
   , chompImports
   , chompImport
   )
@@ -10,13 +8,18 @@ module Parse.Module
 
 
 import qualified Data.ByteString as BS
+import qualified Data.List as List
+import GHC.Exts (isTrue#)
+import GHC.Prim
+import GHC.Word (Word8(..))
 
 import qualified AST.Source as Src
+import qualified AST.Prim.Mode as Mode
 import qualified AST.Prim.Module as Module
 import qualified AST.Prim.Name as N
+import qualified AST.Prim.Operator as Op
 import qualified AST.Prim.TypeName as T
 import qualified Elm.Compiler.Imports as Imports
-import qualified Elm.Package as Pkg
 import qualified Parse.Declaration as Decl
 import qualified Parse.Keyword as Keyword
 import qualified Parse.Space as Space
@@ -32,349 +35,320 @@ import qualified Reporting.Error.Syntax as E
 -- FROM BYTE STRING
 
 
-fromByteString :: ProjectType -> BS.ByteString -> IO (Either E.Error Src.Module)
-fromByteString projectType source =
-  do  result <- P.fromByteString (chompModule projectType) E.ModuleBadEnd source
-      case result of
-        Right modul -> return $ checkModule projectType modul
-        Left err    -> return $ Left $ E.ParseError err
-
-
-
--- PROJECT TYPE
-
-
-data ProjectType
-  = Package Pkg.Name
-  | Application
-
-
-isCore :: ProjectType -> Bool
-isCore projectType =
-  case projectType of
-    Package pkg -> pkg == Pkg.core
-    Application -> False
-
-
-isKernel :: ProjectType -> Bool
-isKernel projectType =
-  case projectType of
-    Package pkg -> Pkg.isKernel pkg
-    Application -> False
+fromByteString :: Mode.Mode -> BS.ByteString -> IO (Either E.Error Src.Module)
+fromByteString mode source =
+  P.fromByteString (chompModule mode) E.ModuleBadEnd source
 
 
 
 -- MODULE
 
 
-data Module =
-  Module
-    { _header :: Maybe Header
-    , _imports :: [Src.Import]
-    , _infixes :: [A.Located Src.Infix]
-    , _decls :: [Decl.Decl]
-    }
-
-
-chompModule :: ProjectType -> Parser E.Module Module
-chompModule projectType =
-  do  header <- chompHeader
-      imports <- chompImports (if isCore projectType then [] else Imports.defaults)
-      infixes <- if isKernel projectType then chompInfixes [] else return []
-      decls <- specialize E.Declarations $ chompDecls []
-      return (Module header imports infixes decls)
-
-
-
--- CHECK MODULE
-
-
-checkModule :: ProjectType -> Module -> Either E.Error Src.Module
-checkModule projectType (Module maybeHeader imports infixes decls) =
-  let
-    (values, unions, aliases, ports) = categorizeDecls [] [] [] [] decls
-  in
-  case maybeHeader of
-    Just (Header name effects exports docs) ->
-      Src.Module (Just name) exports (toDocs docs decls) imports values unions aliases infixes
-        <$> checkEffects projectType ports effects
-
-    Nothing ->
-      Right $
-        Src.Module Nothing (A.At A.zero Src.Open) (Src.NoDocs A.zero) imports values unions aliases infixes $
-          case ports of
-            [] -> Src.NoEffects
-            _:_ -> Src.Ports ports
-
-
-checkEffects :: ProjectType -> [Src.Port] -> Effects -> Either E.Error Src.Effects
-checkEffects projectType ports effects =
-  case effects of
-    NoEffects region ->
-      case ports of
-        [] ->
-          Right Src.NoEffects
-
-        Src.Port name _ : _ ->
-          case projectType of
-            Package _   -> Left (E.NoPortsInPackage name)
-            Application -> Left (E.UnexpectedPort region)
-
-    Ports region ->
-      case projectType of
-        Package _ ->
-          Left (E.NoPortModulesInPackage region)
-
-        Application ->
-          case ports of
-            []  -> Left (E.NoPorts region)
-            _:_ -> Right (Src.Ports ports)
-
-    Manager region manager ->
-      if isKernel projectType then
-        case ports of
-          []  -> Right (Src.Manager region manager)
-          _:_ -> Left (E.UnexpectedPort region)
-      else
-        Left (E.NoEffectsOutsideKernel region)
-
-
-
-categorizeDecls :: [A.Located Src.Value] -> [A.Located Src.Union] -> [A.Located Src.Alias] -> [Src.Port] -> [Decl.Decl] -> ( [A.Located Src.Value], [A.Located Src.Union], [A.Located Src.Alias], [Src.Port] )
-categorizeDecls values unions aliases ports decls =
-  case decls of
-    [] ->
-      (values, unions, aliases, ports)
-
-    decl:otherDecls ->
-      case decl of
-        Decl.Value _ value -> categorizeDecls (value:values) unions aliases ports otherDecls
-        Decl.Union _ union -> categorizeDecls values (union:unions) aliases ports otherDecls
-        Decl.Alias _ alias -> categorizeDecls values unions (alias:aliases) ports otherDecls
-        Decl.Port  _ port_ -> categorizeDecls values unions aliases (port_:ports) otherDecls
+chompModule :: Mode.Mode -> Parser E.Error Src.Module
+chompModule mode =
+  do  header  <- chompHeader
+      docs    <- chompDocs header
+      imports <- chompImports header (if Mode.isCore mode then [] else Imports.defaults)
+      infixes <- if Mode.isKernel mode then chompInfixes else return []
+      decls   <- specialize E.Declarations chompDecls
+      return $ Src.Module header (toDocs docs decls) imports decls infixes
 
 
 
 -- TO DOCS
 
 
-toDocs :: Either A.Region Src.Comment -> [Decl.Decl] -> Src.Docs
-toDocs comment decls0 =
+data Docs
+  = YesDocs A.Position Src.Comment A.Position
+  | NoDocs A.Region
+
+
+toDocs :: Docs -> Src.Decls -> Src.Docs
+toDocs comment decls =
   case comment of
-    Right overview -> go overview decls0 [] []
-    Left region    -> Src.NoDocs region
+    YesDocs _ c _ -> getComments decls (Src.YesDocs c)
+    NoDocs  r     -> Src.NoDocs r
+
+
+getComments :: Src.Decls -> ([(N.Name,Src.Comment)] -> [(T.Name,Src.Comment)] -> r) -> r
+getComments decls0 done =
+  case decls0 of
+    Src.NoDecls _     -> done [] []
+    Src.RevDecls d ds -> add d ds [] []
   where
-    go overview decls vs ts =
+    add decl decls vs ts =
+      case decl of
+        Src.Value_ c (A.At _ (Src.Value n _ _ _)) -> loop decls (addComment c n vs) ts
+        Src.Port_  c (A.At _ (Src.Port  n _    )) -> loop decls (addComment c n vs) ts
+        Src.Union_ c (A.At _ (Src.Union n _ _ _)) -> loop decls vs (addComment c n ts)
+        Src.Alias_ c (A.At _ (Src.Alias n _ _  )) -> loop decls vs (addComment c n ts)
+
+    loop decls vs ts =
       case decls of
-        [] -> Src.YesDocs overview vs ts
+        []   -> done vs ts
+        d:ds -> add d ds vs ts
 
-        d:ds ->
-          case d of
-            Decl.Port  c (       (Src.Port  n _    )) -> go overview ds (cons c n vs) ts
-            Decl.Value c (A.At _ (Src.Value n _ _ _)) -> go overview ds (cons c n vs) ts
-            Decl.Union c (A.At _ (Src.Union n _ _  )) -> go overview ds vs (cons c n ts)
-            Decl.Alias c (A.At _ (Src.Alias n _ _  )) -> go overview ds vs (cons c n ts)
 
-    cons maybeComment (A.At _ n) comments =
-      case maybeComment of
-        Just c  -> (n,c) : comments
-        Nothing -> comments
+addComment :: Maybe Src.Comment -> A.Located name -> [(name, Src.Comment)] -> [(name, Src.Comment)]
+addComment maybeComment (A.At _ name) comments =
+  case maybeComment of
+    Just comment -> (name, comment) : comments
+    Nothing      -> comments
 
 
 
--- FRESH LINES
-
-
-freshLine :: (Cursor -> E.Module) -> Parser E.Module ()
-freshLine toFreshLineError =
-  do  Space.chomp E.ModuleSpace
-      Space.checkFreshLine toFreshLineError
+--------------------------------------------------------------------------------
+-- CHOMPERS --------------------------------------------------------------------
+--------------------------------------------------------------------------------
 
 
 
 -- CHOMP DECLARATIONS
 
 
-chompDecls :: [Decl.Decl] -> Parser E.Decl [Decl.Decl]
-chompDecls decls =
-  do  (decl, _) <- Decl.declaration
-      oneOfWithFallback
-        [ do  Space.checkFreshLine E.DeclStart
-              chompDecls (decl:decls)
-        ]
-        (reverse (decl:decls))
+chompDecls :: Parser E.Decl Src.Decls
+chompDecls =
+  do  start <- getPosition
+      revs <- chompDeclsHelp []
+      case revs of
+        d:ds -> pure $ Src.RevDecls d ds
+        [] ->
+          do  end <- getPosition
+              pure $ Src.NoDecls $ A.region start end
 
 
-chompInfixes :: [A.Located Src.Infix] -> Parser E.Module [A.Located Src.Infix]
-chompInfixes infixes =
-  oneOfWithFallback
-    [ do  binop <- Decl.infix_
-          chompInfixes (binop:infixes)
+chompDeclsHelp :: [Src.Decl] -> Parser E.Decl [Src.Decl]
+chompDeclsHelp revs =
+  oneOf E.DeclStart
+    [ do  Space.checkFreshLine E.DeclStart
+          (decl, _) <- Decl.declaration
+          chompDeclsHelp (decl:revs)
+    , pure revs
     ]
-    infixes
 
 
 
--- MODULE DOC COMMENT
+-- CHOMP INFIXES
 
 
-chompModuleDocCommentSpace :: Parser E.Module (Either A.Region Src.Comment)
-chompModuleDocCommentSpace =
-  do  (A.At region ()) <- addLocation (freshLine E.FreshLine)
+chompInfixes :: Parser E.Error [A.Located Src.Infix]
+chompInfixes =
+    loop []
+  where
+    loop infixes =
       oneOfWithFallback
-        [
-          do  docComment <- Space.docComment E.ImportStart E.ModuleSpace
-              Space.chomp E.ModuleSpace
-              Space.checkFreshLine E.FreshLine
-              return (Right docComment)
+        [ do  Space.checkFreshLine (E.FreshLine E.AfterImport)
+              i <- chompInfix
+              loop (i:infixes)
         ]
-        (Left region)
+        infixes
+
+
+-- INVARIANT: always chomps to a freshline
+--
+chompInfix :: Parser E.Error (A.Located Src.Infix)
+chompInfix =
+  let
+    err = E.Infix
+    _err = \_ -> E.Infix
+  in
+  do  start <- getPosition
+      Keyword.infix_ err
+      Space.chompAndCheckIndent _err err
+      associativity <-
+        oneOf err
+          [ Keyword.left_  err >> return Op.Left
+          , Keyword.right_ err >> return Op.Right
+          , Keyword.non_   err >> return Op.Non
+          ]
+      Space.chompAndCheckIndent _err err
+      precedence <- chompPrecedence err
+      Space.chompAndCheckIndent _err err
+      word1 0x28#Word8 {-(-} err
+      op <- addLocation (Symbol.operator err _err)
+      word1 0x29#Word8 {-)-} err
+      Space.chompAndCheckIndent _err err
+      word1 0x3D#Word8 {-=-} err
+      Space.chompAndCheckIndent _err err
+      name <- Var.lower N.fromAddr err
+      end <- getPosition
+      Space.chomp _err
+      return (A.at start end (Src.Infix op associativity precedence name))
+
+
+chompPrecedence :: (Cursor -> x) -> Parser x Op.Precedence
+chompPrecedence toExpectation =
+  P.Parser $ \_ (P.State pos end indent cur) cok _ _ eerr ->
+    if notLtAddr pos end then
+      eerr cur toExpectation
+
+    else
+      let !word = indexWord8OffAddr# pos 0# in
+      if leWord8 0x30#Word8 word && leWord8 word 0x39#Word8
+      then
+        cok
+          (Op.Precedence (W8# (subWord8# word 0x30#Word8 {-0-})))
+          (P.State (plusAddr# pos 1#) end indent (slide cur 1#Word64))
+
+      else
+        eerr cur toExpectation
+
+
+{-# INLINE leWord8 #-}
+leWord8 :: Word8# -> Word8# -> Bool
+leWord8 x y =
+  isTrue# (leWord8# x y)
 
 
 
--- HEADER
+-- CHOMP DOC COMMENT
 
 
-data Header =
-  Header (A.Located Module.Name) Effects (A.Located Src.Exposing) (Either A.Region Src.Comment)
+chompDocs :: Src.Header -> Parser E.Error Docs
+chompDocs header =
+  case header of
+    Src.YesHeader _ _ (A.At (A.Region _ b0) _) ->
+      do  (A.Position bN) <- getPosition
+          chomp E.AfterHeader (A.Region b0 bN)
+
+    Src.NoHeader blank ->
+      chomp E.AfterStart blank
+  where
+    chomp after blank@(A.Region _ start) =
+      do  Space.checkFreshLine (E.FreshLine after)
+          oneOfWithFallback
+            [
+              do  comment <- Space.docComment E.ImportStart E.ModuleSpace
+                  end <- getPosition
+                  Space.chomp E.ModuleSpace
+                  return (YesDocs (A.Position start) comment end)
+            ]
+            (NoDocs blank)
 
 
-data Effects
-  = NoEffects A.Region
-  | Ports A.Region
-  | Manager A.Region Src.Manager
+
+-- CHOMP HEADER
 
 
-chompHeader :: Parser E.Module (Maybe Header)
+chompHeader :: Parser E.Error Src.Header
 chompHeader =
-  do  freshLine E.FreshLine
-      start <- getPosition
+  do  blank <- P.getRegion $ Space.chomp E.ModuleSpace
+      Space.checkFreshLine (E.FreshLine E.AfterStart)
       oneOfWithFallback
-        [
-          -- module MyThing exposing (..)
-          do  Keyword.module_ E.ModuleProblem
-              effectEnd <- getPosition
-              Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
-              name <- addLocation (Var.moduleName E.ModuleName)
-              Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
-              Keyword.exposing_ E.ModuleProblem
-              Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
-              exports <- addLocation (specialize E.ModuleExposing exposing)
-              comment <- chompModuleDocCommentSpace
-              return $ Just $
-                Header name (NoEffects (A.region start effectEnd)) exports comment
-        ,
-          -- port module MyThing exposing (..)
-          do  Keyword.port_ E.PortModuleProblem
-              Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem
-              Keyword.module_ E.PortModuleProblem
-              effectEnd <- getPosition
-              Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem
-              name <- addLocation (Var.moduleName E.PortModuleName)
-              Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem
-              Keyword.exposing_ E.PortModuleProblem
-              Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem
-              exports <- addLocation (specialize E.PortModuleExposing exposing)
-              comment <- chompModuleDocCommentSpace
-              return $ Just $
-                Header name (Ports (A.region start effectEnd)) exports comment
-        ,
-          -- effect module MyThing where { command = MyCmd } exposing (..)
-          do  Keyword.effect_ E.Effect
-              Space.chompAndCheckIndent E.ModuleSpace E.Effect
-              Keyword.module_ E.Effect
-              effectEnd <- getPosition
-              Space.chompAndCheckIndent E.ModuleSpace E.Effect
-              name <- addLocation (Var.moduleName E.ModuleName)
-              Space.chompAndCheckIndent E.ModuleSpace E.Effect
-              Keyword.where_ E.Effect
-              Space.chompAndCheckIndent E.ModuleSpace E.Effect
-              manager <- chompManager
-              Space.chompAndCheckIndent E.ModuleSpace E.Effect
-              Keyword.exposing_ E.Effect
-              Space.chompAndCheckIndent E.ModuleSpace E.Effect
-              exports <- addLocation (specialize (const E.Effect) exposing)
-              comment <- chompModuleDocCommentSpace
-              return $ Just $
-                Header name (Manager (A.region start effectEnd) manager) exports comment
+        [ specialize E.Module       $                                              header blank Src.Normal
+        , specialize E.PortModule   $ Keyword.port_   E.HeaderProblem >> spaces >> header blank Src.Ports
+        , specialize E.EffectModule $ Keyword.effect_ E.HeaderProblem >> spaces >> effect blank
         ]
-        -- default header
-        Nothing
+        (Src.NoHeader blank)
+  where
+    header (A.Region _ start) toStyle =
+      do  Keyword.module_ E.HeaderProblem
+          (A.Position end) <- getPosition
+          spaces
+          name <- addLocation (Var.moduleName E.HeaderName)
+          spaces
+          Keyword.exposing_ E.HeaderProblem
+          spaces
+          exports <- addLocation (specialize E.HeaderExposing exposing)
+          Space.chomp E.HeaderSpace
+          return $ Src.YesHeader (toStyle (A.Region start end)) name exports
+
+    spaces =
+      Space.chompAndCheckIndent E.HeaderSpace E.HeaderProblem
+
+    effect (A.Region _ start) =
+      do  Keyword.module_ E.HeaderProblem
+          (A.Position end) <- getPosition
+          spaces
+          name <- addLocation (Var.moduleName E.HeaderName)
+          spaces
+          Keyword.where_ E.HeaderProblem
+          spaces
+          manager <- chompManager
+          spaces
+          Keyword.exposing_ E.HeaderProblem
+          spaces
+          exports <- addLocation (specialize E.HeaderExposing exposing)
+          Space.chomp E.HeaderSpace
+          return $ Src.YesHeader (Src.Effect (A.Region start end) manager) name exports
 
 
-chompManager :: Parser E.Module Src.Manager
+chompManager :: Parser E.Header Src.Manager
 chompManager =
-  do  word1 0x7B#Word8 {- { -} E.Effect
-      spaces_em
-      oneOf E.Effect
+  do  sym 0x7B#Word8 {- { -}
+      spaces
+      oneOf E.HeaderProblem
         [ do  cmd <- chompCommand
-              spaces_em
-              oneOf E.Effect
-                [ do  word1 0x7D#Word8 {-}-} E.Effect
-                      spaces_em
+              spaces
+              oneOf E.HeaderProblem
+                [ do  sym 0x7D#Word8 {-}-}
+                      spaces
                       return (Src.Cmd cmd)
-                , do  word1 0x2C#Word8 {-,-} E.Effect
-                      spaces_em
+                , do  sym 0x2C#Word8 {-,-}
+                      spaces
                       sub <- chompSubscription
-                      spaces_em
-                      word1 0x7D#Word8 {-}-} E.Effect
-                      spaces_em
+                      spaces
+                      sym 0x7D#Word8 {-}-}
+                      spaces
                       return (Src.Fx cmd sub)
                 ]
         , do  sub <- chompSubscription
-              spaces_em
-              oneOf E.Effect
-                [ do  word1 0x7D#Word8 {-}-} E.Effect
-                      spaces_em
+              spaces
+              oneOf E.HeaderProblem
+                [ do  sym 0x7D#Word8 {-}-}
+                      spaces
                       return (Src.Sub sub)
-                , do  word1 0x2C#Word8 {-,-} E.Effect
-                      spaces_em
+                , do  sym 0x2C#Word8 {-,-}
+                      spaces
                       cmd <- chompCommand
-                      spaces_em
-                      word1 0x7D#Word8 {-}-} E.Effect
-                      spaces_em
+                      spaces
+                      sym 0x7D#Word8 {-}-}
+                      spaces
                       return (Src.Fx cmd sub)
                 ]
         ]
+  where
+    chompCommand =
+      do  Keyword.command_ E.HeaderProblem
+          spaces
+          sym 0x3D#Word8 {-=-}
+          spaces
+          addLocation (Var.upper T.nameFromAddr E.HeaderProblem)
 
+    chompSubscription =
+      do  Keyword.subscription_ E.HeaderProblem
+          spaces
+          sym 0x3D#Word8 {-=-}
+          spaces
+          addLocation (Var.upper T.nameFromAddr E.HeaderProblem)
 
-chompCommand :: Parser E.Module (A.Located T.Name)
-chompCommand =
-  do  Keyword.command_ E.Effect
-      spaces_em
-      word1 0x3D#Word8 {-=-} E.Effect
-      spaces_em
-      addLocation (Var.upper T.nameFromAddr E.Effect)
+    sym w =
+      word1 w E.HeaderProblem
 
-
-chompSubscription :: Parser E.Module (A.Located T.Name)
-chompSubscription =
-  do  Keyword.subscription_ E.Effect
-      spaces_em
-      word1 0x3D#Word8 {-=-} E.Effect
-      spaces_em
-      addLocation (Var.upper T.nameFromAddr E.Effect)
-
-
-spaces_em :: Parser E.Module ()
-spaces_em =
-  Space.chompAndCheckIndent E.ModuleSpace E.Effect
+    spaces =
+      Space.chompAndCheckIndent E.HeaderSpace E.HeaderProblem
 
 
 
--- IMPORTS
+-- CHOMP IMPORTS
 
 
-chompImports :: [Src.Import] -> Parser E.Module [Src.Import]
-chompImports is =
-  oneOfWithFallback
-    [ do  i <- chompImport
-          chompImports (i:is)
-    ]
-    (reverse is)
+chompImports :: Src.Header -> [Src.Import] -> Parser E.Error [Src.Import]
+chompImports header defaults =
+  case header of
+    Src.YesHeader _ _ _ -> loop E.AfterHeader defaults
+    Src.NoHeader  _     -> loop E.AfterStart  defaults
+  where
+    loop after revs =
+      oneOfWithFallback
+        [ do  Space.checkFreshLine (E.FreshLine after)
+              i <- chompImport
+              loop E.AfterImport (i:revs)
+        ]
+        (List.reverse revs)
 
 
-chompImport :: Parser E.Module Src.Import
+chompImport :: Parser E.Error Src.Import
 chompImport =
   do  Keyword.import_ E.ImportStart
       Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentName
@@ -391,7 +365,7 @@ chompImport =
         ]
 
 
-chompAs :: A.Located Module.Name -> Parser E.Module Src.Import
+chompAs :: A.Located Module.Name -> Parser E.Error Src.Import
 chompAs name =
   do  Keyword.as_ E.ImportAs
       Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentAlias
@@ -406,17 +380,17 @@ chompAs name =
         ]
 
 
-chompExposing :: A.Located Module.Name -> Maybe Module.Prefix -> Parser E.Module Src.Import
+chompExposing :: A.Located Module.Name -> Maybe Module.Prefix -> Parser E.Error Src.Import
 chompExposing name maybeAlias =
   do  Keyword.exposing_ E.ImportExposing
       Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentExposingList
       exposed <- specialize E.ImportExposingList exposing
-      freshLine E.ImportEnd
+      Space.chomp E.ModuleSpace
       return $ Src.Import name maybeAlias exposed
 
 
 
--- LISTING
+-- CHOMP EXPOSING
 
 
 exposing :: Parser E.Exposing Src.Exposing
@@ -443,7 +417,7 @@ exposingHelp revExposed =
           Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
           exposingHelp (exposed:revExposed)
     , do  word1 0x29#Word8 {-)-} E.ExposingEnd
-          return (Src.Explicit (reverse revExposed))
+          return (Src.Explicit (List.reverse revExposed))
     ]
 
 
@@ -451,15 +425,18 @@ chompExposed :: Parser E.Exposing Src.Exposed
 chompExposed =
   do  start <- getPosition
       oneOf E.ExposingValue
-        [ do  name <- Var.lower N.fromAddr E.ExposingValue
+        [
+          do  name <- Var.lower N.fromAddr E.ExposingValue
               end <- getPosition
-              return $ Src.Lower $ A.at start end name
-        , do  word1 0x28#Word8 {-(-} E.ExposingValue
+              return $ Src.Lower (A.at start end name)
+        ,
+          do  word1 0x28#Word8 {-(-} E.ExposingValue
               op <- Symbol.operator E.ExposingOperator E.ExposingOperatorReserved
               word1 0x29#Word8 {-)-} E.ExposingOperatorRightParen
               end <- getPosition
               return $ Src.Operator (A.region start end) op
-        , do  name <- Var.upper T.nameFromAddr E.ExposingValue
+        ,
+          do  name <- Var.upper T.nameFromAddr E.ExposingValue
               end <- getPosition
               Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
               Src.Upper (A.at start end name) <$> privacy

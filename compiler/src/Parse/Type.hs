@@ -61,21 +61,22 @@ term =
             do  Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentOpen
                 oneOf E.TRecordOpen
                   [ do  word1 0x7D#Word8 {-}-} E.TRecordEnd
-                        addEnd start $ Src.TRecord [] Nothing
+                        addEnd start Src.TEmpty
                   , do  str <- addLocation (Var.lower S.fromAddr E.TRecordField)
                         Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentColon
                         oneOf E.TRecordColon
                           [ do  word1 0x7C#Word8 {-|-} E.TRecordColon
                                 Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentField
                                 field <- chompField
-                                fields <- chompRecordEnd [field]
-                                addEnd start (Src.TRecord fields (Just (fmap T.varFromString str)))
+                                fields <- chompRecordEnd []
+                                addEnd start $ Src.TExtRec field fields (fmap T.varFromString str)
                           , do  word1 0x3A#Word8 {-:-} E.TRecordColon
                                 Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentType
                                 (tipe, end) <- specialize E.TRecordType expression
                                 Space.checkIndent end E.TRecordIndentEnd
-                                fields <- chompRecordEnd [(fmap N.fromString str, tipe)]
-                                addEnd start (Src.TRecord fields Nothing)
+                                let field = (fmap N.fromString str, tipe)
+                                fields <- chompRecordEnd []
+                                addEnd start $ Src.TRecord field fields
                           ]
                   ]
         ]
@@ -101,10 +102,17 @@ expression =
               word2 0x2D#Word8 0x3E#Word8 {-->-} E.TStart -- could just be another type instead
               Space.chompAndCheckIndent E.TSpace E.TIndentStart
               (tipe2, end2) <- expression
-              let tipe = A.at start end2 (Src.TLambda tipe1 tipe2)
+              let tipe = A.at start end2 (flattenLambda tipe1 tipe2)
               return ( tipe, end2 )
         ]
         term1
+
+
+flattenLambda :: Src.Type -> Src.Type -> Src.Type_
+flattenLambda arg tipe =
+  case tipe of
+    A.At _ (Src.TLambda x y ys) -> Src.TLambda arg x (y:ys)
+    result                      -> Src.TLambda arg result []
 
 
 
@@ -198,9 +206,9 @@ chompField =
 -- VARIANT
 
 
-variant :: Space.Parser E.CustomType (A.Located N.Name, [Src.Type])
+variant :: Space.Parser E.CustomType Src.Variant
 variant =
   do  name@(A.At (A.Region _ nameEnd) _) <- addLocation (Var.upper N.fromAddr E.CT_Variant)
       Space.chomp E.CT_Space
       (args, end) <- specialize E.CT_VariantArg (chompArgs [] (A.Position nameEnd))
-      return ( (name, args), end )
+      return ( Src.Variant name args, end )
