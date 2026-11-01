@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns, ExtendedLiterals, MagicHash, MultiWayIf,
-OverloadedStrings, TemplateHaskell, UnboxedTuples
+OverloadedStrings, Rank2Types, TemplateHaskell, UnboxedTuples
 #-}
 module Elm.Docs
   ( Documentation
@@ -29,19 +29,24 @@ import qualified Data.Utf8 as Utf8
 import GHC.Exts (isTrue#)
 import GHC.Prim
 
+import qualified Array as A
 import qualified Crash
+import qualified Graph
 import qualified String as S
 
-import qualified AST.Canonical as Can
 import qualified AST.Source as Src
+import qualified AST.Canonical as Can
+import qualified AST.Typed as Tpd
 import qualified AST.Prim.Module as Module
 import qualified AST.Prim.Name as N
 import qualified AST.Prim.Operator as Op
+import qualified AST.Prim.Tag as Tag
 import qualified AST.Prim.TypeName as T
 import qualified AST.Prim.TypeVar as T
 import qualified AST.Prim.Variable as Var
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Compiler.Type.Extract as Extract
+import qualified Elm.Interface as I
 import qualified Elm.ModuleName as ModuleName
 import qualified Json.Decode as D
 import qualified Json.Encode as E
@@ -54,7 +59,6 @@ import qualified Parse.Symbol as Symbol
 import qualified Parse.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Docs as E
-import qualified Reporting.Result as Result
 
 
 
@@ -87,13 +91,13 @@ data Binop = Binop Comment Type.Type Op.Associativity Op.Precedence
 -- FROM MODULE
 
 
-fromModule :: Can.Module -> IO (Either E.Error Module)
-fromModule modul@(Can.Module _ exports docs _ _ _ _ _) =
+fromModule :: Tpd.Module -> IO (Either E.Error Module)
+fromModule modul@(Tpd.Module _ exports docs _ _ _ _) =
   case exports of
-    Can.ExportEverything region ->
+    Tpd.ExportEverything region ->
       return $ Left $ E.ImplicitExposing region
 
-    Can.Export ts vs bs ->
+    Tpd.Export ts vs bs ->
       case docs of
         Src.NoDocs region ->
           return $ Left $ E.NoDocs region
@@ -463,9 +467,9 @@ getCharWidth word
 -- CHECK NAMES
 
 
-checkNames :: Map.Map T.Name (A.Region, Can.ExportType) -> Map.Map N.Name A.Region -> Map.Map Op.Name A.Region -> [DocName] -> Either E.Error ()
+checkNames :: Map.Map T.Name (A.Region, Src.Privacy) -> Map.Map N.Name A.Region -> Map.Map Op.Name A.Region -> [DocName] -> Either E.Error ()
 checkNames types values binops docNames0 =
-  case snd $ Result.run $ loop docNames0 Map.empty Map.empty Map.empty of
+  case run $ loop docNames0 Map.empty Map.empty Map.empty of
     Right a -> Right a
     Left xs -> Left $ E.NameProblems $ OOM.destruct NE.List xs
   where
@@ -488,42 +492,42 @@ checkNames types values binops docNames0 =
 
     merge errDup errDoc errExport toRegion exports docs =
       Map.mergeA
-        (Map.traverseMissing      (\n e     -> Result.throw $ errExport n (toRegion e)))
+        (Map.traverseMissing      (\n e     -> throw $ errExport n (toRegion e)))
         (Map.traverseMissing      (\n   oom -> onlyInDocs errDup errDoc n oom))
         (Map.zipWithMaybeAMatched (\n _ oom -> isUnique errDup n oom $> Nothing))
         exports
         docs
 
 
-isUnique :: (k -> A.Region -> A.Region -> x) -> k -> OOM.OneOrMore A.Region -> Result.Result i w x A.Region
+isUnique :: (k -> A.Region -> A.Region -> x) -> k -> OOM.OneOrMore A.Region -> Result x A.Region
 isUnique errDup name regions =
   case regions of
     OOM.One r ->
-      Result.ok r
+      pure r
 
     OOM.More left right ->
       let (r1, r2) = OOM.getFirstTwo left right in
-      Result.throw (errDup name r1 r2)
+      throw (errDup name r1 r2)
 
 
-onlyInDocs :: (k -> A.Region -> A.Region -> x) -> (k -> A.Region -> x) -> k -> OOM.OneOrMore A.Region -> Result.Result i w x a
+onlyInDocs :: (k -> A.Region -> A.Region -> x) -> (k -> A.Region -> x) -> k -> OOM.OneOrMore A.Region -> Result x a
 onlyInDocs errDup errDoc name regions =
   do  region <- isUnique errDup name regions
-      Result.throw $ errDoc name region
+      throw $ errDoc name region
 
 
 
 -- CHECK DEFS
 
 
-checkDefs :: Map.Map T.Name (A.Region, Can.ExportType) -> Map.Map N.Name A.Region -> Map.Map Op.Name A.Region -> Src.Comment -> Map.Map N.Name Src.Comment -> Map.Map T.Name Src.Comment -> Can.Module -> Either E.Error Module
-checkDefs exportTypes exportValues exportBinops (Src.Comment overview) vComments tComments (Can.Module (ModuleName.Canonical _ name) _ _ decls unions aliases binops _) =
-  case snd $ Result.run checker of
+checkDefs :: Map.Map T.Name (A.Region, Src.Privacy) -> Map.Map N.Name A.Region -> Map.Map Op.Name A.Region -> Src.Comment -> Map.Map N.Name Src.Comment -> Map.Map T.Name Src.Comment -> Tpd.Module -> Either E.Error Module
+checkDefs exportTypes exportValues exportBinops (Src.Comment overview) vComments tComments (Tpd.Module (ModuleName.Canonical _ name) _ _ decls types binops _) =
+  case run checker of
     Right a -> Right a
     Left xs -> Left $ E.DefProblems (OOM.destruct NE.List xs)
   where
     env =
-      Env tComments unions aliases vComments (gatherTypes decls Map.empty)
+      Env tComments types vComments (gatherTypes decls)
 
     checker =
       (\ts vs bs ->
@@ -538,63 +542,64 @@ checkDefs exportTypes exportValues exportBinops (Src.Comment overview) vComments
 data Env =
   Env
     { _t_comments :: Map.Map T.Name Src.Comment
-    , _t_unions   :: Map.Map T.Name Can.Union
-    , _t_aliases  :: Map.Map T.Name Can.Alias
+    , _t_types    :: Map.Map T.Name Can.TypeDecl
     , _v_comments :: Map.Map N.Name Src.Comment
-    , _v_types    :: Map.Map N.Name (Either A.Region Can.Type)
+    , _v_values   :: Map.Map N.Name (Either A.Region I.Annotation)
     }
 
 
-checkValue :: Env -> N.Name -> A.Region -> Result.Result x w E.DefProblem Value
-checkValue (Env _ _ _ comments types) name region =
-  do  tipe    <- getType name types (E.NoAnnotation_Var name)
+checkValue :: Env -> N.Name -> A.Region -> Result E.DefProblem Value
+checkValue (Env _ _ comments values) name region =
+  do  tipe    <- getType name values (E.NoAnnotation_Var name)
       comment <- getComment region name comments E.NoComment_Var
-      Result.ok $ Value comment tipe
+      pure $ Value comment tipe
 
 
-checkType :: Env -> T.Name -> (A.Region, Can.ExportType) -> Result.Result i w E.DefProblem (Either Union Alias)
-checkType (Env comments unions aliases _ _) name (region, export) =
+checkType :: Env -> T.Name -> (A.Region, Src.Privacy) -> Result E.DefProblem (Either Union Alias)
+checkType (Env comments types _ _) name (region, privacy) =
   do  comment <- getComment region name comments E.NoComment_Type
-      Result.ok $
-        case export of
-          Can.ExportAlias ->
-            let (Can.Alias tvars tipe) = $(Map.require 'checkType) name aliases T.nameToChars in
-            Right $ Alias comment tvars (Extract.fromType tipe)
+      pure $
+        case $(Map.require 'checkType) name types T.nameToChars of
+          Can.Alias (I.Alias _ xs (I.Aliased tipe)) ->
+            Right $ Alias comment (A.toList xs) (Extract.fromType xs tipe)
 
-          Can.ExportUnionOpen ->
-            let (Can.Union tvars ctors _ _) = $(Map.require 'checkType) name unions T.nameToChars in
-            Left $ Union comment tvars (map dector ctors)
-
-          Can.ExportUnionClosed ->
-            let (Can.Union tvars _ _ _) = $(Map.require 'checkType) name unions T.nameToChars in
-            Left $ Union comment tvars []
+          Can.Union (I.Union _ xs variants) ->
+            Left $ Union comment (A.toList xs) $
+              case privacy of
+                Src.Public _ -> variantsToList xs variants
+                Src.Private  -> []
 
 
-checkBinop :: Env -> Map.Map Op.Name Can.Binop -> Op.Name -> A.Region -> Result.Result x w E.DefProblem Binop
-checkBinop (Env _ _ _ comments types) binops op region =
-  do  let (Can.Binop_ assoc prec name) = $(Map.require 'checkBinop) op binops Op.toChars
-      tipe    <- getType name types (E.NoAnnotation_Op op)
+checkBinop :: Env -> Map.Map Op.Name Can.Binop -> Op.Name -> A.Region -> Result E.DefProblem Binop
+checkBinop (Env _ _ comments values) binops op region =
+  do  let (Can.Binop_ name assoc prec) = $(Map.require 'checkBinop) op binops Op.toChars
+      tipe    <- getType name values (E.NoAnnotation_Op op)
       comment <- getComment region name comments E.NoComment_Var
-      Result.ok $ Binop comment tipe assoc prec
+      pure $ Binop comment tipe assoc prec
 
 
-getComment :: (Ord k) => A.Region -> k -> Map.Map k Src.Comment -> (k -> A.Region -> x) -> Result.Result i w x Comment
+getComment :: (Ord k) => A.Region -> k -> Map.Map k Src.Comment -> (k -> A.Region -> x) -> Result x Comment
 getComment r n comments toErr =
   case Map.lookup n comments of
-    Just (Src.Comment s) -> Result.ok (Json.fromComment s)
-    Nothing              -> Result.throw (toErr n r)
+    Just (Src.Comment s) -> pure (Json.fromComment s)
+    Nothing              -> throw (toErr n r)
 
 
-getType :: N.Name -> Map.Map N.Name (Either A.Region Can.Type) -> (A.Region -> x) -> Result.Result i w x Type.Type
-getType name types toErr =
-  case $(Map.require 'getType) name types N.toChars of
-    Right t -> Result.ok (Extract.fromType t)
-    Left  r -> Result.throw (toErr r)
+getType :: N.Name -> Map.Map N.Name (Either A.Region I.Annotation) -> (A.Region -> x) -> Result x Type.Type
+getType name values toErr =
+  case $(Map.require 'getType) name values N.toChars of
+    Right t -> pure (Extract.fromAnnotation t)
+    Left  r -> throw (toErr r)
 
 
-dector :: Can.Ctor -> (N.Name, [Type.Type])
-dector (Can.Ctor name _ _ args) =
-  ( name, map Extract.fromType args )
+variantsToList :: A.Array T.Var -> I.Variants -> [(N.Name, [Type.Type])]
+variantsToList xs variants =
+  case variants of
+    I.Variants     vs -> Tag.unpack vs (\_ ts -> ts) (\_ (I.Variant n ts) -> (n,map (Extract.fromType xs) ts))
+    I.Enum         es -> Tag.unpack es (\_ ts -> ts) (\_            n     -> (n,[]))
+    I.Vector n a b cs -> [( n, map (Extract.fromType xs) (a:b:cs) )]
+    I.Box    n t      -> [( n, [Extract.fromType xs t] )]
+    I.Void   n        -> [( n, [] )]
 
 
 
@@ -602,30 +607,78 @@ dector (Can.Ctor name _ _ args) =
 
 
 type Types =
-  Map.Map N.Name (Either A.Region Can.Type)
+  Map.Map N.Name (Either A.Region I.Annotation)
 
 
-gatherTypes :: Can.Decls -> Types -> Types
-gatherTypes decls types =
-  case decls of
-    Can.Declare def subDecls ->
-      gatherTypes subDecls (addDef types def)
+gatherTypes :: Can.Decls -> Types
+gatherTypes (Can.Decls (Graph.Sorted decls0)) =
+    List.foldr addDecl Map.empty decls0
+  where
+    addDecl decl types =
+      case decl of
+        Can.Decl    d    -> addDef d types
+        Can.DeclRec d ds -> List.foldr addDef (addDef d types) ds
 
-    Can.DeclareRec def defs subDecls ->
-      gatherTypes subDecls (List.foldl' addDef (addDef types def) defs)
+    addDef def types =
+      case def of
+        Can.DValue_ (A.At r n)     _     -> Map.insert n (Left  r) types
+        Can.DValue  (A.At _ n)     _ _ a -> Map.insert n (Right a) types
+        Can.DFunc_  (A.At r n) _ _ _     -> Map.insert n (Left  r) types
+        Can.DFunc   (A.At _ n) _ _ _ _ a -> Map.insert n (Right a) types
 
-    Can.SaveTheEnvironment ->
-      types
 
 
-addDef :: Types -> Can.Def -> Types
-addDef types def =
-  case def of
-    Can.Def (A.At region name) _ _ ->
-      Map.insert name (Left region) types
+--------------------------------------------------------------------------------
+-- RESULT ----------------------------------------------------------------------
+--------------------------------------------------------------------------------
 
-    Can.TypedDef (A.At _ name) _ typedArgs _ resultType ->
+
+
+-- RESULT
+
+
+newtype Result x a =
+  Result (forall r. (a -> r) -> (OOM.OneOrMore x -> r) -> r)
+
+
+run :: Result x a -> Either (OOM.OneOrMore x) a
+run (Result k) =
+  k Right Left
+
+
+throw :: x -> Result x a
+throw x =
+  Result $ \_ err -> err (OOM.one x)
+
+
+instance Functor (Result x) where
+  {-# INLINE fmap #-}
+  fmap func (Result k) =
+    Result $ \ok err -> k (ok . func) err
+
+
+instance Applicative (Result x) where
+  {-# INLINE pure #-}
+  pure a =
+    Result $ \ok _ -> ok a
+
+  {-# INLINE (<*>) #-}
+  (<*>) (Result kF) (Result kV) =
+    Result $ \ok err ->
       let
-        tipe = foldr Can.TLambda resultType (map snd typedArgs)
+        err1 x1  = kV (\_ -> err x1) (\x2 -> err (OOM.more x1 x2))
+        ok1 func = kV (ok . func) err
       in
-      Map.insert name (Right tipe) types
+      kF ok1 err1
+
+  {-# INLINE (*>) #-}
+  (*>) (Result kA) (Result kB) =
+    Result $ \ok err ->
+      kA (\_ -> kB ok err) err
+
+
+instance Monad (Result x) where
+  {-# INLINE (>>=) #-}
+  (>>=) (Result kA) callback =
+    Result $ \ok err ->
+      kA (\a -> case callback a of { Result kB -> kB ok err }) err
