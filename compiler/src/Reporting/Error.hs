@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Reporting.Error
   ( Module(..)
-  , Error(..)
+  , Errors(..)
   , toDoc
   , toJson
   )
@@ -22,11 +22,12 @@ import qualified Reporting.Error.Canonicalize as Canonicalize
 import qualified Reporting.Error.Docs as Docs
 import qualified Reporting.Error.Import as Import
 import qualified Reporting.Error.Main as Main
+import qualified Reporting.Error.Nitpick as Nitpick
 import qualified Reporting.Error.Pattern as Pattern
 import qualified Reporting.Error.Syntax as Syntax
 import qualified Reporting.Error.Type as Type
 import qualified Reporting.Render.Code as Code
-import qualified Reporting.Render.Type.Localizer as L
+import qualified Reporting.Render.Type as RT
 import qualified Reporting.Report as Report
 import qualified Root as R
 
@@ -41,7 +42,7 @@ data Module =
     , _absolutePath :: FilePath
     , _modificationTime :: File.Time
     , _source :: B.ByteString
-    , _error :: Error
+    , _error :: Errors
     }
 
 
@@ -49,12 +50,13 @@ data Module =
 -- ERRORS
 
 
-data Error
+data Errors
   = BadSyntax Syntax.Error
   | BadImports (NE.List Import.Error)
   | BadNames (OneOrMore.OneOrMore Canonicalize.Error)
-  | BadTypes L.Localizer (NE.List Type.Error)
-  | BadMains L.Localizer (OneOrMore.OneOrMore Main.Error)
+  | BadTypes RT.Localizer (NE.List Type.Error)
+  | BadMains RT.Localizer (OneOrMore.OneOrMore Main.Error)
+  | BadNitpick (NE.List Nitpick.Error)
   | BadPatterns (NE.List Pattern.Error)
   | BadDocs Docs.Error
 
@@ -63,30 +65,17 @@ data Error
 -- TO REPORT
 
 
-toReports :: Code.Source -> Error -> NE.List Report.Report
-toReports source err =
-  case err of
-    BadSyntax syntaxError ->
-      NE.List (Syntax.toReport source syntaxError) []
-
-    BadImports errs ->
-      fmap (Import.toReport source) errs
-
-    BadNames errs ->
-      fmap (Canonicalize.toReport source) (OneOrMore.destruct NE.List errs)
-
-    BadTypes localizer errs ->
-      fmap (Type.toReport source localizer) errs
-
-    BadMains localizer errs ->
-      fmap (Main.toReport localizer source) (OneOrMore.destruct NE.List errs)
-
-    BadPatterns errs ->
-      fmap (Pattern.toReport source) errs
-
-    BadDocs docsErr ->
-      Docs.toReports source docsErr
-
+toReports :: Code.Source -> Errors -> NE.List Report.Report
+toReports source errors =
+  case errors of
+    BadSyntax          err  -> NE.List (Syntax.toReport source err) []
+    BadImports         errs -> fmap (Import.toReport source) errs
+    BadNames           errs -> fmap (Canonicalize.toReport source) (OneOrMore.destruct NE.List errs)
+    BadTypes localizer errs -> fmap (Type.toReport source localizer) errs
+    BadMains localizer errs -> fmap (Main.toReport localizer source) (OneOrMore.destruct NE.List errs)
+    BadNitpick         errs -> fmap (Nitpick.toReport source) errs
+    BadPatterns        errs -> fmap (Pattern.toReport source) errs
+    BadDocs            err  -> Docs.toReports source err
 
 
 -- TO DOC
