@@ -1,47 +1,44 @@
-{-# LANGUAGE OverloadedStrings #-}
 module Canonicalize.Environment
   ( Env(..)
-  , Exposed
-  , Qualified
-  , Info(..)
-  , mergeInfo
-  , Var(..)
+  --
+  , Value(..)
+  , ForeignValue(..)
+  --
   , Type(..)
-  , Ctor(..)
-  , addLocals
-  , findType
-  , findTypeQual
-  , findCtor
-  , findCtorQual
-  , findBinop
+  , UnionInfo(..)
+  , AliasInfo(..)
+  , Arity(..)
+  , UnionCtor(..)
+  , AliasCtor(..)
   , Binop(..)
+  --
+  , mergeValues
+  , mergeTypes
+  --
+  , withType
+  , withTypeQual
+  , withCtor
+  , withCtorQual
+  --
+  , toPossibleNames
   )
   where
 
 
-import qualified Data.Map.Merge.Strict as Map
 import qualified Data.Map.Strict as Map
-import qualified Data.OneOrMore as OneOrMore
 
 import qualified AST.Canonical as Can
 import qualified AST.Prim.Module as Module
 import qualified AST.Prim.Name as N
 import qualified AST.Prim.Operator as Op
+import qualified AST.Prim.Tag as Tag
+import qualified AST.Prim.TypeMask as M
 import qualified AST.Prim.TypeName as T
-import qualified AST.Prim.TypeVar as T
-import qualified Data.Index as Index
+import qualified Elm.Interface as I
 import qualified Elm.ModuleName as ModuleName
+import qualified Reporting.Ambiguous as Amb
 import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Result as Result
-
-
-
--- RESULT
-
-
-type Result i w a =
-  Result.Result i w Error.Error a
+import qualified Reporting.Error.Canonicalize as E
 
 
 
@@ -50,81 +47,63 @@ type Result i w a =
 
 data Env =
   Env
-    { _home :: ModuleName.Canonical
-    , _vars :: Map.Map N.Name Var
-    , _types :: Exposed T.Name Type
-    , _ctors :: Exposed N.Name Ctor
-    , _binops :: Exposed Op.Name Binop
-    , _q_vars :: Qualified N.Name Can.Annotation
-    , _q_types :: Qualified T.Name Type
-    , _q_ctors :: Qualified N.Name Ctor
+    { _home    :: ModuleName.Canonical
+    , _vars    :: Map.Map N.Name Value
+    , _types   :: Map.Map T.Name (Type UnionInfo AliasInfo)
+    , _ctors   :: Map.Map N.Name (Type UnionCtor AliasCtor)
+    , _binops  :: Map.Map Op.Name Binop
+    , _q_vars  :: Map.Map Module.Prefix (Map.Map N.Name ForeignValue)
+    , _q_types :: Map.Map Module.Prefix (Map.Map T.Name (Type UnionInfo AliasInfo))
+    , _q_ctors :: Map.Map Module.Prefix (Map.Map N.Name (Type UnionCtor AliasCtor))
     }
 
 
-type Exposed k a =
-  Map.Map k (Info a)
+
+-- VALUES
 
 
-type Qualified k a =
-  Map.Map Module.Prefix (Map.Map k (Info a))
-
-
-
--- INFO
-
-
-data Info a
-  = Specific ModuleName.Canonical a
-  | Ambiguous ModuleName.Canonical (OneOrMore.OneOrMore ModuleName.Canonical)
-
-
-mergeInfo :: Info a -> Info a -> Info a
-mergeInfo info1 info2 =
-  case info1 of
-    Specific h1 _ ->
-      case info2 of
-        Specific h2 _    -> if h1 == h2 then info1 else Ambiguous h1 (OneOrMore.one h2)
-        Ambiguous h2 hs2 -> Ambiguous h1 (OneOrMore.more (OneOrMore.one h2) hs2)
-
-    Ambiguous h1 hs1 ->
-      case info2 of
-        Specific h2 _    -> Ambiguous h1 (OneOrMore.more hs1 (OneOrMore.one h2))
-        Ambiguous h2 hs2 -> Ambiguous h1 (OneOrMore.more hs1 (OneOrMore.more (OneOrMore.one h2) hs2))
-
-
-
--- VARIABLES
-
-
-data Var
+data Value
   = Local A.Region
   | TopLevel A.Region
-  | Foreign ModuleName.Canonical Can.Annotation
-  | Foreigns ModuleName.Canonical (OneOrMore.OneOrMore ModuleName.Canonical)
+  | Foreign ModuleName.Canonical I.Annotation
+  | Foreigns (Amb.Ambiguous Module.Name)
+
+
+data ForeignValue
+  = ForeignValue ModuleName.Canonical I.Annotation
+  | ForeignValues (Amb.Ambiguous Module.Name)
 
 
 
 -- TYPES
 
 
-data Type
-  = Alias Int ModuleName.Canonical [T.Var] Can.Type
-  | Union Int ModuleName.Canonical
+data Type u a
+  = Union ModuleName.Canonical u
+  | Alias ModuleName.Canonical a
+  | Types (Amb.Ambiguous Module.Name)
+
+
+data UnionInfo = UnionInfo M.Mask Arity
+data AliasInfo = AliasInfo M.Mask Arity I.Aliased
+
+newtype Arity = Arity Int
 
 
 
 -- CTORS
 
 
-data Ctor
-  = RecordCtor ModuleName.Canonical [T.Var] Can.Type
-  | Ctor
-      { _c_home :: ModuleName.Canonical
-      , _c_type :: T.Name
-      , _c_union :: Can.Union
-      , _c_index :: Index.ZeroBased
-      , _c_args :: [Can.Type]
-      }
+data UnionCtor
+  = Variant I.Annotation Can.PType Tag.Tag Int [I.Type]
+  | Enum    I.Annotation Can.PType Tag.Tag
+  | Vector  I.Annotation Can.PType Int I.Type I.Type [I.Type]
+  | Box     I.Annotation Can.PType I.Type
+  | Void    I.Annotation Can.PType
+
+
+data AliasCtor =
+  Record I.Annotation N.Name [N.Name]
 
 
 
@@ -133,137 +112,131 @@ data Ctor
 
 data Binop =
   Binop
-    { _op :: Op.Name
-    , _op_home :: ModuleName.Canonical
-    , _op_name :: N.Name
-    , _op_annotation :: Can.Annotation
-    , _op_associativity :: Op.Associativity
-    , _op_precedence :: Op.Precedence
+    { _op_home  :: ModuleName.Canonical
+    , _op_name  :: N.Name
+    , _op_type  :: I.Annotation
+    , _op_assoc :: Op.Associativity
+    , _op_prec  :: Op.Precedence
     }
 
 
 
--- VARIABLE -- ADD LOCALS
+-- MERGE
 
 
-addLocals :: Map.Map N.Name A.Region -> Env -> Result i w Env
-addLocals names (Env home vars ts cs bs qvs qts qcs) =
-  do  newVars <-
-        Map.mergeA
-          (Map.mapMissing addLocalLeft)
-          (Map.mapMissing (\_ homes -> homes))
-          (Map.zipWithAMatched addLocalBoth)
-          names
-          vars
+mergeValues :: ForeignValue -> ForeignValue -> ForeignValue
+mergeValues value1 value2 =
+  case value1 of
+    ForeignValue h1 _ ->
+      case value2 of
+        ForeignValue h2 _  -> if h1 == h2 then value1 else ForeignValues $ Amb.init (go h1) (go h2)
+        ForeignValues amb2 -> ForeignValues $ Amb.add (go h1) amb2
 
-      Result.ok (Env home newVars ts cs bs qvs qts qcs)
-
-
-addLocalLeft :: N.Name -> A.Region -> Var
-addLocalLeft _ region =
-  Local region
+    ForeignValues amb1 ->
+      case value2 of
+        ForeignValue h2 _  -> ForeignValues $ Amb.add (go h2) amb1
+        ForeignValues amb2 -> ForeignValues $ Amb.merge amb1 amb2
+  where
+    go (ModuleName.Canonical _ h) = h
 
 
-addLocalBoth :: N.Name -> A.Region -> Var -> Result i w Var
-addLocalBoth name region var =
-  case var of
-    Foreign  _ _ -> Result.ok (Local region)
-    Foreigns _ _ -> Result.ok (Local region)
-    Local    r   -> Result.throw (Error.Shadowing name r region)
-    TopLevel r   -> Result.throw (Error.Shadowing name r region)
+mergeTypes :: Type u a -> Type u a -> Type u a
+mergeTypes tipe1 tipe2 =
+  case tipe1 of
+    Union h1 _ ->
+      case tipe2 of
+        Union h2 _ -> if h1 == h2 then tipe1 else Types $ Amb.init (go h1) (go h2)
+        Alias h2 _ -> Types $ Amb.init (go h1) (go h2)
+        Types amb2 -> Types $ Amb.add  (go h1) amb2
+
+    Alias h1 _ ->
+      case tipe2 of
+        Alias h2 _ -> if h1 == h2 then tipe1 else Types $ Amb.init (go h1) (go h2)
+        Union h2 _ -> Types $ Amb.init (go h1) (go h2)
+        Types amb2 -> Types $ Amb.add  (go h1) amb2
+
+    Types amb1 ->
+      case tipe2 of
+        Union h2 _ -> Types $ Amb.add (go h2) amb1
+        Alias h2 _ -> Types $ Amb.add (go h2) amb1
+        Types amb2 -> Types $ Amb.merge amb1 amb2
+  where
+    go (ModuleName.Canonical _ h) = h
 
 
 
--- FIND TYPE
+-- WITH TYPE
 
 
-findType :: A.Region -> Env -> T.Name -> Result i w Type
-findType region (Env _ _ ts _ _ _ qts _) name =
+type OkUI r = ModuleName.Canonical -> UnionInfo -> r
+type OkAI r = ModuleName.Canonical -> AliasInfo -> r
+
+
+withType :: Env -> A.Region -> T.Name -> OkUI r -> OkAI r -> (E.Problem -> r) -> r
+withType (Env _ _ ts _ _ _ qts _) region name okU okA err =
   case Map.lookup name ts of
-    Just (Specific _ tipe) ->
-      Result.ok tipe
-
-    Just (Ambiguous h hs) ->
-      Result.throw (Error.AmbiguousType region Nothing name h hs)
-
-    Nothing ->
-      Result.throw (Error.NotFoundType region Nothing name (toPossibleNames ts qts))
-
-
-findTypeQual :: A.Region -> Env -> Module.Prefix -> T.Name -> Result i w Type
-findTypeQual region (Env _ _ ts _ _ _ qts _) prefix name =
-  case Map.lookup prefix qts of
-    Just qualified ->
-      case Map.lookup name qualified of
-        Just (Specific _ tipe) ->
-          Result.ok tipe
-
-        Just (Ambiguous h hs) ->
-          Result.throw (Error.AmbiguousType region (Just prefix) name h hs)
-
-        Nothing ->
-          Result.throw (Error.NotFoundType region (Just prefix) name (toPossibleNames ts qts))
+    Just info ->
+      case info of
+        Union s i -> okU s i
+        Alias s i -> okA s i
+        Types amb -> err $ E.AmbiguousType region Nothing name amb
 
     Nothing ->
-      Result.throw (Error.NotFoundType region (Just prefix) name (toPossibleNames ts qts))
+      err $ E.NotFoundType region Nothing name (toPossibleNames ts qts)
+
+
+withTypeQual :: Env -> A.Region -> Module.Prefix -> T.Name -> OkUI r -> OkAI r -> (E.Problem -> r) -> r
+withTypeQual (Env _ _ ts _ _ _ qts _) region prefix name okU okA err =
+  case Map.lookup name =<< Map.lookup prefix qts of
+    Just info ->
+      case info of
+        Union s i -> okU s i
+        Alias s i -> okA s i
+        Types amb -> err $ E.AmbiguousType region (Just prefix) name amb
+
+    Nothing ->
+      err $ E.NotFoundType region (Just prefix) name (toPossibleNames ts qts)
 
 
 
--- FIND CTOR
+-- WITH CTOR
 
 
-findCtor :: A.Region -> Env -> N.Name -> Result i w Ctor
-findCtor region (Env _ _ _ cs _ _ _ qcs) name =
+type OkUC r = ModuleName.Canonical -> UnionCtor -> r
+type OkAC r = ModuleName.Canonical -> AliasCtor -> r
+
+
+withCtor :: Env -> A.Region -> N.Name -> OkUC r -> OkAC r -> (E.Problem -> r) -> r
+withCtor (Env _ _ _ cs _ _ _ qcs) region name okU okA err =
   case Map.lookup name cs of
-    Just (Specific _ ctor) ->
-      Result.ok ctor
-
-    Just (Ambiguous h hs) ->
-      Result.throw (Error.AmbiguousVariant region Nothing name h hs)
-
-    Nothing ->
-      Result.throw (Error.NotFoundVariant region Nothing name (toPossibleNames cs qcs))
-
-
-findCtorQual :: A.Region -> Env -> Module.Prefix -> N.Name -> Result i w Ctor
-findCtorQual region (Env _ _ _ cs _ _ _ qcs) prefix name =
-  case Map.lookup prefix qcs of
-    Just qualified ->
-      case Map.lookup name qualified of
-        Just (Specific _ pattern) ->
-          Result.ok pattern
-
-        Just (Ambiguous h hs) ->
-          Result.throw (Error.AmbiguousVariant region (Just prefix) name h hs)
-
-        Nothing ->
-          Result.throw (Error.NotFoundVariant region (Just prefix) name (toPossibleNames cs qcs))
+    Just info ->
+      case info of
+        Union h c -> okU h c
+        Alias h c -> okA h c
+        Types amb -> err $ E.AmbiguousCtor region Nothing name amb
 
     Nothing ->
-      Result.throw (Error.NotFoundVariant region (Just prefix) name (toPossibleNames cs qcs))
+      err $ E.NotFoundCtor region Nothing name (toPossibleNames cs qcs)
 
 
-
--- FIND BINOP
-
-
-findBinop :: A.Region -> Env -> Op.Name -> Result i w Binop
-findBinop region (Env _ _ _ _ binops _ _ _) op =
-  case Map.lookup op binops of
-    Just (Specific _ binop) ->
-      Result.ok binop
-
-    Just (Ambiguous h hs) ->
-      Result.throw (Error.AmbiguousBinop region op h hs)
+withCtorQual :: Env -> A.Region -> Module.Prefix -> N.Name -> OkUC r -> OkAC r -> (E.Problem -> r) -> r
+withCtorQual (Env _ _ _ cs _ _ _ qcs) region prefix name okU okA err =
+  case Map.lookup name =<< Map.lookup prefix qcs of
+    Just info ->
+      case info of
+        Union h c -> okU h c
+        Alias h c -> okA h c
+        Types amb -> err $ E.AmbiguousCtor region (Just prefix) name amb
 
     Nothing ->
-      Result.throw (Error.NotFoundBinop region op (Map.keysSet binops))
+      err $ E.NotFoundCtor region (Just prefix) name (toPossibleNames cs qcs)
 
 
 
 -- TO POSSIBLE NAMES
 
 
-toPossibleNames :: Exposed name a -> Qualified name a -> Error.PossibleNames name
+toPossibleNames :: Map.Map name a -> Map.Map Module.Prefix (Map.Map name b) -> E.PossibleNames name
 toPossibleNames exposed qualified =
-  Error.PossibleNames (Map.keysSet exposed) (Map.map Map.keysSet qualified)
+  E.PossibleNames (Map.keysSet exposed) (Map.map Map.keysSet qualified)
+
