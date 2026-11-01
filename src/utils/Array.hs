@@ -2,7 +2,10 @@
 module Array
   ( Array(..)
   , empty
-  , singleton
+  --
+  , from1
+  , from2
+  , from3
   --
   , isEmpty
   , size
@@ -66,14 +69,31 @@ empty =
 
 
 
--- SINGLETON
+-- FROM FIXED
 
 
-singleton :: a -> Array a
-singleton a =
+from1 :: a -> Array a
+from1 a =
   runST $ ST $ \s0 ->
     case newSmallArray# 1# a         s0 of { (# s1, sma #) ->
     case unsafeFreezeSmallArray# sma s1 of { (# s2, sa  #) -> (# s2, Array sa #) }}
+
+
+from2 :: a -> a -> Array a
+from2 a b =
+  runST $ ST $ \s0 ->
+    case newSmallArray# 2# a         s0 of { (# s1, sma #) ->
+    case writeSmallArray# sma 1# b   s1 of {    s2         ->
+    case unsafeFreezeSmallArray# sma s2 of { (# s3, sa  #) -> (# s3, Array sa #) }}}
+
+
+from3 :: a -> a -> a -> Array a
+from3 a b c =
+  runST $ ST $ \s0 ->
+    case newSmallArray# 3# a         s0 of { (# s1, sma #) ->
+    case writeSmallArray# sma 1# b   s1 of {    s2         ->
+    case writeSmallArray# sma 2# c   s2 of {    s3         ->
+    case unsafeFreezeSmallArray# sma s3 of { (# s4, sa  #) -> (# s4, Array sa #) }}}}
 
 
 
