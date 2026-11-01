@@ -5,8 +5,10 @@ module Type.Occurs
   where
 
 
-import Data.Foldable (foldrM)
-import qualified Data.Map.Strict as Map
+import qualified Data.List as List
+import qualified Data.NonEmptyMap as NEM
+
+import qualified Array as A
 
 import Type.Type as Type
 import qualified Type.UnionFind as UF
@@ -14,64 +16,37 @@ import qualified Type.UnionFind as UF
 
 
 -- OCCURS
+--
+-- PERF try to do occurs check in a better way?
 
 
 occurs :: Type.Variable -> IO Bool
 occurs var =
-  occursHelp [] var False
+  varOccurs [] var False
 
 
-occursHelp :: [Type.Variable] -> Type.Variable -> Bool -> IO Bool
-occursHelp seen var foundCycle =
-  if elem var seen then
-    return True
-
+varOccurs :: [Type.Variable] -> Type.Variable -> Bool -> IO Bool
+varOccurs seen var hasCycle =
+  if List.elem var seen
+  then return True
   else
     do  (Descriptor content _ _ _) <- UF.get var
         case content of
-          FlexVar _ ->
-              return foundCycle
+          Flex               _ -> return hasCycle
+          Rigid              _ -> return hasCycle
+          Error                -> return hasCycle
+          Alias _ _ _ args _ _ -> A.foldlM (varOccurs (var:seen)) hasCycle args
+          Structure term       -> termOccurs (var:seen) term hasCycle
 
-          FlexSuper _ _ ->
-              return foundCycle
 
-          RigidVar _ ->
-              return foundCycle
-
-          RigidSuper _ _ ->
-              return foundCycle
-
-          Structure term ->
-              let newSeen = var : seen in
-              case term of
-                App1 _ _ args ->
-                    foldrM (occursHelp newSeen) foundCycle args
-
-                Fun1 a b ->
-                    occursHelp newSeen a =<<
-                      occursHelp newSeen b foundCycle
-
-                EmptyRecord1 ->
-                    return foundCycle
-
-                Record1 fields ext ->
-                    occursHelp newSeen ext =<<
-                      foldrM (occursHelp newSeen) foundCycle (Map.elems fields)
-
-                Unit1 ->
-                    return foundCycle
-
-                Pair1 a b ->
-                    occursHelp newSeen a =<<
-                    occursHelp newSeen b foundCycle
-
-                Triple1 a b c ->
-                    occursHelp newSeen a =<<
-                    occursHelp newSeen b =<<
-                    occursHelp newSeen c foundCycle
-
-          Alias _ _ args _ ->
-              foldrM (occursHelp (var:seen)) foundCycle (map snd args)
-
-          Error ->
-              return foundCycle
+termOccurs :: [Type.Variable] -> Type.FlatType -> Bool -> IO Bool
+termOccurs seen term hasCycle =
+  case term of
+    App1 _ _ _ xs  -> A.foldlM (varOccurs seen) hasCycle xs
+    Fun1 a b       -> varOccurs seen a =<< varOccurs seen b hasCycle
+    Unit1          -> return hasCycle
+    Pair1   a b    -> varOccurs seen a =<< varOccurs seen b hasCycle
+    Triple1 a b c  -> varOccurs seen a =<< varOccurs seen b =<< varOccurs seen c hasCycle
+    Empty1         -> return hasCycle
+    Record1 _ fs   -> NEM.foldrM (varOccurs seen) hasCycle fs
+    ExtRec1 _ fs e -> varOccurs seen e =<< NEM.foldrM (varOccurs seen) hasCycle fs
