@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
+{-# LANGUAGE Rank2Types #-}
 module Compile
   ( Artifacts(..)
   , compile
@@ -10,21 +10,17 @@ import qualified Data.Map as Map
 
 import qualified AST.Source as Src
 import qualified AST.Canonical as Can
+import qualified AST.Typed as Tpd
 import qualified AST.Optimized as Opt
+import qualified AST.Prim.Mode as Mode
 import qualified AST.Prim.Module as Module
-import qualified AST.Prim.Name as N
 import qualified Canonicalize.Module as Canonicalize
 import qualified Elm.Interface as I
-import qualified Elm.Package as Pkg
 import qualified Nitpick.PatternMatches as PatternMatches
 import qualified Optimize.Module as Optimize
 import qualified Reporting.Error as E
-import qualified Reporting.Result as R
-import qualified Reporting.Render.Type.Localizer as Localizer
-import qualified Type.Constrain.Module as Type
-import qualified Type.Solve as Type
-
-import System.IO.Unsafe (unsafePerformIO)
+import qualified Reporting.Render.Type as RT
+import qualified Type.Check as Type
 
 
 
@@ -32,61 +28,104 @@ import System.IO.Unsafe (unsafePerformIO)
 
 
 data Artifacts =
-  Artifacts
-    { _modul :: Can.Module
-    , _types :: Map.Map N.Name Can.Annotation
-    , _graph :: Opt.LocalGraph
-    }
+  Artifacts Tpd.Module I.Interface Opt.LocalGraph
 
 
-compile :: Pkg.Name -> Map.Map Module.Name I.Interface -> Src.Module -> Either E.Error Artifacts
-compile pkg ifaces modul =
-  do  canonical   <- canonicalize pkg ifaces modul
-      annotations <- typeCheck modul canonical
-      ()          <- nitpick canonical
-      objects     <- optimize modul annotations canonical
-      return (Artifacts canonical annotations objects)
+compile :: Mode.Mode -> Map.Map Module.Name I.Interface -> Src.Module -> IO (Either E.Errors Artifacts)
+compile mode ifaces modul =
+  run $
+  do  can         <- canonicalize mode ifaces modul
+      (iface,tpd) <- typeCheck modul can
+      ()          <- nitpick tpd
+      objects     <- optimize modul iface tpd
+      return (Artifacts tpd iface objects)
 
 
 
 -- PHASES
 
 
-canonicalize :: Pkg.Name -> Map.Map Module.Name I.Interface -> Src.Module -> Either E.Error Can.Module
-canonicalize pkg ifaces modul =
-  case snd $ R.run $ Canonicalize.canonicalize pkg ifaces modul of
-    Right canonical ->
-      Right canonical
-
-    Left errors ->
-      Left $ E.BadNames errors
-
-
-typeCheck :: Src.Module -> Can.Module -> Either E.Error (Map.Map N.Name Can.Annotation)
-typeCheck modul canonical =
-  case unsafePerformIO (Type.run =<< Type.constrain canonical) of
-    Right annotations ->
-      Right annotations
-
-    Left errors ->
-      Left (E.BadTypes (Localizer.fromModule modul) errors)
+canonicalize :: Mode.Mode -> Map.Map Module.Name I.Interface -> Src.Module -> Task Can.Module
+canonicalize mode ifaces modul =
+  Task $ \ok err ->
+    case Canonicalize.canonicalize mode ifaces modul of
+      Canonicalize.Result k ->
+        k []
+          (\_ a -> ok a)
+          (\_ x -> err (E.BadNames x))
 
 
-nitpick :: Can.Module -> Either E.Error ()
-nitpick canonical =
-  case PatternMatches.check canonical of
-    Right () ->
-      Right ()
+typeCheck :: Src.Module -> Can.Module -> Task (I.Interface, Tpd.Module)
+typeCheck src can =
+  Task $ \ok err ->
+    do  outcome <- Type.check can
+        case outcome of
+          Type.Ok (iface,tpd) -> ok (iface, tpd)
+          Type.BadType    xs  -> err $ E.BadTypes (RT.fromSourceModule src) xs
+          Type.BadNitpick xs  -> err $ E.BadNitpick xs
 
-    Left errors ->
-      Left (E.BadPatterns errors)
+
+nitpick :: Tpd.Module -> Task ()
+nitpick tpd =
+  Task $ \ok err ->
+    case PatternMatches.check tpd of
+      Right () -> ok ()
+      Left  xs -> err $ E.BadPatterns xs
 
 
-optimize :: Src.Module -> Map.Map N.Name Can.Annotation -> Can.Module -> Either E.Error Opt.LocalGraph
-optimize modul annotations canonical =
-  case snd $ R.run $ Optimize.optimize annotations canonical of
-    Right localGraph ->
-      Right localGraph
+optimize :: Src.Module -> I.Interface -> Tpd.Module -> Task Opt.LocalGraph
+optimize modul (I.Interface _ annotations _ _) typed =
+  Task $ \ok err ->
+    case Optimize.optimize annotations typed of
+      Optimize.Result k ->
+        k []
+          (\_ opt -> ok opt)
+          (\_ xs  -> err (E.BadMains (RT.fromSourceModule modul) xs))
 
-    Left errors ->
-      Left (E.BadMains (Localizer.fromModule modul) errors)
+
+
+-- TASK
+
+
+newtype Task a =
+  Task (forall r. (a -> IO r) -> (E.Errors -> IO r) -> IO r)
+
+
+run :: Task a -> IO (Either E.Errors a)
+run (Task k) =
+  k (return . Right) (return . Left)
+
+
+instance Functor Task where
+  {-# INLINE fmap #-}
+  fmap func (Task k) =
+    Task $ \ok err ->
+      k (ok . func) err
+
+
+instance Applicative Task where
+  {-# INLINE pure #-}
+  pure a =
+    Task $ \ok _ ->
+      ok a
+
+  {-# INLINE (<*>) #-}
+  (<*>) (Task kFunc) (Task kArg) =
+    Task $ \ok err ->
+      let
+        okF func = kArg (ok . func) err
+      in
+      kFunc okF err
+
+
+instance Monad Task where
+  {-# INLINE (>>=) #-}
+  (>>=) (Task kA) callback =
+    Task $ \ok err ->
+      let
+        okA a =
+          case callback a of
+            Task kB -> kB ok err
+      in
+      kA okA err
+
