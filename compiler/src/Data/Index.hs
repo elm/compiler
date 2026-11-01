@@ -11,7 +11,8 @@ module Data.Index
   , indexedForA
   , VerifiedList(..)
   , indexedZipWith
-  , indexedZipWithA
+  , VerifiedList2(..)
+  , indexedZipWith2
   --
   , dZeroBased
   , eZeroBased
@@ -89,7 +90,7 @@ indexedForA xs func =
 
 
 
--- VERIFIED/INDEXED ZIP
+-- INDEXED ZIP
 
 
 data VerifiedList a
@@ -98,32 +99,41 @@ data VerifiedList a
 
 
 indexedZipWith :: (ZeroBased -> a -> b -> c) -> [a] -> [b] -> VerifiedList c
-indexedZipWith func listX listY =
-  indexedZipWithHelp func 0 listX listY []
+indexedZipWith func =
+    go 0 []
+  where
+    f = func . ZeroBased
+
+    go i revs listX listY =
+      case (listX, listY) of
+        ([]  , []  ) -> LengthMatch (reverse revs)
+        (x:xs, y:ys) -> go (i + 1) (f i x y : revs) xs ys
+        (_   , _   ) -> LengthMismatch (i + length listX) (i + length listY)
 
 
-indexedZipWithHelp :: (ZeroBased -> a -> b -> c) -> Int -> [a] -> [b] -> [c] -> VerifiedList c
-indexedZipWithHelp func index listX listY revListZ =
-  case (listX, listY) of
-    ([], []) ->
-      LengthMatch (reverse revListZ)
 
-    (x:xs, y:ys) ->
-      indexedZipWithHelp func (index + 1) xs ys $
-        func (ZeroBased index) x y : revListZ
-
-    (_, _) ->
-      LengthMismatch (index + length listX) (index + length listY)
+-- INDEXED ZIP 2
 
 
-indexedZipWithA :: (Applicative f) => (ZeroBased -> a -> b -> f c) -> [a] -> [b] -> f (VerifiedList c)
-indexedZipWithA func listX listY =
-  case indexedZipWith func listX listY of
-    LengthMatch xs ->
-      LengthMatch <$> sequenceA xs
+data VerifiedList2 a
+  = LengthMatch2 a a [a]
+  | LengthMismatch2 Int Int
 
-    LengthMismatch x y ->
-      pure (LengthMismatch x y)
+
+indexedZipWith2 :: (ZeroBased -> a -> b -> c) -> a -> a -> [a] -> [b] -> VerifiedList2 c
+indexedZipWith2 func a b cs list =
+  case list of
+    []     -> LengthMismatch2 (2 + length cs) 0
+    [_]    -> LengthMismatch2 (2 + length cs) 1
+    x:y:zs -> go 2 cs zs (f 0 a x) (f 1 b y) []
+  where
+    f = func . ZeroBased
+
+    go i listX listY v1 v2 revs =
+      case (listX, listY) of
+        ([]  , []  ) -> LengthMatch2 v1 v2 (reverse revs)
+        (x:xs, y:ys) -> go (i + 1) xs ys v1 v2 (f i x y : revs)
+        (_   , _   ) -> LengthMismatch2 (i + length listX) (i + length listY)
 
 
 
