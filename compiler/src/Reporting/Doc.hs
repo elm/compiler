@@ -5,7 +5,7 @@ module Reporting.Doc
   , P.align, P.cat, P.empty, P.fill, P.fillSep, P.hang
   , P.hcat, P.hsep, P.indent, P.sep, P.vcat
   , P.red, P.cyan, P.magenta, P.green, P.blue, P.black, P.yellow
-  , P.dullred, P.dullcyan, P.dullyellow
+  , P.dullred, P.dullcyan, P.dullyellow, P.dullwhite
   --
   , fromChars
   , fromName
@@ -17,6 +17,7 @@ module Reporting.Doc
   , fromVersion
   , fromPackage
   , fromInt
+  , fromChar
   --
   , toAnsi
   , toString
@@ -84,6 +85,7 @@ fromOp      :: Op.Name       -> P.Doc; fromOp      o = P.text (Op.toChars o)
 fromVersion :: V.Version     -> P.Doc; fromVersion v = P.text (V.toChars v)
 fromPackage :: Pkg.Name      -> P.Doc; fromPackage p = P.text (Pkg.toChars p)
 fromInt     :: Int           -> P.Doc; fromInt     n = P.text (show n)
+fromChar    :: Char          -> P.Doc; fromChar    c = P.text [c]
 
 
 
@@ -119,7 +121,7 @@ reflow paragraph =
   P.fillSep (map P.text (words paragraph))
 
 
-commaSep :: P.Doc -> (P.Doc -> P.Doc) -> [P.Doc] -> [P.Doc]
+commaSep :: P.Doc -> (a -> P.Doc) -> [a] -> [P.Doc]
 commaSep conjunction addStyle names =
   case names of
     [name] ->
