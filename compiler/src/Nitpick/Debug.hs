@@ -5,6 +5,7 @@ module Nitpick.Debug
 
 
 import qualified Data.Map.Utils as Map
+import qualified Data.NonEmptyMap as NEM
 
 import qualified AST.Optimized as Opt
 
@@ -21,17 +22,19 @@ hasDebugUses (Opt.LocalGraph _ graph _) =
 nodeHasDebug :: Opt.Node -> Bool
 nodeHasDebug node =
   case node of
-    Opt.Define expr _           -> hasDebug expr
-    Opt.DefineTailFunc _ expr _ -> hasDebug expr
-    Opt.Ctor _ _                -> False
-    Opt.Enum _                  -> False
-    Opt.Box                     -> False
-    Opt.Link _                  -> False
-    Opt.Cycle _ vs fs _         -> any (hasDebug . snd) vs || any defHasDebug fs
-    Opt.Manager _               -> False
-    Opt.Kernel _ _              -> False
-    Opt.PortIncoming expr _     -> hasDebug expr
-    Opt.PortOutgoing expr _     -> hasDebug expr
+    Opt.Define e _             -> hasDebug e
+    Opt.DefineTailFunc _ _ e _ -> hasDebug e
+    Opt.Variant _ _            -> False
+    Opt.Enum _                 -> False
+    Opt.Vector _               -> False
+    Opt.Box                    -> False
+    Opt.Void                   -> False
+    Opt.Link _                 -> False
+    Opt.Cycle _ _ vs fs _      -> any (hasDebug . snd) vs || any defHasDebug fs
+    Opt.Manager _              -> False
+    Opt.Kernel _ _             -> False
+    Opt.PortIncoming e _       -> hasDebug e
+    Opt.PortOutgoing e _       -> hasDebug e
 
 
 hasDebug :: Opt.Expr -> Bool
@@ -49,29 +52,35 @@ hasDebug expression =
     Opt.VarCycle _ _     -> False
     Opt.VarDebug _ _ _ _ -> True
     Opt.VarKernel _ _    -> False
-    Opt.List exprs       -> any hasDebug exprs
-    Opt.Function _ expr  -> hasDebug expr
-    Opt.Call e es        -> hasDebug e || any hasDebug es
-    Opt.TailCall _ args  -> any (hasDebug . snd) args
+    Opt.List es          -> any hasDebug es
+    Opt.Function _ _ e   -> hasDebug e
+    Opt.Call f e es      -> hasDebug f || hasDebug e || any hasDebug es
+    Opt.TailCall _ x xs  -> tailAssignHasDebug x || any tailAssignHasDebug xs
     Opt.If conds finally -> any (\(c,e) -> hasDebug c || hasDebug e) conds || hasDebug finally
     Opt.Let def body     -> defHasDebug def || hasDebug body
     Opt.Destruct _ expr  -> hasDebug expr
     Opt.Case _ _ d jumps -> deciderHasDebug d || any (hasDebug . snd) jumps
     Opt.Accessor _       -> False
     Opt.Access r _       -> hasDebug r
-    Opt.Update r fs      -> hasDebug r || any hasDebug fs
-    Opt.Record fs        -> any hasDebug fs
+    Opt.Update r fs      -> hasDebug r || NEM.any hasDebug fs
+    Opt.Record fs        -> NEM.any hasDebug fs
+    Opt.Empty            -> False
     Opt.Unit             -> False
     Opt.Pair   a b       -> hasDebug a || hasDebug b
     Opt.Triple a b c     -> hasDebug a || hasDebug b || hasDebug c
     Opt.Shader _ _ _     -> False
 
 
+tailAssignHasDebug :: Opt.TailAssign -> Bool
+tailAssignHasDebug (Opt.TailAssign _ e) =
+  hasDebug e
+
+
 defHasDebug :: Opt.Def -> Bool
 defHasDebug def =
   case def of
-    Opt.Def _ expr       -> hasDebug expr
-    Opt.TailDef _ _ expr -> hasDebug expr
+    Opt.Def _ e         -> hasDebug e
+    Opt.TailDef _ _ _ e -> hasDebug e
 
 
 deciderHasDebug :: Opt.Decider Opt.Choice -> Bool
