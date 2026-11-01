@@ -122,29 +122,28 @@ patternToDoc context pattern =
         P.Str str -> "\"" <> D.fromChars (ES.toChars str) <> "\""
         P.Int int -> D.fromInt int
 
-    NonList (P.Ctor _ n []) | n == N.unit ->
+    NonList (P.Ctor n _ _ []) | n == N.unit ->
       "()"
 
-    NonList (P.Ctor _ n [a,b]) | n == N.pair ->
+    NonList (P.Ctor n _ _ [a,b]) | n == N.pair ->
       "( " <> patternToDoc Unambiguous a <>
       ", " <> patternToDoc Unambiguous b <>
       " )"
 
-    NonList (P.Ctor _ n [a,b,c]) | n == N.triple ->
+    NonList (P.Ctor n _ _ [a,b,c]) | n == N.triple ->
       "( " <> patternToDoc Unambiguous a <>
       ", " <> patternToDoc Unambiguous b <>
       ", " <> patternToDoc Unambiguous c <>
       " )"
 
-    NonList (P.Ctor _ name args) ->
+    NonList (P.Ctor name _ _ args) ->
       let
         ctorDoc =
           D.hsep (D.fromName name : map (patternToDoc Arg) args)
       in
-      if context == Arg && length args > 0 then
-        "(" <> ctorDoc <> ")"
-      else
-        ctorDoc
+      if context == Arg && length args > 0
+      then "(" <> ctorDoc <> ")"
+      else ctorDoc
 
     FiniteList [] ->
       "[]"
@@ -176,8 +175,8 @@ data Structure
 delist :: P.Pattern -> [P.Pattern] -> Structure
 delist pattern revEntries =
   case pattern of
-    P.Ctor _ n []      | n == N.nil  -> FiniteList revEntries
-    P.Ctor _ n [hd,tl] | n == N.cons -> delist tl (hd:revEntries)
+    P.Ctor n _ _ []      | n == N.nil  -> FiniteList revEntries
+    P.Ctor n _ _ [hd,tl] | n == N.cons -> delist tl (hd:revEntries)
     _ ->
       case revEntries of
         [] -> NonList pattern

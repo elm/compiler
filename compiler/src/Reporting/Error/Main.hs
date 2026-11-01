@@ -10,16 +10,15 @@ import Prelude hiding (cycle)
 
 import qualified Graph
 
-import qualified AST.Canonical as Can
 import qualified AST.Prim.Name as N
 import qualified AST.Prim.TypeName as T
 import qualified AST.Prim.TypeVar as T
+import qualified Elm.Interface as I
 import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
 import qualified Reporting.Error.Canonicalize as E
 import qualified Reporting.Render.Code as Code
 import qualified Reporting.Render.Type as RT
-import qualified Reporting.Render.Type.Localizer as L
 import qualified Reporting.Report as Report
 
 
@@ -28,16 +27,16 @@ import qualified Reporting.Report as Report
 
 
 data Error
-  = BadType A.Region Can.Type
+  = BadType A.Region I.Annotation
   | BadCycle A.Region (Graph.MinimalCycle N.Name)
-  | BadFlags A.Region Can.Type E.InvalidPayload
+  | BadFlags A.Region E.InvalidPayload
 
 
 
 -- TO REPORT
 
 
-toReport :: L.Localizer -> Code.Source -> Error -> Report.Report
+toReport :: RT.Localizer -> Code.Source -> Error -> Report.Report
 toReport localizer source err =
   case err of
     BadType region tipe ->
@@ -48,7 +47,7 @@ toReport localizer source err =
           ,
             D.stack
               [ "The type of `main` value I am seeing is:"
-              , D.indent 4 $ D.dullyellow $ RT.canToDoc localizer RT.None tipe
+              , D.indent 4 $ D.dullyellow $ RT.iToDoc localizer RT.None tipe
               , D.reflow $
                   "I only know how to handle Html, Svg, and Programs\
                   \ though. Modify `main` to be one of those types of values!"
@@ -69,7 +68,7 @@ toReport localizer source err =
               ]
           )
 
-    BadFlags region _badType invalidPayload ->
+    BadFlags region invalidPayload ->
       let
         formatDetails (aBadKindOfThing, butThatIsNoGood) =
           Report.Report "BAD FLAGS" region [] $
