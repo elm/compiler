@@ -20,21 +20,22 @@ module Reporting.Error.Type
 
 import Prelude hiding (round)
 import qualified Data.Map as Map
+import qualified Data.NonEmptyMap as NEM
 
 import qualified AST.Canonical as Can
+import qualified AST.Prim.Fields as F
 import qualified AST.Prim.Name as N
 import qualified AST.Prim.Operator as Op
 import qualified AST.Prim.TypeName as T
-import qualified AST.Prim.TypeVar as T (Var, varToChars)
+import qualified AST.Prim.TypeVar as T (Var(..), Constraint(..), varToChars)
+import qualified Elm.ModuleName as ModuleName
 import qualified Data.Index as Index
 import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
 import qualified Reporting.Render.Code as Code
-import qualified Reporting.Render.Type as RT
-import qualified Reporting.Render.Type.Localizer as L
+import qualified Reporting.Render.Type as T
 import qualified Reporting.Report as Report
 import qualified Reporting.Suggest as Suggest
-import qualified Type.Error as T
 
 
 
@@ -68,7 +69,7 @@ data Context
   | CallArity MaybeName Int
   | CallArg MaybeName Index.ZeroBased
   | RecordAccess A.Region (Maybe N.Name) A.Region N.Name
-  | RecordUpdateKeys N.Name (Map.Map N.Name Can.FieldUpdate)
+  | RecordUpdateKeys N.Name (NEM.Map N.Name Can.Update)
   | RecordUpdateValue N.Name
   | Destructure
 
@@ -82,12 +83,14 @@ data SubContext
 data MaybeName
   = FuncName N.Name
   | CtorName N.Name
+  | RcrdName N.Name
   | OpName Op.Name
   | NoName
 
 
 data Category
   = List
+  | Bool
   | Number
   | Float
   | String
@@ -168,7 +171,7 @@ ptypeReplace expectation tipe =
 -- TO REPORT
 
 
-toReport :: Code.Source -> L.Localizer -> Error -> Report.Report
+toReport :: Code.Source -> T.Localizer -> Error -> Report.Report
 toReport source localizer err =
   case err of
     BadExpr region category actualType expected ->
@@ -185,7 +188,7 @@ toReport source localizer err =
 -- TO PATTERN REPORT
 
 
-toPatternReport :: Code.Source -> L.Localizer -> A.Region -> PCategory -> T.Type -> PExpected T.Type -> Report.Report
+toPatternReport :: Code.Source -> T.Localizer -> A.Region -> PCategory -> T.Type -> PExpected T.Type -> Report.Report
 toPatternReport source localizer patternRegion category tipe expected =
   Report.Report "TYPE MISMATCH" patternRegion [] $
   case expected of
@@ -277,11 +280,11 @@ toPatternReport source localizer patternRegion category tipe expected =
 -- PATTERN HELPERS
 
 
-patternTypeComparison :: L.Localizer -> T.Type -> T.Type -> String -> String -> [D.Doc] -> D.Doc
+patternTypeComparison :: T.Localizer -> T.Type -> T.Type -> String -> String -> [D.Doc] -> D.Doc
 patternTypeComparison localizer actual expected iAmSeeing insteadOf contextHints =
   let
     (actualDoc, expectedDoc, problems) =
-      T.toComparison localizer actual expected
+      T.toDiffDocs localizer actual expected
   in
   D.stack $
     [ D.reflow iAmSeeing
@@ -312,11 +315,11 @@ addPatternCategory iAmTryingToMatch category =
 -- EXPR HELPERS
 
 
-typeComparison :: L.Localizer -> T.Type -> T.Type -> String -> String -> [D.Doc] -> D.Doc
+typeComparison :: T.Localizer -> T.Type -> T.Type -> String -> String -> [D.Doc] -> D.Doc
 typeComparison localizer actual expected iAmSeeing insteadOf contextHints =
   let
     (actualDoc, expectedDoc, problems) =
-      T.toComparison localizer actual expected
+      T.toDiffDocs localizer actual expected
   in
   D.stack $
     [ D.reflow iAmSeeing
@@ -328,11 +331,11 @@ typeComparison localizer actual expected iAmSeeing insteadOf contextHints =
     ++ problemsToHint problems
 
 
-loneType :: L.Localizer -> T.Type -> T.Type -> D.Doc -> [D.Doc] -> D.Doc
+loneType :: T.Localizer -> T.Type -> T.Type -> D.Doc -> [D.Doc] -> D.Doc
 loneType localizer actual expected iAmSeeing furtherDetails =
   let
     (actualDoc, _, problems) =
-      T.toComparison localizer actual expected
+      T.toDiffDocs localizer actual expected
   in
   D.stack $
     [ iAmSeeing
@@ -353,6 +356,7 @@ addCategory thisIs category =
     If           -> "This `if` expression produces:"
     Case         -> "This `case` expression produces:"
     List         -> thisIs <> " a list of type:"
+    Bool         -> thisIs <> " a boolean of type:"
     Number       -> thisIs <> " a number of type:"
     Float        -> thisIs <> " a float of type:"
     String       -> thisIs <> " a string of type:"
@@ -368,291 +372,357 @@ addCategory thisIs category =
         NoName     -> thisIs <> ":"
         FuncName n -> "This `" <> N.toChars n <> "` call produces:"
         CtorName n -> "This `" <> N.toChars n <> "` call produces:"
+        RcrdName n -> "This `" <> N.toChars n <> "` call produces:"
         OpName   _ -> thisIs <> ":"
 
 
+
+--------------------------------------------------------------------------------
+-- PROBLEM HINTS ---------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+
 problemsToHint :: [T.Problem] -> [D.Doc]
-problemsToHint problems =
-  case problems of
-    [] ->
-      []
+problemsToHint =
+    go
+  where
+    go problems =
+      case problems of
+        [] ->
+          []
 
-    problem : _ ->
-      problemToHint problem
+        p:ps ->
+          case problemToHint p of
+            Hint0      -> go ps
+            Hint1 d    -> [d]
+            HintN d ds -> d:ds
 
 
-problemToHint :: T.Problem -> [D.Doc]
+data Hint
+  = Hint0
+  | Hint1 D.Doc
+  | HintN D.Doc [D.Doc]
+
+
+problemToHint :: T.Problem -> Hint
 problemToHint problem =
   case problem of
     T.IntFloat ->
-      [ D.fancyLink "Note" ["Read"] "implicit-casts"
+      Hint1 $
+        D.fancyLink "Note" ["Read"] "implicit-casts"
           ["to","learn","why","Elm","does","not","implicitly","convert"
           ,"Ints","to","Floats.","Use",D.green "toFloat","and"
           ,D.green "round","to","do","explicit","conversions."
           ]
-      ]
 
     T.StringFromInt ->
-      [ D.toFancyHint
+      Hint1 $
+        D.toFancyHint
           ["Want","to","convert","an","Int","into","a","String?"
           ,"Use","the",D.green "String.fromInt","function!"
           ]
-      ]
 
     T.StringFromFloat ->
-      [ D.toFancyHint
+      Hint1 $
+        D.toFancyHint
           ["Want","to","convert","a","Float","into","a","String?"
           ,"Use","the",D.green "String.fromFloat","function!"
           ]
-      ]
 
     T.StringToInt ->
-      [ D.toFancyHint
+      Hint1 $
+        D.toFancyHint
           ["Want","to","convert","a","String","into","an","Int?"
           ,"Use","the",D.green "String.toInt","function!"
           ]
-      ]
 
     T.StringToFloat ->
-      [ D.toFancyHint
+      Hint1 $
+        D.toFancyHint
           ["Want","to","convert","a","String","into","a","Float?"
           ,"Use","the",D.green "String.toFloat","function!"
           ]
-      ]
 
     T.AnythingToBool ->
-      [ D.toSimpleHint $
+      Hint1 $
+        D.toSimpleHint $
           "Elm does not have “truthiness” such that ints and strings and lists\
           \ are automatically converted to booleans. Do that conversion explicitly!"
-      ]
 
     T.AnythingFromMaybe ->
-      [ D.toFancyHint
+      Hint1 $
+        D.toFancyHint
           ["Use",D.green "Maybe.withDefault","to","handle","possible","errors."
           ,"Longer","term,","it","is","usually","better","to","write","out","the"
           ,"full","`case`","though!"
           ]
-      ]
 
     T.ArityMismatch x y ->
-      [ D.toSimpleHint $
-          if x < y then
-            "It looks like it takes too few arguments. I was expecting " ++ show (y - x) ++ " more."
-          else
-            "It looks like it takes too many arguments. I see " ++ show (x - y) ++ " extra."
-      ]
+      Hint1 $
+        D.toSimpleHint $
+          if x < y
+          then "It looks like it takes too few arguments. I was expecting " ++ show (y - x) ++ " more."
+          else "It looks like it takes too many arguments. I see " ++ show (x - y) ++ " extra."
 
-    T.BadFlexSuper direction super _ tipe ->
-      case tipe of
-        T.Lambda _ _ _   -> badFlexSuper direction super tipe
-        T.Infinite       -> []
-        T.Error          -> []
-        T.FlexVar _      -> []
-        T.FlexSuper s _  -> badFlexFlexSuper super s
-        T.RigidVar y     -> badRigidVar y (toASuperThing super)
-        T.RigidSuper s _ -> badRigidSuper s (toASuperThing super)
-        T.Type _ _ _     -> badFlexSuper direction super tipe
-        T.Record _ _     -> badFlexSuper direction super tipe
-        T.Unit           -> badFlexSuper direction super tipe
-        T.Pair _ _       -> badFlexSuper direction super tipe
-        T.Triple _ _ _   -> badFlexSuper direction super tipe
-        T.Alias _ _ _ _  -> badFlexSuper direction super tipe
+    T.HaveFlex x t -> badFlexHint Have x t
+    T.WantFlex t x -> badFlexHint Want x t
 
-    T.BadRigidVar x tipe ->
-      case tipe of
-        T.Lambda _ _ _   -> badRigidVar x "a function"
-        T.Infinite       -> []
-        T.Error          -> []
-        T.FlexVar _      -> []
-        T.FlexSuper s _  -> badRigidVar x (toASuperThing s)
-        T.RigidVar y     -> badDoubleRigid x y
-        T.RigidSuper _ y -> badDoubleRigid x y
-        T.Type _ n _     -> badRigidVar x ("a `" ++ T.nameToChars n ++ "` value")
-        T.Record _ _     -> badRigidVar x "a record"
-        T.Unit           -> badRigidVar x "a unit value"
-        T.Pair _ _       -> badRigidVar x "a tuple"
-        T.Triple _ _ _   -> badRigidVar x "a tuple"
-        T.Alias _ n _ _  -> badRigidVar x ("a `" ++ T.nameToChars n ++ "` value")
+    T.HaveRigid x t -> badRigidHint x t
+    T.WantRigid t x -> badRigidHint x t
 
-    T.BadRigidSuper super x tipe ->
-      case tipe of
-        T.Lambda _ _ _   -> badRigidSuper super "a function"
-        T.Infinite       -> []
-        T.Error          -> []
-        T.FlexVar _      -> []
-        T.FlexSuper s _  -> badRigidSuper super (toASuperThing s)
-        T.RigidVar y     -> badDoubleRigid x y
-        T.RigidSuper _ y -> badDoubleRigid x y
-        T.Type _ n _     -> badRigidSuper super ("a `" ++ T.nameToChars n ++ "` value")
-        T.Record _ _     -> badRigidSuper super "a record"
-        T.Unit           -> badRigidSuper super "a unit value"
-        T.Pair _ _       -> badRigidSuper super "a tuple"
-        T.Triple _ _ _   -> badRigidSuper super "a tuple"
-        T.Alias _ n _ _  -> badRigidSuper super ("a `" ++ T.nameToChars n ++ "` value")
+    T.HaveExtFlex x -> badFlex Have x BF_Record
+    T.WantExtFlex x -> badFlex Want x BF_Record
 
-    T.FieldsMissing fields ->
-      case map (D.green . D.fromName) fields of
-        [] ->
-          []
+    T.HaveExtRigid x   -> badRigid x "a more specific record type"
+    T.WantExtRigid x   -> badRigid x "a more specific record type"
+    T.BothExtRigid x y -> badRigidRigid x y
 
-        [f1] ->
-          [ D.toFancyHint ["Looks","like","the",f1,"field","is","missing."]
-          ]
+    T.RecordMismatch actual expected ->
+      let
+        green = D.green . D.fromName
+        dullyellow = D.dullyellow . D.fromName
+      in
+      case (actual, expected) of
+        ([], [f]) ->
+          Hint1 $
+            D.toFancyHint ["Looks","like","the",green f,"field","is","missing."]
 
-        fieldDocs ->
-          [ D.toFancyHint $
-              ["Looks","like","fields"] ++ D.commaSep "and" id fieldDocs ++ ["are","missing."]
-          ]
+        ([], _:_:_) | length expected < 4 ->
+          Hint1 $
+            D.toFancyHint $
+              ["Looks","like","fields"] ++ D.commaSep "and" green expected ++ ["are","missing."]
 
-
-    T.FieldTypo typo possibilities ->
-      case Suggest.sort (N.toChars typo) N.toChars possibilities of
-        [] ->
-          []
-
-        nearest:_ ->
-          [ D.toFancyHint $
+        ([x], [y]) ->
+          Hint1 $
+            D.toFancyHint $
               ["Seems","like","a","record","field","typo.","Maybe"
-              ,D.dullyellow (D.fromName typo),"should","be"
-              ,D.green (D.fromName nearest) <> "?"
+              ,dullyellow x,"should","be",green y <> "?"
               ]
-          , D.toSimpleHint
-              "Can more type annotations be added? Type annotations always help me give\
-              \ more specific messages, and I think they could help a lot in this case!"
-          ]
+
+        ([f], []) ->
+          Hint1 $ D.toFancyHint ["Looks","like","the",dullyellow f,"field","is","unexpected."]
+
+        (_:_:_, []) | length actual < 4 ->
+          Hint1 $
+            D.toFancyHint $
+              ["Looks","like","fields"] ++ D.commaSep "and" dullyellow expected ++ ["are","unexpected."]
+
+        (_, _) ->
+            case Suggest.best N.toChars actual expected of
+              Nothing ->
+                Hint0
+
+              Just (before, after) ->
+                Hint1 $
+                  D.toFancyHint $
+                    ["It","could","be","some","typos","(e.g.","maybe",dullyellow before
+                    ,"should","be",green after <> "?),","but","it","seems","like","the"
+                    ,"mismatch","is","more","complicated","than","that."
+                    ]
 
 
 
--- BAD RIGID HINTS
+-- BAD FLEX HINT
 
 
-badRigidVar :: T.Var -> String -> [D.Doc]
-badRigidVar name aThing =
-  [ D.toSimpleHint $
-      "Your type annotation uses type variable `" ++ T.varToChars name ++
-      "` which means ANY type of value can flow through, but your code is saying it specifically wants "
-      ++ aThing ++ ". Maybe change your type annotation to\
-      \ be more specific? Maybe change the code to be more general?"
-  , D.reflowLink "Read" "type-annotations" "for more advice!"
-  ]
+badFlexHint :: Direction -> T.Var -> T.Type -> Hint
+badFlexHint d x tipe =
+  case tipe of
+    T.Lambda _ _ _    -> badFlex d x BF_Function
+    T.Infinite        -> Hint0
+    T.Error           -> Hint0
+    T.Flex  y         -> badFlexFlex x y
+    T.Rigid y         -> badRigidFlex y x
+    T.Type  h n _ _   -> badFlex d x (BF_Type h n)
+    T.Alias h n _ _ _ -> badFlex d x (BF_Alias h n)
+    T.Unit            -> badFlex d x BF_Other
+    T.Pair   _ _      -> badFlex d x BF_Other
+    T.Triple _ _ _    -> badFlex d x BF_Other
+    T.Empty           -> badFlex d x BF_Record
+    T.Record _        -> badFlex d x BF_Record
+    T.ExtRec _ _      -> badFlex d x BF_Record
 
 
-badDoubleRigid :: T.Var -> T.Var -> [D.Doc]
-badDoubleRigid x y =
-  [ D.toSimpleHint $
-      "Your type annotation uses `" ++ T.varToChars x ++ "` and `" ++ T.varToChars y ++
-      "` as separate type variables. Your code seems to be saying they are the\
-      \ same though. Maybe they should be the same in your type annotation?\
-      \ Maybe your code uses them in a weird way?"
-  , D.reflowLink "Read" "type-annotations" "for more advice!"
-  ]
+data BadFlex
+  = BF_Function
+  | BF_Record
+  | BF_Type  ModuleName.Canonical T.Name
+  | BF_Alias ModuleName.Canonical T.Name
+  | BF_Other
 
 
-toASuperThing :: T.Super -> String
-toASuperThing super =
-  case super of
-    T.Number     -> "a `number` value"
-    T.Comparable -> "a `comparable` value"
-    T.CompAppend -> "a `compappend` value"
-    T.Appendable -> "an `appendable` value"
+data Direction = Have | Want
 
 
+badFlex :: Direction -> T.Var -> BadFlex -> Hint
+badFlex direction (T.Var _ con) tipe =
+  case con of
+    T.Any ->
+      Hint0
 
--- BAD SUPER HINTS
-
-
-badFlexSuper :: T.Direction -> T.Super -> T.Type -> [D.Doc]
-badFlexSuper direction super tipe =
-  case super of
     T.Comparable ->
+      let
+        compareCertainThings =
+          " compare Int, Float, Char, String, lists of comparable values,\
+          \ and tuples of comparable values."
+      in
       case tipe of
-        T.Record _ _ ->
-          [ D.link "Hint"
-              "I do not know how to compare records. I can only compare ints, floats,\
-              \ chars, strings, lists of comparable values, and tuples of comparable values.\
-              \ Check out" "comparing-records" "for ideas on how to proceed."
-          ]
+        BF_Function ->
+          Hint1 $
+            D.toSimpleHint $
+              "It is not possible to compare functions, but it may be possible to represent the\
+              \ essential details of a function as data (data that is comparable) and then use\
+              \ that data as an argument to a separate function later on. That said, I can only"
+              ++ compareCertainThings
 
-        T.Type _ name _ ->
-          [ D.toSimpleHint $
-              "I do not know how to compare `" ++ T.nameToChars name ++ "` values. I can only\
-              \ compare ints, floats, chars, strings, lists of comparable values, and tuples\
-              \ of comparable values."
-          , D.reflowLink
-              "Check out" "comparing-custom-types" "for ideas on how to proceed."
-          ]
+        BF_Other ->
+          Hint1 $
+            D.toSimpleHint $
+              "I only know how to" ++ compareCertainThings
 
-        _ ->
-          [ D.toSimpleHint $
-              "I only know how to compare ints, floats, chars, strings, lists of\
-              \ comparable values, and tuples of comparable values."
-          ]
+        BF_Type _ name ->
+          HintN
+            (
+              D.toSimpleHint $
+                "I do not know how to compare `" ++ T.nameToChars name ++ "` values. I can only"
+                ++ compareCertainThings
+            )
+            [ D.reflowLink
+                "Check out" "comparing-custom-types" "for ideas on how to proceed."
+            ]
+
+        BF_Alias _ name ->
+          Hint1 $
+            D.toSimpleHint $
+              "The `" ++ T.nameToChars name ++ "` type alias probably contains values\
+              \ that are not comparable. I can only" ++ compareCertainThings
+
+        BF_Record ->
+          Hint1 $
+            D.toSimpleHint $
+              "I do not compare records to avoid confusion about which fields get compared\
+              \ first. Since fields do not need to be in any particular order for two records to\
+              \ have the same type, the fields would need to be compared in alphabetical order.\
+              \ That is already likely to be a “silent error” for a lot of people, but even\
+              \ worse, ”alphabetical order” is not the same across all languages! So to make\
+              \ sure these ordering details are simple and explicit in all languages, I can only"
+              ++ compareCertainThings
 
     T.Appendable ->
-      [ D.toSimpleHint "I only know how to append strings and lists."
-      ]
+      Hint1 $
+        D.toSimpleHint "I only know how to append strings and lists."
 
     T.CompAppend ->
-      [ D.toSimpleHint "Only strings and lists are both comparable and appendable."
-      ]
+      Hint1 $
+        D.toSimpleHint "Only strings and lists are both comparable and appendable."
 
     T.Number ->
       case tipe of
-        T.Type home name _ | T.isString home name ->
+        BF_Type h n | T.isString h n ->
           case direction of
-            T.Have ->
-              [ D.toFancyHint ["Try","using",D.green "String.fromInt","to","convert","it","to","a","string?"]
-              ]
-
-            T.Need ->
-              [ D.toFancyHint ["Try","using",D.green "String.toInt","to","convert","it","to","an","integer?"]
-              ]
+            Have -> Hint1 $ D.toFancyHint ["Try","using",D.green "String.fromInt","to","convert","it","to","a","string?"]
+            Want -> Hint1 $ D.toFancyHint ["Try","using",D.green "String.toInt","to","convert","it","to","an","integer?"]
 
         _ ->
-          [ D.toFancyHint ["Only",D.green "Int","and",D.green "Float","values","work","as","numbers."]
-          ]
+          Hint1 $ D.toFancyHint ["Only",D.green "Int","and",D.green "Float","values","work","as","numbers."]
 
 
-badRigidSuper :: T.Super -> String -> [D.Doc]
-badRigidSuper super aThing =
-  let
-    (superType, manyThings) =
-      case super of
-        T.Number -> ("number", "ints AND floats")
-        T.Comparable -> ("comparable", "ints, floats, chars, strings, lists, and tuples")
-        T.Appendable -> ("appendable", "strings AND lists")
-        T.CompAppend -> ("compappend", "strings AND lists")
-  in
-  [ D.toSimpleHint $
-      "The `" ++ superType ++ "` in your type annotation is saying that "
-      ++ manyThings ++ " can flow through, but your code is saying it specifically wants "
-      ++ aThing ++ ". Maybe change your type annotation to\
-      \ be more specific? Maybe change the code to be more general?"
-  , D.reflowLink "Read" "type-annotations" "for more advice!"
-  ]
+badFlexFlex :: T.Var -> T.Var -> Hint
+badFlexFlex (T.Var _ con1) (T.Var _ con2) =
+  case (,) <$> likeThis con1 <*> likeThis con2 of
+    Nothing ->
+      Hint0
+
+    Just (likeThis1, likeThis2) ->
+      Hint1 $
+        D.toSimpleHint $
+          "There are no values in Acadia that are both "
+          ++ likeThis1 ++ " and " ++ likeThis2 ++ "."
+  where
+    likeThis con =
+      case con of
+        T.Any        -> Nothing
+        T.Comparable -> Just "comparable"
+        T.Appendable -> Just "appendable"
+        T.CompAppend -> Nothing
+        T.Number     -> Just "a number"
 
 
-badFlexFlexSuper :: T.Super -> T.Super -> [D.Doc]
-badFlexFlexSuper s1 s2 =
-  let
-    likeThis super =
-      case super of
-        T.Number -> "a number"
-        T.Comparable -> "comparable"
-        T.CompAppend -> "a compappend"
-        T.Appendable -> "appendable"
-  in
-    [ D.toSimpleHint $
-        "There are no values in Elm that are both "
-        ++ likeThis s1 ++ " and " ++ likeThis s2 ++ "."
+
+-- BAD RIGID HINT
+
+
+badRigidHint :: T.Var -> T.Type -> Hint
+badRigidHint x tipe =
+  case tipe of
+    T.Lambda _ _ _    -> badRigid x "a function"
+    T.Infinite        -> Hint0
+    T.Error           -> Hint0
+    T.Flex  y         -> badRigidFlex  x y
+    T.Rigid y         -> badRigidRigid x y
+    T.Type  _ n _ _   -> badRigid x $ "a `" ++ T.nameToChars n ++ "` value"
+    T.Alias _ n _ _ _ -> badRigid x $ "a `" ++ T.nameToChars n ++ "` value"
+    T.Unit            -> badRigid x "a unit value"
+    T.Pair   _ _      -> badRigid x "a pair"
+    T.Triple _ _ _    -> badRigid x "a triple"
+    T.Empty           -> badRigid x "an empty record"
+    T.Record _        -> badRigid x "a record"
+    T.ExtRec _ _      -> badRigid x "a record"
+
+
+badRigid :: T.Var -> String -> Hint
+badRigid var@(T.Var _ con) aThing =
+  HintN
+    (
+      D.toSimpleHint $
+        "Your type annotation uses type variable `" ++ T.varToChars var ++
+        "` which means " ++ anyTypeOfThing ++ " can flow through, but your code\
+        \ is saying it specifically wants " ++ aThing ++ ". Maybe change your type\
+        \ annotation to be more specific? Maybe change the code to be more general?"
+    )
+    [ D.reflowLink "Read" "type-annotations" "for more advice!"
+    ]
+  where
+    anyTypeOfThing =
+      case con of
+        T.Any        -> "any value (Int, Float, String, Bool, List, etc.)"
+        T.Comparable -> "any comparable value (Int, Float, Char, String, etc.)"
+        T.Appendable -> "any String or List"
+        T.CompAppend -> "any comparable String or List"
+        T.Number     -> "both Int and Float"
+
+
+badRigidFlex :: T.Var -> T.Var -> Hint
+badRigidFlex x (T.Var _ con) =
+  case con of
+    T.Any        -> Hint0
+    T.Comparable -> badRigid x "a `comparable` value"
+    T.Appendable -> badRigid x "an `appendable` value"
+    T.CompAppend -> badRigid x "a `compappend` value"
+    T.Number     -> badRigid x "a `number` value"
+
+
+badRigidRigid :: T.Var -> T.Var -> Hint
+badRigidRigid x y =
+  HintN
+    (
+      D.toSimpleHint $
+        "Your type annotation uses `" ++ T.varToChars x ++ "` and `" ++ T.varToChars y ++
+        "` as separate type variables. Your code seems to be saying they are the\
+        \ same though. Maybe they should be the same in your type annotation?\
+        \ Maybe your code uses them in a weird way?"
+    )
+    [ D.reflowLink "Read" "type-annotations" "for more advice!"
     ]
 
 
 
--- TO EXPR REPORT
+--------------------------------------------------------------------------------
+-- TO EXPR REPORT --------------------------------------------------------------
+--------------------------------------------------------------------------------
 
 
-toExprReport :: Code.Source -> L.Localizer -> A.Region -> Category -> T.Type -> Expected T.Type -> Report.Report
+toExprReport :: Code.Source -> T.Localizer -> A.Region -> Category -> T.Type -> Expected T.Type -> Report.Report
 toExprReport source localizer exprRegion category tipe expected =
   case expected of
     NoExpectation expectedType ->
@@ -795,25 +865,27 @@ toExprReport source localizer exprRegion category tipe expected =
               let
                 thisValue =
                   case maybeFuncName of
-                    NoName        -> "This value"
-                    FuncName name -> "The `" <> N.toChars name <> "` value"
-                    CtorName name -> "The `" <> N.toChars name <> "` value"
-                    OpName op     -> "The (" <> Op.toChars op <> ") operator"
+                    NoName     -> "This value"
+                    FuncName n -> "The `" <> N.toChars n <> "` value"
+                    CtorName n -> "The `" <> N.toChars n <> "` value"
+                    RcrdName n -> "The `" <> N.toChars n <> "` value"
+                    OpName op  -> "The (" <> Op.toChars op <> ") operator"
               in
               ( D.reflow $ thisValue <> " is not a function, but it was given " <> D.args numGivenArgs <> "."
               , D.reflow $ "Are there any missing commas? Or missing parentheses?"
               )
 
-            n ->
+            num ->
               let
                 thisFunction =
                   case maybeFuncName of
-                    NoName        -> "This function"
-                    FuncName name -> "The `" <> N.toChars name <> "` function"
-                    CtorName name -> "The `" <> N.toChars name <> "` constructor"
-                    OpName op     -> "The (" <> Op.toChars op <> ") operator"
+                    NoName     -> "This function"
+                    FuncName n -> "The `" <> N.toChars n <> "` function"
+                    CtorName n -> "The `" <> N.toChars n <> "` constructor"
+                    RcrdName n -> "The `" <> N.toChars n <> "` constructor"
+                    OpName op  -> "The (" <> Op.toChars op <> ") operator"
               in
-              ( D.reflow $ thisFunction <> " expects " <> D.args n <> ", but it got " <> show numGivenArgs <> " instead."
+              ( D.reflow $ thisFunction <> " expects " <> D.args num <> ", but it got " <> show numGivenArgs <> " instead."
               , D.reflow $ "Are there any missing commas? Or missing parentheses?"
               )
 
@@ -823,10 +895,11 @@ toExprReport source localizer exprRegion category tipe expected =
 
             thisFunction =
               case maybeFuncName of
-                NoName        -> "this function"
-                FuncName name -> "`" <> N.toChars name <> "`"
-                CtorName name -> "`" <> N.toChars name <> "`"
-                OpName op     -> "(" <> Op.toChars op <> ")"
+                NoName     -> "this function"
+                FuncName n -> "`" <> N.toChars n <> "`"
+                CtorName n -> "`" <> N.toChars n <> "`"
+                RcrdName n -> "`" <> N.toChars n <> "`"
+                OpName op  -> "(" <> Op.toChars op <> ")"
           in
           mismatch
           ( Just exprRegion
@@ -845,14 +918,15 @@ toExprReport source localizer exprRegion category tipe expected =
           )
 
         RecordAccess recordRegion maybeName fieldRegion field ->
-          case T.iteratedDealias tipe of
-            T.Record fields ext ->
+          let
+            badRecord fields ext =
               custom (Just fieldRegion)
                 ( D.reflow $
                     "This "
                     <> maybe "" (\n -> "`" <> N.toChars n <> "`") maybeName
                     <> " record does not have a `" <> N.toChars field <> "` field:"
-                , case Suggest.sort (N.toChars field) (N.toChars . fst) (Map.toList fields) of
+                ,
+                  case Suggest.sort (N.toChars field) (N.toChars . fst) fields of
                     [] ->
                       D.reflow "In fact, it is a record with NO fields!"
 
@@ -869,7 +943,11 @@ toExprReport source localizer exprRegion category tipe expected =
                             ]
                         ]
                 )
-
+          in
+          case T.iteratedDealias tipe of
+            T.Empty       -> badRecord [] Nothing
+            T.Record fs   -> badRecord (NEM.toList (F.toNEM fs)) Nothing
+            T.ExtRec fs e -> badRecord (NEM.toList (F.toNEM fs)) (Just e)
             _ ->
               badType
               ( Just recordRegion
@@ -883,9 +961,9 @@ toExprReport source localizer exprRegion category tipe expected =
               )
 
         RecordUpdateKeys record expectedFields ->
-          case T.iteratedDealias tipe of
-            T.Record actualFields ext ->
-              case Map.lookupMin (Map.difference expectedFields actualFields) of
+          let
+            badRecord actualFields ext =
+              case Map.lookupMin (Map.difference (NEM.toDict expectedFields) actualFields) of
                 Nothing ->
                   mismatch
                   ( Nothing
@@ -899,7 +977,7 @@ toExprReport source localizer exprRegion category tipe expected =
                     ]
                   )
 
-                Just (field, Can.FieldUpdate fieldRegion _) ->
+                Just (field, Can.Update_ fieldRegion _) ->
                   let
                     rStr = "`" <> N.toChars record <> "`"
                     fStr = "`" <> N.toChars field <> "`"
@@ -922,7 +1000,11 @@ toExprReport source localizer exprRegion category tipe expected =
                                 ]
                             ]
                     )
-
+          in
+          case T.iteratedDealias tipe of
+            T.Empty       -> badRecord Map.empty Nothing
+            T.Record fs   -> badRecord (NEM.toDict (F.toNEM fs)) Nothing
+            T.ExtRec fs e -> badRecord (NEM.toDict (F.toNEM fs)) (Just e)
             _ ->
               badType
               ( Just exprRegion
@@ -972,35 +1054,29 @@ countArgs tipe =
 -- FIELD NAME HELPERS
 
 
-toNearbyRecord :: L.Localizer -> (N.Name, T.Type) -> [(N.Name, T.Type)] -> T.Extension -> D.Doc
+toNearbyRecord :: T.Localizer -> (N.Name, T.Type) -> [(N.Name, T.Type)] -> Maybe T.Ext -> D.Doc
 toNearbyRecord localizer f fs ext =
   D.indent 4 $
-    if length fs <= 3 then
-      RT.vrecord (map (fieldToDocs localizer) (f:fs)) (extToDoc ext)
-    else
-      RT.vrecordSnippet (fieldToDocs localizer f) (map (fieldToDocs localizer) (take 3 fs))
+    if length fs <= 3
+    then T.vrecord (map fieldToDocs (f:fs)) (fmap extToDoc ext)
+    else T.vrecordSnippet (fieldToDocs f) (map fieldToDocs (take 3 fs))
+  where
+    fieldToDocs (name, tipe) =
+      ( D.fromName name
+      , T.errToDoc localizer T.None tipe
+      )
 
-
-fieldToDocs :: L.Localizer -> (N.Name, T.Type) -> (D.Doc, D.Doc)
-fieldToDocs localizer (name, tipe) =
-  ( D.fromName name
-  , T.toDoc localizer RT.None tipe
-  )
-
-
-extToDoc :: T.Extension -> Maybe D.Doc
-extToDoc ext =
-  case ext of
-    T.Closed      -> Nothing
-    T.FlexOpen  x -> Just (D.fromVar x)
-    T.RigidOpen x -> Just (D.fromVar x)
+    extToDoc e =
+      case e of
+        T.ExtFlex  x -> D.fromVar x
+        T.ExtRigid x -> D.fromVar x
 
 
 
 -- OP LEFT
 
 
-opLeftToDocs :: L.Localizer -> Category -> Op.Name -> T.Type -> T.Type -> (D.Doc, D.Doc)
+opLeftToDocs :: T.Localizer -> Category -> Op.Name -> T.Type -> T.Type -> (D.Doc, D.Doc)
 opLeftToDocs localizer category op tipe expected =
   case op of
     "+"
@@ -1052,7 +1128,7 @@ data RightDocs
   | EmphRight (D.Doc, D.Doc)
 
 
-opRightToDocs :: L.Localizer -> Category -> Op.Name -> T.Type -> T.Type -> RightDocs
+opRightToDocs :: T.Localizer -> Category -> Op.Name -> T.Type -> T.Type -> RightDocs
 opRightToDocs localizer category op tipe expected =
   case op of
     "+"
@@ -1126,7 +1202,7 @@ opRightToDocs localizer category op tipe expected =
       badOpRightFallback localizer category op tipe expected
 
 
-badOpRightFallback :: L.Localizer -> Category -> Op.Name -> T.Type -> T.Type -> RightDocs
+badOpRightFallback :: T.Localizer -> Category -> Op.Name -> T.Type -> T.Type -> RightDocs
 badOpRightFallback localizer category op tipe expected =
   EmphRight
     ( D.reflow $
@@ -1142,63 +1218,29 @@ badOpRightFallback localizer category op tipe expected =
     )
 
 
-isInt :: T.Type -> Bool
-isInt tipe =
-  case tipe of
-    T.Type home name [] ->
-      T.isInt home name
-
-    _ ->
-      False
-
-
-isFloat :: T.Type -> Bool
-isFloat tipe =
-  case tipe of
-    T.Type home name [] ->
-      T.isFloat home name
-
-    _ ->
-      False
-
-
-isString :: T.Type -> Bool
-isString tipe =
-  case tipe of
-    T.Type home name [] ->
-      T.isString home name
-
-    _ ->
-      False
-
-
-isList :: T.Type -> Bool
-isList tipe =
-  case tipe of
-    T.Type home name [_] ->
-      T.isList home name
-
-    _ ->
-      False
+isInt    :: T.Type -> Bool; isInt    t = case t of { T.Type h n _ []  -> T.isInt    h n ; _ -> False }
+isFloat  :: T.Type -> Bool; isFloat  t = case t of { T.Type h n _ []  -> T.isFloat  h n ; _ -> False }
+isString :: T.Type -> Bool; isString t = case t of { T.Type h n _ []  -> T.isString h n ; _ -> False }
+isList   :: T.Type -> Bool; isList   t = case t of { T.Type h n _ [_] -> T.isList   h n ; _ -> False }
 
 
 
 -- BAD CONS
 
 
-badConsRight :: L.Localizer -> Category -> T.Type -> T.Type -> RightDocs
+badConsRight :: T.Localizer -> Category -> T.Type -> T.Type -> RightDocs
 badConsRight localizer category tipe expected =
   case tipe of
-    T.Type home1 name1 [actualElement] | T.isList home1 name1 ->
+    T.Type h1 n1 _ [actualElement] | T.isList h1 n1 ->
       case expected of
-        T.Type home2 name2 [expectedElement] | T.isList home2 name2 ->
+        T.Type h2 n2 _ [expectedElement] | T.isList h2 n2 ->
           EmphBoth
             ( D.reflow "I am having trouble with this (::) operator:"
             , typeComparison localizer expectedElement actualElement
                 "The left side of (::) is:"
                 "But you are trying to put that into a list filled with:"
                 ( case expectedElement of
-                    T.Type home name [_] | T.isList home name ->
+                    T.Type h n _ [_] | T.isList h n ->
                       [ D.toSimpleHint
                           "Are you trying to append two lists? The (++) operator\
                           \ appends lists, whereas the (::) operator is only for\
@@ -1239,18 +1281,18 @@ data AppendType
 toAppendType :: T.Type -> AppendType
 toAppendType tipe =
   case tipe of
-    T.Type home name _
-      | T.isInt    home name -> ANumber "Int" "String.fromInt"
-      | T.isFloat  home name -> ANumber "Float" "String.fromFloat"
-      | T.isString home name -> AString
-      | T.isList   home name -> AList
+    T.Type h n _ _
+      | T.isInt    h n -> ANumber "Int" "String.fromInt"
+      | T.isFloat  h n -> ANumber "Float" "String.fromFloat"
+      | T.isString h n -> AString
+      | T.isList   h n -> AList
 
-    T.FlexSuper T.Number _ -> ANumber "number" "String.fromInt"
+    T.Flex (T.Var _ T.Number) -> ANumber "number" "String.fromInt"
 
     _ -> AOther
 
 
-badAppendLeft :: L.Localizer -> Category -> T.Type -> T.Type -> (D.Doc, D.Doc)
+badAppendLeft :: T.Localizer -> Category -> T.Type -> T.Type -> (D.Doc, D.Doc)
 badAppendLeft localizer category tipe expected =
   case toAppendType tipe of
     ANumber thing stringFromThing ->
@@ -1279,7 +1321,7 @@ badAppendLeft localizer category tipe expected =
       )
 
 
-badAppendRight :: L.Localizer -> Category -> T.Type -> T.Type -> RightDocs
+badAppendRight :: T.Localizer -> Category -> T.Type -> T.Type -> RightDocs
 badAppendRight localizer category tipe expected =
   case (toAppendType expected, toAppendType tipe) of
     (AString, ANumber thing stringFromThing) ->
@@ -1394,7 +1436,7 @@ badStringAdd =
   )
 
 
-badListAdd :: L.Localizer -> Category -> String -> T.Type -> T.Type -> (D.Doc, D.Doc)
+badListAdd :: T.Localizer -> Category -> String -> T.Type -> T.Type -> (D.Doc, D.Doc)
 badListAdd localizer category direction tipe expected =
   (
     "I cannot do addition with lists:"
@@ -1411,7 +1453,7 @@ badListAdd localizer category direction tipe expected =
   )
 
 
-badListMul :: L.Localizer -> Category -> String -> T.Type -> T.Type -> (D.Doc, D.Doc)
+badListMul :: T.Localizer -> Category -> String -> T.Type -> T.Type -> (D.Doc, D.Doc)
 badListMul localizer category direction tipe expected =
   badMath localizer category "Multiplication" direction "*" tipe expected
     [
@@ -1423,7 +1465,7 @@ badListMul localizer category direction tipe expected =
     ]
 
 
-badMath :: L.Localizer -> Category -> String -> String -> String -> T.Type -> T.Type -> [D.Doc] -> (D.Doc, D.Doc)
+badMath :: T.Localizer -> Category -> String -> String -> String -> T.Type -> T.Type -> [D.Doc] -> (D.Doc, D.Doc)
 badMath localizer category operation direction op tipe expected otherHints =
   (
     D.reflow $
@@ -1441,7 +1483,7 @@ badMath localizer category operation direction op tipe expected otherHints =
   )
 
 
-badFDiv :: L.Localizer -> D.Doc -> T.Type -> T.Type -> (D.Doc, D.Doc)
+badFDiv :: T.Localizer -> D.Doc -> T.Type -> T.Type -> (D.Doc, D.Doc)
 badFDiv localizer direction tipe expected =
   (
     D.reflow $
@@ -1473,7 +1515,7 @@ badFDiv localizer direction tipe expected =
   )
 
 
-badIDiv :: L.Localizer -> D.Doc -> T.Type -> T.Type -> (D.Doc, D.Doc)
+badIDiv :: T.Localizer -> D.Doc -> T.Type -> T.Type -> (D.Doc, D.Doc)
 badIDiv localizer direction tipe expected =
   (
     D.reflow $
@@ -1511,7 +1553,7 @@ badIDiv localizer direction tipe expected =
 -- BAD BOOLS
 
 
-badBool :: L.Localizer -> D.Doc -> D.Doc -> T.Type -> T.Type -> (D.Doc, D.Doc)
+badBool :: T.Localizer -> D.Doc -> D.Doc -> T.Type -> T.Type -> (D.Doc, D.Doc)
 badBool localizer op direction tipe expected =
   (
     D.reflow $
@@ -1531,7 +1573,7 @@ badBool localizer op direction tipe expected =
 -- BAD COMPARISON
 
 
-badCompLeft :: L.Localizer -> Category -> String -> String -> T.Type -> T.Type -> (D.Doc, D.Doc)
+badCompLeft :: T.Localizer -> Category -> String -> String -> T.Type -> T.Type -> (D.Doc, D.Doc)
 badCompLeft localizer category op direction tipe expected =
   (
     D.reflow $
@@ -1554,7 +1596,7 @@ badCompLeft localizer category op direction tipe expected =
   )
 
 
-badCompRight :: L.Localizer -> String -> T.Type -> T.Type -> RightDocs
+badCompRight :: T.Localizer -> String -> T.Type -> T.Type -> RightDocs
 badCompRight localizer op tipe expected =
   EmphBoth
     (
@@ -1574,7 +1616,7 @@ badCompRight localizer op tipe expected =
 -- BAD EQUALITY
 
 
-badEquality :: L.Localizer -> String -> T.Type -> T.Type -> RightDocs
+badEquality :: T.Localizer -> String -> T.Type -> T.Type -> RightDocs
 badEquality localizer op tipe expected =
   EmphBoth
     (
@@ -1598,7 +1640,7 @@ badEquality localizer op tipe expected =
 -- INFINITE TYPES
 
 
-toInfiniteReport :: Code.Source -> L.Localizer -> A.Region -> N.Name -> T.Type -> Report.Report
+toInfiniteReport :: Code.Source -> T.Localizer -> A.Region -> N.Name -> T.Type -> Report.Report
 toInfiniteReport source localizer region name overallType =
   Report.Report "INFINITE TYPE" region [] $
     Code.toSnippet source region Nothing
@@ -1610,7 +1652,7 @@ toInfiniteReport source localizer region name overallType =
           [ D.reflow $
               "Here is my best effort at writing down the type. You will see ∞ for\
               \ parts of the type that repeat something already printed out infinitely."
-          , D.indent 4 (D.dullyellow (T.toDoc localizer RT.None overallType))
+          , D.indent 4 (D.dullyellow (T.errToDoc localizer T.None overallType))
           , D.reflowLink
               "Staring at this type is usually not so helpful, so I recommend reading the hints at"
               "infinite-type"
