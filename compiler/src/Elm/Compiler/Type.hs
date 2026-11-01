@@ -27,7 +27,6 @@ import qualified Parse.Type as Type
 import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
 import qualified Reporting.Render.Type as RT
-import qualified Reporting.Render.Type.Localizer as L
 
 
 
@@ -37,12 +36,14 @@ import qualified Reporting.Render.Type.Localizer as L
 
 
 data Type
-  = Lambda Type Type
+  = Lambda Type Type [Type]
   | Var T.Var
   | Type T.Name [Type]
-  | Record [(N.Name, Type)] (Maybe T.Var)
   | Unit
   | Tuple Type Type [Type]
+  | Empty
+  | Record (N.Name,Type) [(N.Name,Type)]
+  | ExtRec (N.Name,Type) [(N.Name,Type)] T.Var
 
 
 data DebugMetadata =
@@ -61,53 +62,19 @@ data Union = Union T.Name [T.Var] [(N.Name, [Type])]
 -- TO DOC
 
 
-toDoc :: L.Localizer -> RT.Context -> Type -> D.Doc
-toDoc localizer context tipe =
+toDoc :: RT.Context -> Type -> D.Doc
+toDoc context tipe =
   case tipe of
-    Lambda _ _ ->
-      let
-        a:b:cs =
-          map (toDoc localizer RT.Func) (collectLambdas tipe)
-      in
-      RT.lambda context a b cs
-
-    Var name ->
-      D.fromVar name
-
-    Unit ->
-      "()"
-
-    Tuple a b cs ->
-      RT.tuple
-        (toDoc localizer RT.None a)
-        (toDoc localizer RT.None b)
-        (map (toDoc localizer RT.None) cs)
-
-    Type name args ->
-      RT.apply
-        context
-        (D.fromType name)
-        (map (toDoc localizer RT.App) args)
-
-    Record fields ext ->
-      RT.record
-        (map (entryToDoc localizer) fields)
-        (fmap D.fromVar ext)
-
-
-entryToDoc :: L.Localizer -> (N.Name, Type) -> (D.Doc, D.Doc)
-entryToDoc localizer (field, fieldType) =
-  ( D.fromName field, toDoc localizer RT.None fieldType )
-
-
-collectLambdas :: Type -> [Type]
-collectLambdas tipe =
-  case tipe of
-    Lambda arg body ->
-      arg : collectLambdas body
-
-    _ ->
-      [tipe]
+    Lambda a b cs -> RT.lambda context (toDoc RT.Func a) (toDoc RT.Func b) (map (toDoc RT.Func) cs)
+    Var n         -> D.fromVar n
+    Type n xs     -> RT.apply context (D.fromType n) (map (toDoc RT.App) xs)
+    Unit          -> "()"
+    Tuple a b cs  -> RT.tuple (toDoc RT.None a) (toDoc RT.None b) (map (toDoc RT.None) cs)
+    Empty         -> "{}"
+    Record f fs   -> RT.record1 (go f) (map go fs)
+    ExtRec f fs e -> RT.extrec1 (go f) (map go fs) (D.fromVar e)
+  where
+    go (f,t) = RT.Field f (toDoc RT.None t)
 
 
 
@@ -116,47 +83,32 @@ collectLambdas tipe =
 
 encode :: Type -> E.Value
 encode tipe =
-  E.chars $ D.toLine (toDoc L.empty RT.None tipe)
+  E.chars $ D.toLine (toDoc RT.None tipe)
 
 
 decoder :: D.Decoder () Type
 decoder =
   let
     parser =
-      P.specialize (\_ _ -> ()) (fromRawType . fst <$> Type.expression)
+      P.specialize (\_ _ -> ()) (fromSrcType . fst <$> Type.expression)
   in
   D.customString parser (\_ -> ())
 
 
-fromRawType :: Src.Type -> Type
-fromRawType (A.At _ astType) =
+fromSrcType :: Src.Type -> Type
+fromSrcType (A.At _ astType) =
   case astType of
-    Src.TLambda t1 t2 ->
-        Lambda (fromRawType t1) (fromRawType t2)
-
-    Src.TVar x ->
-        Var x
-
-    Src.TUnit ->
-        Unit
-
-    Src.TTuple a b cs ->
-        Tuple
-          (fromRawType a)
-          (fromRawType b)
-          (map fromRawType cs)
-
-    Src.TType _ name args ->
-        Type name (map fromRawType args)
-
-    Src.TTypeQual _ _ name args ->
-        Type name (map fromRawType args)
-
-    Src.TRecord fields ext ->
-        let fromField (A.At _ field, tipe) = (field, fromRawType tipe) in
-        Record
-          (map fromField fields)
-          (fmap A.toValue ext)
+    Src.TLambda x y zs     -> Lambda (fromSrcType x) (fromSrcType y) (map fromSrcType zs)
+    Src.TVar x             -> Var x
+    Src.TUnit              -> Unit
+    Src.TTuple a b cs      -> Tuple (fromSrcType a) (fromSrcType b) (map fromSrcType cs)
+    Src.TType       _ n xs -> Type n (map fromSrcType xs)
+    Src.TTypeQual _ _ n xs -> Type n (map fromSrcType xs)
+    Src.TEmpty             -> Empty
+    Src.TRecord f fs       -> Record (go f) (map go fs)
+    Src.TExtRec f fs ext   -> ExtRec (go f) (map go fs) (A.toValue ext)
+  where
+    go (A.At _ f, t) = (f, fromSrcType t)
 
 
 
