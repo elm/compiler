@@ -1,283 +1,290 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE QuasiQuotes, Rank2Types, TemplateHaskell #-}
 module Canonicalize.Module
-  ( canonicalize
+  ( Result(..)
+  , canonicalize
   )
   where
 
 
 import Prelude hiding (cycle)
 import qualified Data.Dups as Dups
+import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.OneOrMore as OOM
 
-import qualified Graph
-
-import qualified AST.Canonical as Can
 import qualified AST.Source as Src
+import qualified AST.Canonical as Can
+import qualified AST.Prim.Mode as Mode
 import qualified AST.Prim.Module as Module
 import qualified AST.Prim.Name as N
 import qualified AST.Prim.Operator as Op
 import qualified AST.Prim.TypeName as T
+import qualified Canonicalize.Decl as Decl
 import qualified Canonicalize.Effects as Effects
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Foreign as Foreign
-import qualified Canonicalize.Environment.Local as Local
-import qualified Canonicalize.Expression as Expr
-import qualified Canonicalize.Pattern as Pattern
-import qualified Canonicalize.Type as Type
-import qualified Data.Index as Index
+import qualified Canonicalize.TypeDecl as TypeDecl
 import qualified Elm.Interface as I
 import qualified Elm.ModuleName as ModuleName
-import qualified Elm.Package as Pkg
 import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Result as Result
+import qualified Reporting.Error.Canonicalize as E
 import qualified Reporting.Warning as W
 
 
 
--- RESULT
+-- CANONICALIZE
 
 
-type Result i w a =
-  Result.Result i w Error.Error a
+newtype Result w a =
+  Result (forall r. w -> (w -> a -> IO r) -> (w -> OOM.OneOrMore E.Error -> IO r) -> IO r)
+
+
+canonicalize :: Mode.Mode -> Map.Map Module.Name I.Interface -> Src.Module -> Result [W.Warning] Can.Module
+canonicalize mode ifaces (Src.Module header docs imports decls infixes) =
+  do  let home = ModuleName.Canonical (Mode.toPackage mode) (Src.getName header)
+      (Decls values unions aliases ports) <- splitDecls decls
+      (exports, style) <- checkHeader home header
+      (env1          ) <- initEnv home ifaces imports
+      (env2, types   ) <- addTypes unions aliases env1
+      (env3, style1  ) <- addEffects mode style values types ports env2
+      (env4          ) <- addValues values env3
+      canModule env4 exports docs types values infixes style1
+
+
+initEnv :: ModuleName.Canonical -> Map.Map Module.Name I.Interface -> [Src.Import] -> Result w Env.Env
+initEnv home ifaces imports =
+  Result $ \warns ok err ->
+    case Foreign.initialize home ifaces imports of
+      Foreign.Result k ->
+        k (ok warns) (err warns)
+
+
+addTypes :: [A.Located Src.Union] -> [A.Located Src.Alias] -> Env.Env -> Result w (Env.Env, Map.Map T.Name Can.TypeDecl)
+addTypes unions aliases env =
+  Result $ \warns ok err ->
+    case TypeDecl.addTypes unions aliases env of
+      TypeDecl.Result k ->
+        k (ok warns) (err warns . OOM.map E.Problem)
 
 
 
--- MODULES
+-- CANONICALIZE MODULE
 
 
-canonicalize :: Pkg.Name -> Map.Map Module.Name I.Interface -> Src.Module -> Result i [W.Warning] Can.Module
-canonicalize pkg ifaces modul@(Src.Module _ exports docs imports values _ _ binops effects) =
-  do  let home = ModuleName.Canonical pkg (Src.getName modul)
-      let cbinops = Map.fromList (map canonicalizeBinop binops)
-
-      (env, cunions, caliases) <-
-        Local.add modul =<<
-          Foreign.createInitialEnv home ifaces imports
-
-      cvalues <- canonicalizeValues env values
-      ceffects <- Effects.canonicalize env values cunions effects
-      cexports <- canonicalizeExports values cunions caliases cbinops ceffects exports
-
-      return $ Can.Module home cexports docs cvalues cunions caliases cbinops ceffects
+canModule :: Env.Env -> Can.Exports -> Src.Docs -> Map.Map T.Name Can.TypeDecl -> [Src.Value] -> [A.Located Src.Infix] -> Can.Style -> Result [W.Warning] Can.Module
+canModule env@(Env.Env home _ _ _ _ _ _ _) exports docs types values infixes style =
+  Can.Module home exports docs
+    <$> canValues env values
+    <*> pure types
+    <*> canBinops infixes
+    <*> pure style
 
 
-
--- CANONICALIZE BINOP
-
-
-canonicalizeBinop :: A.Located Src.Infix -> (Op.Name, Can.Binop)
-canonicalizeBinop (A.At _ (Src.Infix op associativity precedence func)) =
-  ( op, Can.Binop_ associativity precedence func )
-
+canValues :: Env.Env -> [Src.Value] -> Result [W.Warning] Can.Decls
+canValues env values =
+  Result $ \warns ok err ->
+    case Decl.canonicalize env values of
+      Decl.Result k ->
+          k warns ok (\ws xs -> err ws (OOM.map E.Problem xs))
 
 
--- DECLARATIONS / CYCLE DETECTION
---
--- There are two phases of cycle detection:
---
--- 1. Detect cycles using ALL dependencies => needed for type inference
--- 2. Detect cycles using DIRECT dependencies => nonterminating recursion
---
-
-
-canonicalizeValues :: Env.Env -> [A.Located Src.Value] -> Result i [W.Warning] Can.Decls
-canonicalizeValues env values =
-  do  nodes <- traverse (toNodeOne env) values
-      detectCycles (Graph.toSCC nodes)
-
-
-detectCycles :: [Graph.SCC N.Name NodeTwo] -> Result i w Can.Decls
-detectCycles sccs =
-  case sccs of
-    [] ->
-      Result.ok Can.SaveTheEnvironment
-
-    scc : otherSccs ->
-      case scc of
-        Graph.Acyclic (Graph.Node _ def _) ->
-          Can.Declare (Graph._value def) <$> detectCycles otherSccs
-
-        Graph.Cyclic component ->
-          do  defs <- traverse detectBadCycles $ Graph.toSCC $ map Graph._value $ Graph.withComponent component (:)
-              case defs of
-                []   -> detectCycles otherSccs
-                d:ds -> Can.DeclareRec d ds <$> detectCycles otherSccs
-
-
-detectBadCycles :: Graph.SCC N.Name Can.Def -> Result i w Can.Def
-detectBadCycles scc =
-  case scc of
-    Graph.Acyclic (Graph.Node _ def _) ->
-      Result.ok def
-
-    Graph.Cyclic component ->
-      Graph.withMinimalCycle selector component Graph._key $ \(A.At r n) cycle ->
-        Result.throw $ Error.RecursiveDecl r n cycle
+canBinops :: [A.Located Src.Infix] -> Result w (Map.Map Op.Name Can.Binop)
+canBinops infixes =
+  case Dups.detect (\_ _ b -> b) E.DuplicateBinop dups of
+    Dups.Detector k ->
+      k return throws
   where
-    selector =
-      Graph.RootSelector $ \(Graph.Node key def _) _ -> (key, getName def)
+    dups = List.foldl' add Dups.none infixes
 
-    getName def =
-      case def of
-        Can.Def      n _ _     -> n
-        Can.TypedDef n _ _ _ _ -> n
+    add dict (A.At _ (Src.Infix (A.At region op) assoc prec name)) =
+      Dups.insert op region (Can.Binop_ name assoc prec) dict
 
 
 
--- DECLARATIONS / CYCLE DETECTION SETUP
+-- SPLIT DECLARATIONS
 --
--- toNodeOne and toNodeTwo set up nodes for the two cycle detection phases.
+-- Declarations are stored in reverse order so that they can be easily collected
+-- in this phase.
+
+
+data Decls =
+  Decls
+    { _values  :: [Src.Value]
+    , _unions  :: [A.Located Src.Union]
+    , _aliases :: [A.Located Src.Alias]
+    , _ports   :: [Src.Port]
+    }
+
+
+splitDecls :: Src.Decls -> Result w Decls
+splitDecls decls0 =
+  case decls0 of
+    Src.RevDecls d ds -> step [] [] [] [] d ds
+    Src.NoDecls  r    -> throw $ E.NoDecls r
+  where
+    loop vs us as ps decls =
+      case decls of
+        []   -> pure $ Decls vs us as ps
+        d:ds -> step vs us as ps d ds
+
+    step vs us as ps decl decls =
+      case decl of
+        Src.Value_ _ (A.At _ v) -> loop (v:vs) us as ps decls
+        Src.Union_ _ (       u) -> loop vs (u:us) as ps decls
+        Src.Alias_ _ (       a) -> loop vs us (a:as) ps decls
+        Src.Port_  _ (A.At _ p) -> loop vs us as (p:ps) decls
+
+
+
+-- CHECK HEADER
 --
-
--- Phase one nodes track ALL dependencies.
--- This allows us to find cyclic values for type inference.
-type NodeOne = Graph.Node N.Name NodeTwo
+-- TODO an error here blocks the rest, but it is possible to continue with a
+-- dummy Header value to collect more errors.
 
 
--- Phase two nodes track DIRECT dependencies.
--- This allows us to detect cycles that definitely do not terminate.
-type NodeTwo = Graph.Node N.Name Can.Def
+checkHeader :: ModuleName.Canonical -> Src.Header -> Result w (Can.Exports, Src.Style)
+checkHeader (ModuleName.Canonical _ expected) header =
+  case header of
+    Src.NoHeader region ->
+      throw $ E.ModuleNameUnspecified expected region
+
+    Src.YesHeader style actual exposing ->
+      if expected /= A.toValue actual
+      then throw $ E.ModuleNameMismatch expected actual
+      else pure (toExports exposing, style)
 
 
-toNodeOne :: Env.Env -> A.Located Src.Value -> Result i [W.Warning] NodeOne
-toNodeOne env (A.At _ (Src.Value aname@(A.At _ name) srcArgs body maybeType)) =
-  case maybeType of
-    Nothing ->
-      do  (args, argBindings) <-
-            Pattern.verify (Error.DPFuncArgs name) $
-              traverse (Pattern.canonicalize env) srcArgs
-
-          newEnv <-
-            Env.addLocals argBindings env
-
-          (cbody, freeLocals) <-
-            Expr.verifyBindings W.Pattern argBindings (Expr.canonicalize newEnv body)
-
-          let def = Can.Def aname args cbody
-          return $ Graph.Node name (toNodeTwo name srcArgs def freeLocals) (Map.keys freeLocals)
-
-    Just srcType ->
-      do  (Can.Forall freeVars tipe) <- Type.toAnnotation env srcType
-
-          ((args,resultType), argBindings) <-
-            Pattern.verify (Error.DPFuncArgs name) $
-              Expr.gatherTypedArgs env name srcArgs tipe Index.first []
-
-          newEnv <-
-            Env.addLocals argBindings env
-
-          (cbody, freeLocals) <-
-            Expr.verifyBindings W.Pattern argBindings (Expr.canonicalize newEnv body)
-
-          let def = Can.TypedDef aname freeVars args cbody resultType
-          return $ Graph.Node name (toNodeTwo name srcArgs def freeLocals) (Map.keys freeLocals)
-
-
-toNodeTwo :: N.Name -> [arg] -> Can.Def -> Expr.FreeLocals -> NodeTwo
-toNodeTwo name args def freeLocals =
-  Graph.Node name def $
-    case args of
-      [] -> Map.foldrWithKey addDirects [] freeLocals
-      _  -> []
-
-
-addDirects :: N.Name -> Expr.Uses -> [N.Name] -> [N.Name]
-addDirects name (Expr.Uses directUses _) directDeps =
-  if directUses > 0 then
-    name:directDeps
-  else
-    directDeps
-
-
-
--- CANONICALIZE EXPORTS
-
-
-canonicalizeExports
-  :: [A.Located Src.Value]
-  -> Map.Map T.Name union
-  -> Map.Map T.Name alias
-  -> Map.Map Op.Name binop
-  -> Can.Effects
-  -> A.Located Src.Exposing
-  -> Result i w Can.Exports
-canonicalizeExports values unions aliases binops effects (A.At region exposing) =
+toExports :: A.Located Src.Exposing -> Can.Exports
+toExports (A.At region exposing) =
   case exposing of
-    Src.Open ->
-      Result.ok (Can.ExportEverything region)
-
-    Src.Explicit exposeds ->
-      do  let names = Map.fromList (map valueToName values)
-          exs <- traverse (checkExposed names unions aliases binops effects) exposeds
-          loop exs Dups.none Dups.none Dups.none
+    Src.Open        -> Can.ExportEverything region
+    Src.Explicit es -> loop es Dups.none Dups.none Dups.none
   where
-    loop exposeds vs ts bs =
+    loop exposeds uppers lowers ops =
       case exposeds of
         [] ->
-          case
-            Can.Export
-              <$> Dups.detect (\_ r t  -> (r,t)) Error.ExportDuplicate_Type ts
-              <*> Dups.detect (\_ r () ->  r   ) Error.ExportDuplicate_Var  vs
-              <*> Dups.detect (\_ r () ->  r   ) Error.ExportDuplicate_Op   bs
-          of
-            Dups.Detector k ->
-              k Result.ok Result.throws
+          Can.Export uppers lowers ops
 
         e:es ->
           case e of
-            Value n r   -> loop es (Dups.insert n r () vs) ts bs
-            Type  n r t -> loop es vs (Dups.insert n r t ts) bs
-            Op    n r   -> loop es vs ts (Dups.insert n r () bs)
+            Src.Upper (A.At r n) p -> loop es (Dups.insert n r p uppers) lowers ops
+            Src.Lower (A.At r n)   -> loop es uppers (Dups.insert n r () lowers) ops
+            Src.Operator r n       -> loop es uppers lowers (Dups.insert n r () ops)
 
 
-valueToName :: A.Located Src.Value -> (N.Name, ())
-valueToName (A.At _ (Src.Value (A.At _ name) _ _ _)) =
-  ( name, () )
+
+-- ADD EFFECTS
+--
+-- Local unqualified values take precedence, so use union to overwrite foreign values.
 
 
-data Exposed
-  = Value N.Name A.Region
-  | Type T.Name A.Region Can.ExportType
-  | Op Op.Name A.Region
+addEffects :: Mode.Mode -> Src.Style -> [Src.Value] -> Map.Map T.Name Can.TypeDecl -> [Src.Port] -> Env.Env -> Result w (Env.Env, Can.Style)
+addEffects mode style values types ports env =
+  case Effects.canonicalize env mode values (Map.mapMaybe toUnion types) ports style of
+    Effects.Result k ->
+      k (\style1 -> pure (env1, style1)) throws_
+  where
+    env1 =
+      case style of
+        Src.Normal _   -> env
+        Src.Ports  _   -> add env $ Map.fromList $ List.map toValue ports
+        Src.Effect _ m ->
+          case m of
+            Src.Cmd c   -> add env $ Map.singleton [N.ascii|command|] (Env.TopLevel (A.toRegion c))
+            Src.Sub   s -> add env $ Map.singleton [N.ascii|subscription|] (Env.TopLevel (A.toRegion s))
+            Src.Fx  c s -> add env $ Map.insert [N.ascii|command|] (Env.TopLevel (A.toRegion c)) $ Map.singleton [N.ascii|subscription|] (Env.TopLevel (A.toRegion s))
+
+    add (Env.Env h vs ts cs bs qvs qts qcs) newValues =
+      Env.Env h (Map.union newValues vs) ts cs bs qvs qts qcs
+
+    toValue (Src.Port (A.At r n) _) =
+      (n, Env.TopLevel r)
+
+    toUnion decl =
+      case decl of
+        Can.Union u -> Just u
+        Can.Alias _ -> Nothing
 
 
-checkExposed
-  :: Map.Map N.Name value
-  -> Map.Map T.Name union
-  -> Map.Map T.Name alias
-  -> Map.Map Op.Name binop
-  -> Can.Effects
-  -> Src.Exposed
-  -> Result i w Exposed
-checkExposed values unions aliases binops effects exposed =
-  case exposed of
-    Src.Lower (A.At r n)
-      | Map.member n values -> Result.ok $ Value n r
-      | otherwise ->
-          case checkPorts effects n of
-            Nothing    -> Result.ok $ Value n r
-            Just ports -> Result.throw $ Error.ExportNotFound_Var r n (ports ++ Map.keys values)
 
-    Src.Operator r n
-      | Map.member n binops -> Result.ok $ Op n r
-      | otherwise           -> Result.throw $ Error.ExportNotFound_Op r n (Map.keys binops)
-
-    Src.Upper (A.At r n) (Src.Public dotDotRegion)
-      | Map.member n unions  -> Result.ok $ Type n r Can.ExportUnionOpen
-      | Map.member n aliases -> Result.throw $ Error.ExportOpenAlias dotDotRegion n
-      | otherwise            -> Result.throw $ Error.ExportNotFound_Type r n (Map.keys unions ++ Map.keys aliases)
-
-    Src.Upper (A.At r n) Src.Private
-      | Map.member n unions  -> Result.ok $ Type n r Can.ExportUnionClosed
-      | Map.member n aliases -> Result.ok $ Type n r Can.ExportAlias
-      | otherwise            -> Result.throw $ Error.ExportNotFound_Type r n (Map.keys unions ++ Map.keys aliases)
+-- ADD VALUES
+--
+-- Local unqualified values take precedence, so use union to overwrite foreign values.
 
 
-checkPorts :: Can.Effects -> N.Name -> Maybe [N.Name]
-checkPorts effects name =
-  case effects of
-    Can.NoEffects       -> Just []
-    Can.Ports ports     -> if Map.member name ports then Nothing else Just (Map.keys ports)
-    Can.Manager _ _ _ _ -> Just []
+addValues :: [Src.Value] -> Env.Env -> Result w Env.Env
+addValues values (Env.Env h vs ts cs bs qvs qts qcs) =
+  do  newValues <- gatherValues values
+      pure $ Env.Env h (Map.union newValues vs) ts cs bs qvs qts qcs
 
+
+
+-- GATHER VALUES
+
+
+gatherValues :: [Src.Value] -> Result w (Map.Map N.Name Env.Value)
+gatherValues values =
+  case Dups.detect (\_ r _ -> Env.TopLevel r) E.DuplicateDecl dups of
+    Dups.Detector k ->
+      k return throws
+  where
+    dups = List.foldl' add Dups.none values
+
+    add d v@(Src.Value (A.At r n) _ _ _) =
+      Dups.insert n r v d
+
+
+
+-- RESULT HELPERS
+
+
+throw :: E.Error -> Result w a
+throw x =
+  Result $ \warns _ err ->
+    err warns (OOM.one x)
+
+
+throws :: OOM.OneOrMore E.Problem -> Result w a
+throws xs =
+  Result $ \warns _ err ->
+    err warns (OOM.map E.Problem xs)
+
+
+throws_ :: OOM.OneOrMore E.Error -> Result w a
+throws_ xs =
+  Result $ \warns _ err -> err warns xs
+
+
+instance Functor (Result w) where
+  {-# INLINE fmap #-}
+  fmap func (Result k) =
+    Result $ \warns ok err ->
+      let
+        ok' w arg = ok w (func arg)
+      in
+      k warns ok' err
+
+
+instance Applicative (Result w) where
+  {-# INLINE pure #-}
+  pure a =
+    Result $ \w ok _ -> ok w a
+
+  {-# INLINE (<*>) #-}
+  (<*>) (Result kF) (Result kA) =
+    Result $ \warns ok err ->
+      let
+        okF ws func = kA ws (\w arg -> ok w (func arg)) err
+        errF ws xs  = kA ws (\w _  -> err w xs) (\w ys -> err w (OOM.more xs ys))
+      in
+      kF warns okF errF
+
+
+instance Monad (Result w) where
+  {-# INLINE (>>=) #-}
+  (>>=) (Result kA) callback =
+    Result $ \warns ok err ->
+      let
+        okA w a = case callback a of { Result kB -> kB w ok err }
+      in
+      kA warns okA err
