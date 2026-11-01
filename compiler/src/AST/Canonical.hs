@@ -1,36 +1,40 @@
-{-# LANGUAGE ExtendedLiterals, MagicHash, OverloadedStrings #-}
+{-# LANGUAGE DataKinds, GADTs, KindSignatures #-}
 module AST.Canonical
-  ( Expr, Expr_(..)
-  , CaseBranch(..)
-  , FieldUpdate(..)
-  , CtorOpts(..)
-  --
+  ( Decls(..)
+  , Decl(..)
   , Def(..)
-  , Decls(..)
   --
-  , Pattern, Pattern_(..)
-  , PatternCtorArg(..)
+  , Expr
+  , Expr_(..)
+  , Branch(..)
+  , Update(..)
+  --
+  , Value(..)
+  , Func(..)
+  --
+  , Pattern
+  , Pattern_(..)
+  , PArg(..)
+  , PType(..)
   --
   , Annotation(..)
-  , Type(..)
-  , AliasType(..)
-  , FieldType(..)
-  , fieldsToList
+  , Type
+  , Type_(..)
+  , toIAnnotation
+  , toIType
   --
   , Module(..)
-  , Alias(..)
+  , TypeDecl(..)
   , Binop(..)
-  , Union(..)
-  , Ctor(..)
   , Exports(..)
-  , ExportType(..)
-  , Effects(..)
+  , Style(..)
   , Port(..)
   , Manager(..)
-  --
-  , eCtorOpts, dCtorOpts
+  , EType(..)
+  , EFFECT(..)
   )
   where
+
 
 {- Creating a canonical AST means finding the home module for all variables.
 So if you have L.map, you need to figure out that it is from the elm/core
@@ -52,93 +56,129 @@ So it is clear why the data is kept around.
 -}
 
 
-import qualified Data.List as List
+import qualified Data.Dups as Dups
 import qualified Data.Map as Map
-import GHC.Word (Word16)
+import qualified Data.NonEmptyMap as NEM
 
-import qualified Bytes.Decode as D
-import qualified Bytes.Encode as E
+import qualified Array as A
+import qualified Graph
 
 import qualified AST.Source as Src
+import qualified AST.Prim.Fields as F
 import qualified AST.Prim.Module as Module
 import qualified AST.Prim.Name as N
 import qualified AST.Prim.Operator as Op
+import qualified AST.Prim.Shader as Shader
+import qualified AST.Prim.Tag as Tag
+import qualified AST.Prim.TypeIndex as T
+import qualified AST.Prim.TypeMask as M
 import qualified AST.Prim.TypeName as T
 import qualified AST.Prim.TypeVar as T
-import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
 import qualified Elm.Float as EF
 import qualified Elm.ModuleName as ModuleName
+import qualified Elm.Interface as I
 import qualified Elm.String as ES
+import qualified Nitpick.Utils as Nit
 import qualified Reporting.Annotation as A
-
-
-
--- EXPRESSIONS
-
-
-type Expr =
-  A.Located Expr_
-
-
--- CACHE Annotations for type inference
-data Expr_
-  = VarLocal N.Name
-  | VarTopLevel ModuleName.Canonical N.Name
-  | VarKernel Module.Kernel N.Name
-  | VarForeign ModuleName.Canonical N.Name Annotation
-  | VarCtor CtorOpts ModuleName.Canonical N.Name Index.ZeroBased Annotation
-  | VarDebug ModuleName.Canonical N.Name Annotation
-  | VarOperator Op.Name ModuleName.Canonical N.Name Annotation -- CACHE real name for optimization
-  | Chr Char
-  | Str ES.String
-  | Int Int
-  | Float EF.Float
-  | List [Expr]
-  | Negate Expr
-  | Binop Op.Name ModuleName.Canonical N.Name Annotation Expr Expr -- CACHE real name for optimization
-  | Lambda [Pattern] Expr
-  | Call Expr [Expr]
-  | If [(Expr, Expr)] Expr
-  | Let Def Expr
-  | LetRec [Def] Expr
-  | LetDestruct Pattern Expr Expr
-  | Case Expr [CaseBranch]
-  | Accessor N.Name
-  | Access Expr (A.Located N.Name)
-  | Update N.Name Expr (Map.Map N.Name FieldUpdate)
-  | Record (Map.Map N.Name Expr)
-  | Unit
-  | Pair Expr Expr
-  | Triple Expr Expr Expr
-  | Shader Shader.Source Shader.Types
-
-
-data CaseBranch =
-  CaseBranch Pattern Expr
-
-
-data FieldUpdate =
-  FieldUpdate A.Region Expr
-
-
-
--- DEFS
-
-
-data Def
-  = Def (A.Located N.Name) [Pattern] Expr
-  | TypedDef (A.Located N.Name) FreeVars [(Pattern, Type)] Expr Type
 
 
 
 -- DECLARATIONS
 
 
-data Decls
-  = Declare Def Decls
-  | DeclareRec Def [Def] Decls
-  | SaveTheEnvironment
+newtype Decls =
+  Decls (Graph.Sorted Decl)
+
+
+data Decl
+  = Decl Def
+  | DeclRec Def [Def]
+
+
+data Def
+  = DValue_ (A.Located N.Name)                   Expr
+  | DValue  (A.Located N.Name)                   Expr I.Type I.Annotation
+  | DFunc_  (A.Located N.Name) Pattern [Pattern] Expr
+  | DFunc   (A.Located N.Name) PArg    [PArg]    Expr I.Type I.Annotation
+
+
+
+-- EXPRESSIONS
+--
+-- Many expressions carry an I.Annotation so that they have O(1) lookups during
+-- type inference.
+
+
+type Expr =
+  A.Located Expr_
+
+
+data Expr_
+  = VarLocal N.Name
+  | VarTopLevel ModuleName.Canonical N.Name
+  | VarKernel Module.Kernel N.Name
+  | VarForeign ModuleName.Canonical N.Name I.Annotation
+  | VarDebug ModuleName.Canonical N.Name I.Annotation
+  | VarOperator Op.Name ModuleName.Canonical N.Name I.Annotation -- CACHE real name for optimization
+  --
+  | CRecord  ModuleName.Canonical N.Name I.Annotation N.Name [N.Name]
+  | CVariant ModuleName.Canonical N.Name I.Annotation Tag.Tag Int
+  | CEnum    ModuleName.Canonical N.Name I.Annotation Tag.Tag
+  | CVector  ModuleName.Canonical N.Name I.Annotation Int
+  | CBox     ModuleName.Canonical N.Name I.Annotation
+  | CVoid    ModuleName.Canonical N.Name I.Annotation
+  --
+  | Bool Bool
+  | Chr Char
+  | Str ES.String
+  | Int Int
+  | Float EF.Float
+  | List [Expr]
+  | Negate Expr
+  | Binop Op.Name ModuleName.Canonical N.Name I.Annotation Expr Expr -- CACHE real name for optimization
+  | Lambda Pattern [Pattern] Expr
+  | Call Expr Expr [Expr]
+  | If [(Expr, Expr)] Expr
+  | LetValue Value Expr
+  | LetFunc Func Expr
+  | LetRec Func [Func] Expr
+  | LetDestruct Pattern Expr Expr
+  | Case Expr Branch [Branch]
+  --
+  | Unit
+  | Pair Expr Expr
+  | Triple Expr Expr Expr
+  --
+  | Empty
+  | Record (F.Fields Expr)
+  | Update N.Name Expr (F.Fields Update)
+  | Access Expr (A.Located N.Name)
+  | Accessor N.Name
+  --
+  | Shader Shader.Source Shader.Types
+
+
+data Branch =
+  Branch Pattern Expr
+
+
+data Update =
+  Update_ A.Region Expr
+
+
+
+-- LET VALUES
+
+
+data Value
+  = Value_ (A.Located N.Name) Expr
+  | Value  (A.Located N.Name) Expr I.Type I.Annotation -- TODO is I.Annotation needed?
+
+
+data Func
+  = Func_ (A.Located N.Name) Pattern [Pattern] Expr
+  | Func  (A.Located N.Name) PArg    [PArg]    Expr I.Type I.Annotation -- TODO is I.Annotation needed?
 
 
 
@@ -152,86 +192,90 @@ type Pattern =
 data Pattern_
   = PAnything
   | PVar N.Name
-  | PRecord [N.Name]
   | PAlias Pattern N.Name
-  | PUnit
-  | PPair Pattern Pattern
-  | PTriple Pattern Pattern Pattern
-  | PList [Pattern]
-  | PCons Pattern Pattern
-  | PBool Union Bool
+  | PBool Bool N.Name Tag.Tag Nit.Variants
   | PChr Char
   | PStr ES.String
   | PInt Int
-  | PCtor
-      { _p_home :: ModuleName.Canonical
-      , _p_type :: T.Name
-      , _p_union :: Union
-      , _p_name :: N.Name
-      , _p_index :: Index.ZeroBased
-      , _p_args :: [PatternCtorArg]
-      }
-      -- CACHE _p_home, _p_type, and _p_vars for type inference
-      -- CACHE _p_index to replace _p_name in PROD code gen
-      -- CACHE _p_opts to allocate less in PROD code gen
-      -- CACHE _p_alts and _p_numAlts for exhaustiveness checker
+  | PUnit
+  | PPair Pattern Pattern
+  | PTriple Pattern Pattern Pattern
+  | PRecord (NEM.Map N.Name ())
+  | PList [Pattern]
+  | PCons Pattern Pattern
+  | PVariant N.Name PType Tag.Tag [PArg]
+  | PEnum    N.Name PType Tag.Tag
+  | PVector  N.Name PType PArg PArg [PArg]
+  | PBox     N.Name PType I.Type Pattern
+  | PVoid    N.Name PType
 
 
-data PatternCtorArg =
-  PatternCtorArg
+data PArg =
+  PArg
     { _index :: Index.ZeroBased -- CACHE for destructors/errors
-    , _type :: Type             -- CACHE for type inference
+    , _type :: I.Type           -- CACHE for type inference
     , _arg :: Pattern
     }
 
 
+data PType =
+  PType
+    { _p_home :: ModuleName.Canonical
+    , _p_type :: T.Name
+    , _p_mask :: M.Mask
+    , _p_vars :: A.Array T.Var
+    , _p_variants :: Nit.Variants
+    }
+    -- CACHE for type inference: _p_home, _p_type, _p_mask, and _p_vars
+    -- CACHE for exhaustiveness checker: _p_variants
 
--- TYPES
 
 
-data Annotation = Forall FreeVars Type
-  deriving (Eq)
+-- TYPE
 
 
-type FreeVars = Map.Map T.Var ()
+data Annotation =
+  Forall (A.Array T.Var) Type
 
 
-data Type
-  = TLambda Type Type
-  | TVar T.Var
-  | TType ModuleName.Canonical T.Name [Type]
-  | TRecord (Map.Map N.Name FieldType) (Maybe T.Var)
+type Type =
+  A.Located Type_
+
+
+data Type_
+  = TLambda Type Type [Type]
+  | TVar T.Index
+  | TType  A.Region ModuleName.Canonical T.Name M.Mask (A.Array Type)
+  | TAlias A.Region ModuleName.Canonical T.Name M.Mask (A.Array Type) I.Aliased
+  | TEmpty
   | TUnit
-  | TPair Type Type
+  | TPair   Type Type
   | TTriple Type Type Type
-  | TAlias ModuleName.Canonical T.Name [(T.Var, Type)] AliasType
-  deriving (Eq)
+  | TRecord (F.Fields Type)
+  | TExtRec (F.Fields Type) (A.Located T.Index)
 
 
-data AliasType
-  = Holey Type
-  | Filled Type
-  deriving (Eq)
+toIAnnotation :: Annotation -> I.Annotation
+toIAnnotation (Forall xs t) =
+  I.Forall xs (toIType t)
 
 
-data FieldType = FieldType {-# UNPACK #-} !Word16 Type
-  deriving (Eq)
-
-
--- NOTE: The Word16 marks the source order, but it may not be available
--- for every canonical type. For example, if the canonical type is inferred
--- the orders will all be zeros.
---
-fieldsToList :: Map.Map N.Name FieldType -> [(N.Name, Type)]
-fieldsToList fields =
-  let
-    getIndex (_, FieldType index _) =
-      index
-
-    dropIndex (name, FieldType _ tipe) =
-      (name, tipe)
-  in
-  map dropIndex (List.sortOn getIndex (Map.toList fields))
+toIType :: Type -> I.Type
+toIType =
+    go
+  where
+    go (A.At _ tipe) =
+      case tipe of
+        TLambda x y ys      -> I.TLambda (go x) (go y) (map go ys)
+        TVar i              -> I.TVar i
+        TType  _ h n m xs   -> I.TType  h n m (A.map go xs)
+        TAlias _ h n m xs t -> I.TAlias h n m (A.map go xs) t
+        TUnit               -> I.TUnit
+        TPair   a b         -> I.TPair   (go a) (go b)
+        TTriple a b c       -> I.TTriple (go a) (go b) (go c)
+        TEmpty              -> I.TEmpty
+        TRecord fs          -> I.TRecord (F.map go fs)
+        TExtRec fs ext      -> I.TExtRec (F.map go fs) (A.toValue ext)
 
 
 
@@ -244,39 +288,18 @@ data Module =
     , _exports :: Exports
     , _docs    :: Src.Docs
     , _decls   :: Decls
-    , _unions  :: Map.Map T.Name Union
-    , _aliases :: Map.Map T.Name Alias
+    , _types   :: Map.Map T.Name TypeDecl
     , _binops  :: Map.Map Op.Name Binop
-    , _effects :: Effects
+    , _style   :: Style
     }
 
 
-data Alias = Alias [T.Var] Type
-  deriving (Eq)
+data TypeDecl
+  = Union I.Union
+  | Alias I.Alias
 
 
-data Binop = Binop_ Op.Associativity Op.Precedence N.Name
-  deriving (Eq)
-
-
-data Union =
-  Union
-    { _u_vars :: [T.Var]
-    , _u_alts :: [Ctor]
-    , _u_numAlts :: Int -- CACHE numAlts for exhaustiveness checking
-    , _u_opts :: CtorOpts -- CACHE which optimizations are available
-    }
-  deriving (Eq)
-
-
-data CtorOpts
-  = Normal
-  | Enum
-  | Unbox
-  deriving (Eq, Ord)
-
-
-data Ctor = Ctor N.Name Index.ZeroBased Int [Type] -- CACHE length args
+data Binop = Binop_ N.Name Op.Associativity Op.Precedence
   deriving (Eq)
 
 
@@ -287,58 +310,37 @@ data Ctor = Ctor N.Name Index.ZeroBased Int [Type] -- CACHE length args
 data Exports
   = ExportEverything A.Region
   | Export
-      { _e_types  :: Map.Map  T.Name (A.Region, ExportType)
-      , _e_values :: Map.Map  N.Name  A.Region
-      , _e_binops :: Map.Map Op.Name  A.Region
+      { _e_types  :: Dups.Dict  T.Name A.Region Src.Privacy
+      , _e_values :: Dups.Dict  N.Name A.Region ()
+      , _e_binops :: Dups.Dict Op.Name A.Region ()
       }
-
-
-data ExportType
-  = ExportUnionOpen
-  | ExportUnionClosed
-  | ExportAlias
 
 
 
 -- EFFECTS
 
 
-data Effects
-  = NoEffects
+data Style
+  = Normal
   | Ports (Map.Map N.Name Port)
-  | Manager A.Region A.Region A.Region Manager
+  | Effect A.Region A.Region A.Region Manager
 
 
 data Port
-  = Incoming { _freeVars :: FreeVars, _payload :: Type, _func :: Type }
-  | Outgoing { _freeVars :: FreeVars, _payload :: Type, _func :: Type }
+  = Incoming { _freeVars :: A.Array T.Var, _payload :: I.Type, _func :: I.Type }
+  | Outgoing { _freeVars :: A.Array T.Var, _payload :: I.Type, _func :: I.Type }
 
 
 data Manager
-  = Cmd T.Name
-  | Sub T.Name
-  | Fx T.Name T.Name
+  = Cmd (EType CMD)
+  | Sub (EType SUB)
+  | Fx (EType CMD) (EType SUB)
 
 
-
--- BINARY
-
-
-eCtorOpts :: CtorOpts -> E.Builder
-eCtorOpts opts =
-  case opts of
-    Normal -> E.u8# 0#Word8
-    Enum   -> E.u8# 1#Word8
-    Unbox  -> E.u8# 2#Word8
+data EType (k :: EFFECT) where
+  EType :: T.Name -> M.Mask -> EType k
 
 
-dCtorOpts :: D.Decoder CtorOpts
-dCtorOpts =
-  do  n <- D.u8
-      case n of
-        0 -> pure Normal
-        1 -> pure Enum
-        2 -> pure Unbox
-        _ -> D.expecting "CtorOpts"
+data EFFECT = CMD | SUB
 
 
