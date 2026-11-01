@@ -34,7 +34,7 @@ import Reporting.Doc ((<+>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Help as Help
-import qualified Reporting.Render.Type.Localizer as L
+import qualified Reporting.Render.Type as RT
 import qualified Reporting.Task as Task
 import qualified Root as R
 
@@ -202,17 +202,16 @@ writeDiff :: Docs.Documentation -> Docs.Documentation -> Task ()
 writeDiff oldDocs newDocs =
   let
     changes = DD.diff oldDocs newDocs
-    localizer = L.fromNames (Map.union oldDocs newDocs)
   in
-  Task.io $ Help.toStdout $ toDoc localizer changes <> "\n"
+  Task.io $ Help.toStdout $ toDoc changes <> "\n"
 
 
 
 -- TO DOC
 
 
-toDoc :: L.Localizer -> PackageChanges -> D.Doc
-toDoc localizer changes@(PackageChanges added changed removed) =
+toDoc :: PackageChanges -> D.Doc
+toDoc changes@(PackageChanges added changed removed) =
   if null added && Map.null changed && null removed then
     "No API changes detected, so this is a" <+> D.green "PATCH" <+> "change."
   else
@@ -236,7 +235,7 @@ toDoc localizer changes@(PackageChanges added changed removed) =
           ]
 
       chunks =
-        addedChunk ++ removedChunk ++ map (changesToChunk localizer) (Map.toList changed)
+        addedChunk ++ removedChunk ++ map (changesToChunk) (Map.toList changed)
     in
       D.vcat (header : "" : map chunkToDoc chunks)
 
@@ -264,23 +263,23 @@ chunkToDoc (Chunk title magnitude details) =
       ]
 
 
-changesToChunk :: L.Localizer -> (Module.Name, ModuleChanges) -> Chunk
-changesToChunk localizer (name, changes@(ModuleChanges unions aliases values binops)) =
+changesToChunk :: (Module.Name, ModuleChanges) -> Chunk
+changesToChunk (name, changes@(ModuleChanges unions aliases values binops)) =
   let
     magnitude =
       DD.moduleChangeMagnitude changes
 
     (unionAdd, unionChange, unionRemove) =
-      changesToDocTriple (unionToDoc localizer) unions
+      changesToDocTriple (unionToDoc) unions
 
     (aliasAdd, aliasChange, aliasRemove) =
-      changesToDocTriple (aliasToDoc localizer) aliases
+      changesToDocTriple (aliasToDoc) aliases
 
     (valueAdd, valueChange, valueRemove) =
-      changesToDocTriple (valueToDoc localizer) values
+      changesToDocTriple (valueToDoc) values
 
     (binopAdd, binopChange, binopRemove) =
-      changesToDocTriple (binopToDoc localizer) binops
+      changesToDocTriple (binopToDoc) binops
   in
     Chunk (Module.toChars name) magnitude $
       D.vcat $ List.intersperse "" $ Maybe.catMaybes $
@@ -319,35 +318,35 @@ changesToDoc categoryName unions aliases values binops =
       D.fromChars categoryName <> ":" : unions ++ aliases ++ binops ++ values
 
 
-unionToDoc :: L.Localizer -> T.Name -> Docs.Union -> D.Doc
-unionToDoc localizer name (Docs.Union _ tvars ctors) =
+unionToDoc :: T.Name -> Docs.Union -> D.Doc
+unionToDoc name (Docs.Union _ tvars ctors) =
   let
     setup =
       "type" <+> D.fromType name <+> D.hsep (map D.fromVar tvars)
 
     ctorDoc (ctor, tipes) =
-      typeDoc localizer (Type.Type (T.nameFromString (N.toString ctor)) tipes)
+      typeDoc (Type.Type (T.nameFromString (N.toString ctor)) tipes)
   in
     D.hang 4 (D.sep (setup : zipWith (<+>) ("=" : repeat "|") (map ctorDoc ctors)))
 
 
-aliasToDoc :: L.Localizer -> T.Name -> Docs.Alias -> D.Doc
-aliasToDoc localizer name (Docs.Alias _ tvars tipe) =
+aliasToDoc :: T.Name -> Docs.Alias -> D.Doc
+aliasToDoc name (Docs.Alias _ tvars tipe) =
   let
     declaration =
       "type" <+> "alias" <+> D.hsep (D.fromType name : map D.fromVar tvars) <+> "="
   in
-    D.hang 4 (D.sep [ declaration, typeDoc localizer tipe ])
+    D.hang 4 (D.sep [ declaration, typeDoc tipe ])
 
 
-valueToDoc :: L.Localizer -> N.Name -> Docs.Value -> D.Doc
-valueToDoc localizer name (Docs.Value _ tipe) =
-  D.hang 4 $ D.sep [ D.fromName name <+> ":", typeDoc localizer tipe ]
+valueToDoc :: N.Name -> Docs.Value -> D.Doc
+valueToDoc name (Docs.Value _ tipe) =
+  D.hang 4 $ D.sep [ D.fromName name <+> ":", typeDoc tipe ]
 
 
-binopToDoc :: L.Localizer -> Op.Name -> Docs.Binop -> D.Doc
-binopToDoc localizer op (Docs.Binop _ tipe associativity (Docs.Precedence n)) =
-    "(" <> D.fromOp op <> ")" <+> ":" <+> typeDoc localizer tipe <> D.black details
+binopToDoc :: Op.Name -> Docs.Binop -> D.Doc
+binopToDoc op (Docs.Binop _ tipe associativity (Docs.Precedence n)) =
+    "(" <> D.fromOp op <> ")" <+> ":" <+> typeDoc tipe <> D.black details
   where
     details =
       "    (" <> assoc <> "/" <> D.fromInt (fromIntegral n) <> ")"
@@ -359,6 +358,7 @@ binopToDoc localizer op (Docs.Binop _ tipe associativity (Docs.Precedence n)) =
         Docs.Right -> "right"
 
 
-typeDoc :: L.Localizer -> Type.Type -> D.Doc
-typeDoc localizer tipe =
-  Type.toDoc localizer Type.None tipe
+typeDoc :: Type.Type -> D.Doc
+typeDoc tipe =
+  Type.toDoc RT.None tipe
+
