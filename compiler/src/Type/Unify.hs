@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, Rank2Types #-}
+{-# LANGUAGE BangPatterns, MagicHash, Rank2Types, UnboxedTuples #-}
 module Type.Unify
   ( Answer(..)
   , unify
@@ -6,13 +6,22 @@ module Type.Unify
   where
 
 
+import Data.Map.Internal (Map(Tip,Bin))
 import qualified Data.Map.Strict as Map
+import qualified Data.NonEmptyMap as NEM
+import GHC.Exts (isTrue#)
+import GHC.Prim ((+#), (==#), (<#), indexSmallArray#, sizeofSmallArray#)
 
+import qualified Array as A
+import qualified String as S
+
+import qualified AST.Prim.Fields as F
 import qualified AST.Prim.Name as N
+import qualified AST.Prim.TypeMask as M
 import qualified AST.Prim.TypeName as T
 import qualified AST.Prim.TypeVar as T
 import qualified Elm.ModuleName as ModuleName
-import qualified Type.Error as Error
+import qualified Reporting.Render.Type as Err
 import qualified Type.Occurs as Occurs
 import Type.Type as Type
 import qualified Type.UnionFind as UF
@@ -24,7 +33,7 @@ import qualified Type.UnionFind as UF
 
 data Answer
   = Ok [Variable]
-  | Err [Variable] Error.Type Error.Type
+  | Err [Variable] Err.Type Err.Type
 
 
 unify :: Variable -> Variable -> IO Answer
@@ -50,114 +59,10 @@ errorDescriptor =
 
 
 
--- CPS UNIFIER
-
-
-newtype Unify a =
-  Unify (forall r.
-    [Variable]
-    -> ([Variable] -> a -> IO r)
-    -> ([Variable] -> () -> IO r)
-    -> IO r
-  )
-
-
-instance Functor Unify where
-  fmap func (Unify kv) =
-    Unify $ \vars ok err ->
-      let
-        ok1 vars1 value =
-          ok vars1 (func value)
-      in
-      kv vars ok1 err
-
-
-instance Applicative Unify where
-  pure a =
-    Unify $ \vars ok _ ->
-      ok vars a
-
-  (<*>) (Unify kf) (Unify kv) =
-    Unify $ \vars ok err ->
-      let
-        ok1 vars1 func =
-          let
-            ok2 vars2 value =
-              ok vars2 (func value)
-          in
-          kv vars1 ok2 err
-      in
-      kf vars ok1 err
-
-  (*>) (Unify ka) (Unify kb) =
-    Unify $ \vars ok err ->
-      let
-        ok1 vars1 _ = kb vars1 ok err
-      in
-      ka vars ok1 err
-
-
-instance Monad Unify where
-  (>>=) (Unify ka) callback =
-    Unify $ \vars ok err ->
-      let
-        ok1 vars1 a =
-          case callback a of
-            Unify kb -> kb vars1 ok err
-      in
-      ka vars ok1 err
-
-
-register :: IO Variable -> Unify Variable
-register mkVar =
-  Unify $ \vars ok _ ->
-    do  var <- mkVar
-        ok (var:vars) var
-
-
-mismatch :: Unify a
-mismatch =
-  Unify $ \vars _ err ->
-    err vars ()
-
-
-
--- UNIFICATION HELPERS
-
-
-data Context =
-  Context
-    { _first :: Variable
-    , _firstDesc :: Descriptor
-    , _second :: Variable
-    , _secondDesc :: Descriptor
-    }
-
-
-reorient :: Context -> Context
-reorient (Context var1 desc1 var2 desc2) =
-  Context var2 desc2 var1 desc1
-
-
-
--- MERGE
-
-
-merge :: Context -> Content -> Unify ()
-merge (Context var1 (Descriptor _ rank1 _ _) var2 (Descriptor _ rank2 _ _)) content =
-  Unify $ \vars ok _ ->
-    ok vars =<<
-      UF.union var1 var2 (Descriptor content (min rank1 rank2) noMark Nothing)
-
-
-fresh :: Context -> Content -> Unify Variable
-fresh (Context _ (Descriptor _ rank1 _ _) _ (Descriptor _ rank2 _ _)) content =
-  register $ UF.fresh $
-    Descriptor content (min rank1 rank2) noMark Nothing
-
-
-
--- ACTUALLY UNIFY THINGS
+-- GUARDED UNIFY
+--
+-- Check if the two variables are equivalent. If so, you can skip the more
+-- expensive check because they already match!
 
 
 guardedUnify :: Variable -> Variable -> Unify ()
@@ -179,254 +84,166 @@ subUnify var1 var2 =
   guardedUnify var1 var2
 
 
+
+-- ACTUALLY UNIFY
+--
+-- Everything can unify with an Error! Actually having Unify fail is reserved
+-- for legitimate mismatches. This avoids "cascading" errors where one problem
+-- manifests as multiple message.
+
+
 actuallyUnify :: Context -> Unify ()
 actuallyUnify context@(Context _ (Descriptor firstContent _ _ _) _ (Descriptor secondContent _ _ _)) =
   case firstContent of
-    FlexVar _ ->
-        unifyFlex context firstContent secondContent
-
-    FlexSuper super _ ->
-        unifyFlexSuper context super firstContent secondContent
-
-    RigidVar _ ->
-        unifyRigid context Nothing firstContent secondContent
-
-    RigidSuper super _ ->
-        unifyRigid context (Just super) firstContent secondContent
-
-    Alias home name args realVar ->
-        unifyAlias context home name args realVar secondContent
-
-    Structure flatType ->
-        unifyStructure context flatType firstContent secondContent
-
-    Error ->
-        -- If there was an error, just pretend it is okay. This lets us avoid
-        -- "cascading" errors where one problem manifests as multiple message.
-        merge context Error
+    Flex             v -> unifyFlex   context v firstContent secondContent
+    Rigid            v -> unifyRigid  context v firstContent secondContent
+    Alias h n _ xs _ v -> unifyAlias  context h n xs v       secondContent
+    Structure        t -> unifyStruct context t firstContent secondContent
+    Error              -> merge context Error
 
 
 
--- UNIFY FLEXIBLE VARIABLES
+-- UNIFY VARIABLES
 
 
-unifyFlex :: Context -> Content -> Content -> Unify ()
-unifyFlex context content otherContent =
+unifyFlex :: Context -> T.Var -> Content -> Content -> Unify ()
+unifyFlex context var content otherContent =
   case otherContent of
-    Error ->
-        merge context Error
-
-    FlexVar maybeName ->
-        merge context $
-          case maybeName of
-            Nothing ->
-              content
-
-            Just _ ->
-              otherContent
-
-    FlexSuper _ _ ->
-        merge context otherContent
-
-    RigidVar _ ->
-        merge context otherContent
-
-    RigidSuper _ _ ->
-        merge context otherContent
-
-    Alias _ _ _ _ ->
-        merge context otherContent
-
-    Structure _ ->
-        merge context otherContent
+    Flex  otherVar    -> unifyFlexWithFlex context var content otherVar otherContent
+    Rigid otherVar    -> unifyRigidWithFlex (reorient context) otherVar otherContent var
+    Alias _ _ _ _ _ v -> subUnify (_first context) v
+    Structure       t -> unifyFlexWithStructure context var t otherContent
+    Error             -> merge context Error
 
 
-
--- UNIFY RIGID VARIABLES
-
-
-unifyRigid :: Context -> Maybe SuperType -> Content -> Content -> Unify ()
-unifyRigid context maybeSuper content otherContent =
+unifyRigid :: Context -> T.Var -> Content -> Content -> Unify ()
+unifyRigid context var content otherContent =
   case otherContent of
-    FlexVar _ ->
-        merge context content
+    Flex  otherVar    -> unifyRigidWithFlex context var content otherVar
+    Rigid _           -> mismatch
+    Alias _ _ _ _ _ _ -> mismatch
+    Structure _       -> mismatch
+    Error             -> merge context Error
 
-    FlexSuper otherSuper _ ->
-        case maybeSuper of
-          Just super ->
-            if combineRigidSupers super otherSuper then
-              merge context content
-            else
-              mismatch
 
-          Nothing ->
-            mismatch
+unifyFlexWithFlex :: Context -> T.Var -> Content -> T.Var -> Content -> Unify ()
+unifyFlexWithFlex context (T.Var name con) content (T.Var otherName otherCon) otherContent =
+  T.unifyFlexWithFlex con otherCon
+    (
+      if S.size name >= S.size otherName
+      then merge context content
+      else merge context otherContent
+    )
+    (merge context content)
+    (merge context otherContent)
+    (merge context flexCompAppend)
+    mismatch
 
-    RigidVar _ ->
-        mismatch
 
-    RigidSuper _ _ ->
-        mismatch
-
-    Alias _ _ _ _ ->
-        mismatch
-
-    Structure _ ->
-        mismatch
-
-    Error ->
-        merge context Error
+unifyRigidWithFlex :: Context -> T.Var -> Content -> T.Var -> Unify ()
+unifyRigidWithFlex context (T.Var _ rigidCon) rigidContent (T.Var _ flexCon) =
+  T.unifyRigidWithFlex rigidCon flexCon
+    (merge context rigidContent)
+    mismatch
 
 
 
--- UNIFY SUPER VARIABLES
+-- UNIFY FLEX SUPER STRUCTURE
 
 
-unifyFlexSuper :: Context -> SuperType -> Content -> Content -> Unify ()
-unifyFlexSuper context super content otherContent =
-  case otherContent of
-    Structure flatType ->
-        unifyFlexSuperStructure context super flatType
-
-    RigidVar _ ->
-        mismatch
-
-    RigidSuper otherSuper _ ->
-        if combineRigidSupers otherSuper super then
-            merge context otherContent
-        else
-            mismatch
-
-    FlexVar _ ->
-        merge context content
-
-    FlexSuper otherSuper _ ->
-      case super of
-        Number ->
-          case otherSuper of
-            Number     -> merge context content
-            Comparable -> merge context content
-            Appendable -> mismatch
-            CompAppend -> mismatch
-
-        Comparable ->
-          case otherSuper of
-            Comparable -> merge context otherContent
-            Number     -> merge context otherContent
-            Appendable -> merge context (Type.unnamedFlexSuper CompAppend)
-            CompAppend -> merge context otherContent
-
-        Appendable ->
-          case otherSuper of
-            Appendable -> merge context otherContent
-            Comparable -> merge context (Type.unnamedFlexSuper CompAppend)
-            CompAppend -> merge context otherContent
-            Number     -> mismatch
-
-        CompAppend ->
-          case otherSuper of
-            Comparable -> merge context content
-            Appendable -> merge context content
-            CompAppend -> merge context content
-            Number     -> mismatch
-
-    Alias _ _ _ realVar ->
-        subUnify (_first context) realVar
-
-    Error ->
-        merge context Error
-
-
-combineRigidSupers :: SuperType -> SuperType -> Bool
-combineRigidSupers rigid flex =
-  rigid == flex
-  || (rigid == Number && flex == Comparable)
-  || (rigid == CompAppend && (flex == Comparable || flex == Appendable))
-
-
-atomMatchesSuper :: SuperType -> ModuleName.Canonical -> T.Name -> Bool
-atomMatchesSuper super home name =
-  case super of
-    Number ->
-      isNumber home name
-
-    Comparable ->
-      isNumber home name
-      || Error.isString home name
-      || Error.isChar home name
-
-    Appendable ->
-      Error.isString home name
-
-    CompAppend ->
-      Error.isString home name
-
-
-isNumber :: ModuleName.Canonical -> T.Name -> Bool
-isNumber home name =
-  home == ModuleName.basics
-  &&
-  (name == T.int || name == T.float)
-
-
-unifyFlexSuperStructure :: Context -> SuperType -> FlatType -> Unify ()
-unifyFlexSuperStructure context super flatType =
+unifyFlexWithStructure :: Context -> T.Var -> FlatType -> Content -> Unify ()
+unifyFlexWithStructure context (T.Var _ con) flatType content =
   case flatType of
-    App1 home name [] ->
-      if atomMatchesSuper super home name then
-        merge context (Structure flatType)
-      else
-        mismatch
+    App1 h n m args ->
+      let
+        recurse c =
+          do  occursCheck context
+              A.traverse_ (unifyFlexRecursive c) args
+              merge context content
+      in
+      case con of
+        T.Any        -> merge context content
+        T.Comparable -> if M.isComparable m then recurse flexComparable else mismatch
+        T.Appendable -> if isAppendable h n then merge context content  else mismatch
+        T.CompAppend -> if isAppendable h n then recurse flexComparable else mismatch
+        T.Number     -> if M.isNumber     m then merge context content  else mismatch
 
-    App1 home name [variable] | home == ModuleName.list && name == T.list ->
-      case super of
-        Number ->
-            mismatch
+    Unit1 ->
+      case con of
+        T.Any        -> merge context content
+        T.Comparable -> merge context content
+        T.Appendable -> mismatch
+        T.CompAppend -> mismatch
+        T.Number     -> mismatch
 
-        Appendable ->
-            merge context (Structure flatType)
+    Pair1 x y ->
+      let
+        recurse c =
+          do  occursCheck context
+              unifyFlexRecursive c x
+              unifyFlexRecursive c y
+              merge context content
+      in
+      case con of
+        T.Any        -> merge context content
+        T.Comparable -> recurse flexComparable
+        T.Appendable -> mismatch
+        T.CompAppend -> mismatch
+        T.Number     -> mismatch
 
-        Comparable ->
-            do  comparableOccursCheck context
-                unifyComparableRecursive variable
-                merge context (Structure flatType)
+    Triple1 x y z ->
+      let
+        recurse c =
+          do  occursCheck context
+              unifyFlexRecursive c x
+              unifyFlexRecursive c y
+              unifyFlexRecursive c z
+              merge context content
+      in
+      case con of
+        T.Any        -> merge context content
+        T.Comparable -> recurse flexComparable
+        T.Appendable -> mismatch
+        T.CompAppend -> mismatch
+        T.Number     -> mismatch
 
-        CompAppend ->
-            do  comparableOccursCheck context
-                unifyComparableRecursive variable
-                merge context (Structure flatType)
+    Empty1 ->
+      case con of
+        T.Any        -> merge context content
+        T.Comparable -> mismatch
+        T.Appendable -> mismatch
+        T.CompAppend -> mismatch
+        T.Number     -> mismatch
 
-    Pair1 a b ->
-      case super of
-        Number     -> mismatch
-        Appendable -> mismatch
-        CompAppend -> mismatch
-        Comparable ->
-            do  comparableOccursCheck context
-                unifyComparableRecursive a
-                unifyComparableRecursive b
-                merge context (Structure flatType)
+    Record1 _ _ ->
+      case con of
+        T.Any        -> merge context content
+        T.Comparable -> mismatch
+        T.Appendable -> mismatch
+        T.CompAppend -> mismatch
+        T.Number     -> mismatch
 
-    Triple1 a b c ->
-      case super of
-        Number     -> mismatch
-        Appendable -> mismatch
-        CompAppend -> mismatch
-        Comparable ->
-            do  comparableOccursCheck context
-                unifyComparableRecursive a
-                unifyComparableRecursive b
-                unifyComparableRecursive c
-                merge context (Structure flatType)
+    ExtRec1 _ _ _ ->
+      case con of
+        T.Any        -> merge context content
+        T.Comparable -> mismatch
+        T.Appendable -> mismatch
+        T.CompAppend -> mismatch
+        T.Number     -> mismatch
 
-    _ ->
-      mismatch
+    Fun1 _ _ ->
+      case con of
+        T.Any        -> merge context content
+        T.Comparable -> mismatch
+        T.Appendable -> mismatch
+        T.CompAppend -> mismatch
+        T.Number     -> mismatch
 
 
 -- TODO: is there some way to avoid doing this?
 -- Do type classes require occurs checks?
-comparableOccursCheck :: Context -> Unify ()
-comparableOccursCheck (Context _ _ var _) =
+occursCheck :: Context -> Unify ()
+occursCheck (Context _ _ var _) =
   Unify $ \vars ok err ->
     do  hasOccurred <- Occurs.occurs var
         if hasOccurred
@@ -434,35 +251,37 @@ comparableOccursCheck (Context _ _ var _) =
           else ok vars ()
 
 
-unifyComparableRecursive :: Variable -> Unify ()
-unifyComparableRecursive var =
-  do  compVar <- register $
-        do  (Descriptor _ rank _ _) <- UF.get var
-            UF.fresh $ Descriptor (Type.unnamedFlexSuper Comparable) rank noMark Nothing
-      guardedUnify compVar var
+unifyFlexRecursive :: Content -> Variable -> Unify ()
+unifyFlexRecursive content subVar =
+  do  subDesc@(Descriptor _ rank _ _) <- io $ UF.get subVar
+      let desc = Descriptor content rank noMark Nothing
+      var <- register desc
+      actuallyUnify (Context var desc subVar subDesc)
+
+
+isAppendable :: ModuleName.Canonical -> T.Name -> Bool
+isAppendable home name =
+  (home == ModuleName.string && name == T.string)
+  ||
+  (home == ModuleName.list && name == T.list)
 
 
 
 -- UNIFY ALIASES
 
 
-unifyAlias :: Context -> ModuleName.Canonical -> T.Name -> [(T.Var, Variable)] -> Variable -> Content -> Unify ()
+unifyAlias :: Context -> ModuleName.Canonical -> T.Name -> A.Array Variable -> Variable -> Content -> Unify ()
 unifyAlias context home name args realVar otherContent =
   case otherContent of
-    FlexVar _ ->
-      merge context (Alias home name args realVar)
-
-    FlexSuper _ _ ->
+    Flex _ ->
       subUnify realVar (_second context)
 
-    RigidVar _ ->
+    Rigid _ ->
       subUnify realVar (_second context)
 
-    RigidSuper _ _ ->
-      subUnify realVar (_second context)
-
-    Alias otherHome otherName otherArgs otherRealVar ->
-      if name == otherName && home == otherHome then
+    Alias otherHome otherName _ otherArgs _ otherRealVar ->
+      if name == otherName && home == otherHome
+      then
         Unify $ \vars ok err ->
           let
             ok1 vars1 () =
@@ -470,8 +289,7 @@ unifyAlias context home name args realVar otherContent =
                 Unify k ->
                   k vars1 ok err
           in
-          unifyAliasArgs vars context args otherArgs ok1 err
-
+          unifyArgs vars args otherArgs ok1 err
       else
         subUnify realVar otherRealVar
 
@@ -482,214 +300,393 @@ unifyAlias context home name args realVar otherContent =
       merge context Error
 
 
-unifyAliasArgs :: [Variable] -> Context -> [(T.Var,Variable)] -> [(T.Var,Variable)] -> ([Variable] -> () -> IO r) -> ([Variable] -> () -> IO r) -> IO r
-unifyAliasArgs vars context args1 args2 ok err =
-  case args1 of
-    (_,arg1):others1 ->
-      case args2 of
-        (_,arg2):others2 ->
-          case subUnify arg1 arg2 of
-            Unify k ->
-              k vars
-                (\vs () -> unifyAliasArgs vs context others1 others2 ok err)
-                (\vs () -> unifyAliasArgs vs context others1 others2 err err)
+unifyArgs :: [Variable] -> A.Array Variable -> A.Array Variable -> ([Variable] -> () -> IO r) -> ([Variable] -> () -> IO r) -> IO r
+unifyArgs variables (A.Array sa1) (A.Array sa2) ok err =
+  if isTrue# (len1 ==# len2)
+  then go variables 0# len1 ok
+  else
+    if isTrue# (len1 <# len2)
+    then go variables 0# len1 err
+    else go variables 0# len2 err
+  where
+    len1 = sizeofSmallArray# sa1
+    len2 = sizeofSmallArray# sa2
 
-        _ ->
-          err vars ()
-
-    [] ->
-      case args2 of
-        [] ->
-          ok vars ()
-
-        _ ->
-          err vars ()
+    go vars i len done =
+      if isTrue# (i <# len)
+      then
+        case indexSmallArray# sa1 i of { (# arg1 #) ->
+        case indexSmallArray# sa2 i of { (# arg2 #) ->
+        case subUnify arg1 arg2     of {  Unify k   ->
+          k vars
+            (\vs () -> go vs (i +# 1#) len done)
+            (\vs () -> go vs (i +# 1#) len err)
+        }}}
+      else
+        done vars ()
 
 
 
 -- UNIFY STRUCTURES
 
 
-unifyStructure :: Context -> FlatType -> Content -> Content -> Unify ()
-unifyStructure context flatType content otherContent =
+unifyStruct :: Context -> FlatType -> Content -> Content -> Unify ()
+unifyStruct context flatType content otherContent =
   case otherContent of
-    FlexVar _ ->
-        merge context content
+    Flex var ->
+      unifyFlexWithStructure (reorient context) var flatType content
 
-    FlexSuper super _ ->
-        unifyFlexSuperStructure (reorient context) super flatType
+    Rigid _ ->
+      mismatch
 
-    RigidVar _ ->
-        mismatch
-
-    RigidSuper _ _ ->
-        mismatch
-
-    Alias _ _ _ realVar ->
-        subUnify (_first context) realVar
+    Alias _ _ _ _ _ realVar ->
+      subUnify (_first context) realVar
 
     Structure otherFlatType ->
-        case (flatType, otherFlatType) of
-          (App1 home name args, App1 otherHome otherName otherArgs) | home == otherHome && name == otherName ->
-              Unify $ \vars ok err ->
-                let
-                  ok1 vars1 () =
-                    case merge context otherContent of
-                      Unify k ->
-                        k vars1 ok err
-                in
-                unifyArgs vars context args otherArgs ok1 err
+      case (flatType, otherFlatType) of
+        (App1 h n _ args, App1 h' n' _ otherArgs) | h == h' && n == n' ->
+            Unify $ \vars ok err ->
+              let
+                ok1 vars1 () =
+                  case merge context otherContent of
+                    Unify k ->
+                      k vars1 ok err
+              in
+              unifyArgs vars args otherArgs ok1 err
 
-          (Fun1 arg1 res1, Fun1 arg2 res2) ->
-              do  subUnify arg1 arg2
-                  subUnify res1 res2
-                  merge context otherContent
+        (Fun1 arg1 res1, Fun1 arg2 res2) ->
+            do  subUnify arg1 arg2
+                subUnify res1 res2
+                merge context otherContent
 
-          (EmptyRecord1, EmptyRecord1) ->
-              merge context otherContent
+        (Empty1, Empty1) ->
+            merge context otherContent
 
-          (Record1 fields ext, EmptyRecord1) | Map.null fields ->
-              subUnify ext (_second context)
+        (Record1 _ fields1, Record1 _ fields2) ->
+            unifyRecord context fields1 content fields2
 
-          (EmptyRecord1, Record1 fields ext) | Map.null fields ->
-              subUnify (_first context) ext
+        (Record1 _ fields1, ExtRec1 _ fields2 ext2) ->
+            do  flat2 <- flatten fields2 ext2
+                case flat2 of
+                  Record fs   -> unifyRecord context fields1 content fs
+                  ExtRec fs e -> unifyRecExt context fields1 content fs e
 
-          (Record1 fields1 ext1, Record1 fields2 ext2) ->
-              Unify $ \vars ok err ->
-                do  structure1 <- gatherFields fields1 ext1
-                    structure2 <- gatherFields fields2 ext2
-                    case unifyRecord context structure1 structure2 of
-                      Unify k ->
-                        k vars ok err
+        (ExtRec1 _ fields1 ext1, Record1 _ fields2) ->
+            do  flat1 <- flatten fields1 ext1
+                case flat1 of
+                  Record fs   -> unifyRecord (reorient context) fields2 content fs
+                  ExtRec fs e -> unifyRecExt (reorient context) fields2 content fs e
 
-          (Pair1 a b, Pair1 x y) ->
-              do  subUnify a x
-                  subUnify b y
-                  merge context otherContent
+        (ExtRec1 _ fields1 ext1, ExtRec1 _ fields2 ext2) ->
+            do  flat1 <- flatten fields1 ext1
+                flat2 <- flatten fields2 ext2
+                case (flat1, flat2) of
+                  (Record fs1   , Record fs2   ) -> unifyRecord context fs1 content fs2
+                  (Record fs1   , ExtRec fs2 e2) -> unifyRecExt context fs1 content fs2 e2
+                  (ExtRec fs1 e1, Record fs2   ) -> unifyRecExt (reorient context) fs2 content fs1 e1
+                  (ExtRec fs1 e1, ExtRec fs2 e2) -> unifyExtExt context fs1 e1 content fs2 e2 otherContent
 
-          (Triple1 a b c, Triple1 x y z) ->
-              do  subUnify a x
-                  subUnify b y
-                  subUnify c z
-                  merge context otherContent
+        (Pair1 a b, Pair1 x y) ->
+            do  subUnify a x
+                subUnify b y
+                merge context otherContent
 
-          (Unit1, Unit1) ->
-              merge context otherContent
+        (Triple1 a b c, Triple1 x y z) ->
+            do  subUnify a x
+                subUnify b y
+                subUnify c z
+                merge context otherContent
 
-          _ ->
-              mismatch
+        (Unit1, Unit1) ->
+            merge context otherContent
+
+        _ ->
+            mismatch
 
     Error ->
-        merge context Error
-
-
-
--- UNIFY ARGS
-
-
-unifyArgs :: [Variable] -> Context -> [Variable] -> [Variable] -> ([Variable] -> () -> IO r) -> ([Variable] -> () -> IO r) -> IO r
-unifyArgs vars context args1 args2 ok err =
-  case args1 of
-    arg1:others1 ->
-      case args2 of
-        arg2:others2 ->
-          case subUnify arg1 arg2 of
-            Unify k ->
-              k vars
-                (\vs () -> unifyArgs vs context others1 others2 ok err)
-                (\vs () -> unifyArgs vs context others1 others2 err err)
-
-        _ ->
-          err vars ()
-
-    [] ->
-      case args2 of
-        [] ->
-          ok vars ()
-
-        _ ->
-          err vars ()
+      merge context Error
 
 
 
 -- UNIFY RECORDS
 
 
-unifyRecord :: Context -> RecordStructure -> RecordStructure -> Unify ()
-unifyRecord context (RecordStructure fields1 ext1) (RecordStructure fields2 ext2) =
-  let
-    sharedFields = Map.intersectionWith (,) fields1 fields2
-    uniqueFields1 = Map.difference fields1 fields2
-    uniqueFields2 = Map.difference fields2 fields1
-  in
-  if Map.null uniqueFields1 then
-
-    if Map.null uniqueFields2 then
-      do  subUnify ext1 ext2
-          unifySharedFields context sharedFields Map.empty ext1
-
-    else
-      do  subRecord <- fresh context (Structure (Record1 uniqueFields2 ext2))
-          subUnify ext1 subRecord
-          unifySharedFields context sharedFields Map.empty subRecord
-
-  else
-
-    if Map.null uniqueFields2 then
-      do  subRecord <- fresh context (Structure (Record1 uniqueFields1 ext1))
-          subUnify subRecord ext2
-          unifySharedFields context sharedFields Map.empty subRecord
-
-    else
-      do  let otherFields = Map.union uniqueFields1 uniqueFields2
-          ext <- fresh context Type.unnamedFlexVar
-          sub1 <- fresh context (Structure (Record1 uniqueFields1 ext))
-          sub2 <- fresh context (Structure (Record1 uniqueFields2 ext))
-          subUnify ext1 sub2
-          subUnify sub1 ext2
-          unifySharedFields context sharedFields otherFields ext
-
-
-unifySharedFields :: Context -> Map.Map N.Name (Variable, Variable) -> Map.Map N.Name Variable -> Variable -> Unify ()
-unifySharedFields context sharedFields otherFields ext =
-  do  matchingFields <- Map.traverseMaybeWithKey unifyField sharedFields
-      if Map.size sharedFields == Map.size matchingFields
-        then merge context (Structure (Record1 (Map.union matchingFields otherFields) ext))
+unifyRecord :: Context -> NEM.Map N.Name Variable -> Content -> NEM.Map N.Name Variable -> Unify ()
+unifyRecord context fields1 content fields2 =
+  do  isGood <- loop (NEM.toDict fields1) (NEM.toDict fields2)
+      if isGood
+        then merge context content
         else mismatch
+  where
+    loop Tip Tip = return True
+    loop _   Tip = return False
+    loop Tip _   = return False
+    loop (Bin _ k v l r) t2 =
+      case Map.splitLookup k t2 of
+        (l2, mv2, r2) ->
+          case mv2 of
+            Nothing ->
+              do  _ <- loop l l2
+                  _ <- loop r r2
+                  return False
+
+            Just v2 ->
+              do  a <- loop l l2
+                  b <- unifyField v v2
+                  c <- loop r r2
+                  return (a && b && c)
 
 
-unifyField :: N.Name -> (Variable, Variable) -> Unify (Maybe Variable)
-unifyField _ (actual, expected) =
+unifyField :: Variable -> Variable -> Unify Bool
+unifyField actual expected =
   Unify $ \vars ok _ ->
     case subUnify actual expected of
       Unify k ->
         k vars
-          (\vs () -> ok vs (Just actual))
-          (\vs () -> ok vs Nothing)
+          (\vs () -> ok vs True)
+          (\vs () -> ok vs False)
 
 
 
--- GATHER RECORD STRUCTURE
+-- UNIFY RECORD WITH EXTENSIBLE RECORD
 
 
-data RecordStructure =
-  RecordStructure
-    { _fields :: Map.Map N.Name Variable
-    , _extension :: Variable
+unifyRecExt :: Context -> NEM.Map N.Name Variable -> Content -> NEM.Map N.Name Variable -> Variable -> Unify ()
+unifyRecExt context fields1 content partial2 ext2 =
+  do  isGood <- loop (NEM.toDict fields1) (NEM.toDict partial2)
+      if isGood
+        then
+          do  ext1 <- fresh context (Structure (diff fields1 partial2))
+              subUnify ext1 ext2
+              merge context content
+        else
+          mismatch
+  where
+    loop _   Tip = return True
+    loop Tip _   = return False
+    loop (Bin _ k v l r) t2 =
+      case Map.splitLookup k t2 of
+        (l2, mv2, r2) ->
+          case mv2 of
+            Nothing ->
+              do  a <- loop l l2
+                  b <- loop r r2
+                  return (a && b)
+
+            Just v2 ->
+              do  a <- loop l l2
+                  b <- unifyField v v2
+                  c <- loop r r2
+                  return (a && b && c)
+
+    diff f1 p2 =
+      if NEM.size f1 == NEM.size p2
+      then Empty1
+      else Record1 order (NEM.unsafeDiff f1 p2)
+
+    !(F.Order order) = F.unordered
+
+
+
+-- UNIFY EXTENSIBLE RECORDS
+
+
+unifyExtExt :: Context -> NEM.Map N.Name Variable -> Variable -> Content -> NEM.Map N.Name Variable -> Variable -> Content -> Unify ()
+unifyExtExt context partial1 ext1 content partial2 ext2 otherContent =
+  do  numOverlap <- loop (NEM.toDict partial1) (NEM.toDict partial2)
+      if numOverlap < 0
+        then mismatch
+        else
+          if NEM.size partial1 == numOverlap
+          then
+            if NEM.size partial2 == numOverlap
+            then
+              do  subUnify ext1 ext2
+                  merge context content
+            else
+              do  leftover2 <- fresh context (diff partial2 partial1 ext2)
+                  subUnify ext1 leftover2
+                  merge context otherContent
+          else
+            if NEM.size partial2 == numOverlap
+            then
+              do  leftover1 <- fresh context (diff partial1 partial2 ext1)
+                  subUnify leftover1 ext2
+                  merge context content
+            else
+              do  ext       <- fresh context flexAny
+                  leftover1 <- fresh context (diff partial2 partial1 ext)
+                  leftover2 <- fresh context (diff partial1 partial2 ext)
+                  subUnify ext1 leftover2
+                  subUnify leftover1 ext2
+                  merge context (Structure (ExtRec1 order (NEM.union partial1 partial2) ext))
+  where
+    loop _   Tip = return 0
+    loop Tip _   = return 0
+    loop (Bin _ k v l r) t2 =
+      case Map.splitLookup k t2 of
+        (l2, mv2, r2) ->
+          case mv2 of
+            Nothing ->
+              do  x <- loop l l2
+                  y <- loop r r2
+                  return $! x + y
+
+            Just v2 ->
+              do  x <- loop l l2
+                  b <- unifyField v v2
+                  y <- loop r r2
+                  return $! x + y + (if b then 1 else -0x100000000)
+
+    diff p1 p2 ext =
+      Structure (ExtRec1 order (NEM.unsafeDiff p1 p2) ext)
+
+    !(F.Order order) = F.unordered
+
+
+
+-- FLATTEN RECORD
+--
+-- TODO this should do some sort of check to detect when extensible records are
+-- combined in a way that overlaps field names.
+
+
+data FlatRecord
+  = Record (NEM.Map N.Name Variable)
+  | ExtRec (NEM.Map N.Name Variable) Variable
+
+
+flatten :: NEM.Map N.Name Variable -> Variable -> Unify FlatRecord
+flatten fields variable =
+  Unify $ \vars ok _ ->
+    ok vars =<< flattenHelp fields variable
+
+
+flattenHelp :: NEM.Map N.Name Variable -> Variable -> IO FlatRecord
+flattenHelp fields variable =
+  do  (Descriptor content _ _ _) <- UF.get variable
+      case content of
+        Structure t ->
+          case t of
+            Empty1         -> return $ Record fields
+            Record1 _ fs   -> return $ Record (NEM.union fields fs)
+            ExtRec1 _ fs e -> flattenHelp (NEM.union fields fs) e
+            App1 _ _ _ _   -> return $ ExtRec fields variable
+            Fun1 _ _       -> return $ ExtRec fields variable
+            Unit1          -> return $ ExtRec fields variable
+            Pair1 _ _      -> return $ ExtRec fields variable
+            Triple1 _ _ _  -> return $ ExtRec fields variable
+
+        Alias _ _ _ _ _ v -> flattenHelp fields v -- TODO may be dropping useful alias info here
+        Flex  _           -> return $ ExtRec fields variable
+        Rigid _           -> return $ ExtRec fields variable
+        Error             -> return $ ExtRec fields variable
+
+
+
+-- UNIFIER
+
+
+newtype Unify a =
+  Unify (forall r.
+    [Variable] -> ([Variable] -> a -> IO r) -> ([Variable] -> () -> IO r) -> IO r
+  )
+
+
+register :: Descriptor -> Unify Variable
+register desc =
+  Unify $ \vars ok _ ->
+    do  var <- UF.fresh desc
+        ok (var:vars) var
+
+
+mismatch :: Unify a
+mismatch =
+  Unify $ \vars _ err ->
+    err vars ()
+
+
+io :: IO a -> Unify a
+io work =
+  Unify $ \vars ok _ ->
+    ok vars =<< work
+
+
+
+-- CONTEXT
+
+
+data Context =
+  Context
+    { _first      :: Variable
+    , _firstDesc  :: Descriptor
+    , _second     :: Variable
+    , _secondDesc :: Descriptor
     }
 
 
-gatherFields :: Map.Map N.Name Variable -> Variable -> IO RecordStructure
-gatherFields fields variable =
-  do  (Descriptor content _ _ _) <- UF.get variable
-      case content of
-        Structure (Record1 subFields subExt) ->
-            gatherFields (Map.union fields subFields) subExt
+reorient :: Context -> Context
+reorient (Context var1 desc1 var2 desc2) =
+  Context var2 desc2 var1 desc1
 
-        Alias _ _ _ var ->
-            -- TODO may be dropping useful alias info here
-            gatherFields fields var
 
-        _ ->
-            return (RecordStructure fields variable)
+merge :: Context -> Content -> Unify ()
+merge (Context var1 (Descriptor _ rank1 _ _) var2 (Descriptor _ rank2 _ _)) content =
+  Unify $ \vars ok _ ->
+    ok vars =<<
+      UF.union var1 var2 (Descriptor content (min rank1 rank2) noMark Nothing)
+
+
+fresh :: Context -> Content -> Unify Variable
+fresh (Context _ (Descriptor _ rank1 _ _) _ (Descriptor _ rank2 _ _)) content =
+  register $ Descriptor content (min rank1 rank2) noMark Nothing
+
+
+
+-- UNIFY INSTANCES
+
+
+instance Functor Unify where
+  fmap func (Unify k) =
+    Unify $ \vars ok err ->
+      let
+        ok' vs value = ok vs (func value)
+      in
+      k vars ok' err
+
+
+instance Applicative Unify where
+  pure a =
+    Unify $ \vars ok _ ->
+      ok vars a
+
+  (<*>) (Unify kF) (Unify kV) =
+    Unify $ \vars ok err ->
+      let
+        okF vs func =
+          let
+            okV vs' value = ok vs' (func value)
+          in
+          kV vs okV err
+      in
+      kF vars okF err
+
+  (*>) (Unify kA) (Unify kB) =
+    Unify $ \vars ok err ->
+      let
+        ok' vs _ = kB vs ok err
+      in
+      kA vars ok' err
+
+
+instance Monad Unify where
+  (>>=) (Unify kA) callback =
+    Unify $ \vars ok err ->
+      let
+        ok' vars1 a =
+          case callback a of
+            Unify kB -> kB vars1 ok err
+      in
+      kA vars ok' err
+
 
