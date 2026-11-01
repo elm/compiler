@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns, MagicHash #-}
 module Type.Constrain.Pattern
   ( State(..)
   , emptyState
@@ -6,19 +7,21 @@ module Type.Constrain.Pattern
   where
 
 
-import Control.Arrow (second)
 import Control.Monad (foldM)
+import qualified Data.Index as Index
 import qualified Data.Map.Strict as Map
+import qualified Data.NonEmptyMap as NEM
+
+import qualified Array as A
 
 import qualified AST.Canonical as Can
+import qualified AST.Prim.Fields as F
 import qualified AST.Prim.Name as N
-import qualified AST.Prim.TypeName as T (Name, list)
-import qualified AST.Prim.TypeVar as T
-import qualified Data.Index as Index
+import qualified AST.Prim.TypeMask as M
+import qualified AST.Prim.TypeName as T (list)
 import qualified Elm.ModuleName as ModuleName
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as E
-import qualified Type.Instantiate as Instantiate
 import Type.Type as T
 
 
@@ -40,172 +43,99 @@ data State =
 type Header = Map.Map N.Name (A.Located Type)
 
 
-add :: Can.Pattern -> E.PExpected Type -> State -> IO State
-add (A.At region pattern) expectation state =
-  case pattern of
-    Can.PAnything ->
-      return state
-
-    Can.PVar name ->
-      return $ addToHeaders region name expectation state
-
-    Can.PAlias realPattern name ->
-      add realPattern expectation $
-        addToHeaders region name expectation state
-
-    Can.PUnit ->
-      do  let (State headers vars revCons) = state
-          let unitCon = CPattern region E.PUnit UnitN expectation
-          return $ State headers vars (unitCon:revCons)
-
-    Can.PPair a b ->
-      addPair region a b expectation state
-
-    Can.PTriple a b c ->
-      addTriple region a b c expectation state
-
-    Can.PCtor home typeName (Can.Union typeVars _ _ _) ctorName _ args ->
-      addCtor region home typeName typeVars ctorName args expectation state
-
-    Can.PList patterns ->
-      do  entryVar <- mkFlexVar
-          let entryType = VarN entryVar
-          let listType = AppN ModuleName.list T.list [entryType]
-
-          (State headers vars revCons) <-
-            foldM (addEntry region entryType) state (Index.indexedMap (,) patterns)
-
-          let listCon = CPattern region E.PList listType expectation
-          return $ State headers (entryVar:vars) (listCon:revCons)
-
-    Can.PCons headPattern tailPattern ->
-      do  entryVar <- mkFlexVar
-          let entryType = VarN entryVar
-          let listType = AppN ModuleName.list T.list [entryType]
-
-          let headExpectation = E.PNoExpectation entryType
-          let tailExpectation = E.PFromContext region E.PTail listType
-
-          (State headers vars revCons) <-
-            add headPattern headExpectation =<<
-              add tailPattern tailExpectation state
-
-          let listCon = CPattern region E.PList listType expectation
-          return $ State headers (entryVar:vars) (listCon : revCons)
-
-    Can.PRecord fields ->
-      do  extVar <- mkFlexVar
-          let extType = VarN extVar
-
-          fieldVars <- traverse (\field -> (,) field <$> mkFlexVar) fields
-          let fieldTypes = Map.fromList (map (fmap VarN) fieldVars)
-          let recordType = RecordN fieldTypes extType
-
-          let (State headers vars revCons) = state
-          let recordCon = CPattern region E.PRecord recordType expectation
-          return $
-            State
-              { _headers = Map.union headers (Map.map (A.At region) fieldTypes)
-              , _vars = map snd fieldVars ++ extVar : vars
-              , _revCons = recordCon : revCons
-              }
-
-    Can.PInt _ ->
-      do  let (State headers vars revCons) = state
-          let intCon = CPattern region E.PInt T.int expectation
-          return $ State headers vars (intCon:revCons)
-
-    Can.PStr _ ->
-      do  let (State headers vars revCons) = state
-          let strCon = CPattern region E.PStr T.string expectation
-          return $ State headers vars (strCon:revCons)
-
-    Can.PChr _ ->
-      do  let (State headers vars revCons) = state
-          let chrCon = CPattern region E.PChr T.char expectation
-          return $ State headers vars (chrCon:revCons)
-
-    Can.PBool _ _ ->
-      do  let (State headers vars revCons) = state
-          let boolCon = CPattern region E.PBool T.bool expectation
-          return $ State headers vars (boolCon:revCons)
-
-
-
--- STATE HELPERS
-
-
 {-# NOINLINE emptyState #-}
 emptyState :: State
 emptyState =
   State Map.empty [] []
 
 
-addToHeaders :: A.Region -> N.Name -> E.PExpected Type -> State -> State
-addToHeaders region name expectation (State headers vars revCons) =
+
+-- ADD PATTERN
+
+
+add :: Can.Pattern -> E.PExpected Type -> State -> IO State
+add (A.At r pattern) e s =
+  case pattern of
+    Can.PAnything            -> return s
+    Can.PVar x               -> return  $ addVar r x e s
+    Can.PAlias p x           -> add p e $ addVar r x e s
+    Can.PInt _               -> addInt r e s
+    Can.PBool _ _ _ _        -> addLit r E.PBool T.bool   e s
+    Can.PChr _               -> addLit r E.PChr  T.char   e s
+    Can.PStr _               -> addLit r E.PStr  T.string e s
+    Can.PUnit                -> addLit r E.PUnit UnitN    e s
+    Can.PPair   a b          -> addPair   r a b   e s
+    Can.PTriple a b c        -> addTriple r a b c e s
+    Can.PRecord fs           -> addRecord r fs e s
+    Can.PList   ps           -> addList   r   ps e s
+    Can.PCons p ps           -> addCons   r p ps e s
+    Can.PVariant n pt _ xs   -> addVariant r n pt xs e s
+    Can.PEnum    n pt _      -> addVariant r n pt [] e s
+    Can.PVector  n pt a b cs -> addVariant r n pt (a:b:cs) e s
+    Can.PBox     n pt t p    -> addVariant r n pt [box t p] e s
+    Can.PVoid    n pt        -> addVariant r n pt [] e s
+  where
+    box = Can.PArg Index.first
+
+
+addLit :: A.Region -> E.PCategory -> Type -> E.PExpected Type -> State -> IO State
+addLit region category tipe expected (State headers vars revCons) =
+  do  let con = CPattern region category tipe expected
+      return $ State headers vars (con:revCons)
+
+
+addInt :: A.Region -> E.PExpected Type -> State -> IO State
+addInt region expected (State headers vars revCons) =
+  do  var <- mkFlexNumber
+      let con = CPattern region E.PInt (VarN var) expected
+      return $ State headers (var:vars) (con:revCons)
+
+
+
+-- ADD VARIABLE
+
+
+addVar :: A.Region -> N.Name -> E.PExpected Type -> State -> State
+addVar region name expected (State headers vars revCons) =
   let
-    tipe = getType expectation
+    tipe = getType expected
     newHeaders = Map.insert name (A.At region tipe) headers
   in
   State newHeaders vars revCons
 
 
 getType :: E.PExpected Type -> Type
-getType expectation =
-  case expectation of
-    E.PNoExpectation tipe -> tipe
+getType expected =
+  case expected of
+    E.PNoExpectation   tipe -> tipe
     E.PFromContext _ _ tipe -> tipe
 
 
 
--- CONSTRAIN LIST
-
-
-addEntry :: A.Region -> Type -> State -> (Index.ZeroBased, Can.Pattern) -> IO State
-addEntry listRegion tipe state (index, pattern) =
-  let
-    expectation =
-      E.PFromContext listRegion (E.PListEntry index) tipe
-  in
-  add pattern expectation state
-
-
-
--- CONSTRAIN TUPLE
+-- ADD TUPLES
 
 
 addPair :: A.Region -> Can.Pattern -> Can.Pattern -> E.PExpected Type -> State -> IO State
-addPair region a b expectation state =
-  do  aVar <- mkFlexVar
-      bVar <- mkFlexVar
+addPair region a b expected state =
+  do  aVar <- mkFlexAny
+      bVar <- mkFlexAny
       let aType = VarN aVar
       let bType = VarN bVar
-
-      (State headers vars revCons) <-
-        simpleAdd b bType =<<
-        simpleAdd a aType state
-
-      let tupleCon = CPattern region E.PTuple (PairN aType bType) expectation
-
+      (State headers vars revCons) <- simpleAdd b bType =<< simpleAdd a aType state
+      let tupleCon = CPattern region E.PTuple (PairN aType bType) expected
       return $ State headers (aVar:bVar:vars) (tupleCon:revCons)
 
 
 addTriple :: A.Region -> Can.Pattern -> Can.Pattern -> Can.Pattern -> E.PExpected Type -> State -> IO State
-addTriple region a b c expectation state =
-  do  aVar <- mkFlexVar
-      bVar <- mkFlexVar
-      cVar <- mkFlexVar
+addTriple region a b c expected state =
+  do  aVar <- mkFlexAny
+      bVar <- mkFlexAny
+      cVar <- mkFlexAny
       let aType = VarN aVar
       let bType = VarN bVar
       let cType = VarN cVar
-
-      (State headers vars revCons) <-
-        simpleAdd c cType =<<
-        simpleAdd b bType =<<
-        simpleAdd a aType state
-
-      let tupleCon = CPattern region E.PTuple (TripleN aType bType cType) expectation
-
+      (State headers vars revCons) <- simpleAdd c cType =<< simpleAdd b bType =<< simpleAdd a aType state
+      let tupleCon = CPattern region E.PTuple (TripleN aType bType cType) expected
       return $ State headers (aVar:bVar:cVar:vars) (tupleCon:revCons)
 
 
@@ -215,31 +145,84 @@ simpleAdd pattern patternType state =
 
 
 
--- CONSTRAIN CONSTRUCTORS
+-- ADD RECORD
 
 
-addCtor :: A.Region -> ModuleName.Canonical -> T.Name -> [T.Var] -> N.Name -> [Can.PatternCtorArg] -> E.PExpected Type -> State -> IO State
-addCtor region home typeName typeVarNames ctorName args expectation state =
-  do  varPairs <- traverse (\var -> (,) var <$> nameToFlex var) typeVarNames
-      let typePairs = map (second VarN) varPairs
-      let freeVarDict = Map.fromList typePairs
-
-      (State headers vars revCons) <-
-        foldM (addCtorArg region ctorName freeVarDict) state args
-
-      let ctorType = AppN home typeName (map snd typePairs)
-      let ctorCon = CPattern region (E.PCtor ctorName) ctorType expectation
-
+addRecord :: A.Region -> NEM.Map N.Name () -> E.PExpected Type -> State -> IO State
+addRecord region fields expected (State headers vars revCons) =
+  do  extVar    <- mkFlexAny
+      fieldVars <- NEM.traverse (\() -> mkFlexAny) fields
+      let fieldTypes = NEM.map VarN fieldVars
+      let recordType = ExtRecN order fieldTypes (VarN extVar)
+      let recordCon  = CPattern region E.PRecord recordType expected
       return $
         State
-          { _headers = headers
-          , _vars = map snd varPairs ++ vars
-          , _revCons = ctorCon : revCons
+          { _headers = Map.union headers (Map.map (A.At region) (NEM.toDict fieldTypes))
+          , _vars    = NEM.foldr (:) (extVar:vars) fieldVars
+          , _revCons = recordCon : revCons
           }
+  where
+    !(F.Order order) = F.unordered
 
 
-addCtorArg :: A.Region -> N.Name -> Map.Map T.Var Type -> State -> Can.PatternCtorArg -> IO State
-addCtorArg region ctorName freeVarDict state (Can.PatternCtorArg index srcType pattern) =
-  do  tipe <- Instantiate.fromSrcType freeVarDict srcType
-      let expectation = E.PFromContext region (E.PCtorArg ctorName index) tipe
-      add pattern expectation state
+
+-- ADD LIST
+
+
+addList :: A.Region -> [Can.Pattern] -> E.PExpected Type -> State -> IO State
+addList region patterns expected state =
+  do  entryVar <- mkFlexAny
+      let entryType = VarN entryVar
+      let listType = AppN ModuleName.list T.list M.list (A.from1 entryType)
+
+      (State headers vars revCons) <-
+        foldM (addEntry entryType) state (Index.indexedMap (,) patterns)
+
+      let listCon = CPattern region E.PList listType expected
+      return $ State headers (entryVar:vars) (listCon:revCons)
+  where
+    addEntry t s (i, p) =
+      add p (E.PFromContext region (E.PListEntry i) t) s
+
+
+addCons :: A.Region -> Can.Pattern -> Can.Pattern -> E.PExpected Type -> State -> IO State
+addCons region headPattern tailPattern expected state =
+  do  entryVar <- mkFlexAny
+      let entryType = VarN entryVar
+      let listType = AppN ModuleName.list T.list M.list (A.from1 entryType)
+
+      let headExpectation = E.PNoExpectation entryType
+      let tailExpectation = E.PFromContext region E.PTail listType
+
+      (State headers vars revCons) <-
+        add headPattern headExpectation =<<
+          add tailPattern tailExpectation state
+
+      let listCon = CPattern region E.PList listType expected
+      return $ State headers (entryVar:vars) (listCon : revCons)
+
+
+
+-- ADD VARIANT
+
+
+addVariant :: A.Region -> N.Name -> Can.PType -> [Can.PArg] -> E.PExpected Type -> State -> IO State
+addVariant region name (Can.PType h n m typeVars _) args expected state =
+  do  ctorVars <- A.traverseIO varToFlex typeVars
+
+      (State headers vars revCons) <- foldM (addPArg region name ctorVars) state args
+
+      let ctorType = AppN h n m (A.map VarN ctorVars)
+      let ctorCon  = CPattern region (E.PCtor name) ctorType expected
+
+      return $ State headers (A.addToList ctorVars vars) (ctorCon:revCons)
+
+
+addPArg :: A.Region -> N.Name -> A.Array Variable -> State -> Can.PArg -> IO State
+addPArg region name ctorVars state (Can.PArg index tipe pattern) =
+  let
+    expected =
+      E.PFromContext region (E.PCtorArg name index) (T.TypeN ctorVars tipe)
+  in
+  add pattern expected state
+
