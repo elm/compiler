@@ -103,7 +103,7 @@ parser pkg foreigns =
   do  word2 0x2F#Word8 0x2A#Word8 {-/*-} toError
       Space.chomp ignoreError
       Space.checkFreshLine toError
-      imports <- specialize ignoreError (Module.chompImports [])
+      imports <- specialize ignoreError (Module.chompImports (Src.NoHeader A.zero) [])
       word2 0x2A#Word8 0x2F#Word8 {-*/-} toError
       chunks <- parseChunks (toVarTable pkg foreigns imports) Map.empty Map.empty
       return (Content imports chunks)
