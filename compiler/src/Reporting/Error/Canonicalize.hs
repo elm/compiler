@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Reporting.Error.Canonicalize
   ( Error(..)
+  , Problem(..)
   , InvalidPayload(..)
   , PortProblem(..)
   , DuplicatePatternContext(..)
@@ -14,12 +15,10 @@ import Prelude hiding (cycle)
 import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Map as Map
-import qualified Data.OneOrMore as OneOrMore
 import qualified Data.Set as Set
 
 import qualified Graph
 
-import qualified AST.Canonical as Can
 import qualified AST.Source as Src
 import qualified AST.Prim.Module as Module
 import qualified AST.Prim.Name as N
@@ -28,6 +27,7 @@ import qualified AST.Prim.TypeName as T
 import qualified AST.Prim.TypeVar as T
 import qualified Data.Index as Index
 import qualified Elm.ModuleName as ModuleName
+import qualified Reporting.Ambiguous as Amb
 import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
 import Reporting.Doc (Doc, (<+>))
@@ -42,51 +42,59 @@ import qualified Reporting.Suggest as Suggest
 
 
 data Error
-  = AnnotationTooShort A.Region N.Name Index.ZeroBased Int
-  | AmbiguousVar A.Region (Maybe Module.Prefix) N.Name ModuleName.Canonical (OneOrMore.OneOrMore ModuleName.Canonical)
-  | AmbiguousType A.Region (Maybe Module.Prefix) T.Name ModuleName.Canonical (OneOrMore.OneOrMore ModuleName.Canonical)
-  | AmbiguousVariant A.Region (Maybe Module.Prefix) N.Name ModuleName.Canonical (OneOrMore.OneOrMore ModuleName.Canonical)
-  | AmbiguousBinop A.Region Op.Name ModuleName.Canonical (OneOrMore.OneOrMore ModuleName.Canonical)
-  | BadArity_Type A.Region T.Name Int Int
-  | BadArity_Pattern A.Region N.Name Int Int
-  | Binop A.Region Op.Name Op.Name
-  | DuplicateDecl N.Name A.Region A.Region
-  | DuplicateType T.Name A.Region A.Region
-  | DuplicateCtor N.Name A.Region A.Region
-  | DuplicateBinop Op.Name A.Region A.Region
-  | DuplicateField N.Name A.Region A.Region
-  | DuplicateAliasArg T.Name T.Var A.Region A.Region
-  | DuplicateUnionArg T.Name T.Var A.Region A.Region
-  | DuplicatePattern DuplicatePatternContext N.Name A.Region A.Region
+  = ModuleNameUnspecified Module.Name A.Region
+  | ModuleNameMismatch Module.Name (A.Located Module.Name)
+  | UnexpectedPort A.Region
+  | NoPorts A.Region
+  | NoPortsInPackage (A.Located N.Name)
+  | NoPortModulesInPackage A.Region
+  | NoEffectsOutsideKernel A.Region
   | EffectNotFound A.Region T.Name
   | EffectFunctionNotFound A.Region N.Name
-  | ExportDuplicate_Op  Op.Name A.Region A.Region
-  | ExportDuplicate_Var  N.Name A.Region A.Region
-  | ExportDuplicate_Type T.Name A.Region A.Region
-  | ExportNotFound_Op   A.Region Op.Name [Op.Name]
-  | ExportNotFound_Var  A.Region  N.Name [N.Name]
-  | ExportNotFound_Type A.Region  T.Name [T.Name]
-  | ExportOpenAlias A.Region T.Name
+  --
   | ImportCtorByName A.Region N.Name T.Name
   | ImportNotFound A.Region Module.Name [ModuleName.Canonical]
   | ImportOpenAlias A.Region T.Name
   | ImportExposedValueNotFound A.Region ModuleName.Canonical N.Name [N.Name]
   | ImportExposedTypeNotFound A.Region ModuleName.Canonical T.Name [T.Name]
   | ImportExposedBinopNotFound A.Region ModuleName.Canonical Op.Name [Op.Name]
+  --
+  | PortPayloadInvalid A.Region N.Name InvalidPayload
+  | PortTypeInvalid A.Region N.Name PortProblem
+  --
+  | NoDecls A.Region
+  --
+  | Problem Problem
+
+
+data Problem
+  = AnnotationTooShort A.Region N.Name Index.ZeroBased Int
+  | AmbiguousVar  A.Region (Maybe Module.Prefix) N.Name (Amb.Ambiguous Module.Name)
+  | AmbiguousType A.Region (Maybe Module.Prefix) T.Name (Amb.Ambiguous Module.Name)
+  | AmbiguousCtor A.Region (Maybe Module.Prefix) N.Name (Amb.Ambiguous Module.Name)
+  | BadArity_Type A.Region T.Name Int Int
+  | BadArity_Pattern A.Region N.Name Int Int
+  | Binop A.Region Op.Name Op.Name
+  | DuplicateBinop Op.Name A.Region A.Region
+  | DuplicateDecl N.Name A.Region A.Region
+  | DuplicateType T.Name A.Region A.Region
+  | DuplicateCtor N.Name A.Region A.Region
+  | DuplicateField N.Name A.Region A.Region
+  | DuplicateAliasArg T.Name T.Var A.Region A.Region
+  | DuplicateUnionArg T.Name T.Var A.Region A.Region
+  | DuplicatePattern DuplicatePatternContext N.Name A.Region A.Region
   | NotFoundVar A.Region (Maybe Module.Prefix) N.Name (PossibleNames N.Name)
   | NotFoundType A.Region (Maybe Module.Prefix) T.Name (PossibleNames T.Name)
-  | NotFoundVariant A.Region (Maybe Module.Prefix) N.Name (PossibleNames N.Name)
+  | NotFoundCtor A.Region (Maybe Module.Prefix) N.Name (PossibleNames N.Name)
   | NotFoundBinop A.Region Op.Name (Set.Set Op.Name)
   | PatternHasRecordCtor A.Region N.Name
-  | PortPayloadInvalid A.Region N.Name Can.Type InvalidPayload
-  | PortTypeInvalid A.Region N.Name PortProblem
-  | RecursiveAlias A.Region T.Name [T.Var] Src.Type (Graph.MinimalCycle T.Name)
-  | RecursiveDecl A.Region N.Name (Graph.MinimalCycle N.Name)
-  | RecursiveLet (A.Located N.Name) (Graph.MinimalCycle N.Name)
+  | RecursiveAlias (A.Located T.Name) [T.Var] Src.Type (Graph.MinimalCycle T.Name)
+  | RecursiveDecl (A.Located N.Name) (Graph.MinimalCycle N.Name)
+  | BadLetRec_Value (A.Located N.Name) (Graph.MinimalCycle N.Name)
   | Shadowing N.Name A.Region A.Region
   | TupleLargerThanThree A.Region
-  | TypeVarsUnboundInUnion A.Region T.Name [T.Var] (T.Var, A.Region) [(T.Var, A.Region)]
-  | TypeVarsMessedUpInAlias A.Region T.Name [T.Var] [(T.Var, A.Region)] [(T.Var, A.Region)]
+  | TypeVarsUnboundInUnion  A.Region T.Name [T.Var] (A.Located T.Var) [A.Located T.Var]
+  | TypeVarsMessedUpInAlias A.Region T.Name [T.Var] [A.Located T.Var] [A.Located T.Var]
 
 
 data DuplicatePatternContext
@@ -126,80 +134,127 @@ data PossibleNames name =
 toReport :: Code.Source -> Error -> Report.Report
 toReport source err =
   case err of
-    AnnotationTooShort region name index leftovers ->
-      let
-        numTypeArgs = Index.toMachine index
-        numDefArgs = numTypeArgs + leftovers
-      in
-      Report.Report "BAD TYPE ANNOTATION" region [] $
+    ModuleNameUnspecified name region ->
+      Report.Report "MODULE NAME MISSING" region [] $
+        D.stack
+          [ D.reflow $
+              "I need the module name to be declared at the top of this file, like this:"
+          , D.indent 4 $ D.fillSep $
+              [ D.cyan "module", D.fromModule name, D.cyan "exposing", "(..)" ]
+          , D.reflow $
+              "Try adding that as the first line of your file!"
+          , D.toSimpleNote $
+              "It is best to replace (..) with an explicit list of types and\
+              \ functions you want to expose. When you know a value is only used\
+              \ within this module, you can refactor without worrying about uses\
+              \ elsewhere. Limiting exposed values can also speed up compilation\
+              \ because I can skip a bunch of work if I see that the exposed API\
+              \ has not changed."
+          ]
+
+    ModuleNameMismatch expectedName (A.At region actualName) ->
+      Report.Report "MODULE NAME MISMATCH" region [Module.toChars expectedName] $
+        Code.toSnippet source region Nothing
+          (
+            "It looks like this module name is out of sync:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I need it to match the file path, so I was expecting to see `"
+                  ++ Module.toChars expectedName
+                  ++ "` here. Make the following change, and you should be all set!"
+              , D.indent 4 $
+                  D.dullyellow (D.fromModule actualName) <> " -> " <> D.green (D.fromModule expectedName)
+              , D.toSimpleNote $
+                  "I require that module names correspond to file paths. This makes it much\
+                  \ easier to explore unfamiliar codebases! So if you want to keep the current\
+                  \ module name, try renaming the file instead."
+              ]
+          )
+
+    UnexpectedPort region ->
+      Report.Report "UNEXPECTED PORTS" region [] $
         Code.toSnippet source region Nothing
           (
             D.reflow $
-              "The type annotation for `" <> N.toChars name <> "` says it can accept "
-              <> D.args numTypeArgs <> ", but the definition says it has "
-              <> D.args numDefArgs <> ":"
+              "You are declaring ports in a normal module."
           ,
-            D.reflow $
-              "Is the type annotation missing something? Should some argument"
-              <> (if leftovers == 1 then "" else "s")
-              <> " be deleted? Maybe some parentheses are missing?"
+            D.stack
+              [ D.fillSep
+                  ["Switch","this","to","say",D.cyan "port module","instead,"
+                  ,"marking","that","this","module","contains","port","declarations."
+                  ]
+              , D.link "Note"
+                  "Ports are not a traditional FFI for calling JS functions directly. They need a different mindset! Read"
+                  "ports"
+                  "to learn the syntax and how to use it effectively."
+              ]
           )
 
-    AmbiguousVar     r p n h hs -> ambiguousName source r p n h hs "variable" N.toChars
-    AmbiguousType    r p n h hs -> ambiguousName source r p n h hs "type" T.nameToChars
-    AmbiguousVariant r p n h hs -> ambiguousName source r p n h hs "variant" N.toChars
-    AmbiguousBinop   r   n h hs -> ambiguousName source r Nothing n h hs "operator" Op.toChars
-
-    BadArity_Type    r n e a -> badArity source r n e a T.nameToChars "type"
-    BadArity_Pattern r n e a -> badArity source r n e a N.toChars "variant"
-
-    Binop region op1 op2 ->
-      Report.Report "INFIX PROBLEM" region [] $
+    NoPorts region ->
+      Report.Report "NO PORTS" region [] $
         Code.toSnippet source region Nothing
           (
             D.reflow $
-              "You cannot mix (" <> Op.toChars op1 <> ") and (" <> Op.toChars op2 <> ") without parentheses."
+              "This module does not declare any ports, but it says it will:"
           ,
-            D.reflow
-              "I do not know how to group these expressions. Add parentheses for me!"
+            D.fillSep
+              ["Switch","this","to",D.cyan "module"
+              ,"and","you","should","be","all","set!"
+              ]
           )
 
-    DuplicateDecl name r1 r2 ->
-      nameClash source r1 r2 $
-        "This file has multiple `" <> N.toChars name <> "` declarations."
+    NoPortsInPackage (A.At region _) ->
+      Report.Report "PACKAGES CANNOT HAVE PORTS" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "Packages cannot declare any ports, so I am getting stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "Remove this port declaration."
+              , noteForPortsInPackage
+              ]
+          )
 
-    DuplicateType name r1 r2 ->
-      nameClash source r1 r2 $
-        "This file defines multiple `" <> T.nameToChars name <> "` types."
+    NoPortModulesInPackage region ->
+      Report.Report "PACKAGES CANNOT HAVE PORTS" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "Packages cannot declare any ports, so I am getting stuck here:"
+          ,
+            D.stack
+              [ D.fillSep $
+                  ["Remove","the",D.cyan "port","keyword","and","I"
+                  ,"should","be","able","to","continue."
+                  ]
+              , noteForPortsInPackage
+              ]
+          )
 
-    DuplicateCtor name r1 r2 ->
-      nameClash source r1 r2 $
-        "This file defines multiple `" <> N.toChars name <> "` type constructors."
-
-    DuplicateBinop op r1 r2 ->
-      nameClash source r1 r2 $
-        "This file defines multiple (" <> Op.toChars op <> ") operators."
-
-    DuplicateField name r1 r2 ->
-      nameClash source r1 r2 $
-        "This record has multiple `" <> N.toChars name <> "` fields."
-
-    DuplicateAliasArg typeName name r1 r2 ->
-      nameClash source r1 r2 $
-        "The `" <> T.nameToChars typeName <> "` type alias has multiple `" <> T.varToChars name <> "` type variables."
-
-    DuplicateUnionArg typeName name r1 r2 ->
-      nameClash source r1 r2 $
-        "The `" <> T.nameToChars typeName <> "` type has multiple `" <> T.varToChars name <> "` type variables."
-
-    DuplicatePattern context name r1 r2 ->
-      nameClash source r1 r2 $
-        case context of
-          DPLambdaArgs -> "This anonymous function has multiple `" <> N.toChars name <> "` arguments."
-          DPFuncArgs f -> "The `" <> N.toChars f <> "` function has multiple `" <> N.toChars name <> "` arguments."
-          DPCaseBranch -> "This `case` pattern has multiple `" <> N.toChars name <> "` variables."
-          DPLetBinding -> "This `let` expression defines `" <> N.toChars name <> "` more than once!"
-          DPDestruct   -> "This pattern contains multiple `" <> N.toChars name <> "` variables."
+    NoEffectsOutsideKernel region ->
+      Report.Report "INVALID EFFECT MODULE" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "It is not possible to declare an `effect module` outside the @elm organization,\
+              \ so I am getting stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "Switch to a normal module declaration."
+              , D.toSimpleNote $
+                  "Effect modules are designed to allow certain core functionality to be\
+                  \ defined separately from the compiler. So the @elm organization has access to\
+                  \ this so that certain changes, extensions, and fixes can be introduced without\
+                  \ needing to release new Elm binaries. For example, we want to make it possible\
+                  \ to test effects, but this may require changes to the design of effect modules.\
+                  \ By only having them defined in the @elm organization, that kind of design work\
+                  \ can proceed much more smoothly."
+              ]
+          )
 
     EffectNotFound region name ->
       Report.Report "EFFECT PROBLEM" region [] $
@@ -221,25 +276,6 @@ toReport source err =
           ,
             D.reflow $
               "But I cannot find `" ++ N.toChars name ++ "` in this file!"
-          )
-
-    ExportDuplicate_Op   n r1 r2 -> exportDuplicate source n r1 r2 Op.toChars
-    ExportDuplicate_Var  n r1 r2 -> exportDuplicate source n r1 r2 N.toChars
-    ExportDuplicate_Type n r1 r2 -> exportDuplicate source n r1 r2 T.nameToChars
-    ExportNotFound_Op    r n  ns -> exportNotFound  source r n  ns Op.toChars    badOp
-    ExportNotFound_Var   r n  ns -> exportNotFound  source r n  ns N.toChars     badVar
-    ExportNotFound_Type  r n  ns -> exportNotFound  source r n  ns T.nameToChars badType
-
-    ExportOpenAlias region name ->
-      Report.Report "BAD EXPORT" region [] $
-        Code.toSnippet source region Nothing
-          (
-            D.reflow $
-              "The (..) syntax is for exposing variants of a custom type. It cannot be used with a type alias like `"
-              ++ T.nameToChars name ++ "` though."
-          ,
-            D.reflow $
-              "Remove the (..) and you should be fine!"
           )
 
     ImportCtorByName region ctor tipe ->
@@ -287,104 +323,7 @@ toReport source err =
     ImportExposedTypeNotFound  r h n xs -> importNotFound source r h n xs T.nameToChars
     ImportExposedBinopNotFound r h n xs -> importNotFound source r h n xs Op.toChars
 
-    NotFoundVar     r p n ns -> notFound source r p n "variable" ns N.toChars
-    NotFoundType    r p n ns -> notFound source r p n "type"     ns T.nameToChars
-    NotFoundVariant r p n ns -> notFound source r p n "variant"  ns N.toChars
-
-    NotFoundBinop region op locals ->
-      if op == "===" then
-        Report.Report "UNKNOWN OPERATOR" region ["=="] $
-          Code.toSnippet source region Nothing
-            (
-              "Elm does not have a (===) operator like JavaScript."
-            ,
-              "Switch to (==) instead."
-            )
-
-      else if op == "!=" || op == "!==" then
-        Report.Report "UNKNOWN OPERATOR" region ["/="] $
-          Code.toSnippet source region Nothing
-            (
-              D.reflow $
-                "Elm uses a different name for the “not equal” operator:"
-            ,
-              D.stack
-                [ D.reflow "Switch to (/=) instead."
-                , D.toSimpleNote $
-                    "Our (/=) operator is supposed to look like a real “not equal” sign (≠). I hope that history will remember ("
-                    ++ Op.toChars op ++ ") as a weird and temporary choice."
-                ]
-            )
-
-      else if op == "**" then
-        Report.Report "UNKNOWN OPERATOR" region ["^","*"] $
-          Code.toSnippet source region Nothing
-            (
-              D.reflow $
-                "I do not recognize the (**) operator:"
-            ,
-              D.reflow $
-                "Switch to (^) for exponentiation. Or switch to (*) for multiplication."
-            )
-
-      else if op == "%" then
-        Report.Report "UNKNOWN OPERATOR" region [] $
-          Code.toSnippet source region Nothing
-            (
-              D.reflow $
-                "Elm does not use (%) as the remainder operator:"
-            ,
-              D.stack
-                [ D.reflow $
-                    "If you want the behavior of (%) like in JavaScript, switch to:\
-                    \ <https://package.elm-lang.org/packages/elm/core/latest/Basics#remainderBy>"
-                , D.reflow $
-                    "If you want modular arithmetic like in math, switch to:\
-                    \ <https://package.elm-lang.org/packages/elm/core/latest/Basics#modBy>"
-                , D.reflow $
-                    "The difference is how things work when negative numbers are involved."
-                ]
-            )
-
-      else
-        let
-          suggestions =
-            map Op.toChars $ take 2 $
-              Suggest.sort (Op.toChars op) Op.toChars (Set.toList locals)
-
-          format altOp =
-            D.green $ "(" <> altOp <> ")"
-        in
-        Report.Report "UNKNOWN OPERATOR" region suggestions $
-          Code.toSnippet source region Nothing
-            (
-              D.reflow $
-                "I do not recognize the (" ++ Op.toChars op ++ ") operator."
-            ,
-              D.fillSep $
-                ["Is","there","an","`import`","and","`exposing`","entry","for","it?"]
-                ++
-                  case map D.fromChars suggestions of
-                    [] ->
-                      []
-
-                    alts ->
-                      ["Maybe","you","want"] ++ D.commaSep "or" format alts ++ ["instead?"]
-            )
-
-    PatternHasRecordCtor region name ->
-      Report.Report "BAD PATTERN" region [] $
-        Code.toSnippet source region Nothing
-          (
-            D.reflow $
-              "You can construct records by using `" <> N.toChars name
-              <> "` as a function, but it is not available in pattern matching like this:"
-          ,
-            D.reflow $
-              "I recommend matching the record as a variable and unpacking it later."
-          )
-
-    PortPayloadInvalid region portName _badType invalidPayload ->
+    PortPayloadInvalid region portName invalidPayload ->
       let
         formatDetails (aBadKindOfThing, elaboration) =
           Report.Report "PORT ERROR" region [] $
@@ -524,10 +463,213 @@ toReport source err =
                 \ this is neither. I do not know how to handle this."
             )
 
-    RecursiveAlias region name args tipe others ->
-        aliasRecursionReport source region name args tipe others
+    NoDecls region ->
+      Report.Report "NO DECLARATIONS" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "This module is empty!"
+          ,
+            D.stack $
+              [ D.reflow $
+                  "I was expecting to see some type declaration, functions, etc. I recommend\
+                  \ starting an Elm file with definitions like this:"
+              , D.indent 4 $ D.vcat $
+                  [ D.fillSep [D.cyan "import","Html"]
+                  , ""
+                  , "main ="
+                  , "  Html.text " <> D.dullyellow "\"Hello!\""
+                  ]
+              , D.reflow $
+                  "You should be able to copy those lines directly into your file. Check out the\
+                  \ examples at <https://elm-lang.org/examples> for more help getting started!"
+              ]
+          )
 
-    RecursiveDecl region name cycle ->
+    Problem p ->
+      toProblemReport source p
+
+
+noteForPortsInPackage :: D.Doc
+noteForPortsInPackage =
+  D.stack
+    [ D.toSimpleNote $
+        "One of the major goals of the package ecosystem is to be completely written\
+        \ in Elm. This means when you install an Elm package, you can be sure you are safe\
+        \ from security issues on install and that you are not going to get any runtime\
+        \ exceptions coming from your new dependency. This design also sets the ecosystem\
+        \ up to target other platforms more easily (like mobile phones, WebAssembly, etc.)\
+        \ since no community code explicitly depends on JavaScript even existing."
+    , D.reflow $
+        "Given that overall goal, allowing ports in packages would lead to some pretty\
+        \ surprising behavior. If ports were allowed in packages, you could install a\
+        \ package but not realize that it brings in an indirect dependency that defines a\
+        \ port. Now you have a program that does not work and the fix is to realize that\
+        \ some JavaScript needs to be added for a dependency you did not even know about.\
+        \ That would be extremely frustrating! \"So why not allow the package author to\
+        \ include the necessary JS code as well?\" Now we are back in conflict with our\
+        \ overall goal to keep all community packages free from runtime exceptions."
+    ]
+
+
+toProblemReport :: Code.Source -> Problem -> Report.Report
+toProblemReport source problem =
+  case problem of
+    AnnotationTooShort region name index leftovers ->
+      let
+        numTypeArgs = Index.toMachine index
+        numDefArgs = numTypeArgs + leftovers
+      in
+      Report.Report "BAD TYPE ANNOTATION" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "The type annotation for `" <> N.toChars name <> "` says it can accept "
+              <> D.args numTypeArgs <> ", but the definition says it has "
+              <> D.args numDefArgs <> ":"
+          ,
+            D.reflow $
+              "Is the type annotation missing something? Should some argument"
+              <> (if leftovers == 1 then "" else "s")
+              <> " be deleted? Maybe some parentheses are missing?"
+          )
+
+    AmbiguousVar  r p n hs -> ambiguousName source r p n hs "variable" N.toChars
+    AmbiguousType r p n hs -> ambiguousName source r p n hs "type" T.nameToChars
+    AmbiguousCtor r p n hs -> ambiguousName source r p n hs "constructor" N.toChars
+
+    BadArity_Type    r n e a -> badArity source r n e a T.nameToChars "type"
+    BadArity_Pattern r n e a -> badArity source r n e a N.toChars "variant"
+
+    Binop region op1 op2 ->
+      Report.Report "INFIX PROBLEM" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "You cannot mix (" <> Op.toChars op1 <> ") and (" <> Op.toChars op2 <> ") without parentheses."
+          ,
+            D.reflow
+              "I do not know how to group these expressions. Add parentheses for me!"
+          )
+
+    DuplicateBinop      n r1 r2 -> nameClash source r1 r2 $ "This file defines multiple (" <> Op.toChars n <> ") operators."
+    DuplicateDecl       n r1 r2 -> nameClash source r1 r2 $ "This file has multiple `" <> N.toChars n <> "` declarations."
+    DuplicateType       n r1 r2 -> nameClash source r1 r2 $ "This file defines multiple `" <> T.nameToChars n <> "` types."
+    DuplicateCtor       n r1 r2 -> nameClash source r1 r2 $ "This file defines multiple `" <> N.toChars n <> "` type constructors."
+    DuplicateField      n r1 r2 -> nameClash source r1 r2 $ "This record has multiple `" <> N.toChars n <> "` fields."
+    DuplicateAliasArg t n r1 r2 -> nameClash source r1 r2 $ "The `" <> T.nameToChars t <> "` type alias has multiple `" <> T.varToChars n <> "` type variables."
+    DuplicateUnionArg t n r1 r2 -> nameClash source r1 r2 $ "The `" <> T.nameToChars t <> "` type has multiple `" <> T.varToChars n <> "` type variables."
+
+    DuplicatePattern context n r1 r2 ->
+      nameClash source r1 r2 $
+        case context of
+          DPLambdaArgs -> "This anonymous function has multiple `" <> N.toChars n <> "` arguments."
+          DPFuncArgs f -> "The `" <> N.toChars f <> "` function has multiple `" <> N.toChars n <> "` arguments."
+          DPCaseBranch -> "This `case` pattern has multiple `" <> N.toChars n <> "` variables."
+          DPLetBinding -> "This `let` expression defines `" <> N.toChars n <> "` more than once!"
+          DPDestruct   -> "This pattern contains multiple `" <> N.toChars n <> "` variables."
+
+    NotFoundVar  r p n ns -> notFound source r p n "variable"    ns N.toChars
+    NotFoundType r p n ns -> notFound source r p n "type"        ns T.nameToChars
+    NotFoundCtor r p n ns -> notFound source r p n "constructor" ns N.toChars
+
+    NotFoundBinop region op locals ->
+      if op == "===" then
+        Report.Report "UNKNOWN OPERATOR" region ["=="] $
+          Code.toSnippet source region Nothing
+            (
+              "Elm does not have a (===) operator like JavaScript."
+            ,
+              "Switch to (==) instead."
+            )
+
+      else if op == "!=" || op == "!==" then
+        Report.Report "UNKNOWN OPERATOR" region ["/="] $
+          Code.toSnippet source region Nothing
+            (
+              D.reflow $
+                "Elm uses a different name for the “not equal” operator:"
+            ,
+              D.stack
+                [ D.reflow "Switch to (/=) instead."
+                , D.toSimpleNote $
+                    "Our (/=) operator is supposed to look like a real “not equal” sign (≠). I hope that history will remember ("
+                    ++ Op.toChars op ++ ") as a weird and temporary choice."
+                ]
+            )
+
+      else if op == "**" then
+        Report.Report "UNKNOWN OPERATOR" region ["^","*"] $
+          Code.toSnippet source region Nothing
+            (
+              D.reflow $
+                "I do not recognize the (**) operator:"
+            ,
+              D.reflow $
+                "Switch to (^) for exponentiation. Or switch to (*) for multiplication."
+            )
+
+      else if op == "%" then
+        Report.Report "UNKNOWN OPERATOR" region [] $
+          Code.toSnippet source region Nothing
+            (
+              D.reflow $
+                "Elm does not use (%) as the remainder operator:"
+            ,
+              D.stack
+                [ D.reflow $
+                    "If you want the behavior of (%) like in JavaScript, switch to:\
+                    \ <https://package.elm-lang.org/packages/elm/core/latest/Basics#remainderBy>"
+                , D.reflow $
+                    "If you want modular arithmetic like in math, switch to:\
+                    \ <https://package.elm-lang.org/packages/elm/core/latest/Basics#modBy>"
+                , D.reflow $
+                    "The difference is how things work when negative numbers are involved."
+                ]
+            )
+
+      else
+        let
+          suggestions =
+            map Op.toChars $ take 2 $
+              Suggest.sort (Op.toChars op) Op.toChars (Set.toList locals)
+
+          format altOp =
+            D.green $ "(" <> altOp <> ")"
+        in
+        Report.Report "UNKNOWN OPERATOR" region suggestions $
+          Code.toSnippet source region Nothing
+            (
+              D.reflow $
+                "I do not recognize the (" ++ Op.toChars op ++ ") operator."
+            ,
+              D.fillSep $
+                ["Is","there","an","`import`","and","`exposing`","entry","for","it?"]
+                ++
+                  case map D.fromChars suggestions of
+                    [] ->
+                      []
+
+                    alts ->
+                      ["Maybe","you","want"] ++ D.commaSep "or" format alts ++ ["instead?"]
+            )
+
+    PatternHasRecordCtor region name ->
+      Report.Report "BAD PATTERN" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "You can construct records by using `" <> N.toChars name
+              <> "` as a function, but it is not available in pattern matching like this:"
+          ,
+            D.reflow $
+              "I recommend matching the record as a variable and unpacking it later."
+          )
+
+    RecursiveAlias name args tipe others ->
+      aliasRecursionReport source name args tipe others
+
+    RecursiveDecl (A.At region name) cycle ->
       let
         makeTheory question details =
           D.fillSep $ map (D.dullyellow . D.fromChars) (words question) ++ map D.fromChars (words details)
@@ -573,7 +715,7 @@ toReport source err =
                   ]
               )
 
-    RecursiveLet (A.At region name) cycle ->
+    BadLetRec_Value (A.At region name) cycle ->
       Report.Report "CYCLIC VALUE" region [] $
         Code.toSnippet source region Nothing $
           if Graph.isSelfRecursive cycle
@@ -668,17 +810,17 @@ toReport source err =
             backQuoteVar  name = "`" <> D.fromVar  name <> "`"
 
             allUnusedNames =
-              map fst unusedVars
+              map A.toValue unusedVars
 
             (title, subRegion, overview, stuff) =
               case unuseds of
                 [] ->
                   ("UNUSED TYPE VARIABLE"
-                  , Just (snd unused)
+                  , Just (A.toRegion unused)
                   , ["Type","alias",backQuoteType typeName,"does","not","use","the"
-                    ,backQuoteVar (fst unused),"type","variable."
+                    ,backQuoteVar (A.toValue unused),"type","variable."
                     ]
-                  , [D.dullyellow (backQuoteVar (fst unused))]
+                  , [D.dullyellow (backQuoteVar (A.toValue unused))]
                   )
 
                 _:_ ->
@@ -714,8 +856,8 @@ toReport source err =
 
         (_, _) ->
           let
-            unused = map fst unusedVars
-            unbound = map fst unboundVars
+            unused  = map A.toValue unusedVars
+            unbound = map A.toValue unboundVars
 
             theseAreUsed =
               case unbound of
@@ -766,14 +908,14 @@ toReport source err =
 -- BAD TYPE VARIABLES
 
 
-unboundTypeVars :: Code.Source -> A.Region -> [D.Doc] -> T.Name -> [T.Var] -> (T.Var, A.Region) -> [(T.Var, A.Region)] -> Report.Report
-unboundTypeVars source declRegion tipe typeName allVars (unboundVar, varRegion) unboundVars =
+unboundTypeVars :: Code.Source -> A.Region -> [D.Doc] -> T.Name -> [T.Var] -> (A.Located T.Var) -> [A.Located T.Var] -> Report.Report
+unboundTypeVars source declRegion tipe typeName allVars (A.At varRegion unboundVar) unboundVars =
   let
     backQuoteType name = "`" <> D.fromType name <> "`"
     backQuoteVar  name = "`" <> D.fromVar  name <> "`"
 
     (title, subRegion, overview) =
-      case map fst unboundVars of
+      case map A.toValue unboundVars of
         [] ->
           ( "UNBOUND TYPE VARIABLE"
           , Just varRegion
@@ -802,7 +944,7 @@ unboundTypeVars source declRegion tipe typeName allVars (unboundVar, varRegion) 
               tipe
               ++ [D.fromType typeName]
               ++ map D.fromVar allVars
-              ++ map (D.green . D.fromVar) (unboundVar : map fst unboundVars)
+              ++ map (D.green . D.fromVar) (unboundVar : map A.toValue unboundVars)
               ++ ["=", "..."]
           , D.reflow $
               "Why? Well, imagine one `" ++ T.nameToChars typeName ++ "` where `" ++ T.varToChars unboundVar ++
@@ -870,17 +1012,17 @@ nameClash source r1 r2 messageThatEndsWithPunctuation =
 -- AMBIGUOUS NAME
 
 
-ambiguousName :: Code.Source -> A.Region -> Maybe Module.Prefix -> name -> ModuleName.Canonical -> OneOrMore.OneOrMore ModuleName.Canonical -> String -> (name -> String) -> Report.Report
-ambiguousName source region maybePrefix name h hs thing toChars =
+ambiguousName :: Code.Source -> A.Region -> Maybe Module.Prefix -> name -> Amb.Ambiguous Module.Name -> String -> (name -> String) -> Report.Report
+ambiguousName source region maybePrefix name homes thing toChars =
   let
-    possibleHomes = List.sort (h : OneOrMore.destruct (:) hs)
+    possibleHomes = List.sort (Amb.toList homes)
   in
   Report.Report "AMBIGUOUS NAME" region [] $
     Code.toSnippet source region Nothing $
       case maybePrefix of
         Nothing ->
           let
-            homeToYellowDoc (ModuleName.Canonical _ home) =
+            homeToYellowDoc home =
               D.dullyellow (D.fromModule home <> "." <> D.fromChars (toChars name))
           in
           (
@@ -901,7 +1043,7 @@ ambiguousName source region maybePrefix name h hs thing toChars =
 
         Just prefix ->
           let
-            homeToYellowDoc (ModuleName.Canonical _ home) =
+            homeToYellowDoc home =
               if prefix == Module.toPrefix home
               then D.cyan "import" <+> D.fromModule home
               else D.cyan "import" <+> D.fromModule home <+> D.cyan "as" <+> D.fromPrefix prefix
@@ -1020,81 +1162,6 @@ notFound source region maybePrefix name thing (PossibleNames locals quals) toCha
 
 
 
--- EXPORT DUPLICATE
-
-
-exportDuplicate :: Code.Source -> name -> A.Region -> A.Region -> (name -> String) -> Report.Report
-exportDuplicate source name r1 r2 toChars =
-  let
-    messageThatEndsWithPunctuation =
-      "You are trying to expose `" <> toChars name <> "` multiple times!"
-  in
-  Report.Report "REDUNDANT EXPORT" r2 [] $
-    Code.toPair source r1 r2
-      (
-        D.reflow messageThatEndsWithPunctuation
-      ,
-        "Remove one of them and you should be all set!"
-      )
-      (
-        D.reflow (messageThatEndsWithPunctuation <> " Once here:")
-      ,
-        "And again right here:"
-      ,
-        "Remove one of them and you should be all set!"
-      )
-
-
-
--- EXPORT NOT FOUND
-
-
-type BadThing name =
-  name -> ( D.Doc, D.Doc, D.Doc )
-
-badOp   :: BadThing Op.Name
-badVar  :: BadThing N.Name
-badType :: BadThing T.Name
-
-badOp   n = ( "an", "operator", "(" <> D.fromOp   n <> ")" )
-badVar  n = ( "a" , "value"   , "`" <> D.fromName n <> "`" )
-badType n = ( "a" , "type"    , "`" <> D.fromType n <> "`" )
-
-
-exportNotFound :: Code.Source -> A.Region -> name -> [name] -> (name -> String) -> BadThing name -> Report.Report
-exportNotFound source region rawName possibleNames toChars badThing =
-  let
-    suggestions =
-      List.map toChars $ List.take 4 $
-        Suggest.sort (toChars rawName) toChars possibleNames
-
-    (a, thing, name) = badThing rawName
-  in
-  Report.Report "UNKNOWN EXPORT" region suggestions $
-    Code.toSnippet source region Nothing
-      (
-        D.fillSep
-          ["You","are","trying","to","expose",a,thing,"named"
-          ,name,"but","I","cannot","find","its","definition."
-          ]
-      ,
-        case List.map D.fromChars suggestions of
-          [] ->
-            D.reflow $
-              "I do not see any super similar names in this file. Is the definition missing?"
-
-          [alt] ->
-            D.fillSep ["Maybe","you","want",D.dullyellow alt,"instead?"]
-
-          alts ->
-            D.stack
-              [ "These names seem close though:"
-              , D.indent 4 $ D.vcat $ List.map D.dullyellow alts
-              ]
-      )
-
-
-
 {-- VAR ERROR
 
 
@@ -1208,8 +1275,8 @@ _argMismatchReport source region kind name expected actual =
 -- BAD ALIAS RECURSION
 
 
-aliasRecursionReport :: Code.Source -> A.Region -> T.Name -> [T.Var] -> Src.Type -> Graph.MinimalCycle T.Name -> Report.Report
-aliasRecursionReport source region name args tipe cycle =
+aliasRecursionReport :: Code.Source -> A.Located T.Name -> [T.Var] -> Src.Type -> Graph.MinimalCycle T.Name -> Report.Report
+aliasRecursionReport source (A.At region name) args tipe cycle =
   if Graph.isSelfRecursive cycle
   then
       Report.Report "ALIAS PROBLEM" region [] $

@@ -3,8 +3,9 @@ module Reporting.Error.Syntax
   ( Error(..)
   , toReport
   --
-  , Module(..)
+  , Header(..)
   , Exposing(..)
+  , After(..)
   --
   , Decl(..)
   , DeclType(..)
@@ -50,7 +51,6 @@ import GHC.Prim
 import GHC.Word (Word32(..), Word64(..))
 import Numeric (showHex)
 
-import qualified AST.Prim.Module as Module
 import qualified AST.Prim.Name as N
 import qualified AST.Prim.Operator as Op
 import Parse.Primitives (Cursor, Indent, slide, isLineStart, distanceToIndent)
@@ -66,35 +66,14 @@ import qualified Reporting.Render.Code as Code
 
 
 data Error
-  = ModuleNameUnspecified Module.Name
-  | ModuleNameMismatch Module.Name (A.Located Module.Name)
-  | UnexpectedPort A.Region
-  | NoPorts A.Region
-  | NoPortsInPackage (A.Located N.Name)
-  | NoPortModulesInPackage A.Region
-  | NoEffectsOutsideKernel A.Region
-  | ParseError Module
-
-
-
--- MODULE
-
-
-data Module
   = ModuleSpace Space Cursor
   | ModuleBadEnd Cursor
   --
-  | ModuleProblem Cursor
-  | ModuleName Cursor
-  | ModuleExposing Exposing Cursor
+  | Module         Header Cursor
+  | PortModule     Header Cursor
+  | EffectModule   Header Cursor
   --
-  | PortModuleProblem Cursor
-  | PortModuleName Cursor
-  | PortModuleExposing Exposing Cursor
-  --
-  | Effect Cursor
-  --
-  | FreshLine Cursor
+  | FreshLine After Cursor
   --
   | ImportStart Cursor
   | ImportName Cursor
@@ -113,6 +92,13 @@ data Module
   | Declarations Decl Cursor
 
 
+data Header
+  = HeaderSpace Space Cursor
+  | HeaderName Cursor
+  | HeaderExposing Exposing Cursor
+  | HeaderProblem Cursor
+
+
 data Exposing
   = ExposingSpace Space Cursor
   | ExposingStart Cursor
@@ -125,6 +111,12 @@ data Exposing
   --
   | ExposingIndentEnd Cursor
   | ExposingIndentValue Cursor
+
+
+data After
+  = AfterStart
+  | AfterHeader
+  | AfterImport
 
 
 
@@ -496,160 +488,6 @@ data Space
 toReport :: Code.Source -> Error -> Report.Report
 toReport source err =
   case err of
-    ModuleNameUnspecified name ->
-      let
-        region = A.zero
-      in
-      Report.Report "MODULE NAME MISSING" region [] $
-        D.stack
-          [ D.reflow $
-              "I need the module name to be declared at the top of this file, like this:"
-          , D.indent 4 $ D.fillSep $
-              [ D.cyan "module", D.fromModule name, D.cyan "exposing", "(..)" ]
-          , D.reflow $
-              "Try adding that as the first line of your file!"
-          , D.toSimpleNote $
-              "It is best to replace (..) with an explicit list of types and\
-              \ functions you want to expose. When you know a value is only used\
-              \ within this module, you can refactor without worrying about uses\
-              \ elsewhere. Limiting exposed values can also speed up compilation\
-              \ because I can skip a bunch of work if I see that the exposed API\
-              \ has not changed."
-          ]
-
-    ModuleNameMismatch expectedName (A.At region actualName) ->
-      Report.Report "MODULE NAME MISMATCH" region [Module.toChars expectedName] $
-        Code.toSnippet source region Nothing
-          (
-            "It looks like this module name is out of sync:"
-          ,
-            D.stack
-              [ D.reflow $
-                  "I need it to match the file path, so I was expecting to see `"
-                  ++ Module.toChars expectedName
-                  ++ "` here. Make the following change, and you should be all set!"
-              , D.indent 4 $
-                  D.dullyellow (D.fromModule actualName) <> " -> " <> D.green (D.fromModule expectedName)
-              , D.toSimpleNote $
-                  "I require that module names correspond to file paths. This makes it much\
-                  \ easier to explore unfamiliar codebases! So if you want to keep the current\
-                  \ module name, try renaming the file instead."
-              ]
-          )
-
-    UnexpectedPort region ->
-      Report.Report "UNEXPECTED PORTS" region [] $
-        Code.toSnippet source region Nothing
-          (
-            D.reflow $
-              "You are declaring ports in a normal module."
-          ,
-            D.stack
-              [ D.fillSep
-                  ["Switch","this","to","say",D.cyan "port module","instead,"
-                  ,"marking","that","this","module","contains","port","declarations."
-                  ]
-              , D.link "Note"
-                  "Ports are not a traditional FFI for calling JS functions directly. They need a different mindset! Read"
-                  "ports"
-                  "to learn the syntax and how to use it effectively."
-              ]
-          )
-
-    NoPorts region ->
-      Report.Report "NO PORTS" region [] $
-        Code.toSnippet source region Nothing
-          (
-            D.reflow $
-              "This module does not declare any ports, but it says it will:"
-          ,
-            D.fillSep
-              ["Switch","this","to",D.cyan "module"
-              ,"and","you","should","be","all","set!"
-              ]
-          )
-
-    NoPortsInPackage (A.At region _) ->
-      Report.Report "PACKAGES CANNOT HAVE PORTS" region [] $
-        Code.toSnippet source region Nothing
-          (
-            D.reflow $
-              "Packages cannot declare any ports, so I am getting stuck here:"
-          ,
-            D.stack
-              [ D.reflow $
-                  "Remove this port declaration."
-              , noteForPortsInPackage
-              ]
-          )
-
-    NoPortModulesInPackage region ->
-      Report.Report "PACKAGES CANNOT HAVE PORTS" region [] $
-        Code.toSnippet source region Nothing
-          (
-            D.reflow $
-              "Packages cannot declare any ports, so I am getting stuck here:"
-          ,
-            D.stack
-              [ D.fillSep $
-                  ["Remove","the",D.cyan "port","keyword","and","I"
-                  ,"should","be","able","to","continue."
-                  ]
-              , noteForPortsInPackage
-              ]
-          )
-
-    NoEffectsOutsideKernel region ->
-      Report.Report "INVALID EFFECT MODULE" region [] $
-        Code.toSnippet source region Nothing
-          (
-            D.reflow $
-              "It is not possible to declare an `effect module` outside the @elm organization,\
-              \ so I am getting stuck here:"
-          ,
-            D.stack
-              [ D.reflow $
-                  "Switch to a normal module declaration."
-              , D.toSimpleNote $
-                  "Effect modules are designed to allow certain core functionality to be\
-                  \ defined separately from the compiler. So the @elm organization has access to\
-                  \ this so that certain changes, extensions, and fixes can be introduced without\
-                  \ needing to release new Elm binaries. For example, we want to make it possible\
-                  \ to test effects, but this may require changes to the design of effect modules.\
-                  \ By only having them defined in the @elm organization, that kind of design work\
-                  \ can proceed much more smoothly."
-              ]
-          )
-
-    ParseError modul ->
-      toParseErrorReport source modul
-
-
-noteForPortsInPackage :: D.Doc
-noteForPortsInPackage =
-  D.stack
-    [ D.toSimpleNote $
-        "One of the major goals of the package ecosystem is to be completely written\
-        \ in Elm. This means when you install an Elm package, you can be sure you are safe\
-        \ from security issues on install and that you are not going to get any runtime\
-        \ exceptions coming from your new dependency. This design also sets the ecosystem\
-        \ up to target other platforms more easily (like mobile phones, WebAssembly, etc.)\
-        \ since no community code explicitly depends on JavaScript even existing."
-    , D.reflow $
-        "Given that overall goal, allowing ports in packages would lead to some pretty\
-        \ surprising behavior. If ports were allowed in packages, you could install a\
-        \ package but not realize that it brings in an indirect dependency that defines a\
-        \ port. Now you have a program that does not work and the fix is to realize that\
-        \ some JavaScript needs to be added for a dependency you did not even know about.\
-        \ That would be extremely frustrating! \"So why not allow the package author to\
-        \ include the necessary JS code as well?\" Now we are back in conflict with our\
-        \ overall goal to keep all community packages free from runtime exceptions."
-    ]
-
-
-toParseErrorReport :: Code.Source -> Module -> Report.Report
-toParseErrorReport source modul =
-  case modul of
     ModuleSpace space cur ->
       toSpaceReport source space cur
 
@@ -658,104 +496,13 @@ toParseErrorReport source modul =
       then toDeclStartReport source cur
       else toWeirdEndReport source cur
 
-    ModuleProblem cur ->
-      let
-        region = toRegion cur
-      in
-      Report.Report "UNFINISHED MODULE DECLARATION" region [] $
-        Code.toSnippet source region Nothing
-          (
-            D.reflow $
-              "I am parsing an `module` declaration, but I got stuck here:"
-          ,
-            D.stack
-              [ D.reflow $
-                  "Here are some examples of valid `module` declarations:"
-              , D.indent 4 $ D.vcat $
-                  [ D.fillSep [D.cyan "module","Main",D.cyan "exposing","(..)"]
-                  , D.fillSep [D.cyan "module","Dict",D.cyan "exposing","(Dict, empty, get)"]
-                  ]
-              , D.reflow $
-                  "I generally recommend using an explicit exposing list. I can skip compiling a bunch\
-                  \ of files when the public interface of a module stays the same, so exposing fewer\
-                  \ values can help improve compile times!"
-              ]
-          )
+    Module header _ ->
+      toModuleHeaderReport source header
 
-    ModuleName cur ->
-      let
-        region = toRegion cur
-      in
-      Report.Report "EXPECTING MODULE NAME" region [] $
-        Code.toSnippet source region Nothing
-          (
-            D.reflow $
-              "I was parsing an `module` declaration until I got stuck here:"
-          ,
-            D.stack
-              [ D.reflow $
-                  "I was expecting to see the module name next, like in these examples:"
-              , D.indent 4 $ D.vcat $
-                  [ D.fillSep [D.cyan "module","Dict",D.cyan "exposing","(..)"]
-                  , D.fillSep [D.cyan "module","Maybe",D.cyan "exposing","(..)"]
-                  , D.fillSep [D.cyan "module","Html.Attributes",D.cyan "exposing","(..)"]
-                  , D.fillSep [D.cyan "module","Json.Decode",D.cyan "exposing","(..)"]
-                  ]
-              , D.reflow $
-                  "Notice that the module names all start with capital letters. That is required!"
-              ]
-          )
+    PortModule header _ ->
+      toPortHeaderReport source header
 
-    ModuleExposing exposing cur ->
-      toExposingReport source exposing cur
-
-    PortModuleProblem cur ->
-      let
-        region = toRegion cur
-      in
-      Report.Report "UNFINISHED PORT MODULE DECLARATION" region [] $
-        Code.toSnippet source region Nothing
-          (
-            D.reflow $
-              "I am parsing an `port module` declaration, but I got stuck here:"
-          ,
-            D.stack
-              [ D.reflow $
-                  "Here are some examples of valid `port module` declarations:"
-              , D.indent 4 $ D.vcat $
-                  [ D.fillSep [D.cyan "port",D.cyan "module","WebSockets",D.cyan "exposing","(send, listen, keepAlive)"]
-                  , D.fillSep [D.cyan "port",D.cyan "module","Maps",D.cyan "exposing","(Location, goto)"]
-                  ]
-              , D.link "Note" "Read" "ports" "for more help."
-              ]
-          )
-
-    PortModuleName cur ->
-      let
-        region = toRegion cur
-      in
-      Report.Report "EXPECTING MODULE NAME" region [] $
-        Code.toSnippet source region Nothing
-          (
-            D.reflow $
-              "I was parsing an `module` declaration until I got stuck here:"
-          ,
-            D.stack
-              [ D.reflow $
-                  "I was expecting to see the module name next, like in these examples:"
-              , D.indent 4 $ D.vcat $
-                  [ D.fillSep [D.cyan "port",D.cyan "module","WebSockets",D.cyan "exposing","(send, listen, keepAlive)"]
-                  , D.fillSep [D.cyan "port",D.cyan "module","Maps",D.cyan "exposing","(Location, goto)"]
-                  ]
-              , D.reflow $
-                  "Notice that the module names start with capital letters. That is required!"
-              ]
-          )
-
-    PortModuleExposing exposing cur ->
-      toExposingReport source exposing cur
-
-    Effect cur ->
+    EffectModule _ cur ->
       let
         region = toRegion cur
       in
@@ -766,11 +513,10 @@ toParseErrorReport source modul =
               "I cannot parse this module declaration:"
           ,
             D.reflow $
-              "This type of module is reserved for the @elm organization. It is used to\
-              \ define certain effects, avoiding building them into the compiler."
+              "This type of module is not available for use outside of the kernel."
           )
 
-    FreshLine cur ->
+    FreshLine _ cur -> -- TODO use After?
       let
         region = toRegion cur
 
@@ -1113,6 +859,126 @@ toWeirdEndReport source cur =
                   "Whatever I am running into is confusing me a lot! Normally I can give fairly\
                   \ specific hints, but something is really tripping me up this time."
               )
+
+
+
+
+-- MODULE HEADER
+
+
+toModuleHeaderReport :: Code.Source -> Header -> Report.Report
+toModuleHeaderReport source header =
+  case header of
+    HeaderSpace space cur ->
+      toSpaceReport source space cur
+
+    HeaderName cur ->
+      let
+        region = toRegion cur
+      in
+      Report.Report "EXPECTING MODULE NAME" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "I was parsing a `module` declaration until I got stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I was expecting to see the module name next, like in these examples:"
+              , D.indent 4 $ D.vcat $
+                  [ D.fillSep [D.cyan "module","Dict",D.cyan "exposing","(..)"]
+                  , D.fillSep [D.cyan "module","Maybe",D.cyan "exposing","(..)"]
+                  , D.fillSep [D.cyan "module","Html.Attributes",D.cyan "exposing","(..)"]
+                  , D.fillSep [D.cyan "module","Json.Decode",D.cyan "exposing","(..)"]
+                  ]
+              , D.reflow $
+                  "Notice that the module names all start with capital letters. That is required!"
+              ]
+          )
+
+    HeaderExposing exposing cur ->
+      toExposingReport source exposing cur
+
+    HeaderProblem cur ->
+      let
+        region = toRegion cur
+      in
+      Report.Report "UNFINISHED MODULE DECLARATION" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "I am parsing a `module` declaration, but I got stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "Here are some examples of valid `module` declarations:"
+              , D.indent 4 $ D.vcat $
+                  [ D.fillSep [D.cyan "module","Main",D.cyan "exposing","(..)"]
+                  , D.fillSep [D.cyan "module","Dict",D.cyan "exposing","(Dict, empty, get)"]
+                  ]
+              , D.reflow $
+                  "I generally recommend using an explicit exposing list. I can skip compiling a bunch\
+                  \ of files when the public interface of a module stays the same, so exposing fewer\
+                  \ values can help improve compile times!"
+              ]
+          )
+
+
+
+-- PORT HEADER
+
+
+toPortHeaderReport :: Code.Source -> Header -> Report.Report
+toPortHeaderReport source header =
+  case header of
+    HeaderSpace space cur ->
+      toSpaceReport source space cur
+
+    HeaderName cur ->
+      let
+        region = toRegion cur
+      in
+      Report.Report "EXPECTING MODULE NAME" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "I was parsing a `module` declaration until I got stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "I was expecting to see the module name next, like in these examples:"
+              , D.indent 4 $ D.vcat $
+                  [ D.fillSep [D.cyan "port",D.cyan "module","WebSockets",D.cyan "exposing","(send, listen, keepAlive)"]
+                  , D.fillSep [D.cyan "port",D.cyan "module","Maps",D.cyan "exposing","(Location, goto)"]
+                  ]
+              , D.reflow $
+                  "Notice that the module names start with capital letters. That is required!"
+              ]
+          )
+
+    HeaderExposing exposing cur ->
+      toExposingReport source exposing cur
+
+    HeaderProblem cur ->
+      let
+        region = toRegion cur
+      in
+      Report.Report "UNFINISHED MODULE DECLARATION" region [] $
+        Code.toSnippet source region Nothing
+          (
+            D.reflow $
+              "I am parsing a `module` declaration, but I got stuck here:"
+          ,
+            D.stack
+              [ D.reflow $
+                  "Here are some examples of valid `port module` declarations:"
+              , D.indent 4 $ D.vcat $
+                  [ D.fillSep [D.cyan "port",D.cyan "module","WebSockets",D.cyan "exposing","(send, listen, keepAlive)"]
+                  , D.fillSep [D.cyan "port",D.cyan "module","Maps",D.cyan "exposing","(Location, goto)"]
+                  ]
+              , D.link "Note" "Read" "ports" "for more help."
+              ]
+          )
 
 
 
