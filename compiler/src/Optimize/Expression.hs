@@ -2,7 +2,7 @@
 module Optimize.Expression
   ( optimize
   , destructArgs
-  , optimizePotentialTailCall
+  , optSelfRec
   )
   where
 
@@ -10,13 +10,15 @@ module Optimize.Expression
 import Prelude hiding (cycle)
 import Control.Monad (foldM)
 import qualified Data.Map as Map
+import qualified Data.NonEmptyMap as NEM
 import qualified Data.Set as Set
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
+import qualified AST.Prim.Fields as F
 import qualified AST.Prim.Module as Module
 import qualified AST.Prim.Name as N
-import qualified AST.Utils.Shader as Shader
+import qualified AST.Prim.Shader as Shader
 import qualified Data.Index as Index
 import qualified Elm.ModuleName as ModuleName
 import qualified Optimize.Case as Case
@@ -33,196 +35,132 @@ type Cycle =
 
 
 optimize :: Cycle -> Can.Expr -> Names.Tracker Opt.Expr
-optimize cycle (A.At region expression) =
-  case expression of
-    Can.VarLocal name ->
-      pure (Opt.VarLocal name)
+optimize cycle =
+    go
+  where
+    go (A.At region expression) =
+      case expression of
+        Can.VarLocal n -> pure (Opt.VarLocal n)
 
-    Can.VarTopLevel home name ->
-      if Set.member name cycle then
-        pure (Opt.VarCycle home name)
-      else
-        Names.registerGlobal home name
+        Can.VarTopLevel h n ->
+          if Set.member n cycle
+          then pure (Opt.VarCycle h n)
+          else Names.registerGlobal h n
 
-    Can.VarKernel home name ->
-      Names.registerKernel home (Opt.VarKernel home name)
+        Can.VarKernel     h n   -> Names.registerKernel h (Opt.VarKernel h n)
+        Can.VarForeign    h n _ -> Names.registerGlobal h n
+        Can.VarDebug      h n _ -> Names.registerDebug n h region
+        Can.VarOperator _ h n _ -> Names.registerGlobal h n
+        Can.CRecord  h n _ _ _  -> Names.registerRecord h n
+        Can.CVariant h n _ _ _  -> Names.registerVariant h n
+        Can.CEnum    h n _ t    -> Names.registerEnum h n t
+        Can.CVector  h n _ _    -> Names.registerVector h n
+        Can.CBox     h n _      -> Names.registerBox h n
+        Can.CVoid    h n _      -> Names.registerVoid h n
+        Can.Bool b              -> pure (Opt.Bool b)
+        Can.Chr c               -> Names.registerKernel Module.kernel_utils (Opt.Chr c)
+        Can.Str s               -> pure (Opt.Str s)
+        Can.Int i               -> pure (Opt.Int i)
+        Can.Float f             -> pure (Opt.Float f)
+        Can.List es             -> Names.registerKernel Module.kernel_list Opt.List <*> traverse go es
+        Can.Negate e            -> Opt.call1 <$> Names.registerGlobal ModuleName.basics N.negate <*> go e
+        Can.Binop _ h n _ x y   -> Opt.call2 <$> Names.registerGlobal h n <*> go x <*> go y
 
-    Can.VarForeign home name _ ->
-      Names.registerGlobal home name
+        Can.Lambda x xs body ->
+          do  (y, ys, destructors) <- destructArgs x xs
+              obody <- go body
+              pure $ Opt.Function y ys (foldr Opt.Destruct obody destructors)
 
-    Can.VarCtor opts home name index _ ->
-      Names.registerCtor home name index opts
+        Can.Call f x xs   -> Opt.Call <$> go f <*> go x <*> traverse go xs
+        Can.If bs f       -> Opt.If <$> traverse goThen bs <*> go f
+        Can.LetValue v b  -> optLetValue cycle v =<< go b
+        Can.LetFunc f b   -> optLetFunc  cycle f =<< go b
+        Can.LetRec f [] b -> Opt.Let <$> optSelfRecursive cycle f <*> go b
+        Can.LetRec f fs b ->
+          do  obody <- go b
+              foldM (\bod func -> optLetFunc cycle func bod) obody (f:fs)
 
-    Can.VarDebug home name _ ->
-      Names.registerDebug name home region
+        Can.LetDestruct pattern expr body ->
+          do  (name, destructs) <- destruct pattern
+              oexpr <- go expr
+              obody <- go body
+              pure $ Opt.Let (Opt.Def name oexpr) (foldr Opt.Destruct obody destructs)
 
-    Can.VarOperator _ home name _ ->
-      Names.registerGlobal home name
+        Can.Case expr branch branches ->
+          do  temp <- Names.generate
+              oexpr <- go expr
+              case oexpr of
+                Opt.VarLocal root ->
+                  Case.optimize temp root <$> traverse (goBranch root) (branch:branches)
 
-    Can.Chr chr ->
-      Names.registerKernel Module.kernel_utils (Opt.Chr chr)
+                _ ->
+                  do  obranches <- traverse (goBranch temp) (branch:branches)
+                      return $ Opt.Let (Opt.Def temp oexpr) (Case.optimize temp temp obranches)
 
-    Can.Str str ->
-      pure (Opt.Str str)
+        Can.Access record (A.At _ f) ->
+          do  optRecord <- go record
+              Names.registerField f (Opt.Access optRecord f)
 
-    Can.Int int ->
-      pure (Opt.Int int)
+        Can.Accessor f    -> Names.registerField f (Opt.Accessor f)
+        Can.Update _ e fs -> Names.registerFields fs Opt.Update <*> go e <*> NEM.traverse goUpdate (F.toNEM fs)
+        Can.Record fs     -> Names.registerFields fs Opt.Record <*> NEM.traverse go (F.toNEM fs)
+        Can.Empty         -> pure Opt.Empty
+        Can.Unit          -> Names.registerKernel Module.kernel_utils Opt.Unit
+        Can.Pair   a b    -> Names.registerKernel Module.kernel_utils Opt.Pair   <*> go a <*> go b
+        Can.Triple a b c  -> Names.registerKernel Module.kernel_utils Opt.Triple <*> go a <*> go b <*> go c
 
-    Can.Float float ->
-      pure (Opt.Float float)
+        Can.Shader src (Shader.Types attributes uniforms _varyings) ->
+          pure (Opt.Shader src (Map.keysSet attributes) (Map.keysSet uniforms))
 
-    Can.List entries ->
-      Names.registerKernel Module.kernel_list Opt.List
-        <*> traverse (optimize cycle) entries
+    goThen (c,b) =
+      (,) <$> go c <*> go b
 
-    Can.Negate expr ->
-      do  func <- Names.registerGlobal ModuleName.basics N.negate
-          arg <- optimize cycle expr
-          pure $ Opt.Call func [arg]
+    goBranch root (Can.Branch p b) =
+      do  destructors <- destructCase root p
+          obranch <- go b
+          pure (p, foldr Opt.Destruct obranch destructors)
 
-    Can.Binop _ home name _ left right ->
-      do  optFunc <- Names.registerGlobal home name
-          optLeft <- optimize cycle left
-          optRight <- optimize cycle right
-          return (Opt.Call optFunc [optLeft, optRight])
-
-    Can.Lambda args body ->
-      do  (argNames, destructors) <- destructArgs args
-          obody <- optimize cycle body
-          pure $ Opt.Function argNames (foldr Opt.Destruct obody destructors)
-
-    Can.Call func args ->
-      Opt.Call
-        <$> optimize cycle func
-        <*> traverse (optimize cycle) args
-
-    Can.If branches finally ->
-      let
-        optimizeBranch (condition, branch) =
-          (,)
-            <$> optimize cycle condition
-            <*> optimize cycle branch
-      in
-      Opt.If
-        <$> traverse optimizeBranch branches
-        <*> optimize cycle finally
-
-    Can.Let def body ->
-      optimizeDef cycle def =<< optimize cycle body
-
-    Can.LetRec defs body ->
-      case defs of
-        [def] ->
-          Opt.Let
-            <$> optimizePotentialTailCallDef cycle def
-            <*> optimize cycle body
-
-        _ ->
-          do  obody <- optimize cycle body
-              foldM (\bod def -> optimizeDef cycle def bod) obody defs
-
-    Can.LetDestruct pattern expr body ->
-      do  (name, destructs) <- destruct pattern
-          oexpr <- optimize cycle expr
-          obody <- optimize cycle body
-          pure $
-            Opt.Let (Opt.Def name oexpr) (foldr Opt.Destruct obody destructs)
-
-    Can.Case expr branches ->
-      let
-        optimizeBranch root (Can.CaseBranch pattern branch) =
-          do  destructors <- destructCase root pattern
-              obranch <- optimize cycle branch
-              pure (pattern, foldr Opt.Destruct obranch destructors)
-      in
-      do  temp <- Names.generate
-          oexpr <- optimize cycle expr
-          case oexpr of
-            Opt.VarLocal root ->
-              Case.optimize temp root <$> traverse (optimizeBranch root) branches
-
-            _ ->
-              do  obranches <- traverse (optimizeBranch temp) branches
-                  return $ Opt.Let (Opt.Def temp oexpr) (Case.optimize temp temp obranches)
-
-    Can.Accessor field ->
-      Names.registerField field (Opt.Accessor field)
-
-    Can.Access record (A.At _ field) ->
-      do  optRecord <- optimize cycle record
-          Names.registerField field (Opt.Access optRecord field)
-
-    Can.Update _ record updates ->
-      Names.registerFieldDict updates Opt.Update
-        <*> optimize cycle record
-        <*> traverse (optimizeUpdate cycle) updates
-
-    Can.Record fields ->
-      Names.registerFieldDict fields Opt.Record
-        <*> traverse (optimize cycle) fields
-
-    Can.Unit ->
-      Names.registerKernel Module.kernel_utils Opt.Unit
-
-    Can.Pair a b ->
-      Names.registerKernel Module.kernel_utils Opt.Pair
-        <*> optimize cycle a
-        <*> optimize cycle b
-
-    Can.Triple a b c ->
-      Names.registerKernel Module.kernel_utils Opt.Triple
-        <*> optimize cycle a
-        <*> optimize cycle b
-        <*> optimize cycle c
-
-    Can.Shader src (Shader.Types attributes uniforms _varyings) ->
-      pure (Opt.Shader src (Map.keysSet attributes) (Map.keysSet uniforms))
-
-
-
--- UPDATE
-
-
-optimizeUpdate :: Cycle -> Can.FieldUpdate -> Names.Tracker Opt.Expr
-optimizeUpdate cycle (Can.FieldUpdate _ expr) =
-  optimize cycle expr
+    goUpdate (Can.Update_ _ e) =
+      go e
 
 
 
 -- DEFINITION
 
 
-optimizeDef :: Cycle -> Can.Def -> Opt.Expr -> Names.Tracker Opt.Expr
-optimizeDef cycle def body =
-  case def of
-    Can.Def (A.At _ name) args expr ->
-      optimizeDefHelp cycle name args expr body
-
-    Can.TypedDef (A.At _ name) _ typedArgs expr _ ->
-      optimizeDefHelp cycle name (map fst typedArgs) expr body
-
-
-optimizeDefHelp :: Cycle -> N.Name -> [Can.Pattern] -> Can.Expr -> Opt.Expr -> Names.Tracker Opt.Expr
-optimizeDefHelp cycle name args expr body =
-  do  oexpr <- optimize cycle expr
-      case args of
-        [] ->
+optLetValue :: Cycle -> Can.Value -> Opt.Expr -> Names.Tracker Opt.Expr
+optLetValue cycle value body =
+  case value of
+    Can.Value_ n e     -> go n e
+    Can.Value  n e _ _ -> go n e
+  where
+    go (A.At _ name) expr =
+      do  oexpr <- optimize cycle expr
           pure $ Opt.Let (Opt.Def name oexpr) body
 
-        _ ->
-          do  (argNames, destructors) <- destructArgs args
-              let ofunc = Opt.Function argNames (foldr Opt.Destruct oexpr destructors)
-              pure $ Opt.Let (Opt.Def name ofunc) body
+
+optLetFunc :: Cycle -> Can.Func -> Opt.Expr -> Names.Tracker Opt.Expr
+optLetFunc cycle func body =
+  case func of
+    Can.Func_ n x xs e     -> go n x xs e
+    Can.Func  n x xs e _ _ -> go n (Can._arg x) (map Can._arg xs) e
+  where
+    go (A.At _ name) x xs expr =
+      do  (y, ys, destructors) <- destructArgs x xs
+          oexpr                <- optimize cycle expr
+          let ofunc = Opt.Function y ys (foldr Opt.Destruct oexpr destructors)
+          pure $ Opt.Let (Opt.Def name ofunc) body
 
 
 
 -- DESTRUCTURING
 
 
-destructArgs :: [Can.Pattern] -> Names.Tracker ([N.Name], [Opt.Destructor])
-destructArgs args =
-  do  (argNames, destructorLists) <- unzip <$> traverse destruct args
-      return (argNames, concat destructorLists)
+destructArgs :: Can.Pattern -> [Can.Pattern] -> Names.Tracker (N.Name, [N.Name], [Opt.Destructor])
+destructArgs x xs =
+  do  (y , ds ) <- destruct x
+      (ys, dss) <- unzip <$> traverse destruct xs
+      return (y, ys, concat (ds:dss))
 
 
 destructCase :: N.Name -> Can.Pattern -> Names.Tracker [Opt.Destructor]
@@ -249,80 +187,28 @@ destruct pattern@(A.At _ ptrn) =
 destructHelp :: Opt.Path -> Can.Pattern -> [Opt.Destructor] -> Names.Tracker [Opt.Destructor]
 destructHelp path (A.At region pattern) revDs =
   case pattern of
-    Can.PAnything ->
-      pure revDs
-
-    Can.PVar name ->
-      pure (Opt.Destructor name path : revDs)
-
-    Can.PRecord fields ->
-      let
-        toDestruct name =
-          Opt.Destructor name (Opt.Field name path)
-      in
-      Names.registerFieldList fields (map toDestruct fields ++ revDs)
-
-    Can.PAlias subPattern name ->
-      destructHelp (Opt.Root name) subPattern $
-        Opt.Destructor name path : revDs
-
-    Can.PUnit ->
-      pure revDs
-
-    Can.PPair a b ->
-      destructTwo path a b revDs
-
-    Can.PTriple a b c ->
-      case path of
-        Opt.Root _ ->
-          destructHelp (Opt.Index Index.third path) c =<<
-            destructHelp (Opt.Index Index.second path) b =<<
-              destructHelp (Opt.Index Index.first path) a revDs
-
-        _ ->
-          do  name <- Names.generate
-              let newRoot = Opt.Root name
-              destructHelp (Opt.Index Index.third newRoot) c =<<
-                destructHelp (Opt.Index Index.second newRoot) b =<<
-                  destructHelp (Opt.Index Index.first newRoot) a (Opt.Destructor name path : revDs)
-
-    Can.PList [] ->
-      pure revDs
-
-    Can.PList (hd:tl) ->
-      destructTwo path hd (A.At region (Can.PList tl)) revDs
-
-    Can.PCons hd tl ->
-      destructTwo path hd tl revDs
-
-    Can.PChr _ ->
-      pure revDs
-
-    Can.PStr _ ->
-      pure revDs
-
-    Can.PInt _ ->
-      pure revDs
-
-    Can.PBool _ _ ->
-      pure revDs
-
-    Can.PCtor _ _ (Can.Union _ _ _ opts) _ _ args ->
-      case args of
-        [Can.PatternCtorArg _ _ arg] ->
-          case opts of
-            Can.Normal -> destructHelp (Opt.Index Index.first path) arg revDs
-            Can.Unbox  -> destructHelp (Opt.Unbox path) arg revDs
-            Can.Enum   -> destructHelp (Opt.Index Index.first path) arg revDs
-
-        _ ->
-          case path of
-            Opt.Root _ ->
-              foldM (destructCtorArg path) revDs args
-
-            _ ->
-              do  name <- Names.generate
-                  foldM (destructCtorArg (Opt.Root name)) (Opt.Destructor name path : revDs) args
+    Can.PAnything           -> pure revDs
+    Can.PVar name           -> pure (Opt.Destructor name path : revDs)
+    Can.PRecord fs          -> Names.registerFields_ fs (NEM.foldrWithKey consField revDs fs)
+    Can.PAlias p n          -> destructHelp (Opt.Root n) p (Opt.Destructor n path : revDs)
+    Can.PUnit               -> pure revDs
+    Can.PPair   a b         -> destructTwo path a b revDs
+    Can.PTriple a b c       -> destructThree path a b c revDs
+    Can.PList []            -> pure revDs
+    Can.PList (hd:tl)       -> destructTwo path hd (A.At region (Can.PList tl)) revDs
+    Can.PCons  hd tl        -> destructTwo path hd tl revDs
+    Can.PChr  _             -> pure revDs
+    Can.PStr  _             -> pure revDs
+    Can.PInt  _             -> pure revDs
+    Can.PBool _ _ _ _       -> pure revDs
+    Can.PVariant _ _ _ ps   -> destructVariant path ps revDs
+    Can.PEnum    _ _ _      -> pure revDs
+    Can.PVector  _ _ a b cs -> destructVariant path (a:b:cs) revDs
+    Can.PBox     _ _ _ p    -> destructHelp (Opt.Unbox path) p revDs
+    Can.PVoid    _ _        -> pure revDs
+  where
+    consField name () revs =
+      Opt.Destructor name (Opt.Field name path) : revs
 
 
 destructTwo :: Opt.Path -> Can.Pattern -> Can.Pattern -> [Opt.Destructor] -> Names.Tracker [Opt.Destructor]
@@ -330,17 +216,44 @@ destructTwo path a b revDs =
   case path of
     Opt.Root _ ->
       destructHelp (Opt.Index Index.second path) b =<<
-        destructHelp (Opt.Index Index.first path) a revDs
+      destructHelp (Opt.Index Index.first  path) a revDs
+
+    _ ->
+      (>>=) Names.generate $ \name ->
+        let newRoot = Opt.Root name in
+        destructHelp (Opt.Index Index.second newRoot) b =<<
+        destructHelp (Opt.Index Index.first  newRoot) a (Opt.Destructor name path : revDs)
+
+
+destructThree :: Opt.Path -> Can.Pattern -> Can.Pattern -> Can.Pattern -> [Opt.Destructor] -> Names.Tracker [Opt.Destructor]
+destructThree path a b c revDs =
+  case path of
+    Opt.Root _ ->
+      destructHelp (Opt.Index Index.third  path) c =<<
+      destructHelp (Opt.Index Index.second path) b =<<
+      destructHelp (Opt.Index Index.first  path) a revDs
+
+    _ ->
+      (>>=) Names.generate $ \name ->
+        let newRoot = Opt.Root name in
+        destructHelp (Opt.Index Index.third  newRoot) c =<<
+        destructHelp (Opt.Index Index.second newRoot) b =<<
+        destructHelp (Opt.Index Index.first  newRoot) a (Opt.Destructor name path : revDs)
+
+
+destructVariant :: Opt.Path -> [Can.PArg] -> [Opt.Destructor] -> Names.Tracker [Opt.Destructor]
+destructVariant path args revDs =
+  case path of
+    Opt.Root _ ->
+      foldM (destructPArg path) revDs args
 
     _ ->
       do  name <- Names.generate
-          let newRoot = Opt.Root name
-          destructHelp (Opt.Index Index.second newRoot) b =<<
-            destructHelp (Opt.Index Index.first newRoot) a (Opt.Destructor name path : revDs)
+          foldM (destructPArg (Opt.Root name)) (Opt.Destructor name path : revDs) args
 
 
-destructCtorArg :: Opt.Path -> [Opt.Destructor] -> Can.PatternCtorArg -> Names.Tracker [Opt.Destructor]
-destructCtorArg path revDs (Can.PatternCtorArg index _ arg) =
+destructPArg :: Opt.Path -> [Opt.Destructor] -> Can.PArg -> Names.Tracker [Opt.Destructor]
+destructPArg path revDs (Can.PArg index _ arg) =
   destructHelp (Opt.Index index path) arg revDs
 
 
@@ -348,148 +261,103 @@ destructCtorArg path revDs (Can.PatternCtorArg index _ arg) =
 -- TAIL CALL
 
 
-optimizePotentialTailCallDef :: Cycle -> Can.Def -> Names.Tracker Opt.Def
-optimizePotentialTailCallDef cycle def =
-  case def of
-    Can.Def (A.At _ name) args expr ->
-      optimizePotentialTailCall cycle name args expr
-
-    Can.TypedDef (A.At _ name) _ typedArgs expr _ ->
-      optimizePotentialTailCall cycle name (map fst typedArgs) expr
+optSelfRecursive :: Cycle -> Can.Func -> Names.Tracker Opt.Def
+optSelfRecursive cycle func =
+  case func of
+    Can.Func_ (A.At _ n) x xs e     -> optSelfRec cycle n x xs e
+    Can.Func  (A.At _ n) x xs e _ _ -> optSelfRec cycle n (Can._arg x) (map Can._arg xs) e
 
 
-optimizePotentialTailCall :: Cycle -> N.Name -> [Can.Pattern] -> Can.Expr -> Names.Tracker Opt.Def
-optimizePotentialTailCall cycle name args expr =
-  do  (argNames, destructors) <- destructArgs args
-      toTailDef name argNames destructors <$>
-        optimizeTail cycle name argNames expr
+optSelfRec :: Cycle -> N.Name -> Can.Pattern -> [Can.Pattern] -> Can.Expr -> Names.Tracker Opt.Def
+optSelfRec cycle name x xs expr =
+  do  (y, ys, destructors) <- destructArgs x xs
+      go y ys destructors <$> optTailCall cycle name y ys expr
+  where
+    go y ys destructors body =
+      if hasTailCall body
+      then Opt.TailDef name y ys (foldr Opt.Destruct body destructors)
+      else Opt.Def name (Opt.Function y ys (foldr Opt.Destruct body destructors))
 
 
-optimizeTail :: Cycle -> N.Name -> [N.Name] -> Can.Expr -> Names.Tracker Opt.Expr
-optimizeTail cycle rootName argNames locExpr@(A.At _ expression) =
-  case expression of
-    Can.Call func args ->
-      do  oargs <- traverse (optimize cycle) args
+optTailCall :: Cycle -> N.Name -> N.Name -> [N.Name] -> Can.Expr -> Names.Tracker Opt.Expr
+optTailCall cycle rootName arg args =
+    go
+  where
+    go locExpr@(A.At _ expression) =
+      case expression of
+        Can.Call f x xs ->
+          if isSelfCall f && length xs == length args
+          then
+            do  oarg  <- optimize cycle x
+                oargs <- traverse (optimize cycle) xs
+                pure $ Opt.TailCall rootName (Opt.TailAssign arg oarg) (zipWith Opt.TailAssign args oargs)
+          else
+            Opt.Call <$> optimize cycle f <*> optimize cycle x <*> traverse (optimize cycle) xs
 
-          let isMatchingName =
-                case A.toValue func of
-                  Can.VarLocal      name -> rootName == name
-                  Can.VarTopLevel _ name -> rootName == name
-                  _                      -> False
+        Can.If bs f       -> Opt.If <$> traverse goThen bs <*> go f
+        Can.LetValue v b  -> optLetValue cycle v =<< go b
+        Can.LetFunc  f b  -> optLetFunc  cycle f =<< go b
+        Can.LetRec f [] b -> Opt.Let <$> optSelfRecursive cycle f <*> go b
+        Can.LetRec f fs b ->
+          do  obody <- go b
+              foldM (\bod func -> optLetFunc cycle func bod) obody (f:fs)
 
-          if isMatchingName
-            then
-              case Index.indexedZipWith (\_ a b -> (a,b)) argNames oargs of
-                Index.LengthMatch pairs ->
-                  pure $ Opt.TailCall rootName pairs
+        Can.LetDestruct pattern expr body ->
+          do  (dname, destructors) <- destruct pattern
+              oexpr <- optimize cycle expr
+              obody <- go body
+              pure $ Opt.Let (Opt.Def dname oexpr) (foldr Opt.Destruct obody destructors)
 
-                Index.LengthMismatch _ _ ->
-                  do  ofunc <- optimize cycle func
-                      pure $ Opt.Call ofunc oargs
-            else
-              do  ofunc <- optimize cycle func
-                  pure $ Opt.Call ofunc oargs
+        Can.Case expr branch branches ->
+          do  temp <- Names.generate
+              oexpr <- optimize cycle expr
+              case oexpr of
+                Opt.VarLocal root ->
+                  Case.optimize temp root <$> traverse (goBranch root) (branch:branches)
 
-    Can.If branches finally ->
-      let
-        optimizeBranch (condition, branch) =
-          (,)
-            <$> optimize cycle condition
-            <*> optimizeTail cycle rootName argNames branch
-      in
-      Opt.If
-        <$> traverse optimizeBranch branches
-        <*> optimizeTail cycle rootName argNames finally
-
-    Can.Let def body ->
-      optimizeDef cycle def =<< optimizeTail cycle rootName argNames body
-
-    Can.LetRec defs body ->
-      case defs of
-        [def] ->
-          Opt.Let
-            <$> optimizePotentialTailCallDef cycle def
-            <*> optimizeTail cycle rootName argNames body
+                _ ->
+                  do  obranches <- traverse (goBranch temp) (branch:branches)
+                      return $ Opt.Let (Opt.Def temp oexpr) (Case.optimize temp temp obranches)
 
         _ ->
-          do  obody <- optimizeTail cycle rootName argNames body
-              foldM (\bod def -> optimizeDef cycle def bod) obody defs
+          optimize cycle locExpr
 
-    Can.LetDestruct pattern expr body ->
-      do  (dname, destructors) <- destruct pattern
-          oexpr <- optimize cycle expr
-          obody <- optimizeTail cycle rootName argNames body
-          pure $
-            Opt.Let (Opt.Def dname oexpr) (foldr Opt.Destruct obody destructors)
+    goThen (c,b) =
+      (,) <$> optimize cycle c <*> go b
 
-    Can.Case expr branches ->
-      let
-        optimizeBranch root (Can.CaseBranch pattern branch) =
-          do  destructors <- destructCase root pattern
-              obranch <- optimizeTail cycle rootName argNames branch
-              pure (pattern, foldr Opt.Destruct obranch destructors)
-      in
-      do  temp <- Names.generate
-          oexpr <- optimize cycle expr
-          case oexpr of
-            Opt.VarLocal root ->
-              Case.optimize temp root <$> traverse (optimizeBranch root) branches
+    goBranch root (Can.Branch p b) =
+      do  destructors <- destructCase root p
+          obranch <- go b
+          pure (p, foldr Opt.Destruct obranch destructors)
 
-            _ ->
-              do  obranches <- traverse (optimizeBranch temp) branches
-                  return $ Opt.Let (Opt.Def temp oexpr) (Case.optimize temp temp obranches)
-
-    _ ->
-      optimize cycle locExpr
+    isSelfCall (A.At _ func) =
+      case func of
+        Can.VarLocal      n -> rootName == n
+        Can.VarTopLevel _ n -> rootName == n
+        _                   -> False
 
 
 
 -- DETECT TAIL CALLS
 
 
-toTailDef :: N.Name -> [N.Name] -> [Opt.Destructor] -> Opt.Expr -> Opt.Def
-toTailDef name argNames destructors body =
-  if hasTailCall body then
-    Opt.TailDef name argNames (foldr Opt.Destruct body destructors)
-  else
-    Opt.Def name (Opt.Function argNames (foldr Opt.Destruct body destructors))
-
-
 hasTailCall :: Opt.Expr -> Bool
 hasTailCall expression =
   case expression of
-    Opt.TailCall _ _ ->
-      True
-
-    Opt.If branches finally ->
-      hasTailCall finally || any (hasTailCall . snd) branches
-
-    Opt.Let _ body ->
-      hasTailCall body
-
-    Opt.Destruct _ body ->
-      hasTailCall body
-
-    Opt.Case _ _ decider jumps ->
-      decidecHasTailCall decider || any (hasTailCall . snd) jumps
-
-    _ ->
-      False
+    Opt.TailCall _ _ _ -> True
+    Opt.If bs f        -> hasTailCall f || any (hasTailCall . snd) bs
+    Opt.Let _ b        -> hasTailCall b
+    Opt.Destruct _ b   -> hasTailCall b
+    Opt.Case _ _ d js  -> decidecHasTailCall d || any (hasTailCall . snd) js
+    _                  -> False
 
 
 decidecHasTailCall :: Opt.Decider Opt.Choice -> Bool
 decidecHasTailCall decider =
   case decider of
-    Opt.Leaf choice ->
-      case choice of
-        Opt.Inline expr ->
-          hasTailCall expr
-
-        Opt.Jump _ ->
-          False
-
-    Opt.Chain _ success failure ->
-      decidecHasTailCall success || decidecHasTailCall failure
-
-    Opt.FanOut _ tests fallback ->
-      decidecHasTailCall fallback || any (decidecHasTailCall . snd) tests
+    Opt.Chain _ t f   -> decidecHasTailCall t || decidecHasTailCall f
+    Opt.FanOut _ ts f -> decidecHasTailCall f || any (decidecHasTailCall . snd) ts
+    Opt.Leaf c        ->
+      case c of
+        Opt.Inline e -> hasTailCall e
+        Opt.Jump _   -> False

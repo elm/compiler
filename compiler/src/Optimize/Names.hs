@@ -2,14 +2,20 @@
 module Optimize.Names
   ( Tracker
   , run
+  , with
   , generate
   , registerKernel
   , registerGlobal
   , registerDebug
-  , registerCtor
+  , registerRecord
+  , registerVariant
+  , registerEnum
+  , registerVector
+  , registerBox
+  , registerVoid
   , registerField
-  , registerFieldDict
-  , registerFieldList
+  , registerFields
+  , registerFields_
   --
   , fromVarIndex
   )
@@ -17,6 +23,7 @@ module Optimize.Names
 
 
 import qualified Data.Map as Map
+import qualified Data.NonEmptyMap as NEM
 import qualified Data.Set as Set
 import GHC.Int (Int(..))
 import GHC.Prim
@@ -25,11 +32,11 @@ import GHC.Word (Word8(..))
 
 import qualified String as S
 
-import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
+import qualified AST.Prim.Fields as F
 import qualified AST.Prim.Module as Module
 import qualified AST.Prim.Name as N
-import qualified Data.Index as Index
+import qualified AST.Prim.Tag as Tag
 import qualified Elm.ModuleName as ModuleName
 import qualified Reporting.Annotation as A
 
@@ -50,9 +57,14 @@ newtype Tracker a =
 
 
 run :: Tracker a -> (Set.Set Opt.Global, Map.Map N.Name Int, a)
-run (Tracker k) =
+run tracker =
+  with tracker (,,)
+
+
+with :: Tracker a -> (Set.Set Opt.Global -> Map.Map N.Name Int -> a -> r) -> r
+with (Tracker k) cont =
   k 0 Set.empty Map.empty
-    (\_uid deps fields value -> (deps, fields, value))
+    (\_uid deps fields value -> cont deps fields value)
 
 
 generate :: Tracker N.Name
@@ -81,26 +93,68 @@ registerDebug name home region =
     ok uid (Set.insert global deps) fields (Opt.VarDebug name home region Nothing)
 
 
-registerCtor :: ModuleName.Canonical -> N.Name -> Index.ZeroBased -> Can.CtorOpts -> Tracker Opt.Expr
-registerCtor home name index opts =
+registerRecord :: ModuleName.Canonical -> N.Name -> Tracker Opt.Expr
+registerRecord home name =
   Tracker $ \uid deps fields ok ->
     let
       global = Opt.Global home name
       newDeps = Set.insert global deps
     in
-    case opts of
-      Can.Normal ->
-        ok uid newDeps fields (Opt.VarGlobal global)
+    ok uid newDeps fields (Opt.VarGlobal global)
 
-      Can.Enum ->
-        ok uid newDeps fields $
-          case () of
-            _ | name == N.true  && home == ModuleName.basics -> Opt.Bool True
-              | name == N.false && home == ModuleName.basics -> Opt.Bool False
-              | otherwise                                    -> Opt.VarEnum global index
 
-      Can.Unbox ->
-        ok uid (Set.insert identity newDeps) fields (Opt.VarBox global)
+registerVariant :: ModuleName.Canonical -> N.Name -> Tracker Opt.Expr
+registerVariant home name =
+  Tracker $ \uid deps fields ok ->
+    let
+      global = Opt.Global home name
+      newDeps = Set.insert global deps
+    in
+    ok uid newDeps fields (Opt.VarGlobal global)
+
+
+registerEnum :: ModuleName.Canonical -> N.Name -> Tag.Tag -> Tracker Opt.Expr
+registerEnum home name tag =
+  Tracker $ \uid deps fields ok ->
+    let
+      global = Opt.Global home name
+      newDeps = Set.insert global deps
+    in
+    ok uid newDeps fields $
+      case () of
+        _ | name == N.true  && home == ModuleName.basics -> Opt.Bool True
+          | name == N.false && home == ModuleName.basics -> Opt.Bool False
+          | otherwise                                    -> Opt.VarEnum global tag
+
+
+registerVector :: ModuleName.Canonical -> N.Name -> Tracker Opt.Expr
+registerVector home name =
+  Tracker $ \uid deps fields ok ->
+    let
+      global = Opt.Global home name
+      newDeps = Set.insert global deps
+    in
+    ok uid newDeps fields (Opt.VarGlobal global)
+
+
+registerBox :: ModuleName.Canonical -> N.Name -> Tracker Opt.Expr
+registerBox home name =
+  Tracker $ \uid deps fields ok ->
+    let
+      global = Opt.Global home name
+      newDeps = Set.insert global deps
+    in
+    ok uid (Set.insert identity newDeps) fields (Opt.VarBox global)
+
+
+registerVoid :: ModuleName.Canonical -> N.Name -> Tracker Opt.Expr
+registerVoid home name =
+  Tracker $ \uid deps fields ok ->
+    let
+      global = Opt.Global home name
+      newDeps = Set.insert global deps
+    in
+    ok uid newDeps fields (Opt.VarGlobal global)
 
 
 identity :: Opt.Global
@@ -114,25 +168,15 @@ registerField name value =
     ok uid d (Map.insertWith (+) name 1 fields) value
 
 
-registerFieldDict :: Map.Map N.Name v -> a -> Tracker a
-registerFieldDict newFields value =
-  Tracker $ \uid d fields ok ->
-    ok uid d (Map.unionWith (+) fields (Map.map toOne newFields)) value
+registerFields :: F.Fields v -> a -> Tracker a
+registerFields newFields value =
+  registerFields_ (F.toNEM newFields) value
 
 
-toOne :: a -> Int
-toOne _ = 1
-
-
-registerFieldList :: [N.Name] -> a -> Tracker a
-registerFieldList names value =
+registerFields_ :: NEM.Map N.Name v -> a -> Tracker a
+registerFields_ newFields value =
   Tracker $ \uid deps fields ok ->
-    ok uid deps (foldr addOne fields names) value
-
-
-addOne :: N.Name -> Map.Map N.Name Int -> Map.Map N.Name Int
-addOne name fields =
-  Map.insertWith (+) name 1 fields
+    ok uid deps (Map.unionWith (+) fields (Map.map (const 1) (NEM.toDict newFields))) value
 
 
 
