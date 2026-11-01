@@ -336,10 +336,10 @@ attemptDeclOrExpr lines =
       case dResult of
         Right (decl, _) ->
           case decl of
-            PD.Value _ (A.At _ (Src.Value (A.At _ name) _ _ _)) -> ifDone lines (Decl name src)
-            PD.Union _ (A.At _ (Src.Union (A.At _ name) _ _  )) -> ifDone lines (Type name src)
-            PD.Alias _ (A.At _ (Src.Alias (A.At _ name) _ _  )) -> ifDone lines (Type name src)
-            PD.Port  _ _                                        -> pure $ Done Port
+            Src.Value_ _ (A.At _ (Src.Value (A.At _ name) _ _ _)) -> ifDone lines (Decl name src)
+            Src.Union_ _ (A.At _ (Src.Union (A.At _ name) _ _ _)) -> ifDone lines (Type name src)
+            Src.Alias_ _ (A.At _ (Src.Alias (A.At _ name) _ _  )) -> ifDone lines (Type name src)
+            Src.Port_  _ _                                        -> pure $ Done Port
 
         Left declPosition
           | startsWithKeyword "type" lines -> ifFail lines (Type (T.nameFromString [S.ascii|ERR|]) src)
@@ -399,10 +399,7 @@ toExprPosition src expr cur =
 toDeclPosition :: BS.ByteString -> ES.Decl -> Cursor -> A.Position
 toDeclPosition src decl c =
   let
-    err = ES.ParseError (ES.Declarations decl c)
-    report = ES.toReport (Code.toSource src) err
-
-    !(Report.Report _ (A.Region cur _) _ _) = report
+    !(Report.Report _ (A.Region cur _) _ _) = ES.toReport (Code.toSource src) (ES.Declarations decl c)
   in
   A.Position cur
 
