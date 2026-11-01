@@ -163,30 +163,22 @@ diffType oldType newType =
     (Type.Var oldName, Type.Var newName) ->
       Just [(oldName, newName)]
 
-    (Type.Lambda a b, Type.Lambda a' b') ->
-      (++)
-        <$> diffType a a'
-        <*> diffType b b'
+    (Type.Lambda a b cs, Type.Lambda a' b' cs') ->
+      if length cs /= length cs'
+      then Nothing
+      else
+        do  aVars <- diffType a a'
+            bVars <- diffType b b'
+            cVars <- concat <$> zipWithM diffType cs cs'
+            return (aVars ++ bVars ++ cVars)
 
     (Type.Type oldName oldArgs, Type.Type newName newArgs) ->
-      if not (isSameName oldName newName) || length oldArgs /= length newArgs then
-        Nothing
-      else
-        concat <$> zipWithM diffType oldArgs newArgs
+      if not (isSameName oldName newName) || length oldArgs /= length newArgs
+      then Nothing
+      else concat <$> zipWithM diffType oldArgs newArgs
 
-    (Type.Record fields maybeExt, Type.Record fields' maybeExt') ->
-      case (maybeExt, maybeExt') of
-        (Nothing, Just _) ->
-          Nothing
-
-        (Just _, Nothing) ->
-          Nothing
-
-        (Nothing, Nothing) ->
-          diffFields fields fields'
-
-        (Just oldExt, Just newExt) ->
-          (:) (oldExt, newExt) <$> diffFields fields fields'
+    (Type.Record f fs  , Type.Record g gs  ) -> diffFields (f:fs) (g:gs)
+    (Type.ExtRec f fs x, Type.ExtRec g gs y) -> (:) (x,y) <$> diffFields (f:fs) (g:gs)
 
     (Type.Unit, Type.Unit) ->
       Just []
