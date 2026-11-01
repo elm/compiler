@@ -1,18 +1,28 @@
 {-# LANGUAGE ExtendedLiterals, MagicHash, TemplateHaskell #-}
 module Elm.Interface
   ( Interface(..)
-  , Union(..)
-  , Alias(..)
+  , TypeDecl(..)
   , Binop(..)
-  , fromModule
-  , toPublicUnion
-  , toPublicAlias
+  --
+  , Annotation(..)
+  , Type(..)
+  --
+  , Alias(..)
+  , Aliased(..)
+  --
+  , Union(..)
+  , Variants(..)
+  , Variant(..)
+  --
+  , dealias
+  , deepDealias
+  --
   , DependencyInterface(..)
+  , PrivateTypeDecl(..)
   , public
   , private
   , privatize
-  , extractUnion
-  , extractAlias
+  , extract
   --
   , eInterface, dInterface
   , eDependencyInterface, dDependencyInterface
@@ -24,19 +34,20 @@ module Elm.Interface
 import Control.Monad (liftM, liftM2, liftM3, liftM4, liftM5)
 import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
-import qualified Data.Map.Merge.Strict as Map
-import qualified Data.Map.Utils as Map
 
+import qualified Array as A
 import qualified Bytes.Decode as D
 import qualified Bytes.Encode as E
 import qualified Crash
 
-import qualified AST.Canonical as Can
+import qualified AST.Prim.Fields as F
 import qualified AST.Prim.Name as N
 import qualified AST.Prim.Operator as Op
+import qualified AST.Prim.Tag as Tag
+import qualified AST.Prim.TypeIndex as T
+import qualified AST.Prim.TypeMask as M
 import qualified AST.Prim.TypeName as T
 import qualified AST.Prim.TypeVar as T
-import qualified Data.Index as Index
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 
@@ -47,127 +58,147 @@ import qualified Elm.Package as Pkg
 
 data Interface =
   Interface
-    { _home    :: Pkg.Name
-    , _values  :: Map.Map N.Name Can.Annotation
-    , _unions  :: Map.Map T.Name Union
-    , _aliases :: Map.Map T.Name Alias
+    { _home   :: Pkg.Name
+    , _values :: Map.Map N.Name Annotation
+    , _types  :: Map.Map T.Name TypeDecl
     , _binops  :: Map.Map Op.Name Binop
     }
   deriving (Eq)
 
 
-data Union
-  = OpenUnion Can.Union
-  | ClosedUnion Can.Union
-  | PrivateUnion Can.Union
-  deriving (Eq)
-
-
-data Alias
-  = PublicAlias Can.Alias
-  | PrivateAlias Can.Alias
+data TypeDecl
+  = UnionOpen    Union
+  | UnionClosed  Union
+  | UnionPrivate Union
+  --
+  | AliasPublic  Alias
+  | AliasPrivate Alias
   deriving (Eq)
 
 
 data Binop =
-  Binop
-    { _op_name :: N.Name
-    , _op_annotation :: Can.Annotation
-    , _op_associativity :: Op.Associativity
-    , _op_precedence :: Op.Precedence
-    }
+  Binop N.Name Annotation Op.Associativity Op.Precedence
   deriving (Eq)
 
 
 
--- FROM MODULE
+-- TYPES
+--
+-- The fields of TRecord carry an index so that they can be resorted into the
+-- order they appeared in the source file. THIS ORDER IS NOT GUARANTEED TO BE
+-- CORRECT WHEN THE TYPE IS INFERRED, but it is correct in all other cases.
+--
+-- For example, adding type annotations will guarantee that your Annotation
+-- uses the explicitly stated field order. And most importantly, Aliased types
+-- preserve the source order to make sure the record constructor arguments are
+-- in the right order.
 
 
-fromModule :: Pkg.Name -> Can.Module -> Map.Map N.Name Can.Annotation -> Interface
-fromModule home (Can.Module _ exports _ _ unions aliases binops _) annotations =
-  Interface
-    { _home    = home
-    , _values  = restrictValues  exports annotations
-    , _unions  = restrictUnions  exports unions
-    , _aliases = restrictAliases exports aliases
-    , _binops  = restrictBinops  exports (Map.map (toOp annotations) binops)
-    }
+data Annotation =
+  Forall (A.Array T.Var) Type
+  deriving (Eq)
 
 
-restrictValues :: Can.Exports -> Map.Map N.Name Can.Annotation -> Map.Map N.Name Can.Annotation
-restrictValues exports dict =
-  case exports of
-    Can.ExportEverything _ ->
-      dict
-
-    Can.Export _ values _ ->
-      Map.intersection dict values
-
-
-restrictUnions :: Can.Exports -> Map.Map T.Name Can.Union -> Map.Map T.Name Union
-restrictUnions exports unions =
-  case exports of
-    Can.ExportEverything _ ->
-      Map.map OpenUnion unions
-
-    Can.Export types _ _ ->
-        Map.merge onLeft onRight onBoth types unions
-      where
-        onLeft = Map.dropMissing
-        onRight = Map.mapMissing (\_ u -> PrivateUnion u)
-        onBoth = Map.zipWithMatched $ \_ (_, export) union ->
-          case export of
-            Can.ExportUnionOpen   -> OpenUnion union
-            Can.ExportUnionClosed -> ClosedUnion union
-            Can.ExportAlias       -> $(Crash.crash 'restrictUnions) "impossible exports discovered"
-
-
-restrictAliases :: Can.Exports -> Map.Map T.Name Can.Alias -> Map.Map T.Name Alias
-restrictAliases exports aliases =
-  case exports of
-    Can.ExportEverything _ ->
-      Map.map PublicAlias aliases
-
-    Can.Export types _ _ ->
-        Map.merge onLeft onRight onBoth types aliases
-      where
-        onLeft = Map.dropMissing
-        onRight = Map.mapMissing (\_ a -> PrivateAlias a)
-        onBoth = Map.zipWithMatched (\_ _ a -> PublicAlias a)
-
-
-restrictBinops :: Can.Exports -> Map.Map Op.Name Binop -> Map.Map Op.Name Binop
-restrictBinops exports dict =
-  case exports of
-    Can.ExportEverything _ ->
-      dict
-
-    Can.Export _ _ ops ->
-      Map.intersection dict ops
-
-
-toOp :: Map.Map N.Name Can.Annotation -> Can.Binop -> Binop
-toOp types (Can.Binop_ associativity precedence name) =
-  Binop name ($(Map.require 'toOp) name types N.toChars) associativity precedence
+data Type
+  = TLambda Type Type [Type]
+  | TVar T.Index
+  | TType  ModuleName.Canonical T.Name M.Mask (A.Array Type)
+  | TAlias ModuleName.Canonical T.Name M.Mask (A.Array Type) Aliased
+  | TUnit
+  | TPair Type Type
+  | TTriple Type Type Type
+  | TEmpty
+  | TRecord (F.Fields Type)
+  | TExtRec (F.Fields Type) T.Index
+  deriving (Eq)
 
 
 
--- TO PUBLIC
+-- ALIAS
 
 
-toPublicUnion :: Union -> Maybe Can.Union
-toPublicUnion iUnion =
-  case iUnion of
-    OpenUnion union                       -> Just union
-    ClosedUnion (Can.Union vars _ _ opts) -> Just (Can.Union vars [] 0 opts)
-    PrivateUnion _                        -> Nothing
+data Alias = Alias M.Mask (A.Array T.Var) Aliased
+  deriving (Eq)
 
 
-toPublicAlias :: Alias -> Maybe Can.Alias
-toPublicAlias iAlias =
-  case iAlias of
-    PublicAlias alias -> Just alias
-    PrivateAlias _    -> Nothing
+newtype Aliased = Aliased Type
+  deriving (Eq)
+
+
+
+-- UNION
+
+
+data Union =
+  Union M.Mask (A.Array T.Var) Variants
+  deriving (Eq)
+
+
+data Variants
+  = Variants (Tag.Table Variant)
+  | Enum     (Tag.Table N.Name)
+  | Vector N.Name Type Type [Type]
+  | Box    N.Name Type
+  | Void   N.Name
+  deriving (Eq)
+
+
+data Variant = Variant N.Name [Type]
+  deriving (Eq)
+
+
+
+-- DEALIAS
+
+
+dealias :: A.Array Type -> Aliased -> Type
+dealias args (Aliased aliased) =
+    go aliased
+  where
+    go tipe =
+      case tipe of
+        TLambda x y zs    -> TLambda (go x) (go y) (map go zs)
+        TVar   i          -> T.get i args
+        TType  h n m xs   -> TType  h n m (A.map go xs)
+        TAlias h n m xs t -> TAlias h n m (A.map go xs) t
+        TUnit             -> TUnit
+        TPair   a b       -> TPair (go a) (go b)
+        TTriple a b c     -> TTriple (go a) (go b) (go c)
+        TEmpty            -> TEmpty
+        TRecord fs        -> TRecord (F.map go fs)
+        TExtRec fs ext    -> extend (F.map go fs) (T.get ext args)
+
+    extend fields tipe =
+      case tipe of
+        TEmpty            -> TRecord fields
+        TRecord fs        -> TRecord (F.extend fields fs)
+        TExtRec fs ext    -> extend  (F.extend fields fs) (T.get ext args)
+        TVar i            -> TExtRec fields i
+        TAlias _ _ _ xs t -> extend fields (dealias (A.map go xs) t)
+        TType  _ _ _ _    -> $(Crash.crash 'dealias) "ran into invalid record extension (Union)"
+        TLambda _ _ _     -> $(Crash.crash 'dealias) "ran into invalid record extension (Lambda)"
+        TUnit             -> $(Crash.crash 'dealias) "ran into invalid record extension (Unit)"
+        TPair _ _         -> $(Crash.crash 'dealias) "ran into invalid record extension (Pair)"
+        TTriple _ _ _     -> $(Crash.crash 'dealias) "ran into invalid record extension (Triple)"
+
+
+
+-- DEEP DEALIAS
+
+
+deepDealias :: Type -> Type
+deepDealias tipe =
+  case tipe of
+    TLambda a b cs    -> TLambda (deepDealias a) (deepDealias b) (map deepDealias cs)
+    TVar _            -> tipe
+    TType  h n m xs   -> TType h n m (A.map deepDealias xs)
+    TAlias _ _ _ xs t -> deepDealias (dealias xs t)
+    TUnit             -> TUnit
+    TPair   a b       -> TPair   (deepDealias a) (deepDealias b)
+    TTriple a b c     -> TTriple (deepDealias a) (deepDealias b) (deepDealias c)
+    TEmpty            -> TEmpty
+    TRecord fs        -> TRecord (F.map deepDealias fs)
+    TExtRec fs x      -> TExtRec (F.map deepDealias fs) x
 
 
 
@@ -176,10 +207,12 @@ toPublicAlias iAlias =
 
 data DependencyInterface
   = Public Interface
-  | Private
-      Pkg.Name
-      (Map.Map T.Name Can.Union)
-      (Map.Map T.Name Can.Alias)
+  | Private Pkg.Name (Map.Map T.Name PrivateTypeDecl)
+
+
+data PrivateTypeDecl
+  = PrivateUnion Union
+  | PrivateAlias Alias
 
 
 public :: Interface -> DependencyInterface
@@ -188,87 +221,82 @@ public =
 
 
 private :: Interface -> DependencyInterface
-private (Interface pkg _ unions aliases _) =
-  Private pkg (Map.map extractUnion unions) (Map.map extractAlias aliases)
+private (Interface pkg _ types _) =
+  Private pkg (Map.map (extract PrivateUnion PrivateAlias) types)
 
 
-extractUnion :: Union -> Can.Union
-extractUnion iUnion =
-  case iUnion of
-    OpenUnion union -> union
-    ClosedUnion union -> union
-    PrivateUnion union -> union
-
-
-extractAlias :: Alias -> Can.Alias
-extractAlias iAlias =
-  case iAlias of
-    PublicAlias alias -> alias
-    PrivateAlias alias -> alias
+extract :: (Union -> a) -> (Alias -> a) -> TypeDecl -> a
+extract okU okA decl =
+  case decl of
+    UnionOpen    u -> okU u
+    UnionClosed  u -> okU u
+    UnionPrivate u -> okU u
+    AliasPublic  a -> okA a
+    AliasPrivate a -> okA a
 
 
 privatize :: DependencyInterface -> DependencyInterface
 privatize di =
   case di of
-    Public i -> private i
-    Private _ _ _ -> di
+    Public  i   -> private i
+    Private _ _ -> di
 
 
 
--- BINARY
+--------------------------------------------------------------------------------
+-- BINARY ----------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+
+-- INTERFACE
 
 
 eInterface :: Interface -> E.Builder
-eInterface (Interface h vs us as bs) =
+eInterface (Interface h vs ts bs) =
   Pkg.eName h
   <> E.dict32 N.encode eAnnotation vs
-  <> E.dict32 T.encode eUnion us
-  <> E.dict32 T.encode eAlias as
+  <> E.dict32 T.encode eTypeDecl ts
   <> E.dict32 Op.encode eBinop bs
 
 
 dInterface :: D.Decoder Interface
 dInterface =
-  liftM5 Interface
+  liftM4 Interface
     Pkg.dName
     (D.dict32 N.decode dAnnotation)
-    (D.dict32 T.decode dUnion)
-    (D.dict32 T.decode dAlias)
+    (D.dict32 T.decode dTypeDecl)
     (D.dict32 Op.decode dBinop)
 
 
-eUnion :: Union -> E.Builder
-eUnion union =
+
+-- TYPE DECL
+
+
+eTypeDecl :: TypeDecl -> E.Builder
+eTypeDecl union =
   case union of
-    OpenUnion    u -> E.u8# 0#Word8 <> eUnion_ u
-    ClosedUnion  u -> E.u8# 1#Word8 <> eUnion_ u
-    PrivateUnion u -> E.u8# 2#Word8 <> eUnion_ u
+    UnionOpen    u -> E.u8# 0#Word8 <> eUnion u
+    UnionClosed  u -> E.u8# 1#Word8 <> eUnion u
+    UnionPrivate u -> E.u8# 2#Word8 <> eUnion u
+    AliasPublic  a -> E.u8# 3#Word8 <> eAlias a
+    AliasPrivate a -> E.u8# 4#Word8 <> eAlias a
 
 
-dUnion :: D.Decoder Union
-dUnion =
+dTypeDecl :: D.Decoder TypeDecl
+dTypeDecl =
   do  n <- D.u8
       case n of
-        0 -> OpenUnion <$> dUnion_
-        1 -> ClosedUnion <$> dUnion_
-        2 -> PrivateUnion <$> dUnion_
-        _ -> D.expecting "Union"
+        0 -> UnionOpen    <$> dUnion
+        1 -> UnionClosed  <$> dUnion
+        2 -> UnionPrivate <$> dUnion
+        3 -> AliasPublic  <$> dAlias
+        4 -> AliasPrivate <$> dAlias
+        _ -> D.expecting "TypeDecl"
 
 
-eAlias :: Alias -> E.Builder
-eAlias alias =
-  case alias of
-    PublicAlias  a -> E.u8# 0#Word8 <> eAlias_ a
-    PrivateAlias a -> E.u8# 1#Word8 <> eAlias_ a
 
-
-dAlias :: D.Decoder Alias
-dAlias =
-  do  n <- D.u8
-      case n of
-        0 -> PublicAlias  <$> dAlias_
-        1 -> PrivateAlias <$> dAlias_
-        _ -> D.expecting "Alias"
+-- BINOP
 
 
 eBinop :: Binop -> E.Builder
@@ -309,11 +337,15 @@ eAssociativity assoc =
     Op.Right -> E.u8# 2#Word8
 
 
+
+-- DEPENDENCY INTERFACE
+
+
 eDependencyInterface :: DependencyInterface -> E.Builder
 eDependencyInterface iface =
   case iface of
-    Public  i     -> E.u8# 0#Word8 <> eInterface i
-    Private n u a -> E.u8# 1#Word8 <> Pkg.eName n <> E.dict32 T.encode eUnion_ u <> E.dict32 T.encode eAlias_ a
+    Public  i   -> E.u8# 0#Word8 <> eInterface i
+    Private n t -> E.u8# 1#Word8 <> Pkg.eName n <> E.dict32 T.encode ePrivateTypeDecl t
 
 
 dDependencyInterface :: D.Decoder DependencyInterface
@@ -321,104 +353,154 @@ dDependencyInterface =
   do  n <- D.u8
       case n of
         0 -> liftM  Public dInterface
-        1 -> liftM3 Private Pkg.dName (D.dict32 T.decode dUnion_) (D.dict32 T.decode dAlias_)
+        1 -> liftM2 Private Pkg.dName (D.dict32 T.decode dPrivateTypeDecl)
         _ -> D.expecting "DependencyInterface"
 
 
-
--- BINARY HELPERS
-
-
-eAlias_ :: Can.Alias -> E.Builder
-eAlias_ (Can.Alias vs t) =
-  E.list8 T.eVar vs <> eType t
+ePrivateTypeDecl :: PrivateTypeDecl -> E.Builder
+ePrivateTypeDecl union =
+  case union of
+    PrivateUnion u -> E.u8# 0#Word8 <> eUnion u
+    PrivateAlias a -> E.u8# 1#Word8 <> eAlias a
 
 
-dAlias_ :: D.Decoder Can.Alias
-dAlias_ =
-  liftM2 Can.Alias (D.list8 T.dVar) dType
+dPrivateTypeDecl :: D.Decoder PrivateTypeDecl
+dPrivateTypeDecl =
+  do  n <- D.u8
+      case n of
+        0 -> PrivateUnion <$> dUnion
+        1 -> PrivateAlias <$> dAlias
+        _ -> D.expecting "PrivateTypeDecl"
 
 
-eUnion_ :: Can.Union -> E.Builder
-eUnion_ (Can.Union vs cs n opts) =
-  E.list8 T.eVar vs <> E.list32 eCtor cs <> E.int n <> Can.eCtorOpts opts
+
+-- ALIAS
 
 
-dUnion_ :: D.Decoder Can.Union
-dUnion_ =
-  liftM4 Can.Union (D.list8 T.dVar) (D.list32 dCtor) D.int Can.dCtorOpts
+eAlias :: Alias -> E.Builder
+eAlias (Alias m vs t) =
+  M.eMask m <> E.array8 T.eVar vs <> eAliased t
 
 
-eCtor :: Can.Ctor -> E.Builder
-eCtor (Can.Ctor n i a t) =
-  N.encode n <> Index.eZeroBased i <> E.int a <> E.list8 eType t
+dAlias :: D.Decoder Alias
+dAlias =
+  liftM3 Alias M.dMask (D.array8 T.dVar) dAliased
 
 
-dCtor :: D.Decoder Can.Ctor
-dCtor =
-  liftM4 Can.Ctor N.decode Index.dZeroBased D.int (D.list8 dType)
+
+-- UNION
 
 
-eAnnotation :: Can.Annotation -> E.Builder
-eAnnotation (Can.Forall vs t) =
-  E.dict8 T.eVar (\() -> mempty) vs <> eType t
+eUnion :: Union -> E.Builder
+eUnion (Union m xs vs) =
+  M.eMask m <> E.array8 T.eVar xs <> eVariants vs
 
 
-dAnnotation :: D.Decoder Can.Annotation
+dUnion :: D.Decoder Union
+dUnion =
+  liftM3 Union M.dMask (D.array8 T.dVar) dVariants
+
+
+
+-- VARIANTS
+
+
+eVariants :: Variants -> E.Builder
+eVariants variants =
+  case variants of
+    Variants     vs -> E.u8 0 <> Tag.eTable eVariant vs
+    Enum         es -> E.u8 1 <> Tag.eTable N.encode es
+    Vector n a b cs -> E.u8 2 <> N.encode n <> eType a <> eType b <> E.list8 eType cs
+    Box    n a      -> E.u8 3 <> N.encode n <> eType a
+    Void   n        -> E.u8 4 <> N.encode n
+
+
+dVariants :: D.Decoder Variants
+dVariants =
+  do  tag <- D.u8
+      case tag of
+        0 -> D.map1 Variants (Tag.dTable dVariant)
+        1 -> D.map1 Enum     (Tag.dTable N.decode)
+        2 -> D.map4 Vector N.decode dType dType (D.list8 dType)
+        3 -> D.map2 Box    N.decode dType
+        4 -> D.map1 Void   N.decode
+        _ -> D.expecting "Variants"
+
+
+
+-- VARIANT
+
+
+eVariant :: Variant -> E.Builder
+eVariant (Variant n ts) =
+  N.encode n <> E.list8 eType ts
+
+
+dVariant :: D.Decoder Variant
+dVariant =
+  liftM2 Variant N.decode (D.list8 dType)
+
+
+
+-- ANNOTATION
+
+
+eAnnotation :: Annotation -> E.Builder
+eAnnotation (Forall xs t) =
+  E.array8 T.eVar xs <> eType t
+
+
+dAnnotation :: D.Decoder Annotation
 dAnnotation =
-  liftM2 Can.Forall (D.dict8 T.dVar (pure ())) dType
+  liftM2 Forall (D.array8 T.dVar) dType
 
 
-eType :: Can.Type -> E.Builder
+
+-- TYPE
+
+
+eType :: Type -> E.Builder
 eType tipe =
   case tipe of
-    Can.TLambda a b     -> E.u8# 0#Word8 <> eType a <> eType b
-    Can.TVar x          -> E.u8# 1#Word8 <> T.eVar x
-    Can.TRecord fs e    -> E.u8# 2#Word8 <> E.dict32 N.encode eFieldType fs <> E.maybe T.eVar e
-    Can.TUnit           -> E.u8# 3#Word8
-    Can.TPair   a b     -> E.u8# 4#Word8 <> eType a <> eType b
-    Can.TTriple a b c   -> E.u8# 5#Word8 <> eType a <> eType b <> eType c
-    Can.TAlias h n xs a -> E.u8# 6#Word8 <> ModuleName.eCanonical h <> T.encode n <> E.list8 (\(x,t) -> T.eVar x <> eType t) xs <> eAliasType a
-    Can.TType  h n xs   -> E.u8# 7#Word8 <> ModuleName.eCanonical h <> T.encode n <> E.list8 eType xs
+    TLambda a b cs    -> E.u8# 0#Word8 <> eType a <> eType b <> E.list8 eType cs
+    TVar i            -> E.u8# 1#Word8 <> T.eIndex i
+    TType  h n m xs   -> E.u8# 2#Word8 <> ModuleName.eCanonical h <> T.encode n <> M.eMask m <> E.array8 eType xs
+    TAlias h n m xs a -> E.u8# 3#Word8 <> ModuleName.eCanonical h <> T.encode n <> M.eMask m <> E.array8 eType xs <> eAliased a
+    TUnit             -> E.u8# 4#Word8
+    TPair   a b       -> E.u8# 5#Word8 <> eType a <> eType b
+    TTriple a b c     -> E.u8# 6#Word8 <> eType a <> eType b <> eType c
+    TEmpty            -> E.u8# 7#Word8
+    TRecord fs        -> E.u8# 8#Word8 <> F.encode eType fs
+    TExtRec fs i      -> E.u8# 9#Word8 <> F.encode eType fs <> T.eIndex i
 
 
-dType :: D.Decoder Can.Type
+dType :: D.Decoder Type
 dType =
   do  word <- D.u8
       case word of
-        0 -> liftM2 Can.TLambda dType dType
-        1 -> liftM  Can.TVar T.dVar
-        2 -> liftM2 Can.TRecord (D.dict32 N.decode dFieldType) (D.maybe T.dVar)
-        3 -> return Can.TUnit
-        4 -> liftM2 Can.TPair dType dType
-        5 -> liftM3 Can.TTriple dType dType dType
-        6 -> liftM4 Can.TAlias ModuleName.dCanonical T.decode (D.list8 (liftM2 (,) T.dVar dType)) dAliasType
-        7 -> liftM3 Can.TType ModuleName.dCanonical T.decode (D.list8 dType)
+        0 -> liftM3 TLambda dType dType (D.list8 dType)
+        1 -> liftM  TVar T.dIndex
+        2 -> liftM4 TType  ModuleName.dCanonical T.decode M.dMask (D.array8 dType)
+        3 -> liftM5 TAlias ModuleName.dCanonical T.decode M.dMask (D.array8 dType) dAliased
+        4 -> pure   TUnit
+        5 -> liftM2 TPair   dType dType
+        6 -> liftM3 TTriple dType dType dType
+        7 -> pure   TEmpty
+        8 -> liftM  TRecord (F.decode dType)
+        9 -> liftM2 TExtRec (F.decode dType) T.dIndex
         _ -> D.expecting "Type"
 
 
-eAliasType :: Can.AliasType -> E.Builder
-eAliasType aliasType =
-  case aliasType of
-    Can.Holey  tipe -> E.u8 0 <> eType tipe
-    Can.Filled tipe -> E.u8 1 <> eType tipe
+
+-- ALIASED
 
 
-dAliasType :: D.Decoder Can.AliasType
-dAliasType =
-  do  n <- D.u8
-      case n of
-        0 -> liftM Can.Holey dType
-        1 -> liftM Can.Filled dType
-        _ -> D.expecting "AliasType"
+eAliased :: Aliased -> E.Builder
+eAliased =
+  coerce eType
 
 
-eFieldType :: Can.FieldType -> E.Builder
-eFieldType (Can.FieldType i t) =
-  E.u16 i <> eType t
-
-
-dFieldType :: D.Decoder Can.FieldType
-dFieldType =
-  liftM2 Can.FieldType D.u16 dType
+dAliased :: D.Decoder Aliased
+dAliased =
+  coerce dType
 
