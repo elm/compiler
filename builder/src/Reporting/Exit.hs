@@ -2042,7 +2042,7 @@ reactorToReport problem =
 
 data Repl
   = ReplBadDetails Details
-  | ReplBadInput R.Root BS.ByteString Error.Error
+  | ReplBadInput R.Root BS.ByteString Error.Errors
   | ReplBadLocalDeps R.Root Error.Module [Error.Module]
   | ReplProjectProblem BuildProjectProblem
   | ReplBadGenerate Generate
